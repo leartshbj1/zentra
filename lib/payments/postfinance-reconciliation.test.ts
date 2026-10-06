@@ -5,15 +5,24 @@ import { createHmac } from 'node:crypto';
 import {
   reconcilePostFinanceJobs,
   type PostFinanceReconciliationConfiguration,
-} from './postfinance-reconciliation';
-import { D1PostFinanceWebhookInbox } from './postfinance-store';
+} from '@/lib/payments/postfinance-reconciliation';
+import { D1PostFinanceWebhookInbox } from '@/lib/payments/postfinance-store';
 import {
   D1PrepaidPeriods,
   type PrepaidPeriod,
   type PrepaidContractInput,
-} from './prepaid-periods';
-import { D1PrepaidReconciliationStore } from './prepaid-reconciliation-store';
-import { prepaidCompanyAccess } from './prepaid-access';
+} from '@/lib/payments/prepaid-periods';
+import { D1PrepaidReconciliationStore } from '@/lib/payments/prepaid-reconciliation-store';
+import {
+  prepaidCompanyAccess,
+  prepaidSupportAccess,
+  prepaidAutomationAccess,
+} from '@/lib/payments/prepaid-access';
+import { D1PrepaidObservations } from '@/lib/payments/prepaid-observation-store';
+import { SUPPORT_LEGAL_VERSION } from '@/lib/support/plans';
+import { COMPLETE_TERMS_VERSION } from '@/lib/complete/plans';
+import { AUTOMATION_TERMS_VERSION } from '@/lib/automation/billing';
+import { AUTOMATION_CONSENT_VERSION } from '@/lib/automation/config';
 
 const runtime = vi.hoisted(() => ({ database: null as unknown }));
 vi.mock('@/lib/runtime', () => ({
@@ -26,9 +35,9 @@ vi.mock('@/lib/runtime', () => ({
     signingKey: '',
   }),
 }));
-import { prepareInitialPrepaidPurchase } from './prepaid-purchase-preparation';
-import { prepaidProduct } from './prepaid-catalog';
-import { D1PurchaseIntents } from './purchase-intents';
+import { prepareInitialPrepaidPurchase } from '@/lib/payments/prepaid-purchase-preparation';
+import { prepaidProduct } from '@/lib/payments/prepaid-catalog';
+import { D1PurchaseIntents } from '@/lib/payments/purchase-intents';
 import { LEGAL_VERSION } from '@/lib/legal';
 
 type Json = Record<string, unknown>;
@@ -361,7 +370,13 @@ const run = (config = configuration(), maximumJobs = 1) =>
     { database: d1, fetch: transport, now: () => time * 1000 },
     maximumJobs,
   );
-async function prepareNewFlow() {
+async function prepareNewFlow(
+  productKey = 'gestion:start',
+  options: { webhook?: boolean; environment?: 'TEST' | 'PRODUCTION' } = {},
+) {
+  const product = prepaidProduct(productKey)!;
+  const environment = options.environment ?? 'PRODUCTION';
+  const workspace = 'workspace-new-worker';
   const company = 'original-company-worker',
     previous = 'trial_original_worker';
   sql
@@ -375,7 +390,18 @@ async function prepareNewFlow() {
     .prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
     VALUES('new-worker-owner',?,?,?,'owner',?)`)
     .run(company, identity.ownerId, 'owner@example.test', time);
-  const product = prepaidProduct('gestion:start')!;
+  if (product.productKind === 'automation')
+    sql
+      .prepare(
+        `UPDATE subscriptions SET status='active',plan_id='zentra-start-monthly-59-chf',entitlement_plan_id='zentra-start-monthly-59-chf',seat_limit=3,current_period_end=?,entitlement_valid_until=?,livemode=1 WHERE subscription_id=?`,
+      )
+      .run(time + 86400, time + 86400, previous);
+  if (product.support)
+    sql
+      .prepare(
+        'INSERT INTO support_workspaces(id,owner_id,name,created_at,updated_at) VALUES(?,?,?,?,?)',
+      )
+      .run(workspace, identity.ownerId, 'Workspace fictif', time, time);
   const result = await prepareInitialPrepaidPurchase(
     {
       enabled: true,
@@ -387,13 +413,13 @@ async function prepareNewFlow() {
         prepaidFeatureEnabled: true,
         chargeFlowEnabled: true,
         postfinancePayTokenEnabled: true,
-        prepaidEnvironment: 'PRODUCTION',
+        prepaidEnvironment: environment,
         returnOrigin: 'https://zentra.example.test',
         prepaidProducts: {
-          'gestion:start': {
+          [productKey]: {
             currency: 'CHF',
             billingPeriod: 'P1M',
-            priceChfMinor: 5900,
+            priceChfMinor: product.priceChfMinor,
             reference: product.catalogVersion,
             name: product.name,
             methodConfigurations: { postfinance_pay: 91 },
@@ -409,10 +435,21 @@ async function prepareNewFlow() {
       },
       requestId: '22222222-2222-4222-8222-222222222222',
       productKey: product.productKey,
-      organizationId: company,
+      organizationId: product.productKind === 'support' ? undefined : company,
+      workspaceId: product.support ? workspace : undefined,
       method: 'postfinance_pay',
       acceptTerms: true,
-      legalVersion: LEGAL_VERSION,
+      legalVersion:
+        product.productKind === 'gestion'
+          ? LEGAL_VERSION
+          : product.productKind === 'support'
+            ? SUPPORT_LEGAL_VERSION
+            : product.productKind === 'complete'
+              ? COMPLETE_TERMS_VERSION
+              : AUTOMATION_TERMS_VERSION,
+      ...(product.productKind === 'automation'
+        ? { consentVersion: AUTOMATION_CONSENT_VERSION }
+        : {}),
     },
     { database: d1, now: () => time },
   );
@@ -429,7 +466,7 @@ async function prepareNewFlow() {
     171,
     181,
     result.expectation.customerReference,
-    'PRODUCTION',
+    environment,
   );
   const connector = {
     id: 92,
@@ -460,13 +497,13 @@ async function prepareNewFlow() {
     linkedSpaceId: 405,
     version: 0,
     state: 'ACTIVE',
-    environment: 'PRODUCTION',
+    environment,
     token: { id: 101 },
     paymentConnectorConfiguration: connector,
     paymentMethod: { id: 93 },
   };
-  await enqueue('transaction', 19, 171);
-  return { result, company, previous, token, activeVersion };
+  if (options.webhook !== false) await enqueue('transaction', 19, 171);
+  return { result, company, workspace, previous, token, activeVersion };
 }
 function tokenReads(token: Json, activeVersion: Json, available = true) {
   return (url: URL) => {
@@ -500,12 +537,13 @@ beforeEach(async () => {
   sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys=ON');
   sql.function('unixepoch', () => time);
-  for (const name of readdirSync(new URL('../../drizzle/', import.meta.url))
+  const migrationDirectory = process.env.ZENTRA_QA_MIGRATIONS_DIRECTORY
+    ? new URL(process.env.ZENTRA_QA_MIGRATIONS_DIRECTORY)
+    : new URL('../../drizzle/', import.meta.url);
+  for (const name of readdirSync(migrationDirectory)
     .filter((value) => value.endsWith('.sql'))
     .sort())
-    sql.exec(
-      readFileSync(new URL(`../../drizzle/${name}`, import.meta.url), 'utf8'),
-    );
+    sql.exec(readFileSync(new URL(name, migrationDirectory), 'utf8'));
   runtime.database = d1();
   period = await createBoundContract();
   unexpectedNetwork = vi
@@ -1245,5 +1283,285 @@ describe('relay settlement counters with real stores', () => {
       lost: 0,
     });
     expect(prepared).toHaveLength(before);
+  });
+});
+
+const observationConfig = (
+  extra: Partial<PostFinanceReconciliationConfiguration> = {},
+) =>
+  configuration({
+    listeners: [],
+    observations: { enabled: true, environment: 'PRODUCTION' },
+    ...extra,
+  });
+const observationRow = () =>
+  sql
+    .prepare(
+      'SELECT state,attempts,due_at,last_error_code,provenance FROM postfinance_observation_jobs',
+    )
+    .get();
+function observationRetry() {
+  const due = Number(observationRow()?.due_at);
+  expect(due).toBeGreaterThan(time);
+  advance(due - time);
+}
+async function paidObservationFixture(productKey = 'gestion:start') {
+  const fixture = await prepareNewFlow(productKey, { webhook: false });
+  override = tokenReads(fixture.token, fixture.activeVersion);
+  return fixture;
+}
+describe('explicit settlement observations through the real GET-only worker', () => {
+  it.each(['gestion:start', 'support:team', 'automation', 'complet:team'])(
+    'settles %s with no webhook and exact catalog rights/token',
+    async (productKey) => {
+      const fixture = await paidObservationFixture(productKey),
+        product = prepaidProduct(productKey)!;
+      expect(count('postfinance_webhook_inbox')).toBe(0);
+      expect(count('prepaid_settlement_proofs')).toBe(0);
+      expect(count('prepaid_purchase_projections')).toBe(0);
+      expect(count('prepaid_tokens')).toBe(0);
+      expect(await prepaidCompanyAccess(fixture.company)).toBeNull();
+      expect(await prepaidSupportAccess(fixture.workspace)).toBeNull();
+      expect(await prepaidAutomationAccess(fixture.company)).toBeNull();
+      const result = await run(observationConfig());
+      expect(result).toMatchObject({
+        claimed: 1,
+        completed: 1,
+        waiting: 0,
+        lost: 0,
+      });
+      expect(count('prepaid_settlement_proofs')).toBe(1);
+      expect(count('prepaid_purchase_projections')).toBe(1);
+      expect(count('prepaid_tokens')).toBe(1);
+      expect(count('postfinance_webhook_inbox')).toBe(0);
+      expect(observationRow()).toMatchObject({
+        state: 'completed',
+        attempts: 1,
+        provenance: 'bound_fallback',
+      });
+      const access =
+        product.productKind === 'support'
+          ? await prepaidSupportAccess(fixture.workspace)
+          : product.productKind === 'automation'
+            ? await prepaidAutomationAccess(fixture.company)
+            : await prepaidCompanyAccess(fixture.company);
+      expect(access?.catalog.productKey).toBe(productKey);
+      if (product.gestion)
+        expect(access?.catalog.gestion?.seats).toBe(product.gestion.seats);
+      if (product.support)
+        expect(
+          (await prepaidSupportAccess(fixture.workspace))?.catalog.support
+            ?.analyses,
+        ).toBe(product.support.analyses);
+      expect(
+        requests.every(
+          (r) => r.init.method === 'GET' && r.init.body === undefined,
+        ),
+      ).toBe(true);
+      expect(
+        sql.prepare('SELECT scope_hash FROM prepaid_purchase_projections').get()
+          ?.scope_hash,
+      ).toBe(
+        sql.prepare('SELECT scope_hash FROM postfinance_observation_jobs').get()
+          ?.scope_hash,
+      );
+      const snapshot = sql
+        .prepare('SELECT * FROM prepaid_purchase_projections')
+        .all();
+      expect(await run(observationConfig())).toMatchObject({ claimed: 0 });
+      expect(
+        sql.prepare('SELECT * FROM prepaid_purchase_projections').all(),
+      ).toEqual(snapshot);
+    },
+  );
+  it('does not widen a server TEST owner allowlist and refuses before any provider read', async () => {
+    await paidObservationFixture();
+    const result = await run(
+      observationConfig({
+        observations: {
+          enabled: true,
+          environment: 'PRODUCTION',
+          ownerIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+        },
+      }),
+    );
+    expect(result).toMatchObject({ claimed: 1, waiting: 1, completed: 0 });
+    expect(requests).toHaveLength(0);
+    expect(observationRow()).toMatchObject({
+      last_error_code: 'ownership_mismatch',
+    });
+    expect(count('prepaid_settlement_proofs')).toBe(0);
+  });
+  it('a TEST observation is read honestly but cannot create PRODUCTION rights', async () => {
+    const fixture = await prepareNewFlow('gestion:start', {
+      webhook: false,
+      environment: 'TEST',
+    });
+    override = tokenReads(fixture.token, fixture.activeVersion);
+    const result = await run(
+      observationConfig({
+        observations: { enabled: true, environment: 'TEST' },
+      }),
+    );
+    expect(result).toMatchObject({ claimed: 1, completed: 0, waiting: 1 });
+    expect(count('prepaid_settlement_proofs')).toBe(0);
+    expect(count('prepaid_purchase_projections')).toBe(0);
+    expect(count('prepaid_tokens')).toBe(0);
+  });
+  it('keeps a terminal failed-eight webhook byte-exact while independently settling its observation', async () => {
+    await paidObservationFixture();
+    await enqueue('transaction', 190, 171);
+    sql
+      .prepare(
+        "UPDATE postfinance_webhook_inbox SET state='failed',attempts=8,last_error_code='provider_unavailable'",
+      )
+      .run();
+    const original = sql
+      .prepare('SELECT * FROM postfinance_webhook_inbox')
+      .all();
+    expect(await run(observationConfig({ listeners }))).toMatchObject({
+      claimed: 1,
+      completed: 1,
+    });
+    expect(
+      sql.prepare('SELECT * FROM postfinance_webhook_inbox').all(),
+    ).toEqual(original);
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+  });
+  it('replicas claiming the same observation never duplicate its proof/projection/token', async () => {
+    await paidObservationFixture();
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () => run(observationConfig())),
+    );
+    expect(results.reduce((n, r) => n + r.completed, 0)).toBe(1);
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+    expect(count('prepaid_purchase_projections')).toBe(1);
+    expect(count('prepaid_tokens')).toBe(1);
+  });
+  it('a pending read schedules only its observation and a stable retry grants once', async () => {
+    await paidObservationFixture();
+    transactions.get(171)!.state = 'PENDING';
+    expect(await run(observationConfig())).toMatchObject({
+      waiting: 1,
+      settlementWaiting: 1,
+      completed: 0,
+    });
+    expect(count('prepaid_settlement_proofs')).toBe(0);
+    observationRetry();
+    transactions.get(171)!.state = 'FULFILL';
+    expect(await run(observationConfig())).toMatchObject({
+      claimed: 1,
+      completed: 1,
+    });
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+  });
+  it('uses one due-time queue instead of prioritizing all webhooks ahead of observations', async () => {
+    await paidObservationFixture();
+    await new D1PrepaidObservations(d1(), () => time).admitBoundTransactions({
+      apiOrigin: origin,
+      spaceId: 405,
+      environment: 'PRODUCTION',
+    });
+    advance(1);
+    await enqueue('transaction', 191, 71);
+    transactions.get(71)!.state = 'PENDING';
+    expect(await run(observationConfig({ listeners }))).toMatchObject({
+      claimed: 1,
+      completed: 1,
+    });
+    expect(workRow()).toMatchObject({ state: 'pending', attempts: 0 });
+    expect(await run(observationConfig({ listeners }))).toMatchObject({
+      claimed: 1,
+      waiting: 1,
+      settlementWaiting: 1,
+    });
+  });
+  it('a negative stable transaction revokes before invoice searches and a late paid webhook cannot restore it', async () => {
+    const fixture = await paidObservationFixture();
+    transactions.get(171)!.refundedAmount = 10;
+    expect(await run(observationConfig())).toMatchObject({
+      claimed: 1,
+      completed: 1,
+    });
+    expect(count('prepaid_effective_revocations')).toBe(1);
+    expect(count('prepaid_purchase_projections')).toBe(0);
+    expect(count('prepaid_tokens')).toBe(0);
+    expect(requests.some((r) => r.url.pathname.includes('/invoices/'))).toBe(
+      false,
+    );
+    transactions.get(171)!.refundedAmount = 0;
+    await enqueue('transaction', 192, 171);
+    await run(configuration());
+    expect(await prepaidCompanyAccess(fixture.company)).toBeNull();
+    expect(count('prepaid_purchase_projections')).toBe(0);
+  });
+  it('a lost observation lease after provider reads cannot write a positive fact', async () => {
+    const fixture = await paidObservationFixture();
+    const tokens = tokenReads(fixture.token, fixture.activeVersion);
+    let interrupted = false;
+    override = (url) => {
+      if (!interrupted && url.pathname.endsWith('/refunds/search')) {
+        interrupted = true;
+        advance(301);
+      }
+      return tokens(url);
+    };
+    expect(await run(observationConfig())).toMatchObject({
+      lost: 1,
+      completed: 0,
+    });
+    expect(count('prepaid_settlement_proofs')).toBe(0);
+    expect(count('prepaid_purchase_projections')).toBe(0);
+  });
+  it('version changes during exhaustive reads stay pending without any grant', async () => {
+    const fixture = await paidObservationFixture();
+    const tokens = tokenReads(fixture.token, fixture.activeVersion);
+    let changed = false;
+    override = (url) => {
+      if (!changed && url.pathname.endsWith('/invoices/search')) {
+        changed = true;
+        transactions.get(171)!.version = 8;
+      }
+      return tokens(url);
+    };
+    expect(await run(observationConfig())).toMatchObject({
+      waiting: 1,
+      settlementWaiting: 0,
+      completed: 0,
+    });
+    expect(count('prepaid_settlement_proofs')).toBe(0);
+  });
+  it('token failure preserves paid rights but only GET retry can finish the observation', async () => {
+    const fixture = await paidObservationFixture();
+    override = tokenReads(fixture.token, fixture.activeVersion, false);
+    expect(await run(observationConfig())).toMatchObject({
+      waiting: 1,
+      completed: 0,
+    });
+    expect(count('prepaid_purchase_projections')).toBe(1);
+    expect(count('prepaid_tokens')).toBe(0);
+    observationRetry();
+    override = tokenReads(fixture.token, fixture.activeVersion);
+    expect(await run(observationConfig())).toMatchObject({ completed: 1 });
+    expect(count('prepaid_purchase_projections')).toBe(1);
+    expect(count('prepaid_tokens')).toBe(1);
+  });
+  it('expired attempt eight is terminal and fallback does not reset the observation', async () => {
+    await paidObservationFixture();
+    transactions.get(171)!.state = 'PENDING';
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      if (attempt > 1) observationRetry();
+      await run(observationConfig());
+    }
+    expect(observationRow()).toMatchObject({ state: 'failed', attempts: 8 });
+    const previous = sql
+      .prepare('SELECT * FROM postfinance_observation_jobs')
+      .all();
+    advance(7200);
+    expect(await run(observationConfig())).toMatchObject({ claimed: 0 });
+    expect(
+      sql.prepare('SELECT * FROM postfinance_observation_jobs').all(),
+    ).toEqual(previous);
+    expect(count('prepaid_settlement_proofs')).toBe(0);
   });
 });

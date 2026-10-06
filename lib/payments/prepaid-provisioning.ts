@@ -2,7 +2,11 @@ import {
   D1PrepaidReconciliationStore,
   type SettlementRecord,
 } from './prepaid-reconciliation-store';
-import type { WebhookWork } from './postfinance-store';
+import {
+  assertSettlementWork,
+  settlementWorkFence,
+  type SettlementWork,
+} from './prepaid-settlement-work';
 import type { PrepaidProduct } from './prepaid-catalog';
 
 type Database = Pick<D1Database, 'prepare' | 'batch'>;
@@ -38,6 +42,7 @@ type TargetRow = {
   previous_subscription_id: string | null;
 };
 type ProjectionRow = {
+  invoice_id: number | null;
   closed_at: number | null;
   evidence_fingerprint: string;
   owner_id: string;
@@ -83,15 +88,6 @@ function matches(target: PrepaidPurchaseTarget, row: TargetRow) {
     target.previousSubscriptionId === row.previous_subscription_id
   );
 }
-async function digest(value: string) {
-  return Array.from(
-    new Uint8Array(
-      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)),
-    ),
-    (byte) => byte.toString(16).padStart(2, '0'),
-  ).join('');
-}
-
 /** Private first-period handoff. No merchant calls, licence issuance, renewals
  * or status-derived rights. Migration 0078's mandatory projection/closure
  * triggers make any lost owner, target, lease or proof roll back the batch. */
@@ -132,21 +128,14 @@ export class D1PrepaidProvisioning {
 
   async provision(
     proof: SettlementRecord,
-    work: WebhookWork,
+    work: SettlementWork,
   ): Promise<PrepaidProvisioningResult> {
     const now = this.clock();
     if (
       !positive(now) ||
       !positive(proof.invoiceId) ||
       !hash(proof.evidenceFingerprint) ||
-      proof.environment !== 'PRODUCTION' ||
-      !hash(work.scopeHash) ||
-      !new RegExp(`^${uuid}$`).test(work.lease) ||
-      work.event.spaceId !== proof.spaceId ||
-      work.scopeHash !==
-        (await digest(
-          `${proof.apiOrigin}|${proof.spaceId}|${work.event.webhookListenerId}|${work.event.eventId}`,
-        ))
+      proof.environment !== 'PRODUCTION'
     )
       throw new PrepaidProvisioningError('invalid');
     const target = await new D1PrepaidReconciliationStore(
@@ -168,6 +157,13 @@ export class D1PrepaidProvisioning {
       target.period.catalogVersion !== proof.catalogVersion
     )
       throw new PrepaidProvisioningError('scope');
+    const context = { ...proof, contractId: target.period.contractId };
+    let fence;
+    try {
+      fence = await settlementWorkFence(work, context, this.clock());
+    } catch {
+      throw new PrepaidProvisioningError('invalid');
+    }
     const row = await this.db
       .prepare('SELECT * FROM prepaid_purchase_targets WHERE contract_id=?')
       .bind(target.period.contractId)
@@ -189,12 +185,15 @@ export class D1PrepaidProvisioning {
         productKind: target.period.catalog.productKind,
       });
     const stored = await this.db
-      .prepare('SELECT * FROM prepaid_purchase_projections WHERE period_id=?')
+      .prepare(`SELECT p.*, s.invoice_id FROM prepaid_purchase_projections p
+        LEFT JOIN prepaid_settlement_proofs s ON s.period_id=p.period_id
+        WHERE p.period_id=?`)
       .bind(proof.periodId)
       .first<ProjectionRow>();
     if (stored) {
       if (
         stored.closed_at === null ||
+        stored.invoice_id !== proof.invoiceId ||
         stored.evidence_fingerprint !== proof.evidenceFingerprint ||
         stored.contract_id !== row.contract_id ||
         stored.intent_id !== row.intent_id ||
@@ -203,6 +202,11 @@ export class D1PrepaidProvisioning {
         stored.workspace_id !== proof.workspaceId
       )
         throw new PrepaidProvisioningError('state');
+      try {
+        await assertSettlementWork(this.db, work, context, this.clock());
+      } catch {
+        throw new PrepaidProvisioningError('state');
+      }
       // Returning a closed historical handoff never re-grants revoked access.
       return result('replayed');
     }
@@ -229,7 +233,7 @@ export class D1PrepaidProvisioning {
       AND c.environment='PRODUCTION' AND c.owner_id=? AND c.organization_id IS ? AND c.workspace_id IS ?
       AND p.starts_at=? AND p.ends_at=? AND p.currency=? AND p.price_chf_minor=? AND p.catalog_version=?
       AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)
-      AND EXISTS(SELECT 1 FROM postfinance_webhook_inbox w WHERE w.scope_hash=? AND w.state='processing' AND w.lease=? AND w.lease_until>?)
+      AND (${fence.sql})
       ON CONFLICT(period_id) DO NOTHING`)
         .bind(
           proof.invoiceId,
@@ -247,9 +251,7 @@ export class D1PrepaidProvisioning {
           proof.currency,
           proof.priceChfMinor,
           proof.catalogVersion,
-          work.scopeHash,
-          work.lease,
-          now,
+          ...fence.values,
         ),
     ];
     if (catalog.gestion) {

@@ -739,4 +739,21 @@ describe('atomic first prepaid settlement and original-company handoff', () => {
       prepared.contract.contractId,
     );
   });
+  it('closed handoff rejects a different invoice ID without changing stored rights', async () => {
+    const prepared = await prepare(),
+      { proof, work } = await claimed(prepared);
+    await provisioner().provision(proof, work);
+    const projectionsBefore = rows('prepaid_purchase_projections');
+    const proofsBefore = rows('prepaid_settlement_proofs');
+    queries = [];
+    await expect(
+      provisioner().provision(
+        { ...proof, invoiceId: proof.invoiceId + 1 },
+        work,
+      ),
+    ).rejects.toThrow('state');
+    expect(queries.every((query) => query.startsWith('SELECT'))).toBe(true);
+    expect(rows('prepaid_purchase_projections')).toEqual(projectionsBefore);
+    expect(rows('prepaid_settlement_proofs')).toEqual(proofsBefore);
+  });
 });

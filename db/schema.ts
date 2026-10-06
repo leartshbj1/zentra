@@ -931,3 +931,4 @@ export * from './stripe-automation-purchase-schema';
 export * from './stripe-automation-provisioning-schema';
 export * from './stripe-complete-purchase-schema';
 export * from './prepaid-create-recovery-schema';
+export * from './prepaid-observation-schema';

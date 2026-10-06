@@ -785,6 +785,47 @@ describe('stable GET observation with the real signed client and a fictitious tr
 });
 
 describe('immutable initial paid token binding on all real migrations', () => {
+  it.each([false, true])(
+    'changed webhook source before atomic token INSERT cannot persist or acknowledge a replay (%s)',
+    async (replay) => {
+      await paid();
+      const work = await tokenWork();
+      if (replay) await store().bindInitial(client().adapter, expected, work);
+      const tokensBefore = sql.prepare('SELECT * FROM prepaid_tokens').all();
+      beforeInsert = () => {
+        const changedEvent = { ...work.event, entityId: 999 };
+        sql
+          .prepare(
+            'UPDATE postfinance_webhook_inbox SET event_json=? WHERE scope_hash=?',
+          )
+          .run(JSON.stringify(changedEvent), work.scopeHash);
+      };
+      const c = client();
+      await expect(
+        store().bindInitial(c.adapter, expected, work),
+      ).rejects.toThrow();
+      expect(c.requests).toHaveLength(6);
+      expect(c.requests.every((request) => request.method === 'GET')).toBe(
+        true,
+      );
+      expect(sql.prepare('SELECT * FROM prepaid_tokens').all()).toEqual(
+        tokensBefore,
+      );
+      expect(
+        sql.prepare('SELECT COUNT(*) n FROM prepaid_tokens').get()?.n,
+      ).toBe(replay ? 1 : 0);
+      const durableEvent = JSON.parse(
+        String(
+          sql
+            .prepare(
+              'SELECT event_json FROM postfinance_webhook_inbox WHERE scope_hash=?',
+            )
+            .get(work.scopeHash)?.event_json,
+        ),
+      ) as { entityId: number };
+      expect(durableEvent.entityId).toBe(999);
+    },
+  );
   it('fences a successful binding and an exact replay with the actual inbox lease', async () => {
     await paid();
     const work = await tokenWork(),

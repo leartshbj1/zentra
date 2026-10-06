@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/runtime', () => ({ database: vi.fn(), runtimeValue: () => '' }));
-import { runPostFinanceReconciliation } from './postfinance-reconciliation-route';
+import { runPostFinanceReconciliation } from '@/lib/payments/postfinance-reconciliation-route';
+import { prepaidProduct } from '@/lib/payments/prepaid-catalog';
 import { POST } from '@/app/api/payments/postfinance/reconcile/route';
 const token = 'synthetic_scheduler_token_'.padEnd(43, 'x');
 function dependencies(patch: Record<string, string | undefined> = {}) {
@@ -38,6 +39,7 @@ function dependencies(patch: Record<string, string | undefined> = {}) {
             bind: () => statement,
             run: async () => ({ meta: { changes: 0 } }),
             first: async () => null,
+            all: async () => ({ results: [] }),
           };
           return statement;
         },
@@ -158,4 +160,147 @@ describe('private, independently disabled PostFinance worker route', () => {
       expect(deps.fetch).not.toHaveBeenCalled();
     },
   );
+});
+
+const testOwner = '11111111-1111-4111-8111-111111111111';
+function observationDependencies(
+  patch: Record<string, string | undefined> = {},
+) {
+  const product = prepaidProduct('gestion:start')!;
+  return dependencies({
+    POSTFINANCE_OBSERVATIONS_ENABLED: 'true',
+    POSTFINANCE_WEBHOOKS_ENABLED: 'false',
+    POSTFINANCE_PURCHASES_ENABLED: 'true',
+    POSTFINANCE_MERCHANT_APPROVED: 'true',
+    POSTFINANCE_CHARGE_FLOW_ENABLED: 'true',
+    POSTFINANCE_PAY_TOKEN_ENABLED: 'true',
+    POSTFINANCE_PREPAID_ENVIRONMENT: 'TEST',
+    POSTFINANCE_RETURN_ORIGIN: 'https://zentra.example.test',
+    POSTFINANCE_TEST_ACCOUNT_USER_IDS: JSON.stringify([testOwner]),
+    POSTFINANCE_PREPAID_CONNECTORS_JSON: JSON.stringify({
+      postfinance_pay: 92,
+    }),
+    POSTFINANCE_PREPAID_CATALOG_JSON: JSON.stringify({
+      [product.productKey]: {
+        currency: 'CHF',
+        billingPeriod: 'P1M',
+        priceChfMinor: product.priceChfMinor,
+        reference: product.catalogVersion,
+        name: product.name,
+        methodConfigurations: { postfinance_pay: 91 },
+      },
+    }),
+    ...patch,
+  });
+}
+describe('independent private TEST observation route with real strict configuration loaders', () => {
+  it('works with no fabricated listener and an explicitly approved TEST server connection', async () => {
+    const deps = observationDependencies();
+    const response = await runPostFinanceReconciliation(request(), deps);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      state: 'processed',
+      claimed: 0,
+      completed: 0,
+    });
+    expect(deps.database).toHaveBeenCalledOnce();
+    expect(deps.fetch).not.toHaveBeenCalled();
+    expect(response.headers.get('Cache-Control')).toContain('no-store');
+  });
+  it.each([
+    { POSTFINANCE_PURCHASES_ENABLED: 'false' },
+    { POSTFINANCE_MERCHANT_APPROVED: 'false' },
+    { POSTFINANCE_CHARGE_FLOW_ENABLED: 'false' },
+    {
+      POSTFINANCE_PREPAID_ENVIRONMENT: 'PRODUCTION',
+      POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED: 'true',
+    },
+    { POSTFINANCE_PREPAID_ENVIRONMENT: '' },
+    { POSTFINANCE_TEST_ACCOUNT_USER_IDS: '' },
+    { POSTFINANCE_TEST_ACCOUNT_USER_IDS: '[]' },
+    {
+      POSTFINANCE_TEST_ACCOUNT_USER_IDS: JSON.stringify([testOwner, testOwner]),
+    },
+    {
+      POSTFINANCE_TEST_ACCOUNT_USER_IDS: JSON.stringify(['owner@example.test']),
+    },
+    {
+      POSTFINANCE_TEST_ACCOUNT_USER_IDS: JSON.stringify([
+        'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+      ]),
+    },
+    {
+      POSTFINANCE_TEST_ACCOUNT_USER_IDS: JSON.stringify(
+        Array.from(
+          { length: 21 },
+          (_, i) => '11111111-1111-4111-8111-' + String(i).padStart(12, '0'),
+        ),
+      ),
+    },
+    { POSTFINANCE_AUTHENTICATION_KEY_BASE64: 'invalid' },
+    { POSTFINANCE_PREPAID_CATALOG_JSON: '{}' },
+  ])(
+    'rejects invalid observation server settings before database or HTTP %j',
+    async (patch) => {
+      const deps = observationDependencies(patch);
+      const response = await runPostFinanceReconciliation(request(), deps);
+      expect(response.status).toBe(503);
+      expect(deps.database).not.toHaveBeenCalled();
+      expect(deps.fetch).not.toHaveBeenCalled();
+      expect(await response.text()).not.toContain(token);
+    },
+  );
+  it('observation activation cannot bypass the reconciliation activation or private bearer', async () => {
+    const disabled = observationDependencies({
+      POSTFINANCE_RECONCILIATION_ENABLED: 'false',
+    });
+    expect(
+      (await runPostFinanceReconciliation(request(), disabled)).status,
+    ).toBe(503);
+    expect(disabled.database).not.toHaveBeenCalled();
+    const wrong = observationDependencies();
+    expect(
+      (
+        await runPostFinanceReconciliation(
+          request('Bearer ' + 'z'.repeat(43)),
+          wrong,
+        )
+      ).status,
+    ).toBe(401);
+    expect(wrong.database).not.toHaveBeenCalled();
+  });
+  it('an enabled webhook source still requires its exact real listener mapping', async () => {
+    const deps = observationDependencies({
+      POSTFINANCE_WEBHOOKS_ENABLED: 'true',
+      POSTFINANCE_RECONCILIATION_KINDS_JSON: '[]',
+    });
+    expect((await runPostFinanceReconciliation(request(), deps)).status).toBe(
+      503,
+    );
+    expect(deps.database).not.toHaveBeenCalled();
+    expect(deps.fetch).not.toHaveBeenCalled();
+  });
+  it('does not parse observation credentials or allowlist on the preserved webhook-only path', async () => {
+    const deps = dependencies();
+    const reads: string[] = [];
+    const read = deps.read;
+    const response = await runPostFinanceReconciliation(request(), {
+      ...deps,
+      read: (key) => {
+        reads.push(key);
+        if (
+          [
+            'POSTFINANCE_PURCHASES_ENABLED',
+            'POSTFINANCE_TEST_ACCOUNT_USER_IDS',
+            'POSTFINANCE_PREPAID_ENVIRONMENT',
+          ].includes(key)
+        )
+          throw Error('Legacy path must not read observation configuration.');
+        return read(key);
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(reads).not.toContain('POSTFINANCE_TEST_ACCOUNT_USER_IDS');
+    expect(deps.fetch).not.toHaveBeenCalled();
+  });
 });

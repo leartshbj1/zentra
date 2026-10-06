@@ -5,6 +5,7 @@ import {
 import { prepaidProduct } from './prepaid-catalog';
 import { prepaidMonthlyPeriod } from './prepaid-calendar';
 import type { PrepaidPurchaseConfiguration } from './prepaid-purchase-preparation';
+import { D1PrepaidObservations } from './prepaid-observation-store';
 
 type Database = Pick<D1Database, 'prepare' | 'batch'>;
 export type PrepaidCreateRecoveryConfiguration = PrepaidPurchaseConfiguration &
@@ -78,6 +79,7 @@ type Receipt = {
   observed_state: string;
   source_json: string;
   request_fingerprint: string;
+  evidence_fingerprint: string;
 };
 const object = (v: unknown): Record<string, unknown> | null =>
   v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -375,7 +377,8 @@ function validate(tx: JsonObject, r: Row, body: JsonObject) {
   }
 }
 
-/** Internal recovery prototype: no public route/worker invokes it. Mock
+/** GET-only discovery, with a durable observation admitted in the same batch.
+ * Browser admission remains separately TEST-only. Mock
  * PRODUCTION fixtures do not prove a production merchant integration.
  * Only GET requests may discover an accepted CREATE. Never infer nonexistence,
  * release a reservation, resolve confirm/ChargeFlow, or project a paid right.
@@ -388,6 +391,7 @@ export async function recoverPrepaidCreate(
     database: () => Database;
     now?: () => number;
     fetch?: typeof fetch;
+    signal?: AbortSignal;
   },
 ): Promise<PrepaidCreateRecoveryResult> {
   if (
@@ -395,6 +399,7 @@ export async function recoverPrepaidCreate(
     configuration.enabled !== true
   )
     return { state: 'disabled' };
+  dependencies.signal?.throwIfAborted();
   const config = structuredClone(configuration),
     c = config.connection;
   if (
@@ -434,6 +439,7 @@ export async function recoverPrepaidCreate(
     now = dependencies.now ?? (() => Math.floor(Date.now() / 1000));
   if (!positive(now())) reject('binding');
   const r = await load(db, input.periodId);
+  dependencies.signal?.throwIfAborted();
   if (
     r.environment !== c.prepaidEnvironment ||
     r.space_id !== c.spaceId ||
@@ -448,7 +454,7 @@ export async function recoverPrepaidCreate(
   const sourceJson = canonical(immutable);
   const receipt = await db
     .prepare(
-      'SELECT transaction_id,observed_state,source_json,request_fingerprint FROM prepaid_create_recoveries WHERE period_id=?',
+      'SELECT transaction_id,observed_state,source_json,request_fingerprint,evidence_fingerprint FROM prepaid_create_recoveries WHERE period_id=?',
     )
     .bind(r.period_id)
     .first<Receipt>();
@@ -472,6 +478,23 @@ export async function recoverPrepaidCreate(
       )
       .first();
     if (!binding) reject('binding');
+    dependencies.signal?.throwIfAborted();
+    const observation = new D1PrepaidObservations(db, now);
+    const admission = {
+      periodId: r.period_id,
+      transactionId: receipt.transaction_id,
+      recoveryEvidenceFingerprint: receipt.evidence_fingerprint,
+    };
+    // Legacy receipts may predate the observer; the idempotent admission keeps
+    // its state/attempts unchanged and is validated by a rollback assertion.
+    const statements =
+      await observation.prepareCreateRecoveryAdmission(admission);
+    if (!statements.length) reject('binding');
+    dependencies.signal?.throwIfAborted();
+    await db.batch([...statements]);
+    dependencies.signal?.throwIfAborted();
+    await observation.ensureCreateRecoveryAdmission(admission);
+    dependencies.signal?.throwIfAborted();
     return {
       state: 'bound',
       periodId: r.period_id,
@@ -551,6 +574,16 @@ export async function recoverPrepaidCreate(
     ledger.state,
     ledger.claim_token,
   ];
+  const observation = new D1PrepaidObservations(db, now);
+  const admission = {
+    periodId: r.period_id,
+    transactionId,
+    recoveryEvidenceFingerprint: evidence,
+  };
+  const observationStatements =
+    await observation.prepareCreateRecoveryAdmission(admission);
+  if (!observationStatements.length) reject('binding');
+  dependencies.signal?.throwIfAborted();
   // The unconditional final INSERT is guarded by SQL. If any conditional CAS
   // misses, its BEFORE trigger raises and rolls back every preceding write.
   await db.batch([
@@ -606,7 +639,11 @@ export async function recoverPrepaidCreate(
         evidence,
         observedAt,
       ),
+    ...observationStatements,
   ]);
+  dependencies.signal?.throwIfAborted();
+  await observation.ensureCreateRecoveryAdmission(admission);
+  dependencies.signal?.throwIfAborted();
   return {
     state: 'bound',
     periodId: r.period_id,

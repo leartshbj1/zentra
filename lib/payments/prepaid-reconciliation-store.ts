@@ -5,7 +5,12 @@ import {
 } from './prepaid-periods';
 import { prepaidProduct } from './prepaid-catalog';
 import { prepaidMonthlyPeriod } from './prepaid-calendar';
-import type { WebhookWork } from './postfinance-store';
+import {
+  assertSettlementWork,
+  settlementWorkFence,
+  type SettlementWork,
+  type SettlementWorkContext,
+} from './prepaid-settlement-work';
 
 type Database = Pick<D1Database, 'prepare'>;
 export type PaymentExpectation = Readonly<{
@@ -205,18 +210,16 @@ export class D1PrepaidReconciliationStore {
   async recordReversal(
     target: ReconciliationTarget,
     fingerprint: string,
-    work: WebhookWork,
+    work: SettlementWork,
   ) {
-    if (
-      !/^[a-f0-9]{64}$/.test(fingerprint) ||
-      !/^[0-9a-f-]{36}$/.test(work.lease) ||
-      work.event.spaceId !== target.spaceId ||
-      work.scopeHash !==
-        (await digest(
-          `${target.apiOrigin}|${target.spaceId}|${work.event.webhookListenerId}|${work.event.eventId}`,
-        ))
-    )
+    if (!/^[a-f0-9]{64}$/.test(fingerprint))
       throw new PrepaidPeriodError('invalid');
+    const context: SettlementWorkContext = { ...target, ...target.period };
+    try {
+      await settlementWorkFence(work, context, this.clock(), 'negative');
+    } catch {
+      throw new PrepaidPeriodError('invalid');
+    }
     // Even an idempotent negative fact must belong to this exact immutable
     // binding. A tombstone for periodId alone must not acknowledge a job whose
     // owner, transaction, catalogue or expected payer was changed by the caller.
@@ -251,6 +254,7 @@ export class D1PrepaidReconciliationStore {
     if (!current || binding(current) !== binding(target))
       throw new PrepaidPeriodError('conflict');
     const now = this.clock();
+    const fence = await settlementWorkFence(work, context, now, 'negative');
     const result = await this.db
       .prepare(`INSERT INTO prepaid_provider_reversals(period_id,evidence_fingerprint,reversed_at)
       SELECT t.period_id,?,? FROM prepaid_transactions t JOIN prepaid_periods p ON p.period_id=t.period_id
@@ -258,8 +262,7 @@ export class D1PrepaidReconciliationStore {
       AND t.api_origin=? AND t.space_id=? AND c.environment=? AND c.owner_id=?
       AND c.organization_id IS ? AND c.workspace_id IS ? AND p.starts_at=? AND p.ends_at=?
       AND p.price_chf_minor=? AND p.catalog_version=?
-      AND EXISTS(SELECT 1 FROM postfinance_webhook_inbox w WHERE w.scope_hash=?
-        AND w.state='processing' AND w.lease=? AND w.lease_until>?) ON CONFLICT(period_id) DO NOTHING`)
+      AND (${fence.sql}) ON CONFLICT(period_id) DO NOTHING`)
       .bind(
         fingerprint,
         now,
@@ -275,23 +278,27 @@ export class D1PrepaidReconciliationStore {
         target.period.endsAt,
         target.period.priceChfMinor,
         target.period.catalogVersion,
-        work.scopeHash,
-        work.lease,
-        now,
+        ...fence.values,
       )
       .run();
     if (result.meta.changes !== 1) {
-      const owned = await this.db
-        .prepare(`SELECT 1 FROM postfinance_webhook_inbox
-        WHERE scope_hash=? AND state='processing' AND lease=? AND lease_until>?`)
-        .bind(work.scopeHash, work.lease, this.clock())
-        .first();
-      if (!owned || !(await this.isReversed(target.period.periodId)))
+      try {
+        await assertSettlementWork(
+          this.db,
+          work,
+          context,
+          this.clock(),
+          'negative',
+        );
+      } catch {
+        throw new PrepaidPeriodError('conflict');
+      }
+      if (!(await this.isReversed(target.period.periodId)))
         throw new PrepaidPeriodError('conflict');
     }
   }
 
-  async recordPaid(proof: SettlementRecord, work: WebhookWork) {
+  async recordPaid(proof: SettlementRecord, work: SettlementWork) {
     await new D1PrepaidPeriods(this.db, this.clock).recordReconciledSettlement(
       proof,
       work,

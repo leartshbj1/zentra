@@ -58,20 +58,80 @@ const copy: Record<
     description: 'Cet essai n’active aucun accès payé dans Zentra.',
   },
 };
+const recoveryCopy: Record<
+  SiteLanguage,
+  {
+    action: string;
+    busy: string;
+    tracking: string;
+    verification: string;
+    unavailable: string;
+    limited: string;
+    timeout: string;
+  }
+> = {
+  fr: {
+    action: 'Retrouver le paiement',
+    busy: 'Recherche…',
+    tracking: 'Tentative retrouvée.',
+    verification:
+      'Le résultat reste à vérifier. Ne créez pas un nouveau paiement.',
+    unavailable:
+      'La recherche est indisponible. Réessayez ici dans quelques instants.',
+    limited: 'Trop de vérifications. Réessayez dans 30 minutes.',
+    timeout: 'La réponse tarde. Réessayez ici sans créer de nouveau paiement.',
+  },
+  de: {
+    action: 'Zahlung wiederfinden',
+    busy: 'Suche…',
+    tracking: 'Zahlungsversuch gefunden.',
+    verification:
+      'Das Ergebnis muss noch geprüft werden. Starten Sie keine neue Zahlung.',
+    unavailable:
+      'Die Suche ist nicht verfügbar. Versuchen Sie es hier später erneut.',
+    limited: 'Zu viele Prüfungen. Versuchen Sie es in 30 Minuten erneut.',
+    timeout:
+      'Die Antwort verzögert sich. Versuchen Sie es hier erneut, ohne eine neue Zahlung zu starten.',
+  },
+  it: {
+    action: 'Ritrovare il pagamento',
+    busy: 'Ricerca…',
+    tracking: 'Tentativo ritrovato.',
+    verification:
+      'Il risultato deve ancora essere verificato. Non avviare un nuovo pagamento.',
+    unavailable: 'La ricerca non è disponibile. Riprova qui tra poco.',
+    limited: 'Troppe verifiche. Riprova tra 30 minuti.',
+    timeout: 'La risposta tarda. Riprova qui senza avviare un nuovo pagamento.',
+  },
+  en: {
+    action: 'Find this payment',
+    busy: 'Searching…',
+    tracking: 'Payment attempt found.',
+    verification:
+      'The result still needs verification. Do not start a new payment.',
+    unavailable: 'Search is unavailable. Try again here shortly.',
+    limited: 'Too many checks. Try again in 30 minutes.',
+    timeout:
+      'The response is taking longer. Try again here without starting a new payment.',
+  },
+};
 
 export function PaymentReceipt({
   intentId,
   initial,
   language = 'fr',
+  canRecover = false,
 }: {
   intentId: string;
   initial: PrepaidReceipt | null;
   language?: SiteLanguage;
+  canRecover?: boolean;
 }) {
   const [receiptState, setReceipt] = useState(initial);
   const receipt = receiptState?.intentId === intentId ? receiptState : null;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [automatic, setAutomatic] = useState(true);
   const [notice, setNotice] = useState('');
   const [accepted, setAccepted] = useState(false);
@@ -89,6 +149,7 @@ export function PaymentReceipt({
   const inFlight = useRef(false);
   const mounted = useRef(true);
   const currentController = useRef<AbortController | null>(null);
+  const recoveryController = useRef<AbortController | null>(null);
   const requests = useRef(0);
   const stopped = useRef(false);
   const authorityLost = useRef(false);
@@ -115,6 +176,7 @@ export function PaymentReceipt({
     stopped.current = true;
     setAutomatic(false);
     setReceipt(null);
+    setRecovering(false);
     setAccepted(false);
     setNotice('');
     setAuthRequired(status === 401);
@@ -142,6 +204,7 @@ export function PaymentReceipt({
       generation.current++;
       abortCurrentRead();
       setBusy(false);
+      setRecovering(false);
       if (!initial.poll) {
         stopped.current = true;
       }
@@ -266,6 +329,7 @@ export function PaymentReceipt({
     setAccepted(false);
     setAuthRequired(false);
     setBusy(false);
+    setRecovering(false);
     setAutomatic(!stopped.current);
     const timer = window.setInterval(() => void refresh(), 5000);
     const visible = () => {
@@ -282,6 +346,91 @@ export function PaymentReceipt({
       document.removeEventListener('visibilitychange', visible);
     };
   }, [intentId, refresh, endContext]);
+
+  async function recover() {
+    if (
+      !canRecover ||
+      !receipt ||
+      receipt.environment !== 'TEST' ||
+      !['pending', 'verification_required'].includes(receipt.status) ||
+      busy ||
+      recoveryController.current
+    )
+      return;
+    const text = recoveryCopy[language];
+    generation.current++;
+    abortCurrentRead();
+    const requestGeneration = generation.current;
+    const controller = new AbortController();
+    recoveryController.current = controller;
+    currentController.current = controller;
+    inFlight.current = true;
+    setBusy(true);
+    setRecovering(true);
+    setError('');
+    setNotice('');
+    const current = () =>
+      mounted.current &&
+      context.current.intentId === intentId &&
+      generation.current === requestGeneration;
+    const timeout = window.setTimeout(() => controller.abort(), 35000);
+    let found = false;
+    try {
+      const response = await fetch('/api/payments/postfinance/recover-create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchaseId: intentId }),
+      });
+      if (!current() || controller.signal.aborted) return;
+      if (!response.ok) {
+        if ([401, 403, 404].includes(response.status))
+          clearPrivateReceipt(response.status);
+        throw new Error(
+          response.status === 429 ? text.limited : text.unavailable,
+        );
+      }
+      const result: unknown = await response.json();
+      if (!current() || controller.signal.aborted) return;
+      if (
+        !result ||
+        typeof result !== 'object' ||
+        !('state' in result) ||
+        !('receiptHref' in result) ||
+        !['tracking', 'verification_required'].includes(String(result.state)) ||
+        result.receiptHref !== prepaidReceiptPath(intentId)
+      )
+        throw new Error(text.unavailable);
+      setNotice(
+        result.state === 'tracking' ? text.tracking : text.verification,
+      );
+      found = true;
+    } catch (failure) {
+      if (current())
+        setError(
+          controller.signal.aborted
+            ? text.timeout
+            : failure instanceof Error
+              ? failure.message
+              : text.unavailable,
+        );
+    } finally {
+      window.clearTimeout(timeout);
+      if (recoveryController.current === controller)
+        recoveryController.current = null;
+      if (currentController.current === controller) {
+        currentController.current = null;
+        inFlight.current = false;
+        if (current()) {
+          setBusy(false);
+          setRecovering(false);
+        }
+      }
+      if (found && current() && !controller.signal.aborted) await refresh(true);
+    }
+  }
 
   async function cancel() {
     if (
@@ -455,6 +604,19 @@ export function PaymentReceipt({
         </p>
       )}
       <div className="payment-receipt-actions">
+        {canRecover &&
+          receipt?.environment === 'TEST' &&
+          ['pending', 'verification_required'].includes(receipt.status) && (
+            <button
+              className="account-button secondary"
+              disabled={busy}
+              onClick={() => void recover()}
+            >
+              {recovering
+                ? recoveryCopy[language].busy
+                : recoveryCopy[language].action}
+            </button>
+          )}
         {receipt && (
           <a className="account-button" href={receipt.subscriptionHref}>
             Voir mon abonnement

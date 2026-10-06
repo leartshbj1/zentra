@@ -3,7 +3,13 @@ import type {
   SwissMethod,
 } from './postfinance-client';
 import { D1PrepaidReconciliationStore } from './prepaid-reconciliation-store';
-import type { WebhookWork } from './postfinance-store';
+import {
+  assertSettlementWork,
+  isObservationWork,
+  settlementWorkFence,
+  type SettlementWork,
+  type SettlementWorkContext,
+} from './prepaid-settlement-work';
 
 /** Exact fields: official pfpayments/typescript-sdk, commit
  * bb1e4c34ffa44bc1da8f54c86f984961aa886c30, Token/TokenVersion/Transaction.
@@ -71,6 +77,15 @@ export class PrepaidTokenError extends Error {
 }
 type Json = Record<string, unknown>;
 type Database = Pick<D1Database, 'prepare'>;
+function tokenWorkContext(
+  expected: ExpectedPrepaidTokenBinding,
+): SettlementWorkContext {
+  return {
+    ...expected,
+    periodId: expected.initialPeriodId,
+    transactionId: expected.initialTransactionId,
+  };
+}
 export type PrepaidTokenReadClient = Pick<
   PostFinanceCheckoutClient,
   'readScope' | 'readTransaction' | 'readToken' | 'readActiveTokenVersion'
@@ -472,40 +487,21 @@ export class D1PrepaidTokens {
   ) {}
   private async requireWork(
     expected: ExpectedPrepaidTokenBinding,
-    work: WebhookWork,
+    work: SettlementWork,
     now: number,
   ): Promise<string> {
-    if (
-      !validExpected(expected) ||
-      !positive(now) ||
-      !/^[a-f0-9]{64}$/.test(work.scopeHash) ||
-      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
-        work.lease,
-      ) ||
-      work.event.spaceId !== expected.spaceId ||
-      !positive(work.event.webhookListenerId) ||
-      !positive(work.event.eventId) ||
-      work.scopeHash !==
-        (await digestText(
-          `${expected.apiOrigin}|${expected.spaceId}|${work.event.webhookListenerId}|${work.event.eventId}`,
-        ))
-    )
-      reject('binding');
-    const row = await this.db
-      .prepare(`SELECT event_json FROM postfinance_webhook_inbox
-      WHERE scope_hash=? AND state='processing' AND lease=? AND lease_until>?`)
-      .bind(work.scopeHash, work.lease, now)
-      .first<{ event_json: string }>();
-    if (!row || new TextEncoder().encode(row.event_json).length > 65536)
-      reject('unavailable');
-    let parsed: unknown;
+    if (!validExpected(expected) || !positive(now)) reject('binding');
     try {
-      parsed = JSON.parse(row.event_json);
+      const stored = await assertSettlementWork(
+        this.db,
+        work,
+        tokenWorkContext(expected),
+        now,
+      );
+      return stored.sourceJson;
     } catch {
-      reject('binding');
+      reject('unavailable');
     }
-    if (canonical(parsed) !== canonical(work.event)) reject('binding');
-    return row.event_json;
   }
   async initialContext(
     contractId: string,
@@ -605,7 +601,7 @@ export class D1PrepaidTokens {
   async bindInitial(
     client: PrepaidTokenReadClient,
     expected: ExpectedPrepaidTokenBinding,
-    work?: WebhookWork,
+    work?: SettlementWork,
   ): Promise<StoredPrepaidTokenBinding> {
     const started = this.clock();
     const eventJson = work
@@ -634,6 +630,9 @@ export class D1PrepaidTokens {
       reject('conflict');
     const values = persistedValues(b),
       fingerprint = await digest(values);
+    const fence = work
+      ? await settlementWorkFence(work, tokenWorkContext(b), now)
+      : { sql: '1=1', values: [] as readonly (string | number | null)[] };
     await this.db
       .prepare(`INSERT INTO prepaid_tokens (${columns.join(',')}) SELECT ${columns.map(() => '?').join(',')}
       ${SAFE_INITIAL} AND c.owner_id=? AND c.organization_id IS ? AND c.workspace_id IS ? AND c.api_origin=? AND c.space_id=? AND c.environment=?
@@ -641,8 +640,9 @@ export class D1PrepaidTokens {
       AND e.customer_reference=? AND e.payment_method_configuration_id=? AND e.connector_configuration_id=?
       AND e.plan_reference=? AND p.price_chf_minor=? AND proof.reconciled_at<=?
       AND NOT EXISTS(SELECT 1 FROM prepaid_tokens other WHERE other.api_origin=c.api_origin AND other.space_id=c.space_id AND other.environment=c.environment AND other.token_id=? AND other.owner_id<>c.owner_id)
-      AND (? IS NULL OR EXISTS(SELECT 1 FROM postfinance_webhook_inbox w WHERE w.scope_hash=?
-        AND w.state='processing' AND w.lease=? AND w.lease_until>? AND w.event_json=?))
+      AND (${fence.sql})
+      AND (? IS NULL OR EXISTS(SELECT 1 FROM postfinance_webhook_inbox source
+        WHERE source.scope_hash=? AND source.event_json=?))
       ON CONFLICT(contract_id) DO NOTHING`)
       .bind(
         ...values,
@@ -668,10 +668,9 @@ export class D1PrepaidTokens {
         b.priceChfMinor,
         now,
         b.tokenId,
-        work?.scopeHash ?? null,
-        work?.scopeHash ?? null,
-        work?.lease ?? null,
-        now,
+        ...fence.values,
+        work && !isObservationWork(work) ? work.scopeHash : null,
+        work && !isObservationWork(work) ? work.scopeHash : null,
         eventJson,
       )
       .run();

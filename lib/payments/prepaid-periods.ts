@@ -1,6 +1,10 @@
 import { prepaidMonthlyPeriod } from './prepaid-calendar';
 import { prepaidProduct, type PrepaidProduct } from './prepaid-catalog';
-import type { WebhookWork } from './postfinance-store';
+import {
+  assertSettlementWork,
+  settlementWorkFence,
+  type SettlementWork,
+} from './prepaid-settlement-work';
 
 type StoreDatabase = Pick<D1Database, 'prepare'>;
 export type PrepaidEnvironment = 'TEST' | 'PRODUCTION';
@@ -307,23 +311,24 @@ export class D1PrepaidPeriods {
       catalogVersion: string;
       evidenceFingerprint: string;
     },
-    work?: WebhookWork,
+    work?: SettlementWork,
   ) {
     positiveId(input.transactionId);
     positiveId(input.invoiceId);
     positiveId(input.spaceId);
     evidence(input.evidenceFingerprint);
     const now = clockValue(this.clock());
-    if (
-      work &&
-      (work.event.spaceId !== input.spaceId ||
-        !/^[0-9a-f-]{36}$/.test(work.lease) ||
-        work.scopeHash !==
-          (await digest(
-            `${input.apiOrigin}|${input.spaceId}|${work.event.webhookListenerId}|${work.event.eventId}`,
-          )))
-    )
-      throw new PrepaidPeriodError('conflict');
+    let fence = {
+      sql: '1=1',
+      values: [] as readonly (string | number | null)[],
+    };
+    if (work) {
+      try {
+        fence = await settlementWorkFence(work, input, now);
+      } catch {
+        throw new PrepaidPeriodError('conflict');
+      }
+    }
     await this.db
       .prepare(`INSERT INTO prepaid_settlement_proofs(period_id,invoice_id,evidence_fingerprint,reconciled_at)
       SELECT p.period_id,?,?,? FROM prepaid_periods p
@@ -332,8 +337,7 @@ export class D1PrepaidPeriods {
       AND c.owner_id=? AND c.organization_id IS ? AND c.workspace_id IS ?
       AND p.starts_at=? AND p.ends_at=? AND p.currency=? AND p.price_chf_minor=? AND p.catalog_version=?
       AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)
-      AND (? IS NULL OR EXISTS(SELECT 1 FROM postfinance_webhook_inbox w WHERE w.scope_hash=?
-        AND w.state='processing' AND w.lease=? AND w.lease_until>?))
+      AND (${fence.sql})
       ON CONFLICT(period_id) DO NOTHING`)
       .bind(
         input.invoiceId,
@@ -352,10 +356,7 @@ export class D1PrepaidPeriods {
         input.currency,
         input.priceChfMinor,
         input.catalogVersion,
-        work?.scopeHash ?? null,
-        work?.scopeHash ?? null,
-        work?.lease ?? null,
-        now,
+        ...fence.values,
       )
       .run();
     const stored = await this.db
@@ -387,15 +388,18 @@ export class D1PrepaidPeriods {
       stored.evidence_fingerprint !== input.evidenceFingerprint
     )
       throw new PrepaidPeriodError('conflict');
-    if (
-      work &&
-      !(await this.db
-        .prepare(`SELECT 1 FROM postfinance_webhook_inbox
-      WHERE scope_hash=? AND state='processing' AND lease=? AND lease_until>?`)
-        .bind(work.scopeHash, work.lease, clockValue(this.clock()))
-        .first())
-    )
-      throw new PrepaidPeriodError('conflict');
+    if (work) {
+      try {
+        await assertSettlementWork(
+          this.db,
+          work,
+          input,
+          clockValue(this.clock()),
+        );
+      } catch {
+        throw new PrepaidPeriodError('conflict');
+      }
+    }
   }
   /** Stop scheduling, preserving coverage already paid. This is not a provider refund. */
   async cancelRenewal(contractId: string) {
