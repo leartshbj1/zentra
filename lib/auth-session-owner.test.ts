@@ -72,9 +72,11 @@ function payload(account: string) {
     user: { id: account, email: `${account}@example.test`, email_confirmed_at: '2026-01-01T00:00:00Z' } };
 }
 async function syntheticFetch(input: RequestInfo | URL, init?: RequestInit) {
-  const url = new URL(String(input));
+  const url = new URL(input instanceof Request ? input.url : input);
   if (url.origin !== 'https://synthetic-auth.invalid') throw new Error('Non-synthetic network forbidden');
-  const body = init?.body ? JSON.parse(String(init.body)) : {};
+  const rawBody = init?.body;
+  if (rawBody && typeof rawBody !== 'string') throw new Error('Synthetic request body must be JSON text');
+  const body = typeof rawBody === 'string' && rawBody ? JSON.parse(rawBody) : {};
   const token = new Headers(init?.headers).get('authorization')?.replace(/^Bearer /, '') ?? '';
   const user = issued.get(token);
   if (url.pathname === '/auth/v1/user') {
@@ -145,6 +147,25 @@ beforeEach(() => {
 afterEach(() => { releaseRefresh(); db.close(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('Session owner binding with real auth routes, provider client and migrated SQLite', () => {
+  it.each([false, true])('verifies a read-only identity without offered grants, with expired access=%s', async expired => {
+    await call(login, loginRequest());
+    if (expired) issued.delete(browser.get(SUPABASE_ACCESS_COOKIE)!);
+    resetOfferedAccess(); calls = [];
+    const context = newContext();
+    const identity = await state.context.run(context, () => getZentraUser({ refreshSession: true, offerAccess: false }));
+    expect(identity?.userId).toBe('account-a');
+    expect(calls.some(call => call.operation === 'verify')).toBe(true);
+    expect(calls.some(call => call.operation === 'refresh')).toBe(expired);
+    expectNoOfferedAccess(); expectNoOwnerWrite(context);
+    if (!expired) expect(context.writes).toEqual([]);
+  });
+
+  it('preserves offered access on existing default authentication callers', async () => {
+    await call(login, loginRequest()); resetOfferedAccess();
+    expect((await protectedRead()).user?.userId).toBe('account-a');
+    expect(registerAccessIdentity).toHaveBeenCalledOnce(); expect(attachAutomationAccess).toHaveBeenCalledOnce();
+  });
+
   it('creates a fixed secure owner only for an explicit password authentication', async () => {
     const { response, context } = await call(login, loginRequest());
     expect(response.status).toBe(200); expect(browser.get(SUPABASE_SESSION_OWNER_COOKIE)).toBe('account-a');

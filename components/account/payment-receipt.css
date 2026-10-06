@@ -1,0 +1,21 @@
+.payment-receipt{max-width:680px;margin-inline:auto;color:var(--ac-ink,#19251f);font-size:1rem;line-height:1.6;min-width:0}
+.payment-receipt-symbol{color:var(--ac-accent,#225b40);display:block;margin-bottom:24px}
+.payment-receipt output{display:block}
+.payment-receipt h1{margin:0;line-height:1.15;letter-spacing:-.03em;text-wrap:balance}
+.payment-receipt-lead{max-width:55ch;color:var(--ac-muted,#626b66);margin:20px 0 32px}
+.payment-receipt-details{margin:32px 0;padding:0;border-top:1px solid var(--ac-line,#dce1de)}
+.payment-receipt-details>div{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,2fr);gap:20px;padding:16px 0;border-bottom:1px solid var(--ac-line,#dce1de)}
+.payment-receipt-details dt{color:var(--ac-muted,#626b66)}
+.payment-receipt-details dd{margin:0;text-align:right;font-weight:500;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.payment-receipt-message,.payment-receipt-error{padding:0;margin:24px 0;overflow-wrap:anywhere}
+.payment-receipt-error{color:var(--ac-danger,#a22e26)}
+.payment-receipt-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:32px 0}
+.payment-receipt .account-button{min-height:48px;height:auto;white-space:normal;text-align:center}
+.payment-receipt-link{min-height:44px;display:inline-flex;align-items:center;text-underline-offset:4px}
+.payment-receipt-cancel{margin-top:40px!important;padding:0!important;border:0!important;border-top:1px solid var(--ac-line,#dce1de)!important;border-radius:0!important;background:none!important}
+.payment-receipt-cancel summary{padding:18px 0;min-height:48px!important}
+.payment-receipt-cancel p{color:var(--ac-muted,#626b66)}
+.payment-receipt-cancel label{display:flex;align-items:flex-start;gap:12px;margin:24px 0;cursor:pointer}
+.payment-receipt-cancel input{flex:0 0 20px;width:20px;height:20px;min-height:20px;margin-top:4px;accent-color:var(--ac-accent,#225b40)}
+.payment-receipt :focus-visible{outline:3px solid var(--ac-accent,#225b40);outline-offset:4px}
+@media(max-width:480px){.payment-receipt-details>div{grid-template-columns:minmax(0,1fr);gap:5px}.payment-receipt-details dd{text-align:left}.payment-receipt-actions{display:grid;grid-template-columns:minmax(0,1fr)}.payment-receipt-actions .account-button{width:100%}}

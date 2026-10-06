@@ -11,6 +11,7 @@ import { pendingPlanChange } from './change';
 import { AccountPublicError } from '@/lib/account-security';
 import type { AutomationActor } from '@/lib/automation/access';
 import { isPrepaidContractId, prepaidCompanyAccess, prepaidAutomationAccess } from '@/lib/payments/prepaid-access';
+import { prepaidReceiptPath } from '@/lib/payments/prepaid-receipt-types';
 
 export function quotaAlert(used:number,limit:number){
   if(limit<=0)return null;
@@ -50,6 +51,7 @@ export async function subscriptionJourney(actor:AutomationActor){
   ];
   const monthly=prepaidCompany?.productKind==='complete'?prepaidCompany.catalog.priceChfMinor:trialActive?0:pack?pack.priceChfCents:(seats.priceChfCents+(support?.hasSubscription?(supportPlan(support.plan)?.priceChfCents??0):0)+(automation?(prepaidAutomation?.catalog.priceChfMinor??(addon?1500:0)):0));
   return {organizationId:actor.organizationId,organizationName:org.name,owner:actor.role==='owner',canManage:['owner','admin'].includes(actor.role),
+    paymentReceiptHref:actor.role==='owner'&&isPrepaidContractId(org.subscription_id)?prepaidReceiptPath(`purchase_${org.subscription_id.slice(4)}`):null,
     name:trialActive?'Essai Zentra Complet':pack?`Zentra Complet ${pack.name}`:seats.planName,plan:pack?.id??null,monthlyChfCents:monthly,
     status:!seats.subscriptionActive?'expired':isPrepaidContractId(org.subscription_id)?prepaidCompany?.cancelAtPeriodEnd?'cancelling':'active':trialActive?'trial':sub?.cancel_at_period_end?'cancelling':sub?.status==='past_due'?'payment_due':'active',
     renewalAt:isPrepaidContractId(org.subscription_id)?prepaidCompany?.paidUntil??null:trialActive?trial.ends_at:change&&change.state!=='completed'?change.effective_at:seats.offeredUntil??seats.trialUntil??sub?.current_period_end??null,

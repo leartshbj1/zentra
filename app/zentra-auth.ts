@@ -25,6 +25,8 @@ export type ZentraUser = {
 
 type ZentraUserOptions = {
   refreshSession?: boolean;
+  /** Read-only account surfaces must not claim offered grants while polling. */
+  offerAccess?: boolean;
 };
 
 async function withOfferedAccess(
@@ -67,7 +69,7 @@ export async function getZentraUser(
     try {
       const user = await client.getUser(accessToken);
       if (user.id !== sessionOwnerId) return null;
-      if (await accountSessionAllowed(user.id, accessToken)) return withOfferedAccess(fromSupabaseUser(user));
+      if (await accountSessionAllowed(user.id, accessToken)) return options.offerAccess === false ? fromSupabaseUser(user) : withOfferedAccess(fromSupabaseUser(user));
       return null;
     } catch (error) {
       if (!isRejectedAuthCredential(error)) throw error;
@@ -81,7 +83,7 @@ export async function getZentraUser(
       if (renewed.user.id !== sessionOwnerId) return null;
       if (!(await accountSessionAllowed(renewed.user.id, renewed.accessToken))) return null;
       await writeSupabaseAuthCookies(renewed);
-      return withOfferedAccess(fromSupabaseUser(renewed.user));
+      return options.offerAccess === false ? fromSupabaseUser(renewed.user) : withOfferedAccess(fromSupabaseUser(renewed.user));
     } catch (error) {
       if (!isRejectedAuthCredential(error)) throw error;
       await clearSupabaseAuthCookies();
@@ -105,8 +107,8 @@ export async function getZentraUser(
   return null;
 }
 
-export async function requireZentraUser(returnTo: string): Promise<ZentraUser> {
-  const user = await getZentraUser();
+export async function requireZentraUser(returnTo: string, options: ZentraUserOptions = {}): Promise<ZentraUser> {
+  const user = await getZentraUser(options);
   if (user) return user;
   redirect(zentraSignInPath(returnTo));
 }

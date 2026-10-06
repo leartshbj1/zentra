@@ -3,6 +3,8 @@ import { PricingPlans } from '@/components/pricing-plans';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { ProductHero, ProductDetails } from '@/components/quiet-product';
+import { redirect } from 'next/navigation';
+import { prepaidReceiptPath } from '@/lib/payments/prepaid-receipt-types';
 
 export const metadata: Metadata = {
   title: 'Tarifs — Solo, Start et Pro dès 49 CHF par mois',
@@ -38,7 +40,9 @@ const questions = [
 ] as const;
 
 
-export default function PricingPage() {
+export default async function PricingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const query = await searchParams;
+  if (query.achat !== undefined) redirect(prepaidReceiptPath(query.achat));
   return (
     <div className="quiet-site quiet-pricing">
       <a href="#contenu" className="site-skip-link">Aller au contenu</a>
