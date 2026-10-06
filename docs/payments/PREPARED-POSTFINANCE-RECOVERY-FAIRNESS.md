@@ -45,3 +45,13 @@ L’intégration a été exécutée après Site336 `0e53920519638c5395bd97649ff0
 Une seule adaptation des octets a suivi la copie : la nouvelle migration 0082 passe de CRLF à LF pour correspondre à son futur blob Git. Son hash est désormais `0832c0d89135251e51cb34c34bf9cef28346f5e51ed7675e9ff45bb557be427c`, au lieu de `82b2e67b0c2f358df4b9673ceb704f2e47be69e0b3f162095cb23710c2d2aabd`. Aucun contenu SQL ni fichier historique n’a changé. Les anciennes preuves sont conservées.
 
 Les preuves canoniques fraîches `canonical-lf-create-01.json`, `canonical-lf-worker-01.json` et `canonical-lf-parser-01.json` passent respectivement 7/7, 14/14 et 3/3 sur 83 migrations et 559 instructions, sans HTTP externe. Le découpage officiel conserve cinq instructions pour 0081 et quatre pour 0082. Les 378 tests du client et des routes, TypeScript, le lint ciblé et le build passent également dans le checkout canonique. Ces résultats n’activent aucun paiement et ne prouvent aucun règlement marchand réel.
+
+## Reprise bornée après l’échec de migration Site337
+
+Le déploiement `appgdep_6ac501fbaeb48191b75e56d33fadf4bc`, source `a8eb09aad7c2d3cf063a9be9a919903468c21593`, a refusé la migration avec `incomplete input: SQLITE_ERROR`. Son archive et ses preuves sont conservées. Le migrateur Drizzle D1 installé réussit localement ; le migrateur interne Sites et son watermark hébergé ne sont pas accessibles avec les outils disponibles. L’aperçu des cinquante premières tables ne prouve pas l’absence des deux tables nouvelles.
+
+Un test D1 local isolé observe que `exec()` refuse une ligne de commentaire seule avant la première instruction, sans créer d’objet. Retirer cette seule ligne permet d’exécuter la même instruction, puis l’index et les deux triggers. Son erreur locale diffère de l’erreur hébergée ; cette piste ne constitue pas un diagnostic certain du serveur.
+
+La reprise standard retire uniquement cette première ligne de commentaire de 0082, dont le hash devient `188b140fc46301baaf269bd063333354e1ed54b7a403c58acaf3d81ddd13b37f`. Les neuf instructions CREATE de 0081/0082, leurs contraintes, les anciennes migrations et le journal restent inchangés. Aucun SQL manuel, IF NOT EXISTS, effacement, assouplissement de garde, nouvel accès marchand ou activation de worker n’est introduit. Un objet déjà présent doit produire une erreur plutôt que masquer une application partielle.
+
+Même si cette reprise standard réussit, elle ne suffit pas à prouver la présence des neuf objets dans la base hébergée. Les workers restent OFF ; la vérification du schéma, du compte marchand et des preuves réelles de règlement demeure nécessaire avant activation. Un nouvel échec ou une ambiguïté doit conduire au diagnostic du schéma réel, sans réparation aveugle.
