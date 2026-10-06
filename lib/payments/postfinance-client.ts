@@ -693,6 +693,54 @@ export class PostFinanceCheckoutClient {
     return result;
   }
 
+  /** GET-only discovery for an already claimed CREATE. Search equality is
+   * case-insensitive upstream: the recovery verifier must compare the returned
+   * references exactly. Empty results are not permission to repeat CREATE.
+   * Exhaust all bounded pages, including contradictory entries, before use. */
+  async searchPrepaidTransactions(periodId: string): Promise<JsonObject[]> {
+    if (!/^pfperiod_[0-9a-f]{64}$/.test(periodId))
+      throw new Error('Invalid prepaid search reference.');
+    const found: JsonObject[] = [];
+    let offset = 0,
+      previousId = 0;
+    for (let page = 0; page < maximumSearchPages; page++) {
+      const response = await this.request(
+        'GET',
+        queryPath('/payment/transactions/search', {
+          limit: searchPageSize,
+          offset,
+          order: 'id:ASC',
+          query: `merchantReference:${periodId}`,
+        }),
+        undefined,
+        true,
+        maximumSearchResponseBytes,
+      );
+      object(response);
+      if (
+        !Array.isArray(response.data) ||
+        typeof response.hasMore !== 'boolean' ||
+        response.offset !== offset ||
+        !Number.isSafeInteger(response.limit) ||
+        (response.limit as number) < 1 ||
+        (response.limit as number) > searchPageSize ||
+        response.data.length > (response.limit as number) ||
+        (response.data.length === 0 && (response.hasMore || page > 0))
+      )
+        throw new Error('Incomplete or non-progressing prepaid search.');
+      for (const item of response.data) {
+        this.scopedEntity(item);
+        if ((item.id as number) <= previousId)
+          throw new Error('Repeated or unordered prepaid search.');
+        previousId = item.id as number;
+        found.push(item);
+      }
+      if (!response.hasMore) return found;
+      offset += response.data.length;
+    }
+    throw new Error('Prepaid search exceeded its pagination bound.');
+  }
+
   async readTransactionInvoice(
     invoiceId: number,
     expectedTransactionId?: number,
