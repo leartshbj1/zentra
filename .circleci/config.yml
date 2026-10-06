@@ -430,6 +430,26 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: windows
+  windows-release-1914-large:
+    resource_class: windows.large
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_ONLY: "false"
+      ZENTRA_RELEASE_TEST_HARNESS: "true"
+      ZENTRA_WINDOWS_SOURCE_REVISION: "c067f2e6bd0c6cbe2dae76162feb88e92f44156b"
+    steps:
+      - checkout
+      - run:
+          name: Verify all frozen 1.90.14 Windows tests and build on Windows Large
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .circleci/windows1914-controller.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: .zentra-windows-source/desktop/artifacts/windows
+          destination: windows
   apple:
     macos:
       xcode: "26.4.1"
@@ -489,6 +509,13 @@ jobs:
           destination: apple
 
 workflows:
+  frozen-windows-release-1914-large:
+    when:
+      and:
+        - equal: [codex/release-1.90.14-windows-large-20261006, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-release-1914-large
   user-clarity-release-1914:
     when:
       and:
