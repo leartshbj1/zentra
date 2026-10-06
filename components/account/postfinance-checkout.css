@@ -1,0 +1,94 @@
+.postfinance-checkout {
+  max-width: 680px;
+  margin-inline: auto;
+  min-width: 0;
+  color: var(--ac-ink);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.postfinance-checkout h1 {
+  margin: 0;
+  text-wrap: balance;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+.postfinance-checkout > label {
+  display: block;
+  margin: 28px 0 0;
+  max-width: 100%;
+  font-weight: 500;
+}
+.postfinance-checkout select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--ac-control-line, var(--ac-line));
+  border-radius: 12px;
+  background: var(--ac-input);
+  color: var(--ac-ink);
+  font: inherit;
+}
+.postfinance-checkout-test {
+  color: var(--ac-muted);
+  margin: 24px 0 32px;
+}
+.postfinance-checkout-consent {
+  margin: 32px 0;
+  display: grid;
+  gap: 20px;
+}
+.postfinance-checkout-consent label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+.postfinance-checkout-consent input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin-top: 4px;
+  accent-color: var(--ac-accent);
+}
+.postfinance-checkout-message {
+  color: var(--ac-danger);
+  overflow-wrap: anywhere;
+  margin: 24px 0;
+}
+.postfinance-checkout-back {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  margin-top: 24px;
+  text-underline-offset: 4px;
+}
+.postfinance-checkout-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px;
+}
+.postfinance-checkout .account-button {
+  min-height: 48px;
+  height: auto;
+  white-space: normal;
+  text-align: center;
+}
+.postfinance-checkout :focus-visible {
+  outline: 3px solid var(--ac-accent);
+  outline-offset: 4px;
+}
+@media (max-width: 480px) {
+  .postfinance-checkout .account-button {
+    width: 100%;
+  }
+  .postfinance-checkout-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

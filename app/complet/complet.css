@@ -304,6 +304,9 @@
   font-size: 22px;
   letter-spacing: -0.02em;
 }
+.complete-company-choice {display:block;margin:24px 0;font-size:1rem;line-height:1.5}
+.complete-company-choice select {display:block;width:100%;max-width:100%;min-height:48px;margin-top:8px;padding:10px 12px;border:1px solid #c5cdc7;border-radius:12px;background:#fff;color:#173d2c;font:inherit}
+.complete-company-choice select:focus-visible {outline:3px solid #315e48;outline-offset:4px}
 .complete-consent {
   display: flex;
   gap: 12px;

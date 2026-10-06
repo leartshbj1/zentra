@@ -1,0 +1,43 @@
+.swiss-payment-methods {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 20px 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  min-width: 0;
+  color: var(--ac-ink, inherit);
+}
+.swiss-payment-methods > span,
+.swiss-payment-methods > a {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 48px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.swiss-payment-methods a {
+  text-underline-offset: 4px;
+  color: var(--ac-accent, inherit);
+}
+.swiss-payment-methods small {
+  font-size: 0.875rem;
+  color: var(--ac-muted, inherit);
+}
+.swiss-payment-unavailable {
+  color: var(--ac-muted, inherit);
+}
+.swiss-payment-methods a:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 4px;
+}
+@media (max-width: 480px) {
+  .swiss-payment-methods {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}

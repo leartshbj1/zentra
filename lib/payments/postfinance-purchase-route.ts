@@ -116,13 +116,20 @@ export async function runPostFinancePurchase(
       fetch: dependencies.fetch,
     });
     if (result.state === 'uncertain')
-      return answer(
-        'Votre paiement doit être vérifié avant de réessayer. Aucun second paiement ne sera créé.',
-        409,
+      return Response.json(
+        {
+          error:
+            'Votre paiement doit être vérifié avant de réessayer. Aucun second paiement ne sera créé.',
+          purchaseId: prepared.intent.intentId,
+        },
+        { status: 409, headers },
       );
     if (result.state !== 'payment-page')
       return answer('Ce moyen de paiement n’est pas encore disponible.', 503);
-    return Response.json({ url: result.url }, { headers });
+    return Response.json(
+      { url: result.url, purchaseId: prepared.intent.intentId },
+      { headers },
+    );
   } catch (error) {
     if (error instanceof PublicError || error instanceof RequestBodyError)
       return answer(error.message, error.status);

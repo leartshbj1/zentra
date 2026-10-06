@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { planById, type PlanId } from '@/lib/plans';
 import { LEGAL_VERSION } from '@/lib/legal';
+import { SwissPaymentMethods } from '@/components/swiss-payment-methods';
 
 type CheckoutStatus = {
   ready?: boolean;
@@ -266,6 +267,8 @@ export function PurchaseButton({
                   </a>
                 </p>
               </details>
+              <SwissPaymentMethods product={`gestion:${plan.id}`} organizationId={organizationId || undefined} disabled={busy || !!referralCode.trim()} />
+              {referralCode.trim() && <p>Le code de parrainage s’applique au paiement par carte ou TWINT.</p>}
               <label className="flex min-h-11 cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
@@ -303,6 +306,7 @@ export function PurchaseButton({
               </p>
             </div>
           )}
+          {unavailable && !loginRequired && <SwissPaymentMethods product={`gestion:${plan.id}`} disabled={busy || !!referralCode.trim()} />}
           <button
             type="button"
             onClick={() => void checkout()}

@@ -1,6 +1,7 @@
 'use client';
 import { siteCount } from 'zentra:site-language';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { SwissPaymentMethods } from '@/components/swiss-payment-methods';
 import { ArrowRight } from 'lucide-react';
 import { completePaymentUrl } from '@/lib/client-payment-url';
 import {
@@ -12,19 +13,79 @@ import {
 export function CompleteCheckout({
   planId,
   signedIn,
+  initialOrganization,
 }: {
   planId: CompletePlanId;
   signedIn: boolean;
+  initialOrganization?: string;
 }) {
   const plan = completePlan(planId)!;
   const [accepted, setAccepted] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [conflict, setConflict] = useState(false);
+  const [companies, setCompanies] = useState<
+    { id: string; name: string }[] | null
+  >(null);
+  const [organizationId, setOrganizationId] = useState(
+    initialOrganization ?? '',
+  );
+  const [companyError, setCompanyError] = useState(false);
+  const working = useRef(false);
+  useEffect(() => {
+    if (!signedIn) return;
+    const controller = new AbortController();
+    fetch('/api/payments/gestion/companies', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          companies?: { id: string; name: string }[];
+        };
+        if (
+          !response.ok ||
+          !Array.isArray(data.companies) ||
+          data.companies.some(
+            (item) =>
+              !item ||
+              typeof item.id !== 'string' ||
+              typeof item.name !== 'string',
+          )
+        )
+          throw Error();
+        if (controller.signal.aborted) return;
+        if (
+          initialOrganization &&
+          !data.companies.some((item) => item.id === initialOrganization)
+        )
+          throw Error();
+        setCompanies(data.companies);
+        setOrganizationId(
+          initialOrganization ??
+            (data.companies.length === 1 ? data.companies[0].id : ''),
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCompanyError(true);
+      });
+    return () => controller.abort();
+  }, [signedIn, initialOrganization]);
+  const companyReady =
+    !companyError &&
+    companies !== null &&
+    (companies.length === 0 ||
+      companies.some((item) => item.id === organizationId));
+  const purchaseParams = new URLSearchParams({ formule: planId });
+  if (initialOrganization)
+    purchaseParams.set('organizationId', initialOrganization);
   const login =
     '/connexion?retour=' +
-    encodeURIComponent(`/complet/abonnement?formule=${planId}`);
+    encodeURIComponent(`/complet/abonnement?${purchaseParams}`);
   async function act(cancel = false) {
+    if (working.current || (!cancel && (!accepted || !companyReady))) return;
+    working.current = true;
     setBusy(true);
     setMessage('');
     setConflict(false);
@@ -39,6 +100,7 @@ export function CompleteCheckout({
                 plan: planId,
                 acceptTerms: accepted,
                 legalVersion: COMPLETE_TERMS_VERSION,
+                ...(organizationId ? { organizationId } : {}),
               },
         ),
       });
@@ -72,6 +134,7 @@ export function CompleteCheckout({
           : 'La connexion a été interrompue. Réessayez.',
       );
     } finally {
+      working.current = false;
       setBusy(false);
     }
   }
@@ -81,7 +144,7 @@ export function CompleteCheckout({
         <div>
           <strong>Zentra Complet {plan.name}</strong>
           <p>
-            {siteCount('people',plan.seats)} ·{' '}
+            {siteCount('people', plan.seats)} ·{' '}
             {plan.analyses.toLocaleString('fr-CH')} analyses Support / mois
             <br />
             Gestion, Support et Automation inclus.
@@ -91,6 +154,34 @@ export function CompleteCheckout({
       </div>
       {signedIn ? (
         <>
+          {companies && companies.length > 1 && (
+            <label className="complete-company-choice">
+              Votre entreprise
+              <select
+                value={organizationId}
+                disabled={busy}
+                onChange={(event) => setOrganizationId(event.target.value)}
+              >
+                <option value="">Choisissez votre entreprise.</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {companyError && (
+            <p role="alert">
+              Vos entreprises n’ont pas pu être vérifiées. Rechargez la page
+              avant de continuer.
+            </p>
+          )}
+          <SwissPaymentMethods
+            product={`complet:${planId}`}
+            organizationId={organizationId || undefined}
+            disabled={busy || !companyReady}
+          />
           <label className="complete-consent">
             <input
               type="checkbox"
@@ -112,7 +203,7 @@ export function CompleteCheckout({
           </label>
           <button
             className="zentra-primary"
-            disabled={!accepted || busy}
+            disabled={!accepted || busy || !companyReady}
             onClick={() => void act()}
           >
             {busy ? 'Un instant…' : 'Continuer vers le paiement'}
@@ -132,7 +223,11 @@ export function CompleteCheckout({
         </>
       )}
       {message && (
-        <div className="complete-checkout-error" aria-live="polite" aria-atomic="true">
+        <div
+          className="complete-checkout-error"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           <p>{message}</p>
           {conflict && (
             <>
@@ -155,8 +250,8 @@ export function CompleteCheckout({
       )}
       <p className="complete-terms-note">
         Renouvellement mensuel automatique. Résiliable pour la fin de la période
-        payée. Le montant et les informations de commande sont confirmés sur
-        Stripe avant tout paiement.
+        payée. Le montant et les informations de commande sont confirmés sur la
+        page de paiement avant tout paiement.
       </p>
     </>
   );

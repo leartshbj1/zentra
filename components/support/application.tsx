@@ -835,6 +835,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
               {!demo && data.billing && !data.billing.active ? (
                 <BillingPanel
                   billing={data.billing}
+                  workspaceId={data.workspace.id}
                   owner={data.workspace.role === 'owner'}
                   busy={busy}
                   mutate={mutate}
@@ -1328,6 +1329,7 @@ export function SupportWorkspace({ demo = false }: { demo?: boolean }) {
             <TabsContent value="billing">
               <BillingPanel
                 billing={data.billing}
+                workspaceId={data.workspace.id}
                 owner={data.workspace.role === 'owner'}
                 busy={busy}
                 mutate={mutate}

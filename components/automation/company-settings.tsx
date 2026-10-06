@@ -1,4 +1,5 @@
 'use client';
+import { SwissPaymentMethods } from '@/components/swiss-payment-methods';
 import { useEffect, useRef, useState } from 'react';
 import { currentSiteLanguage } from 'zentra:site-language';
 import {
@@ -359,6 +360,7 @@ export function AutomationCompanySettings({
             >
               Ajouter Automation · 15 CHF/mois
             </button>
+            <SwissPaymentMethods product="automation" organizationId={org} disabled={busy} />
             <button
               type="button"
               className="automation-workspace__back"

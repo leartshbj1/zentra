@@ -366,6 +366,8 @@ describe('public boundary of the private PostFinance purchase preview', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       url: 'https://checkout.postfinance.ch/payment/test-fixture',
+      purchaseId: sql.prepare('SELECT intent_id FROM purchase_intents').get()
+        ?.intent_id,
     });
     const posts = () =>
       transport.mock.calls.filter(([, init]) => init.method === 'POST');

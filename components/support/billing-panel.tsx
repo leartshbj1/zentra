@@ -8,13 +8,20 @@ import {
   type SupportBillingState,
 } from '@/lib/support/plans';
 import type { Mutate } from './model';
+import { SwissPaymentMethods } from '@/components/swiss-payment-methods';
 
 export function SupportPrices({
   onChoose,
   disabled = false,
+  workspaceId,
+  showPaymentMethods = false,
+  paymentDisabled = false,
 }: {
   onChoose?: (id: string) => void;
   disabled?: boolean;
+  workspaceId?: string;
+  showPaymentMethods?: boolean;
+  paymentDisabled?: boolean;
 }) {
   return (
     <div className="support-price-offers">
@@ -34,6 +41,8 @@ export function SupportPrices({
             Jusqu’à {plan.analyses.toLocaleString('fr-CH')} analyses / mois avec Automation
           </strong>
           {onChoose ? (
+            <>
+            {showPaymentMethods && <SwissPaymentMethods product={`support:${plan.id}`} workspaceId={workspaceId} disabled={paymentDisabled} />}
             <Button
               className="support-primary"
               disabled={disabled}
@@ -41,6 +50,7 @@ export function SupportPrices({
             >
               Choisir {plan.name}
             </Button>
+            </>
           ) : (
             <a
               className="sp-button sp-button-dark"
@@ -67,12 +77,14 @@ export function BillingPanel({
   busy,
   mutate,
   demo = false,
+  workspaceId,
 }: {
   billing?: SupportBillingState;
   owner: boolean;
   busy: boolean;
   mutate: Mutate;
   demo?: boolean;
+  workspaceId?: string;
 }) {
   const [accepted, setAccepted] = useState(false),
     [working, setWorking] = useState(false),
@@ -221,6 +233,9 @@ export function BillingPanel({
             </p>
           )}
           <SupportPrices
+            workspaceId={workspaceId}
+            showPaymentMethods={!demo && !billing?.hasSubscription && !billing?.active}
+            paymentDisabled={disabled}
             disabled={
               disabled ||
               !accepted ||
