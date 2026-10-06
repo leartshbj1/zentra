@@ -1,11 +1,12 @@
 import { database, runtimeValue, stripeConfiguration } from '@/lib/runtime';
 import { isSandboxDeployment } from '@/lib/deployment-contract';
-import { isAccountRole, type AccountRole } from '@/lib/account-security';
+import { AccountPublicError, isAccountRole, type AccountRole } from '@/lib/account-security';
 import { planByLicense, validLicensePrice } from '@/lib/plans';
 import { requireMemberSeat } from '@/lib/team-seats';
 import { offeredLicenseEntitlement } from '@/lib/founder-access';
 import { trialLicenseEntitlement } from '@/lib/account-trial';
 import { transitionLicense } from '@/lib/complete/bridge';
+import { prepaidSubscriptionAccess } from '@/lib/payments/prepaid-access';
 import {
   LICENSE_KEY_ID,
   LICENSE_PLAN,
@@ -108,6 +109,81 @@ async function signPayload(payload: LicensePayload) {
   return `${encoded}.${base64Url(signature)}`;
 }
 
+/** The paid reader supplies scope and immutable Gestion terms. Membership,
+ * device/session ownership and the actual seat remain mandatory at issuance. */
+async function prepaidLicenseContext(input: {
+  subscriptionId: string;
+  installationId: string;
+  accountUserId: string | null;
+  accountSessionId: string | null;
+  channel: 'account' | 'checkout' | 'refresh';
+  deviceAuthorizationHash?: string;
+}) {
+  if (!input.accountUserId || !input.accountSessionId) {
+    throw new PublicError(
+      'Connectez cet appareil au compte Zentra pour utiliser la période payée.',
+      403,
+    );
+  }
+  const access = await prepaidSubscriptionAccess(input.subscriptionId);
+  const gestion = access?.catalog.gestion;
+  if (!access?.organizationId || !gestion || access.paidUntil <= Math.floor(Date.now() / 1000)) {
+    throw new PublicError('Aucune période payée ne couvre cet appareil.', 402);
+  }
+  if (!isSupportedLicensePlan(gestion.licensePlan)
+    || !validLicensePrice(gestion.licensePlan, gestion.licensePriceChfMinor)) {
+    throw new PublicError('La formule payée de cette entreprise doit être vérifiée.', 403);
+  }
+  let member: {role: string} | null;
+  if (input.deviceAuthorizationHash !== undefined) {
+    // Only the account exchange route supplies this server-derived hash. A
+    // claimed authorization replaces the not-yet-inserted session exactly once.
+    if (input.channel !== 'account' || !/^[A-Za-z0-9_-]{43}$/.test(input.deviceAuthorizationHash)) {
+      throw new AccountPublicError('Autorisation appareil invalide.', 403);
+    }
+    member = await database()
+      .prepare(`SELECT member.role FROM device_authorizations authorization
+        JOIN organization_members member ON member.organization_id=authorization.organization_id
+          AND member.user_id=authorization.approved_by_user_id AND member.revoked_at IS NULL
+        WHERE authorization.device_code_hash=? AND authorization.status='exchanging'
+          AND authorization.organization_id=? AND authorization.approved_by_user_id=?
+          AND authorization.installation_id=? AND authorization.expires_at>=?
+          AND NOT EXISTS(SELECT 1 FROM device_sessions WHERE session_id=?) LIMIT 1`)
+      .bind(input.deviceAuthorizationHash, access.organizationId, input.accountUserId,
+        input.installationId, Math.floor(Date.now() / 1000), input.accountSessionId)
+      .first<{role: string}>();
+    if (!member) throw new AccountPublicError('Cette autorisation appareil a expiré ou a déjà été utilisée.', 403);
+  } else {
+    member = await database()
+      .prepare(`SELECT member.role
+      FROM device_sessions session JOIN organization_members member
+        ON member.organization_id=session.organization_id AND member.user_id=session.user_id
+        AND member.revoked_at IS NULL
+      WHERE session.organization_id=? AND session.installation_id=?
+        AND session.session_id=? AND session.user_id=?
+        AND session.revoked_at IS NULL AND session.expires_at>=? LIMIT 1`)
+    .bind(access.organizationId, input.installationId, input.accountSessionId,
+      input.accountUserId, Math.floor(Date.now() / 1000))
+      .first<{ role: string }>();
+  }
+  if (!member || !isAccountRole(member.role)) {
+    throw new PublicError(
+      'La session du compte liée à cet appareil a expiré ou a été révoquée. Reconnectez Zentra au compte.',
+      403,
+    );
+  }
+  try {
+    await requireMemberSeat(access.organizationId, input.accountUserId);
+  } catch {
+    const ErrorType = input.deviceAuthorizationHash === undefined ? PublicError : AccountPublicError;
+    throw new ErrorType(
+      'Votre accès dépasse le nombre de personnes incluses dans la formule de l’entreprise.',
+      403,
+    );
+  }
+  return { access, gestion, role: member.role };
+}
+
 export async function issueLicense(input: {
   subscriptionId: string;
   installationId: string;
@@ -117,6 +193,8 @@ export async function issueLicense(input: {
   accessRole?: AccountRole;
   accountUserId?: string | null;
   accountSessionId?: string | null;
+  /** Internal exchange context; never accept this field from a request body. */
+  deviceAuthorizationHash?: string;
 }) {
   if (!INSTALLATION_ID.test(input.installationId))
     throw new PublicError(
@@ -139,14 +217,22 @@ export async function issueLicense(input: {
       400,
     );
   }
-  const offered = await transitionLicense(input.subscriptionId,accountUserId) ?? await trialLicenseEntitlement(input.subscriptionId, accountUserId) ?? await offeredLicenseEntitlement(
+  const prepaid = input.subscriptionId.startsWith('pfp_')
+    ? await prepaidLicenseContext({subscriptionId: input.subscriptionId,
+      installationId: input.installationId, accountUserId, accountSessionId,
+      channel: input.channel, deviceAuthorizationHash: input.deviceAuthorizationHash})
+    : null;
+  const offered = prepaid ? null : await transitionLicense(input.subscriptionId,accountUserId) ?? await trialLicenseEntitlement(input.subscriptionId, accountUserId) ?? await offeredLicenseEntitlement(
     input.subscriptionId,
     accountUserId,
   );
   const entitlement =
-    offered ?? (await paidEntitlementForSubscription(input.subscriptionId));
-  const periodEnd = offered ? offered.entitlement_valid_until : input.periodEnd;
-  if (periodEnd + (offered ? 0 : 3 * 86_400) < now) {
+    prepaid ? { customer_name: prepaid.access.customerName,
+      entitlement_valid_until: prepaid.access.paidUntil,
+      entitlement_plan_id: prepaid.gestion.licensePlan, seat_limit: prepaid.gestion.seats }
+    : offered ?? (await paidEntitlementForSubscription(input.subscriptionId));
+  const periodEnd = prepaid ? prepaid.access.paidUntil : offered ? offered.entitlement_valid_until : input.periodEnd;
+  if (prepaid ? periodEnd <= now : periodEnd + (offered ? 0 : 3 * 86_400) < now) {
     throw new PublicError('La période d’accès est expirée.', 402);
   }
   const plan = planByLicense(entitlement.entitlement_plan_id);
@@ -226,16 +312,16 @@ export async function issueLicense(input: {
     installation_id: input.installationId,
     jti: crypto.randomUUID(),
     kid: LICENSE_KEY_ID,
-    customer_name: input.customerName,
-    access_role: input.accessRole ?? 'owner',
+    customer_name: prepaid ? prepaid.access.customerName : input.customerName,
+    access_role: prepaid ? prepaid.role : input.accessRole ?? 'owner',
     account_user_id: accountUserId,
     account_session_id: accountSessionId,
-    plan: plan.licensePlan,
-    price_chf_cents: plan.priceChfCents,
+    plan: prepaid ? prepaid.gestion.licensePlan : plan.licensePlan,
+    price_chf_cents: prepaid ? prepaid.gestion.licensePriceChfMinor : plan.priceChfCents,
     issued_at: new Date().toISOString(),
-    valid_from: isoDate(now - 86_400),
+    valid_from: isoDate(prepaid ? prepaid.access.paidFrom : now - 86_400),
     valid_until: isoDate(
-      offered ? Math.min(periodEnd, now + 86_400) : periodEnd + 3 * 86_400,
+      prepaid ? periodEnd : offered ? Math.min(periodEnd, now + 86_400) : periodEnd + 3 * 86_400,
     ),
   };
   return { token: await signPayload(payload), payload };
@@ -305,11 +391,12 @@ async function sha256Hex(value: string) {
 }
 
 /**
- * Réémet un bail signé pour la même installation après contrôle Stripe en
- * temps réel. Le jeton présenté sert de secret opaque : le couple aléatoire
+ * Réémet un bail signé pour la même installation après contrôle de l'accès
+ * courant. Le jeton présenté sert de secret opaque : le couple aléatoire
  * licence/installation doit exister exactement dans D1 et ne permet aucun
  * transfert vers un autre PC. Son ancienne date d’expiration n’est pas une
- * preuve d’abonnement; l’état Stripe courant reste l’unique autorité.
+ * preuve d’abonnement. Stripe est relu pour ses abonnements ; un contrat PFP
+ * exige exclusivement une période prépayée prouvée et la session liée.
  */
 export async function refreshLicense(token: string) {
   const normalizedToken = token.trim();
@@ -374,6 +461,18 @@ export async function refreshLicense(token: string) {
       'Cette activation n’est pas reconnue. Contactez le support Zentra.',
       403,
     );
+  }
+  // A PFP activation can never enter Stripe, trial, founder or transition paths.
+  if (activation.subscription_id.startsWith('pfp_')) {
+    return issueLicense({
+      subscriptionId: activation.subscription_id,
+      installationId,
+      customerName: null,
+      periodEnd: 0,
+      channel: 'refresh',
+      accountUserId: payload.account_user_id,
+      accountSessionId: payload.account_session_id,
+    });
   }
   const offered = await transitionLicense(activation.subscription_id,payload.account_user_id) ?? await trialLicenseEntitlement(activation.subscription_id, payload.account_user_id) ?? await offeredLicenseEntitlement(
     activation.subscription_id,

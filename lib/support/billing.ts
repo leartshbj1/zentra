@@ -20,6 +20,7 @@ import type { ZentraUser } from '@/app/zentra-auth';
 import { digest } from './crypto';
 import { SupportError, type Workspace } from './types';
 import { supportGrant } from './founder-access';
+import { isPrepaidContractId, prepaidSupportAccess, type PrepaidAccess } from '@/lib/payments/prepaid-access';
 import {
   SUPPORT_PRODUCT,
   SUPPORT_LEGAL_VERSION,
@@ -37,6 +38,9 @@ type BillingConfig = {
   keyBinding: string;
 };
 export type SubscriptionRow = {
+  provider?: 'postfinance';
+  prepaidPeriodId?: string;
+  bundlePlan?: string;
   workspace_id: string;
   subscription_id: string;
   customer_id: string;
@@ -50,6 +54,7 @@ export type SubscriptionRow = {
   livemode: number;
   updated_at: number;
 };
+const verifiedPrepaidRows = new WeakSet<object>();
 const now = () => Math.floor(Date.now() / 1000);
 const ref = (value: unknown) =>
   stripeReferenceId(value as string | { id: string } | null);
@@ -113,15 +118,36 @@ export async function isSupportOwner(workspace: Pick<Workspace, 'owner_id'>) {
   return row?.configuration === (await digest(email));
 }
 async function subscriptionRow(workspaceId: string) {
-  const link=await database().prepare('SELECT organization_id FROM support_gestion_links WHERE workspace_id=?').bind(workspaceId).first<{organization_id:string}>();
+  const prepaid = await prepaidSupportAccess(workspaceId);
+  if (prepaid?.catalog.support) return prepaidSupportRow(workspaceId, prepaid);
+  const link=await database().prepare('SELECT l.organization_id,o.subscription_id FROM support_gestion_links l JOIN organizations o ON o.organization_id=l.organization_id WHERE l.workspace_id=?').bind(workspaceId).first<{organization_id:string;subscription_id:string}>();
+  const projected = await database().prepare('SELECT * FROM support_subscriptions WHERE workspace_id=?')
+    .bind(workspaceId).first<SubscriptionRow>();
+  if ((projected && isPrepaidContractId(projected.subscription_id)) || (link && isPrepaidContractId(link.subscription_id))) {
+    // Keep the provider identity visible, but never resurrect its mutable cache,
+    // transition, trial or offered-access fallback after the proof stops applying.
+    return { workspace_id: workspaceId, subscription_id: projected?.subscription_id ?? link!.subscription_id,
+      customer_id: '', plan_id: '', paid_plan_id: null, status: 'expired', paid_from: 0,
+      paid_until: 0, last_paid_invoice_id: null, cancel_at_period_end: 0, livemode: 1,
+      updated_at: 0, provider: 'postfinance' } satisfies SubscriptionRow;
+  }
   const transition=link?await transitionAccess(link.organization_id):null;
   if(transition?.supportPlan) return {workspace_id:workspaceId,subscription_id:transition.primary,customer_id:transition.sources[0].customer,plan_id:transition.supportPlan,paid_plan_id:transition.supportPlan,status:'active',paid_from:transition.supportFrom,paid_until:transition.until,last_paid_invoice_id:null,cancel_at_period_end:0,livemode:Number(transition.live),updated_at:0};
   const bundle = await completeSupportSubscription(workspaceId);
   if (bundle) return { workspace_id: workspaceId, subscription_id: bundle.subscription_id, customer_id: bundle.customer_id, plan_id: completePlan(bundle.plan_id)!.support, paid_plan_id: completePlan(bundle.paid_plan_id)?.support ?? null, status: bundle.status, paid_from: bundle.paid_from, paid_until: bundle.refunded ? 0 : Math.min(bundle.paid_until, bundle.entitlement_valid_until), last_paid_invoice_id: bundle.last_paid_invoice_id, cancel_at_period_end: bundle.cancel_at_period_end, livemode: bundle.livemode, updated_at: 0, bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name };
-  return database()
-    .prepare('SELECT * FROM support_subscriptions WHERE workspace_id=?')
-    .bind(workspaceId)
-    .first<SubscriptionRow>();
+  return projected;
+}
+
+function prepaidSupportRow(workspaceId: string, access: PrepaidAccess): SubscriptionRow {
+  const plan = access.catalog.support!.planId;
+  const row: SubscriptionRow = { provider: 'postfinance', prepaidPeriodId: access.periodId,
+    workspace_id: workspaceId, subscription_id: access.contractId, customer_id: access.contractId,
+    plan_id: plan, paid_plan_id: plan, status: 'active', paid_from: access.paidFrom,
+    paid_until: access.paidUntil, last_paid_invoice_id: access.periodId,
+    cancel_at_period_end: Number(access.cancelAtPeriodEnd), livemode: 1, updated_at: 0,
+    ...(access.productKind === 'complete' ? { bundlePlan: completePlan(access.catalog.planId)?.name } : {}) };
+  verifiedPrepaidRows.add(row);
+  return row;
 }
 export function paidAccess(
   row: SubscriptionRow | null,
@@ -130,8 +156,9 @@ export function paidAccess(
 ) {
   return (
     !!row &&
-    live !== null &&
-    row.livemode === (live ? 1 : 0) &&
+    (row.provider === 'postfinance'
+      ? verifiedPrepaidRows.has(row) && !!row.prepaidPeriodId
+      : live !== null && row.livemode === (live ? 1 : 0)) &&
     !!supportPlan(row.paid_plan_id) &&
     row.paid_from <= time &&
     row.paid_until > time &&
@@ -148,7 +175,7 @@ export async function billingState(
       row,
       stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
     ),
-    offered = !ownerAccess && !paid ? await supportGrant(workspace) : null,
+    offered = row?.provider !== 'postfinance' && !ownerAccess && !paid ? await supportGrant(workspace) : null,
     plan = offered?.plan ?? supportPlan(row?.paid_plan_id);
   const usage = offered
     ? await database()
@@ -165,7 +192,7 @@ export async function billingState(
           .bind(workspace.id, row.paid_from)
           .first<{ used: number }>()
       : null;
-  const trial = !ownerAccess && !paid && !offered ? await supportCompleteTrial(workspace.id) : null;
+  const trial = row?.provider !== 'postfinance' && !ownerAccess && !paid && !offered ? await supportCompleteTrial(workspace.id) : null;
   if(trial) {
     const used=await database().prepare("SELECT COUNT(*) AS used FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND state='charged'").bind(workspace.id,trial.started_at).first<{used:number}>();
     return {active:!!trial.active,bundlePlan:'Essai Complet',ownerAccess:false,ready:!!config,testMode:config?.livemode===false,plan:'team',status:trial.active?'trialing':'trial_expired',used:used?.used??0,limit:trial.analyses,periodEnd:trial.ends_at,cancelAtPeriodEnd:false,hasSubscription:false};
@@ -176,8 +203,8 @@ export async function billingState(
     ownerAccess,
     offeredAccess: !!offered,
     offeredUntil: offered?.expiresAt ?? null,
-    ready: !!config,
-    testMode: config?.livemode === false,
+    ready: row?.provider === 'postfinance' ? paid : !!config,
+    testMode: row?.provider === 'postfinance' ? false : config?.livemode === false,
     plan: plan?.id ?? null,
     status: offered ? 'offered' : (row?.status ?? 'none'),
     used: usage?.used ?? 0,
@@ -198,8 +225,8 @@ export async function requireSupportSubscription(
       row,
       stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
     ) &&
-    !(await supportGrant(workspace)) &&
-    !(await supportCompleteTrial(workspace.id))?.active
+    (row?.provider === 'postfinance' || (!(await supportGrant(workspace)) &&
+    !(await supportCompleteTrial(workspace.id))?.active))
   )
     throw new SupportError(
       'Activez un abonnement dans Abonnement pour utiliser le tri et le routage. Vos tickets restent dans votre logiciel de support.',
@@ -210,10 +237,10 @@ export async function requireSupportSubscription(
 // This retains the existing paid/pack/trial/offered period resolution.
 async function analysisQuotaContext(workspace: Workspace) {
   const paidRow=await subscriptionRow(workspace.id);
-  const trial=!paidAccess(paidRow,stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'))) && !(await supportGrant(workspace)) ? await supportCompleteTrial(workspace.id) : null;
+  const trial=paidRow?.provider !== 'postfinance' && !paidAccess(paidRow,stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'))) && !(await supportGrant(workspace)) ? await supportCompleteTrial(workspace.id) : null;
   if (trial?.active) return { kind: 'trial' as const, trial };
   const row = await subscriptionRow(workspace.id),
-    offered = !paidAccess(
+    offered = row?.provider !== 'postfinance' && !paidAccess(
       row,
       stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
     )
@@ -312,9 +339,22 @@ export async function reserveAnalysis(
   }
   const { row, plan } = context;
   const time = now();
+  const prepaidFence = row.provider === 'postfinance' ? ` AND EXISTS(
+    SELECT 1 FROM prepaid_periods p JOIN prepaid_contracts c ON c.contract_id=p.contract_id
+    JOIN prepaid_settlement_proofs proof ON proof.period_id=p.period_id
+    JOIN support_workspaces w ON w.id=? AND w.owner_id=c.owner_id
+    WHERE p.period_id=? AND c.contract_id=? AND c.environment='PRODUCTION'
+    AND p.starts_at<=unixepoch() AND p.ends_at>unixepoch()
+    AND NOT EXISTS(SELECT 1 FROM prepaid_period_revocations r WHERE r.period_id=p.period_id)
+    AND ((json_extract(p.catalog_json,'$.productKind')='support' AND c.workspace_id=w.id)
+      OR (json_extract(p.catalog_json,'$.productKind')='complete' AND EXISTS(
+        SELECT 1 FROM prepaid_current_company_rights rights JOIN support_gestion_links l ON l.organization_id=rights.organization_id
+        WHERE rights.period_id=p.period_id AND rights.owner_id=w.owner_id AND l.workspace_id=w.id
+        AND (rights.workspace_id IS NULL OR rights.workspace_id=w.id))))
+  )` : '';
   const result = await database()
     .prepare(
-      `INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at) SELECT ?,?,?,?,'reserved',?,? WHERE (SELECT COUNT(*) FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?`,
+      `INSERT INTO support_analysis_usage(id,workspace_id,period_start,ticket_id,state,expires_at,created_at) SELECT ?,?,?,?,'reserved',?,? WHERE (SELECT COUNT(*) FROM support_analysis_usage WHERE workspace_id=? AND period_start=? AND (state='charged' OR (state='reserved' AND expires_at>?)))<?${prepaidFence}`,
     )
     .bind(
       lease,
@@ -327,6 +367,7 @@ export async function reserveAnalysis(
       row.paid_from,
       time,
       plan.analyses,
+      ...(row.provider === 'postfinance' ? [workspace.id, row.prepaidPeriodId!, row.subscription_id] : []),
     )
     .run();
   if (!result.meta.changes)
@@ -760,6 +801,9 @@ async function prepareSupportCheckout(
 ) {
   if (workspace.owner_id !== user.userId)
     throw new SupportError('Le titulaire de l’espace gère l’abonnement.', 403);
+  const existing = await subscriptionRow(workspace.id);
+  if (existing?.provider === 'postfinance')
+    throw new SupportError('Gérez cette offre depuis Compte → Abonnement. Aucun second abonnement ne sera ouvert.', 409);
   if (!stripeTestAccessAllowed(stripeConfiguration(), user))
     throw new SupportError(
       'Le paiement n’est pas encore ouvert aux clients.',
@@ -987,11 +1031,13 @@ export async function refreshSupportPayment(
       403,
     );
   if (await completeSupportSubscription(workspace.id)) return { updated: false };
+  const row = await subscriptionRow(workspace.id);
+  if (row?.provider === 'postfinance') return { updated: false };
   const stripe = client(),
     config = await configuration();
   if (!config)
     throw new SupportError('Le paiement est en cours de configuration.', 503);
-  let id = (await subscriptionRow(workspace.id))?.subscription_id;
+  let id = row?.subscription_id;
   if (sessionId) {
     if (!/^cs_(live|test)_[A-Za-z0-9]+$/.test(sessionId))
       throw new SupportError('Lien de paiement invalide.');
@@ -1035,6 +1081,8 @@ export async function createSupportPortal(
     throw new SupportError('Le titulaire de l’espace gère l’abonnement.', 403);
   const row = await subscriptionRow(workspace.id),
     config = await configuration();
+  if (row?.provider === 'postfinance')
+    throw new SupportError('Cette offre ne se gère pas dans le portail Stripe.', 409);
   if (row && 'bundlePlan' in row) return completePortal(row.customer_id, `${runtimeValue('PUBLIC_SITE_URL')}/support/espace?section=billing`);
   if (!row || !config || row.livemode !== (config.livemode ? 1 : 0))
     throw new SupportError('Aucun abonnement à gérer pour cet espace.', 404);

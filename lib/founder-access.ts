@@ -1,5 +1,5 @@
 import { database } from './runtime';
-import { AccountPublicError } from './account-security';
+import { AccountPublicError, isAccountRole } from './account-security';
 import {
   accessExpiry,
   grantEmail,
@@ -7,6 +7,7 @@ import {
   type FounderAction,
 } from './founder-access-policy';
 import { planByLicense } from './plans';
+import { prepaidSubscriptionAccess } from './payments/prepaid-access';
 
 export type AccessIdentity = {
   userId: string;
@@ -91,6 +92,18 @@ export async function effectiveAccountUntil(
   userId: string,
   paidUntil: number,
 ) {
+  // The entire namespace is reserved, including malformed IDs. A legacy cache,
+  // founder grant or transition must never replace a missing prepaid proof.
+  if (subscriptionId.startsWith('pfp_')) {
+    const access = await prepaidSubscriptionAccess(subscriptionId);
+    if (!access?.organizationId || !access.catalog.gestion) return 0;
+    const member = await database()
+      .prepare(`SELECT role FROM organization_members
+        WHERE organization_id=? AND user_id=? AND revoked_at IS NULL LIMIT 1`)
+      .bind(access.organizationId, userId)
+      .first<{ role: string }>();
+    return member && isAccountRole(member.role) ? access.paidUntil : 0;
+  }
   if (paidUntil >= nowSeconds()) return paidUntil;
   const {transitionLicense}=await import('@/lib/complete/bridge');
   const transition=await transitionLicense(subscriptionId,userId);

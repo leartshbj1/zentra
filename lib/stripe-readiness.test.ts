@@ -142,7 +142,10 @@ function closedReadinessFixture(sandbox = true, productionSigner?: () => Promise
     '@/lib/owner-license-binding': { InvalidOwnerLicenseBindingConfiguration: Error, ownerLicenseBindingMatches: unexpected },
   };
   const permitted = new Set(['lib/deployment-contract.ts', 'lib/runtime.ts', 'lib/license-constants.ts', 'lib/plans.ts',
-    'lib/license-token.ts', 'lib/stripe-readiness.ts', 'lib/stripe-webhook-proof.ts']);
+    'lib/license-token.ts', 'lib/stripe-readiness.ts', 'lib/stripe-webhook-proof.ts',
+    // Actual prepaid reader and its pure calendar/catalog dependencies; no provider or mutation client.
+    'lib/payments/prepaid-access.ts', 'lib/payments/prepaid-calendar.ts', 'lib/payments/prepaid-catalog.ts',
+    'lib/support/plans.ts', 'lib/complete/plans.ts', 'lib/automation/types.ts']);
   const modules = new Map<string, { exports: Record<string, unknown> }>();
   const context = createContext({
     console: { error() {}, log() {} }, process: { env: {} }, crypto: webcrypto,

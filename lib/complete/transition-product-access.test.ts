@@ -27,6 +27,7 @@ beforeEach(() => {
       const statement = {
         bind(...args: SQLInputValue[]) { values = args; return statement; },
         async first() { return db.prepare(query).get(...values) ?? null; },
+        async all() { return { success: true, results: db.prepare(query).all(...values) }; },
       };
       return statement;
     },

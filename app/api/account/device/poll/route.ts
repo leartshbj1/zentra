@@ -136,6 +136,9 @@ export async function POST(request: Request) {
         accessRole: account.role,
         accountUserId: authorization.approved_by_user_id,
         accountSessionId: sessionId,
+        ...(account.subscription_id.startsWith('pfp_')
+          ? {deviceAuthorizationHash: claimedHash}
+          : {}),
       });
       await db.batch([
         db

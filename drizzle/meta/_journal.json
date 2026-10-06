@@ -519,6 +519,13 @@
       "when": 1791259182294,
       "tag": "0073_complex_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "6",
+      "when": 1791260486120,
+      "tag": "0074_prepaid_rights_guards",
+      "breakpoints": true
     }
   ]
 }

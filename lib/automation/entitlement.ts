@@ -6,29 +6,42 @@ import type { AutomationActor } from './access';
 import { completeAccess } from '@/lib/complete/access';
 import { completeTrial } from '@/lib/complete/trial';
 import { transitionAccess } from '@/lib/complete/bridge';
-import { requireMemberSeat } from '@/lib/team-seats';
+import { requireMemberSeat, teamSeats } from '@/lib/team-seats';
+import { isPrepaidContractId, prepaidCompanyAccess, prepaidAutomationAccess } from '@/lib/payments/prepaid-access';
 
 export const AUTOMATION_REQUIRED =
   'Disponible avec Zentra Automation. Automatisez vos tâches répétitives pour +15 CHF/mois.';
 
 /** Commercial access for one company. No account-wide or founder bypass. */
 export async function automationEntitlement(actor: AutomationActor) {
+  const company = await database().prepare('SELECT subscription_id FROM organizations WHERE organization_id=?')
+    .bind(actor.organizationId).first<{ subscription_id: string }>();
+  if (company && isPrepaidContractId(company.subscription_id)) {
+    const [gestion, automation] = await Promise.all([
+      prepaidCompanyAccess(actor.organizationId), prepaidAutomationAccess(actor.organizationId),
+    ]);
+    return !!gestion?.catalog.gestion && !!automation?.catalog.automation;
+  }
+  const prepaid = await prepaidAutomationAccess(actor.organizationId);
+  if (prepaid) return (await teamSeats(actor.organizationId)).subscriptionActive;
   if (await completeAccess(actor.organizationId)) return true;
   if ((await completeTrial(actor.organizationId))?.active) return true;
   if((await transitionAccess(actor.organizationId))?.automation)return true;
   const row = await database()
-    .prepare(`SELECT a.paid_from,a.paid_until,a.status,a.livemode FROM automation_subscriptions a
+    .prepare(`SELECT a.subscription_id,a.paid_from,a.paid_until,a.status,a.livemode FROM automation_subscriptions a
     JOIN organizations o ON o.organization_id=a.organization_id
     JOIN subscriptions s ON s.subscription_id=o.subscription_id
     WHERE a.organization_id=? AND s.entitlement_valid_until>unixepoch() AND s.livemode=a.livemode
     AND NOT EXISTS(SELECT 1 FROM automation_refunds r WHERE r.invoice_id=a.last_paid_invoice_id AND r.customer_id=a.customer_id AND r.livemode=a.livemode)`)
     .bind(actor.organizationId)
     .first<{
+      subscription_id: string;
       paid_from: number;
       paid_until: number;
       status: string;
       livemode: number;
     }>();
+  if (row && isPrepaidContractId(row.subscription_id)) return false;
   const now = Math.floor(Date.now() / 1000),
     live = stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'));
   // past_due never extends access beyond an already-paid period. No implicit grace period.

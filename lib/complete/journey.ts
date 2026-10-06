@@ -10,6 +10,7 @@ import { completeTrial } from './trial';
 import { pendingPlanChange } from './change';
 import { AccountPublicError } from '@/lib/account-security';
 import type { AutomationActor } from '@/lib/automation/access';
+import { isPrepaidContractId, prepaidCompanyAccess, prepaidAutomationAccess } from '@/lib/payments/prepaid-access';
 
 export function quotaAlert(used:number,limit:number){
   if(limit<=0)return null;
@@ -21,6 +22,8 @@ export function quotaAlert(used:number,limit:number){
 export async function subscriptionJourney(actor:AutomationActor){
   const db=database(),org=await db.prepare('SELECT name,subscription_id FROM organizations WHERE organization_id=?').bind(actor.organizationId).first<{name:string;subscription_id:string}>();
   if(!org)throw new AccountPublicError('Entreprise introuvable.',404);
+  const prepaidCompany = isPrepaidContractId(org.subscription_id) ? await prepaidCompanyAccess(actor.organizationId) : null;
+  const prepaidAutomation = await prepaidAutomationAccess(actor.organizationId);
   const [seats,bundle,trial,change,sub,workspace,settings,automation,skip]=await Promise.all([
     teamSeats(actor.organizationId),completeSubscription(actor.organizationId),completeTrial(actor.organizationId),pendingPlanChange(actor.organizationId),
     db.prepare('SELECT customer_id,status,current_period_end,cancel_at_period_end,last_paid_invoice_id FROM subscriptions WHERE subscription_id=?').bind(org.subscription_id).first<{customer_id:string;status:string;current_period_end:number;cancel_at_period_end:number;last_paid_invoice_id:string|null}>(),
@@ -41,20 +44,20 @@ export async function subscriptionJourney(actor:AutomationActor){
   ].map(s=>({...s,skipped:skipped.includes(s.id)}));
   const trialActive=!!trial?.active;
   const products=[
-    {id:'gestion',name:'Gestion',active:seats.subscriptionActive,detail:`${seats.used} / ${seats.limit??'∞'} personnes`,until:seats.trialUntil??seats.offeredUntil??sub?.current_period_end??null},
+    {id:'gestion',name:'Gestion',active:seats.subscriptionActive,detail:`${seats.used} / ${seats.limit??'∞'} personnes`,until:isPrepaidContractId(org.subscription_id)?prepaidCompany?.paidUntil??null:seats.trialUntil??seats.offeredUntil??sub?.current_period_end??null},
     {id:'support',name:'Support',active:!!support?.active,detail:support?.ownerAccess?'Accès administrateur':support?.active?`${support.used.toLocaleString('fr-CH')} / ${support.limit.toLocaleString('fr-CH')} analyses`:'À activer',until:support?.periodEnd??null},
-    {id:'automation',name:'Automation',active:automation,detail:automation?(settings.enabled?'Automatismes configurés':'Prête à configurer'):'À activer',until:trialActive?trial.ends_at:pack?bundle?.paid_until??null:addon?.paid_until??null},
+    {id:'automation',name:'Automation',active:automation,detail:automation?(settings.enabled?'Automatismes configurés':'Prête à configurer'):'À activer',until:prepaidAutomation?prepaidAutomation.paidUntil:isPrepaidContractId(org.subscription_id)?null:trialActive?trial.ends_at:pack?bundle?.paid_until??null:addon?.paid_until??null},
   ];
-  const monthly=trialActive?0:pack?pack.priceChfCents:(seats.priceChfCents+(support?.hasSubscription?(supportPlan(support.plan)?.priceChfCents??0):0)+(addon&&automation?1500:0));
+  const monthly=prepaidCompany?.productKind==='complete'?prepaidCompany.catalog.priceChfMinor:trialActive?0:pack?pack.priceChfCents:(seats.priceChfCents+(support?.hasSubscription?(supportPlan(support.plan)?.priceChfCents??0):0)+(automation?(prepaidAutomation?.catalog.priceChfMinor??(addon?1500:0)):0));
   return {organizationId:actor.organizationId,organizationName:org.name,owner:actor.role==='owner',canManage:['owner','admin'].includes(actor.role),
     name:trialActive?'Essai Zentra Complet':pack?`Zentra Complet ${pack.name}`:seats.planName,plan:pack?.id??null,monthlyChfCents:monthly,
-    status:trialActive?'trial':!seats.subscriptionActive?'expired':sub?.cancel_at_period_end?'cancelling':sub?.status==='past_due'?'payment_due':'active',
-    renewalAt:trialActive?trial.ends_at:change&&change.state!=='completed'?change.effective_at:seats.offeredUntil??seats.trialUntil??sub?.current_period_end??null,
+    status:!seats.subscriptionActive?'expired':isPrepaidContractId(org.subscription_id)?prepaidCompany?.cancelAtPeriodEnd?'cancelling':'active':trialActive?'trial':sub?.cancel_at_period_end?'cancelling':sub?.status==='past_due'?'payment_due':'active',
+    renewalAt:isPrepaidContractId(org.subscription_id)?prepaidCompany?.paidUntil??null:trialActive?trial.ends_at:change&&change.state!=='completed'?change.effective_at:seats.offeredUntil??seats.trialUntil??sub?.current_period_end??null,
     trial:trial?{active:trialActive,endsAt:trial.ends_at,analyses:trial.analyses}:null,seats,products,
     support:support?{active:support.active,used:support.used,limit:support.limit,remaining:Math.max(0,support.limit-support.used),periodEnd:support.periodEnd,alert:quotaAlert(support.used,support.limit)}:null,
     change:change&&change.state!=='completed'?{plan:change.target_plan,name:`Complet ${completePlan(change.target_plan)?.name??''}`,effectiveAt:change.effective_at,state:change.state}:null,
-    canChange:actor.role==='owner'&&(org.subscription_id.startsWith('sub_')||!!support?.hasSubscription||!!(addon?.subscription_id.startsWith('sub_')&&!['canceled','incomplete_expired'].includes(addon.status))),
-    portalAvailable:actor.role==='owner'&&!!sub?.customer_id.startsWith('cus_'),steps,
+    canChange:actor.role==='owner'&&!isPrepaidContractId(org.subscription_id)&&!prepaidAutomation&&(org.subscription_id.startsWith('sub_')||!!support?.hasSubscription||!!(addon?.subscription_id.startsWith('sub_')&&!['canceled','incomplete_expired'].includes(addon.status))),
+    portalAvailable:actor.role==='owner'&&!isPrepaidContractId(org.subscription_id)&&!!sub?.customer_id.startsWith('cus_'),steps,
     onboardingComplete:steps.every(s=>s.done||s.skipped)};
 }
 export type SubscriptionJourney=Awaited<ReturnType<typeof subscriptionJourney>>;

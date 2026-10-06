@@ -6,6 +6,7 @@ import { stripeReferenceId, stripeSecretKeyLivemode } from '@/lib/stripe-event';
 import { completePlan, COMPLETE_PRODUCT } from './plans';
 import { ensureCompletePrice } from './stripe';
 import { linkCompleteProducts } from './access';
+import { assertNoPrepaidAccountPurchase } from '@/lib/payments/prepaid-checkout-guard';
 
 const now=()=>Math.floor(Date.now()/1000);
 const ref=(v:unknown)=>stripeReferenceId(v as string|{id:string}|null);
@@ -26,6 +27,7 @@ async function owned(userId:string,organizationId:string){
     JOIN organization_members m ON m.organization_id=o.organization_id AND m.user_id=? AND m.role='owner' AND m.revoked_at IS NULL
     WHERE o.organization_id=? AND o.created_by_user_id=?`).bind(userId,organizationId,userId).first<Record<string,unknown>>();
   if(!row)throw new AccountPublicError('Seul le propriétaire peut changer cette formule.',403);
+  await assertNoPrepaidAccountPurchase(userId);
   return row;
 }
 /** Read-only quote. Every provider object is bound to a local company subscription. */

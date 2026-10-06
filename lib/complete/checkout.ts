@@ -11,6 +11,7 @@ import {
   type CompletePlan,
 } from './plans';
 import { ensureCompletePrice } from './stripe';
+import { assertNoPrepaidAccountPurchase } from '@/lib/payments/prepaid-checkout-guard';
 
 type Attempt = {
   user_id: string;
@@ -22,6 +23,7 @@ type Attempt = {
   session_url: string | null;
 };
 export async function assertCompleteEligible(userId: string) {
+  await assertNoPrepaidAccountPurchase(userId);
   const db = database(),
     now = Math.floor(Date.now() / 1000);
   const existing = await db
@@ -75,6 +77,7 @@ export async function assertCompleteEligible(userId: string) {
   }
 }
 export async function assertNoCompleteCheckout(userId: string) {
+  await assertNoPrepaidAccountPurchase(userId);
   if(await database().prepare("SELECT 1 FROM complete_plan_changes WHERE user_id=? AND state IN ('preparing','scheduled')").bind(userId).first())throw new PublicError('Un changement vers Zentra Complet est déjà prévu. Retrouvez-le dans Compte → Abonnement.',409);
   const paid = await database()
     .prepare(

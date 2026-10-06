@@ -5,6 +5,7 @@ import { completePlan } from '@/lib/complete/plans';
 import { offerForOrganization, grantForAccount } from '@/lib/founder-access';
 import { SOLO_PLAN } from '@/lib/founder-access-policy';
 import { transitionAccess } from '@/lib/complete/bridge';
+import { isPrepaidContractId, prepaidCompanyAccess } from '@/lib/payments/prepaid-access';
 
 export type TeamSeats = {
   plan: string;
@@ -41,6 +42,18 @@ export async function teamSeats(organizationId: string): Promise<TeamSeats> {
       used: number;
       reserved: number;
     }>();
+  if (row && isPrepaidContractId(row.subscription_id)) {
+    const access = await prepaidCompanyAccess(organizationId);
+    const gestion = access?.catalog.gestion;
+    if (!access || !gestion) {
+      return { plan: '', planName: 'Abonnement à régulariser', priceChfCents: 0,
+        limit: 0, used: row.used, reserved: row.reserved, available: 0, subscriptionActive: false };
+    }
+    return { plan: gestion.planId, planName: access.catalog.name,
+      priceChfCents: access.catalog.priceChfMinor, limit: gestion.seats,
+      used: row.used, reserved: row.reserved,
+      available: Math.max(0, gestion.seats - row.used - row.reserved), subscriptionActive: true };
+  }
   const offer =
     row && row.entitlement_valid_until < now
       ? await offerForOrganization(organizationId)
@@ -98,6 +111,21 @@ export const MEMBER_HAS_SEAT_SQL = `
     WHERE m.organization_id=? AND m.revoked_at IS NULL
   ) SELECT user_id,subscription_id FROM ranked WHERE user_id=? AND (seat_limit IS NULL OR seat<=seat_limit)`;
 
+/** The immutable paid catalogue, never the subscription cache, supplies the limit. */
+const PREPAID_MEMBER_SEAT_SQL = `WITH ranked AS (
+  SELECT m.user_id,ROW_NUMBER() OVER (ORDER BY CASE WHEN m.user_id=o.created_by_user_id AND m.role='owner' THEN 0 WHEN m.role='owner' THEN 1 ELSE 2 END,m.joined_at,m.membership_id) AS seat
+  FROM organization_members m JOIN organizations o ON o.organization_id=m.organization_id
+  WHERE m.organization_id=? AND m.revoked_at IS NULL
+) SELECT seat FROM ranked WHERE user_id=?`;
+
+async function requirePrepaidSeat(organizationId: string, userId: string) {
+  const access = await prepaidCompanyAccess(organizationId);
+  const rank = access?.catalog.gestion ? await database().prepare(PREPAID_MEMBER_SEAT_SQL)
+    .bind(organizationId, userId).first<{ seat: number }>() : null;
+  if (!access || !rank || rank.seat > access.catalog.gestion!.seats)
+    throw new AccountPublicError('Votre accès n’est pas couvert par la période payée ou le nombre de personnes incluses.', 403);
+}
+
 export async function requireMemberSeat(
   organizationId: string,
   userId: string,
@@ -106,6 +134,10 @@ export async function requireMemberSeat(
     .prepare(MEMBER_HAS_SEAT_SQL)
     .bind(organizationId, userId)
     .first<{ subscription_id: string }>();
+  if (allowed && isPrepaidContractId(allowed.subscription_id)) {
+    await requirePrepaidSeat(organizationId, userId);
+    return;
+  }
   if (allowed?.subscription_id.startsWith('manual_')) {
     if (await grantForAccount(allowed.subscription_id, userId)) return;
     throw new AccountPublicError(
@@ -120,6 +152,10 @@ export async function requireMemberSeat(
       )
       .bind(organizationId)
       .first<{ subscription_id: string }>();
+    if (organization && isPrepaidContractId(organization.subscription_id)) {
+      await requirePrepaidSeat(organizationId, userId);
+      return;
+    }
     if (
       organization &&
       (await grantForAccount(organization.subscription_id, userId))

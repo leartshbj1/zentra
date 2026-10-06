@@ -162,6 +162,8 @@ export async function ensureCompletePortalConfiguration() {
   return config;
 }
 export async function completePortal(customerId: string, returnUrl: string) {
+  if (!customerId.startsWith('cus_'))
+    throw new PublicError('Cette offre ne se gère pas dans le portail Stripe.', 409);
   const config = await ensureCompletePortalConfiguration();
   const session = await automationStripe().billingPortal.sessions.create({
     customer: customerId,

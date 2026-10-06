@@ -27,7 +27,11 @@ describe('Stripe SDK and webhook version contract', () => {
     expect(licenseSource).toContain(
       'await upsertSubscription(subscription, null, {',
     );
-    expect(licenseSource).toContain('access_role: input.accessRole');
+    expect(licenseSource).toContain(
+      "access_role: prepaid ? prepaid.role : input.accessRole ?? 'owner'",
+    );
+    expect(licenseSource).toContain('if (!member || !isAccountRole(member.role))');
+    expect(licenseSource).toContain('return { access, gestion, role: member.role };');
     expect(licenseSource).toContain('account_user_id: accountUserId');
     expect(licenseSource).toContain('account_session_id: accountSessionId');
     expect(licenseSource).toContain('AND member.revoked_at IS NULL');

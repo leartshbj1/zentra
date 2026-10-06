@@ -65,6 +65,9 @@ beforeEach(async () => {
         async first() {
           return sql.prepare(query).get(...args) || null;
         },
+        async all() {
+          return { results: sql.prepare(query).all(...args) };
+        },
         async run() {
           return {
             meta: { changes: Number(sql.prepare(query).run(...args).changes) },

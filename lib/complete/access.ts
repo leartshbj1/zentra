@@ -2,8 +2,10 @@ import { database, runtimeValue } from '@/lib/runtime';
 import { stripeSecretKeyLivemode } from '@/lib/stripe-event';
 import { completePlan } from './plans';
 import { AccountPublicError } from '@/lib/account-security';
+import { isPrepaidContractId, prepaidCompanyAccess, prepaidSupportAccess } from '@/lib/payments/prepaid-access';
 
 export type CompleteSubscription = {
+  provider?: 'postfinance';
   subscription_id: string;
   organization_id: string;
   customer_id: string;
@@ -37,16 +39,30 @@ export function hasCompleteAccess(
   );
 }
 export async function completeSubscription(organizationId: string) {
-  return database()
-    .prepare(`SELECT c.*,o.organization_id,s.customer_id,s.status,s.livemode,s.cancel_at_period_end,s.entitlement_valid_until,
+  const row = await database()
+    .prepare(`SELECT c.*,s.subscription_id AS company_subscription_id,o.organization_id,s.customer_id,s.status,s.livemode,s.cancel_at_period_end,s.entitlement_valid_until,
     EXISTS(SELECT 1 FROM complete_refunds r WHERE r.invoice_id=c.last_paid_invoice_id AND r.customer_id=s.customer_id AND r.livemode=s.livemode) AS refunded
-    FROM complete_subscriptions c JOIN subscriptions s ON s.subscription_id=c.subscription_id
-    JOIN organizations o ON o.subscription_id=c.subscription_id WHERE o.organization_id=?`)
+    FROM organizations o JOIN subscriptions s ON s.subscription_id=o.subscription_id
+    LEFT JOIN complete_subscriptions c ON c.subscription_id=s.subscription_id WHERE o.organization_id=?`)
     .bind(organizationId)
-    .first<CompleteSubscription>();
+    .first<CompleteSubscription & { company_subscription_id: string }>();
+  if (row && isPrepaidContractId(row.company_subscription_id)) {
+    const access = await prepaidCompanyAccess(organizationId);
+    if (access?.productKind !== 'complete') return null;
+    return { provider: 'postfinance', subscription_id: access.contractId,
+      organization_id: organizationId, customer_id: access.contractId,
+      plan_id: access.catalog.planId!, paid_plan_id: access.catalog.planId!,
+      paid_from: access.paidFrom, paid_until: access.paidUntil,
+      last_paid_invoice_id: access.periodId, status: 'active', livemode: 1,
+      cancel_at_period_end: Number(access.cancelAtPeriodEnd), entitlement_valid_until: access.paidUntil, refunded: 0 } satisfies CompleteSubscription;
+  }
+  return row?.subscription_id ? row : null;
 }
 export async function completeAccess(organizationId: string) {
   const row = await completeSubscription(organizationId);
+  // Only the reader above can produce this provider tag, after checking proof,
+  // scope, catalogue and current period. No Stripe environment dependency.
+  if (row?.provider === 'postfinance') return row;
   return hasCompleteAccess(
     row,
     stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY')),
@@ -61,7 +77,12 @@ export async function completeSupportSubscription(workspaceId: string) {
     )
     .bind(workspaceId)
     .first<{ organization_id: string }>();
-  return link ? completeSubscription(link.organization_id) : null;
+  const bundle = link ? await completeSubscription(link.organization_id) : null;
+  if (bundle?.provider === 'postfinance') {
+    const scoped = await prepaidSupportAccess(workspaceId);
+    return scoped?.productKind === 'complete' && scoped.contractId === bundle.subscription_id ? bundle : null;
+  }
+  return bundle;
 }
 
 // Same invoice period for all products. Status-only events never extend it.

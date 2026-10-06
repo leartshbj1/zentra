@@ -58,6 +58,7 @@ import {
   createSupportPortal,
   refreshSupportPayment,
   requireSupportSubscription,
+  analysisReservationAdmission,
   reserveAnalysis,
   finishAnalysis,
 } from './billing';
@@ -1202,6 +1203,7 @@ export async function processTicket(
   }
   let reservation: string | null = null;
   let leaseFailure: SupportError | null = null;
+  let admissionFailure: SupportError | AccountPublicError | null = null;
   const leaseLost = () => new SupportError(
     'Ce ticket est repris par un autre traitement. Actualisez-le avant de continuer.',
     409,
@@ -1215,7 +1217,27 @@ export async function processTicket(
     ).bind(time + 180, id, workspace.id, lease, time).run();
     if (!owned.meta.changes) throw (leaseFailure = leaseLost());
   };
+  const requireCurrentSupport = async () => {
+    try {
+      const current = await db.prepare('SELECT * FROM support_workspaces WHERE id=?')
+        .bind(workspace.id).first<Workspace>();
+      if (!current) throw new SupportError('Cet espace n’existe plus.', 404);
+      await requireSupportSubscription(current);
+      // The explicit platform-owner path has no reservation. Every paid or
+      // offered reservation remains bound to this workspace and ticket.
+      if (reservation !== null) {
+        const admission = await analysisReservationAdmission(current, id, reservation);
+        if (!admission.admitted)
+          throw new SupportError('Cette analyse ne peut plus être reprise. Actualisez votre abonnement avant de réessayer.', 402);
+      }
+    } catch (error) {
+      if (error instanceof SupportError || error instanceof AccountPublicError)
+        admissionFailure = error;
+      throw error;
+    }
+  };
   const ownedFetch: typeof fetch = async (...args) => {
+    await requireCurrentSupport();
     await retainLease();
     return fetch(...args);
   };
@@ -1269,8 +1291,8 @@ export async function processTicket(
         supportAutomationFetch(currentWorkspace.id,'email_classification',ownedFetch),
         currentWorkspace.triage_context || '',
       ));
+    await requireCurrentSupport();
     await finishAnalysis(reservation, true);
-    reservation = null;
     await retainLease();
     if(!manual) decision=applySenderPolicies(decision,source,await senderPolicies(workspace.id),JSON.parse(active.routes_json) as Rules);
     const localSolicitation = manual?.category === 'solicitation' || (!manual && currentWorkspace.mode === 'automatic' &&
@@ -1320,6 +1342,7 @@ export async function processTicket(
         active.provider,
       );
     if (!manual) await requireSupportAutomation(currentWorkspace.id);
+    await requireCurrentSupport();
     const shouldRoute = !!manual || auto;
     const prepared = await db
       .prepare(
@@ -1345,6 +1368,7 @@ export async function processTicket(
       }
     }
     if(decision.category==='appointment' && source.mail) {
+      await requireCurrentSupport();
       await retainLease();
       await captureAppointment(currentWorkspace,source);
     }
@@ -1387,11 +1411,11 @@ export async function processTicket(
   } catch (error) {
     // Transport wrappers intentionally hide provider exceptions. Preserve our
     // own safe conflict instead of reporting a lost claim as a network outage.
-    if (leaseFailure) error = leaseFailure;
+    const failure = leaseFailure ?? admissionFailure ?? error;
     await finishAnalysis(reservation, false);
     const message =
-      error instanceof SupportError || error instanceof AccountPublicError
-        ? error.message
+      failure instanceof SupportError || failure instanceof AccountPublicError
+        ? failure.message
         : 'Le traitement a été interrompu. Le ticket est conservé ; réessayez.';
     const failed = await db
       .prepare(
@@ -1400,7 +1424,7 @@ export async function processTicket(
       .bind(message, now(), id, workspace.id, lease, now())
       .run();
     if (failed.meta.changes) await event(workspace.id, id, 'error', message, actor);
-    throw error;
+    throw failure;
   }
 }
 

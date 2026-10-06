@@ -25,6 +25,8 @@ import { digest } from '@/lib/support/crypto';
 import { AUTOMATION_PRODUCT, AUTOMATION_PRICE_CENTS } from './types';
 import { AUTOMATION_CONSENT_VERSION } from './config';
 import { automationGrant } from './founder-access';
+import { isPrepaidContractId, prepaidAutomationAccess } from '@/lib/payments/prepaid-access';
+import { assertNoPrepaidAccountPurchase } from '@/lib/payments/prepaid-checkout-guard';
 
 export const AUTOMATION_TERMS_VERSION = 'automation-2026-09-22';
 type Config = {
@@ -221,22 +223,41 @@ export async function provisionAutomationBilling(actor: string) {
 }
 export async function automationBillingState(organizationId: string) {
   const bundle = await completeSubscription(organizationId);
+  if (bundle?.provider === 'postfinance') {
+    const scoped = await prepaidAutomationAccess(organizationId);
+    if (scoped?.contractId !== bundle.subscription_id) return {
+      ready: false, offeredAccess: false, offeredUntil: null, priceChfCents: 0,
+      status: 'verification_required', periodEnd: null, cancelAtPeriodEnd: !!bundle.cancel_at_period_end,
+      refunded: false, hasSubscription: true, bundlePlan: completePlan(bundle.paid_plan_id)?.name,
+    };
+  }
   if (bundle) return { ready: true, offeredAccess: false, offeredUntil: null, priceChfCents: 0, status: bundle.status, periodEnd: bundle.paid_until || null, cancelAtPeriodEnd: !!bundle.cancel_at_period_end, refunded: !!bundle.refunded, hasSubscription: !['canceled', 'incomplete_expired'].includes(bundle.status), bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name };
-  const [config, offered, row] = await Promise.all([
+  const prepaid = await prepaidAutomationAccess(organizationId);
+  if (prepaid) return { ready: true, offeredAccess: false, offeredUntil: null,
+    priceChfCents: prepaid.catalog.priceChfMinor, status: 'active', periodEnd: prepaid.paidUntil,
+    cancelAtPeriodEnd: prepaid.cancelAtPeriodEnd, refunded: false, hasSubscription: true };
+  const [config, offered, row, company] = await Promise.all([
     automationBillingConfig(),
     automationGrant(organizationId),
     database()
       .prepare(
-        `SELECT status,paid_until,cancel_at_period_end,EXISTS(SELECT 1 FROM automation_refunds r WHERE r.invoice_id=a.last_paid_invoice_id AND r.customer_id=a.customer_id AND r.livemode=a.livemode) AS refunded FROM automation_subscriptions a WHERE organization_id=?`,
+        `SELECT subscription_id,status,paid_until,cancel_at_period_end,EXISTS(SELECT 1 FROM automation_refunds r WHERE r.invoice_id=a.last_paid_invoice_id AND r.customer_id=a.customer_id AND r.livemode=a.livemode) AS refunded FROM automation_subscriptions a WHERE organization_id=?`,
       )
       .bind(organizationId)
       .first<{
+        subscription_id: string;
         status: string;
         paid_until: number;
         cancel_at_period_end: number;
         refunded: number;
       }>(),
+    database().prepare('SELECT subscription_id FROM organizations WHERE organization_id=?')
+      .bind(organizationId).first<{ subscription_id: string }>(),
   ]);
+  if ((row && isPrepaidContractId(row.subscription_id)) || (company && isPrepaidContractId(company.subscription_id))) return {
+    ready: false, offeredAccess: false, offeredUntil: null, priceChfCents: AUTOMATION_PRICE_CENTS,
+    status: 'expired', periodEnd: null, cancelAtPeriodEnd: false, refunded: false, hasSubscription: false,
+  };
   return {
     ready: !!config,
     offeredAccess: !!offered,
@@ -261,6 +282,9 @@ export async function createAutomationCheckout(
     organizationId,
     ['owner'],
   );
+  if (isPrepaidContractId(membership.subscriptionId))
+    throw new AccountPublicError('Gérez cette offre depuis Compte → Abonnement. Aucun second abonnement ne sera ouvert.', 409);
+  await assertNoPrepaidAccountPurchase(user.userId);
   if (!stripeTestAccessAllowed(stripeConfiguration(), user))
     throw new AccountPublicError('Le paiement est encore en test privé.', 403);
   if (await database().prepare("SELECT 1 FROM complete_checkouts WHERE user_id=? UNION ALL SELECT 1 FROM complete_plan_changes WHERE user_id=? AND state IN ('preparing','scheduled')").bind(user.userId,user.userId).first()) throw new AccountPublicError('Un pack Zentra Complet est déjà choisi. Retrouvez ce changement dans Compte → Abonnement.', 409);
@@ -437,17 +461,20 @@ export async function automationPortal(
   await requireBrowserMembership(user.userId, organizationId, ['owner']);
   const bundle = await completeSubscription(organizationId);
   if (bundle) {
+    if (bundle.provider === 'postfinance') throw new AccountPublicError('Cette offre ne se gère pas dans le portail Stripe.', 409);
     return completePortal(bundle.customer_id, origin + '/compte/automation');
   }
   const [config, row] = await Promise.all([
     automationBillingConfig(),
     database()
       .prepare(
-        'SELECT customer_id FROM automation_subscriptions WHERE organization_id=?',
+        'SELECT customer_id,subscription_id FROM automation_subscriptions WHERE organization_id=?',
       )
       .bind(organizationId)
-      .first<{ customer_id: string }>(),
+      .first<{ customer_id: string; subscription_id: string }>(),
   ]);
+  if ((row && isPrepaidContractId(row.subscription_id)) || await prepaidAutomationAccess(organizationId))
+    throw new AccountPublicError('Cette offre ne se gère pas dans le portail Stripe.', 409);
   if (!config || !row)
     throw new AccountPublicError('Aucun abonnement Automation à gérer.');
   const portal = await automationStripe().billingPortal.sessions.create({
@@ -732,6 +759,11 @@ export async function refreshAutomationPayment(
   user: ZentraUser,
 ) {
   await requireBrowserMembership(user.userId, organizationId, ['owner']);
+  const identity = await database().prepare(`SELECT o.subscription_id AS company_subscription_id,a.subscription_id
+    FROM organizations o LEFT JOIN automation_subscriptions a ON a.organization_id=o.organization_id WHERE o.organization_id=?`)
+    .bind(organizationId).first<{ company_subscription_id: string; subscription_id: string | null }>();
+  if ((identity && isPrepaidContractId(identity.company_subscription_id)) || isPrepaidContractId(identity?.subscription_id)
+    || await prepaidAutomationAccess(organizationId)) return automationBillingState(organizationId);
   const row = await database()
     .prepare(
       'SELECT session_id FROM automation_checkouts WHERE organization_id=? AND user_id=?',
