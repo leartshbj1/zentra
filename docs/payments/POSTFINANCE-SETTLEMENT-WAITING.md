@@ -15,8 +15,10 @@ Le délai individuel D1, les baux, les huit tentatives maximales, les preuves de
 règlement et les droits restent inchangés. Aucun appel financier supplémentaire
 n'est ajouté. La facturation garde sa classification existante.
 
-La migration additive `20261006153908_fair_postfinance_settlement_waiting.sql`
-a été créée par la CLI Supabase. Elle ajoute une colonne privée et remplace
+La migration additive `20261006155425_fair_postfinance_settlement_waiting.sql`
+a été créée par la CLI Supabase sous l'horodatage `20261006153908`, puis renommée
+pour correspondre à la version `20261006155425` attribuée lors de son application
+par MCP. Ses octets SQL appliqués restent identiques. Elle ajoute une colonne privée et remplace
 la fonction du relais, sans modifier les migrations déjà appliquées, les flags,
 le job cron ou les secrets. La fonction conserve son `search_path` vide et ses
 restrictions d'accès.

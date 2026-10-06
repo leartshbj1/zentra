@@ -10,7 +10,7 @@ const resultPath = process.argv[2];
 if (!resultPath) throw Error('Pass a new absolute evidence JSON path as the first argument.');
 const expectedHash = process.argv[3];
 const digest = value => createHash('sha256').update(value).digest('hex');
-const candidatePath = new URL('../supabase/migrations/20261006153908_fair_postfinance_settlement_waiting.sql', import.meta.url);
+const candidatePath = new URL('../supabase/migrations/20261006155425_fair_postfinance_settlement_waiting.sql', import.meta.url);
 const candidate = await readFile(candidatePath);
 const candidateHash = digest(candidate);
 if (process.argv[4]) assert.equal(candidateHash, process.argv[4].toLowerCase(), 'Additive migration must match the externally frozen hash');
