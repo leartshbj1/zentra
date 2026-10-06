@@ -136,6 +136,7 @@ export default async function Page({
       ownerId={user.userId}
       product={product}
       targets={targets}
+      methods={option.methods}
       initialOrganization={org}
       initialWorkspace={workspace}
       legalVersion={version}

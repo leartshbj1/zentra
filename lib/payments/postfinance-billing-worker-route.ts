@@ -2,20 +2,23 @@ import { database, runtimeValue } from '@/lib/runtime';
 import {
   postFinancePurchaseConfiguration,
   type PostFinancePurchaseBinding,
-} from './postfinance-purchase-configuration';
+} from '@/lib/payments/postfinance-purchase-configuration';
 import {
   runPrepaidRenewal,
   PrepaidMandateAdmissionError,
-} from './prepaid-renewal';
-import { D1PrepaidRenewalAdmission } from './prepaid-renewal-admission';
-import { stopCancelledPrepaidFlows } from './prepaid-cancellation';
-import { prepaidMonthlyPeriod } from './prepaid-calendar';
-import { isPrivateWorkerRequest } from './private-worker-request';
+} from '@/lib/payments/prepaid-renewal';
+import { D1PrepaidRenewalAdmission } from '@/lib/payments/prepaid-renewal-admission';
+import { stopCancelledPrepaidFlows } from '@/lib/payments/prepaid-cancellation';
+import { prepaidMonthlyPeriod } from '@/lib/payments/prepaid-calendar';
+import { isPrivateWorkerRequest } from '@/lib/payments/private-worker-request';
+
+import { recoverOnePrepaidRenewalCreate } from './prepaid-renewal-create-recovery';
 
 type Binding =
   | PostFinancePurchaseBinding
   | 'POSTFINANCE_BILLING_WORKER_ENABLED'
-  | 'POSTFINANCE_BILLING_WORKER_TOKEN';
+  | 'POSTFINANCE_BILLING_WORKER_TOKEN'
+  | 'POSTFINANCE_RENEWAL_CREATE_RECOVERY_ENABLED';
 const headers = { 'Cache-Control': 'no-store, max-age=0' };
 async function equal(expected: string, actual: string) {
   const hashes = await Promise.all(
@@ -96,6 +99,56 @@ export async function runPostFinanceBillingWorker(
             environment: c.prepaidEnvironment!,
           })
         : null;
+    const recoveryEnabled =
+      read('POSTFINANCE_RENEWAL_CREATE_RECOVERY_ENABLED') === 'true';
+    let recovered: Awaited<
+      ReturnType<typeof recoverOnePrepaidRenewalCreate>
+    > | null = null;
+    if (recoveryEnabled && now() < deadline) {
+      const recoveryDeadline = Math.min(deadline, now() + 30000);
+      const recoverySignal = AbortSignal.any([
+        request.signal,
+        AbortSignal.timeout(Math.max(1, recoveryDeadline - now())),
+      ]);
+      let recoveryCalls = 0;
+      const recoveryTransport: typeof fetch = async (input, init) => {
+        if (
+          (init?.method ??
+            (input instanceof Request ? input.method : 'GET')) !== 'GET' ||
+          init?.body != null ||
+          now() >= recoveryDeadline ||
+          ++recoveryCalls > 24
+        )
+          throw Error('Bounded GET recovery stopped.');
+        return transport(input, {
+          ...init,
+          signal: AbortSignal.any([
+            ...(init?.signal ? [init.signal] : []),
+            recoverySignal,
+          ]),
+        });
+      };
+      // Ordinary work is selected first. Recovery cannot dispatch this contract
+      // during the same invocation, even if it discovers a PENDING transaction.
+      recovered = await recoverOnePrepaidRenewalCreate(
+        { ...configuration, createRecoveryEnabled: true },
+        {
+          database: () => db,
+          now: clock,
+          fetch: recoveryTransport,
+          signal: recoverySignal,
+          deadlineSeconds: Math.floor(recoveryDeadline / 1000),
+          excludeContractId: due?.contract_id ?? null,
+        },
+      );
+    }
+    if (
+      due &&
+      recovered &&
+      'contractId' in recovered &&
+      due.contract_id === recovered.contractId
+    )
+      throw Error('Recovery and financial dispatch must be separate.');
     if (due) {
       const dates = prepaidMonthlyPeriod(due.anchor_start, due.ordinal);
       if (
@@ -131,6 +184,7 @@ export async function runPostFinanceBillingWorker(
         terminalObserved: stopped.terminalObserved,
         uncertain: stopped.uncertain,
         renewal: renewal?.state ?? 'idle',
+        ...(recoveryEnabled ? { recovery: recovered?.state ?? 'idle' } : {}),
       },
       { headers },
     );

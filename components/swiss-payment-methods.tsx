@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import type { SwissMethod } from '@/lib/payments/postfinance-client';
 import { postFinancePurchasePath } from '@/lib/payments/postfinance-client-navigation';
 import './swiss-payment-methods.css';
 
@@ -17,6 +18,7 @@ export function SwissPaymentMethods({
   const [option, setOption] = useState<{
     product: string;
     available: boolean;
+    methods: readonly SwissMethod[];
   } | null>(null);
   useEffect(() => {
     if (disabled) return;
@@ -32,13 +34,32 @@ export function SwissPaymentMethods({
     )
       .then(async (res) => ({
         ok: res.ok,
-        data: (await res.json()) as { available?: boolean; testMode?: boolean },
+        data: (await res.json()) as {
+          available?: boolean;
+          testMode?: boolean;
+          methods?: unknown;
+        },
       }))
       .then(({ ok, data }) => {
+        const methods =
+          Array.isArray(data.methods) &&
+          data.methods.length > 0 &&
+          data.methods.length <= 2 &&
+          data.methods.every(
+            (method) => method === 'postfinance_pay' || method === 'twint',
+          ) &&
+          new Set(data.methods).size === data.methods.length
+            ? (data.methods as SwissMethod[])
+            : [];
         if (!controller.signal.aborted)
           setOption({
             product,
-            available: ok && data.available === true && data.testMode === true,
+            available:
+              ok &&
+              data.available === true &&
+              data.testMode === true &&
+              methods.length > 0,
+            methods,
           });
       })
       .catch(() => {
@@ -56,7 +77,10 @@ export function SwissPaymentMethods({
       <span>Carte ou TWINT</span>
       {available ? (
         <a href={postFinancePurchasePath(product, organizationId, workspaceId)}>
-          PostFinance Pay <small>Essai privé</small>
+          {option?.methods
+            .map((method) => (method === 'twint' ? 'TWINT' : 'PostFinance Pay'))
+            .join(' · ')}{' '}
+          <small>Essai privé</small>
         </a>
       ) : (
         <span className="swiss-payment-unavailable">

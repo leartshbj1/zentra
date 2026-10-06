@@ -37,6 +37,7 @@ vi.mock('@/lib/site-language-server', () => ({
   currentSiteLanguage: () => 'fr',
 }));
 
+import type { SwissMethod } from '@/lib/payments/postfinance-client';
 import { LEGAL_VERSION } from '@/lib/legal';
 import { SUPPORT_LEGAL_VERSION } from '@/lib/support/plans';
 import { COMPLETE_TERMS_VERSION } from '@/lib/complete/plans';
@@ -204,6 +205,7 @@ async function readAttempt(request = attemptRequest()) {
 async function prepare(
   productKey = 'gestion:solo',
   environment: 'TEST' | 'PRODUCTION' = 'TEST',
+  method: SwissMethod = 'postfinance_pay',
 ) {
   const product = prepaidProduct(productKey)!;
   const configuration = postFinancePurchaseConfiguration((name) =>
@@ -220,7 +222,7 @@ async function prepare(
       organizationId:
         product.productKind === 'support' ? undefined : 'company-b',
       workspaceId: product.support ? 'workspace-b' : undefined,
-      method: 'postfinance_pay',
+      method,
       acceptTerms: true,
       legalVersion:
         product.productKind === 'gestion'
@@ -312,7 +314,11 @@ afterEach(() => {
 describe('read-only private TEST PostFinance option', () => {
   it('OFF reads only the switch and neither authenticates nor reads the database', async () => {
     values.POSTFINANCE_PURCHASES_ENABLED = 'false';
-    expect(await option()).toEqual({ available: false, testMode: false });
+    expect(await option()).toEqual({
+      available: false,
+      testMode: false,
+      methods: [],
+    });
     expect(fixture.binding.mock.calls).toEqual([
       ['POSTFINANCE_PURCHASES_ENABLED'],
     ]);
@@ -321,7 +327,11 @@ describe('read-only private TEST PostFinance option', () => {
   });
   it('still refuses PRODUCTION with all flags and settlement verification enabled', async () => {
     values.POSTFINANCE_PREPAID_ENVIRONMENT = 'PRODUCTION';
-    expect(await option()).toEqual({ available: false, testMode: false });
+    expect(await option()).toEqual({
+      available: false,
+      testMode: false,
+      methods: [],
+    });
     expect(fixture.authenticate).not.toHaveBeenCalled();
     expect(queries).toEqual([]);
   });
@@ -336,6 +346,7 @@ describe('read-only private TEST PostFinance option', () => {
       expect(await response.json()).toEqual({
         available: true,
         testMode: true,
+        methods: ['postfinance_pay', 'twint'],
       });
       expect(response.headers.get('Cache-Control')).toContain(
         'private, no-store',
@@ -353,7 +364,11 @@ describe('read-only private TEST PostFinance option', () => {
     'requires a verified allowlisted identity %j',
     async (account) => {
       fixture.authenticate.mockResolvedValue(account);
-      expect(await option()).toEqual({ available: false, testMode: false });
+      expect(await option()).toEqual({
+        available: false,
+        testMode: false,
+        methods: [],
+      });
       expect(queries).toEqual([]);
     },
   );
@@ -364,22 +379,145 @@ describe('read-only private TEST PostFinance option', () => {
     JSON.stringify(['invalid-user-id']),
   ])('fails closed for invalid allowlist %j', async (allowlist) => {
     values.POSTFINANCE_TEST_ACCOUNT_USER_IDS = allowlist;
-    expect(await option()).toEqual({ available: false, testMode: false });
+    expect(await option()).toEqual({
+      available: false,
+      testMode: false,
+      methods: [],
+    });
   });
-  it('does not enable a product just because another configured product has PostFinance Pay', async () => {
+  it('exposes only TWINT when that is the product’s sole approved method', async () => {
     const catalogue = JSON.parse(values.POSTFINANCE_PREPAID_CATALOG_JSON);
     catalogue['gestion:solo'].methodConfigurations = { twint: 93 };
     values.POSTFINANCE_PREPAID_CATALOG_JSON = JSON.stringify(catalogue);
-    expect(await option()).toEqual({ available: false, testMode: false });
+    expect(await option()).toEqual({
+      available: true,
+      testMode: true,
+      methods: ['twint'],
+    });
+    expect(fixture.authenticate).toHaveBeenCalledOnce();
+  });
+  it.each(['gestion:solo', 'support:starter', 'automation', 'complet:team'])(
+    'exposes exactly the configured direct methods for %s and freezes the chosen method',
+    async (productKey) => {
+      const before = snapshot();
+      for (const methods of [
+        ['twint'],
+        ['postfinance_pay'],
+        ['postfinance_pay', 'twint'],
+      ] as SwissMethod[][]) {
+        values.POSTFINANCE_PREPAID_CONNECTORS_JSON = JSON.stringify(
+          Object.fromEntries(
+            methods.map((method) => [method, method === 'twint' ? 94 : 92]),
+          ),
+        );
+        values.POSTFINANCE_PREPAID_CATALOG_JSON = JSON.stringify(
+          Object.fromEntries(
+            prepaidCatalog().map((product) => [
+              product.productKey,
+              {
+                currency: 'CHF',
+                billingPeriod: 'P1M',
+                priceChfMinor: product.priceChfMinor,
+                reference: product.catalogVersion,
+                name: product.name,
+                methodConfigurations: Object.fromEntries(
+                  methods.map((method) => [
+                    method,
+                    method === 'twint' ? 93 : 91,
+                  ]),
+                ),
+              },
+            ]),
+          ),
+        );
+        values.POSTFINANCE_PAY_TOKEN_ENABLED = methods.includes(
+          'postfinance_pay',
+        )
+          ? 'true'
+          : 'false';
+        values.POSTFINANCE_TWINT_USER_ON_FILE_ENABLED = methods.includes(
+          'twint',
+        )
+          ? 'true'
+          : 'false';
+        const response = await runPostFinanceOption(
+          optionRequest('?product=' + encodeURIComponent(productKey)),
+        );
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({
+          available: true,
+          testMode: true,
+          methods,
+        });
+        expect(snapshot()).toBe(before);
+        expect(queries).toEqual([]);
+      }
+      // The actual preparation validates and stores the method; it never trusts
+      // that display readiness alone authorized a different connector.
+      const prepared = await prepare(productKey, 'TEST', 'twint');
+      const stored = sql
+        .prepare('SELECT parameters FROM purchase_intents WHERE intent_id=?')
+        .get(prepared.intent.intentId);
+      expect(JSON.parse(String(stored?.parameters))).toMatchObject({
+        method: 'twint',
+        methodConfigurationId: 93,
+        connectorConfigurationId: 94,
+      });
+      expect(
+        Number(
+          sql
+            .prepare('SELECT count(*) AS n FROM prepaid_settlement_proofs')
+            .get()?.n,
+        ),
+      ).toBe(0);
+    },
+  );
+  it('rejects a forged unavailable method before reserving a purchase or calling a provider', async () => {
+    const catalog = JSON.parse(values.POSTFINANCE_PREPAID_CATALOG_JSON);
+    for (const product of Object.values(catalog) as {
+      methodConfigurations: unknown;
+    }[])
+      product.methodConfigurations = { twint: 93 };
+    values.POSTFINANCE_PREPAID_CATALOG_JSON = JSON.stringify(catalog);
+    values.POSTFINANCE_PREPAID_CONNECTORS_JSON = JSON.stringify({ twint: 94 });
+    values.POSTFINANCE_PAY_TOKEN_ENABLED = 'false';
+    const before = snapshot();
+    expect(await option()).toEqual({
+      available: true,
+      testMode: true,
+      methods: ['twint'],
+    });
+    await expect(
+      prepare('gestion:solo', 'TEST', 'postfinance_pay'),
+    ).rejects.toMatchObject({
+      code: 'configuration',
+    });
+    expect(snapshot()).toBe(before);
+  });
+  it('disabled merchant method switches never become client methods', async () => {
+    values.POSTFINANCE_PAY_TOKEN_ENABLED = 'false';
+    values.POSTFINANCE_TWINT_USER_ON_FILE_ENABLED = 'false';
+    const before = snapshot();
+    expect(await option()).toEqual({
+      available: false,
+      testMode: false,
+      methods: [],
+    });
     expect(fixture.authenticate).not.toHaveBeenCalled();
+    expect(snapshot()).toBe(before);
   });
   it('refuses a different return origin and hides invalid server configuration', async () => {
     expect(await option('gestion:solo', 'https://other.example.test')).toEqual({
       available: false,
       testMode: false,
+      methods: [],
     });
     values.POSTFINANCE_AUTHENTICATION_KEY_BASE64 = 'broken';
-    expect(await option()).toEqual({ available: false, testMode: false });
+    expect(await option()).toEqual({
+      available: false,
+      testMode: false,
+      methods: [],
+    });
     expect(fixture.authenticate).not.toHaveBeenCalled();
   });
   it.each([
@@ -409,6 +547,7 @@ describe('read-only private TEST PostFinance option', () => {
       expect(await response.json()).toEqual({
         available: false,
         testMode: false,
+        methods: [],
       });
       expect(fixture.binding).not.toHaveBeenCalled();
       expect(fixture.authenticate).not.toHaveBeenCalled();

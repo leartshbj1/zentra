@@ -25,7 +25,10 @@ export async function runPostFinanceOption(
     request.headers.has('Authorization') ||
     request.headers.get('Sec-Fetch-Site') === 'cross-site'
   )
-    return Response.json({ available: false, testMode: false }, { headers });
+    return Response.json(
+      { available: false, testMode: false, methods: [] },
+      { headers },
+    );
   const url = new URL(request.url),
     params = url.searchParams;
   if (

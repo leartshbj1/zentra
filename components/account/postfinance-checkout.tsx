@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { SITE_LANGUAGE_TAGS, type SiteLanguage } from '@/lib/site-language';
+import type { SwissMethod } from '@/lib/payments/postfinance-client';
 import type { PrepaidProduct } from '@/lib/payments/prepaid-catalog';
 import type { PostFinanceTargets } from '@/lib/payments/postfinance-option';
 import {
@@ -17,11 +18,72 @@ type Attempt = {
   requestId: string;
   organizationId?: string;
   workspaceId?: string;
+  method: SwissMethod;
 };
+function readAttemptJournal(
+  value: string | null,
+): Pick<Attempt, 'requestId' | 'method'> | null {
+  if (!value || value.length > 512) return null;
+  const validId = (id: unknown): id is string =>
+    typeof id === 'string' &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id);
+  // Historical UUID-only journals belong to the original PostFinance Pay path.
+  // Never reinterpret one as TWINT or discard it to create another request.
+  if (validId(value)) return { requestId: value, method: 'postfinance_pay' };
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed) ||
+      Object.keys(parsed).length !== 2 ||
+      !('requestId' in parsed) ||
+      !('method' in parsed) ||
+      !validId(parsed.requestId) ||
+      (parsed.method !== 'postfinance_pay' && parsed.method !== 'twint')
+    )
+      return null;
+    return { requestId: parsed.requestId, method: parsed.method };
+  } catch {
+    return null;
+  }
+}
+const paymentCopy = {
+  fr: {
+    label: 'Moyen de paiement',
+    test: 'Essai privé. Aucun accès payé ne sera activé.',
+    next: 'Continuer sur',
+    unavailable:
+      'Cette méthode n’est plus disponible pour cette tentative. Vérifiez le paiement déjà lancé.',
+  },
+  de: {
+    label: 'Zahlungsmittel',
+    test: 'Privater Test. Es wird kein bezahlter Zugang aktiviert.',
+    next: 'Weiter zu',
+    unavailable:
+      'Dieses Zahlungsmittel ist für diesen Versuch nicht mehr verfügbar. Prüfen Sie die bereits gestartete Zahlung.',
+  },
+  it: {
+    label: 'Metodo di pagamento',
+    test: 'Test privato. Non verrà attivato alcun accesso a pagamento.',
+    next: 'Continua su',
+    unavailable:
+      'Questo metodo non è più disponibile per questo tentativo. Verifica il pagamento già avviato.',
+  },
+  en: {
+    label: 'Payment method',
+    test: 'Private test. No paid access will be activated.',
+    next: 'Continue to',
+    unavailable:
+      'This method is no longer available for this attempt. Check the payment already started.',
+  },
+} as const;
+
 export function PostFinanceCheckout({
   ownerId,
   product,
   targets,
+  methods,
   initialOrganization,
   initialWorkspace,
   legalVersion,
@@ -32,6 +94,7 @@ export function PostFinanceCheckout({
   ownerId: string;
   product: PrepaidProduct;
   targets: PostFinanceTargets;
+  methods: readonly SwissMethod[];
   initialOrganization?: string;
   initialWorkspace?: string;
   legalVersion: string;
@@ -39,6 +102,10 @@ export function PostFinanceCheckout({
   conditionsHref: string;
   language?: SiteLanguage;
 }) {
+  const [method, setMethod] = useState<SwissMethod | ''>(methods[0] ?? '');
+  const methodReady = methods.includes(method as SwissMethod);
+  const text = paymentCopy[language];
+  const methodName = method === 'twint' ? 'TWINT' : 'PostFinance Pay';
   const [organization, setOrganization] = useState(
     initialOrganization ??
       (targets.organizations.length === 1 ? targets.organizations[0].id : ''),
@@ -106,20 +173,18 @@ export function PostFinanceCheckout({
     void Promise.resolve().then(() => {
       if (!active) return;
       try {
-        const saved = sessionStorage.getItem(storageKey);
-        if (
-          saved &&
-          /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
-            saved,
-          )
-        ) {
+        const saved = readAttemptJournal(sessionStorage.getItem(storageKey));
+        if (saved) {
           setAttempt({
-            requestId: saved,
+            ...saved,
             organizationId: selectedOrganization,
             ...(product.support ? { workspaceId: workspace } : {}),
           });
+          setMethod(saved.method);
           setMessage(
-            'Une tentative existe pour cet espace. Vérifiez-la avant de continuer.',
+            methods.includes(saved.method)
+              ? 'Une tentative existe pour cet espace. Vérifiez-la avant de continuer.'
+              : text.unavailable,
           );
         }
       } catch {
@@ -136,6 +201,8 @@ export function PostFinanceCheckout({
     selectedOrganization,
     product.support,
     workspace,
+    methods,
+    text.unavailable,
   ]);
 
   async function findReceipt(current: Attempt) {
@@ -187,6 +254,7 @@ export function PostFinanceCheckout({
   async function pay(resume = false) {
     if (
       !targetReady ||
+      !methodReady ||
       !accepted ||
       (consentVersion && !consent) ||
       (attempt && !resume) ||
@@ -201,22 +269,39 @@ export function PostFinanceCheckout({
     let current: Attempt | null = null;
     try {
       const stored = sessionStorage.getItem(storageKey);
-      const requestId = attempt?.requestId ?? stored ?? crypto.randomUUID();
-      if (
-        !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
-          requestId,
-        )
-      )
+      const saved = readAttemptJournal(stored);
+      if (stored && !saved)
         throw Error(
           'Rechargez votre espace pour vérifier la tentative de paiement.',
         );
-      sessionStorage.setItem(storageKey, requestId);
       current = attempt ?? {
-        requestId,
+        requestId: saved?.requestId ?? crypto.randomUUID(),
+        method: saved?.method ?? (method as SwissMethod),
         organizationId: selectedOrganization,
         ...(product.support ? { workspaceId: workspace } : {}),
       };
       setAttempt(current);
+      setMethod(current.method);
+      if (
+        saved &&
+        (saved.requestId !== current.requestId ||
+          saved.method !== current.method)
+      )
+        throw Error(
+          'Rechargez votre espace pour vérifier la tentative de paiement.',
+        );
+      if (!methods.includes(current.method)) throw Error(text.unavailable);
+      if (saved && !attempt)
+        throw Error(
+          'Une tentative existe pour cet espace. Vérifiez-la avant de continuer.',
+        );
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          requestId: current.requestId,
+          method: current.method,
+        }),
+      );
       const res = await fetch('/api/payments/postfinance/checkout', {
         method: 'POST',
         credentials: 'same-origin',
@@ -225,7 +310,7 @@ export function PostFinanceCheckout({
         body: JSON.stringify({
           ...current,
           productKey: product.productKey,
-          method: 'postfinance_pay',
+          method: current.method,
           acceptTerms: accepted,
           legalVersion,
           ...(consentVersion ? { consentVersion } : {}),
@@ -279,11 +364,33 @@ export function PostFinanceCheckout({
       <p className="account-lead">
         {product.name} · {format.format(product.priceChfMinor / 100)} / mois
       </p>
-      <p className="postfinance-checkout-test">
-        Essai privé PostFinance Pay. Aucun accès payé ne sera activé.
-      </p>
+      <p className="postfinance-checkout-test">{text.test}</p>
       {!forbidden && (
         <>
+          <label>
+            {text.label}
+            <select
+              aria-label={text.label}
+              value={method}
+              disabled={busy || !!attempt || methods.length < 2}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (methods.includes(next as SwissMethod))
+                  setMethod(next as SwissMethod);
+              }}
+            >
+              {attempt && !methods.includes(attempt.method) && (
+                <option value={attempt.method}>
+                  {attempt.method === 'twint' ? 'TWINT' : 'PostFinance Pay'}
+                </option>
+              )}
+              {methods.map((item) => (
+                <option key={item} value={item}>
+                  {item === 'twint' ? 'TWINT' : 'PostFinance Pay'}
+                </option>
+              ))}
+            </select>
+          </label>
           {product.productKind !== 'support' && (
             <label>
               Votre entreprise
@@ -386,12 +493,13 @@ export function PostFinanceCheckout({
               disabled={
                 busy ||
                 !targetReady ||
+                !methodReady ||
                 !accepted ||
                 (!!consentVersion && !consent)
               }
               onClick={() => void pay()}
             >
-              {busy ? 'Un instant…' : 'Continuer sur PostFinance Pay'}
+              {busy ? 'Un instant…' : `${text.next} ${methodName}`}
             </button>
           )}
         </>
@@ -426,6 +534,7 @@ export function PostFinanceCheckout({
                 disabled={
                   busy ||
                   !targetReady ||
+                  !methodReady ||
                   !accepted ||
                   (!!consentVersion && !consent)
                 }

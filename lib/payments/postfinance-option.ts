@@ -1,3 +1,4 @@
+import type { SwissMethod } from './postfinance-client';
 import type { ZentraUser } from '@/app/zentra-auth';
 import { prepaidProduct } from './prepaid-catalog';
 import {
@@ -14,7 +15,11 @@ export async function postFinancePurchaseOption(
   user: () => Promise<ZentraUser | null>,
   read: (name: PostFinancePurchaseBinding) => string,
 ) {
-  const unavailable = { available: false, testMode: false } as const;
+  const unavailable = {
+    available: false,
+    testMode: false,
+    methods: [] as readonly SwissMethod[],
+  } as const;
   const product = prepaidProduct(productKey);
   if (!product) return unavailable;
   try {
@@ -22,20 +27,28 @@ export async function postFinancePurchaseOption(
     if (
       !config.enabled ||
       config.connection.prepaidEnvironment !== 'TEST' ||
-      config.connection.returnOrigin !== origin ||
-      !config.connection.postfinancePayTokenEnabled ||
-      !config.connectorConfigurations.postfinance_pay ||
-      !config.connection.prepaidProducts?.[product.productKey]
-        ?.methodConfigurations.postfinance_pay
+      config.connection.returnOrigin !== origin
     )
       return unavailable;
+    const methods: readonly SwissMethod[] = (
+      ['postfinance_pay', 'twint'] as const
+    ).filter(
+      (method) =>
+        config.connection.prepaidProducts?.[product.productKey]
+          ?.methodConfigurations[method] &&
+        config.connectorConfigurations[method] &&
+        (method === 'postfinance_pay'
+          ? config.connection.postfinancePayTokenEnabled
+          : config.connection.twintUserOnFileEnabled) === true,
+    );
+    if (!methods.length) return unavailable;
     const account = await user();
     if (
       !account?.emailConfirmed ||
       !postFinanceTestPurchaseAllowed(config, account.userId, read)
     )
       return unavailable;
-    return { available: true, testMode: true } as const;
+    return { available: true, testMode: true, methods } as const;
   } catch {
     return unavailable;
   }
