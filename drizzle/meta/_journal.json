@@ -561,6 +561,13 @@
       "when": 1791276465611,
       "tag": "0079_stripe_product_handoffs",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "6",
+      "when": 1791279161713,
+      "tag": "0080_standalone_support_plan_change",
+      "breakpoints": true
     }
   ]
 }

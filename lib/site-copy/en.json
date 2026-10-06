@@ -4203,5 +4203,6 @@
   "Ce paiement est terminé. Gérez votre abonnement depuis votre compte.": "This payment is complete. Manage your subscription from your account.",
   "Le paiement Complet est encore en cours de vérification.": "The Complet payment is still being verified.",
   "La preuve de paiement ne correspond pas à votre entreprise.": "The payment evidence does not match your company.",
-  "Connectez-vous à votre compte Zentra confirmé.": "Sign in to your confirmed Zentra account."
+  "Connectez-vous à votre compte Zentra confirmé.": "Sign in to your confirmed Zentra account.",
+  "Un abonnement existe déjà. Son changement de moyen de paiement doit être terminé avant d’en ouvrir un autre.": "A subscription already exists. Its payment method change must be completed before opening another one."
 }

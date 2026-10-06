@@ -2030,6 +2030,13 @@ describe('v3 captured billing sources and scheduled link delivery', () => {
         const company = org()!,
           oldWorkspace = workspace(),
           quote = await quotePlanChange(user.userId, company, 'pro');
+        // Persisted requests predating workspace pinning had this shape. Keep
+        // exercising their existing local-link recovery, rather than removing
+        // the target from a newly pinned financial operation.
+        delete quote.snapshot.workspaceId;
+        delete quote.snapshot.workspaceLinked;
+        delete quote.snapshot.supportSubscriptionId;
+        delete quote.snapshot.automationSubscriptionId;
         db.prepare(
           `INSERT INTO complete_plan_changes(organization_id,operation_id,user_id,subscription_id,target_plan,effective_at,state,source_json,created_at,updated_at) VALUES(?,'v3-link-loss',?,?,'pro',?,'preparing',?,?,?)`,
         ).run(

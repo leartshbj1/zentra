@@ -4203,5 +4203,6 @@
   "Ce paiement est terminé. Gérez votre abonnement depuis votre compte.": "Questo pagamento è completato. Gestite il vostro abbonamento dal vostro account.",
   "Le paiement Complet est encore en cours de vérification.": "Il pagamento Complet è ancora in fase di verifica.",
   "La preuve de paiement ne correspond pas à votre entreprise.": "La prova di pagamento non corrisponde alla vostra azienda.",
-  "Connectez-vous à votre compte Zentra confirmé.": "Accedete al vostro account Zentra confermato."
+  "Connectez-vous à votre compte Zentra confirmé.": "Accedete al vostro account Zentra confermato.",
+  "Un abonnement existe déjà. Son changement de moyen de paiement doit être terminé avant d’en ouvrir un autre.": "Esiste già un abbonamento. Il cambio del suo metodo di pagamento deve essere completato prima di aprirne un altro."
 }

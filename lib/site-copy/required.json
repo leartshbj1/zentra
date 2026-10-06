@@ -4203,5 +4203,6 @@
   "Ce paiement est terminé. Gérez votre abonnement depuis votre compte.",
   "Le paiement Complet est encore en cours de vérification.",
   "La preuve de paiement ne correspond pas à votre entreprise.",
-  "Connectez-vous à votre compte Zentra confirmé."
+  "Connectez-vous à votre compte Zentra confirmé.",
+  "Un abonnement existe déjà. Son changement de moyen de paiement doit être terminé avant d’en ouvrir un autre."
 ]
