@@ -218,3 +218,10 @@
     .automation-hub .automation-journal__filters button {padding-inline: 8px; font-size: 12px;}
   }
 }
+
+@media screen {
+  .automation-hub .automation-hub__activity{grid-template-columns:minmax(0,1fr)}
+  .automation-hub .automation-brief--summary{margin-bottom:20px;max-width:none}
+  .automation-journal__direct{grid-column:2;min-width:0;padding-bottom:12px}
+  .automation-hub .automation-journal__direct button{display:inline-flex;align-items:center;gap:8px;min-height:44px;white-space:normal;text-align:left;font-size:14px;padding:8px 0}
+}

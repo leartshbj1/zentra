@@ -1,5 +1,10 @@
 // German (Switzerland), Italian and English. Company data is never translated.
 export const setupReadinessTranslations: Record<string, readonly [string, string, string]> = {
+  'Voir les détails': ['Details ansehen', 'Vedi i dettagli', 'View details'],
+  'Choisissez les comptes pour vos ventes, achats et paiements.': ['Wählen Sie die Konten für Verkäufe, Einkäufe und Zahlungen.', 'Scegli i conti per vendite, acquisti e pagamenti.', 'Choose the accounts for your sales, purchases and payments.'],
+  'Indiquez les horaires et les règles de saisie de votre équipe.': ['Erfassen Sie die Arbeitszeiten und Erfassungsregeln Ihres Teams.', 'Indica gli orari e le regole di registrazione del tuo team.', 'Set your team’s working hours and entry rules.'],
+  'Renseignez les assurances utilisées pour les salaires.': ['Erfassen Sie die Versicherungen für die Lohnabrechnung.', 'Indica le assicurazioni utilizzate per gli stipendi.', 'Enter the insurance policies used for payroll.'],
+  'Choisissez une sauvegarde et vérifiez que vous pouvez la récupérer.': ['Wählen Sie eine Sicherung und prüfen Sie die Wiederherstellung.', 'Scegli un backup e verifica di poterlo ripristinare.', 'Choose a backup and check that you can restore it.'],
   'Ajoutez au moins un taux TVA explicite avant d’enregistrer.': ['Erfassen Sie vor dem Speichern mindestens einen ausdrücklichen MWST-Satz.', 'Aggiungi almeno un’aliquota IVA esplicita prima di salvare.', 'Add at least one explicit VAT rate before saving.'],
   'À renseigner : {fields}.': ['Noch auszufüllen: {fields}.', 'Da compilare: {fields}.', 'To complete: {fields}.'],
   'raison sociale': ['Firmenname', 'ragione sociale', 'legal company name'],

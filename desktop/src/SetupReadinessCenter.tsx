@@ -309,6 +309,13 @@ function StepIcon({ id }: { id: SetupReadinessStepId }) {
   return <Database size={20} aria-hidden="true" />;
 }
 
+const nextSetupAction: Partial<Record<SetupReadinessStepId, string>> = {
+  accounting: 'Choisissez les comptes pour vos ventes, achats et paiements.',
+  work: 'Indiquez les horaires et les règles de saisie de votre équipe.',
+  payroll: 'Renseignez les assurances utilisées pour les salaires.',
+  backup: 'Choisissez une sauvegarde et vérifiez que vous pouvez la récupérer.',
+};
+
 export function SetupReadinessCenter({
   workspace,
   settings,
@@ -374,10 +381,14 @@ export function SetupReadinessCenter({
                     {t(item.ready ? 'Prêt' : 'À compléter')}
                   </em>
                 </span>
-                <small>{item.summary}</small>
+                <small>{!item.ready && nextSetupAction[item.id] ? t(nextSetupAction[item.id]!) : item.summary}</small>
               </span>
               <ArrowRight size={17} aria-hidden="true" />
             </button>
+            {!item.ready && nextSetupAction[item.id] && <details className="setup-readiness__details">
+              <summary>{t('Voir les détails')}</summary>
+              <p>{item.summary}</p>
+            </details>}
           </li>
         ))}
       </ol>

@@ -42,7 +42,7 @@ export function AutomationJournal<R extends JournalRun>({ runs, activity, render
     {appointmentsUnavailable && <p role="status">{label('appointmentsUnavailable')}</p>}
     {filtered.length === 0 ? <div className="automation-journal__empty"><Workflow size={26} aria-hidden="true"/><p>{entries.length ? label('noResults') : label('empty')}</p></div> : Array.from(groups, ([date, items]) => <section className="automation-journal__group" key={date}><h3>{date}</h3><ol>{items.map(entry => <li key={entry.id} className="automation-journal__entry">
       <span className="automation-journal__symbol" aria-hidden="true">{entry.kind === 'invoice' ? <FileText size={19}/> : entry.kind === 'appointment' ? <CalendarDays size={19}/> : <Workflow size={19}/>}</span>
-      {entry.kind === 'workflow' ? renderRun(entry.run) : entry.kind === 'appointment' ? <details className="ac-run automation-journal__appointment">
+      {entry.kind === 'workflow' ? renderRun(entry.run) : entry.kind === 'appointment' ? <><details className="ac-run automation-journal__appointment">
         <summary>
           <span><strong>{entry.title}</strong><small>{entry.at ? new Intl.DateTimeFormat(`${language}-CH`,{timeStyle:'short',timeZone}).format(entry.at*1000) : label('unavailableDate')}</small></span>
           <span className="ac-status" data-state={entry.appointment.state === 'imported' ? 'completed' : ['review','needs_review'].includes(entry.appointment.state) ? 'review' : entry.appointment.state === 'ignored' ? 'cancelled' : 'queued'}>{label(appointmentActivityStatus(entry.appointment))}</span>
@@ -54,9 +54,8 @@ export function AutomationJournal<R extends JournalRun>({ runs, activity, render
             {entry.appointment.extraction.location && <div><dt>{label('appointmentPlace')}</dt><dd>{entry.appointment.extraction.location}</dd></div>}
             {entry.appointment.sender && <div><dt>{label('source')}</dt><dd>{entry.appointment.sender}</dd></div>}
           </dl>
-          {entry.appointment.state === 'imported' && openAppointment ? <button type="button" className="ac-quiet" onClick={()=>openAppointment(entry.appointment.id)}>{label('openAppointment')}<ArrowUpRight size={16} aria-hidden="true"/></button> : openAppointments && <button type="button" className="ac-quiet" onClick={openAppointments}>{label('openAppointments')}<ArrowUpRight size={16} aria-hidden="true"/></button>}
         </div>
-      </details> : <details className="ac-run automation-journal__invoice">
+      </details><div className="automation-journal__direct">{entry.appointment.state === 'imported' && openAppointment ? <button type="button" className="ac-quiet" onClick={()=>openAppointment(entry.appointment.id)}>{label('openAppointment')}<ArrowUpRight size={16} aria-hidden="true"/></button> : openAppointments && <button type="button" className="ac-quiet" onClick={openAppointments}>{label('openAppointments')}<ArrowUpRight size={16} aria-hidden="true"/></button>}</div></> : <><details className="ac-run automation-journal__invoice">
         <summary>
           <span><strong>{entry.invoice.reference ? `${entry.invoice.supplierName || entry.title} · ${entry.invoice.reference}` : entry.title}</strong><small>{entry.at ? new Intl.DateTimeFormat(`${language}-CH`,{timeStyle:'short',timeZone}).format(entry.at*1000) : label('unavailableDate')}</small></span>
           <span className="ac-status" data-state={entry.invoice.state === 'imported' ? 'completed' : ['review','needs_review'].includes(entry.invoice.state) ? 'review' : 'queued'}>{label(invoiceActivityStatus(entry.invoice.state,entry.invoice.automatic))}</span>
@@ -70,9 +69,8 @@ export function AutomationJournal<R extends JournalRun>({ runs, activity, render
             {entry.invoice.sender && <div><dt>{label('source')}</dt><dd>{entry.invoice.sender}</dd></div>}
             {entry.invoice.fileName && <div><dt>{label('file')}</dt><dd>{entry.invoice.fileName}</dd></div>}
           </dl>
-          {entry.invoice.state === 'imported' && entry.invoice.invoiceId && openInvoice ? <button type="button" className="ac-quiet" onClick={()=>openInvoice(entry.invoice.invoiceId!)}>{label('openInvoice')}<ArrowUpRight size={16} aria-hidden="true"/></button> : openInvoices && <button type="button" className="ac-quiet" onClick={openInvoices}>{label('openInbox')}<ArrowUpRight size={16} aria-hidden="true"/></button>}
         </div>
-      </details>}
+      </details><div className="automation-journal__direct">{entry.invoice.state === 'imported' && entry.invoice.invoiceId && openInvoice ? <button type="button" className="ac-quiet" onClick={()=>openInvoice(entry.invoice.invoiceId!)}>{label('openInvoice')}<ArrowUpRight size={16} aria-hidden="true"/></button> : openInvoices && <button type="button" className="ac-quiet" onClick={openInvoices}>{label('openInbox')}<ArrowUpRight size={16} aria-hidden="true"/></button>}</div></>}
     </li>)}</ol></section>)}
     {filtered.length > limit && <button type="button" className="ac-quiet" onClick={()=>setLimit(limit+30)}>{label('showMore')}</button>}
   </section>;

@@ -773,3 +773,83 @@
 @media screen and (prefers-reduced-motion: reduce) {
   html[data-app-theme] .desktop-app[data-experience] :is(.accounting-screen, .bank-screen, .automation-hub, .automation-settings, .automation-centre) :is(button, summary, input, summary > svg) { transition: none; }
 }
+
+/* Keep accounting tabs horizontal; long translated labels scroll instead of stacking. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details {
+    margin-top: .375rem;
+    color: var(--apple-secondary);
+    font-size: .875rem;
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding-inline: 1rem;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details summary::before { content: '+'; }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details[open] summary::before { content: '−'; }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details summary:focus-visible {
+    outline: 2px solid var(--apple-focus);
+    outline-offset: 2px;
+    border-radius: .5rem;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details p { margin: 0; padding: 0 1rem 1rem; overflow-wrap: anywhere; }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-padding-inline: .375rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--apple-secondary) var(--apple-grouped);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__tabs button {
+    flex: 0 0 auto;
+    flex-direction: row;
+    width: auto;
+    height: auto;
+    min-width: 44px;
+    min-height: 44px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__title {
+    width: auto;
+    min-height: 0;
+    white-space: nowrap;
+    text-wrap: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__tabs::-webkit-scrollbar { height: 7px; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__tabs::-webkit-scrollbar-track { background: var(--apple-grouped); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__tabs::-webkit-scrollbar-thumb { background: var(--apple-secondary); border: 2px solid var(--apple-grouped); border-radius: 999px; }
+}
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .mobile-home .dashboard-personal-actions > .section-heading h2 { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation > .section-navigation {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 48px;
+    align-items: center;
+    gap: .5rem;
+    container-type: normal;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__tabs { grid-column: 1; grid-row: 1; }
+  /* Keep the native picker and its translated accessible label: all eleven tools stay available. */
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__mobile { display: block; grid-column: 2; grid-row: 1; width: 48px; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__mobile > span:first-child { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__current { min-height: 44px; padding: .5rem; justify-content: center; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__current > span { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__mobile select { min-height: 44px; }
+}
+@media screen and (prefers-reduced-motion: reduce) {
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__tabs { scroll-behavior: auto; }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .finance-navigation .section-navigation__selection { transition: none; }
+}

@@ -366,7 +366,7 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {tab === 'history' && embedded && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data?.canManage ?? false} busy={busy} act={action}/>}/>}
+      {tab === 'history' && embedded && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data?.canManage ?? false} busy={busy} act={action} quickMessage/>}/>}
       {data && tab === 'history' && !embedded && (
         <div className="ac-list">
           {!data.runs.length ? (
@@ -603,20 +603,24 @@ export function AutomationRunRow({
   canManage,
   busy,
   act,
+  quickMessage = false,
 }: {
   run: Run;
   canManage: boolean;
   busy: boolean;
   act: (v: Record<string, unknown>) => Promise<unknown>;
+  quickMessage?: boolean;
 }) {
   const [choice, setChoice] = useState('');
+  const runDetail = useRef<HTMLDetailsElement>(null);
+  const messageDetail = useRef<HTMLDetailsElement>(null);
   const language = useAppLanguage();
   const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const at = activityTimestamp(run.updatedAt) || activityTimestamp(run.createdAt);
   const confidence = run.result.confidence;
   const hasConfidence = typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
   return (
-    <details className="ac-run">
+    <><details className="ac-run" ref={runDetail}>
       <summary>
         <span>
           <strong>{run.title}</strong>
@@ -630,7 +634,7 @@ export function AutomationRunRow({
       <div className="ac-run__detail">
         <p>{run.result.message}</p>
         {run.result.summary && (
-          <details className="ac-source">
+          <details className="ac-source" ref={messageDetail}>
             <summary>{label('receivedMessage')} · {run.result.summary.subject}</summary>
             <p className="ac-meta">
               {run.result.summary.sender || label('senderUnknown')}
@@ -761,7 +765,10 @@ export function AutomationRunRow({
           </div>
         )}
       </div>
-    </details>
+    </details>{quickMessage && run.result.summary && <div className="automation-journal__direct"><button type="button" className="ac-quiet" onClick={()=>{
+      if (runDetail.current) runDetail.current.open=true;
+      if (messageDetail.current) {messageDetail.current.open=true;messageDetail.current.querySelector('summary')?.focus();}
+    }}>{label('receivedMessage')}<ChevronDown size={16} aria-hidden="true"/></button></div>}</>
   );
 }
 function RuleEditor({

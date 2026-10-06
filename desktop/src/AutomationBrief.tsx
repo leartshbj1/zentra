@@ -16,6 +16,10 @@ const copy: Record<string, Copy> = {
   hello: ['Bonjour','Guten Tag','Buongiorno','Hello'],
   attention: ['À votre attention','Ihre nächsten Schritte','Alla tua attenzione','Needs your attention'],
   today: ['Aujourd’hui','Heute','Oggi','Today'],
+  doneToday: ['Fait aujourd’hui','Heute erledigt','Fatto oggi','Done today'],
+  done: ['Fait','Erledigt','Fatto','Done'],
+  toReview: ['À vérifier','Zu prüfen','Da verificare','To review'],
+  allReviews: ['Voir les vérifications','Alle Prüfungen ansehen','Vedi tutte le verifiche','View all reviews'],
   invoices: ['Factures à vérifier','Rechnungen prüfen','Fatture da verificare','Invoices to review'],
   appointments: ['Rendez-vous à compléter','Termine vervollständigen','Appuntamenti da completare','Appointments to complete'],
   review: ['Actions à valider','Aktionen bestätigen','Azioni da approvare','Actions to approve'],
@@ -41,10 +45,10 @@ const copy: Record<string, Copy> = {
 };
 
 /** Real company activity only. A review count is never presented as a completed action. */
-export function AutomationBrief({ activity, paused = false, observation = false, compact = false, language = 'fr', onOpen, activityFirst = false, hideAttention = false, attentionOnly = false }: {
+export function AutomationBrief({ activity, paused = false, observation = false, compact = false, language = 'fr', onOpen, activityFirst = false, hideAttention = false, attentionOnly = false, summaryOnly = false }: {
   activity?: BriefActivity | null; paused?: boolean; observation?: boolean; compact?: boolean;
   language?: string; onOpen: (destination: BriefDestination) => void;
-  activityFirst?: boolean; hideAttention?: boolean; attentionOnly?: boolean;
+  activityFirst?: boolean; hideAttention?: boolean; attentionOnly?: boolean; summaryOnly?: boolean;
 }) {
   const index = Math.max(0, ['fr','de','it','en'].indexOf(language));
   const label = (key: string) => copy[key][index];
@@ -63,6 +67,21 @@ export function AutomationBrief({ activity, paused = false, observation = false,
     { key: 'summary', count: activity?.workflows?.summaries ?? 0, target: 'work' as const },
     { key: 'confirmed', count: activity?.totals.confirmed ?? 0, target: 'tools' as const },
   ].filter(row => row.count > 0);
+  if (summaryOnly) {
+    const period = activityDayLabel(activity?.date, activity?.timeZone, language);
+    const heading = period === automationLabel('today', language) ? label('doneToday') : `${label('done')} · ${period}`;
+    return <section className="automation-brief automation-brief--summary" aria-label="Zentra Automation">
+      <div><h2>{heading}</h2>
+        {!activity ? <p>{automationLabel('activityUnavailable',language)}</p> : done.length ? <ul>{done.slice(0,2).map(row => <li key={row.key}><button type="button" onClick={()=>onOpen(row.target)}><strong>{row.count}</strong><span>{label(row.key)}</span><ChevronRight size={16} aria-hidden="true"/></button></li>)}</ul> : <p>{label('empty')}</p>}
+        {done.length>2 && <button type="button" className="automation-brief__text" onClick={()=>onOpen('history')}>{label('history')}<ChevronRight size={16} aria-hidden="true"/></button>}
+      </div>
+      <div><h2>{label('toReview')}</h2>
+        {!activity ? <p>{automationLabel('activityUnavailable',language)}</p> : pending.length ? <ul>{pending.slice(0,2).map(row => <li key={row.id}><button type="button" onClick={()=>onOpen(row.id)}><strong>{row.count}</strong><span>{label(row.id)}</span><ChevronRight size={16} aria-hidden="true"/></button></li>)}</ul> : <p>{label('clear')}</p>}
+        {pending.length>2 && <button type="button" className="automation-brief__text" onClick={()=>onOpen('review')}>{label('allReviews')}<ChevronRight size={16} aria-hidden="true"/></button>}
+      </div>
+      {(paused || observation) && <p className="automation-brief__mode">{paused ? label('pause') : label('observe')}</p>}
+    </section>;
+  }
   const attention = !activity ? <p className="automation-brief__empty">{automationLabel('activityUnavailable',language)}</p> : pending.length ? <div className="automation-brief__list">{pending.map(({id,count,icon:Icon}) => <button type="button" key={id} onClick={() => onOpen(id)}>
     <Icon size={20}/><span>{label(id)}</span><strong>{count}</strong><ChevronRight size={17}/>
   </button>)}</div> : <p className="automation-brief__empty"><Check size={20}/>{label('clear')}</p>;

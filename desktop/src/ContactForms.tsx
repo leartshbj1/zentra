@@ -8,7 +8,7 @@ import { createId, errorMessage } from './utils';
 import { contactCountries, contactFormIssue, contactNativeIssue, type ContactIssue, type ContactValues } from './contactFormValidation';
 import './contact-forms.css';
 import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
-import { useAppLanguage, type AppLanguage } from './language';
+import { t, useAppLanguage, type AppLanguage } from './language';
 import { WorkspaceCreationOutcomeUnknownError } from './workspaceCreation';
 import { draftText, FormDraftNotice } from './useFormDraft';
 import { useNativeFormDraft } from './useNativeFormDraft';
@@ -84,7 +84,7 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
     persisted.capture({ creationId });
     failureReference.current = undefined; setFailure(''); setIssue(null);
   };
-  const title = kind === 'client' ? item ? 'Modifier le client' : 'Nouveau client' : item ? `Modifier ${item.name}` : 'Nouveau fournisseur';
+  const title = kind === 'client' ? t(item ? 'Modifier le client' : 'Nouveau client') : item ? t('Modifier {name}', { name: item.name }) : t('Nouveau fournisseur');
   function reveal(next: ContactIssue | null) {
     setIssue(next);
     requestAnimationFrame(() => {
@@ -138,38 +138,38 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
     catch (reason) { refused(reason); }
     finally { inFlight.current = false; setSaving(false); }
   }
-  return <Modal title={title} description={kind === 'client' ? 'Le destinataire et son adresse de facturation. Le téléphone et l’e-mail sont facultatifs.' : 'Le nom du fournisseur suffit pour commencer. Complétez ses coordonnées quand vous les avez.'} onClose={closeForm} dismissible={!locked} className="contact-form-modal" wide>
+  return <Modal title={title} description={t(kind === 'client' ? 'Le destinataire et son adresse de facturation. Le téléphone et l’e-mail sont facultatifs.' : 'Le nom du fournisseur suffit pour commencer. Complétez ses coordonnées quand vous les avez.')} onClose={closeForm} dismissible={!locked} className="contact-form-modal" wide>
     <form ref={formRef} noValidate onSubmit={submit} onChange={event => { if (!readOnly && !locked && !draftBlocked) persisted.capture(); if (event.target.getAttribute('name') === issue?.field) setIssue(null); }}>
-      {!readOnly && <FormDraftNotice draft={persisted} disabled={locked} currentValues={item ? [{ label: 'Nom', value: item.name }, { label: 'E-mail', value: item.email }, { label: 'Téléphone', value: item.phone }, { label: 'Adresse', value: item.address }, { label: 'Notes', value: item.notes }] : undefined} />}
+      {!readOnly && <FormDraftNotice draft={persisted} disabled={locked} currentValues={item ? [{ label: t("Nom"), value: item.name }, { label: t("E-mail"), value: item.email }, { label: t("Téléphone"), value: item.phone }, { label: t("Adresse"), value: item.address }, { label: t("Notes"), value: item.notes }] : undefined} />}
       {legacyCreation && !persisted.pending && !readOnly && <div className="contact-form-failure" role="status"><p>{recovery.legacy}</p><Button type="button" disabled={locked || draftBlocked || !creationId} onClick={prepareNewLegacyCreation}>{recovery.prepare}</Button></div>}
       <fieldset disabled={locked || readOnly || draftBlocked || legacyCreation}>
-        <section className="contact-form-section"><h3>{kind === 'client' ? 'Qui est votre client ?' : 'Qui est le fournisseur ?'}</h3>
-          <p>{kind === 'client' ? 'Renseignez un contact, une entreprise, ou les deux.' : 'Reprenez les informations de sa facture ou de son devis.'}</p>
+        <section className="contact-form-section"><h3>{t(kind === 'client' ? 'Qui est votre client ?' : 'Qui est le fournisseur ?')}</h3>
+          <p>{t(kind === 'client' ? 'Renseignez un contact, une entreprise, ou les deux.' : 'Reprenez les informations de sa facture ou de son devis.')}</p>
           <div className="form-grid">
-            {kind === 'client' ? <><Field label="Nom du contact" hint="Pour un particulier : prénom et nom." error={invalid('contactPerson')}><input {...inputProps('contactPerson')} defaultValue={client?.contactPerson ?? client?.name} autoComplete="name" autoFocus /></Field><Field label="Entreprise"><input name="company" defaultValue={client?.company} autoComplete="organization" /></Field></> : <><Field label="Raison sociale / nom" required wide error={invalid('name')}><input {...inputProps('name')} defaultValue={supplier?.name} maxLength={200} autoComplete="organization" autoFocus /></Field><Field label="Personne de contact" error={invalid('contactName')}><input {...inputProps('contactName')} defaultValue={supplier?.contactName} maxLength={200} autoComplete="name" /></Field></>}
-            <Field label="E-mail" error={invalid('email')}><input {...inputProps('email')} type="email" defaultValue={item?.email} maxLength={254} autoComplete="email" /></Field>
-            <Field label="Téléphone" error={invalid('phone')}><input {...inputProps('phone')} type="tel" defaultValue={item?.phone} maxLength={80} autoComplete="tel" /></Field>
+            {kind === 'client' ? <><Field label={t("Nom du contact")} hint={t("Pour un particulier : prénom et nom.")} error={invalid('contactPerson')}><input {...inputProps('contactPerson')} defaultValue={client?.contactPerson ?? client?.name} autoComplete="name" autoFocus /></Field><Field label={t("Entreprise")}><input name="company" defaultValue={client?.company} autoComplete="organization" /></Field></> : <><Field label={t("Raison sociale / nom")} required wide error={invalid('name')}><input {...inputProps('name')} defaultValue={supplier?.name} maxLength={200} autoComplete="organization" autoFocus /></Field><Field label={t("Personne de contact")} error={invalid('contactName')}><input {...inputProps('contactName')} defaultValue={supplier?.contactName} maxLength={200} autoComplete="name" /></Field></>}
+            <Field label={t("E-mail")} error={invalid('email')}><input {...inputProps('email')} type="email" defaultValue={item?.email} maxLength={254} autoComplete="email" /></Field>
+            <Field label={t("Téléphone")} error={invalid('phone')}><input {...inputProps('phone')} type="tel" defaultValue={item?.phone} maxLength={80} autoComplete="tel" /></Field>
           </div>
         </section>
-        <section className="contact-form-section"><h3>{kind === 'client' ? 'Où envoyer les documents ?' : 'Adresse et identification'}</h3><p>{kind === 'client' ? 'Cette adresse apparaîtra sur les nouveaux devis et factures.' : 'Ces informations sont facultatives et restent modifiables.'}</p>
+        <section className="contact-form-section"><h3>{t(kind === 'client' ? 'Où envoyer les documents ?' : 'Adresse et identification')}</h3><p>{t(kind === 'client' ? 'Cette adresse apparaîtra sur les nouveaux devis et factures.' : 'Ces informations sont facultatives et restent modifiables.')}</p>
           <div className="form-grid">
             {kind === 'client' ? <>
-              <Field label="Rue / case postale" required wide error={invalid('street')}><input {...inputProps('street')} defaultValue={client?.addressLine1} autoComplete="address-line1" /></Field>
-              <Field label="Numéro de bâtiment" error={invalid('buildingNumber')}><input {...inputProps('buildingNumber')} defaultValue={client?.buildingNumber ?? client?.addressLine2} /></Field>
-              <Field label="NPA" required error={invalid('postalCode')}><input {...inputProps('postalCode')} defaultValue={client?.postalCode} autoComplete="postal-code" /></Field>
-              <Field label="Localité" required error={invalid('city')}><input {...inputProps('city')} defaultValue={client?.city} autoComplete="address-level2" /></Field>
-              <Field label="Canton / région"><input name="canton" defaultValue={client?.canton} autoComplete="address-level1" /></Field>
-              <Field label="Pays" required error={invalid('country')}><select {...inputProps('country')} value={country} onChange={event => setCountry(event.target.value)}><option value="">Choisir le pays</option>{contactCountries.map(([code, label]) => <option key={code} value={code}>{label}</option>)}{country !== '__other' && country && !contactCountries.some(([code]) => code === country) && <option value={country}>{country} · pays de la fiche</option>}<option value="__other">Autre pays…</option></select></Field>
-              {country === '__other' && <Field label="Code du pays" required hint="Deux lettres : ES pour l’Espagne, PT pour le Portugal…" error={invalid('countryCustom')}><input {...inputProps('countryCustom')} autoCapitalize="characters" maxLength={2} /></Field>}
-            </> : <><Field label="Adresse" wide error={invalid('address')}><textarea {...inputProps('address')} rows={3} defaultValue={supplier?.address} maxLength={1_000} autoComplete="street-address" /></Field><Field label="Numéro IDE" hint="Facultatif. Reprenez le numéro d’identification de l’entreprise." error={invalid('uidNumber')}><input {...inputProps('uidNumber')} defaultValue={supplier?.uidNumber} maxLength={80} /></Field></>}
+              <Field label={t("Rue / case postale")} required wide error={invalid('street')}><input {...inputProps('street')} defaultValue={client?.addressLine1} autoComplete="address-line1" /></Field>
+              <Field label={t("Numéro de bâtiment")} error={invalid('buildingNumber')}><input {...inputProps('buildingNumber')} defaultValue={client?.buildingNumber ?? client?.addressLine2} /></Field>
+              <Field label={t("NPA")} required error={invalid('postalCode')}><input {...inputProps('postalCode')} defaultValue={client?.postalCode} autoComplete="postal-code" /></Field>
+              <Field label={t("Localité")} required error={invalid('city')}><input {...inputProps('city')} defaultValue={client?.city} autoComplete="address-level2" /></Field>
+              <Field label={t("Canton / région")}><input name="canton" defaultValue={client?.canton} autoComplete="address-level1" /></Field>
+              <Field label={t("Pays")} required error={invalid('country')}><select {...inputProps('country')} value={country} onChange={event => setCountry(event.target.value)}><option value="">{t('Choisir le pays')}</option>{contactCountries.map(([code, label]) => <option key={code} value={code}>{t(label)}</option>)}{country !== '__other' && country && !contactCountries.some(([code]) => code === country) && <option value={country}>{t('{country} · pays de la fiche', { country })}</option>}<option value="__other">{t('Autre pays…')}</option></select></Field>
+              {country === '__other' && <Field label={t("Code du pays")} required hint={t("Deux lettres : ES pour l’Espagne, PT pour le Portugal…")} error={invalid('countryCustom')}><input {...inputProps('countryCustom')} autoCapitalize="characters" maxLength={2} /></Field>}
+            </> : <><Field label={t("Adresse")} wide error={invalid('address')}><textarea {...inputProps('address')} rows={3} defaultValue={supplier?.address} maxLength={1_000} autoComplete="street-address" /></Field><Field label={t("Numéro IDE")} hint={t("Facultatif. Reprenez le numéro d’identification de l’entreprise.")} error={invalid('uidNumber')}><input {...inputProps('uidNumber')} defaultValue={supplier?.uidNumber} maxLength={80} /></Field></>}
           </div>
         </section>
-        {kind === 'supplier' && <section className="contact-form-section"><h3>Comment régler ses factures ?</h3><p>Ces réglages préremplissent les nouveaux achats. Aucun virement n’est envoyé depuis cette fiche.</p><div className="form-grid">
-          <Field label="IBAN CH / LI" wide hint="Facultatif. Vous pouvez le compléter plus tard." error={invalid('iban')}><input {...inputProps('iban')} defaultValue={supplier?.iban} autoCapitalize="characters" spellCheck={false} /></Field>
-          <Field label="Délai de paiement (jours)" required error={invalid('paymentTermsDays')} hint="Nombre de jours après la date de facture."><input {...inputProps('paymentTermsDays')} inputMode="numeric" value={terms} onChange={event => setTerms(event.target.value)} /></Field><Field label="Devise"><output className="field-output">CHF · franc suisse</output></Field>
-        </div><div className="contact-form-choices" role="group" aria-label="Délais habituels">{[0, 10, 30, 60].map(days => <Button type="button" variant="secondary" key={days} aria-pressed={terms === String(days)} onClick={() => { setTerms(String(days)); persisted.capture({ paymentTermsDays: String(days) }); if (issue?.field === 'paymentTermsDays') setIssue(null); }}>{days ? `${days} jours` : 'Immédiat'}</Button>)}</div></section>}
-        <section className="contact-form-section"><Field label="Notes internes" wide hint="Conservées dans la fiche, sans ajout automatique aux documents." error={invalid('notes')}><textarea {...inputProps('notes')} rows={3} defaultValue={item?.notes} maxLength={10_000} /></Field></section>
-        {item?.archivedAt && <p className="info-strip">Cette fiche est archivée. La modifier ne la réactive pas et son historique est conservé.</p>}
+        {kind === 'supplier' && <section className="contact-form-section"><h3>{t('Comment régler ses factures ?')}</h3><p>{t('Ces réglages préremplissent les nouveaux achats. Aucun virement n’est envoyé depuis cette fiche.')}</p><div className="form-grid">
+          <Field label={t("IBAN CH / LI")} wide hint={t("Facultatif. Vous pouvez le compléter plus tard.")} error={invalid('iban')}><input {...inputProps('iban')} defaultValue={supplier?.iban} autoCapitalize="characters" spellCheck={false} /></Field>
+          <Field label={t("Délai de paiement (jours)")} required error={invalid('paymentTermsDays')} hint={t("Nombre de jours après la date de facture.")}><input {...inputProps('paymentTermsDays')} inputMode="numeric" value={terms} onChange={event => setTerms(event.target.value)} /></Field><Field label={t("Devise")}><output className="field-output">CHF · {t('franc suisse')}</output></Field>
+        </div><div className="contact-form-choices" role="group" aria-label={t('Délais habituels')}>{[0, 10, 30, 60].map(days => <Button type="button" variant="secondary" key={days} aria-pressed={terms === String(days)} onClick={() => { setTerms(String(days)); persisted.capture({ paymentTermsDays: String(days) }); if (issue?.field === 'paymentTermsDays') setIssue(null); }}>{days ? t('{days} jours', { days }) : t('Immédiat')}</Button>)}</div></section>}
+        <section className="contact-form-section"><Field label={t("Notes internes")} wide hint={t("Conservées dans la fiche, sans ajout automatique aux documents.")} error={invalid('notes')}><textarea {...inputProps('notes')} rows={3} defaultValue={item?.notes} maxLength={10_000} /></Field></section>
+        {item?.archivedAt && <p className="info-strip">{t('Cette fiche est archivée. La modifier ne la réactive pas et son historique est conservé.')}</p>}
       </fieldset>
       {failure && <div ref={alertRef} className="contact-form-failure" tabIndex={-1}><>{failure === CONTACT_CREATION_UNCONFIRMED
         ? <div className="error-panel error-guidance error-guidance--compact"><div role="alert" data-contact-creation-recovery><strong>{recovery.title}</strong><p>{recovery.message}</p><p className="error-guidance__recovery">{recovery.instruction}</p></div><ErrorDetails error={failureReference.current ?? failure} /></div>

@@ -489,6 +489,16 @@ jobs:
           destination: apple
 
 workflows:
+  user-clarity-release-1914:
+    when:
+      and:
+        - equal: [codex/release-1.90.14-20261006, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - windows-release-1913
+      - apple
+      - android:
+          build-mode: release
   quality-continuity-verification:
     when:
       and:

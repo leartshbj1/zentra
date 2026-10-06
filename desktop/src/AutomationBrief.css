@@ -31,3 +31,14 @@
 [data-theme=dark] .automation-brief,[data-app-theme=dark] .automation-brief{--ab-ink:var(--ink,#ededf0);--ab-muted:var(--muted,#b2b2bb);--ab-line:var(--line-soft,#37373f);--ab-soft:var(--surface-soft,#2a2a30)}
 @media(max-width:640px){.automation-brief__intro{padding-bottom:24px;gap:12px}.automation-brief__intro p{font-size:14px}.automation-brief__list button{gap:10px;padding:17px 0;font-size:15px}.automation-brief__day{padding-top:26px}.automation-brief--compact{padding:20px 16px}.automation-brief__destinations{gap:4px 16px}.automation-brief__destinations button{flex:1 1 auto}}
 @media(prefers-reduced-motion:no-preference){.automation-brief__list button{transition:background-color .16s ease-out}}
+
+/* A short factual entry point; the activity journal remains the main surface. */
+.automation-brief--summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-bottom:20px;padding:18px 20px;border:1px solid var(--ab-line);border-radius:14px;background:var(--surface-raised,#fff)}
+.automation-brief--summary h2{font-size:16px;line-height:1.4;letter-spacing:-.01em;margin:0 0 8px}
+.automation-brief--summary p{font-size:14px;color:var(--ab-muted);margin:0}
+.automation-brief--summary ul{list-style:none;margin:0;padding:0}
+.automation-brief--summary li button{display:grid;grid-template-columns:auto minmax(0,1fr) 16px;align-items:center;gap:10px;min-height:44px;width:100%;text-align:left;padding:6px 0;font-size:14px;line-height:1.4}
+.automation-brief--summary strong{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.automation-brief--summary .automation-brief__text{margin-top:0;min-height:44px}
+.automation-brief--summary .automation-brief__mode{grid-column:1/-1}
+@media(max-width:540px){.automation-brief--summary{grid-template-columns:minmax(0,1fr);gap:16px;padding:16px}.automation-brief--summary>div+div{border-top:1px solid var(--ab-line);padding-top:12px}}

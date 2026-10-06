@@ -45,12 +45,12 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenIn
       </MobileDetails>
     </section>
     {metric&&<DashboardFinancialDetail key={`${metric}-${total?.currency}`} workspace={workspace} metric={metric} year={year} currency={metric==='netCents'?undefined:total?.currency} onClose={()=>closeDetail()} onOpenInvoice={invoice=>{closeDetail(false);onOpenInvoice(invoice);}}/>}
-    {automation}
-    {actions}
     <section className="mobile-home__section" aria-label={t('À suivre')}>
       <h2>{t('À suivre')}</h2>
       <div className="mobile-home__list">{links.map(item => <button type="button" key={item.id} onClick={() => onNavigate(item.id)}><item.icon size={21} aria-hidden="true"/><span>{t(item.label)}</span><strong>{item.count}</strong><ChevronRight size={17} aria-hidden="true"/></button>)}</div>
     </section>
+    {automation}
+    {actions && <MobileDetails title="Nouvelle saisie">{actions}</MobileDetails>}
     {projects.length > 0 && <section className="mobile-home__section"><div className="mobile-home__section-heading"><h2>{t('Projets actifs')}</h2><button type="button" onClick={() => onNavigate('projects')}>{t('Tout voir')}</button></div>
       <div className="mobile-home__list">{projects.slice(0, 3).map(project => <button type="button" key={project.id} onClick={() => onOpenProject(project)}><FolderKanban size={21}/><span>{project.name}</span><ChevronRight size={17}/></button>)}</div>
     </section>}

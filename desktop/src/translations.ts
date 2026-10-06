@@ -1,3 +1,4 @@
+import { contactFormTranslations } from './translationsContactForms';
 import { documentSettingsTranslations } from './translationsDocumentSettings';
 import { documentNavigationTranslations } from './translationsDocumentNavigation';
 import { documentPreviewTranslations } from './translationsDocumentPreview';
@@ -48,6 +49,7 @@ import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 import { notesTranslations } from './translationsNotes';
 import { customerCreditTranslations } from './translationsCustomerCredit';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...contactFormTranslations,
   ...notesTranslations,
   ...customerCreditTranslations,
   ...updaterTranslations,
