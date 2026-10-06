@@ -2,6 +2,7 @@
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ArrowUpRight,
   Check,
   ChevronDown,
   Clock,
@@ -28,6 +29,7 @@ type Rule = {
 };
 type Run = {
   id: string;
+  sourceId?: string | null;
   title: string;
   state: string;
   revision: number;
@@ -126,7 +128,7 @@ const date = (n: number) =>
 export function AutomationControlCentre({
   organizationId,
   request, initialTab = 'review', embedded = false, hideNavigation = false, hideRules = false,
-  activity, onOpen, onOpenInvoice, appointments, appointmentsUnavailable, onOpenAppointment,
+  activity, onOpen, onOpenInvoice, appointments, appointmentsUnavailable, onOpenAppointment, onOpenSourceMessage,
 }: {
   organizationId: string;
   request: Requester;
@@ -137,6 +139,7 @@ export function AutomationControlCentre({
   appointments?: AppointmentInboxState | null;
   appointmentsUnavailable?: boolean;
   onOpenAppointment?: (id: string) => void;
+  onOpenSourceMessage?: (id: string) => Promise<unknown>;
 }) {
   const [data, setData] = useState<AutomationCentreState | null>(null),
     [error, setError] = useState(''),
@@ -281,6 +284,7 @@ export function AutomationControlCentre({
                 canManage={data.canManage}
                 busy={busy}
                 act={action}
+                onOpenSourceMessage={onOpenSourceMessage}
               />
             ))
           )}
@@ -366,7 +370,7 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {tab === 'history' && embedded && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data?.canManage ?? false} busy={busy} act={action} quickMessage/>}/>}
+      {tab === 'history' && embedded && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data?.canManage ?? false} busy={busy} act={action} onOpenSourceMessage={onOpenSourceMessage} quickMessage/>}/>}
       {data && tab === 'history' && !embedded && (
         <div className="ac-list">
           {!data.runs.length ? (
@@ -383,6 +387,7 @@ export function AutomationControlCentre({
                 canManage={data.canManage}
                 busy={busy}
                 act={action}
+                onOpenSourceMessage={onOpenSourceMessage}
               />
             ))
           )}
@@ -604,14 +609,20 @@ export function AutomationRunRow({
   busy,
   act,
   quickMessage = false,
+  onOpenSourceMessage,
 }: {
   run: Run;
   canManage: boolean;
   busy: boolean;
   act: (v: Record<string, unknown>) => Promise<unknown>;
   quickMessage?: boolean;
+  onOpenSourceMessage?: (id: string) => Promise<unknown>;
 }) {
   const [choice, setChoice] = useState('');
+  const [openingMessage, setOpeningMessage] = useState(false);
+  const [messageProblem, setMessageProblem] = useState(false);
+  const messageOpening = useRef(false);
+  const messageOpeningGeneration = useRef(0);
   const runDetail = useRef<HTMLDetailsElement>(null);
   const messageDetail = useRef<HTMLDetailsElement>(null);
   const language = useAppLanguage();
@@ -619,6 +630,47 @@ export function AutomationRunRow({
   const at = activityTimestamp(run.updatedAt) || activityTimestamp(run.createdAt);
   const confidence = run.result.confidence;
   const hasConfidence = typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
+  const sourceId = typeof run.sourceId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(run.sourceId) && run.sourceId !== '00000000-0000-0000-0000-000000000000' ? run.sourceId : undefined;
+  const canOpenMessage = !!sourceId && !!onOpenSourceMessage;
+  useEffect(() => {
+    messageOpeningGeneration.current += 1;
+    messageOpening.current = false;
+    setOpeningMessage(false);
+    setMessageProblem(false);
+    return () => { messageOpeningGeneration.current += 1; };
+  }, [run.id, sourceId]);
+  function showExcerpt() {
+    if (runDetail.current) runDetail.current.open = true;
+    if (messageDetail.current) {
+      messageDetail.current.open = true;
+      messageDetail.current.querySelector('summary')?.focus();
+    }
+  }
+  async function openMessage() {
+    if (!canOpenMessage) { showExcerpt(); return; }
+    if (messageOpening.current) return;
+    messageOpening.current = true;
+    const generation = messageOpeningGeneration.current;
+    setOpeningMessage(true);
+    setMessageProblem(false);
+    try {
+      await onOpenSourceMessage!(sourceId!);
+    } catch {
+      if (generation === messageOpeningGeneration.current) {
+        setMessageProblem(true);
+        showExcerpt();
+      }
+    } finally {
+      if (generation === messageOpeningGeneration.current) {
+        messageOpening.current = false;
+        setOpeningMessage(false);
+      }
+    }
+  }
+  const messageButton = <button type="button" className="ac-quiet" disabled={openingMessage} aria-busy={openingMessage || undefined} onClick={() => void openMessage()}>
+    {label(canOpenMessage ? 'openReceivedMessage' : 'receivedMessage')}
+    {canOpenMessage ? <ArrowUpRight size={16} aria-hidden="true"/> : <ChevronDown size={16} aria-hidden="true"/>}
+  </button>;
   return (
     <><details className="ac-run" ref={runDetail}>
       <summary>
@@ -633,6 +685,7 @@ export function AutomationRunRow({
       </summary>
       <div className="ac-run__detail">
         <p>{run.result.message}</p>
+        {!quickMessage && canOpenMessage && messageButton}
         {run.result.summary && (
           <details className="ac-source" ref={messageDetail}>
             <summary>{label('receivedMessage')} · {run.result.summary.subject}</summary>
@@ -765,10 +818,8 @@ export function AutomationRunRow({
           </div>
         )}
       </div>
-    </details>{quickMessage && run.result.summary && <div className="automation-journal__direct"><button type="button" className="ac-quiet" onClick={()=>{
-      if (runDetail.current) runDetail.current.open=true;
-      if (messageDetail.current) {messageDetail.current.open=true;messageDetail.current.querySelector('summary')?.focus();}
-    }}>{label('receivedMessage')}<ChevronDown size={16} aria-hidden="true"/></button></div>}</>
+    </details>{quickMessage && (canOpenMessage || run.result.summary) && <div className="automation-journal__direct">{messageButton}</div>}
+    {messageProblem && <p className="ac-meta" role="alert">{label(run.result.summary ? 'openMessageExcerptFallback' : 'openMessageUnavailable')}</p>}</>
   );
 }
 function RuleEditor({

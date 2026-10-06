@@ -672,14 +672,38 @@ pub async fn open_automation_settings() -> Result<String,String> {
     tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
 }
 #[tauri::command]
-pub async fn open_supplier_inbox_settings(state: State<'_, LocalStore>, section: Option<String>) -> Result<String,String> {
+pub async fn open_supplier_inbox_settings(state: State<'_, LocalStore>, section: Option<String>, ticket_id: Option<String>) -> Result<String,String> {
     let store=state.inner().clone();
-    let session=read_session_secret(&store).map_err(command_error)?.ok_or_else(||"Connectez votre entreprise à Zentra.".to_string())?;
-    crate::automation::bound(&store,&session.organization_id).map_err(command_error)?;
-    let mut url=Url::parse("https://zentraapp.ch/support/espace").map_err(|_|"Adresse indisponible.".to_string())?;
-    url.query_pairs_mut().append_pair("organizationId",&session.organization_id).append_pair("section",if section.as_deref()==Some("inbox"){"inbox"}else{"connections"});
-    let uri=url.to_string();
+    let uri={
+        let _guard=store.account_protected_cache.operation_lock.lock().await;
+        let session=read_session_secret(&store).map_err(command_error)?.ok_or_else(||"Connectez votre entreprise à Zentra.".to_string())?;
+        supplier_inbox_uri(&store,&session,section.as_deref(),ticket_id.as_deref()).map_err(command_error)?
+    };
     tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
+}
+
+// Navigation only: Support rechecks its own browser session, company membership
+// and ticket scope. Never place a native credential in the external URL.
+fn supplier_inbox_uri(store: &LocalStore, session: &CloudSession, section: Option<&str>, ticket_id: Option<&str>) -> AppResult<String> {
+    validate_session_for_installation(session,&store.installation_id)?;
+    if parse_future_or_past_date(&session.session_expires_at,"session")?<=Utc::now(){
+        return Err(AppError::Validation("Reconnectez votre compte Zentra pour ouvrir Support.".into()));
+    }
+    crate::automation::bound(store,&session.organization_id)?;
+    if let Some(id)=ticket_id {
+        let parsed=Uuid::parse_str(id).map_err(|_|AppError::Validation("Le message reçu est invalide.".into()))?;
+        if parsed.is_nil() || parsed.to_string()!=id.to_ascii_lowercase(){
+            return Err(AppError::Validation("Le message reçu est invalide.".into()));
+        }
+    }
+    let mut url=Url::parse(ACCOUNT_API_ORIGIN).map_err(|_|AppError::Validation("Adresse indisponible.".into()))?;
+    url.set_path("/support/espace");
+    let mut query=url.query_pairs_mut();
+    query.append_pair("organizationId",&session.organization_id)
+        .append_pair("section",if ticket_id.is_some() || section==Some("inbox"){"inbox"}else{"connections"});
+    if let Some(id)=ticket_id {query.append_pair("ticket",id);}
+    drop(query);
+    Ok(url.to_string())
 }
 
 #[tauri::command]
@@ -1947,6 +1971,61 @@ mod tests {
         assert!(account_portal_uri(Some("https://other.example"),None).is_err());
         assert!(account_portal_uri(Some("../admin"),None).is_err());
         assert_eq!(account_portal_uri(None,None).unwrap(),"https://zentraapp.ch/compte");
+    }
+
+    fn supplier_message_session(store: &LocalStore) -> CloudSession {
+        let mut session=session_for(&store.installation_id);
+        session.session_expires_at=(Utc::now()+chrono::Duration::days(1)).to_rfc3339();
+        fs::write(store.data_dir.join("company-collaboration.json"),serde_json::to_vec(&json!({"organization_id":session.organization_id})).unwrap()).unwrap();
+        session
+    }
+
+    #[test]
+    fn supplier_message_navigation_is_canonical_company_scoped_and_credential_free() {
+        let temporary=tempfile::tempdir().unwrap();
+        let store=LocalStore::initialize(temporary.path().into()).unwrap();
+        let session=supplier_message_session(&store);
+        let ticket="7418f947-06af-4dfb-84d0-0f2eae5fb946";
+        let uri=supplier_inbox_uri(&store,&session,Some("inbox"),Some(ticket)).unwrap();
+        assert_eq!(uri,format!("{ACCOUNT_API_ORIGIN}/support/espace?organizationId={}&section=inbox&ticket={ticket}",session.organization_id));
+        assert!(!uri.contains(&session.session_token));
+        let url=Url::parse(&uri).unwrap();
+        assert_eq!(url.scheme(),"https");
+        assert_eq!(url.host_str(),Some("zentraapp.ch"));
+        assert_eq!(url.path(),"/support/espace");
+        assert_eq!(url.query_pairs().count(),3);
+        // A ticket can only target the inbox, never arbitrary sections/URLs.
+        assert_eq!(supplier_inbox_uri(&store,&session,Some("https://other.example"),Some(ticket)).unwrap(),uri);
+        assert_eq!(supplier_inbox_uri(&store,&session,None,None).unwrap(),format!("{ACCOUNT_API_ORIGIN}/support/espace?organizationId={}&section=connections",session.organization_id));
+        assert_eq!(supplier_inbox_uri(&store,&session,Some("inbox"),None).unwrap(),format!("{ACCOUNT_API_ORIGIN}/support/espace?organizationId={}&section=inbox",session.organization_id));
+    }
+
+    #[test]
+    fn supplier_message_navigation_rejects_invalid_ids_without_an_external_launch() {
+        let temporary=tempfile::tempdir().unwrap();
+        let store=LocalStore::initialize(temporary.path().into()).unwrap();
+        let session=supplier_message_session(&store);
+        for invalid in ["", "ticket-other", "7418f94706af4dfb84d00f2eae5fb946", "urn:uuid:7418f947-06af-4dfb-84d0-0f2eae5fb946", "7418f947-06af-4dfb-84d0-0f2eae5fb946&organizationId=other", " 7418f947-06af-4dfb-84d0-0f2eae5fb946", "00000000-0000-0000-0000-000000000000"] {
+            assert!(supplier_inbox_uri(&store,&session,Some("inbox"),Some(invalid)).is_err(),"{invalid}");
+        }
+    }
+
+    #[test]
+    fn supplier_message_navigation_refuses_wrong_installation_expired_or_unlinked_company() {
+        let temporary=tempfile::tempdir().unwrap();
+        let store=LocalStore::initialize(temporary.path().into()).unwrap();
+        let mut session=supplier_message_session(&store);
+        let ticket="7418f947-06af-4dfb-84d0-0f2eae5fb946";
+        session.installation_id=Uuid::new_v4().to_string();
+        assert!(supplier_inbox_uri(&store,&session,Some("inbox"),Some(ticket)).is_err());
+        session.installation_id=store.installation_id.clone();
+        session.session_expires_at=(Utc::now()-chrono::Duration::seconds(1)).to_rfc3339();
+        assert!(supplier_inbox_uri(&store,&session,Some("inbox"),Some(ticket)).is_err());
+        session.session_expires_at=(Utc::now()+chrono::Duration::days(1)).to_rfc3339();
+        fs::write(store.data_dir.join("company-collaboration.json"),serde_json::to_vec(&json!({"organization_id":"org_0991a2ee-056b-41c3-b9ad-45335923ab40"})).unwrap()).unwrap();
+        assert!(supplier_inbox_uri(&store,&session,Some("inbox"),Some(ticket)).is_err());
+        fs::remove_file(store.data_dir.join("company-collaboration.json")).unwrap();
+        assert!(supplier_inbox_uri(&store,&session,Some("inbox"),Some(ticket)).is_err());
     }
 
     #[test]

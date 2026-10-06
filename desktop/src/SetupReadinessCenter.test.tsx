@@ -445,4 +445,16 @@ describe('centre de préparation', () => {
     expect(html).toContain('ne remplace ni un contrôle légal');
     expect(html).toContain('aria-valuenow="100"');
   });
+
+  it.each([
+    ['fr','sur cet appareil','sur cet ordinateur'],
+    ['de','auf diesem Gerät','auf diesem Computer'],
+    ['it','su questo dispositivo','su questo computer'],
+    ['en','on this device','on this computer'],
+  ] as const)('uses device-neutral readiness wording in %s', async (language,device,computer) => {
+    await setAppLanguage(language);
+    const html=renderToStaticMarkup(<SetupReadinessCenter workspace={workspace()} settings={baseSettings} onNavigate={()=>undefined}/>);
+    expect(html).toContain(device);
+    expect(html).not.toContain(computer);
+  });
 });

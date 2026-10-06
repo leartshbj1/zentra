@@ -394,7 +394,7 @@ export function SetupReadinessCenter({
       </ol>
 
       <p className="setup-readiness__disclaimer">
-        {t('Ce centre vérifie uniquement les réglages enregistrés sur cet ordinateur. Il ne remplace ni un contrôle légal, ni la validation d’une fiduciaire ou d’un assureur.')}
+        {t('Ce centre vérifie uniquement les réglages enregistrés sur cet appareil. Il ne remplace ni un contrôle légal, ni la validation d’une fiduciaire ou d’un assureur.')}
       </p>
     </section>
   );

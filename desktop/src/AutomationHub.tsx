@@ -47,6 +47,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
     if (destination === 'support') { void invoke('open_supplier_inbox_settings',{section:'inbox'}).catch(()=>onPage('settings')); return; }
     onPage(destination === 'review' ? 'centre' : destination);
   };
+  const openSourceMessage = (ticketId: string) => invoke('open_supplier_inbox_settings', { section: 'inbox', ticketId });
   return <div className="automation-hub">
     <nav className="automation-hub__navigation" aria-label={t('Espace Automation')}>
       {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{label(tab === 'overview' ? 'activity' : tab === 'centre' ? 'followup' : 'settings')}{tab === 'centre' && pending > 0 && <span className="automation-hub__count">{pending}</span>}</button>)}
@@ -56,7 +57,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
     {activityPage && <><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} summaryOnly language={language} onOpen={open}/><div className="automation-hub__activity">
-      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} initialTab="history" activity={state.activity} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></div>
+      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} onOpenSourceMessage={openSourceMessage} initialTab="history" activity={state.activity} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></div>
     </div><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></>}
     {(page === 'invoices' || page === 'appointments') && <section className="automation-hub__focused"><Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>{page==='invoices'?inboxPanel:appointmentPanel}</section>}
     {page === 'tools' && <section aria-label={t('Outils')}>
@@ -74,8 +75,8 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       })}</div>
       {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
     </section>}
-    {followup && <div className="automation-hub__followup"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))} /></div>}
+    {followup && <div className="automation-hub__followup"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))} /></div>}
     {page === 'settings' && <section aria-label={t('Réglages')} className="automation-hub__settings"><Button variant="secondary" onClick={()=>onPage('rules')}>{t('Règles de l’équipe')}<ArrowRight size={16}/></Button><AutomationSettings /></section>}
-    {page === 'rules' && <><Button variant="ghost" onClick={()=>onPage('settings')}><ArrowLeft size={16}/>{t('Réglages')}</Button><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></>}
+    {page === 'rules' && <><Button variant="ghost" onClick={()=>onPage('settings')}><ArrowLeft size={16}/>{t('Réglages')}</Button><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></>}
   </div>;
 }
