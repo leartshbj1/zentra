@@ -351,7 +351,7 @@ export function PaymentReceipt({
     if (
       !canRecover ||
       !receipt ||
-      receipt.environment !== 'TEST' ||
+      !['TEST', 'PRODUCTION'].includes(receipt.environment) ||
       !['pending', 'verification_required'].includes(receipt.status) ||
       busy ||
       recoveryController.current
@@ -605,7 +605,8 @@ export function PaymentReceipt({
       )}
       <div className="payment-receipt-actions">
         {canRecover &&
-          receipt?.environment === 'TEST' &&
+          receipt &&
+          ['TEST', 'PRODUCTION'].includes(receipt.environment) &&
           ['pending', 'verification_required'].includes(receipt.status) && (
             <button
               className="account-button secondary"

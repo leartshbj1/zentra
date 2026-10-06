@@ -1,36 +1,36 @@
-import { prepaidCatalog, prepaidProduct } from './prepaid-catalog';
-import { CheckoutUnavailable, type SwissMethod } from './postfinance-client';
-import type { PrepaidPurchaseConfiguration } from './prepaid-purchase-preparation';
+import { prepaidCatalog, prepaidProduct } from "./prepaid-catalog";
+import { CheckoutUnavailable, type SwissMethod } from "./postfinance-client";
+import type { PrepaidPurchaseConfiguration } from "./prepaid-purchase-preparation";
 
 export type PostFinancePurchaseBinding =
-  | 'POSTFINANCE_PURCHASES_ENABLED'
-  | 'POSTFINANCE_MERCHANT_APPROVED'
-  | 'POSTFINANCE_API_ORIGIN'
-  | 'POSTFINANCE_APPLICATION_USER_ID'
-  | 'POSTFINANCE_AUTHENTICATION_KEY_BASE64'
-  | 'POSTFINANCE_SPACE_ID'
-  | 'POSTFINANCE_RETURN_ORIGIN'
-  | 'POSTFINANCE_PREPAID_ENVIRONMENT'
-  | 'POSTFINANCE_PREPAID_CATALOG_JSON'
-  | 'POSTFINANCE_PREPAID_CONNECTORS_JSON'
-  | 'POSTFINANCE_CHARGE_FLOW_ENABLED'
-  | 'POSTFINANCE_PAY_TOKEN_ENABLED'
-  | 'POSTFINANCE_TWINT_USER_ON_FILE_ENABLED'
-  | 'POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED'
-  | 'POSTFINANCE_TEST_ACCOUNT_USER_IDS';
+  | "POSTFINANCE_PURCHASES_ENABLED"
+  | "POSTFINANCE_PRODUCTION_ENABLED"
+  | "POSTFINANCE_MERCHANT_APPROVED"
+  | "POSTFINANCE_API_ORIGIN"
+  | "POSTFINANCE_APPLICATION_USER_ID"
+  | "POSTFINANCE_AUTHENTICATION_KEY_BASE64"
+  | "POSTFINANCE_SPACE_ID"
+  | "POSTFINANCE_RETURN_ORIGIN"
+  | "POSTFINANCE_PREPAID_ENVIRONMENT"
+  | "POSTFINANCE_PREPAID_CATALOG_JSON"
+  | "POSTFINANCE_PREPAID_CONNECTORS_JSON"
+  | "POSTFINANCE_CHARGE_FLOW_ENABLED"
+  | "POSTFINANCE_PAY_TOKEN_ENABLED"
+  | "POSTFINANCE_TWINT_USER_ON_FILE_ENABLED"
+  | "POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED"
+  | "POSTFINANCE_TEST_ACCOUNT_USER_IDS";
 
 function positive(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function parse(raw: string): Record<string, unknown> {
   if (!raw || new TextEncoder().encode(raw).byteLength > 16_384)
-    throw new CheckoutUnavailable('Invalid server payment configuration.');
+    throw new CheckoutUnavailable("Invalid server payment configuration.");
   const value: unknown = JSON.parse(raw);
-  if (!record(value))
-    throw new CheckoutUnavailable('Invalid server payment configuration.');
+  if (!record(value)) throw new CheckoutUnavailable("Invalid server payment configuration.");
   return value;
 }
 
@@ -40,7 +40,7 @@ function parse(raw: string): Record<string, unknown> {
 export function postFinancePurchaseConfiguration(
   read: (name: PostFinancePurchaseBinding) => string,
 ): PrepaidPurchaseConfiguration {
-  if (read('POSTFINANCE_PURCHASES_ENABLED') !== 'true')
+  if (read("POSTFINANCE_PURCHASES_ENABLED") !== "true")
     return {
       enabled: false,
       settlementEvidenceVerified: false,
@@ -48,52 +48,47 @@ export function postFinancePurchaseConfiguration(
       connectorConfigurations: {},
     };
   try {
-    const apiOrigin = read('POSTFINANCE_API_ORIGIN'),
-      spaceId = Number(read('POSTFINANCE_SPACE_ID')),
-      applicationUserId = read('POSTFINANCE_APPLICATION_USER_ID'),
-      key = read('POSTFINANCE_AUTHENTICATION_KEY_BASE64'),
-      returnOrigin = read('POSTFINANCE_RETURN_ORIGIN'),
-      environment = read('POSTFINANCE_PREPAID_ENVIRONMENT');
+    const apiOrigin = read("POSTFINANCE_API_ORIGIN"),
+      spaceId = Number(read("POSTFINANCE_SPACE_ID")),
+      applicationUserId = read("POSTFINANCE_APPLICATION_USER_ID"),
+      key = read("POSTFINANCE_AUTHENTICATION_KEY_BASE64"),
+      returnOrigin = read("POSTFINANCE_RETURN_ORIGIN"),
+      environment = read("POSTFINANCE_PREPAID_ENVIRONMENT");
     if (
-      !['https://checkout.postfinance.ch', 'https://app-wallee.com'].includes(
-        apiOrigin,
-      ) ||
+      !["https://checkout.postfinance.ch", "https://app-wallee.com"].includes(apiOrigin) ||
       !positive(spaceId) ||
       !/^[1-9][0-9]{0,15}$/.test(applicationUserId) ||
       !positive(Number(applicationUserId)) ||
       !/^[A-Za-z0-9+/]{43}=$/.test(key) ||
       atob(key).length !== 32 ||
       btoa(atob(key)) !== key ||
-      !['TEST', 'PRODUCTION'].includes(environment) ||
-      read('POSTFINANCE_MERCHANT_APPROVED') !== 'true' ||
-      read('POSTFINANCE_CHARGE_FLOW_ENABLED') !== 'true' ||
-      (environment === 'PRODUCTION' &&
-        read('POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED') !== 'true')
+      !["TEST", "PRODUCTION"].includes(environment) ||
+      read("POSTFINANCE_MERCHANT_APPROVED") !== "true" ||
+      read("POSTFINANCE_CHARGE_FLOW_ENABLED") !== "true" ||
+      (environment === "PRODUCTION" &&
+        (read("POSTFINANCE_PRODUCTION_ENABLED") !== "true" ||
+          read("POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED") !== "true"))
     )
       throw new Error();
     const returns = new URL(returnOrigin);
     if (
-      returns.protocol !== 'https:' ||
+      returns.protocol !== "https:" ||
       returns.origin !== returnOrigin ||
       returns.username ||
       returns.password
     )
       throw new Error();
     const connectorConfigurations: Partial<Record<SwissMethod, number>> = {};
-    const rawConnectors = parse(read('POSTFINANCE_PREPAID_CONNECTORS_JSON'));
+    const rawConnectors = parse(read("POSTFINANCE_PREPAID_CONNECTORS_JSON"));
     for (const [method, value] of Object.entries(rawConnectors)) {
-      if (!['postfinance_pay', 'twint'].includes(method) || !positive(value))
-        throw new Error();
+      if (!["postfinance_pay", "twint"].includes(method) || !positive(value)) throw new Error();
       connectorConfigurations[method as SwissMethod] = value;
     }
     const prepaidProducts: NonNullable<
-      PrepaidPurchaseConfiguration['connection']['prepaidProducts']
+      PrepaidPurchaseConfiguration["connection"]["prepaidProducts"]
     > = {};
-    const catalog = parse(read('POSTFINANCE_PREPAID_CATALOG_JSON'));
-    if (
-      !Object.keys(catalog).length ||
-      Object.keys(catalog).length > prepaidCatalog().length
-    )
+    const catalog = parse(read("POSTFINANCE_PREPAID_CATALOG_JSON"));
+    if (!Object.keys(catalog).length || Object.keys(catalog).length > prepaidCatalog().length)
       throw new Error();
     for (const [productKey, value] of Object.entries(catalog)) {
       const product = prepaidProduct(productKey);
@@ -103,16 +98,16 @@ export function postFinancePurchaseConfiguration(
         Object.keys(value).some(
           (key) =>
             ![
-              'currency',
-              'billingPeriod',
-              'priceChfMinor',
-              'reference',
-              'name',
-              'methodConfigurations',
+              "currency",
+              "billingPeriod",
+              "priceChfMinor",
+              "reference",
+              "name",
+              "methodConfigurations",
             ].includes(key),
         ) ||
-        value.currency !== 'CHF' ||
-        value.billingPeriod !== 'P1M' ||
+        value.currency !== "CHF" ||
+        value.billingPeriod !== "P1M" ||
         value.priceChfMinor !== product.priceChfMinor ||
         value.reference !== product.catalogVersion ||
         value.name !== product.name ||
@@ -122,25 +117,25 @@ export function postFinancePurchaseConfiguration(
       const methodConfigurations: Partial<Record<SwissMethod, number>> = {};
       for (const [method, id] of Object.entries(value.methodConfigurations)) {
         if (
-          !['postfinance_pay', 'twint'].includes(method) ||
+          !["postfinance_pay", "twint"].includes(method) ||
           !positive(id) ||
           !connectorConfigurations[method as SwissMethod]
         )
           throw new Error();
         if (
           read(
-            method === 'postfinance_pay'
-              ? 'POSTFINANCE_PAY_TOKEN_ENABLED'
-              : 'POSTFINANCE_TWINT_USER_ON_FILE_ENABLED',
-          ) !== 'true'
+            method === "postfinance_pay"
+              ? "POSTFINANCE_PAY_TOKEN_ENABLED"
+              : "POSTFINANCE_TWINT_USER_ON_FILE_ENABLED",
+          ) !== "true"
         )
           throw new Error();
         methodConfigurations[method as SwissMethod] = id;
       }
       if (!Object.keys(methodConfigurations).length) throw new Error();
       prepaidProducts[productKey] = {
-        currency: 'CHF',
-        billingPeriod: 'P1M',
+        currency: "CHF",
+        billingPeriod: "P1M",
         priceChfMinor: product.priceChfMinor,
         reference: product.catalogVersion,
         name: product.name,
@@ -149,14 +144,11 @@ export function postFinancePurchaseConfiguration(
     }
     return {
       enabled: true,
-      settlementEvidenceVerified:
-        read('POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED') === 'true',
+      settlementEvidenceVerified: read("POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED") === "true",
       connectorConfigurations,
       connection: {
         enabled: true,
-        apiOrigin: apiOrigin as
-          | 'https://checkout.postfinance.ch'
-          | 'https://app-wallee.com',
+        apiOrigin: apiOrigin as "https://checkout.postfinance.ch" | "https://app-wallee.com",
         applicationUserId,
         authenticationKeyBase64: key,
         spaceId,
@@ -164,18 +156,14 @@ export function postFinancePurchaseConfiguration(
         merchantApproved: true,
         chargeFlowEnabled: true,
         prepaidFeatureEnabled: true,
-        prepaidEnvironment: environment as 'TEST' | 'PRODUCTION',
+        prepaidEnvironment: environment as "TEST" | "PRODUCTION",
         prepaidProducts,
-        postfinancePayTokenEnabled:
-          read('POSTFINANCE_PAY_TOKEN_ENABLED') === 'true',
-        twintUserOnFileEnabled:
-          read('POSTFINANCE_TWINT_USER_ON_FILE_ENABLED') === 'true',
+        postfinancePayTokenEnabled: read("POSTFINANCE_PAY_TOKEN_ENABLED") === "true",
+        twintUserOnFileEnabled: read("POSTFINANCE_TWINT_USER_ON_FILE_ENABLED") === "true",
       },
     };
   } catch {
-    throw new CheckoutUnavailable(
-      'PostFinance purchase configuration is unavailable.',
-    );
+    throw new CheckoutUnavailable("PostFinance purchase configuration is unavailable.");
   }
 }
 
@@ -186,9 +174,11 @@ export function postFinanceTestPurchaseAllowed(
   userId: string,
   read: (name: PostFinancePurchaseBinding) => string,
 ) {
-  if (configuration.connection.prepaidEnvironment === 'PRODUCTION') return true;
+  if (configuration.enabled !== true || configuration.connection.enabled !== true) return false;
+  if (configuration.connection.prepaidEnvironment === "PRODUCTION") return true;
+  if (configuration.connection.prepaidEnvironment !== "TEST") return false;
   try {
-    const raw = read('POSTFINANCE_TEST_ACCOUNT_USER_IDS');
+    const raw = read("POSTFINANCE_TEST_ACCOUNT_USER_IDS");
     if (!raw || raw.length > 4096) return false;
     const ids: unknown = JSON.parse(raw);
     if (
@@ -197,10 +187,8 @@ export function postFinanceTestPurchaseAllowed(
       ids.length > 20 ||
       ids.some(
         (id) =>
-          typeof id !== 'string' ||
-          !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
-            id,
-          ),
+          typeof id !== "string" ||
+          !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id),
       ) ||
       new Set(ids).size !== ids.length
     )
@@ -209,4 +197,57 @@ export function postFinanceTestPurchaseAllowed(
   } catch {
     return false;
   }
+}
+
+/** A display snapshot, never payment authority. It binds a verified account and
+ * the server configuration shown before purchase. Credentials are excluded. */
+export async function postFinancePurchaseContext(
+  configuration: PrepaidPurchaseConfiguration,
+  productKey: unknown,
+  origin: string,
+  userId: string,
+): Promise<string | null> {
+  const product = prepaidProduct(productKey);
+  const c = configuration.connection;
+  const offered = product && c.prepaidProducts?.[product.productKey];
+  if (
+    !configuration.enabled ||
+    !c.enabled ||
+    !product ||
+    !offered ||
+    c.returnOrigin !== origin ||
+    !["TEST", "PRODUCTION"].includes(c.prepaidEnvironment ?? "") ||
+    !userId
+  )
+    return null;
+  const canonical = JSON.stringify([
+    "zentra-postfinance-purchase-v1",
+    userId,
+    product.productKey,
+    origin,
+    c.prepaidEnvironment,
+    c.apiOrigin,
+    c.spaceId,
+    c.applicationUserId,
+    offered.currency,
+    offered.billingPeriod,
+    offered.priceChfMinor,
+    offered.reference,
+    offered.name,
+    c.merchantApproved === true,
+    c.chargeFlowEnabled === true,
+    configuration.settlementEvidenceVerified,
+    c.postfinancePayTokenEnabled === true,
+    c.twintUserOnFileEnabled === true,
+    ...(["postfinance_pay", "twint"] as const).map((method) => [
+      method,
+      offered.methodConfigurations[method] ?? null,
+      configuration.connectorConfigurations[method] ?? null,
+    ]),
+  ]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
 }

@@ -19,10 +19,11 @@ type Attempt = {
   organizationId?: string;
   workspaceId?: string;
   method: SwissMethod;
+  purchaseContext?: string;
 };
 function readAttemptJournal(
   value: string | null,
-): Pick<Attempt, 'requestId' | 'method'> | null {
+): Pick<Attempt, 'requestId' | 'method' | 'purchaseContext'> | null {
   if (!value || value.length > 512) return null;
   const validId = (id: unknown): id is string =>
     typeof id === 'string' &&
@@ -36,20 +37,36 @@ function readAttemptJournal(
       !parsed ||
       typeof parsed !== 'object' ||
       Array.isArray(parsed) ||
-      Object.keys(parsed).length !== 2 ||
+      ![2, 3].includes(Object.keys(parsed).length) ||
+      Object.keys(parsed).some(
+        (key) => !['requestId', 'method', 'purchaseContext'].includes(key),
+      ) ||
+      ('purchaseContext' in parsed &&
+        (typeof parsed.purchaseContext !== 'string' ||
+          !/^[A-Za-z0-9_-]{43}$/.test(parsed.purchaseContext))) ||
       !('requestId' in parsed) ||
       !('method' in parsed) ||
       !validId(parsed.requestId) ||
       (parsed.method !== 'postfinance_pay' && parsed.method !== 'twint')
     )
       return null;
-    return { requestId: parsed.requestId, method: parsed.method };
+    return {
+      requestId: parsed.requestId,
+      method: parsed.method,
+      ...('purchaseContext' in parsed
+        ? { purchaseContext: parsed.purchaseContext as string }
+        : {}),
+    };
   } catch {
     return null;
   }
 }
 const paymentCopy = {
   fr: {
+    production:
+      'Le paiement sera vérifié avant l’activation de votre abonnement.',
+    changed:
+      'La configuration du paiement a changé. Vérifiez la tentative déjà lancée.',
     label: 'Moyen de paiement',
     test: 'Essai privé. Aucun accès payé ne sera activé.',
     next: 'Continuer sur',
@@ -57,6 +74,10 @@ const paymentCopy = {
       'Cette méthode n’est plus disponible pour cette tentative. Vérifiez le paiement déjà lancé.',
   },
   de: {
+    production:
+      'Die Zahlung wird vor der Aktivierung Ihres Abonnements geprüft.',
+    changed:
+      'Die Zahlungseinstellungen haben sich geändert. Prüfen Sie den bereits gestarteten Versuch.',
     label: 'Zahlungsmittel',
     test: 'Privater Test. Es wird kein bezahlter Zugang aktiviert.',
     next: 'Weiter zu',
@@ -64,6 +85,10 @@ const paymentCopy = {
       'Dieses Zahlungsmittel ist für diesen Versuch nicht mehr verfügbar. Prüfen Sie die bereits gestartete Zahlung.',
   },
   it: {
+    production:
+      'Il pagamento verrà verificato prima di attivare il tuo abbonamento.',
+    changed:
+      'La configurazione del pagamento è cambiata. Verifica il tentativo già avviato.',
     label: 'Metodo di pagamento',
     test: 'Test privato. Non verrà attivato alcun accesso a pagamento.',
     next: 'Continua su',
@@ -71,6 +96,10 @@ const paymentCopy = {
       'Questo metodo non è più disponibile per questo tentativo. Verifica il pagamento già avviato.',
   },
   en: {
+    production:
+      'Payment will be verified before your subscription is activated.',
+    changed:
+      'The payment setup has changed. Check the attempt already started.',
     label: 'Payment method',
     test: 'Private test. No paid access will be activated.',
     next: 'Continue to',
@@ -84,6 +113,8 @@ export function PostFinanceCheckout({
   product,
   targets,
   methods,
+  testMode,
+  purchaseContext,
   initialOrganization,
   initialWorkspace,
   legalVersion,
@@ -95,6 +126,8 @@ export function PostFinanceCheckout({
   product: PrepaidProduct;
   targets: PostFinanceTargets;
   methods: readonly SwissMethod[];
+  testMode: boolean;
+  purchaseContext: string;
   initialOrganization?: string;
   initialWorkspace?: string;
   legalVersion: string;
@@ -104,6 +137,7 @@ export function PostFinanceCheckout({
 }) {
   const [method, setMethod] = useState<SwissMethod | ''>(methods[0] ?? '');
   const methodReady = methods.includes(method as SwissMethod);
+  const contextReady = /^[A-Za-z0-9_-]{43}$/.test(purchaseContext);
   const text = paymentCopy[language];
   const methodName = method === 'twint' ? 'TWINT' : 'PostFinance Pay';
   const [organization, setOrganization] = useState(
@@ -182,9 +216,11 @@ export function PostFinanceCheckout({
           });
           setMethod(saved.method);
           setMessage(
-            methods.includes(saved.method)
-              ? 'Une tentative existe pour cet espace. Vérifiez-la avant de continuer.'
-              : text.unavailable,
+            saved.purchaseContext !== purchaseContext
+              ? text.changed
+              : methods.includes(saved.method)
+                ? 'Une tentative existe pour cet espace. Vérifiez-la avant de continuer.'
+                : text.unavailable,
           );
         }
       } catch {
@@ -203,6 +239,8 @@ export function PostFinanceCheckout({
     workspace,
     methods,
     text.unavailable,
+    text.changed,
+    purchaseContext,
   ]);
 
   async function findReceipt(current: Attempt) {
@@ -255,9 +293,10 @@ export function PostFinanceCheckout({
     if (
       !targetReady ||
       !methodReady ||
+      !contextReady ||
       !accepted ||
       (consentVersion && !consent) ||
-      (attempt && !resume) ||
+      (attempt && (!resume || attempt.purchaseContext !== purchaseContext)) ||
       running.current ||
       forbidden ||
       receiptHref
@@ -275,8 +314,11 @@ export function PostFinanceCheckout({
           'Rechargez votre espace pour vérifier la tentative de paiement.',
         );
       current = attempt ?? {
-        requestId: saved?.requestId ?? crypto.randomUUID(),
-        method: saved?.method ?? (method as SwissMethod),
+        ...(saved ?? {
+          requestId: crypto.randomUUID(),
+          method: method as SwissMethod,
+          purchaseContext,
+        }),
         organizationId: selectedOrganization,
         ...(product.support ? { workspaceId: workspace } : {}),
       };
@@ -285,11 +327,14 @@ export function PostFinanceCheckout({
       if (
         saved &&
         (saved.requestId !== current.requestId ||
-          saved.method !== current.method)
+          saved.method !== current.method ||
+          saved.purchaseContext !== current.purchaseContext)
       )
         throw Error(
           'Rechargez votre espace pour vérifier la tentative de paiement.',
         );
+      if (current.purchaseContext !== purchaseContext)
+        throw Error(text.changed);
       if (!methods.includes(current.method)) throw Error(text.unavailable);
       if (saved && !attempt)
         throw Error(
@@ -300,6 +345,7 @@ export function PostFinanceCheckout({
         JSON.stringify({
           requestId: current.requestId,
           method: current.method,
+          purchaseContext: current.purchaseContext,
         }),
       );
       const res = await fetch('/api/payments/postfinance/checkout', {
@@ -320,6 +366,7 @@ export function PostFinanceCheckout({
         url?: string;
         error?: string;
         purchaseId?: string;
+        code?: string;
       };
       if (res.status === 401 || res.status === 403) {
         setForbidden(true);
@@ -327,12 +374,13 @@ export function PostFinanceCheckout({
       } else if (validPrepaidReceiptId(data.purchaseId))
         setReceiptHref(prepaidReceiptPath(data.purchaseId));
       if (!res.ok) {
-        if (res.status === 400) {
-          sessionStorage.removeItem(storageKey);
-          setAttempt(null);
-        }
+        // Never discard an attempted payment on a validation/configuration
+        // refusal: its historical request must remain available for GET checks.
         throw Error(
-          data.error || 'Votre paiement doit être vérifié avant de continuer.',
+          data.code === 'configuration_changed'
+            ? text.changed
+            : data.error ||
+                'Votre paiement doit être vérifié avant de continuer.',
         );
       }
       const url = postFinanceHostedUrl(data.url);
@@ -364,7 +412,9 @@ export function PostFinanceCheckout({
       <p className="account-lead">
         {product.name} · {format.format(product.priceChfMinor / 100)} / mois
       </p>
-      <p className="postfinance-checkout-test">{text.test}</p>
+      <p className="postfinance-checkout-test">
+        {testMode ? text.test : text.production}
+      </p>
       {!forbidden && (
         <>
           <label>
@@ -494,6 +544,7 @@ export function PostFinanceCheckout({
                 busy ||
                 !targetReady ||
                 !methodReady ||
+                !contextReady ||
                 !accepted ||
                 (!!consentVersion && !consent)
               }
@@ -535,6 +586,8 @@ export function PostFinanceCheckout({
                   busy ||
                   !targetReady ||
                   !methodReady ||
+                  !contextReady ||
+                  attempt.purchaseContext !== purchaseContext ||
                   !accepted ||
                   (!!consentVersion && !consent)
                 }

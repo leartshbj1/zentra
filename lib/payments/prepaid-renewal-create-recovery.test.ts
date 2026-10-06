@@ -863,6 +863,7 @@ describe('server-only GET recovery for a lost renewal CREATE', () => {
           POSTFINANCE_AUTHENTICATION_KEY_BASE64: c.authenticationKeyBase64!,
           POSTFINANCE_RETURN_ORIGIN: c.returnOrigin!,
           POSTFINANCE_PREPAID_ENVIRONMENT: c.prepaidEnvironment!,
+          POSTFINANCE_PRODUCTION_ENABLED: 'true',
           POSTFINANCE_CHARGE_FLOW_ENABLED: 'true',
           POSTFINANCE_PAY_TOKEN_ENABLED: 'true',
           POSTFINANCE_SETTLEMENT_EVIDENCE_VERIFIED: 'true',

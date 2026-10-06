@@ -18,6 +18,7 @@ export function SwissPaymentMethods({
   const [option, setOption] = useState<{
     product: string;
     available: boolean;
+    testMode: boolean;
     methods: readonly SwissMethod[];
   } | null>(null);
   useEffect(() => {
@@ -38,6 +39,7 @@ export function SwissPaymentMethods({
           available?: boolean;
           testMode?: boolean;
           methods?: unknown;
+          purchaseContext?: unknown;
         },
       }))
       .then(({ ok, data }) => {
@@ -57,8 +59,11 @@ export function SwissPaymentMethods({
             available:
               ok &&
               data.available === true &&
-              data.testMode === true &&
+              typeof data.testMode === 'boolean' &&
+              typeof data.purchaseContext === 'string' &&
+              /^[A-Za-z0-9_-]{43}$/.test(data.purchaseContext) &&
               methods.length > 0,
+            testMode: data.testMode === true,
             methods,
           });
       })
@@ -80,7 +85,7 @@ export function SwissPaymentMethods({
           {option?.methods
             .map((method) => (method === 'twint' ? 'TWINT' : 'PostFinance Pay'))
             .join(' · ')}{' '}
-          <small>Essai privé</small>
+          {option?.testMode && <small>Essai privé</small>}
         </a>
       ) : (
         <span className="swiss-payment-unavailable">

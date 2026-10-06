@@ -1,25 +1,23 @@
-import { requireZentraUser } from '@/app/zentra-auth';
-import { PaymentReceipt } from '@/components/account/payment-receipt';
-import { ownedPrepaidReceipt } from '@/lib/payments/prepaid-receipt';
-import {
-  prepaidReceiptPath,
-  validPrepaidReceiptId,
-} from '@/lib/payments/prepaid-receipt-types';
-import { getSiteLanguage } from '@/lib/site-language-server';
-import { runtimeValue } from '@/lib/runtime';
+import { requireZentraUser } from "@/app/zentra-auth";
+import { PaymentReceipt } from "@/components/account/payment-receipt";
+import { ownedPrepaidReceipt } from "@/lib/payments/prepaid-receipt";
+import { prepaidReceiptPath, validPrepaidReceiptId } from "@/lib/payments/prepaid-receipt-types";
+import { getSiteLanguage } from "@/lib/site-language-server";
+import { database, runtimeValue } from "@/lib/runtime";
+import { ownedPostFinanceInitialRecoveryTarget } from "@/lib/payments/postfinance-option";
 import {
   postFinancePurchaseConfiguration,
   postFinanceTestPurchaseAllowed,
-} from '@/lib/payments/postfinance-purchase-configuration';
+} from "@/lib/payments/postfinance-purchase-configuration";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export default async function PaymentPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
-  const intentId = validPrepaidReceiptId(query.achat) ? query.achat : '';
+  const intentId = validPrepaidReceiptId(query.achat) ? query.achat : "";
   const user = await requireZentraUser(prepaidReceiptPath(intentId), {
     offerAccess: false,
   });
@@ -32,20 +30,24 @@ export default async function PaymentPage({
   }
   let canRecover = false;
   if (
-    receipt?.environment === 'TEST' &&
-    ['pending', 'verification_required'].includes(receipt.status) &&
-    runtimeValue('POSTFINANCE_CREATE_RECOVERY_ENABLED') === 'true'
+    receipt &&
+    user.emailConfirmed === true &&
+    ["pending", "verification_required"].includes(receipt.status) &&
+    runtimeValue("POSTFINANCE_CREATE_RECOVERY_ENABLED") === "true"
   ) {
     try {
       const configuration = postFinancePurchaseConfiguration(runtimeValue);
       canRecover =
         configuration.enabled &&
-        configuration.connection.prepaidEnvironment === 'TEST' &&
-        postFinanceTestPurchaseAllowed(
+        configuration.connection.prepaidEnvironment === receipt.environment &&
+        postFinanceTestPurchaseAllowed(configuration, user.userId, runtimeValue) &&
+        !!(await ownedPostFinanceInitialRecoveryTarget(
+          database(),
+          user,
+          intentId,
+          receipt.environment,
           configuration,
-          user.userId,
-          runtimeValue,
-        );
+        ));
     } catch {
       /* Keep the private staged action hidden if configuration is unavailable. */
     }

@@ -378,7 +378,7 @@ function validate(tx: JsonObject, r: Row, body: JsonObject) {
 }
 
 /** GET-only discovery, with a durable observation admitted in the same batch.
- * Browser admission remains separately TEST-only. Mock
+ * Browser admission remains separately authenticated and deployment-gated. Mock
  * PRODUCTION fixtures do not prove a production merchant integration.
  * Only GET requests may discover an accepted CREATE. Never infer nonexistence,
  * release a reservation, resolve confirm/ChargeFlow, or project a paid right.

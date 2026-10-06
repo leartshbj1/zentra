@@ -346,6 +346,7 @@ function read(name: string) {
     POSTFINANCE_SPACE_ID: '405',
     POSTFINANCE_RETURN_ORIGIN: site,
     POSTFINANCE_PREPAID_ENVIRONMENT: 'PRODUCTION',
+    POSTFINANCE_PRODUCTION_ENABLED: 'true',
     POSTFINANCE_PAY_TOKEN_ENABLED: 'true',
     POSTFINANCE_PREPAID_CATALOG_JSON: JSON.stringify(
       configuration.connection.prepaidProducts,

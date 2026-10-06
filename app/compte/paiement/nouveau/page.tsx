@@ -137,6 +137,8 @@ export default async function Page({
       product={product}
       targets={targets}
       methods={option.methods}
+      testMode={option.testMode}
+      purchaseContext={option.purchaseContext}
       initialOrganization={org}
       initialWorkspace={workspace}
       legalVersion={version}

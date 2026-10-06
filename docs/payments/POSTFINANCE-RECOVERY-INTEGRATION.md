@@ -1,6 +1,6 @@
 # Paiements suisses — état de l’intégration
 
-État du 6 octobre 2026. Ce document distingue la préparation du code de
+État du 7 octobre 2026. Ce document distingue la préparation du code de
 l’activation d’un compte marchand. Les rapports précédents décrivent leur
 assemblage et leur date ; leurs mentions « recovery interne non appelée » ne
 décrivent plus le parcours initial actuellement intégré.
@@ -25,14 +25,25 @@ leur code ne remplace pas un paiement complet pour chaque produit.
 ## TWINT et PostFinance Pay via PostFinance Checkout
 
 Le choix direct est issu exclusivement des méthodes configurées et autorisées
-par le serveur. Le parcours public reste limité au TEST privé, avec compte
-confirmé et liste autorisée. Il ne suffit pas de montrer un bouton pour accepter
-un paiement marchand réel.
+par le serveur. Le mode TEST conserve un compte confirmé et une liste privée
+autorisée. Le parcours PRODUCTION exige en plus
+`POSTFINANCE_PRODUCTION_ENABLED=true`, une configuration marchande validée et
+les preuves de règlement requises. Cet interrupteur est absent par défaut.
+Il ne suffit pas de montrer un bouton pour accepter un paiement marchand réel.
 
-Une tentative conserve un seul identifiant, sa méthode et sa cible. Les anciens
-journaux contenant seulement un UUID restent des tentatives PostFinance Pay.
-Si une méthode disparaît, la vérification en lecture seule demeure possible,
-mais une reprise financière avec une autre méthode est refusée.
+Une tentative conserve un seul identifiant, sa méthode, sa cible et le contexte
+serveur affiché avant l'achat. L'empreinte du contexte lie le compte, le produit,
+l'environnement et les réglages marchands publics ; elle exclut les secrets.
+Le serveur la recalcule avant toute préparation ou tout envoi financier.
+Une page TEST ouverte avant un passage à PRODUCTION ne peut donc pas déclencher
+un paiement réel. Les erreurs 400 et 409 ne remplacent pas l'identifiant.
+
+Les anciens journaux contenant seulement un UUID restent des tentatives
+PostFinance Pay. Les anciens journaux sans contexte restent consultables
+uniquement en lecture. Un changement de configuration ne leur ajoute pas
+silencieusement le contexte actuel. Les reçus historiques restent accessibles
+au propriétaire indépendamment de la configuration courante. Une récupération
+doit correspondre à l'environnement, l'origine API et au Space d'origine.
 
 La récupération initiale et la récupération des renouvellements retrouvent
 une opération CREATE déjà tentée par des lectures fournisseur stables. Elles ne
@@ -49,16 +60,15 @@ pas ChargeFlow pendant la même invocation. Huit échecs terminent la reprise.
 
 ## Activation encore nécessaire
 
-Les interrupteurs PostFinance restent absents, donc désactivés, dans la
-configuration de production consultée (révision 41), y compris le nouvel
-interrupteur de récupération des renouvellements. La déclaration
-`POSTFINANCE_RENEWAL_CREATE_RECOVERY_ENABLED` n’attribue aucune valeur et
-n’active rien. Les identifiants, connecteurs, autorisations de token et preuves
-de règlement d’un compte marchand réel doivent encore être vérifiés avant
-l’activation des achats, workers et rapprochements. Le parcours public direct
-refuse encore PRODUCTION : les seuls réglages ne suffisent pas à l’ouvrir.
-Après validation marchande et vrais essais de règlement, mandat, renouvellement
-et remboursement, il faudra lever explicitement ces barrières de TEST.
+Les huit interrupteurs PostFinance restent absents, donc désactivés, dans la
+configuration de production consultée (révision 41), y compris
+`POSTFINANCE_PRODUCTION_ENABLED` et la récupération des renouvellements.
+Leur déclaration ne leur attribue aucune valeur et n'active rien. Les
+identifiants, connecteurs, autorisations de token et preuves de règlement d'un
+compte marchand réel doivent encore être vérifiés avant l'activation des
+achats, workers et rapprochements. Le code sait désormais accepter PRODUCTION
+derrière ces contrôles ; aucun compte marchand n'a été activé par cette
+publication. La procédure est décrite dans [POSTFINANCE-LAUNCH.md](POSTFINANCE-LAUNCH.md).
 
 Les essais SQLite et D1 utilisent une vraie base locale avec des réponses
 fournisseur fictives. Ils couvrent les courses, reprises, bornes et protections
