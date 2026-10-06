@@ -11,12 +11,7 @@ import {
   D1PrepaidReconciliationStore,
   type ReconciliationTarget,
 } from './prepaid-reconciliation-store';
-import {
-  D1PrepaidTokens,
-  PrepaidTokenError,
-  verifyFreshTokenBinding,
-} from './prepaid-token';
-import type { MandateFailureCode } from './prepaid-renewal-admission';
+import { D1PrepaidTokens, verifyFreshTokenBinding } from './prepaid-token';
 import { prepaidProduct } from './prepaid-catalog';
 import type { PrepaidPurchaseConfiguration } from './prepaid-purchase-preparation';
 
@@ -24,13 +19,6 @@ type Database = Pick<D1Database, 'prepare' | 'batch'>;
 export class PrepaidRenewalError extends Error {
   constructor(readonly code: 'configuration' | 'binding' | 'provider-binding') {
     super(`Prepaid renewal ${code}.`);
-  }
-}
-/** The only recoverable scheduling failure: no new merchant operation has
- * been started by this call. Existing immutable financial receipts stay intact. */
-export class PrepaidMandateAdmissionError extends Error {
-  constructor(readonly code: MandateFailureCode) {
-    super(`Prepaid mandate ${code}.`);
   }
 }
 export type PrepaidRenewalResult = Readonly<{
@@ -266,15 +254,7 @@ export async function runPrepaidRenewal(
     period = await periods.reservePeriod(row.contract_id, input.ordinal);
   if (period.startsAt > now() || period.endsAt <= now())
     throw new PrepaidRenewalError('binding');
-  try {
-    await verifyFreshTokenBinding(readClient, binding, now(), now);
-  } catch (error) {
-    throw new PrepaidMandateAdmissionError(
-      error instanceof PrepaidTokenError
-        ? 'mandate_rejected'
-        : 'mandate_unavailable',
-    );
-  }
+  await verifyFreshTokenBinding(readClient, binding, now(), now);
   const expectation = {
     customerReference: binding.customerReference,
     planReference: period.catalogVersion,
