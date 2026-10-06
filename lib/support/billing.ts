@@ -750,6 +750,14 @@ export async function createSupportCheckout(
   user: ZentraUser,
   body: Record<string, unknown>,
 ) {
+  return prepareSupportCheckout(workspace,user,body,true);
+}
+async function prepareSupportCheckout(
+  workspace: Workspace,
+  user: ZentraUser,
+  body: Record<string, unknown>,
+  replaceLegacySession: boolean,
+) {
   if (workspace.owner_id !== user.userId)
     throw new SupportError('Le titulaire de l’espace gère l’abonnement.', 403);
   if (!stripeTestAccessAllowed(stripeConfiguration(), user))
@@ -841,6 +849,35 @@ export async function createSupportCheckout(
   };
   if (attempt.session_id) {
     const session = await stripe.checkout.sessions.retrieve(attempt.session_id);
+    if (session.metadata?.service !== SUPPORT_PRODUCT || session.metadata.workspace_id !== workspace.id
+      || session.metadata.owner_id !== user.userId || session.client_reference_id !== workspace.id
+      || session.livemode !== config.livemode) {
+      throw new SupportError('Ce paiement ne correspond pas à votre espace. Aucun nouveau paiement n’a été créé.',409);
+    }
+    // Sessions created by the former Support flow explicitly forced card.
+    // Expire that payable page BEFORE rotating its durable idempotency key.
+    // New dynamic sessions can legitimately offer only card; never loop on them.
+    if (replaceLegacySession && session.status === 'open'
+      && session.metadata.payment_methods !== 'dynamic-v1'
+      && session.payment_method_types?.length === 1 && session.payment_method_types[0] === 'card') {
+      let closed: Stripe.Checkout.Session;
+      try { closed=await stripe.checkout.sessions.expire(session.id); }
+      catch {
+        // Payment may have completed while Stripe was expiring the page.
+        const current=await stripe.checkout.sessions.retrieve(session.id);
+        if (current.status==='complete') {
+          await recordAcceptance(current.id);
+          await refreshSupportPayment(workspace,user,current.id);
+          return {url:`/support/espace?workspace=${workspace.id}&section=billing`};
+        }
+        if (current.status!=='expired') throw new SupportError('Le lien de paiement se met à jour. Réessayez dans quelques instants.',503);
+        closed=current;
+      }
+      if (closed.status !== 'expired') throw new SupportError('Le lien de paiement se met à jour. Réessayez dans quelques instants.',503);
+      await db.prepare('UPDATE support_checkouts SET expires_at=0 WHERE workspace_id=? AND nonce=? AND session_id=?')
+        .bind(workspace.id,attempt.nonce,session.id).run();
+      return prepareSupportCheckout(workspace,user,body,false);
+    }
     if (session.status === 'open' && session.url) {
       await recordAcceptance(session.id);
       return { url: session.url };
@@ -869,6 +906,7 @@ export async function createSupportCheckout(
       workspace_id: workspace.id,
       owner_id: user.userId,
       plan: plan.id,
+      payment_methods: 'dynamic-v1',
     };
   const session = await stripe.checkout.sessions.create(
     {

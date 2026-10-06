@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
+      // Match Vinext's production request-header shim without installing Next.js.
+      'next/headers': 'vinext/shims/headers',
     },
   },
   test: {

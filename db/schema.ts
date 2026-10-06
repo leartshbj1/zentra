@@ -6,6 +6,7 @@ export * from './supplier-inbox-schema';
 export * from './complete-schema';
 export * from './service-health-schema';
 export * from './company-mail-schema';
+export * from './postfinance-schema';
 import {
   index,
   integer,
