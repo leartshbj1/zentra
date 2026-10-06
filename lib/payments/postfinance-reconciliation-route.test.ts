@@ -131,6 +131,8 @@ describe('private, independently disabled PostFinance worker route', () => {
         claimed: 0,
         completed: 0,
         waiting: 0,
+        settlementWaiting: 0,
+        failures: 0,
         lost: 0,
       });
       expect(deps.database).toHaveBeenCalledOnce();

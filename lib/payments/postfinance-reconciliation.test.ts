@@ -636,6 +636,8 @@ describe('PostFinance reconciliation worker with real migrated SQLite stores and
       claimed: 0,
       completed: 0,
       waiting: 0,
+      settlementWaiting: 0,
+      failures: 0,
       lost: 0,
     });
     expect(database).not.toHaveBeenCalled();
@@ -652,6 +654,8 @@ describe('PostFinance reconciliation worker with real migrated SQLite stores and
         claimed: 1,
         completed: 1,
         waiting: 0,
+        settlementWaiting: 0,
+        failures: 0,
         lost: 0,
       });
       expect(
@@ -1037,5 +1041,209 @@ describe('PostFinance reconciliation worker with real migrated SQLite stores and
     nextRetry();
     expect(await run()).toMatchObject({ completed: 0, waiting: 1 });
     await noRights();
+  });
+});
+describe('relay settlement counters with real stores', () => {
+  it.each(['PENDING', 'CONFIRMED', 'PROCESSING', 'AUTHORIZED'])(
+    'classifies stable %s as a normal pending settlement, without rights',
+    async (state) => {
+      transactions.get(71)!.state = state;
+      await enqueue();
+      expect(await run()).toMatchObject({
+        claimed: 1,
+        waiting: 1,
+        settlementWaiting: 1,
+        failures: 0,
+        lost: 0,
+      });
+      expect(workRow()).toMatchObject({
+        state: 'pending',
+        attempts: 1,
+        last_error_code: 'settlement_pending',
+      });
+      await noRights();
+    },
+  );
+
+  it('classifies a stable insufficient settlement as waiting, not paid', async () => {
+    transactions.get(71)!.totalSettledAmount = 0;
+    await enqueue();
+    expect(await run()).toMatchObject({
+      waiting: 1,
+      settlementWaiting: 1,
+      failures: 0,
+      lost: 0,
+    });
+    await noRights();
+  });
+
+  it('leaves normal pending work on its D1 due time while another company is immediately reconciled', async () => {
+    transactions.get(71)!.state = 'PENDING';
+    await enqueue();
+    expect(await run()).toMatchObject({ settlementWaiting: 1, failures: 0 });
+    const waitingBefore = workRow();
+    expect(Number(waitingBefore!.due_at)).toBeGreaterThan(time);
+    const other = {
+      ...identity,
+      contractId: 'pfp_33333333-3333-4333-8333-333333333333',
+      organizationId: 'other-company-worker',
+      ownerId: 'other-owner-worker',
+    };
+    await createBoundContract(other, 72, 82, 'other-payer-worker');
+    await enqueue('transaction', 2, 72);
+    expect(await run()).toMatchObject({
+      claimed: 1,
+      completed: 1,
+      waiting: 0,
+      settlementWaiting: 0,
+      failures: 0,
+      lost: 0,
+    });
+    expect(
+      sql
+        .prepare(
+          "SELECT state,attempts,due_at,last_error_code FROM postfinance_webhook_inbox WHERE json_extract(event_json,'$.eventId')=1",
+        )
+        .get(),
+    ).toEqual(waitingBefore);
+    expect(await prepaidCompanyAccess(other.organizationId)).not.toBeNull();
+    expect(await prepaidCompanyAccess(identity.organizationId!)).toBeNull();
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+  });
+
+  it.each(['OPEN', 'DERECOGNIZED'])(
+    'requires pending state, not the shared invoice_state reason (%s)',
+    async (state) => {
+      invoices.get(81)!.state = state;
+      await enqueue();
+      expect(await run()).toMatchObject({
+        waiting: 1,
+        settlementWaiting: state === 'OPEN' ? 1 : 0,
+        failures: state === 'OPEN' ? 0 : 1,
+      });
+      await noRights();
+    },
+  );
+
+  it('keeps a changing read in failures despite its settlement_pending error code', async () => {
+    await enqueue();
+    let reads = 0;
+    override = (url) => {
+      if (url.pathname === '/api/v2.0/payment/transactions/71' && ++reads === 2)
+        return Response.json({ ...transactions.get(71)!, version: 8 });
+    };
+    expect(await run()).toMatchObject({
+      waiting: 1,
+      settlementWaiting: 0,
+      failures: 1,
+      lost: 0,
+    });
+    expect(workRow()).toMatchObject({ last_error_code: 'settlement_pending' });
+    await noRights();
+  });
+
+  it.each([
+    'wrong-environment',
+    'missing-target',
+    'provider-outage',
+    'ambiguous-invoice',
+  ])('keeps %s in failures', async (kind) => {
+    if (kind === 'wrong-environment')
+      transactions.get(71)!.authorizationEnvironment = 'TEST';
+    if (kind === 'missing-target') {
+      const unrelated = { ...transactions.get(71)!, id: 777 };
+      transactions.set(777, unrelated);
+    }
+    if (kind === 'provider-outage')
+      override = () => new Response('unavailable', { status: 503 });
+    if (kind === 'ambiguous-invoice')
+      invoices.set(82, { ...invoices.get(81)!, id: 82 });
+    await enqueue('transaction', 1, kind === 'missing-target' ? 777 : 71);
+    expect(await run()).toMatchObject({
+      waiting: 1,
+      settlementWaiting: 0,
+      failures: 1,
+      lost: 0,
+    });
+    await noRights();
+  });
+
+  it('keeps token unavailability in failures after the independently paid company is projected', async () => {
+    const flow = await prepareNewFlow();
+    override = tokenReads(flow.token, flow.activeVersion, false);
+    expect(await run()).toMatchObject({
+      waiting: 1,
+      settlementWaiting: 0,
+      failures: 1,
+      lost: 0,
+    });
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+    expect(await prepaidCompanyAccess(flow.company)).not.toBeNull();
+  });
+
+  it('counts attempt eight as a terminal failure and preserves due scheduling and the attempt limit', async () => {
+    transactions.get(71)!.state = 'PENDING';
+    await enqueue();
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      expect(await run()).toMatchObject({
+        claimed: 1,
+        waiting: 1,
+        settlementWaiting: attempt < 8 ? 1 : 0,
+        failures: attempt < 8 ? 0 : 1,
+        lost: 0,
+      });
+      expect(workRow()).toMatchObject({
+        state: attempt < 8 ? 'pending' : 'failed',
+        attempts: attempt,
+      });
+      if (attempt < 8) {
+        expect(await run()).toMatchObject({
+          claimed: 0,
+          settlementWaiting: 0,
+          failures: 0,
+        });
+        nextRetry();
+      }
+    }
+    expect(await run()).toMatchObject({
+      claimed: 0,
+      settlementWaiting: 0,
+      failures: 0,
+    });
+    await noRights();
+  });
+
+  it('reports a lost lease separately and never labels it a normal pending settlement', async () => {
+    await enqueue();
+    let changed = false;
+    override = () => {
+      if (!changed) {
+        changed = true;
+        advance(301);
+      }
+      return undefined;
+    };
+    expect(await run()).toMatchObject({
+      claimed: 1,
+      waiting: 0,
+      settlementWaiting: 0,
+      failures: 0,
+      lost: 1,
+    });
+    await noRights();
+  });
+
+  it('returns explicit zero counters when disabled, without touching the database', async () => {
+    const before = prepared.length;
+    expect(await run(configuration({ enabled: false }))).toEqual({
+      state: 'disabled',
+      claimed: 0,
+      completed: 0,
+      waiting: 0,
+      settlementWaiting: 0,
+      failures: 0,
+      lost: 0,
+    });
+    expect(prepared).toHaveLength(before);
   });
 });

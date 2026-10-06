@@ -108,6 +108,8 @@ export async function reconcilePostFinanceJobs(
     claimed: 0,
     completed: 0,
     waiting: 0,
+    settlementWaiting: 0,
+    failures: 0,
     lost: 0,
   };
   if (configuration.enabled !== true) return result;
@@ -314,9 +316,25 @@ export async function reconcilePostFinanceJobs(
           current,
         );
       else {
-        if (await inbox.failWork(current, failureCode(decision.reason)))
+        const code = failureCode(decision.reason);
+        if (await inbox.failWork(current, code)) {
           result.waiting++;
-        else result.lost++;
+          // Only a stable, exhaustive read waiting for a normal provider state
+          // can bypass the relay's global cooldown. Attempt eight is terminal.
+          if (
+            decision.state === 'pending' &&
+            code === 'settlement_pending' &&
+            current.attempts < 8 &&
+            [
+              'transaction_pending',
+              'settlement_incomplete',
+              'invoice_missing',
+              'invoice_state',
+              'refund_pending',
+            ].includes(decision.reason)
+          )
+            result.settlementWaiting++;
+        } else result.lost++;
         continue;
       }
       if (await inbox.completeWork(current)) result.completed++;
@@ -343,5 +361,6 @@ export async function reconcilePostFinanceJobs(
       else result.lost++;
     }
   }
+  result.failures = result.waiting - result.settlementWaiting;
   return result;
 }
