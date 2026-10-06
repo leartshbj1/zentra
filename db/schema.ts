@@ -918,3 +918,5 @@ export const automationWorkItems = sqliteTable('automation_work_items', {
  assignedTo:text('assigned_to'),dueAt:integer('due_at'),revision:integer('revision').notNull().default(1),
  createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),updatedBy:text('updated_by').notNull(),
 },t=>[index('automation_work_items_company').on(t.organizationId,t.state,t.createdAt)]);
+
+export * from './prepaid-schema';
