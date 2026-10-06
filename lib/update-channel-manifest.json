@@ -1,15 +1,15 @@
 {
-  "version": "1.90.14",
-  "notes": "Zentra 1.90.14\n\nUn accueil mobile plus simple, avec les éléments à suivre et les actions de création regroupés. Automation conserve son journal complet et présente plus clairement les éléments du jour et ceux à vérifier. Les factures, rendez-vous et messages sont accessibles depuis leur activité.\n\nLa comptabilité dispose d’une navigation harmonisée et de commandes plus faciles à utiliser au toucher. Les paramètres indiquent les prochaines étapes de configuration avec des accès directs aux corrections. Les formulaires de contacts ont été complétés en allemand, italien et anglais.\n\nAprès une interruption pendant la restauration d’une sauvegarde, Zentra reprend la récupération au redémarrage et conserve les fichiers lorsqu’une intervention est nécessaire. La synchronisation ne rejette plus une copie d’entreprise identique uniquement parce qu’elle provient d’une version précédente de Zentra.\n\nDistribution : Windows utilise la signature des mises à jour Zentra, sans certification de l’éditeur Windows. L’application macOS est universelle et non notariée. Android est signé avec l’identité de préversion persistante de Zentra. Le fichier iPhone est un IPA non signé. Les essais sur émulateur ne remplacent pas une validation sur appareils physiques. Windows : éditeur non certifié. macOS : version non notariée par Apple.",
-  "pub_date": "2026-10-06T02:51:27Z",
+  "version": "1.90.15",
+  "notes": "Zentra 1.90.15\n\n- Dans Automation, « Message reçu » permet d’ouvrir le message complet dans Zentra Support, au bon endroit.\n- La configuration précise ce qui concerne cet appareil pour mieux distinguer les réglages locaux de ceux de l’entreprise.\n\nWindows : éditeur non certifié. macOS : version non notariée par Apple. Le fichier iPhone est non signé. Android utilise la signature de preview existante. Windows : éditeur non certifié. macOS : version non notariée par Apple.",
+  "pub_date": "2026-10-06T13:53:32Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.14/Zentra_1.90.14_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlNUU3hLb1h1dXorckQ2NVQ4amZ5YmZVbkhjWVhXM0l5Q2cxM3ZHZEJwK05yaWNFZHZVZGxEbW11R1ppeDJ1ZDVqQ24rNW5iTHd6VzV1WlhGTGRNNkFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjU0OTkyCWZpbGU6WmVudHJhXzEuOTAuMTRfeDY0LXNldHVwLmV4ZQoxaWhCRGNWUEc3T0h3enc3ckU5cktYYkFzd2R5NFpjcmFTWmJHVExHTVF5cytyM2dQbUJGakR1aDVPUCtDTm5Fb1ZObVk3MUZpYjJhcC82Sm1jVTRDQT09Cg=="
+      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.15/Zentra_1.90.15_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZlE5VDhZWXREN2VFaU9GUUY3U0pBWUJBemJXRUJZQlF5TWNCamVZUFkvRmZDM091ckJoZVg5MVFlUHJJNlZ3RmZsekNZczlQNnZxcEZTUHNyaHQrZXc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjk0NzEyCWZpbGU6WmVudHJhXzEuOTAuMTVfeDY0LXNldHVwLmV4ZQppa2ZWYXU5RFBLR0EzcjFNN25jOWkvcHV0a01seWYyby9ocFlvTWVudXlpRExnV2hreFRFTzBGcTFGRGtNR0FFUkx3VUVjOU8rL1l1TDR4RVg2eHhCdz09Cg=="
     },
     "macos-universal": {
-      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.14/Zentra_1.90.14_macos-universal.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmFzdkVBVjhsZFpXZUh1bFQ3K0pZWjhMbzJCbW1rS3lsM1RpMXBTb01CdEEwQ0dPSnlkU0pvdlEwSno0cEx4ZmxZREhhTldPUENKa3FLV25FTWdLdXdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjU0OTkzCWZpbGU6WmVudHJhXzEuOTAuMTRfbWFjb3MtdW5pdmVyc2FsLmFwcC50YXIuZ3oKWkdpVHNYV0VtcHdOTDVpYi9aTlJ2VVFWQlNxdE1oUlRscTZlMXNJeVJGS3I5VUcwVUxrSk8waVd1V1oyaHdiWi9RektXeG1vVjRJNjBMdnB4YVNOQnc9PQo="
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMnovWW1XZ09rZmFBcExnTnRqaWIvVDU3b1U0MS9vTnRoQlZwTnRpNzVuQWJ6cDYwWVpraEo3aXB4RWZSeHlzbXl4UEZJdkN5QlBCeGU4MHhTTEpiWmZzcXUreFQzWVFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjk0NzIzCWZpbGU6WmVudHJhXzEuOTAuMTVfbWFjb3MtdW5pdmVyc2FsLmFwcC50YXIuZ3oKcUdNMlEwT0dBOEwyMmZyajV0aTJSdExFRzhXVFpVaS9SNmx5SnNkbnZuNkFkekdGK1pvSzY5cWNyYXZIM3lzaStONERwZE1tc2kyeUUwbVM4aHg2QWc9PQo=",
+      "url": "https://github.com/leartshbj1/zentra/releases/download/v1.90.15/Zentra_1.90.15_macos-universal.app.tar.gz"
     }
   }
 }
