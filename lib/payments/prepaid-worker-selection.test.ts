@@ -44,6 +44,10 @@ import {
   stopCancelledPrepaidFlows,
 } from './prepaid-cancellation';
 import { runPostFinanceBillingWorker } from './postfinance-billing-worker-route';
+import {
+  D1PrepaidRenewalAdmission,
+  RENEWAL_ADMISSION_LEASE_SECONDS,
+} from './prepaid-renewal-admission';
 
 type Prepared = Extract<
   Awaited<ReturnType<typeof prepareInitialPrepaidPurchase>>,
@@ -758,5 +762,250 @@ describe('private worker selects only an exact anchored, not yet dispatched curr
     expect(
       calls.filter((call) => call.method === 'POST').map((call) => call.path),
     ).toEqual(['/api/v2.0/payment/transactions/1000/charge-flow/apply']);
+  });
+});
+
+describe('durable mandate admission is fair without reauthorizing any financial operation', () => {
+  const scope = {
+    apiOrigin: origin,
+    spaceId: 405,
+    environment: 'PRODUCTION' as const,
+  };
+  const admissions = () => new D1PrepaidRenewalAdmission(d1(), () => clock);
+  const admissionRow = (company: Company) =>
+    sql
+      .prepare(
+        'SELECT * FROM prepaid_renewal_admissions WHERE contract_id=? AND ordinal=1',
+      )
+      .get(company.prepared.contract.contractId)!;
+
+  it.each([0, 60])(
+    'a refused first mandate leaves the next company eligible even after %s seconds',
+    async (delay) => {
+      const blocked = await company('2026-01-31T09:17:00Z');
+      setTime(current.prepared.period.endsAt);
+      tokens.get(100 * blocked.index + 1)!.customerId =
+        'foreign-fictional-payer';
+      calls = [];
+      const first = await worker('{}');
+      expect(first.status).toBe(200);
+      expect(await first.json()).toEqual({
+        stopped: 0,
+        terminalObserved: 0,
+        uncertain: 0,
+        renewal: 'idle',
+      });
+      expect(calls.every((call) => call.method === 'GET')).toBe(true);
+      expect(count('prepaid_renewal_requests')).toBe(0);
+      expect(count('postfinance_mutations')).toBe(0);
+      const deferred = admissionRow(blocked);
+      expect(deferred.failure_count).toBe(1);
+      expect(deferred.last_failure_code).toBe('mandate_rejected');
+      expect(deferred.retry_at).toBe(clock + 60);
+      expect(deferred.lease_token).toBeNull();
+      setTime(clock + delay);
+      calls = [];
+      const second = await worker('{}');
+      expect(second.status).toBe(200);
+      expect(await second.json()).toMatchObject({ renewal: 'submitted' });
+      expect(calls.filter((call) => call.method === 'POST')).toHaveLength(2);
+      expect(
+        sql
+          .prepare(
+            'SELECT COUNT(*) AS n FROM prepaid_renewal_requests WHERE contract_id=?',
+          )
+          .get(blocked.prepared.contract.contractId)?.n,
+      ).toBe(0);
+      expect(
+        sql
+          .prepare(
+            'SELECT COUNT(*) AS n FROM prepaid_renewal_requests WHERE contract_id=?',
+          )
+          .get(current.prepared.contract.contractId)?.n,
+      ).toBe(1);
+      expect(count('prepaid_settlement_proofs')).toBe(2);
+    },
+  );
+
+  it('records a slow pre-dispatch GET failure and advances another company on the next invocation', async () => {
+    const blocked = await company('2026-01-31T09:17:00Z');
+    setTime(current.prepared.period.endsAt);
+    const initialPath = `/api/v2.0/payment/transactions/${100 * blocked.index + 71}`;
+    override = (path, method) => {
+      if (method === 'GET' && path === initialPath) {
+        setTime(clock + 110);
+        throw Error('Fictional GET transport timeout.');
+      }
+      return undefined;
+    };
+    calls = [];
+    const first = await worker('{}');
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ renewal: 'idle', uncertain: 0 });
+    expect(admissionRow(blocked).last_failure_code).toBe('mandate_unavailable');
+    expect(count('postfinance_mutations')).toBe(0);
+    expect(calls).toHaveLength(1);
+    override = undefined;
+    calls = [];
+    expect(await (await worker('{}')).json()).toMatchObject({
+      renewal: 'submitted',
+    });
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(2);
+  });
+
+  it('atomically acquires one scheduling lease under eight simultaneous claims', async () => {
+    setTime(current.prepared.period.endsAt);
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => admissions().claimNext(scope)),
+    );
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(count('prepaid_renewal_admissions')).toBe(1);
+    expect(admissionRow(current).lease_token).toBe(
+      results.find(Boolean)!.lease_token,
+    );
+    expect(calls).toHaveLength(0);
+    expect(count('postfinance_mutations')).toBe(0);
+  });
+
+  it('reclaims only an expired scheduling lease and prevents the former holder overwriting the new one', async () => {
+    setTime(current.prepared.period.endsAt);
+    const first = (await admissions().claimNext(scope))!;
+    expect(first).not.toBeNull();
+    expect(await admissions().claimNext(scope)).toBeNull();
+    setTime(clock + RENEWAL_ADMISSION_LEASE_SECONDS);
+    const second = (await admissions().claimNext(scope))!;
+    expect(second.lease_token).not.toBe(first.lease_token);
+    expect(await admissions().defer(first, 'mandate_rejected')).toBe(false);
+    expect(await admissions().complete(first)).toBe(false);
+    expect(admissionRow(current).lease_token).toBe(second.lease_token);
+    expect(await admissions().defer(second, 'mandate_rejected')).toBe(true);
+    expect(admissionRow(current).failure_count).toBe(1);
+    expect(count('postfinance_mutations')).toBe(0);
+  });
+
+  it('bounds repeated mandate backoff and the failure counter without mutating paid evidence or tokens', async () => {
+    setTime(current.prepared.period.endsAt);
+    const before = JSON.stringify(
+      sql.prepare('SELECT * FROM prepaid_tokens').all(),
+    );
+    for (let n = 1; n <= 10; n++) {
+      const lease = (await admissions().claimNext(scope))!;
+      expect(lease).not.toBeNull();
+      expect(await admissions().defer(lease, 'mandate_rejected')).toBe(true);
+      const row = admissionRow(current);
+      expect(row.failure_count).toBe(Math.min(n, 8));
+      expect(Number(row.retry_at) - clock).toBe(
+        Math.min(3600, 60 * 2 ** Math.min(n - 1, 6)),
+      );
+      expect(await admissions().claimNext(scope)).toBeNull();
+      setTime(Number(row.retry_at));
+    }
+    expect(
+      JSON.stringify(sql.prepare('SELECT * FROM prepaid_tokens').all()),
+    ).toBe(before);
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+    expect(count('postfinance_mutations')).toBe(0);
+  });
+
+  it('keeps the exact configured environment and merchant scope in atomic selection', async () => {
+    setTime(current.prepared.period.endsAt);
+    expect(
+      await admissions().claimNext({ ...scope, environment: 'TEST' }),
+    ).toBeNull();
+    expect(await admissions().claimNext({ ...scope, spaceId: 406 })).toBeNull();
+    expect(count('prepaid_renewal_admissions')).toBe(0);
+    expect(calls).toHaveLength(0);
+    expect(await admissions().claimNext(scope)).not.toBeNull();
+  });
+
+  it('rechecks cancellation on both sides of scheduling acquisition before any merchant call', async () => {
+    setTime(current.prepared.period.endsAt);
+    const first = (await admissions().claimNext(scope))!;
+    await cancel(current);
+    calls = [];
+    await expect(renew(current)).rejects.toThrow('Prepaid renewal binding');
+    expect(calls).toHaveLength(0);
+    expect(await admissions().claimNext(scope)).toBeNull();
+    expect(admissionRow(current).lease_token).toBe(first.lease_token);
+    expect(count('postfinance_mutations')).toBe(0);
+  });
+
+  it('a paused first worker does not let a second worker duplicate the same renewal', async () => {
+    setTime(current.prepared.period.endsAt);
+    let release!: () => void, observed!: () => void;
+    const pause = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const seen = new Promise<void>((resolve) => {
+      observed = resolve;
+    });
+    let once = false;
+    override = async (_path, method) => {
+      if (method === 'GET' && !once) {
+        once = true;
+        observed();
+        await pause;
+      }
+      return undefined;
+    };
+    const first = worker('{}');
+    await seen;
+    const second = await worker('{}');
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ renewal: 'idle' });
+    expect(count('postfinance_mutations')).toBe(0);
+    release();
+    const result = await first;
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ renewal: 'submitted' });
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(2);
+    expect(count('prepaid_renewal_requests')).toBe(1);
+  });
+
+  it('an owner revoked during the mandate GETs still prevents any new merchant operation', async () => {
+    setTime(current.prepared.period.endsAt);
+    let gets = 0;
+    override = (_path, method) => {
+      if (method === 'GET' && ++gets === 6) {
+        sql
+          .prepare(
+            'UPDATE organization_members SET revoked_at=? WHERE user_id=?',
+          )
+          .run(clock, current.user.userId);
+      }
+      return undefined;
+    };
+    calls = [];
+    const result = await worker('{}');
+    expect(result.status).toBe(503);
+    expect(calls.every((call) => call.method === 'GET')).toBe(true);
+    expect(count('postfinance_mutations')).toBe(0);
+    expect(count('prepaid_settlement_proofs')).toBe(1);
+  });
+
+  it('never resets a lost CREATE claim after scheduling lease and backoff durations have elapsed', async () => {
+    setTime(current.prepared.period.endsAt);
+    override = (path, method) => {
+      if (method === 'POST' && path === '/api/v2.0/payment/transactions')
+        throw Error('Fictional accepted CREATE response lost.');
+      return undefined;
+    };
+    expect(await (await worker('{}')).json()).toMatchObject({
+      renewal: 'uncertain',
+    });
+    const ledger = sql.prepare('SELECT * FROM postfinance_mutations').all();
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0].state).toBe('uncertain');
+    setTime(clock + 3601);
+    override = undefined;
+    calls = [];
+    expect(await (await worker('{}')).json()).toMatchObject({
+      renewal: 'idle',
+    });
+    expect(calls).toHaveLength(0);
+    expect(sql.prepare('SELECT * FROM postfinance_mutations').all()).toEqual(
+      ledger,
+    );
+    expect(count('prepaid_settlement_proofs')).toBe(1);
   });
 });
