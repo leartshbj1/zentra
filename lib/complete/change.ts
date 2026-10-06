@@ -44,9 +44,9 @@ export async function quotePlanChange(userId:string,organizationId:string,target
   if(workspace && (workspace.owner_id!==userId || await db.prepare('SELECT 1 FROM support_gestion_links WHERE workspace_id=? AND organization_id<>?').bind(workspace.id,organizationId).first()))throw new AccountPublicError('Votre espace Support est relié à une autre entreprise. Choisissez cette entreprise avant de réunir les produits.',409);
   const support=workspace?await db.prepare('SELECT * FROM support_subscriptions WHERE workspace_id=?').bind(workspace.id).first<Record<string,unknown>>():null;
   const automation=await db.prepare('SELECT * FROM automation_subscriptions WHERE organization_id=?').bind(organizationId).first<Record<string,unknown>>();
-  const pending=await db.prepare(`SELECT 1 FROM complete_checkouts WHERE user_id=? UNION ALL
+  const pending=await db.prepare(`SELECT 1 FROM complete_checkouts WHERE user_id=? UNION ALL SELECT 1 FROM stripe_complete_purchase_requests WHERE owner_id=? AND closed_at IS NULL UNION ALL
     SELECT 1 FROM automation_checkouts WHERE organization_id=? AND expires_at>? UNION ALL
-    SELECT 1 FROM support_checkouts WHERE workspace_id=? AND expires_at>? LIMIT 1`).bind(userId,organizationId,time,workspace?.id??'',time).first();
+    SELECT 1 FROM support_checkouts WHERE workspace_id=? AND expires_at>? LIMIT 1`).bind(userId,userId,organizationId,time,workspace?.id??'',time).first();
   if(pending)throw new AccountPublicError('Terminez ou annulez le paiement déjà ouvert avant de changer de formule.',409);
   const live=stripeSecretKeyLivemode(runtimeValue('STRIPE_SECRET_KEY'));if(live===null)throw new AccountPublicError('Le paiement est temporairement indisponible.',503);
   const stripe=automationStripe(),sources:Source[]=[];

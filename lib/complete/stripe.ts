@@ -180,7 +180,7 @@ export async function persistCompleteRefund(event: Stripe.Event) {
     charge = await stripe.charges.retrieve(
       (event.data.object as Stripe.Charge).id,
     );
-  if (!charge.refunded || !ref(charge.payment_intent)) return false;
+  if ((!charge.refunded && (!Number.isSafeInteger(charge.amount_refunded) || charge.amount_refunded<=0)) || !ref(charge.payment_intent)) return false;
   const payments = await stripe.invoicePayments.list({
     payment: {
       type: 'payment_intent',
@@ -206,7 +206,15 @@ export async function persistCompleteRefund(event: Stripe.Event) {
       ref(subscription.customer) !== ref(charge.customer)
     )
       continue;
-    if (await fullyRefundedAutomationInvoice(stripe, id)) {
+    let negative=false;
+    if(subscription.metadata.complete_request_id){
+      const {verifyStripeSupportCash}=await import('@/lib/payments/stripe-support-provisioning');
+      negative=(await verifyStripeSupportCash(invoice,subscription,{
+        payments:invoiceId=>stripe.invoicePayments.list({invoice:invoiceId,status:'paid',limit:5}),
+        paymentIntent:intentId=>stripe.paymentIntents.retrieve(intentId),charge:chargeId=>stripe.charges.retrieve(chargeId),
+      })).refunded;
+    }else negative=await fullyRefundedAutomationInvoice(stripe,id);
+    if (negative) {
       await database().batch([
         database()
           .prepare(

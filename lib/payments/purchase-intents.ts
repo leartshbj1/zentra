@@ -373,8 +373,18 @@ export class D1PurchaseIntents {
         )
         .bind(this.clock(), binding.intentId, binding.fingerprint, this.clock())
         .run();
-    } else if (!['dispatched', 'uncertain'].includes(intent.state))
-      throw new PurchaseIntentError('state');
+    } else if (['dispatched', 'uncertain'].includes(intent.state)) {
+      // A safe provider-idempotency retry is still a financial dispatch. Touch
+      // the state so database scope guards recheck the current owner, target
+      // and reservation immediately before it, rather than trusting the first
+      // dispatch's authorization indefinitely. Preserve uncertainty/history.
+      await this.db
+        .prepare(
+          "UPDATE purchase_intents SET state=state WHERE intent_id=? AND fingerprint=? AND state IN ('dispatched','uncertain')",
+        )
+        .bind(binding.intentId, binding.fingerprint)
+        .run();
+    } else throw new PurchaseIntentError('state');
     const result = await this.bound(binding);
     if (!['dispatched', 'uncertain'].includes(result.state))
       throw new PurchaseIntentError('state');

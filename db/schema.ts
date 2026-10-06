@@ -927,3 +927,6 @@ export * from './prepaid-token-schema';
 export * from './prepaid-lifecycle-schema';
 export * from './stripe-support-purchase-schema';
 export * from './stripe-support-provisioning-schema';
+export * from './stripe-automation-purchase-schema';
+export * from './stripe-automation-provisioning-schema';
+export * from './stripe-complete-purchase-schema';

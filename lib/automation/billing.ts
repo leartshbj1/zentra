@@ -1,5 +1,4 @@
 import Stripe from 'stripe';
-import { currentSiteLanguage } from '@/lib/site-language-server';
 import { completeSubscription } from '@/lib/complete/access';
 import { completePlan } from '@/lib/complete/plans';
 import { completePortal } from '@/lib/complete/stripe';
@@ -14,19 +13,17 @@ import {
   subscriptionIdFromStripeEvent,
   paidThroughFromInvoice,
 } from '@/lib/stripe-event';
-import {
-  stripeTestAccessAllowed,
-  stripeAutomaticTaxRequired,
-} from '@/lib/stripe-test-access';
+import { stripeAutomaticTaxRequired } from '@/lib/stripe-test-access';
 import { AccountPublicError } from '@/lib/account-security';
 import type { ZentraUser } from '@/app/zentra-auth';
 import { requireBrowserMembership } from '@/lib/account';
 import { digest } from '@/lib/support/crypto';
 import { AUTOMATION_PRODUCT, AUTOMATION_PRICE_CENTS } from './types';
-import { AUTOMATION_CONSENT_VERSION } from './config';
 import { automationGrant } from './founder-access';
-import { isPrepaidContractId, prepaidAutomationAccess } from '@/lib/payments/prepaid-access';
-import { assertNoPrepaidAccountPurchase } from '@/lib/payments/prepaid-checkout-guard';
+import {
+  isPrepaidContractId,
+  prepaidAutomationAccess,
+} from '@/lib/payments/prepaid-access';
 
 export const AUTOMATION_TERMS_VERSION = 'automation-2026-09-22';
 type Config = {
@@ -35,6 +32,7 @@ type Config = {
   portalId: string;
   livemode: boolean;
   keyBinding: string;
+  automaticTax?: boolean;
 };
 const now = () => Math.floor(Date.now() / 1000);
 const ref = (v: unknown) =>
@@ -225,17 +223,48 @@ export async function automationBillingState(organizationId: string) {
   const bundle = await completeSubscription(organizationId);
   if (bundle?.provider === 'postfinance') {
     const scoped = await prepaidAutomationAccess(organizationId);
-    if (scoped?.contractId !== bundle.subscription_id) return {
-      ready: false, offeredAccess: false, offeredUntil: null, priceChfCents: 0,
-      status: 'verification_required', periodEnd: null, cancelAtPeriodEnd: !!bundle.cancel_at_period_end,
-      refunded: false, hasSubscription: true, bundlePlan: completePlan(bundle.paid_plan_id)?.name,
-    };
+    if (scoped?.contractId !== bundle.subscription_id)
+      return {
+        ready: false,
+        offeredAccess: false,
+        offeredUntil: null,
+        priceChfCents: 0,
+        status: 'verification_required',
+        periodEnd: null,
+        cancelAtPeriodEnd: !!bundle.cancel_at_period_end,
+        refunded: false,
+        hasSubscription: true,
+        bundlePlan: completePlan(bundle.paid_plan_id)?.name,
+      };
   }
-  if (bundle) return { ready: true, offeredAccess: false, offeredUntil: null, priceChfCents: 0, status: bundle.status, periodEnd: bundle.paid_until || null, cancelAtPeriodEnd: !!bundle.cancel_at_period_end, refunded: !!bundle.refunded, hasSubscription: !['canceled', 'incomplete_expired'].includes(bundle.status), bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name };
+  if (bundle)
+    return {
+      ready: true,
+      offeredAccess: false,
+      offeredUntil: null,
+      priceChfCents: 0,
+      status: bundle.status,
+      periodEnd: bundle.paid_until || null,
+      cancelAtPeriodEnd: !!bundle.cancel_at_period_end,
+      refunded: !!bundle.refunded,
+      hasSubscription: !['canceled', 'incomplete_expired'].includes(
+        bundle.status,
+      ),
+      bundlePlan: completePlan(bundle.paid_plan_id ?? bundle.plan_id)?.name,
+    };
   const prepaid = await prepaidAutomationAccess(organizationId);
-  if (prepaid) return { ready: true, offeredAccess: false, offeredUntil: null,
-    priceChfCents: prepaid.catalog.priceChfMinor, status: 'active', periodEnd: prepaid.paidUntil,
-    cancelAtPeriodEnd: prepaid.cancelAtPeriodEnd, refunded: false, hasSubscription: true };
+  if (prepaid)
+    return {
+      ready: true,
+      offeredAccess: false,
+      offeredUntil: null,
+      priceChfCents: prepaid.catalog.priceChfMinor,
+      status: 'active',
+      periodEnd: prepaid.paidUntil,
+      cancelAtPeriodEnd: prepaid.cancelAtPeriodEnd,
+      refunded: false,
+      hasSubscription: true,
+    };
   const [config, offered, row, company] = await Promise.all([
     automationBillingConfig(),
     automationGrant(organizationId),
@@ -251,13 +280,28 @@ export async function automationBillingState(organizationId: string) {
         cancel_at_period_end: number;
         refunded: number;
       }>(),
-    database().prepare('SELECT subscription_id FROM organizations WHERE organization_id=?')
-      .bind(organizationId).first<{ subscription_id: string }>(),
+    database()
+      .prepare(
+        'SELECT subscription_id FROM organizations WHERE organization_id=?',
+      )
+      .bind(organizationId)
+      .first<{ subscription_id: string }>(),
   ]);
-  if ((row && isPrepaidContractId(row.subscription_id)) || (company && isPrepaidContractId(company.subscription_id))) return {
-    ready: false, offeredAccess: false, offeredUntil: null, priceChfCents: AUTOMATION_PRICE_CENTS,
-    status: 'expired', periodEnd: null, cancelAtPeriodEnd: false, refunded: false, hasSubscription: false,
-  };
+  if (
+    (row && isPrepaidContractId(row.subscription_id)) ||
+    (company && isPrepaidContractId(company.subscription_id))
+  )
+    return {
+      ready: false,
+      offeredAccess: false,
+      offeredUntil: null,
+      priceChfCents: AUTOMATION_PRICE_CENTS,
+      status: 'expired',
+      periodEnd: null,
+      cancelAtPeriodEnd: false,
+      refunded: false,
+      hasSubscription: false,
+    };
   return {
     ready: !!config,
     offeredAccess: !!offered,
@@ -277,181 +321,17 @@ export async function createAutomationCheckout(
   body: Record<string, unknown>,
   origin: string,
 ) {
-  const membership = await requireBrowserMembership(
-    user.userId,
-    organizationId,
-    ['owner'],
-  );
-  if (isPrepaidContractId(membership.subscriptionId))
-    throw new AccountPublicError('Gérez cette offre depuis Compte → Abonnement. Aucun second abonnement ne sera ouvert.', 409);
-  await assertNoPrepaidAccountPurchase(user.userId);
-  if (!stripeTestAccessAllowed(stripeConfiguration(), user))
-    throw new AccountPublicError('Le paiement est encore en test privé.', 403);
-  if (await database().prepare("SELECT 1 FROM complete_checkouts WHERE user_id=? UNION ALL SELECT 1 FROM complete_plan_changes WHERE user_id=? AND state IN ('preparing','scheduled')").bind(user.userId,user.userId).first()) throw new AccountPublicError('Un pack Zentra Complet est déjà choisi. Retrouvez ce changement dans Compte → Abonnement.', 409);
-  if (
-    body.acceptTerms !== true ||
-    body.legalVersion !== AUTOMATION_TERMS_VERSION ||
-    body.consentVersion !== AUTOMATION_CONSENT_VERSION
-  )
-    throw new AccountPublicError(
-      'Acceptez les conditions de l’option et le traitement des extraits nécessaires.',
-    );
-  const [config, billing, base] = await Promise.all([
-    automationBillingConfig(),
-    automationBillingState(organizationId),
-    database()
-      .prepare(
-        'SELECT customer_id,entitlement_valid_until FROM subscriptions WHERE subscription_id=?',
-      )
-      .bind(membership.subscriptionId)
-      .first<{ customer_id: string; entitlement_valid_until: number }>(),
-  ]);
-  if (!config)
-    throw new AccountPublicError(
-      'L’option sera disponible après la configuration du paiement.',
-      503,
-    );
-  if (!base || base.entitlement_valid_until < now())
-    throw new AccountPublicError(
-      'Un abonnement Zentra Gestion actif est nécessaire.',
-      402,
-    );
-  if (billing.hasSubscription)
-    throw new AccountPublicError(
-      'L’option possède déjà un abonnement. Ouvrez Gérer mon abonnement.',
-      409,
-    );
-  if (billing.offeredAccess)
-    throw new AccountPublicError(
-      'Un accès Automation vous est déjà offert. Actualisez votre compte pour le retrouver.',
-      409,
-    );
-  const stripe = automationStripe(),
-    price = await stripe.prices.retrieve(config.priceId);
-  if (!validAutomationPrice(price, config))
-    throw new AccountPublicError('Le tarif a changé. Contactez Zentra.', 503);
-  const previous = await database()
-    .prepare(
-      'SELECT attempt_id,session_id,expires_at,request_json,user_id FROM automation_checkouts WHERE organization_id=?',
-    )
-    .bind(organizationId)
-    .first<{
-      attempt_id: string;
-      request_json: string | null;
-      user_id: string;
-      session_id: string | null;
-      expires_at: number;
-    }>();
-  const resumable =
-    previous &&
-    previous.expires_at > now() &&
-    !previous.session_id &&
-    previous.request_json &&
-    previous.user_id === user.userId;
-  if (previous && previous.expires_at > now() && !resumable) {
-    if (!previous.session_id)
-      throw new AccountPublicError(
-        'Une page de paiement est en préparation. Réessayez dans un instant.',
-        409,
-      );
-    const session = await stripe.checkout.sessions.retrieve(
-      previous.session_id,
-    );
-    if (session.status === 'open' && session.url) return { url: session.url };
-    if (session.status === 'complete')
-      throw new AccountPublicError(
-        'Votre paiement est en cours de confirmation. Actualisez l’état de l’option.',
-        409,
-      );
-    if (session.status === 'expired')
-      await database()
-        .prepare(
-          'UPDATE automation_checkouts SET expires_at=? WHERE organization_id=? AND attempt_id=? AND session_id=?',
-        )
-        .bind(now(), organizationId, previous.attempt_id, session.id)
-        .run();
-  }
-  const attempt = resumable ? previous!.attempt_id : crypto.randomUUID();
-  const lease = resumable
-    ? { meta: { changes: 1 } }
-    : await database()
-        .prepare(
-          `INSERT INTO automation_checkouts(organization_id,attempt_id,user_id,expires_at,created_at) VALUES(?,?,?,?,?) ON CONFLICT(organization_id) DO UPDATE SET attempt_id=excluded.attempt_id,session_id=NULL,request_json=NULL,user_id=excluded.user_id,expires_at=excluded.expires_at,created_at=excluded.created_at WHERE automation_checkouts.expires_at<=?`,
-        )
-        .bind(organizationId, attempt, user.userId, now() + 3600, now(), now())
-        .run();
-  if (!lease.meta.changes)
-    throw new AccountPublicError(
-      'Une demande de paiement existe déjà. Réessayez après son expiration.',
-      409,
-    );
-  // An uncertain network failure retains the lease. Never open a second paid subscription.
-  const parameters: Stripe.Checkout.SessionCreateParams = resumable
-    ? JSON.parse(previous!.request_json!)
-    : {
-        mode: 'subscription',
-        locale: currentSiteLanguage(),
-        customer: base.customer_id,
-        line_items: [{ price: config.priceId, quantity: 1 }],
-        automatic_tax: {
-          enabled: stripeAutomaticTaxRequired(stripeConfiguration()),
-        },
-        allow_promotion_codes: false,
-        expires_at: now() + 3500,
-        metadata: {
-          service: AUTOMATION_PRODUCT,
-          organization_id: organizationId,
-          owner_id: user.userId,
-          attempt_id: attempt,
-        },
-        subscription_data: {
-          description: 'Zentra Automation · 15 CHF/mois',
-          metadata: {
-            service: AUTOMATION_PRODUCT,
-            organization_id: organizationId,
-            owner_id: user.userId,
-          },
-        },
-        success_url: `${origin}/compte/automation?entreprise=${encodeURIComponent(organizationId)}&paiement=retour`,
-        cancel_url: `${origin}/compte/automation?entreprise=${encodeURIComponent(organizationId)}&paiement=annule`,
-      };
-  if (!resumable)
-    await database()
-      .prepare(
-        'UPDATE automation_checkouts SET request_json=? WHERE organization_id=? AND attempt_id=?',
-      )
-      .bind(JSON.stringify(parameters), organizationId, attempt)
-      .run();
-  const session = await stripe.checkout.sessions.create(parameters, {
-    idempotencyKey: `automation-checkout-${attempt}`,
-  });
-  await database()
-    .prepare(
-      'UPDATE automation_checkouts SET session_id=?,expires_at=? WHERE organization_id=? AND attempt_id=?',
-    )
-    .bind(session.id, session.expires_at, organizationId, attempt)
-    .run();
-  await database()
-    .prepare(
-      'INSERT INTO legal_acceptances(acceptance_id,user_id,document_version,context,plan_id,checkout_session_id,origin,accepted_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(checkout_session_id) DO NOTHING',
-    )
-    .bind(
-      crypto.randomUUID(),
-      user.userId,
-      AUTOMATION_TERMS_VERSION,
-      'automation_checkout',
-      AUTOMATION_PRODUCT,
-      session.id,
-      origin,
-      new Date().toISOString(),
-    )
-    .run();
-  if (!session.url)
-    throw new AccountPublicError(
-      'La page de paiement n’a pas été retournée.',
-      502,
-    );
-  return { url: session.url };
+  const { stripeAutomationCheckout } =
+    await import('@/lib/payments/stripe-automation-purchase');
+  return stripeAutomationCheckout(organizationId, user, body, origin);
+}
+export async function cancelAutomationCheckout(
+  organizationId: string,
+  user: ZentraUser,
+) {
+  const { cancelStripeAutomationCheckout } =
+    await import('@/lib/payments/stripe-automation-purchase');
+  return cancelStripeAutomationCheckout(organizationId, user);
 }
 export async function automationPortal(
   organizationId: string,
@@ -461,7 +341,11 @@ export async function automationPortal(
   await requireBrowserMembership(user.userId, organizationId, ['owner']);
   const bundle = await completeSubscription(organizationId);
   if (bundle) {
-    if (bundle.provider === 'postfinance') throw new AccountPublicError('Cette offre ne se gère pas dans le portail Stripe.', 409);
+    if (bundle.provider === 'postfinance')
+      throw new AccountPublicError(
+        'Cette offre ne se gère pas dans le portail Stripe.',
+        409,
+      );
     return completePortal(bundle.customer_id, origin + '/compte/automation');
   }
   const [config, row] = await Promise.all([
@@ -473,8 +357,14 @@ export async function automationPortal(
       .bind(organizationId)
       .first<{ customer_id: string; subscription_id: string }>(),
   ]);
-  if ((row && isPrepaidContractId(row.subscription_id)) || await prepaidAutomationAccess(organizationId))
-    throw new AccountPublicError('Cette offre ne se gère pas dans le portail Stripe.', 409);
+  if (
+    (row && isPrepaidContractId(row.subscription_id)) ||
+    (await prepaidAutomationAccess(organizationId))
+  )
+    throw new AccountPublicError(
+      'Cette offre ne se gère pas dans le portail Stripe.',
+      409,
+    );
   if (!config || !row)
     throw new AccountPublicError('Aucun abonnement Automation à gérer.');
   const portal = await automationStripe().billingPortal.sessions.create({
@@ -495,7 +385,8 @@ export function paidAutomationPeriod(
     priceId: config.priceId,
     unitAmount: AUTOMATION_PRICE_CENTS,
     livemode: config.livemode,
-    automaticTaxRequired: stripeAutomaticTaxRequired(stripeConfiguration()),
+    automaticTaxRequired:
+      config.automaticTax ?? stripeAutomaticTaxRequired(stripeConfiguration()),
   });
   const line = invoice.lines.data[0];
   if (
@@ -540,6 +431,25 @@ async function reconcile(
   if (subscription.metadata.service !== AUTOMATION_PRODUCT) {
     await suspendInvalidBinding();
     return Boolean(bound);
+  }
+  const { provisionStripeAutomationPurchase } =
+    await import('@/lib/payments/stripe-automation-provisioning');
+  try {
+    if (
+      await provisionStripeAutomationPurchase(
+        subscription,
+        invoice,
+        config,
+        automationStripe(),
+        runtimeValue('STRIPE_SECRET_KEY'),
+        source,
+      )
+    )
+      return true;
+  } catch (error) {
+    if (error instanceof AccountPublicError && error.status === 409)
+      await suspendInvalidBinding();
+    throw error;
   }
   const org = await database()
     .prepare(
@@ -588,10 +498,28 @@ async function reconcile(
       'La facture Automation doit être vérifiée.',
       503,
     );
-  const refunded =
-    invoice && paid
-      ? await fullyRefundedAutomationInvoice(automationStripe(), invoice.id)
-      : false;
+  let refunded = false;
+  if (invoice && paid) {
+    const { verifyStripeAutomationCash } =
+      await import('@/lib/payments/stripe-automation-provisioning');
+    const stripe = automationStripe();
+    const cash = await verifyStripeAutomationCash(invoice, subscription, {
+      payments: (id) =>
+        stripe.invoicePayments.list({ invoice: id, status: 'paid', limit: 5 }),
+      paymentIntent: (id) => stripe.paymentIntents.retrieve(id),
+      charge: (id) => stripe.charges.retrieve(id),
+    });
+    if (cash.refunded)
+      await revokeRefundedInvoice(invoice.id, cash.customerId, cash.livemode);
+    refunded =
+      cash.refunded ||
+      !!(await database()
+        .prepare(
+          'SELECT 1 FROM automation_refunds WHERE invoice_id=? AND customer_id=? AND livemode=?',
+        )
+        .bind(invoice.id, cash.customerId, Number(cash.livemode))
+        .first());
+  }
   // A refresh can verify/revoke an existing subscription, but only the
   // signature-verified webhook route may grant a new paid access period.
   // This also prevents the checkout return from enabling workers early.
@@ -674,7 +602,7 @@ async function revokeRefundedInvoice(
 ) {
   await database()
     .prepare(
-      'INSERT INTO automation_refunds(invoice_id,customer_id,livemode,verified_at) VALUES(?,?,?,?) ON CONFLICT(invoice_id) DO UPDATE SET verified_at=excluded.verified_at',
+      'INSERT INTO automation_refunds(invoice_id,customer_id,livemode,verified_at) VALUES(?,?,?,?) ON CONFLICT(invoice_id) DO NOTHING',
     )
     .bind(invoiceId, customerId, Number(livemode), now())
     .run();
@@ -686,14 +614,15 @@ async function reconcileAutomationRefund(event: Stripe.Event) {
     charge = await stripe.charges.retrieve(
       (event.data.object as Stripe.Charge).id,
     );
-  if (!charge.refunded) return false;
+  if (!charge.refunded && charge.amount_refunded <= 0) return false;
   const paymentIntent = ref(charge.payment_intent);
   if (!paymentIntent) return false; // All Zentra Automation checkouts use PaymentIntents.
   const payments = await stripe.invoicePayments.list({
     payment: { type: 'payment_intent', payment_intent: paymentIntent },
-    limit: 100,
+    status: 'paid',
+    limit: 5,
   });
-  if (payments.has_more)
+  if (payments.has_more || payments.data.length > 5)
     throw new AccountPublicError('Le remboursement doit être vérifié.', 503);
   let handled = false;
   for (const invoiceId of new Set(payments.data.map((p) => ref(p.invoice)))) {
@@ -714,7 +643,15 @@ async function reconcileAutomationRefund(event: Stripe.Event) {
       ref(subscription.customer) !== ref(charge.customer)
     )
       continue;
-    if (await fullyRefundedAutomationInvoice(stripe, invoiceId)) {
+    const { verifyStripeAutomationCash } =
+      await import('@/lib/payments/stripe-automation-provisioning');
+    const cash = await verifyStripeAutomationCash(invoice, subscription, {
+      payments: (id) =>
+        stripe.invoicePayments.list({ invoice: id, status: 'paid', limit: 5 }),
+      paymentIntent: (id) => stripe.paymentIntents.retrieve(id),
+      charge: (id) => stripe.charges.retrieve(id),
+    });
+    if (cash.refunded) {
       await revokeRefundedInvoice(
         invoiceId,
         ref(charge.customer),
@@ -759,16 +696,25 @@ export async function refreshAutomationPayment(
   user: ZentraUser,
 ) {
   await requireBrowserMembership(user.userId, organizationId, ['owner']);
-  const identity = await database().prepare(`SELECT o.subscription_id AS company_subscription_id,a.subscription_id
+  const identity = await database()
+    .prepare(`SELECT o.subscription_id AS company_subscription_id,a.subscription_id
     FROM organizations o LEFT JOIN automation_subscriptions a ON a.organization_id=o.organization_id WHERE o.organization_id=?`)
-    .bind(organizationId).first<{ company_subscription_id: string; subscription_id: string | null }>();
-  if ((identity && isPrepaidContractId(identity.company_subscription_id)) || isPrepaidContractId(identity?.subscription_id)
-    || await prepaidAutomationAccess(organizationId)) return automationBillingState(organizationId);
+    .bind(organizationId)
+    .first<{
+      company_subscription_id: string;
+      subscription_id: string | null;
+    }>();
+  if (
+    (identity && isPrepaidContractId(identity.company_subscription_id)) ||
+    isPrepaidContractId(identity?.subscription_id) ||
+    (await prepaidAutomationAccess(organizationId))
+  )
+    return automationBillingState(organizationId);
   const row = await database()
     .prepare(
-      'SELECT session_id FROM automation_checkouts WHERE organization_id=? AND user_id=?',
+      `SELECT session_id FROM (SELECT session_id,created_at FROM stripe_automation_purchase_requests WHERE organization_id=? AND owner_id=? UNION ALL SELECT session_id,created_at FROM automation_checkouts WHERE organization_id=? AND user_id=?) ORDER BY created_at DESC LIMIT 1`,
     )
-    .bind(organizationId, user.userId)
+    .bind(organizationId, user.userId, organizationId, user.userId)
     .first<{ session_id: string | null }>();
   if (!row?.session_id) return automationBillingState(organizationId);
   const stripe = automationStripe(),
@@ -782,7 +728,9 @@ export async function refreshAutomationPayment(
     const subscription = await stripe.subscriptions.retrieve(
         ref(session.subscription),
       ),
-      invoice = await stripe.invoices.retrieve(ref(session.invoice));
+      invoice = await stripe.invoices.retrieve(
+        ref(subscription.latest_invoice) || ref(session.invoice),
+      );
     await reconcile(subscription, invoice, 'account_refresh');
   }
   return automationBillingState(organizationId);

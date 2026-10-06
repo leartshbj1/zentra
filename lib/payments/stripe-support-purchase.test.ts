@@ -588,9 +588,7 @@ describe('Support durable purchase, real migrations and atomic common reservatio
           .run(user.userId, now + 3600);
       }
     };
-    await expect(checkout()).rejects.toThrow(
-      /stripe_support_purchase_conflict/,
-    );
+    await expect(checkout()).rejects.toMatchObject({ status: 409 });
     expect(create).not.toHaveBeenCalled();
     sql.prepare('DELETE FROM complete_checkouts').run();
     await checkout();

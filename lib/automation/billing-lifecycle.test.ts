@@ -18,10 +18,14 @@ vi.mock('@/lib/runtime', () => ({
   stripeConfiguration: () => ({ secretKey: 'sk_live_fixture' }),
 }));
 vi.mock('@/lib/account', () => ({ requireBrowserMembership: vi.fn() }));
-vi.mock('@/lib/stripe', () => ({
-  STRIPE_API_VERSION: '2026-08-26.dahlia',
-  REQUIRED_STRIPE_WEBHOOK_EVENTS: [],
-}));
+vi.mock('@/lib/stripe', async () => {
+  const { digest } = await import('@/lib/support/crypto');
+  return {
+    STRIPE_API_VERSION: '2026-08-26.dahlia',
+    REQUIRED_STRIPE_WEBHOOK_EVENTS: [],
+    sha256: digest,
+  };
+});
 vi.mock('stripe', () => ({
   default: class {
     static createFetchHttpClient() {
@@ -43,7 +47,9 @@ import {
 import type { ZentraUser } from '@/app/zentra-auth';
 import { automationEntitlement } from './entitlement';
 import { digest } from '@/lib/support/crypto';
+import { D1StripeAutomationPurchase } from '@/lib/payments/stripe-automation-purchase';
 let db: DatabaseSync;
+let originalFetch: typeof fetch;
 const now = () => Math.floor(Date.now() / 1000);
 const actor = {
   organizationId: 'org_a',
@@ -54,18 +60,35 @@ const actor = {
 let subscription: Stripe.Subscription;
 let invoices: Map<string, Stripe.Invoice>;
 let refunds: Set<string>;
+let checkoutSession: Stripe.Checkout.Session;
+let purchaseSerial: number;
 const price = {
   id: 'price_auto',
+  object: 'price',
+  billing_scheme: 'per_unit',
+  created: 1,
+  custom_unit_amount: null,
+  lookup_key: null,
+  nickname: null,
+  tiers_mode: null,
+  transform_quantity: null,
+  unit_amount_decimal: null,
   active: true,
   livemode: true,
   product: 'prod_auto',
   currency: 'chf',
   unit_amount: 1500,
   type: 'recurring',
-  recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' },
+  recurring: {
+    interval: 'month',
+    interval_count: 1,
+    usage_type: 'licensed',
+    meter: null,
+    trial_period_days: null,
+  },
   tax_behavior: 'inclusive',
   metadata: { service: 'zentra_automation' },
-};
+} satisfies Stripe.Price;
 function invoice(
   id = 'in_current',
   start = now() - 60,
@@ -79,6 +102,8 @@ function invoice(
     total: 1500,
     amount_paid: 1500,
     amount_due: 1500,
+    amount_remaining: 0,
+    status_transitions: { paid_at: now() },
     customer: 'cus_a',
     automatic_tax: { enabled: true, status: 'complete' },
     billing_reason: 'subscription_cycle',
@@ -128,16 +153,75 @@ function event(type: string, id = 'in_current') {
   } as Stripe.Event;
 }
 const apply = () => persistAutomationStripeEvent(event('invoice.paid'));
-const owner = { userId: 'owner', email: 'owner@example.test', emailConfirmed: true, provider: 'supabase' } as ZentraUser;
+const owner = {
+  userId: 'owner',
+  email: 'owner@example.test',
+  emailConfirmed: true,
+  provider: 'supabase',
+  displayName: 'Fictional owner',
+  fullName: null,
+} satisfies ZentraUser;
 function prepareReturn(invoiceId = 'in_current') {
-  db.prepare("INSERT OR REPLACE INTO automation_checkouts(organization_id,attempt_id,user_id,session_id,expires_at,created_at) VALUES('org_a','attempt','owner','cs_auto',?,1)").run(now() + 3600);
   mocks.checkout.mockResolvedValue({
-    status: 'complete', payment_status: 'paid', subscription: subscription.id, invoice: invoiceId,
-    metadata: { organization_id: 'org_a', owner_id: 'owner' },
+    ...checkoutSession,
+    status: 'complete',
+    payment_status: 'paid',
+    subscription: subscription.id,
+    invoice: invoiceId,
   });
+}
+async function preparePurchase() {
+  await new D1StripeAutomationPurchase(
+    mocks.db as ConstructorParameters<typeof D1StripeAutomationPurchase>[0],
+    {
+      secretKey: 'sk_live_fixture',
+      productId: 'prod_auto',
+      priceId: 'price_auto',
+      livemode: true,
+      automaticTax: true,
+    },
+    {
+      price: async () => price,
+      create: async (parameters) => {
+        subscription.metadata = { ...parameters.metadata } as Stripe.Metadata;
+        checkoutSession = {
+          ...structuredClone(parameters),
+          id: 'cs_auto_' + ++purchaseSerial,
+          url: 'https://checkout.stripe.com/c/pay/fixture',
+          status: 'open',
+          payment_status: 'unpaid',
+          livemode: true,
+          subscription: null,
+          invoice: null,
+          currency: 'chf',
+          amount_total: 1500,
+        } as unknown as Stripe.Checkout.Session;
+        return checkoutSession;
+      },
+      retrieve: async () => checkoutSession,
+      list: async () => ({ data: [checkoutSession], has_more: false }),
+      expire: async () => ({
+        ...checkoutSession,
+        status: 'expired',
+        url: null,
+      }),
+    },
+  ).checkout({
+    user: owner,
+    organizationId: 'org_a',
+    origin: 'https://zentraapp.ch',
+    legalVersion: 'automation-2026-09-22',
+    consentVersion: 'automation-2026-09-20',
+  });
+  prepareReturn();
 }
 beforeEach(async () => {
   vi.clearAllMocks();
+  originalFetch = globalThis.fetch;
+  purchaseSerial = 0;
+  globalThis.fetch = vi.fn(async () => {
+    throw Error('External HTTP is forbidden in lifecycle fixtures.');
+  });
   db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys=ON');
   for (const n of readdirSync(new URL('../../drizzle/', import.meta.url))
@@ -147,6 +231,18 @@ beforeEach(async () => {
       readFileSync(new URL('../../drizzle/' + n, import.meta.url), 'utf8'),
     );
   mocks.db = {
+    async batch(statements: { run(): Promise<unknown> }[]) {
+      db.exec('BEGIN');
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        db.exec('COMMIT');
+        return results;
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    },
     prepare: (query: string) => {
       let args: SQLInputValue[] = [];
       const p = {
@@ -188,6 +284,7 @@ beforeEach(async () => {
     },
     items: { data: [{ quantity: 1, price }] },
   } as unknown as Stripe.Subscription;
+  await preparePurchase();
   invoices = new Map([['in_current', invoice()]]);
   refunds = new Set();
   mocks.subscription.mockImplementation(async () => subscription);
@@ -202,6 +299,10 @@ beforeEach(async () => {
         has_more: false,
         data: [
           {
+            id: 'inpay_' + id,
+            status: 'paid',
+            livemode: true,
+            currency: 'chf',
             amount_paid: 1500,
             invoice: id,
             payment: { type: 'payment_intent', payment_intent: 'pi_' + id },
@@ -211,47 +312,77 @@ beforeEach(async () => {
     },
   );
   mocks.intent.mockImplementation(async (id: string) => ({
+    id,
+    livemode: true,
+    customer: 'cus_a',
+    currency: 'chf',
+    status: 'succeeded',
+    amount_received: 1500,
     latest_charge: 'ch_' + id.slice(3),
   }));
   mocks.charge.mockImplementation(async (id: string) => ({
     id,
     customer: 'cus_a',
     livemode: true,
+    currency: 'chf',
+    paid: true,
+    captured: true,
+    status: 'succeeded',
     payment_intent: 'pi_' + id.slice(3),
     refunded: refunds.has(id.slice(3)),
     amount_captured: 1500,
     amount_refunded: refunds.has(id.slice(3)) ? 1500 : 0,
   }));
 });
-afterEach(() => db.close());
+afterEach(() => {
+  expect(globalThis.fetch).not.toHaveBeenCalled();
+  globalThis.fetch = originalFetch;
+  db.close();
+});
 it('does not activate from an account refresh before the signed payment notification arrives', async () => {
   prepareReturn();
   await refreshAutomationPayment('org_a', owner);
   expect(await automationEntitlement(actor)).toBe(false);
-  expect(db.prepare('SELECT COUNT(*) AS n FROM automation_settings').get()?.n).toBe(0);
+  expect(
+    db.prepare('SELECT COUNT(*) AS n FROM automation_settings').get()?.n,
+  ).toBe(0);
   await apply();
   expect(await automationEntitlement(actor)).toBe(true);
 });
 it('does not extend the paid period from an account refresh while the renewal notification is pending', async () => {
-  invoices.set('in_current', invoice('in_current', now() - 30 * 86400, now() - 1));
   await apply();
-  const previous = db.prepare('SELECT paid_until,last_paid_invoice_id FROM automation_subscriptions').get();
+  // The paid initial handoff is real; only the mutable access cache is elapsed.
+  db.prepare('UPDATE automation_subscriptions SET paid_until=?').run(now() - 1);
+  const previous = db
+    .prepare(
+      'SELECT paid_until,last_paid_invoice_id FROM automation_subscriptions',
+    )
+    .get();
   invoices.set('in_renewal', invoice('in_renewal'));
   prepareReturn('in_renewal');
   await refreshAutomationPayment('org_a', owner);
   expect(await automationEntitlement(actor)).toBe(false);
-  expect(db.prepare('SELECT paid_until,last_paid_invoice_id FROM automation_subscriptions').get()).toEqual(previous);
+  expect(
+    db
+      .prepare(
+        'SELECT paid_until,last_paid_invoice_id FROM automation_subscriptions',
+      )
+      .get(),
+  ).toEqual(previous);
   await persistAutomationStripeEvent(event('invoice.paid', 'in_renewal'));
   expect(await automationEntitlement(actor)).toBe(true);
 });
-it.each(['cancellation', 'refund'])('an account refresh still removes access after a verified %s', async (change) => {
-  await apply();
-  prepareReturn();
-  if (change === 'cancellation') subscription.status = 'canceled';
-  else refunds.add('in_current');
-  await refreshAutomationPayment('org_a', owner);
-  expect(await automationEntitlement(actor)).toBe(false);
-});
+it.each(['cancellation', 'refund'])(
+  'an account refresh still removes access after a verified %s',
+  async (change) => {
+    await apply();
+    prepareReturn();
+    if (change === 'cancellation') subscription.status = 'canceled';
+    else refunds.add('in_current');
+    await refreshAutomationPayment('org_a', owner);
+    expect(await automationEntitlement(actor)).toBe(false);
+  },
+);
 it('activates only after verified payment for its space and initialises settings without enabling workers', async () => {
   await persistAutomationStripeEvent(event('customer.subscription.updated'));
   expect(await automationEntitlement(actor)).toBe(false);
@@ -264,7 +395,11 @@ it('activates only after verified payment for its space and initialises settings
     db
       .prepare('SELECT enabled,mode,consent_version FROM automation_settings')
       .get(),
-  ).toMatchObject({ enabled: 0, mode: 'shadow', consent_version: null });
+  ).toMatchObject({
+    enabled: 0,
+    mode: 'shadow',
+    consent_version: 'automation-2026-09-20',
+  });
 });
 it.each(['price', 'quantity', 'company', 'customer', 'service'])(
   'stops an already paid option when its Stripe %s changes, without moving it to another space',
@@ -375,8 +510,13 @@ it('persists a refund arriving before the first invoice.paid event', async () =>
   await persistAutomationStripeEvent(event('charge.refunded'));
   // Even a stale payment read cannot undo the already verified refund.
   refunds.clear();
-  await apply();
+  await expect(apply()).rejects.toMatchObject({ status: 409 });
   expect(await automationEntitlement(actor)).toBe(false);
+  expect(
+    db
+      .prepare('SELECT invoice_id,customer_id,livemode FROM automation_refunds')
+      .all(),
+  ).toEqual([{ invoice_id: 'in_current', customer_id: 'cus_a', livemode: 1 }]);
 });
 it('a newly paid later period restores access while a delayed old refund cannot revoke it', async () => {
   await apply();
@@ -388,15 +528,18 @@ it('a newly paid later period restores access while a delayed old refund cannot 
   await persistAutomationStripeEvent(event('charge.refunded'));
   expect(await automationEntitlement(actor)).toBe(true);
 });
-it('reactivation with a new subscription does not inherit a cancelled subscriptions paid period', async () => {
+it('a new reserved purchase after cancellation and elapsed coverage does not inherit the old paid period', async () => {
   await apply();
   subscription.status = 'canceled';
   await persistAutomationStripeEvent(event('customer.subscription.deleted'));
+  db.exec('UPDATE automation_subscriptions SET paid_until=0');
   subscription = { ...subscription, id: 'sub_new', status: 'active' };
+  await preparePurchase();
   await persistAutomationStripeEvent(event('customer.subscription.created'));
   expect(await automationEntitlement(actor)).toBe(false);
-  invoices.set('in_current', invoice());
-  await apply();
+  invoices.set('in_reactivated', invoice('in_reactivated'));
+  prepareReturn('in_reactivated');
+  await persistAutomationStripeEvent(event('invoice.paid', 'in_reactivated'));
   expect(await automationEntitlement(actor)).toBe(true);
 });
 it.each([

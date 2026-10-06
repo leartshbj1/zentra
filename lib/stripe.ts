@@ -760,6 +760,31 @@ export async function upsertSubscription(
   const paid = Boolean(
     settlement.paidInvoiceId && settlement.paidThrough && settlement.paidAt,
   );
+  // New bundle purchases freeze their company and Support workspace before
+  // redirecting to Checkout. A status event must never bypass that handoff by
+  // granting the legacy subscription cache first. Load this path only for new
+  // Complet purchases, keeping ordinary Gestion renewals unchanged.
+  if (
+    subscriptionCompletePlan(subscription) &&
+    subscription.metadata.complete_request_id
+  ) {
+    const { provisionStripeCompletePurchase } = await import(
+      '@/lib/payments/stripe-complete-provisioning'
+    );
+    const invoice = paid
+      ? await retrieveInvoice(settlement.paidInvoiceId!)
+      : null;
+    if (
+      await provisionStripeCompletePurchase(
+        subscription,
+        invoice,
+        automationStripe(),
+        stripeConfiguration().secretKey,
+        session,
+      )
+    )
+      return;
+  }
   const db = database();
   const statements = [
     db

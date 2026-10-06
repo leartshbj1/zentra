@@ -10,6 +10,7 @@ import { FEATURE_LABELS } from './labels';
 import { AutomationControlCentre } from './control-centre';
 import { AutomationBrief, type BriefActivity, type BriefDestination } from './AutomationBrief';
 import { AppointmentReceipts } from './appointment-receipts';
+import { automationPaymentUrl } from '@/lib/client-payment-url';
 async function api(path: string, org: string, body?: Record<string, unknown>) {
   const res = await fetch(
     body ? path : `${path}?organizationId=${encodeURIComponent(org)}`,
@@ -121,9 +122,9 @@ export function AutomationCompanySettings({
     if (!res.ok) throw new Error(data.error || 'Réessayez.');
     return data;
   }
+  const ownsSelectedCompany = organizations.find((o) => o.organizationId === org)?.role === 'owner';
   useEffect(() => {
     let live = true;
-    setState(null);setBilling(null);setConsent(false);setTerms(false);setMessage('');setView('today');
     if (!org) return;
     // Team access never depends on loading the owner's billing controls.
     api('/api/automation', org)
@@ -138,7 +139,7 @@ export function AutomationCompanySettings({
       .catch((e) => {
         if (live) setMessage(e.message);
       });
-    if (organizations.find((o) => o.organizationId === org)?.role === 'owner') {
+    if (ownsSelectedCompany) {
       api('/api/automation/billing', org, {
         action:
           paymentReturned && org === initialOrganization ? 'refresh' : 'state',
@@ -162,7 +163,7 @@ export function AutomationCompanySettings({
     return () => {
       live = false;
     };
-  }, [org, initialOrganization, paymentReturned]);
+  }, [org, initialOrganization, paymentReturned, ownsSelectedCompany]);
   useEffect(() => {
     if(!org)return;
     let live=true, running=false;
@@ -182,7 +183,7 @@ export function AutomationCompanySettings({
     if(destination==='review'||destination==='work'||destination==='history'){setFollowup(destination);setView('followup');return;}
     setView(destination);
   };
-  async function action(which: 'save' | 'checkout' | 'portal' | 'refresh') {
+  async function action(which: 'save' | 'checkout' | 'cancelCheckout' | 'portal' | 'refresh') {
     if(pending.current)return;
     pending.current=true;
     setBusy(true);
@@ -205,21 +206,21 @@ export function AutomationCompanySettings({
           consentVersion: consent ? consentVersion : undefined,
         });
         if (typeof data.url === 'string') {
-          const url = new URL(data.url);
-          if (
-            url.protocol !== 'https:' ||
-            !['checkout.stripe.com', 'billing.stripe.com'].includes(
-              url.hostname,
-            )
-          )
+          const url = automationPaymentUrl(data.url, window.location.origin, org);
+          if (!url)
             throw new Error('Page de paiement non reconnue.');
           window.location.assign(url.href);
         } else {
-          setBilling(data as unknown as Billing);
+          const nextBilling = which === 'cancelCheckout'
+            ? await post('/api/automation/billing', { action: 'state' })
+            : data;
+          setBilling(nextBilling as unknown as Billing);
           const s = await load();
           setState(s);
           setMessage(
-            s.active
+            which === 'cancelCheckout'
+              ? 'Le paiement en attente est annulé. Vous pouvez recommencer.'
+              : s.active
               ? 'Votre option est active. Choisissez les fonctions ci-dessous.'
               : 'Le paiement est encore en cours de confirmation.',
           );
@@ -257,6 +258,9 @@ export function AutomationCompanySettings({
           setState(null);
           setBilling(null);
           setMessage('');
+          setConsent(false);
+          setTerms(false);
+          setView('today');
         }}
       >
         {organizations.map((o) => (
@@ -265,7 +269,7 @@ export function AutomationCompanySettings({
           </option>
         ))}
       </select>
-      {!state && !message && <p role="status">Chargement de votre entreprise…</p>}
+      {!state && !message && <p aria-live="polite">Chargement de votre entreprise…</p>}
       {state?.active && <nav className="automation-workspace__nav" aria-label="Espace Automation">{(['today','followup','settings'] as const).map(id=><button type="button" key={id} aria-current={(id==='today'?['today','appointments','tools'].includes(view):id==='settings'?['settings','rules'].includes(view):view===id)?'page':undefined} onClick={()=>setView(id)}>{id==='today'?'Aujourd’hui':id==='followup'?'Suivi':'Réglages'}</button>)}</nav>}
       {state?.active && view==='today' && <AutomationBrief activity={state.activity} paused={!state.settings.enabled||!state.settings.consent} observation={state.settings.mode==='shadow'} language={currentSiteLanguage()} onOpen={open}/>}
       {state?.active && view==='followup' && <AutomationControlCentre key={org} organizationId={org} initialTab={followup} embedded hideRules request={body=>api('/api/automation',org,body)}/>}
@@ -280,7 +284,7 @@ export function AutomationCompanySettings({
           : 'Disponible avec Zentra Automation'}
       </h2>
       {billing?.bundlePlan ? <p>Automation fait partie de votre pack Zentra Complet {billing.bundlePlan}. Les trois produits suivent le même abonnement.</p> : state && !state.active && <p>Automatisez vos tâches répétitives pour +15 CHF/mois.</p>}
-      {billing?.refunded && <p role="status">La dernière période a été remboursée. Automation est arrêté ; vos réglages et vos données sont conservés.</p>}
+      {billing?.refunded && <p aria-live="polite">La dernière période a été remboursée. Automation est arrêté ; vos réglages et vos données sont conservés.</p>}
       {billing?.offeredAccess &&
       billing.offeredUntil &&
       !billing.hasSubscription ? (
@@ -354,6 +358,15 @@ export function AutomationCompanySettings({
               onClick={() => void action('checkout')}
             >
               Ajouter Automation · 15 CHF/mois
+            </button>
+            <button
+              type="button"
+              className="automation-workspace__back"
+              style={{ minHeight: 44 }}
+              disabled={busy || !billing?.ready}
+              onClick={() => void action('cancelCheckout')}
+            >
+              Annuler un paiement en attente
             </button>
             {!billing?.ready && (
               <p>

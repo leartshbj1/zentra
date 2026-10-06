@@ -473,6 +473,37 @@ describe('Common purchase reservations using all real SQLite migrations', () => 
     expect((await store().reserve(input())).state).toBe('uncertain');
     expect(footprints(uncertain)[0].released_at).toBeNull();
   });
+  it('records a lost outcome after the owner is revoked but blocks another dispatch', async () => {
+    const intent = await dispatched();
+    sql.prepare('UPDATE organization_members SET revoked_at=?').run(clock);
+    const uncertain = await store().markUncertain(intent);
+    expect(uncertain.state).toBe('uncertain');
+    await expect(store().markDispatched(uncertain)).rejects.toThrow();
+    expect((await store().read(intent)).state).toBe('uncertain');
+    expect(footprints(intent)[0].released_at).toBeNull();
+  });
+  it('records a lost outcome for a deleted account without authorizing its retry', async () => {
+    const intent = await dispatched();
+    sql
+      .prepare(
+      'INSERT INTO account_session_policy(user_id,deleted_at) VALUES(?,?)',
+      )
+      .run(owner, clock);
+    const uncertain = await store().markUncertain(intent);
+    expect(uncertain.state).toBe('uncertain');
+    await expect(store().markDispatched(uncertain)).rejects.toThrow();
+    expect((await store().read(intent)).state).toBe('uncertain');
+    expect(footprints(intent)[0].released_at).toBeNull();
+  });
+  it('rechecks newly occupied rights before a provider idempotency retry', async () => {
+    const intent = await dispatched();
+    paidGestion();
+    await expect(store().markDispatched(intent)).rejects.toThrow(
+      'purchase_rights',
+    );
+    expect((await store().read(intent)).state).toBe('dispatched');
+    expect(footprints(intent)[0].released_at).toBeNull();
+  });
   it('releases an undispatched expired reservation explicitly and keeps its history/replay', async () => {
     const intent = await store().reserve(input());
     clock += 90000;

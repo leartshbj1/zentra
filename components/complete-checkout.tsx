@@ -2,6 +2,7 @@
 import { siteCount } from 'zentra:site-language';
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { completePaymentUrl } from '@/lib/client-payment-url';
 import {
   completePlan,
   COMPLETE_TERMS_VERSION,
@@ -58,8 +59,8 @@ export function CompleteCheckout({
         );
         return;
       }
-      const url = new URL(data.url ?? '');
-      if (url.protocol !== 'https:' || url.hostname !== 'checkout.stripe.com')
+      const url = completePaymentUrl(data.url ?? '', window.location.origin);
+      if (!url)
         throw new Error(
           'Le lien de paiement doit être vérifié. Contactez Zentra.',
         );
@@ -131,7 +132,7 @@ export function CompleteCheckout({
         </>
       )}
       {message && (
-        <div className="complete-checkout-error" role="status">
+        <div className="complete-checkout-error" aria-live="polite" aria-atomic="true">
           <p>{message}</p>
           {conflict && (
             <>

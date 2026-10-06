@@ -63,6 +63,7 @@ export async function POST(request: Request) {
         plan,
         origin,
         stripeAutomaticTaxRequired(config),
+        body.organizationId,
       ),
       { headers: noStoreHeaders() },
     );

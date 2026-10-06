@@ -459,8 +459,9 @@ export class D1StripeSupportPurchase {
         success_url: `${input.origin}/support/espace?workspace=${encodeURIComponent(target.id)}&section=billing&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${input.origin}/support/espace?workspace=${encodeURIComponent(target.id)}&section=billing&paiement=annule`,
       };
-      await this.db
-        .prepare(`INSERT INTO stripe_support_purchase_requests(request_id,workspace_id,organization_id,owner_id,environment,provider_scope,plan_id,account_email,origin,legal_version,accepted_at,parameters_json,created_at,expires_at)
+      try {
+        await this.db
+          .prepare(`INSERT INTO stripe_support_purchase_requests(request_id,workspace_id,organization_id,owner_id,environment,provider_scope,plan_id,account_email,origin,legal_version,accepted_at,parameters_json,created_at,expires_at)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`)
         .bind(
           requestId,
@@ -478,7 +479,16 @@ export class D1StripeSupportPurchase {
           created,
           created + 3600,
         )
-        .run();
+          .run();
+      } catch (error) {
+        // Prepared-target guards run before ON CONFLICT. A simultaneous click
+        // resumes only the identical winner; it never creates another checkout.
+        const winner = await this.current(target.id, environment);
+        if (winner) this.validateRequest(winner, target, scope, input);
+        else if (/stripe_support_|purchase_footprint/.test(String(error)))
+          throw conflict();
+        else throw error;
+      }
       row = await this.current(target.id, environment);
     }
     if (!row) throw conflict();

@@ -18,6 +18,8 @@ import {
 } from './payments/purchase-intents';
 import { sha256Hex } from './account-security';
 import { planById } from './plans';
+import { completePlan } from './complete/plans';
+import { D1StripeCompletePurchase } from './payments/stripe-complete-purchase';
 
 const runtime = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock('@/lib/runtime', () => ({
@@ -43,6 +45,31 @@ const user = {
   provider: 'supabase',
 } as ZentraUser;
 const origin = 'https://zentra.example.test';
+function completeController() {
+  return new D1StripeCompletePurchase(d1(), { secretKey: configuration.secretKey, livemode: false }, {
+    async price(plan) {
+      return { id: 'price_complete_fixture', active: true, livemode: false,
+        currency: 'chf', unit_amount: plan.priceChfCents, product: plan.productId,
+        lookup_key: plan.lookupKey, type: 'recurring', tax_behavior: 'inclusive',
+        recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' },
+        metadata: { service: 'zentra-complet', bundle_plan: plan.id },
+      } as unknown as Stripe.Price;
+    },
+    async create(params, key) {
+      const session = { id: 'cs_test_' + key.replaceAll('-', ''),
+        mode: 'subscription', status: 'open', payment_status: 'unpaid', livemode: false,
+        url: 'https://checkout.stripe.com/fictional', client_reference_id: params.client_reference_id,
+        expires_at: params.expires_at, metadata: { ...params.metadata },
+      } as Stripe.Checkout.Session;
+      sessions.set(session.id, session);
+      if (uncertain) throw Error('Fictional lost response.');
+      return session;
+    },
+    async retrieve(id) { const session = sessions.get(id); if (!session) throw Error('Missing fixture session'); return session; },
+    async list() { return { data: [...sessions.values()], has_more: false }; },
+    async expire(id) { const session = sessions.get(id); if (!session) throw Error('Missing fixture session'); session.status = 'expired'; return session; },
+  }, () => now);
+}
 const configuration = {
   secretKey: 'sk_test_fictional_never_used_for_HTTP',
   webhookSecret: '',
@@ -208,6 +235,46 @@ function historySnapshot() {
     sql.prepare(`SELECT * FROM ${table} ORDER BY 1`).all(),
   ]);
 }
+describe('first trial after a frozen Complet purchase', () => {
+  it.each([false, true])('preserves the original company and closed purchase history for complete=%s', async (complete) => {
+    const controller = completeController();
+    await controller.checkout({ user, plan: completePlan('team')!, origin, automaticTax: false });
+    await controller.cancel(user);
+    const draft = sql.prepare('SELECT * FROM stripe_complete_purchase_drafts').get()!;
+    const history = sql.prepare('SELECT * FROM stripe_complete_purchase_requests').all();
+    const footprints = sql.prepare('SELECT * FROM purchase_intent_footprints').all();
+    const workspace = sql.prepare('SELECT id,owner_id FROM support_workspaces').get()!;
+    const trial = await startAccountTrial(user, 'Trial after cancelled pack', complete);
+    expect(trial.organization_id).toBe(draft.organization_id);
+    expect(count('organizations')).toBe(1);
+    expect(trial.ends_at - trial.started_at).toBe(TRIAL_DAYS * 86400);
+    expect(sql.prepare('SELECT * FROM stripe_complete_purchase_requests').all()).toEqual(history);
+    expect(sql.prepare('SELECT * FROM purchase_intent_footprints').all()).toEqual(footprints);
+    expect(sql.prepare('SELECT id,owner_id FROM support_workspaces').get()).toEqual(workspace);
+    if (complete) {
+      expect(sql.prepare('SELECT organization_id FROM support_gestion_links').get()?.organization_id).toBe(draft.organization_id);
+      expect(sql.prepare('SELECT seat_limit FROM subscriptions WHERE subscription_id=?').get(trial.subscription_id)?.seat_limit).toBe(3);
+    }
+    expect(network).not.toHaveBeenCalled();
+  });
+  it.each(['open', 'uncertain'])('does not turn a %s pack payment into free access', async (state) => {
+    uncertain = state === 'uncertain';
+    const action = completeController().checkout({ user, plan: completePlan('team')!, origin, automaticTax: false });
+    if (uncertain) await expect(action).rejects.toThrow('lost response'); else await action;
+    await expect(startAccountTrial(user, 'Unsafe free period', true)).rejects.toMatchObject({ status: 409 });
+    expect(count('account_trials')).toBe(0);
+    expect(count('organizations')).toBe(1);
+    expect(network).not.toHaveBeenCalled();
+  });
+  it('refuses a canceled pack whose Support owner changed before trial creation', async () => {
+    const controller = completeController();
+    await controller.checkout({ user, plan: completePlan('team')!, origin, automaticTax: false });
+    await controller.cancel(user);
+    sql.prepare("UPDATE support_workspaces SET owner_id='another-owner'").run();
+    await expect(startAccountTrial(user, 'Changed space', true)).rejects.toMatchObject({ status: 409 });
+    expect(count('account_trials')).toBe(0);
+  });
+});
 async function refused() {
   const before = historySnapshot(),
     orgs = sql.prepare('SELECT * FROM organizations ORDER BY 1').all(),
