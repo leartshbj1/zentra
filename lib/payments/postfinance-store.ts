@@ -421,6 +421,34 @@ export class D1PostFinanceWebhookInbox implements WebhookInbox {
       .run();
     return result.meta.changes === 1;
   }
+  /** Renew only a lease which is still owned and unexpired. A long provider
+   * read can never resurrect an abandoned or reassigned worker. */
+  async renewWork(work: WebhookWork, leaseSeconds = 300) {
+    this.fence(work);
+    if (
+      !Number.isSafeInteger(leaseSeconds) ||
+      leaseSeconds < 5 ||
+      leaseSeconds > 900
+    )
+      throw new Error('Invalid reconciliation lease duration.');
+    const timestamp = time(this.now()),
+      listeners = this.config.listeners.map((listener) => listener.id);
+    const result = await this.db
+      .prepare(`UPDATE postfinance_webhook_inbox SET lease_until=?,updated_at=?
+      WHERE scope_hash=? AND state='processing' AND lease=? AND lease_until>? AND environment_hash=?
+      AND listener_id IN (${listeners.map(() => '?').join(',')})`)
+      .bind(
+        timestamp + leaseSeconds,
+        timestamp,
+        work.scopeHash,
+        work.lease,
+        timestamp,
+        await this.environment,
+        ...listeners,
+      )
+      .run();
+    return result.meta.changes === 1;
+  }
   async failWork(work: WebhookWork, code: WebhookFailure) {
     this.fence(work);
     if (!failureCodes.has(code))

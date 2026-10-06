@@ -1,11 +1,83 @@
 /* Keep secondary actions easy to reach without adding visual noise. */
 body .catalog-header .catalog-essentials a,
-body .support-presentation .sp-product-navigation nav a { min-width: 44px; }
-body :is(.quiet-site .quiet-link, .polished-page .page-text-link, .support-presentation .sp-text-link, .pricing-shared a) {
+body .support-presentation .sp-product-navigation nav a {
+  min-width: 44px;
+}
+body
+  :is(
+    .quiet-site .quiet-link,
+    .polished-page .page-text-link,
+    .support-presentation .sp-text-link,
+    .pricing-shared a
+  ) {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   min-width: 44px;
+}
+
+/* Native horizontal scrolling stays available; these controls make its hidden
+   destinations discoverable even when iOS does not display a scrollbar. */
+body .support-presentation .sp-product-sections {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+body .support-presentation .sp-product-sections nav {
+  order: 0;
+  flex-basis: auto;
+  scroll-padding-inline: 8px;
+  overscroll-behavior-inline: contain;
+}
+body .support-presentation .sp-section-scroll {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--apple-green);
+  background: var(--apple-soft);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+body
+  .support-presentation
+  .sp-product-sections[data-overflow='true']
+  .sp-section-scroll {
+  display: inline-flex;
+}
+body .support-presentation .sp-section-scroll:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+body .support-presentation .sp-section-scroll:not(:disabled):active {
+  background: var(--apple-menu-active);
+}
+body .support-presentation .sp-section-scroll:focus-visible {
+  outline: 2px solid var(--apple-focus);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  body .support-presentation .sp-section-scroll:not(:disabled):hover {
+    background: var(--apple-menu-active);
+  }
+}
+@media (max-width: 1120px) {
+  body .support-presentation .sp-product-sections {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body .support-presentation .sp-product-sections nav {
+    scroll-behavior: auto;
+  }
 }
 
 @media (max-width: 640px) {
@@ -15,26 +87,67 @@ body :is(.quiet-site .quiet-link, .polished-page .page-text-link, .support-prese
     gap: 6px 12px;
     padding: 20px;
   }
-  body .quiet-pricing .pricing-plan > div:first-child { grid-column: 1; }
-  body .quiet-pricing .pricing-plan > div:first-child svg { display: none; }
+  body .quiet-pricing .pricing-plan > div:first-child {
+    grid-column: 1;
+  }
+  body .quiet-pricing .pricing-plan > div:first-child svg {
+    display: none;
+  }
   body .quiet-pricing .pricing-plan > p:first-of-type {
-    grid-column: 2; grid-row: 1 / span 3; align-self: center; margin: 0;
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    margin: 0;
     text-align: right;
   }
-  body .quiet-pricing .pricing-plan > p:first-of-type strong { font-size: 36px; }
-  body .quiet-pricing .pricing-plan > p:first-of-type span { display: block; margin: 0; }
-  body .quiet-pricing .pricing-plan > p:nth-of-type(2) {
-    margin: 0; padding: 0; border: 0; font-size: 16px;
+  body .quiet-pricing .pricing-plan > p:first-of-type strong {
+    font-size: 36px;
   }
-  body .quiet-pricing .pricing-plan > p:nth-of-type(3) { margin: 0; font-size: 14px; }
-  body .quiet-pricing .pricing-plan .plan-choice-action { grid-column: 1 / -1; margin-top: 10px; }
+  body .quiet-pricing .pricing-plan > p:first-of-type span {
+    display: block;
+    margin: 0;
+  }
+  body .quiet-pricing .pricing-plan > p:nth-of-type(2) {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 16px;
+  }
+  body .quiet-pricing .pricing-plan > p:nth-of-type(3) {
+    margin: 0;
+    font-size: 14px;
+  }
+  body .quiet-pricing .pricing-plan .plan-choice-action {
+    grid-column: 1 / -1;
+    margin-top: 10px;
+  }
   body .support-presentation .sp-product-navigation nav {
     scrollbar-width: thin;
     scrollbar-color: var(--apple-green) var(--apple-soft);
     padding-bottom: 8px;
   }
-  body .support-presentation .sp-product-navigation nav::-webkit-scrollbar { height: 4px; }
-  body .support-presentation .sp-product-navigation nav::-webkit-scrollbar-thumb { background: var(--apple-green); border-radius: 4px; }
-  body .support-presentation .sp-product-navigation nav::-webkit-scrollbar-track { background: var(--apple-soft); }
-  body .support-presentation .sp-product-navigation nav a { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+  body .support-presentation .sp-product-navigation nav::-webkit-scrollbar {
+    height: 4px;
+  }
+  body
+    .support-presentation
+    .sp-product-navigation
+    nav::-webkit-scrollbar-thumb {
+    background: var(--apple-green);
+    border-radius: 4px;
+  }
+  body
+    .support-presentation
+    .sp-product-navigation
+    nav::-webkit-scrollbar-track {
+    background: var(--apple-soft);
+  }
+  body .support-presentation .sp-product-navigation nav a {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
 }

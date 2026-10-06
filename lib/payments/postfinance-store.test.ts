@@ -282,6 +282,36 @@ describe('PostFinance durable mutation journal', () => {
 });
 
 describe('PostFinance durable webhook work', () => {
+  it('renews a live lease but cannot resurrect an expired or replaced owner', async () => {
+    await inbox().acceptOnce(scope(), event());
+    const first = (await inbox().claimNext(5))!;
+    clock += 4;
+    expect(await inbox().renewWork(first, 5)).toBe(true);
+    expect(
+      sql.prepare('SELECT lease_until FROM postfinance_webhook_inbox').get()
+        ?.lease_until,
+    ).toBe(clock + 5);
+    clock += 5;
+    expect(await inbox().renewWork(first)).toBe(false);
+    const second = (await inbox().claimNext())!;
+    expect(second.lease).not.toBe(first.lease);
+    expect(await inbox().renewWork(first)).toBe(false);
+    expect(await inbox().renewWork(second)).toBe(true);
+  });
+  it('does not renew a work item through another Space or listener configuration', async () => {
+    await inbox().acceptOnce(scope(), event());
+    const owned = (await inbox().claimNext())!;
+    expect(await inbox({ ...config, spaceId: 406 }).renewWork(owned)).toBe(
+      false,
+    );
+    expect(
+      await inbox({
+        ...config,
+        listeners: [{ id: 3, entityId: 8, technicalName: 'Transaction' }],
+      }).renewWork(owned),
+    ).toBe(false);
+    expect(await inbox().renewWork(owned)).toBe(true);
+  });
   it('deduplicates concurrent deliveries into one persistent queue row', async () => {
     const body = event(),
       key = scope(body);

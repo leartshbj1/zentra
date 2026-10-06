@@ -15,7 +15,7 @@ export async function assertNoPrepaidAccountPurchase(userId: string) {
     UNION ALL SELECT 1 FROM prepaid_contracts c WHERE c.owner_id=? AND c.environment='PRODUCTION'
       AND (c.cancelled_at IS NULL OR EXISTS(SELECT 1 FROM prepaid_periods p JOIN prepaid_settlement_proofs s ON s.period_id=p.period_id
         WHERE p.contract_id=c.contract_id AND p.starts_at<=unixepoch() AND p.ends_at>unixepoch()
-        AND NOT EXISTS(SELECT 1 FROM prepaid_period_revocations r WHERE r.period_id=p.period_id))) LIMIT 1`)
+        AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id))) LIMIT 1`)
     .bind(userId, userId, userId, userId).first();
   if (existing) throw new AccountPublicError(
     'Un abonnement existe déjà. Son changement de moyen de paiement doit être terminé avant d’en ouvrir un autre.', 409);

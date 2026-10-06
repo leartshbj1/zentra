@@ -179,7 +179,7 @@ const SELECT_PAID = `SELECT c.contract_id,c.owner_id,c.organization_id,c.workspa
   LEFT JOIN support_gestion_links l ON l.organization_id=o.organization_id
   LEFT JOIN support_workspaces lw ON lw.id=l.workspace_id
   WHERE c.environment='PRODUCTION' AND p.starts_at<=? AND p.ends_at>?
-  AND NOT EXISTS(SELECT 1 FROM prepaid_period_revocations r WHERE r.period_id=p.period_id)`;
+  AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)`;
 
 async function candidates(
   condition: string,

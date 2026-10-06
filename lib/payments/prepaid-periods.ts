@@ -1,5 +1,6 @@
 import { prepaidMonthlyPeriod } from './prepaid-calendar';
 import { prepaidProduct, type PrepaidProduct } from './prepaid-catalog';
+import type { WebhookWork } from './postfinance-store';
 
 type StoreDatabase = Pick<D1Database, 'prepare'>;
 export type PrepaidEnvironment = 'TEST' | 'PRODUCTION';
@@ -79,8 +80,13 @@ function localId(value: string) {
 function identity(value: string | null) {
   if (
     value !== null &&
-    (typeof value !== 'string' || !value || value.length > 180 ||
-      Array.from(value).some(character => character.charCodeAt(0)<32 || character.charCodeAt(0)===127))
+    (typeof value !== 'string' ||
+      !value ||
+      value.length > 180 ||
+      Array.from(value).some(
+        (character) =>
+          character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+      ))
   )
     invalid();
 }
@@ -233,7 +239,7 @@ export class D1PrepaidPeriods {
       WHERE c.contract_id=? AND c.cancelled_at IS NULL AND (?=0 OR EXISTS(
         SELECT 1 FROM prepaid_periods p JOIN prepaid_settlement_proofs s ON s.period_id=p.period_id
         WHERE p.contract_id=c.contract_id AND p.ordinal=? AND p.ends_at=?
-        AND NOT EXISTS(SELECT 1 FROM prepaid_period_revocations r WHERE r.period_id=p.period_id)))
+        AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)))
       ON CONFLICT(contract_id,ordinal) DO NOTHING`)
       .bind(
         id,
@@ -278,32 +284,46 @@ export class D1PrepaidPeriods {
     if (!row || row.transaction_id !== transactionId)
       throw new PrepaidPeriodError('conflict');
   }
-  /** A persistence sink, not a settlement verifier. The future reconciler must
+  /** A persistence sink, not a settlement verifier. The private reconciler must
    * freshly verify the provider transaction/invoice, owner, environment, amount,
-   * references and refunds before calling this method. No public route calls it.
+   * references and refunds before calling this method with its current work lease.
+   * No customer purchase route calls this sink.
    */
-  async recordReconciledSettlement(input: {
-    periodId: string;
-    transactionId: number;
-    invoiceId: number;
-    apiOrigin: string;
-    spaceId: number;
-    environment: PrepaidEnvironment;
-    ownerId: string;
-    organizationId: string | null;
-    workspaceId: string | null;
-    startsAt: number;
-    endsAt: number;
-    currency: 'CHF';
-    priceChfMinor: number;
-    catalogVersion: string;
-    evidenceFingerprint: string;
-  }) {
+  async recordReconciledSettlement(
+    input: {
+      periodId: string;
+      transactionId: number;
+      invoiceId: number;
+      apiOrigin: string;
+      spaceId: number;
+      environment: PrepaidEnvironment;
+      ownerId: string;
+      organizationId: string | null;
+      workspaceId: string | null;
+      startsAt: number;
+      endsAt: number;
+      currency: 'CHF';
+      priceChfMinor: number;
+      catalogVersion: string;
+      evidenceFingerprint: string;
+    },
+    work?: WebhookWork,
+  ) {
     positiveId(input.transactionId);
     positiveId(input.invoiceId);
     positiveId(input.spaceId);
     evidence(input.evidenceFingerprint);
     const now = clockValue(this.clock());
+    if (
+      work &&
+      (work.event.spaceId !== input.spaceId ||
+        !/^[0-9a-f-]{36}$/.test(work.lease) ||
+        work.scopeHash !==
+          (await digest(
+            `${input.apiOrigin}|${input.spaceId}|${work.event.webhookListenerId}|${work.event.eventId}`,
+          )))
+    )
+      throw new PrepaidPeriodError('conflict');
     await this.db
       .prepare(`INSERT INTO prepaid_settlement_proofs(period_id,invoice_id,evidence_fingerprint,reconciled_at)
       SELECT p.period_id,?,?,? FROM prepaid_periods p
@@ -311,6 +331,9 @@ export class D1PrepaidPeriods {
       WHERE p.period_id=? AND t.transaction_id=? AND t.api_origin=? AND t.space_id=? AND c.environment=?
       AND c.owner_id=? AND c.organization_id IS ? AND c.workspace_id IS ?
       AND p.starts_at=? AND p.ends_at=? AND p.currency=? AND p.price_chf_minor=? AND p.catalog_version=?
+      AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)
+      AND (? IS NULL OR EXISTS(SELECT 1 FROM postfinance_webhook_inbox w WHERE w.scope_hash=?
+        AND w.state='processing' AND w.lease=? AND w.lease_until>?))
       ON CONFLICT(period_id) DO NOTHING`)
       .bind(
         input.invoiceId,
@@ -329,6 +352,10 @@ export class D1PrepaidPeriods {
         input.currency,
         input.priceChfMinor,
         input.catalogVersion,
+        work?.scopeHash ?? null,
+        work?.scopeHash ?? null,
+        work?.lease ?? null,
+        now,
       )
       .run();
     const stored = await this.db
@@ -358,6 +385,15 @@ export class D1PrepaidPeriods {
       !stored ||
       stored.invoice_id !== input.invoiceId ||
       stored.evidence_fingerprint !== input.evidenceFingerprint
+    )
+      throw new PrepaidPeriodError('conflict');
+    if (
+      work &&
+      !(await this.db
+        .prepare(`SELECT 1 FROM postfinance_webhook_inbox
+      WHERE scope_hash=? AND state='processing' AND lease=? AND lease_until>?`)
+        .bind(work.scopeHash, work.lease, clockValue(this.clock()))
+        .first())
     )
       throw new PrepaidPeriodError('conflict');
   }
@@ -406,7 +442,7 @@ export class D1PrepaidPeriods {
       .prepare(`SELECT p.* FROM prepaid_periods p JOIN prepaid_contracts c ON c.contract_id=p.contract_id
       JOIN prepaid_settlement_proofs s ON s.period_id=p.period_id WHERE c.contract_id=? AND c.owner_id=?
       AND c.organization_id IS ? AND c.workspace_id IS ? AND c.environment=? AND p.starts_at<=? AND p.ends_at>?
-      AND NOT EXISTS(SELECT 1 FROM prepaid_period_revocations r WHERE r.period_id=p.period_id)
+      AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)
       ORDER BY p.ordinal DESC LIMIT 1`)
       .bind(
         input.contractId,

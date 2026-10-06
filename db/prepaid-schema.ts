@@ -106,7 +106,8 @@ export const prepaidTransactions = sqliteTable(
   ],
 );
 
-// No route currently writes these proofs. Only a verified provider read may do so.
+// Only the private reconciliation worker may persist freshly verified provider facts.
+// This is not an authenticated purchase or a substitute for staged merchant validation.
 export const prepaidSettlementProofs = sqliteTable(
   'prepaid_settlement_proofs',
   {
@@ -135,4 +136,45 @@ export const prepaidPeriodRevocations = sqliteTable(
     evidenceFingerprint: text('evidence_fingerprint').notNull(),
     revokedAt: integer('revoked_at').notNull(),
   },
+);
+
+// Frozen before dispatch: a later merchant configuration must not reinterpret
+// the payer or payment method of an already-created transaction.
+export const prepaidPaymentExpectations = sqliteTable(
+  'prepaid_payment_expectations',
+  {
+    periodId: text('period_id')
+      .primaryKey()
+      .references(() => prepaidPeriods.periodId),
+    customerReference: text('customer_reference').notNull(),
+    planReference: text('plan_reference').notNull(),
+    paymentMethodConfigurationId: integer(
+      'payment_method_configuration_id',
+    ).notNull(),
+    connectorConfigurationId: integer('connector_configuration_id').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    check(
+      'prepaid_payment_expectation_ids_check',
+      sql`${table.paymentMethodConfigurationId}>0 AND ${table.connectorConfigurationId}>0 AND ${table.createdAt}>0`,
+    ),
+  ],
+);
+
+// A verified reversal may arrive before any positive settlement proof. Keep
+// its tombstone against the bound transaction, without inventing a paid fact.
+export const prepaidProviderReversals = sqliteTable(
+  'prepaid_provider_reversals',
+  {
+    periodId: text('period_id')
+      .primaryKey()
+      .references(() => prepaidTransactions.periodId),
+    evidenceFingerprint: text('evidence_fingerprint').notNull(),
+    reversedAt: integer('reversed_at').notNull(),
+  },
+  (table) => [
+    check('prepaid_provider_reversal_time_check', sql`${table.reversedAt}>0`),
+  ],
 );

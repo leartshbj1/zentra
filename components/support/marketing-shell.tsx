@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { SiteFooter } from '@/components/site-footer';
 import { SupportMarketingHeader } from './marketing-header';
+import { SupportNavigationLinks } from './product-navigation';
+import { currentSiteLanguage, siteText } from '@/lib/site-language-server';
 import '@/app/support/presentation.css';
 import '@/app/support/support.css';
 
@@ -13,23 +15,56 @@ const supportPages = [
   ['/support/tarifs', 'Tarifs'],
 ] as const;
 
-export function SupportProductNavigation({ current = '/support' }: { current?: string }) {
+export function SupportProductNavigation({
+  current = '/support',
+}: {
+  current?: string;
+}) {
+  const controls = {
+    fr: {
+      previous: 'Afficher les rubriques précédentes',
+      next: 'Afficher les rubriques suivantes',
+    },
+    de: {
+      previous: 'Vorherige Bereiche anzeigen',
+      next: 'Weitere Bereiche anzeigen',
+    },
+    it: {
+      previous: 'Mostra le sezioni precedenti',
+      next: 'Mostra le sezioni successive',
+    },
+    en: { previous: 'Show previous sections', next: 'Show more sections' },
+  }[currentSiteLanguage()];
   return (
     <div className="sp-product-navigation">
       <div className="sp-wrap">
-        <a className="sp-product-name" href="/support">Zentra Support</a>
-        <nav aria-label="Découvrir Zentra Support">
-          {supportPages.map(([href, label]) => (
-            <a key={href} href={href} aria-current={current === href ? 'page' : undefined}>{label}</a>
-          ))}
-        </nav>
-        <a className="sp-product-demo" href="/support/demo">Essayer la démo</a>
+        <a className="sp-product-name" href="/support">
+          Zentra Support
+        </a>
+        <SupportNavigationLinks
+          current={current}
+          controls={controls}
+          label={siteText('Découvrir Zentra Support')}
+          links={supportPages.map(([href, label]) => ({
+            href,
+            label: siteText(label),
+          }))}
+        />
+        <a className="sp-product-demo" href="/support/demo">
+          Essayer la démo
+        </a>
       </div>
     </div>
   );
 }
 
-export function SupportMarketingShell({ children, current = '/support' }: { children: ReactNode; current?: string }) {
+export function SupportMarketingShell({
+  children,
+  current = '/support',
+}: {
+  children: ReactNode;
+  current?: string;
+}) {
   return (
     <div className="support-presentation">
       <a href="#support-content" className="site-skip-link">
@@ -79,7 +114,8 @@ export function SupportCallToAction() {
         </a>
       </div>
       <p className="sp-caption">
-        Support dès 29 CHF/mois. Tri automatique avec Automation et Gestion reliés.
+        Support dès 29 CHF/mois. Tri automatique avec Automation et Gestion
+        reliés.
       </p>
     </section>
   );

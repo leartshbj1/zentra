@@ -345,7 +345,7 @@ export async function reserveAnalysis(
     JOIN support_workspaces w ON w.id=? AND w.owner_id=c.owner_id
     WHERE p.period_id=? AND c.contract_id=? AND c.environment='PRODUCTION'
     AND p.starts_at<=unixepoch() AND p.ends_at>unixepoch()
-    AND NOT EXISTS(SELECT 1 FROM prepaid_period_revocations r WHERE r.period_id=p.period_id)
+    AND NOT EXISTS(SELECT 1 FROM prepaid_effective_revocations r WHERE r.period_id=p.period_id)
     AND ((json_extract(p.catalog_json,'$.productKind')='support' AND c.workspace_id=w.id)
       OR (json_extract(p.catalog_json,'$.productKind')='complete' AND EXISTS(
         SELECT 1 FROM prepaid_current_company_rights rights JOIN support_gestion_links l ON l.organization_id=rights.organization_id
