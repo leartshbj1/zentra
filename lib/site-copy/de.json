@@ -4123,5 +4123,20 @@
   "Simuler l’envoi": "Versand simulieren",
   "Ouverte aux clients.": "Für Kunden geöffnet.",
   "Enregistrer la configuration": "Konfiguration speichern",
-  "Retrait impossible.": "Entfernen nicht möglich."
+  "Retrait impossible.": "Entfernen nicht möglich.",
+  "Les logiciels pour votre PME suisse.": "Software für Ihr Schweizer KMU.",
+  "Voir les formules Complet": "Complet-Abos ansehen",
+  "Ouverture du paiement…": "Zahlung wird geöffnet…",
+  "La page de paiement n’a pas pu être ouverte.": "Die Zahlungsseite konnte nicht geöffnet werden.",
+  "Le paiement n’a pas pu démarrer.": "Die Zahlung konnte nicht gestartet werden.",
+  "Tarifs": "Preise",
+  "Visite de l’app": "App-Rundgang",
+  "Connexions": "Verbindungen",
+  "Configurer": "Einrichten",
+  "Fonctions": "Funktionen",
+  "Inclus": "Inbegriffen",
+  "Cas d’usage": "Anwendungsfälle",
+  "Vérifier les moyens de paiement": "Zahlungsarten prüfen",
+  "TWINT est autorisé pour les trois formules. Aucun paiement n’a été effectué.": "TWINT ist für alle drei Abos zugelassen. Es wurde keine Zahlung vorgenommen.",
+  "Les pages de paiement sont valides. TWINT n’est pas confirmé : vérifiez son activation dans Stripe.": "Die Zahlungsseiten sind gültig. TWINT ist nicht bestätigt: Prüfen Sie die Aktivierung in Stripe."
 }

@@ -178,3 +178,4 @@ it('does not take over a pending checkout being prepared by another owner', asyn
   await expect(checkout()).rejects.toThrow('préparation');
   expect(mocks.create).not.toHaveBeenCalled();
 });
+vi.mock('@/lib/site-language-server', () => ({ currentSiteLanguage: () => 'fr' }));

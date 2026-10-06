@@ -4123,5 +4123,20 @@
   "Simuler l’envoi",
   "Ouverte aux clients.",
   "Enregistrer la configuration",
-  "Retrait impossible."
+  "Retrait impossible.",
+  "Les logiciels pour votre PME suisse.",
+  "Voir les formules Complet",
+  "Ouverture du paiement…",
+  "La page de paiement n’a pas pu être ouverte.",
+  "Le paiement n’a pas pu démarrer.",
+  "Tarifs",
+  "Visite de l’app",
+  "Connexions",
+  "Configurer",
+  "Fonctions",
+  "Inclus",
+  "Cas d’usage",
+  "Vérifier les moyens de paiement",
+  "TWINT est autorisé pour les trois formules. Aucun paiement n’a été effectué.",
+  "Les pages de paiement sont valides. TWINT n’est pas confirmé : vérifiez son activation dans Stripe."
 ]

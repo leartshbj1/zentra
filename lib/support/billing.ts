@@ -547,13 +547,12 @@ export async function verifySupportBilling() {
   if (!config)
     throw new SupportError('Configurez d’abord les formules Stripe.', 503);
   const stripe = client(),
-    results: { plan: string; amount: number; expired: boolean }[] = [];
+    results: { plan: string; amount: number; expired: boolean; paymentMethodTypes: string[]; twintEligible: boolean }[] = [];
   for (const plan of SUPPORT_PLANS) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       locale: currentSiteLanguage(),
       billing_address_collection: 'required',
-      payment_method_types: ['card'],
       automatic_tax: { enabled: false },
       allow_promotion_codes: false,
       line_items: [{ price: config.prices[plan.id], quantity: 1 }],
@@ -598,12 +597,15 @@ export async function verifySupportBilling() {
         503,
       );
     if (validationError) throw validationError;
-    results.push({ plan: plan.id, amount: plan.priceChfCents, expired: true });
+    const paymentMethodTypes = [...(session.payment_method_types ?? [])];
+    results.push({ plan: plan.id, amount: plan.priceChfCents, expired: true,
+      paymentMethodTypes, twintEligible: paymentMethodTypes.includes('twint') });
   }
   return {
     verified: true,
     livemode: config.livemode,
     checkouts: results,
+    twintEligible: results.every(result => result.twintEligible),
     paymentTaken: false,
   };
 }
@@ -875,7 +877,6 @@ export async function createSupportCheckout(
       client_reference_id: workspace.id,
       customer_email: user.email,
       billing_address_collection: 'required',
-      payment_method_types: ['card'],
       automatic_tax: { enabled: false },
       allow_promotion_codes: false,
       line_items: [{ price: config.prices[plan.id], quantity: 1 }],

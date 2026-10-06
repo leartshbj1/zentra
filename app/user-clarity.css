@@ -1,0 +1,40 @@
+/* Keep secondary actions easy to reach without adding visual noise. */
+body .catalog-header .catalog-essentials a,
+body .support-presentation .sp-product-navigation nav a { min-width: 44px; }
+body :is(.quiet-site .quiet-link, .polished-page .page-text-link, .support-presentation .sp-text-link, .pricing-shared a) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@media (max-width: 640px) {
+  body .quiet-pricing .pricing-plan {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px 12px;
+    padding: 20px;
+  }
+  body .quiet-pricing .pricing-plan > div:first-child { grid-column: 1; }
+  body .quiet-pricing .pricing-plan > div:first-child svg { display: none; }
+  body .quiet-pricing .pricing-plan > p:first-of-type {
+    grid-column: 2; grid-row: 1 / span 3; align-self: center; margin: 0;
+    text-align: right;
+  }
+  body .quiet-pricing .pricing-plan > p:first-of-type strong { font-size: 36px; }
+  body .quiet-pricing .pricing-plan > p:first-of-type span { display: block; margin: 0; }
+  body .quiet-pricing .pricing-plan > p:nth-of-type(2) {
+    margin: 0; padding: 0; border: 0; font-size: 16px;
+  }
+  body .quiet-pricing .pricing-plan > p:nth-of-type(3) { margin: 0; font-size: 14px; }
+  body .quiet-pricing .pricing-plan .plan-choice-action { grid-column: 1 / -1; margin-top: 10px; }
+  body .support-presentation .sp-product-navigation nav {
+    scrollbar-width: thin;
+    scrollbar-color: var(--apple-green) var(--apple-soft);
+    padding-bottom: 8px;
+  }
+  body .support-presentation .sp-product-navigation nav::-webkit-scrollbar { height: 4px; }
+  body .support-presentation .sp-product-navigation nav::-webkit-scrollbar-thumb { background: var(--apple-green); border-radius: 4px; }
+  body .support-presentation .sp-product-navigation nav::-webkit-scrollbar-track { background: var(--apple-soft); }
+  body .support-presentation .sp-product-navigation nav a { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+}

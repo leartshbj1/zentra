@@ -312,6 +312,16 @@ export function SupportAdministration() {
                     ? 'Vérifier les formules Stripe'
                     : 'Configurer les trois formules Stripe'}
               </Button>
+              {status.billing?.ready && <Button variant="outline" disabled={busy || checking} onClick={async () => {
+                setChecking(true); setError(''); setMessage('');
+                try {
+                  const response = await fetch('/api/support', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'verifyBilling' }) });
+                  const result = await response.json() as { error?: string; twintEligible?: boolean; verified?: boolean; paymentTaken?: boolean };
+                  if (!response.ok || result.verified !== true || result.paymentTaken !== false) throw new Error(result.error || 'La page de paiement n’a pas pu être ouverte.');
+                  setMessage(result.twintEligible === true ? 'TWINT est autorisé pour les trois formules. Aucun paiement n’a été effectué.' : 'Les pages de paiement sont valides. TWINT n’est pas confirmé : vérifiez son activation dans Stripe.');
+                } catch (reason) { setError(reason instanceof Error ? reason.message : 'Le paiement n’a pas pu démarrer.'); }
+                finally { setChecking(false); }
+              }}>{checking ? 'Vérification…' : 'Vérifier les moyens de paiement'}</Button>}
             </section>
             <section className="support-admin-validation">
               <h2>Vérifier la qualité du tri</h2>

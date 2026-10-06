@@ -24,7 +24,7 @@ export default async function SupportPresentation({ searchParams }: {
             <h1>Chaque demande.<br /><em>À sa place.</em></h1>
             <p className="sp-lead">Vos messages et tickets rassemblés dans un espace clair, pour toute votre équipe.</p>
             <div className="sp-actions">
-              <a className="sp-button sp-button-dark" href="/support/demo">Explorer la démo</a>
+              <a className="sp-button sp-button-dark" href="#fonctionnement">Découvrir Support</a>
               <a className="sp-text-link" href="/support/connexions">Voir les connexions</a>
             </div>
             <p className="sp-caption">Support dès 29 CHF / mois. <a href="/support/tarifs">Voir les formules</a></p>

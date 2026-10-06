@@ -91,3 +91,4 @@ describe('Complete checkout HTTP boundary', () => {
     expect(mocks.checkout).not.toHaveBeenCalled();
   });
 });
+vi.mock('@/lib/site-language-server', () => ({ currentSiteLanguage: () => 'fr' }));

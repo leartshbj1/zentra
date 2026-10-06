@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   invoice: null as unknown,
   session: null as unknown,
   price: null as unknown,
+  matchPreviewPrices: false,
   calls: [] as { body: { line_items?: unknown }; options: unknown }[],
 }));
 vi.mock('@/lib/runtime', () => ({
@@ -37,6 +38,11 @@ vi.mock('stripe', () => ({
         retrieve: async () => state.session,
         create: async (body: unknown, options: unknown) => {
           state.calls.push({ body: body as { line_items?: unknown }, options });
+          if (state.matchPreviewPrices) {
+            const price = (body as Stripe.Checkout.SessionCreateParams).line_items?.[0].price as string;
+            const amounts: Record<string, number> = { price_starter: 2900, price_team: 4900, price_business: 9900 };
+            return { ...(state.session as object), amount_total: amounts[price], currency: 'chf', mode: 'subscription' };
+          }
           return state.session;
         },
         expire: async () => {
@@ -190,6 +196,7 @@ beforeEach(async () => {
     PUBLIC_SITE_URL: 'https://zentraapp.ch',
   };
   state.calls = [];
+  state.matchPreviewPrices = false;
   config.keyBinding = await digest(state.env.STRIPE_SECRET_KEY);
   sql
     .prepare(
@@ -412,6 +419,8 @@ it('conserve un seul checkout et une preuve durable de consentement', async () =
   expect(state.calls[0].body.line_items).toEqual([
     { price: 'price_starter', quantity: 1 },
   ]);
+  expect(state.calls[0].body).not.toHaveProperty('payment_method_types');
+  expect(state.calls[0].body).toHaveProperty('mode', 'subscription');
   expect(
     sql.prepare('SELECT * FROM support_checkout_acceptances').all(),
   ).toHaveLength(1);
@@ -489,3 +498,23 @@ it('ferme le checkout de contrôle même quand sa validation échoue', async () 
   expect((state.session as Stripe.Checkout.Session).status).toBe('expired');
   expect((await billingState(workspace)).active).toBe(false);
 });
+it.each([
+  { methods: ['card', 'twint'], eligible: true },
+  { methods: ['card'], eligible: false },
+  { methods: undefined, eligible: false },
+])('rapporte TWINT uniquement quand Checkout le confirme : $eligible', async ({ methods, eligible }) => {
+  state.matchPreviewPrices = true;
+  Object.assign(state.session as object, { payment_method_types: methods });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 200 })));
+  try {
+    const result = await verifySupportBilling();
+    expect(result.twintEligible).toBe(eligible);
+    expect(result.paymentTaken).toBe(false);
+    expect(result.checkouts).toHaveLength(3);
+    expect(result.checkouts.every(row => row.expired)).toBe(true);
+    expect(result.checkouts.every(row => row.twintEligible === eligible)).toBe(true);
+    expect(result.checkouts[0].paymentMethodTypes).toEqual(methods ?? []);
+    expect((await billingState(workspace)).active).toBe(false);
+  } finally { vi.unstubAllGlobals(); }
+});
+vi.mock('@/lib/site-language-server', () => ({ currentSiteLanguage: () => 'fr' }));

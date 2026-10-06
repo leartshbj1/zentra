@@ -22,6 +22,7 @@ import './apple-pages.css';
 import './apple-account.css';
 import './support/apple-support.css';
 import './site-language.css';
+import './user-clarity.css';
 import { SiteLanguagePicker } from '@/components/site-language-picker';
 
 const geistSans = Geist({

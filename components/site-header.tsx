@@ -287,7 +287,7 @@ export function SiteHeader() {
               Questions fréquentes
             </a>
             <a href="/complet#formules" onClick={() => setExploreOpen(false)}>
-              Comparer les offres
+              Voir les formules Complet
             </a>
             <a href="/download" onClick={() => setExploreOpen(false)}>
               Télécharger l’application

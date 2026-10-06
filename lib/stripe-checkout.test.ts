@@ -24,6 +24,14 @@ describe('Zentra hosted Checkout contract', () => {
     expect(params).not.toHaveProperty('submit_type');
   });
 
+  it('lets hosted Checkout offer enabled recurring methods, including TWINT', () => {
+    // Stripe filters the merchant-enabled methods for the CHF recurring price.
+    // Restricting this to card would silently exclude the TWINT mandate flow.
+    expect(params).not.toHaveProperty('payment_method_types');
+    expect(params.mode).toBe('subscription');
+    expect(params.subscription_data?.metadata?.account_user_id).toBe('user_123');
+  });
+
   it('enables the identity and Stripe Tax inputs required for invoices', () => {
     expect(params).toMatchObject({
       billing_address_collection: 'required',

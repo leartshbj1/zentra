@@ -106,14 +106,14 @@ export function PurchaseButton({
       const body = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || !body.url)
         throw new Error(
-          body.error || 'Stripe n’a pas retourné de page de paiement.',
+          body.error || 'La page de paiement n’a pas pu être ouverte.',
         );
       window.location.assign(body.url);
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : 'Le paiement Stripe n’a pas pu démarrer.',
+          : 'Le paiement n’a pas pu démarrer.',
       );
       setBusy(false);
     }
@@ -121,9 +121,9 @@ export function PurchaseButton({
 
   const unavailable = ready === false;
   const label = busy
-    ? 'Ouverture de Stripe…'
+    ? 'Ouverture du paiement…'
     : ready === null
-      ? 'Vérification de Stripe…'
+      ? 'Vérification du paiement…'
       : loginRequired
         ? compact ? `Choisir ${plan.name}` : 'Se connecter pour s’abonner'
         : unavailable

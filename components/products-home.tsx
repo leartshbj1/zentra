@@ -56,7 +56,7 @@ export function ProductsHome() {
               <span>L’esprit libre.</span>
             </>
           }
-          description="Gérez. Répondez. Avancez."
+          description="Les logiciels pour votre PME suisse."
           href="#produits"
           action="Découvrir les produits"
         >

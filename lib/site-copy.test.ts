@@ -28,4 +28,9 @@ describe('complete reviewed website catalogues',()=>{
   }
   expect(de.Nom).toBe('Nachname');expect(en.Nom).toBe('Last name');expect(itCopy.Nom).toBe('Cognome');
  });
+ it('translates navigation labels declared in route tuples', () => {
+  for (const dictionary of [de, itCopy, en]) for (const label of ['Tarifs', 'Visite de l’app', 'Connexions', 'Configurer', 'Fonctions', 'Inclus', 'Cas d’usage']) {
+    expect(translateSiteCopy(label, 'en', dictionary), label).not.toBe(label);
+  }
+ });
 });
