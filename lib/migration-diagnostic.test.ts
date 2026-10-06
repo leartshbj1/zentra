@@ -285,6 +285,119 @@ describe('temporary private migration diagnostic', () => {
     expect(data.journals[1].metadataUnavailable).toBe(false);
   });
 
+  it('observed Appgarden journal permits only five latest ORM basenames or drizzle-prefixed names', async () => {
+    sql.exec(
+      'CREATE TABLE "__appgarden_migrations"(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE,applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)',
+    );
+    for (let n = 75; n <= 81; n++)
+      sql
+        .prepare(
+          'INSERT INTO __appgarden_migrations(name,applied_at) VALUES(?,?)',
+        )
+        .run(
+          n % 2 === 0
+            ? `drizzle/00${n}_migration_fixture.sql`
+            : `00${n}_migration_fixture`,
+          '2026-10-06 15:00:00',
+        );
+    const data = await body(
+      await runMigrationDiagnostic(request(), settings()),
+    );
+    expect(data.journals[2].metadataUnavailable).toBe(false);
+    expect(data.journals[2].rows).toHaveLength(5);
+    expect(data.journals[2].rows?.map((row) => row.id)).toEqual([
+      7, 6, 5, 4, 3,
+    ]);
+    expect(data.journals[2].rows?.[0].name).toBe('0081_migration_fixture');
+    expect(data.journals[2].rows?.[1].name).toBe(
+      'drizzle/0080_migration_fixture.sql',
+    );
+    expect(data.metadataUnavailable).toBe(false);
+    expect(queries).toEqual([
+      MIGRATION_DIAGNOSTIC_QUERIES.objects,
+      MIGRATION_DIAGNOSTIC_QUERIES.migrationTables,
+      MIGRATION_DIAGNOSTIC_QUERIES.appgardenColumns,
+      MIGRATION_DIAGNOSTIC_QUERIES.appgardenRows,
+    ]);
+  });
+
+  it('Appgarden unknown columns or types prevent a row query', async () => {
+    for (const definition of [
+      'id INTEGER,name TEXT,applied_at TIMESTAMP,extra TEXT',
+      'id INTEGER,name TEXT,applied_at TEXT',
+      'id TEXT,name TEXT,applied_at TIMESTAMP',
+    ]) {
+      sql.exec(`CREATE TABLE __appgarden_migrations(${definition})`);
+      queries.length = 0;
+      const data = await body(
+        await runMigrationDiagnostic(request(), settings()),
+      );
+      expect(data.journals[2].metadataUnavailable).toBe(true);
+      expect(queries).not.toContain(MIGRATION_DIAGNOSTIC_QUERIES.appgardenRows);
+      sql.exec('DROP TABLE __appgarden_migrations');
+    }
+  });
+
+  it('Appgarden names stay bounded and reject other paths, traversal and free-form text', async () => {
+    sql.exec(
+      'CREATE TABLE __appgarden_migrations(id INTEGER,name TEXT,applied_at TIMESTAMP)',
+    );
+    for (const name of [
+      '../0081_migration.sql',
+      'drizzle/../0081_migration.sql',
+      'other/0081_migration.sql',
+      'drizzle/nested/0081_migration.sql',
+      'drizzle/0081_Migration.sql',
+      'drizzle/0081_migration.sql secret@example.test',
+      'drizzle/0081_migration.json',
+      'drizzle/0081_' + 'a'.repeat(120) + '.sql',
+    ]) {
+      sql.prepare('DELETE FROM __appgarden_migrations').run();
+      sql
+        .prepare('INSERT INTO __appgarden_migrations VALUES(?,?,?)')
+        .run(82, name, '2026-10-06 15:00:00');
+      const data = await body(
+        await runMigrationDiagnostic(request(), settings()),
+      );
+      expect(data.journals[2].metadataUnavailable).toBe(true);
+      expect(data.journals[2].rows).toBeUndefined();
+      expect(JSON.stringify(data)).not.toContain(name);
+    }
+  });
+
+  it('Appgarden invalid ids and timestamps are withheld even when the name is valid', async () => {
+    sql.exec(
+      'CREATE TABLE __appgarden_migrations(id INTEGER,name TEXT,applied_at TIMESTAMP)',
+    );
+    for (const [id, appliedAt] of [
+      [-1, '2026-10-06 15:00:00'],
+      [82, 'private-password'],
+      [82, '2026-10-06 15:00:00 customer@example.test'],
+    ] as const) {
+      sql.prepare('DELETE FROM __appgarden_migrations').run();
+      sql
+        .prepare('INSERT INTO __appgarden_migrations VALUES(?,?,?)')
+        .run(id, 'drizzle/0081_migration_fixture.sql', appliedAt);
+      const data = await body(
+        await runMigrationDiagnostic(request(), settings()),
+      );
+      expect(data.journals[2].metadataUnavailable).toBe(true);
+      expect(data.journals[2].rows).toBeUndefined();
+    }
+  });
+
+  it('observed Appgarden schema with no rows reports an empty known watermark', async () => {
+    sql.exec(
+      'CREATE TABLE "__appgarden_migrations"(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE,applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)',
+    );
+    const data = await body(
+      await runMigrationDiagnostic(request(), settings()),
+    );
+    expect(data.journals[2].metadataUnavailable).toBe(false);
+    expect(data.journals[2].rows).toEqual([]);
+    expect(data.metadataUnavailable).toBe(false);
+  });
+
   it('an unexpected column prevents watermark reads rather than falling back to guessed SQL', async () => {
     sql.exec(
       'CREATE TABLE __drizzle_migrations(id INTEGER,hash TEXT,created_at INTEGER,customer_email TEXT)',

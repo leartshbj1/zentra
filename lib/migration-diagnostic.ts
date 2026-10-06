@@ -22,10 +22,14 @@ export const MIGRATION_DIAGNOSTIC_QUERIES = Object.freeze({
     "SELECT name,type FROM pragma_table_info('__drizzle_migrations') ORDER BY cid LIMIT 16",
   d1Columns:
     "SELECT name,type FROM pragma_table_info('d1_migrations') ORDER BY cid LIMIT 16",
+  appgardenColumns:
+    "SELECT name,type FROM pragma_table_info('__appgarden_migrations') ORDER BY cid LIMIT 16",
   drizzleRows:
     'SELECT hash,created_at FROM __drizzle_migrations ORDER BY created_at DESC,hash DESC LIMIT 5',
   d1Rows:
     'SELECT id,name,applied_at FROM d1_migrations ORDER BY id DESC LIMIT 5',
+  appgardenRows:
+    'SELECT id,name,applied_at FROM __appgarden_migrations ORDER BY id DESC LIMIT 5',
 });
 
 type ReadDatabase = Pick<D1Database, 'prepare'>;
@@ -102,7 +106,7 @@ function schemaRows(items: Row[], objects: boolean) {
   });
 }
 
-function knownColumns(items: Row[], kind: 'drizzle' | 'd1') {
+function knownColumns(items: Row[], kind: 'drizzle' | 'd1' | 'appgarden') {
   const fields =
     kind === 'drizzle'
       ? {
@@ -113,7 +117,10 @@ function knownColumns(items: Row[], kind: 'drizzle' | 'd1') {
       : {
           id: ['INTEGER'],
           name: ['TEXT'],
-          applied_at: ['TIMESTAMP', 'TEXT', 'DATETIME'],
+          applied_at:
+            kind === 'appgarden'
+              ? ['TIMESTAMP']
+              : ['TIMESTAMP', 'TEXT', 'DATETIME'],
         };
   if (items.length !== 3) return false;
   const seen = new Set<string>();
@@ -139,15 +146,22 @@ function safeInteger(value: unknown): value is number {
 async function journal(
   db: ReadDatabase,
   present: boolean,
-  name: '__drizzle_migrations' | 'd1_migrations',
+  name: '__drizzle_migrations' | 'd1_migrations' | '__appgarden_migrations',
 ) {
-  const kind = name === '__drizzle_migrations' ? 'drizzle' : 'd1';
+  const kind =
+    name === '__drizzle_migrations'
+      ? 'drizzle'
+      : name === 'd1_migrations'
+        ? 'd1'
+        : 'appgarden';
   if (!present) return { name, present: false, metadataUnavailable: true };
   const columns = await rows(
     db,
     kind === 'drizzle'
       ? MIGRATION_DIAGNOSTIC_QUERIES.drizzleColumns
-      : MIGRATION_DIAGNOSTIC_QUERIES.d1Columns,
+      : kind === 'd1'
+        ? MIGRATION_DIAGNOSTIC_QUERIES.d1Columns
+        : MIGRATION_DIAGNOSTIC_QUERIES.appgardenColumns,
     16,
   );
   if (!knownColumns(columns, kind))
@@ -156,7 +170,9 @@ async function journal(
     db,
     kind === 'drizzle'
       ? MIGRATION_DIAGNOSTIC_QUERIES.drizzleRows
-      : MIGRATION_DIAGNOSTIC_QUERIES.d1Rows,
+      : kind === 'd1'
+        ? MIGRATION_DIAGNOSTIC_QUERIES.d1Rows
+        : MIGRATION_DIAGNOSTIC_QUERIES.appgardenRows,
     5,
   );
   const valid = watermark.every((item) =>
@@ -167,7 +183,9 @@ async function journal(
       : safeInteger(item.id) &&
         typeof item.name === 'string' &&
         item.name.length <= 128 &&
-        /^[0-9]{4}_[a-z0-9_]+(?:\.sql)?$/.test(item.name) &&
+        (kind === 'appgarden'
+          ? /^(?:drizzle\/)?[0-9]{4}_[a-z0-9_]+(?:\.sql)?$/.test(item.name)
+          : /^[0-9]{4}_[a-z0-9_]+(?:\.sql)?$/.test(item.name)) &&
         typeof item.applied_at === 'string' &&
         /^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})?$/.test(
           item.applied_at,
@@ -233,6 +251,11 @@ export async function runMigrationDiagnostic(
         db,
         discovered.some((item) => item.name === 'd1_migrations'),
         'd1_migrations',
+      ),
+      journal(
+        db,
+        discovered.some((item) => item.name === '__appgarden_migrations'),
+        '__appgarden_migrations',
       ),
     ]);
     return Response.json(
