@@ -11,6 +11,17 @@ export interface MonthlyProduct {
   componentConfigurations?: { productComponentReferenceId: number; quantity: number }[];
 }
 
+/** Zentra-owned prepaid catalogue. No native PostFinance SubscriptionProduct
+ * is necessary when Zentra schedules charges for already-defined periods. */
+export interface PrepaidMonthlyProduct {
+  currency: "CHF";
+  billingPeriod: "P1M";
+  priceChfMinor: number;
+  reference: string;
+  name: string;
+  methodConfigurations: Partial<Record<SwissMethod, number>>;
+}
+
 export interface CheckoutConfiguration {
   enabled: boolean;
   apiOrigin?: "https://checkout.postfinance.ch" | "https://app-wallee.com";
@@ -24,6 +35,9 @@ export interface CheckoutConfiguration {
   postfinancePayTokenEnabled?: boolean;
   twintUserOnFileEnabled?: boolean;
   products?: Record<string, MonthlyProduct>;
+  prepaidFeatureEnabled?: boolean;
+  prepaidEnvironment?: "PRODUCTION" | "TEST";
+  prepaidProducts?: Record<string, PrepaidMonthlyProduct>;
 }
 
 export type Claim = { kind: "claimed" } | { kind: "completed"; json: string }
@@ -101,8 +115,39 @@ function canonical(value: unknown): string {
 }
 
 async function fingerprint(body: unknown): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(canonical(body)));
+  // Preserve existing JSON fingerprints. This sentinel cannot be valid JSON.
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(body === undefined ? "zentra:absent-body:v1" : canonical(body)));
   return base64Url(new Uint8Array(digest));
+}
+
+/** Bound bytes while receiving. response.text() followed by a size check is
+ * too late to protect a Worker from an oversized upstream response. */
+async function responseText(response: Response, maximum: number): Promise<string> {
+  const declared = response.headers.get("Content-Length");
+  if (declared && (!/^\d+$/.test(declared) || Number(declared) > maximum)) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error("Oversized API response.");
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let count = 0;
+  try {
+    for (;;) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      count += value.byteLength;
+      if (count > maximum) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error("Oversized API response.");
+      }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(count);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder("utf-8", {fatal: true}).decode(bytes);
 }
 
 /** Auth protocol verified against pfpayments/typescript-sdk HttpBearerAuth.ts. */
@@ -160,7 +205,28 @@ export class PostFinanceCheckoutClient {
     }
   }
 
-  private async request(method: "GET" | "POST", path: string, body?: unknown, spaceScoped = true): Promise<unknown> {
+  private requirePrepaid(method: SwissMethod): void {
+    this.connection();
+    const c = this.config;
+    if (!this.ledger || c.merchantApproved !== true || c.chargeFlowEnabled !== true || c.prepaidFeatureEnabled !== true
+      || !["PRODUCTION", "TEST"].includes(c.prepaidEnvironment ?? ""))
+      throw new CheckoutUnavailable("Verified prepaid configuration and durable ledger are required.");
+    if (!(method === "postfinance_pay" ? c.postfinancePayTokenEnabled === true
+      : method === "twint" && c.twintUserOnFileEnabled === true))
+      throw new CheckoutUnavailable("The requested recurring payment method has not been activated.");
+  }
+
+  private returnUrls(urls: {successUrl: string; failureUrl: string}) {
+    if (!this.config.returnOrigin) throw new CheckoutUnavailable("A fixed HTTPS return origin is required.");
+    const origin = new URL(this.config.returnOrigin);
+    if (origin.protocol !== "https:" || origin.username || origin.password) throw new Error("Invalid return origin.");
+    for (const value of [urls.successUrl, urls.failureUrl]) {
+      const url = new URL(value);
+      if (url.protocol !== "https:" || url.origin !== origin.origin || url.username || url.password) throw new Error("Invalid checkout return URL.");
+    }
+  }
+
+  private async request(method: "GET" | "POST", path: string, body?: unknown, spaceScoped = true, maxResponseBytes = 1_048_576): Promise<unknown> {
     const c = this.connection();
     const resourcePath = `${apiPrefix}${path}`;
     const token = await bearerToken(c.userId, c.key, method, resourcePath, Math.floor(this.now() / 1000));
@@ -173,8 +239,7 @@ export class PostFinanceCheckoutClient {
     });
     if (!response.ok) throw new CheckoutApiError(response.status);
     if (response.status === 204) return null;
-    const text = await response.text();
-    if (text.length > 1_048_576) throw new Error("Oversized API response.");
+    const text = await responseText(response, maxResponseBytes);
     return response.headers.get("content-type")?.includes("json") ? JSON.parse(text) : text;
   }
 
@@ -232,14 +297,113 @@ export class PostFinanceCheckoutClient {
     urls: { successUrl: string; failureUrl: string }, businessKey: string): Promise<JsonObject> {
     this.requireRecurring(method);
     id(subscriptionId, "subscription ID");
-    if (!this.config.returnOrigin) throw new CheckoutUnavailable("A fixed HTTPS return origin is required.");
-    const origin = new URL(this.config.returnOrigin);
-    if (origin.protocol !== "https:" || origin.username || origin.password) throw new Error("Invalid return origin.");
-    for (const value of [urls.successUrl, urls.failureUrl]) {
-      const url = new URL(value);
-      if (url.protocol !== "https:" || url.origin !== origin.origin || url.username || url.password) throw new Error("Invalid checkout return URL.");
-    }
+    this.returnUrls(urls);
     const result = await this.mutateOnce(`/subscriptions/${subscriptionId}/initialize-subscriber-present`, urls, businessKey);
+    object(result);
+    return result;
+  }
+
+  /** Creates an order, not an entitlement. input must come from a frozen local
+   * period owned by the authenticated account, never from browser price data. */
+  async createPrepaidTransaction(input: {productKey: string; periodId: string;
+    customerReference: string; emailAddress: string; tokenId?: number;
+    urls: {successUrl: string; failureUrl: string}}, method: SwissMethod,
+    businessKey: string): Promise<JsonObject> {
+    this.requirePrepaid(method);
+    const product = this.config.prepaidProducts?.[input.productKey];
+    if (!product || product.currency !== "CHF" || product.billingPeriod !== "P1M"
+      || !Number.isSafeInteger(product.priceChfMinor) || product.priceChfMinor <= 0
+      || !/^[A-Za-z0-9_-]{1,120}$/.test(product.reference)
+      || !product.name || product.name.length > 120)
+      throw new CheckoutUnavailable("A verified prepaid monthly CHF price is required.");
+    const configurationId = product.methodConfigurations[method];
+    id(configurationId, "payment method configuration ID");
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(input.periodId)
+      || !/^[A-Za-z0-9_-]{1,120}$/.test(input.customerReference)
+      || !/^[^\s@]{1,128}@[^\s@]{1,128}\.[^\s@]{1,64}$/.test(input.emailAddress)
+      || input.emailAddress.length > 254) throw new Error("Invalid prepaid period or payer.");
+    this.returnUrls(input.urls);
+    if (input.tokenId !== undefined) id(input.tokenId, "token ID");
+    const body: JsonObject = {
+      currency: "CHF",
+      // Transaction.environment is LIVE/PREVIEW, not the authorization's
+      // TEST/PRODUCTION enum. Use the official creation strategy explicitly.
+      environmentSelectionStrategy: this.config.prepaidEnvironment === "TEST"
+        ? "FORCE_TEST_ENVIRONMENT" : "FORCE_PRODUCTION_ENVIRONMENT",
+      customerId: input.customerReference, customerEmailAddress: input.emailAddress,
+      merchantReference: input.periodId, invoiceMerchantReference: input.periodId,
+      metaData: {zentra_period_id: input.periodId, zentra_plan_version: product.reference},
+      lineItems: [{quantity: 1, name: product.name, amountIncludingTax: product.priceChfMinor / 100,
+        type: "PRODUCT", uniqueId: input.periodId, sku: product.reference, shippingRequired: false}],
+      allowedPaymentMethodConfigurations: [configurationId],
+      customersPresence: input.tokenId === undefined ? "VIRTUAL_PRESENT" : "NOT_PRESENT",
+      completionBehavior: "COMPLETE_IMMEDIATELY", autoConfirmationEnabled: false,
+      successUrl: input.urls.successUrl, failedUrl: input.urls.failureUrl,
+      ...(input.tokenId === undefined ? {tokenizationMode: "FORCE_CREATION"} : {token: input.tokenId}),
+    };
+    const result = await this.mutateOnce("/payment/transactions", body, businessKey);
+    object(result);
+    return result;
+  }
+
+  /** Version must come from the current provider read and be frozen in the
+   * local operation. Replaying the same operation never increments it. */
+  async confirmPrepaidTransaction(transactionId: number, version: number,
+    method: SwissMethod, businessKey: string): Promise<JsonObject> {
+    this.requirePrepaid(method);
+    id(transactionId, "transaction ID");
+    if (!Number.isSafeInteger(version) || version < 0) throw new Error("Invalid transaction version.");
+    const result = await this.mutateOnce(`/payment/transactions/${transactionId}/confirm`, {version}, businessKey);
+    object(result);
+    return result;
+  }
+
+  /** Applies only to PENDING transactions. Read before this step; do not
+   * confirm the renewal first. Flow selection belongs to the merchant Space. */
+  async applyPrepaidChargeFlow(transactionId: number, method: SwissMethod,
+    businessKey: string): Promise<JsonObject> {
+    this.requirePrepaid(method);
+    id(transactionId, "transaction ID");
+    const result = await this.mutateOnce(`/payment/transactions/${transactionId}/charge-flow/apply`, undefined, businessKey);
+    object(result);
+    return result;
+  }
+
+  /** Stops an in-progress flow, not a captured payment. Local cancellation
+   * must fence future period creation first, then reconcile a payment race. */
+  async cancelPrepaidChargeFlow(transactionId: number, method: SwissMethod,
+    businessKey: string): Promise<JsonObject> {
+    this.requirePrepaid(method);
+    id(transactionId, "transaction ID");
+    const result = await this.mutateOnce(`/payment/transactions/${transactionId}/charge-flow/cancel`, undefined, businessKey);
+    object(result);
+    return result;
+  }
+
+  async readTransaction(transactionId: number): Promise<JsonObject> {
+    id(transactionId, "transaction ID");
+    const result = await this.request("GET", `/payment/transactions/${transactionId}`);
+    object(result);
+    return result;
+  }
+
+  async readTransactionInvoice(invoiceId: number): Promise<JsonObject> {
+    id(invoiceId, "invoice ID");
+    const result = await this.request("GET", `/payment/transactions/invoices/${invoiceId}`);
+    object(result);
+    return result;
+  }
+
+  async readToken(tokenId: number): Promise<JsonObject> {
+    id(tokenId, "token ID");
+    const result = await this.request("GET", `/payment/tokens/${tokenId}`);
+    object(result);
+    return result;
+  }
+
+  async readActiveTokenVersion(tokenId: number): Promise<JsonObject> {
+    id(tokenId, "token ID");
+    const result = await this.request("GET", `/payment/tokens/${tokenId}/active-version`);
     object(result);
     return result;
   }
@@ -262,7 +426,7 @@ export class PostFinanceCheckoutClient {
 
   async webhookPublicKey(keyId: string): Promise<string> {
     if (!/^[A-Za-z0-9-]{1,128}$/.test(keyId)) throw new Error("Invalid webhook key ID.");
-    const result = await this.request("GET", `/webhooks/encryption-keys/${encodeURIComponent(keyId)}`, undefined, false);
+    const result = await this.request("GET", `/webhooks/encryption-keys/${encodeURIComponent(keyId)}`, undefined, false, 4096);
     if (typeof result !== "string") throw new Error("Expected Base64 SPKI public key.");
     return result;
   }

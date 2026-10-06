@@ -33,6 +33,12 @@ type RuntimeBindings = {
   SUPPORT_ADMIN_SESSION_KEY?: string;
   PHASE2_RESET_MODE?: string;
   PHASE2_RESET_BACKUP_SHA256?: string;
+  POSTFINANCE_WEBHOOKS_ENABLED?: string;
+  POSTFINANCE_API_ORIGIN?: string;
+  POSTFINANCE_APPLICATION_USER_ID?: string;
+  POSTFINANCE_AUTHENTICATION_KEY_BASE64?: string;
+  POSTFINANCE_SPACE_ID?: string;
+  POSTFINANCE_WEBHOOK_LISTENERS_JSON?: string;
 };
 
 const bindings = env as unknown as RuntimeBindings;

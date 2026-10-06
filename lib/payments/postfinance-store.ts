@@ -39,6 +39,16 @@ export type WebhookFailure =
   | 'invalid_provider_state'
   | 'storage_unavailable';
 
+/** Permanent data rejection is different from a retriable D1 failure. */
+export class PostFinanceJournalError extends Error {
+  constructor(
+    public readonly kind: 'invalid_event' | 'replay_conflict',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 const encoder = new TextEncoder();
 const origins = new Set([
   'https://checkout.postfinance.ch',
@@ -218,7 +228,11 @@ export class D1PostFinanceWebhookInbox implements WebhookInbox {
       event.webhookListenerId,
       event.listenerEntityId,
     ])
-      positiveId(value);
+      if (!Number.isSafeInteger(value) || value <= 0)
+        throw new PostFinanceJournalError(
+          'invalid_event',
+          'Invalid webhook entity ID.',
+        );
     const listener = this.config.listeners.find(
       (candidate) => candidate.id === event.webhookListenerId,
     );
@@ -229,7 +243,8 @@ export class D1PostFinanceWebhookInbox implements WebhookInbox {
       (listener.technicalName !== undefined &&
         event.listenerEntityTechnicalName !== listener.technicalName)
     ) {
-      throw new Error(
+      throw new PostFinanceJournalError(
+        'invalid_event',
         'Webhook does not match its configured entity and space.',
       );
     }
@@ -238,17 +253,26 @@ export class D1PostFinanceWebhookInbox implements WebhookInbox {
       event.timestamp.length > 80 ||
       !Number.isFinite(Date.parse(event.timestamp))
     ) {
-      throw new Error('Invalid payment webhook timestamp.');
+      throw new PostFinanceJournalError(
+        'invalid_event',
+        'Invalid payment webhook timestamp.',
+      );
     }
     if (Date.parse(event.timestamp) > time(this.now()) * 1000 + 600_000)
-      throw new Error('Payment webhook is in the future.');
+      throw new PostFinanceJournalError(
+        'invalid_event',
+        'Payment webhook is in the future.',
+      );
     if (
       event.state !== undefined &&
       (typeof event.state !== 'string' ||
         !event.state ||
         event.state.length > 80)
     ) {
-      throw new Error('Invalid payment webhook state.');
+      throw new PostFinanceJournalError(
+        'invalid_event',
+        'Invalid payment webhook state.',
+      );
     }
     if (
       event.listenerEntityTechnicalName !== undefined &&
@@ -256,7 +280,10 @@ export class D1PostFinanceWebhookInbox implements WebhookInbox {
         !event.listenerEntityTechnicalName ||
         event.listenerEntityTechnicalName.length > 120)
     ) {
-      throw new Error('Invalid payment webhook entity name.');
+      throw new PostFinanceJournalError(
+        'invalid_event',
+        'Invalid payment webhook entity name.',
+      );
     }
     return {
       eventId: event.eventId,
@@ -275,7 +302,11 @@ export class D1PostFinanceWebhookInbox implements WebhookInbox {
   async acceptOnce(scope: string, event: CheckoutWebhook) {
     const normalized = this.normalize(event);
     const expected = `${this.config.apiOrigin}|${normalized.spaceId}|${normalized.webhookListenerId}|${normalized.eventId}`;
-    if (scope !== expected) throw new Error('Webhook journal scope mismatch.');
+    if (scope !== expected)
+      throw new PostFinanceJournalError(
+        'invalid_event',
+        'Webhook journal scope mismatch.',
+      );
     const hash = await scopeHash(scope),
       body = JSON.stringify(normalized),
       fingerprint = await digest(body),
@@ -302,8 +333,12 @@ export class D1PostFinanceWebhookInbox implements WebhookInbox {
       )
       .bind(hash)
       .first<{ event_fingerprint: string }>();
-    if (!row || row.event_fingerprint !== fingerprint)
-      throw new Error('Conflicting payment webhook replay.');
+    if (!row) throw new Error('Webhook journal reservation was not persisted.');
+    if (row.event_fingerprint !== fingerprint)
+      throw new PostFinanceJournalError(
+        'replay_conflict',
+        'Conflicting payment webhook replay.',
+      );
     return false;
   }
 
