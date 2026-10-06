@@ -32,6 +32,55 @@ parameters:
     default: ""
 
 jobs:
+  apple-release-1914-homebrew:
+    macos:
+      xcode: "26.4.1"
+    resource_class: m4pro.medium
+    environment:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_APPLE_SOURCE_REVISION: "c067f2e6bd0c6cbe2dae76162feb88e92f44156b"
+    steps:
+      - run:
+          name: Checkout the exact verifier revision over public HTTPS
+          command: |
+            set -euo pipefail
+            git init .
+            git remote add origin https://github.com/leartshbj1/zentra.git
+            git fetch --depth 1 origin "$CIRCLE_SHA1"
+            git checkout --detach FETCH_HEAD
+            test "$(git rev-parse HEAD)" = "$CIRCLE_SHA1"
+      - run:
+          name: Prepare the exact Apple application source and verified Homebrew prerequisites
+          command: bash .circleci/apple1914-controller.sh prepare
+          no_output_timeout: 20m
+      - run:
+          name: Verify the exact session-change refusal on the frozen application
+          command: bash .circleci/apple1914-controller.sh native-preflight
+          no_output_timeout: 20m
+      - run:
+          name: Verify native synchronization and mobile gestures
+          command: bash .circleci/apple1914-controller.sh test
+          no_output_timeout: 20m
+      - run:
+          name: Build the exact universal Mac application
+          command: bash .circleci/apple1914-controller.sh macos
+          no_output_timeout: 20m
+      - run:
+          name: Build the exact unsigned iPhone IPA and verify touch controls
+          command: bash .circleci/apple1914-controller.sh iphone
+          no_output_timeout: 20m
+      - run:
+          name: Launch the newly packaged Mac app in an isolated profile
+          command: bash .circleci/apple1914-controller.sh smoke
+          no_output_timeout: 5m
+      - run:
+          name: Record the distinct application and verifier revisions
+          command: bash .circleci/apple1914-controller.sh record
+      - store_artifacts:
+          path: .zentra-apple-source/desktop/artifacts
+          destination: apple
+
   windows-drafts-diagnostics-tests:
     parameters:
       diagnostics-phase:
@@ -489,6 +538,14 @@ jobs:
           destination: apple
 
 workflows:
+  user-clarity-apple-homebrew-1914:
+    when:
+      and:
+        - equal: [codex/release-1.90.14-apple-20261006, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - apple-release-1914-homebrew
+
   user-clarity-release-1914:
     when:
       and:
