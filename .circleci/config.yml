@@ -32,6 +32,65 @@ parameters:
     default: ""
 
 jobs:
+  android-package-smoke-1914:
+    machine:
+      image: android:default
+    resource_class: large
+    environment:
+      ZENTRA_SMOKE_JOB: "276"
+      ZENTRA_SMOKE_SOURCE: "c067f2e6bd0c6cbe2dae76162feb88e92f44156b"
+      ZENTRA_SMOKE_VERSION: "1.90.14"
+      ZENTRA_ANDROID_SMOKE_JOB: "276"
+      ZENTRA_ANDROID_SMOKE_SOURCE: "c067f2e6bd0c6cbe2dae76162feb88e92f44156b"
+      ZENTRA_ANDROID_SMOKE_SHA256: "94a355c4de09114dc9adfd70a5de3392f0771a05d37e2e395b8034fcd386a418"
+    steps:
+      - checkout
+      - run:
+          name: Verify successful build 276 and exact Zentra 1.90.14 Android APK
+          no_output_timeout: 5m
+          command: |
+            set -euo pipefail
+            python3 - <<'PY'
+            import hashlib, json, os, re, runpy
+            from pathlib import Path
+
+            def require(ok, message):
+                if not ok:
+                    raise ValueError(message)
+
+            job = int(os.environ["ZENTRA_SMOKE_JOB"])
+            source = os.environ["ZENTRA_SMOKE_SOURCE"]
+            version = os.environ["ZENTRA_SMOKE_VERSION"]
+            require(job > 0 and re.fullmatch(r"[0-9a-f]{40}", source), "Pinned source job and revision required")
+            require(version == "1.90.14", "Expected version 1.90.14")
+            require(json.loads(Path("desktop/package.json").read_text())["version"] == version, "Verifier package version differs")
+            require(json.loads(Path("desktop/src-tauri/tauri.conf.json").read_text())["version"] == version, "Verifier Tauri version differs")
+            sha = os.environ["ZENTRA_ANDROID_SMOKE_SHA256"]
+            require(re.fullmatch(r"[0-9a-f]{64}", sha), "Independently verified Android276 SHA256 required")
+            fetch = runpy.run_path("desktop/scripts/cloud-package-smoke.py")["fetch"]
+            api = f"https://circleci.com/api/v1.1/project/github/leartshbj1/zentra/{job}"
+            build = json.loads(fetch(api))
+            require(build.get("status") == "success" and build.get("vcs_revision") == source, "Pinned build must succeed before package smoke")
+            artifacts = json.loads(fetch(api + "/artifacts"))
+            def download(name):
+                records = [a for a in artifacts if Path(a["path"]).name == name]
+                require(len(records) == 1, "Artifact missing or duplicated: " + name)
+                return fetch(records[0]["url"])
+            proof = json.loads(download("release-candidate-proof.json"))
+            require((proof["source"], proof["version"], proof["sha256"]) == (source, version, sha), "Android build provenance differs")
+            require(proof["package"] == "ch.zentra.mobile" and not proof["debuggable"] and not proof["testOnly"], "Android release manifest differs")
+            name = "Zentra-android-build-release.apk"
+            apk = download(name)
+            require(hashlib.sha256(apk).hexdigest() == sha, "Exact Android276 APK bytes differ")
+            out = Path("desktop/artifacts/android-release-smoke")
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "android-input-proof.json").write_text(json.dumps({"version": version, "source": source, "buildJob": job, "buildStatus": "success", "artifact": name, "bytes": len(apk), "sha256": sha}, indent=2) + "\n")
+            print("Verified successful source job and exact Android release APK")
+            PY
+            timeout 18m bash desktop/scripts/smoke-android-release-candidate.sh
+      - store_artifacts:
+          path: desktop/artifacts/android-release-smoke
+          destination: android-release-smoke
   windows-drafts-diagnostics-tests:
     parameters:
       diagnostics-phase:
@@ -489,6 +548,13 @@ jobs:
           destination: apple
 
 workflows:
+  user-clarity-package-smoke-1914-android:
+    when:
+      and:
+        - equal: [codex/release-1.90.14-smoke-android-20261006, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+    jobs:
+      - android-package-smoke-1914
   user-clarity-release-1914:
     when:
       and:
