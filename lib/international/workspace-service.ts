@@ -106,18 +106,38 @@ export async function getWorkspaceCountry(store: WorkspaceCountryStore, actor: W
   } catch (error) { throw storageError(error); }
 }
 
-export async function putWorkspaceCountry(store: WorkspaceCountryStore, actor: WorkspaceCountryActor, input: unknown): Promise<WorkspaceCountryReceipt> {
+export async function putWorkspaceCountry(store: WorkspaceCountryStore, actor: WorkspaceCountryActor, input: unknown, beforeWrite?: () => Promise<void>): Promise<WorkspaceCountryReceipt> {
   assertActor(actor, true);
   const write = validateWorkspaceCountryWrite(input, actor.organizationId);
+  let effectiveConfiguration = write.configuration;
+  // Public country views omit EIN. Omission means retain the private value from
+  // THIS request's durable baseline, not the mutable head. The same request can
+  // then replay exactly even after later private identifier edits.
+  if (write.configuration.country === 'US' && write.configuration.ein === undefined && write.expectedRevision > 0) {
+    try {
+      const rows = await store.select<{ organization_id: string; revision: unknown; config: unknown }>('zentra_workspace_country_config_changes', {
+        select: 'organization_id,revision,config', organization_id: 'eq.' + actor.organizationId, revision: 'eq.' + write.expectedRevision, limit: 1,
+      });
+      if (rows.length === 0) throw new WorkspaceCountryError('revision_conflict', 409);
+      if (rows.length !== 1 || rows[0].organization_id !== actor.organizationId || rows[0].revision !== write.expectedRevision) throw new Error('Invalid private country baseline');
+      const baseline = validateCompanyConfiguration(rows[0].config);
+      if (baseline.organizationId !== actor.organizationId) throw new Error('Invalid private country baseline');
+      if (baseline.country !== 'US') throw new WorkspaceCountryError('jurisdiction_locked', 409);
+      if (baseline.ein !== undefined) effectiveConfiguration = validateCompanyConfiguration({ ...write.configuration, ein: baseline.ein });
+    } catch (error) { throw storageError(error); }
+  }
+  // Admission belongs to the HTTP/account boundary. Its exceptions retain their
+  // auth status and must not be translated into a database availability error.
+  if (beforeWrite) await beforeWrite();
   try {
     const result = await store.rpc<Record<string, unknown>>('zentra_put_workspace_country_config', {
-      p_organization: actor.organizationId, p_actor: actor.userId, p_expected_revision: write.expectedRevision, p_request_id: write.requestId, p_config: write.configuration,
+      p_organization: actor.organizationId, p_actor: actor.userId, p_expected_revision: write.expectedRevision, p_request_id: write.requestId, p_config: effectiveConfiguration,
     });
     if (!result || result.organizationId !== actor.organizationId || result.updatedBy !== actor.userId || result.revision !== write.expectedRevision + 1 || typeof result.replayed !== 'boolean') throw new Error('Invalid country configuration receipt');
     const receipt = configured(actor.organizationId, result.revision, result.configuration, result.updatedBy, result.updatedAt);
     // The RPC may return an earlier durable receipt on a retry after newer writes.
     // It must still represent this exact validated request.
-    if (JSON.stringify(receipt.configuration) !== JSON.stringify(write.configuration)) throw new Error('Invalid country configuration receipt');
+    if (JSON.stringify(receipt.configuration) !== JSON.stringify(effectiveConfiguration)) throw new Error('Invalid country configuration receipt');
     return { ...receipt, requestId: write.requestId, replayed: result.replayed };
   } catch (error) { throw storageError(error); }
 }

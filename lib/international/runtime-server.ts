@@ -5,6 +5,8 @@ import { ErpError, executeErp, canonicalErpJson } from './runtime';
 import type { ErpStore } from './runtime-types';
 import type { CompanyConfiguration } from './types';
 import type { TaxCalculationProvider,PublicSellerSnapshot } from './invoicing';
+import { publicCompanyConfiguration, publicErpState } from './public-projection';
+import { confirmErpReadAdmission } from './read-admission';
 
 export interface ErpServerDependencies {
   enabled:()=>Promise<boolean> | boolean;
@@ -53,7 +55,8 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
         if(!await dependencies.enabled())return json({error:'feature_unavailable'},404);
         const trusted=await context(request,organizationId,'read');
         const state=await(await dependencies.store()).read(organizationId);
-        return json(state?{status:'ready',state}:{status:'uninitialized',configuration:trusted.config});
+        confirmErpReadAdmission(trusted,await dependencies.authority(request,organizationId));
+        return json(state?{status:'ready',state:publicErpState(state)}:{status:'uninitialized',configuration:publicCompanyConfiguration(trusted.config)});
       }catch(error){return failure(error,'read',dependencies);}
     },
     async POST(request:Request,organizationId:string){

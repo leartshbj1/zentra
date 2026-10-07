@@ -21,7 +21,7 @@ async function authority(request:Request,organizationId:string):Promise<{mode:'b
     if(session.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
     userId=session.userId;role=session.role;mode='device';
   }else{
-    const user=await(await import('../../app/zentra-auth')).getZentraUser();
+    const user=await(await import('../../app/zentra-auth')).getZentraUser({offerAccess:false});
     if(!user)throw new AccountPublicError('Session required',401);
     const membership=await requireBrowserMembership(user.userId,organizationId);
     if(membership.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);

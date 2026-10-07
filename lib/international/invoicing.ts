@@ -135,6 +135,18 @@ export async function determineTax(configuration:CompanyConfiguration,estimate:E
   text(provider.id,'TAX_PROVIDER_REQUIRED');
   return provider.calculate(buildTaxRequest(configuration,estimate));
 }
+/** Keep only the evidence contract, never raw provider responses or debug/credential fields. */
+export function taxAssessmentProof(assessment: TaxAssessment): TaxAssessment {
+  return Object.freeze({
+    organizationId: assessment.organizationId, country: assessment.country, currency: assessment.currency,
+    documentId: assessment.documentId, documentRevision: assessment.documentRevision, fingerprint: assessment.fingerprint,
+    source: assessment.source, providerReference: assessment.providerReference,
+    determinedAt: assessment.determinedAt, validUntil: assessment.validUntil,
+    lines: Object.freeze(assessment.lines.map(line => Object.freeze({
+      id: line.id, taxMinor: line.taxMinor, jurisdiction: line.jurisdiction, evidenceReference: line.evidenceReference,
+    }))),
+  });
+}
 export function invoiceFromEstimate(configuration:CompanyConfiguration,estimate:Estimate,input:{id:string;number:string;date:string;accountingDate:string;dueDate:string},assessment:TaxAssessment|null,actor:InvoicingAuthority,seller:PublicSellerSnapshot):IssuedInvoice {
   authority(configuration,actor); validateEstimate(configuration,estimate);
   if (estimate.status!=='accepted') throw new LedgerError('ESTIMATE_ACCEPTANCE_REQUIRED');
@@ -145,7 +157,7 @@ export function invoiceFromEstimate(configuration:CompanyConfiguration,estimate:
   const request=buildTaxRequest(configuration,estimate,input.date);
   const tax=validateTaxAssessment(request,assessment,actor.timestamp); const totals=estimateTotals(estimate);
   const sellerSnapshot = validatePublicSellerSnapshot(seller, configuration.organizationId);
-  const immutableAssessment=Object.freeze({...assessment,lines:Object.freeze(assessment.lines.map(line=>Object.freeze({...line})))});
+  const immutableAssessment=taxAssessmentProof(assessment);
   return Object.freeze({...input,organizationId:configuration.organizationId,currency:configuration.currency,companyConfiguration:validateCompanyConfiguration(configuration),sellerSnapshot,sourceEstimateId:estimate.id,sourceEstimateRevision:estimate.revision,customer:Object.freeze({...estimate.customer,billingAddress:Object.freeze({...estimate.customer.billingAddress}),...(estimate.customer.shippingAddress?{shippingAddress:Object.freeze({...estimate.customer.shippingAddress})}:{})}),projectId:estimate.projectId,lines:Object.freeze(estimate.lines.map(line=>Object.freeze({...line,unitPrice:Object.freeze({...line.unitPrice})}))),notes:estimate.notes,subtotal:totals.subtotal,discount:totals.discount,tax,total:addMoney(totals.net,tax),taxAssessment:immutableAssessment,payments:Object.freeze([]),issuedAt:actor.timestamp,issuedBy:actor.userId});
 }
 export function invoiceBalance(invoice:IssuedInvoice):Money { return invoice.payments.reduce((remaining,payment)=>subtractMoney(remaining,payment.amount),invoice.total); }

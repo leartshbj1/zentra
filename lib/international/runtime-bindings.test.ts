@@ -17,7 +17,7 @@ beforeEach(()=>{
 });
 describe('actual ERP authority bindings',()=>{
   it('uses browser membership and effective management rights, not a submitted role',async()=>{
-    const result=await binding.authority(request(),org);expect(result.mode).toBe('browser');expect(result.actor).toMatchObject({organizationId:org,userId:'browser-user',role:'member',managementEntitled:true});expect(f.membership).toHaveBeenCalledWith('browser-user',org);expect(f.seats).toHaveBeenCalledWith(org);expect(f.device).not.toHaveBeenCalled();
+    const result=await binding.authority(request(),org);expect(result.mode).toBe('browser');expect(result.actor).toMatchObject({organizationId:org,userId:'browser-user',role:'member',managementEntitled:true});expect(f.user).toHaveBeenCalledWith({offerAccess:false});expect(f.membership).toHaveBeenCalledWith('browser-user',org);expect(f.seats).toHaveBeenCalledWith(org);expect(f.device).not.toHaveBeenCalled();
   });
   it('denies an absent browser session before membership and persistence',async()=>{f.user.mockResolvedValue(null);await expect(binding.authority(request(),org)).rejects.toMatchObject({status:401});expect(f.membership).not.toHaveBeenCalled();expect(f.seats).not.toHaveBeenCalled();expect(f.select).not.toHaveBeenCalled();});
   it.each([true,false])('does not treat a seat as active access after expiry (device=%s)',async device=>{f.seats.mockResolvedValue({subscriptionActive:false});await expect(binding.authority(request(device),org)).rejects.toMatchObject({status:402,code:'management_entitlement_required'});expect(f.select).not.toHaveBeenCalled();});

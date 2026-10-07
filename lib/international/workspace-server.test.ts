@@ -15,11 +15,12 @@ function request(value: unknown = body, extraHeaders: Record<string, string> = {
   return new Request(url, { method: 'PUT', headers: { Origin: 'https://zentraapp.ch', 'Content-Type': 'application/json', ...extraHeaders }, body: JSON.stringify(value) });
 }
 function setup() {
-  const select = vi.fn().mockResolvedValueOnce([{ organization_id: 'org-a' }]).mockResolvedValue([]);
+  const select = vi.fn().mockImplementation(async (table: string) => table === 'zentra_workspaces' ? [{ organization_id: 'org-a' }] : []);
   const rpc = vi.fn().mockResolvedValue({ organizationId: 'org-a', revision: 1, configuration, updatedBy: 'owner-a', updatedAt: '2026-10-07T12:00:00Z', replayed: false });
   const dependencies = {
     enabled: vi.fn().mockReturnValue(true), user: vi.fn().mockResolvedValue({ userId: 'owner-a' }),
     membership: vi.fn().mockResolvedValue({ organizationId: 'org-a', role: 'owner' }),
+    deviceSession: vi.fn(), management: vi.fn().mockResolvedValue(true), rateLimit: vi.fn().mockResolvedValue(undefined), requireInitialUsAdmission: vi.fn().mockResolvedValue(undefined),
     store: vi.fn().mockReturnValue({ select, rpc } as unknown as WorkspaceCountryStore),
   };
   return { ...dependencies, select, rpc, handlers: createWorkspaceCountryHandlers(dependencies) };

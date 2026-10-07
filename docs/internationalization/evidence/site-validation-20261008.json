@@ -1,21 +1,79 @@
 {
   "sourceBase": "69a3981fd1f01ea6039325cd35ab09ca89754137",
   "workspace": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
-  "observedAt": "2026-10-08T01:14:23+02:00",
-  "international": { "passed": 427, "skipped": 0, "files": 13, "includesRealPgliteRuntime": 19 },
-  "countrySqlRunner": { "passed": 17 },
-  "erpSqlRunner": { "passed": 57 },
+  "observedAt": "2026-10-08T01:37:13.8086698+02:00",
+  "international": {
+    "files": 18,
+    "postgresWasmRuntimeTests": 19,
+    "countrySqlIntegrationTests": 10,
+    "passed": 533,
+    "detailedReport": "international-final-20261008.json",
+    "taxProofSqlIntegrationTests": 9,
+    "skipped": 0
+  },
+  "countrySqlRunner": {
+    "passed": 17
+  },
+  "erpSqlRunner": {
+    "passed": 57
+  },
   "existingChCompatibility": {
     "passed": 722,
     "skipped": 63,
     "files": 43,
     "durationSeconds": 286.85,
-    "scopes": ["authentication", "Stripe", "account-security", "collaboration", "realtime", "business-sync"]
+    "scopes": [
+      "authentication",
+      "Stripe",
+      "account-security",
+      "collaboration",
+      "realtime",
+      "business-sync"
+    ]
   },
-  "typecheck": { "exitCode": 0 },
-  "lintInternationalAndRoutes": { "exitCode": 0 },
-  "brandAssets": { "exitCode": 0 },
-  "vinextProductionBuild": { "exitCode": 0, "invocation": "direct CLI; no forced dependency installation" },
+  "typecheck": {
+    "exitCode": 0
+  },
+  "lintInternationalAndRoutes": {
+    "exitCode": 0
+  },
+  "brandAssets": {
+    "exitCode": 0
+  },
+  "vinextProductionBuild": {
+    "exitCode": 0,
+    "invocation": "direct CLI; no forced dependency installation"
+  },
   "productionModified": false,
-  "limitations": ["no live PostgREST/D1 admission", "single-connection PostgreSQL WASM", "no physical-device proof", "no live tax provider", "no capacity certification"]
+  "limitations": [
+    "no live PostgREST/D1 admission",
+    "single-connection PostgreSQL WASM",
+    "no physical-device proof",
+    "no live tax provider",
+    "no capacity certification"
+  ],
+  "native": {
+    "visualPassed": 25,
+    "rustPassed": 13,
+    "frontendPassed": 77,
+    "sourceCommit": "4555df3386029d35007bc65865482db4bab44331",
+    "productionModified": false,
+    "calendarPassed": 79
+  },
+  "tour": {
+    "languages": [
+      "fr",
+      "de",
+      "it",
+      "en"
+    ],
+    "sourceBase": "69a3981fd1f01ea6039325cd35ab09ca89754137",
+    "publicGetStatus": 200,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "liveHtmlContainsThemeAndCurrentImages": true,
+    "testsPassed": 15
+  }
 }

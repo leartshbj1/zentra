@@ -42,6 +42,18 @@ function server(){
   const deps:ErpSyncServerDependencies={enabled:()=>true,authority:vi.fn(async()=>({mode:'device' as const,actor})),configuration:async()=>config,rateLimit:vi.fn(async()=>{}),diagnostic:vi.fn(),syncStore:vi.fn(()=>store)};
   return {store,deps,handlers:createErpSyncHandlers(deps),request:(query='')=>new Request(`https://zentraapp.ch/erp/changes${query}`)};
 }
+describe('delayed US sync admission',()=>{
+  it.each(['revision','changes'] as const)('withholds %s after membership revocation during the store read',async operation=>{
+    const t=server();let readComplete=false;
+    t.deps.authority=async()=>{if(readComplete)throw new AccountPublicError('private revoked identity',403);return {mode:'device',actor};};
+    t.store.revision=async()=>{readComplete=true;return {schemaVersion:1,organizationId:org,revision:6};};
+    t.store.changes=async()=>{readComplete=true;return page(6,6,[]);};
+    const response=await t.handlers[operation](t.request(operation==='changes'?'?after=6':''),org);
+    expect(response.status).toBe(403);expect(await response.json()).toEqual({error:'forbidden'});
+    expect(JSON.stringify(vi.mocked(t.deps.diagnostic).mock.calls)).not.toContain('private revoked identity');
+  });
+});
+
 describe('durable US change stream',()=>{
   it('reconstructs the book from paged committed events and resumes at the last applied cursor',async()=>{
     const t=await fixture();let state:ErpState|null=null;

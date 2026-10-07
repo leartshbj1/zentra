@@ -25,4 +25,19 @@ describe('US ERP HTTP authorization and effects',()=>{
  it('rejects inflated bodies before commit',async()=>{const t=setup();const r=await t.handlers.POST(t.post(undefined,{...t.body,large:'x'.repeat(262144)}),organizationId);expect(r.status).toBe(413);expect(t.store.commit).not.toHaveBeenCalled();});
  it('refuses financial privilege in request and emits metadata-only diagnostics',async()=>{const t=setup();const r=await t.handlers.POST(t.post(undefined,{...t.body,role:'owner',password:'SECRET'}),organizationId);expect(r.status).toBe(422);expect(t.store.commit).not.toHaveBeenCalled();expect(t.dependencies.diagnostic).toHaveBeenCalledWith({operation:'write',code:'invalid_request',status:422});expect(JSON.stringify(vi.mocked(t.dependencies.diagnostic).mock.calls)).not.toContain('SECRET');});
  it('sanitizes unknown storage exceptions and sets cache/security headers',async()=>{const t=setup();t.store.read=async()=>{throw new Error('private token');};const r=await t.handlers.GET(new Request('https://zentraapp.ch/erp'),organizationId);expect(r.status).toBe(503);expect(await r.json()).toEqual({error:'service_unavailable'});expect(r.headers.get('Cache-Control')).toContain('no-store');});
+ it('does not echo a tax identifier in an uninitialized response',async()=>{const t=setup();const privateConfig={...configuration,ein:'12-3456789'};t.dependencies.configuration=async()=>privateConfig;const r=await t.handlers.GET(new Request('https://zentraapp.ch/erp'),organizationId);expect(r.status).toBe(200);const body=await r.json() as {configuration:unknown};expect(body.configuration).not.toHaveProperty('ein');expect(privateConfig.ein).toBe('12-3456789');});
+ it.each(['revoked','user','scope','mode','role','entitlement'])('withholds a delayed financial read after %s changes',async change=>{
+   const t=setup('device');let calls=0;
+   t.dependencies.authority=async()=>{
+     const authority={mode:'device' as 'browser'|'device',actor:{organizationId,userId:'fictitious-owner',role:'owner' as 'owner'|'read_only',managementEntitled:true,timestamp:'2026-10-08T12:00:00Z'}};
+     if(++calls>1){
+       if(change==='revoked')throw new AccountPublicError('private revocation',401);
+       if(change==='user')authority.actor.userId='different';if(change==='scope')authority.actor.organizationId='different';
+       if(change==='mode')authority.mode='browser';if(change==='role')authority.actor.role='read_only';if(change==='entitlement')authority.actor.managementEntitled=false;
+     }
+     return authority;
+   };
+   const r=await t.handlers.GET(new Request('https://zentraapp.ch/erp'),organizationId);
+   expect(r.status).toBe(change==='role'?403:change==='entitlement'?402:401);expect(await r.json()).toHaveProperty('error');expect(t.store.commit).not.toHaveBeenCalled();
+ });
 });

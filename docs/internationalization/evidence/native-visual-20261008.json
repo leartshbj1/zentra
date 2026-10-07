@@ -1,0 +1,332 @@
+[
+  {
+    "config": {
+      "width": 1440,
+      "theme": "light",
+      "language": "en"
+    },
+    "surface": "sales",
+    "path": ".impeccable/review/international-native/1440-light-en-sales.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 1440,
+      "theme": "light",
+      "language": "en"
+    },
+    "surface": "accounting",
+    "path": ".impeccable/review/international-native/1440-light-en-accounting.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 1440,
+      "theme": "light",
+      "language": "en"
+    },
+    "surface": "customer",
+    "path": ".impeccable/review/international-native/1440-light-en-customer.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 1440,
+      "theme": "light",
+      "language": "en"
+    },
+    "surface": "estimate",
+    "path": ".impeccable/review/international-native/1440-light-en-estimate.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 1440,
+      "theme": "light",
+      "language": "en"
+    },
+    "surface": "initialize",
+    "path": ".impeccable/review/international-native/1440-light-en-initialize.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "en"
+    },
+    "surface": "sales",
+    "path": ".impeccable/review/international-native/390-dark-en-sales.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "en"
+    },
+    "surface": "accounting",
+    "path": ".impeccable/review/international-native/390-dark-en-accounting.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "en"
+    },
+    "surface": "customer",
+    "path": ".impeccable/review/international-native/390-dark-en-customer.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "en"
+    },
+    "surface": "estimate",
+    "path": ".impeccable/review/international-native/390-dark-en-estimate.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "en"
+    },
+    "surface": "initialize",
+    "path": ".impeccable/review/international-native/390-dark-en-initialize.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 320,
+      "theme": "light",
+      "language": "de",
+      "large": true
+    },
+    "surface": "sales",
+    "path": ".impeccable/review/international-native/320-light-de-sales.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 320,
+      "theme": "light",
+      "language": "de",
+      "large": true
+    },
+    "surface": "accounting",
+    "path": ".impeccable/review/international-native/320-light-de-accounting.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 320,
+      "theme": "light",
+      "language": "de",
+      "large": true
+    },
+    "surface": "customer",
+    "path": ".impeccable/review/international-native/320-light-de-customer.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 320,
+      "theme": "light",
+      "language": "de",
+      "large": true
+    },
+    "surface": "estimate",
+    "path": ".impeccable/review/international-native/320-light-de-estimate.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 320,
+      "theme": "light",
+      "language": "de",
+      "large": true
+    },
+    "surface": "initialize",
+    "path": ".impeccable/review/international-native/320-light-de-initialize.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "it"
+    },
+    "surface": "sales",
+    "path": ".impeccable/review/international-native/390-dark-it-sales.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "it"
+    },
+    "surface": "accounting",
+    "path": ".impeccable/review/international-native/390-dark-it-accounting.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "it"
+    },
+    "surface": "customer",
+    "path": ".impeccable/review/international-native/390-dark-it-customer.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "it"
+    },
+    "surface": "estimate",
+    "path": ".impeccable/review/international-native/390-dark-it-estimate.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "dark",
+      "language": "it"
+    },
+    "surface": "initialize",
+    "path": ".impeccable/review/international-native/390-dark-it-initialize.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "light",
+      "language": "fr"
+    },
+    "surface": "sales",
+    "path": ".impeccable/review/international-native/390-light-fr-sales.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "light",
+      "language": "fr"
+    },
+    "surface": "accounting",
+    "path": ".impeccable/review/international-native/390-light-fr-accounting.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "light",
+      "language": "fr"
+    },
+    "surface": "customer",
+    "path": ".impeccable/review/international-native/390-light-fr-customer.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "light",
+      "language": "fr"
+    },
+    "surface": "estimate",
+    "path": ".impeccable/review/international-native/390-light-fr-estimate.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  },
+  {
+    "config": {
+      "width": 390,
+      "theme": "light",
+      "language": "fr"
+    },
+    "surface": "initialize",
+    "path": ".impeccable/review/international-native/390-light-fr-initialize.png",
+    "overflow": {
+      "document": 0,
+      "offenders": []
+    }
+  }
+]

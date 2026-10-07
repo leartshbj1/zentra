@@ -2,6 +2,8 @@ import { AccountPublicError } from '../account-security';
 import { ErpError } from './erp-contract';
 import type { ErpServerDependencies } from './runtime-server';
 import type { ErpSyncStore } from './runtime-sync';
+import { publicErpDelta } from './public-projection';
+import { confirmErpReadAdmission } from './read-admission';
 export type ErpSyncServerDependencies=Pick<ErpServerDependencies,'enabled'|'authority'|'configuration'|'rateLimit'|'diagnostic'>&{syncStore:()=>ErpSyncStore|Promise<ErpSyncStore>};
 const headers={'Cache-Control':'no-store, max-age=0','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers});
@@ -27,7 +29,14 @@ export function createErpSyncHandlers(deps:ErpSyncServerDependencies){
       await deps.rateLimit(request,trusted.actor,'read');
       const options=operation==='changes'?cursor(request):null;
       const store=await deps.syncStore();
-      return json(options?await store.changes(organizationId,options.after,options.limit):await store.revision(organizationId));
+      if(options){
+        const delta=await store.changes(organizationId,options.after,options.limit);
+        confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
+        return json(delta?publicErpDelta(delta):null);
+      }
+      const head=await store.revision(organizationId);
+      confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
+      return json(head);
     }catch(error){
       let code='service_unavailable',status=503;
       if(error instanceof ErpError){code=error.code;status=error.status;}
