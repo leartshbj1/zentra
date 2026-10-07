@@ -9,6 +9,7 @@ vi.mock('react', async importOriginal => ({
   useState: (...args: any[]) => runtime.host.useState(...args),
   useRef: (...args: any[]) => runtime.host.useRef(...args),
   useEffect: (...args: any[]) => runtime.host.useEffect(...args),
+  useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
 }));
 vi.mock('./diagnostics', () => ({ diagnosticInvoke: runtime.invoke }));
 vi.mock('./ui', () => ({

@@ -12,6 +12,7 @@ import { emptyScreenTranslations } from './translationsEmptyScreens';
 import { projectReportTranslations } from './translationsProjectReports';
 import { financialDetailTranslations } from './translationsFinancialDetail';
 import { financeOverviewTranslations } from './translationsFinanceOverview';
+import { fixedAssetsTranslations } from './translationsFixedAssets';
 import { vatCenterTranslations } from './translationsVatCenter';
 import { settingsNavigationTranslations } from './translationsSettingsNavigation';
 import { mobileTeamTranslations } from './translationsMobileTeam';
@@ -67,6 +68,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...projectReportTranslations,
   ...financialDetailTranslations,
   ...financeOverviewTranslations,
+  ...fixedAssetsTranslations,
   ...vatCenterTranslations,
   ...settingsNavigationTranslations,
   ...purchaseInboxTranslations,
