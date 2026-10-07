@@ -106,7 +106,7 @@ export function AgendaScreen({
   const [includeClosed, setIncludeClosed] = useState(!!initialEvent && initialEvent.status !== 'scheduled');
   const [editor, setEditor] = useState<AgendaEventDraft | null>(null);
   const [action, setAction] = useState<{ event: AgendaEvent; kind: 'complete' | 'delete' } | null>(null);
-  const allItems = useMemo(() => buildAgendaItems(workspace), [workspace]);
+  const allItems = useMemo(() => buildAgendaItems(workspace), [workspace, language]);
   const items = useMemo(
     () => filteredItems(allItems, category, includeClosed),
     [allItems, category, includeClosed],

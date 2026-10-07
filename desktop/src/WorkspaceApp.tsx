@@ -2161,9 +2161,9 @@ function WorkspaceContent({
                 onSave={(input: AgendaEventDraft, onError) =>
                   act(
                     () => desktopApi.saveAgendaEvent(input),
-                    input.isNew
+                    t(input.isNew
                       ? 'Le rendez-vous a été ajouté à votre agenda.'
-                      : 'Le rendez-vous a été mis à jour.',
+                      : 'Le rendez-vous a été mis à jour.'),
                     false,
                     onError,
                     requireAgendaWorkspace,
@@ -2172,7 +2172,7 @@ function WorkspaceContent({
                 onDelete={(item, onError) =>
                   act(
                     () => desktopApi.deleteAgendaEvent(item.id, item.updatedAt),
-                    'Le rendez-vous a été supprimé.',
+                    t('Le rendez-vous a été supprimé.'),
                     false,
                     onError,
                     requireAgendaWorkspace,

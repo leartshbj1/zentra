@@ -2,10 +2,12 @@ import type { AgendaEvent, Workspace } from './types';
 import { isValidIsoCalendarDate } from './payrollImportQuality';
 import { createId, errorMessage, formatDate, todayIso } from './utils';
 import { shiftDate } from './agenda';
+import { t } from './language';
 
 export type AgendaEventDraft = Omit<AgendaEvent, 'createdAt' | 'updatedAt'> & { isNew: boolean; expectedUpdatedAt: string | null };
 export type AgendaErrorHandler = (reason: unknown) => void;
 export type AgendaField = 'title' | 'startDate' | 'endDate' | 'startTime' | 'endTime' | 'kind' | 'status' | 'location' | 'notes' | 'projectId' | 'employeeId';
+// Keep the source message in state so an open validation error follows a language change.
 export type AgendaFormIssue = { field: AgendaField; message: string };
 
 export function eventDraft(event?: AgendaEvent, date = todayIso()): AgendaEventDraft {
@@ -95,10 +97,10 @@ export function agendaMerge(original: AgendaEventDraft, mine: AgendaEventDraft, 
   return { merged, conflicts, resolved: conflicts.every(({group}) => !!choices[group]) };
 }
 export function agendaGroupText(draft: AgendaEventDraft, group: AgendaMergeGroup, workspace: Workspace): string {
-  if (group === 'schedule') return `${formatDate(draft.startDate)} – ${formatDate(draft.endDate)} · ${draft.allDay ? 'Toute la journée' : `${draft.startTime || '…'} – ${draft.endTime || '…'}`}`;
-  if (group === 'projectId') return workspace.projects.find(row => row.id === draft.projectId)?.name || (draft.projectId ? 'Projet indisponible' : 'Aucun projet');
-  if (group === 'employeeId') return workspace.employees.find(row => row.id === draft.employeeId)?.name || (draft.employeeId ? 'Personne indisponible' : 'Non attribué');
-  if (group === 'kind') return { appointment: 'Rendez-vous', visit: 'Visite / intervention', deadline: 'Échéance personnelle', other: 'Autre' }[draft.kind];
-  if (group === 'status') return { scheduled: 'Planifié', completed: 'Terminé', cancelled: 'Annulé' }[draft.status];
-  return draft[group] || 'Non renseigné';
+  if (group === 'schedule') return `${formatDate(draft.startDate)} – ${formatDate(draft.endDate)} · ${draft.allDay ? t('Toute la journée') : `${draft.startTime || '…'} – ${draft.endTime || '…'}`}`;
+  if (group === 'projectId') return workspace.projects.find(row => row.id === draft.projectId)?.name || t(draft.projectId ? 'Projet indisponible' : 'Aucun projet');
+  if (group === 'employeeId') return workspace.employees.find(row => row.id === draft.employeeId)?.name || t(draft.employeeId ? 'Personne indisponible' : 'Non attribué');
+  if (group === 'kind') return t({ appointment: 'Rendez-vous', visit: 'Visite / intervention', deadline: 'Échéance personnelle', other: 'Autre' }[draft.kind]);
+  if (group === 'status') return t({ scheduled: 'Planifié', completed: 'Terminé', cancelled: 'Annulé' }[draft.status]);
+  return draft[group] || t('Non renseigné');
 }
