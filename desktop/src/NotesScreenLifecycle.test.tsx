@@ -64,7 +64,7 @@ function beginDelete(host: Host) {
   click(host, e => e.type === Button && e.props['aria-label'] === 'Supprimer la note');
   click(host, e => e.type === Button && text(e) === 'Supprimer');
 }
-function selectedTitle(host: Host) { return walk(host.tree).find(e => e.type === 'input' && e.props['aria-label'] === 'Titre de la note')?.props.value; }
+function selectedTitle(host: Host) { return walk(host.tree).find(e => e.props['aria-label'] === 'Titre de la note')?.props.value; }
 afterEach(() => {vi.unstubAllGlobals(); runtime.host = null;});
 describe('NotesScreen deletion lifecycle with the real note store', () => {
   it.each(['resolve', 'reject'] as const)('keeps B open when deleting A later %s', async outcome => {
@@ -124,7 +124,7 @@ describe('NotesScreen deletion lifecycle with the real note store', () => {
   });
   it('keeps B editable while deleting A', async () => {
     const {host, store, deletion} = setup(); select(host, 'a'); beginDelete(host); await settle(host); select(host, 'b');
-    const input = one(host, e => e.type === 'input' && e.props['aria-label'] === 'Titre de la note');
+    const input = one(host, e => e.props['aria-label'] === 'Titre de la note');
     expect(input.props.readOnly).toBe(false); input.props.onChange({target: {value: 'Retained B edit'}}); host.flush();
     expect(selectedTitle(host)).toBe('Retained B edit');
     deletion.resolve(); await settle(host);
@@ -144,7 +144,7 @@ describe('NotesScreen deletion lifecycle with the real note store', () => {
   it('preserves a new note opened before the previous deletion settles', async () => {
     const {host, store, deletion, remove} = setup(); select(host, 'a'); beginDelete(host); await settle(host);
     click(host, e => e.type === Button && text(e).includes('Nouvelle note'));
-    const title = one(host, e => e.type === 'input' && e.props['aria-label'] === 'Titre de la note');
+    const title = one(host, e => e.props['aria-label'] === 'Titre de la note');
     title.props.onChange({target: {value: 'Synthetic new note'}}); host.flush();
     deletion.resolve(); await settle(host);
     expect(selectedTitle(host)).toBe('Synthetic new note'); expect(store.getSnapshot().some(row => row.note.title === 'Synthetic new note')).toBe(true);
