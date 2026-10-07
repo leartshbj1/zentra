@@ -1,0 +1,21 @@
+{
+  "recordedAt": "2026-10-07T23:05:47.6651904Z",
+  "engine": "PostgreSQL 18.3 / PGlite 0.5.8",
+  "migrations": [
+    {
+      "file": "supabase\\migrations\\20261007222349_international_us_erp_persistence.sql",
+      "sha256": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c"
+    },
+    {
+      "file": "supabase\\migrations\\20261007224820_international_us_erp_delta_stream.sql",
+      "sha256": "3df54310c2da0012d9065886df86a6524963ab594a1f314d10d45fac551af345"
+    },
+    {
+      "file": "supabase\\migrations\\20261007225725_international_us_erp_seller_snapshot.sql",
+      "sha256": "119e0c850c04c6772c0b002384c2cf86c8ab3427ec24586eb77f73a2a314f4f9"
+    }
+  ],
+  "migrationRunner": "docs/internationalization/evidence/us-erp-sql-20261008.json",
+  "runtimeReport": "docs/internationalization/evidence/us-erp-runtime-delta-seller-20261008.json",
+  "scope": "Local disposable PostgreSQL fixtures only. No production migrations, subscriptions, tax provider or native multi-device capacity proof."
+}

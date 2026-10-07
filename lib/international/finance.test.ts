@@ -1,0 +1,126 @@
+import { describe, expect, it } from 'vitest';
+import { validateCompanyConfiguration } from './country-config';
+import { money } from './money';
+import { buildTaxRequest, determineTax, estimateTotals, invoiceFromEstimate, lineTotals, recordCustomerPayment, invoiceBalance, validatePublicSellerSnapshot, type Estimate, type TaxAssessment, type CustomerPayment, type InvoicingAuthority, type PublicSellerSnapshot } from './invoicing';
+import { createLedger, postJournal, closePeriod, reverseJournal, type Ledger, type JournalInput, type FinancialAuthority } from './accounting/ledger';
+import { postCustomerInvoice, postCustomerPayment, postVendorBill, postVendorPayment, type VendorBill } from './accounting/postings';
+import { balanceSheet, cashFlow, generalLedger, profitAndLoss, trialBalance } from './accounting/reports';
+import { usStarterChart } from './countries/us/accounting';
+import { nationalAdapter } from './countries/adapters';
+import type { CompanyConfiguration } from './types';
+
+const org='test-us';
+const actor:FinancialAuthority={organizationId:org,userId:'test-owner',role:'owner',managementEntitled:true,timestamp:'2026-10-07T12:00:00Z'};
+const issuer:InvoicingAuthority={...actor,canIssue:true};
+const seller:PublicSellerSnapshot={organizationId:org,displayName:'Fictitious Seller',contactEmail:'seller@example.invalid',contactPhone:'+1 212 555 0100'};
+function configuration(basis:'cash'|'accrual'='accrual'):CompanyConfiguration {
+  return validateCompanyConfiguration({schemaVersion:1,organizationId:org,country:'US',currency:'USD',language:'en',timeZone:'America/New_York',accountingBasis:basis,invoiceNumberPrefix:'INV',address:{country:'US',line1:'18 Example Street',postalCode:'11201',city:'Brooklyn',subdivision:'NY'},taxConfiguration:{status:'configured'}});
+}
+function ledger(basis:'cash'|'accrual'='accrual'):Ledger {return createLedger({organizationId:org,currency:'USD',basis,accounts:usStarterChart,periods:[{id:'2026',start:'2026-01-01',end:'2026-12-31',status:'open'},{id:'2027',start:'2027-01-01',end:'2027-12-31',status:'open'}]});}
+function journal(overrides:Partial<JournalInput>={}):JournalInput {return {id:'capital',idempotencyKey:'capital',organizationId:org,currency:'USD',basis:'accrual',transactionDate:'2026-10-01',accountingDate:'2026-10-02',periodId:'2026',source:{type:'manual',id:'capital'},description:'Fictitious owner contribution',cashFlowCategory:'financing',lines:[{accountId:'cash',debitMinor:'100000',creditMinor:'0'},{accountId:'equity',debitMinor:'0',creditMinor:'100000'}],...overrides};}
+function estimate():Estimate {return {id:'estimate-1',organizationId:org,revision:1,currency:'USD',number:'EST-1',customer:{id:'customer-1',organizationId:org,kind:'business',name:'Fictitious Company',billingAddress:{country:'US',line1:'24 Example Street',postalCode:'11201',city:'Brooklyn',subdivision:'NY'},paymentTermsDays:30},date:'2026-09-01',expiresAt:'2026-09-30',paymentTermsDays:30,lines:[{id:'line-1',description:'Fictitious service',quantityUnits:'1',quantityScale:0,unitPrice:money('USD','10000'),discountBasisPoints:0,taxTreatment:'taxable'}],notes:'Fictitious test only\nPayment terms',status:'accepted'};}
+function assessment(config=configuration(),quote=estimate(),tax='825'):TaxAssessment {const request=buildTaxRequest(config,quote,'2026-10-07');return {...request,source:'external-provider',providerReference:'test-provider-only',determinedAt:'2026-10-07T11:00:00Z',validUntil:'2026-10-07T13:00:00Z',lines:[{id:'line-1',taxMinor:tax,jurisdiction:'fictitious-test-jurisdiction',evidenceReference:'test-fixture-not-real-rate'}]};}
+function invoice(config=configuration(),quote=estimate(),tax='825') {return invoiceFromEstimate(config,quote,{id:'invoice-1',number:'INV-1',date:'2026-10-07',accountingDate:'2026-10-07',dueDate:'2026-11-06'},assessment(config,quote,tax),issuer, seller);}
+function payment(id='p1',amount='10825'):CustomerPayment {return {id,idempotencyKey:id,organizationId:org,invoiceId:'invoice-1',amount:money('USD',amount),paymentDate:'2026-10-08',accountingDate:'2026-10-09',reference:`bank:${id}`,recordedBy:actor.userId};}
+const range={start:'2026-01-01',end:'2026-12-31'};
+
+describe('immutable exact double-entry ledger',()=>{
+  it('balances a contribution with separate transaction and accounting dates',()=>{const initial=ledger();const posted=postJournal(initial,journal(),actor,0);expect(initial.entries).toHaveLength(0);expect(Object.isFrozen(posted.entries[0].lines[0])).toBe(true);expect(posted.audit).toHaveLength(1);expect(trialBalance(posted,range.end)).toMatchObject({balanced:true,totalDebitMinor:'100000',totalCreditMinor:'100000'});expect(generalLedger(posted,'cash',range).movements[0]).toMatchObject({transactionDate:'2026-10-01',accountingDate:'2026-10-02'});});
+  it('retains amounts beyond IEEE safe integer range',()=>{const amount='900719925474099301';const posted=postJournal(ledger(),journal({lines:[{accountId:'cash',debitMinor:amount,creditMinor:'0'},{accountId:'equity',debitMinor:'0',creditMinor:amount}]}),actor,0);expect(trialBalance(posted,range.end).totalDebitMinor).toBe(amount);});
+  it('returns the same state for exact retries even after a later revision',()=>{const input=journal();let state=postJournal(ledger(),input,actor,0);state=closePeriod(state,'2026',actor,1);expect(postJournal(state,input,actor,0)).toBe(state);});
+  it.each([
+    ['TENANT_MISMATCH',{organizationId:'other'}],['CURRENCY_MISMATCH',{currency:'CHF'}],['ACCOUNTING_BASIS_MISMATCH',{basis:'cash'}],['INVALID_DATE',{transactionDate:'2026-02-30'}],['ACCOUNTING_PERIOD_REQUIRED',{periodId:'missing'}],['CASH_FLOW_CLASSIFICATION_REQUIRED',{cashFlowCategory:undefined}],['UNBALANCED_JOURNAL',{lines:[{accountId:'cash',debitMinor:'100',creditMinor:'0'},{accountId:'equity',debitMinor:'0',creditMinor:'99'}]}],['UNKNOWN_ACCOUNT',{lines:[{accountId:'missing',debitMinor:'100',creditMinor:'0'},{accountId:'equity',debitMinor:'0',creditMinor:'100'}]}],['INVALID_MINOR_AMOUNT',{lines:[{accountId:'cash',debitMinor:'1.1',creditMinor:'0'},{accountId:'equity',debitMinor:'0',creditMinor:'1'}]}],['INVALID_JOURNAL_LINE',{lines:[{accountId:'cash',debitMinor:'1',creditMinor:'1'},{accountId:'equity',debitMinor:'0',creditMinor:'1'}]}],
+  ] as [string,Partial<JournalInput>][])('refuses %s',(code,change)=>{expect(()=>postJournal(ledger(),journal(change),actor,0)).toThrow(code);});
+  it.each(['member','read_only'] as const)('denies posting by %s',role=>{expect(()=>postJournal(ledger(),journal(),{...actor,role},0)).toThrow('FINANCIAL_PERMISSION_REQUIRED');});
+  it('rechecks tenancy and entitlement before idempotent replay',()=>{const state=postJournal(ledger(),journal(),actor,0);expect(()=>postJournal(state,journal(),{...actor,organizationId:'other'},0)).toThrow('TENANT_MISMATCH');expect(()=>postJournal(state,journal(),{...actor,managementEntitled:false},0)).toThrow('MANAGEMENT_ENTITLEMENT_REQUIRED');});
+  it('refuses stale revisions and reused keys or ids with changed content',()=>{const state=postJournal(ledger(),journal(),actor,0);expect(()=>postJournal(state,journal({id:'second',idempotencyKey:'second'}),actor,0)).toThrow('REVISION_CONFLICT');expect(()=>postJournal(state,journal({description:'Changed'}),actor,1)).toThrow('IDEMPOTENCY_CONFLICT');expect(()=>postJournal(state,journal({idempotencyKey:'other'}),actor,1)).toThrow('ENTRY_ID_CONFLICT');});
+  it('closes periods and reverses into an open period without deleting history',()=>{let state=postJournal(ledger(),journal(),actor,0);state=closePeriod(state,'2026',actor,1);expect(()=>postJournal(state,journal({id:'second',idempotencyKey:'second'}),actor,2)).toThrow('ACCOUNTING_PERIOD_CLOSED');const correction={id:'reversal',idempotencyKey:'reversal',transactionDate:'2027-01-03',accountingDate:'2027-01-03',periodId:'2027',description:'Correction of fictitious capital'};state=reverseJournal(state,'capital',correction,actor,2);expect(state.entries).toHaveLength(2);expect(balanceSheet(state,'2027-12-31')).toMatchObject({assetsMinor:'0',equityMinor:'0',balanced:true});expect(reverseJournal(state,'capital',correction,actor,2)).toBe(state);expect(()=>reverseJournal(state,'capital',{...correction,id:'twice',idempotencyKey:'twice'},actor,3)).toThrow('INVALID_REVERSAL');});
+  it('rejects overlapping periods and duplicate account codes',()=>{expect(()=>createLedger({...ledger(),periods:[{id:'a',start:'2026-01-01',end:'2026-10-07',status:'open'},{id:'b',start:'2026-10-07',end:'2026-12-31',status:'open'}]})).toThrow('OVERLAPPING_PERIODS');expect(()=>createLedger({...ledger(),accounts:[usStarterChart[0],{...usStarterChart[1],code:usStarterChart[0].code}]})).toThrow('INVALID_ACCOUNT');});
+  it.each(['2026-02-30T12:00:00Z','2026-10-07T24:00:00Z','2026-10-07','0000-01-01T12:00:00Z'])('refuses ambiguous or impossible audit timestamp %s',timestamp=>{expect(()=>postJournal(ledger(),journal(),{...actor,timestamp},0)).toThrow('INVALID_AUDIT_TIMESTAMP');});
+  it('refuses revision overflow before modifying the journal',()=>{const state={...ledger(),revision:Number.MAX_SAFE_INTEGER};expect(()=>postJournal(state,journal(),actor,state.revision)).toThrow('REVISION_CONFLICT');expect(()=>closePeriod(state,'2026',actor,state.revision)).toThrow('REVISION_CONFLICT');});
+});
+
+describe('US estimates, exact invoices and trusted tax determinations',()=>{
+  it('rounds fractional quantities and discounts explicitly per line',()=>{const total=lineTotals({...estimate().lines[0],quantityUnits:'125',quantityScale:2,unitPrice:money('USD','101'),discountBasisPoints:1000},'USD');expect(total).toMatchObject({gross:{minorUnits:'126'},discount:{minorUnits:'13'},net:{minorUnits:'113'}});});
+  it('issues accepted quotes after expiry with fresh invoice-date tax determination',()=>{expect(invoice()).toMatchObject({currency:'USD',subtotal:{minorUnits:'10000'},tax:{minorUnits:'825'},total:{minorUnits:'10825'},date:'2026-10-07'});expect(Object.isFrozen(invoice().customer.billingAddress)).toBe(true);});
+  it('keeps US document and banking semantics distinct from Swiss QR',()=>{expect(nationalAdapter('US').paymentDocument).toBe('us-payment-instructions');expect(nationalAdapter('CH').paymentDocument).toBe('swiss-qr');expect('qr' in invoice()).toBe(false);});
+  it('requires a trusted provider even for configured US companies',async()=>{await expect(determineTax(configuration(),estimate(),null)).rejects.toThrow('TAX_CONFIGURATION_REQUIRED');const config=validateCompanyConfiguration({...configuration(),taxConfiguration:{status:'unconfigured'}});await expect(determineTax(config,estimate(),{id:'mock',calculate:async()=>assessment()})).rejects.toThrow('TAX_CONFIGURATION_REQUIRED');expect(()=>invoiceFromEstimate(config,estimate(),{id:'i',number:'I',date:'2026-10-07',accountingDate:'2026-10-07',dueDate:'2026-10-07'},assessment(),issuer, seller)).toThrow('TAX_CONFIGURATION_REQUIRED');});
+  it.each([
+    ['INVALID_TAX_SYSTEM',{source:'swiss-vat'}],['TENANT_MISMATCH',{organizationId:'another'}],['STALE_TAX_ASSESSMENT',{fingerprint:'old'}],['STALE_TAX_ASSESSMENT',{documentRevision:2}],['TAX_ASSESSMENT_EXPIRED',{validUntil:'2026-10-07T10:00:00Z'}],['TAX_ASSESSMENT_EXPIRED',{determinedAt:'2026-10-08T12:00:00Z'}],['TAX_LINES_MISMATCH',{lines:[]}],['TAX_EVIDENCE_REQUIRED',{providerReference:''}],['INVALID_TAX_ASSESSMENT',{source:'documented-exemption'}],
+  ] as [string,Partial<TaxAssessment>][])('rejects %s',(code,changes)=>{expect(()=>invoiceFromEstimate(configuration(),estimate(),{id:'i',number:'I',date:'2026-10-07',accountingDate:'2026-10-07',dueDate:'2026-10-08'},{...assessment(),...changes},issuer, seller)).toThrow(code);});
+  it('invalidates a determination when shipping destination changes',()=>{const quote=estimate();const tax=assessment(configuration(),quote);const changed:Estimate={...quote,customer:{...quote.customer,shippingAddress:{country:'US',line1:'45 Example Ave',city:'Los Angeles',subdivision:'CA',postalCode:'90001'}}};expect(()=>invoiceFromEstimate(configuration(),changed,{id:'i',number:'I',date:'2026-10-07',accountingDate:'2026-10-07',dueDate:'2026-11-07'},tax,issuer, seller)).toThrow('STALE_TAX_ASSESSMENT');});
+  it('refuses truthy unverified permissions at runtime',()=>{expect(()=>invoiceFromEstimate(configuration(),estimate(),{id:'i',number:'I',date:'2026-10-07',accountingDate:'2026-10-07',dueDate:'2026-11-07'},assessment(),{...issuer,canIssue:'true' as unknown as boolean}, seller)).toThrow('INVOICE_PERMISSION_REQUIRED');expect(()=>postJournal(ledger(),journal(),{...actor,managementEntitled:'yes' as unknown as boolean},0)).toThrow('MANAGEMENT_ENTITLEMENT_REQUIRED');});
+  it('requires acceptance, same company and issuing permission',()=>{expect(()=>invoice(configuration(),{...estimate(),status:'draft'})).toThrow('ESTIMATE_ACCEPTANCE_REQUIRED');expect(()=>invoice(configuration(),{...estimate(),customer:{...estimate().customer,organizationId:'other'}})).toThrow('TENANT_MISMATCH');expect(()=>invoiceFromEstimate(configuration(),estimate(),{id:'i',number:'I',date:'2026-10-07',accountingDate:'2026-10-07',dueDate:'2026-11-07'},assessment(),{...issuer,canIssue:false}, seller)).toThrow('INVOICE_PERMISSION_REQUIRED');});
+  it.each(['2026-10-07 13:00:00','2026-02-30T13:00:00Z'])('refuses a tax expiry without an unambiguous actual instant %s',validUntil=>{expect(()=>invoiceFromEstimate(configuration(),estimate(),{id:'i',number:'I',date:'2026-10-07',accountingDate:'2026-10-07',dueDate:'2026-11-07'},{...assessment(),validUntil},issuer, seller)).toThrow('TAX_ASSESSMENT_EXPIRED');});
+  it('freezes country, address and company language at invoice issuance',()=>{const issued=invoice();expect(Object.isFrozen(issued.companyConfiguration.address)).toBe(true);expect(issued.companyConfiguration).toMatchObject({country:'US',currency:'USD',language:'en',taxConfiguration:{status:'configured'}});});
+  it('rejects duplicate lines and invalid quantities',()=>{const quote=estimate();expect(()=>estimateTotals({...quote,lines:[quote.lines[0],quote.lines[0]]})).toThrow('DUPLICATE_LINE');expect(()=>lineTotals({...quote.lines[0],quantityUnits:'0'},'USD')).toThrow('INVALID_QUANTITY');});
+  it('records partial payments once and refuses overpayment or changed retries',()=>{const issued=invoice();const first=payment('p1','5000');const paid=recordCustomerPayment(configuration(),issued,first,issuer);expect(invoiceBalance(paid).minorUnits).toBe('5825');expect(recordCustomerPayment(configuration(),paid,first,issuer)).toBe(paid);expect(()=>recordCustomerPayment(configuration(),paid,{...first,reference:'changed'},issuer)).toThrow('IDEMPOTENCY_CONFLICT');expect(()=>recordCustomerPayment(configuration(),paid,payment('p2','5826'),issuer)).toThrow('PAYMENT_EXCEEDS_BALANCE');expect(invoiceBalance(recordCustomerPayment(configuration(),paid,payment('p2','5825'),issuer)).minorUnits).toBe('0');});
+});
+
+describe('required immutable public seller identity', () => {
+  const issue = (candidate: unknown) => invoiceFromEstimate(
+    configuration(), estimate(),
+    { id: 'invoice-1', number: 'INV-1', date: '2026-10-07', accountingDate: '2026-10-07', dueDate: '2026-11-06' },
+    assessment(), issuer, candidate as PublicSellerSnapshot,
+  );
+  it.each([
+    undefined, null, [], {}, { organizationId: org },
+    { ...seller, displayName: '' }, { ...seller, displayName: ' '.repeat(10) },
+    { ...seller, displayName: 'x'.repeat(257) },
+    { ...seller, displayName: 'Public\nInjected header' },
+    { ...seller, contactEmail: 'invalid-mail' }, { ...seller, contactEmail: 'two@example.invalid\r\nBcc: other@example.invalid' },
+    { ...seller, contactPhone: null }, { ...seller, contactPhone: 'x'.repeat(81) },
+    { ...seller, apiToken: 'private-value' }, { ...seller, taxId: 'private-tax-id' },
+    { ...seller, logoUrl: 'https://outside.example.invalid/logo.png' },
+    { ...seller, logoRef: { assetId: 'https://outside.example.invalid/logo.png', contentSha256: 'a'.repeat(64) } },
+    { ...seller, logoRef: { assetId: '11111111-1111-4111-8111-111111111111', contentSha256: 'A'.repeat(64) } },
+    { ...seller, logoRef: { assetId: '11111111-1111-4111-8111-111111111111', contentSha256: 'a'.repeat(64), url: 'https://outside.example.invalid' } },
+  ])('blocks invalid or unwhitelisted public company details %#', candidate => {
+    expect(() => issue(candidate)).toThrow('INVALID_SELLER_SNAPSHOT');
+  });
+  it('rejects another company even when all public fields are valid', () => {
+    expect(() => issue({ ...seller, organizationId: 'another-company' })).toThrow('TENANT_MISMATCH');
+  });
+  it('copies, normalizes and deeply freezes public identity and reference-only logo metadata', () => {
+    const original = {
+      ...seller, displayName: '  Fictitious Seller  ', contactEmail: ' seller@example.invalid ',
+      logoRef: { assetId: '11111111-1111-4111-8111-111111111111', contentSha256: 'a'.repeat(64) },
+    };
+    const issued = issue(original);
+    original.displayName = 'Current renamed business';
+    original.contactEmail = 'changed@example.invalid';
+    original.logoRef.contentSha256 = 'b'.repeat(64);
+    expect(issued.sellerSnapshot).toEqual({ ...seller, logoRef: { assetId: '11111111-1111-4111-8111-111111111111', contentSha256: 'a'.repeat(64) } });
+    expect(Object.isFrozen(issued.sellerSnapshot)).toBe(true);
+    expect(Object.isFrozen(issued.sellerSnapshot.logoRef)).toBe(true);
+    expect(validatePublicSellerSnapshot(JSON.parse(JSON.stringify(issued.sellerSnapshot)), org)).toEqual(issued.sellerSnapshot);
+    expect(recordCustomerPayment(configuration(), issued, payment(), issuer).sellerSnapshot).toBe(issued.sellerSnapshot);
+  });
+  it('rejects class instances, symbol keys and getters instead of copying hidden or executable properties', () => {
+    class SellerRecord { organizationId = org; displayName = 'Fictitious Seller'; }
+    expect(() => issue(new SellerRecord())).toThrow('INVALID_SELLER_SNAPSHOT');
+    expect(() => issue({ ...seller, [Symbol('secret')]: 'hidden' })).toThrow('INVALID_SELLER_SNAPSHOT');
+    let read = false;
+    const accessor = { ...seller };
+    Object.defineProperty(accessor, 'displayName', { enumerable: true, get() { read = true; return 'Fictitious Seller'; } });
+    expect(() => issue(accessor)).toThrow('INVALID_SELLER_SNAPSHOT');
+    expect(read).toBe(false);
+  });
+});
+
+describe('cash/accrual separation, receivables, payables and reports',()=>{
+  it('recognizes revenue on issue for accrual, and settles receivables separately',()=>{const config=configuration();const issued=invoice(config);let state=postCustomerInvoice(config,ledger(),issued,'2026',actor);expect(profitAndLoss(state,range).incomeMinor).toBe('10000');expect(cashFlow(state,range).closingMinor).toBe('0');expect(trialBalance(state,range.end).rows.find(row=>row.accountId==='receivables')?.debitMinor).toBe('10825');state=postCustomerPayment(config,state,issued,payment(),'2026',actor);expect(postCustomerPayment(config,state,issued,payment(),'2026',actor)).toBe(state);expect(trialBalance(state,range.end).rows.find(row=>row.accountId==='receivables')?.debitMinor).toBe('0');expect(cashFlow(state,range)).toMatchObject({operatingMinor:'10825',closingMinor:'10825'});expect(balanceSheet(state,range.end)).toMatchObject({assetsMinor:'10825',liabilitiesMinor:'825',unclosedEarningsMinor:'10000',balanced:true});expect(generalLedger(state,'cash',range).movements[0]).toMatchObject({transactionDate:'2026-10-08',paymentDate:'2026-10-08',accountingDate:'2026-10-09'});});
+  it('does not recognize an unpaid cash-basis invoice',()=>{const config=configuration('cash');const initial=ledger('cash');expect(postCustomerInvoice(config,initial,invoice(config),'2026',actor)).toBe(initial);expect(profitAndLoss(initial,range).incomeMinor).toBe('0');expect(()=>postCustomerInvoice(config,initial,invoice(config),'2026',{...actor,role:'read_only'})).toThrow('FINANCIAL_PERMISSION_REQUIRED');});
+  it('allocates partial cash receipts cumulatively without a residual cent',()=>{const config=configuration('cash');let issued=invoice(config);let state=ledger('cash');for (const [id,amount] of [['p1','3608'],['p2','3608'],['p3','3609']]) {const receipt=payment(id,amount);state=postCustomerPayment(config,state,issued,receipt,'2026',actor);issued=recordCustomerPayment(config,issued,receipt,issuer);}expect(profitAndLoss(state,range).incomeMinor).toBe('10000');expect(balanceSheet(state,range.end)).toMatchObject({liabilitiesMinor:'825',assetsMinor:'10825',balanced:true});expect(invoiceBalance(issued).minorUnits).toBe('0');});
+  it('refuses stale operational payment state before new postings',()=>{const config=configuration('cash');const issued=invoice(config);const state=postCustomerPayment(config,ledger('cash'),issued,payment('p1','5000'),'2026',actor);expect(()=>postCustomerPayment(config,state,issued,payment('p2','5000'),'2026',actor)).toThrow('PAYMENT_STATE_CONFLICT');expect(()=>postCustomerPayment(configuration(),ledger(),invoice(),payment(),'2026',actor)).toThrow('INVOICE_POSTING_REQUIRED');});
+  it('requires same company and accounting basis',()=>{expect(()=>postCustomerInvoice(configuration('cash'),ledger(),invoice(),'2026',actor)).toThrow('ACCOUNTING_CONFIGURATION_MISMATCH');expect(()=>postCustomerPayment(configuration(),ledger(),{...invoice(),organizationId:'other'},payment(),'2026',actor)).toThrow('TENANT_MISMATCH');});
+  it('refuses invoice currency mismatches and changed payment identities on retries',()=>{const issued=invoice();let state=postCustomerInvoice(configuration(),ledger(),issued,'2026',actor);expect(()=>postCustomerPayment(configuration(),state,{...issued,currency:'CHF'},payment(),'2026',actor)).toThrow('CURRENCY_MISMATCH');state=postCustomerPayment(configuration(),state,issued,payment(),'2026',actor);expect(()=>postCustomerPayment(configuration(),state,issued,{...payment(),id:'new'},'2026',actor)).toThrow('IDEMPOTENCY_CONFLICT');expect(()=>postCustomerPayment(configuration(),state,issued,{...payment(),reference:'other'},'2026',actor)).toThrow('IDEMPOTENCY_CONFLICT');});
+  function bill():VendorBill {return {id:'bill-1',organizationId:org,vendorId:'vendor-1',reference:'TEST-1',date:'2026-10-01',accountingDate:'2026-10-02',dueDate:'2026-11-01',currency:'USD',net:money('USD','2000'),tax:money('USD','150'),total:money('USD','2150'),expenseAccountId:'purchases',validatedBy:actor.userId};}
+  function vendorPayment(amount='2150',paidBefore='0') {return {id:'vp1',idempotencyKey:'vp1',paymentDate:'2026-10-10',accountingDate:'2026-10-10',periodId:'2026',amount:money('USD',amount),paidBefore:money('USD',paidBefore),cashFlowCategory:'operating' as const};}
+  it('includes US purchase tax in cost without inventing recoverable VAT',()=>{const config=configuration();const vendorBill=bill();let state=postVendorBill(config,ledger(),vendorBill,'2026',actor);expect(profitAndLoss(state,range).expenseMinor).toBe('2150');expect(balanceSheet(state,range.end).liabilitiesMinor).toBe('2150');state=postVendorPayment(config,state,vendorBill,vendorPayment(),actor);expect(cashFlow(state,range).operatingMinor).toBe('-2150');expect(trialBalance(state,range.end).balanced).toBe(true);expect(postVendorPayment(config,state,vendorBill,vendorPayment(),actor)).toBe(state);});
+  it('recognizes a cash-basis vendor cost only on payment',()=>{const config=configuration('cash');let state=ledger('cash');expect(postVendorBill(config,state,bill(),'2026',actor)).toBe(state);state=postVendorPayment(config,state,bill(),vendorPayment('1000'),actor);expect(profitAndLoss(state,range).expenseMinor).toBe('1000');expect(()=>postVendorPayment(config,state,bill(),{...vendorPayment('1000'),id:'vp2',idempotencyKey:'vp2'},actor)).toThrow('PAYMENT_STATE_CONFLICT');expect(()=>postVendorPayment(config,state,bill(),vendorPayment('2150','1000'),actor)).toThrow('INVALID_VENDOR_PAYMENT');});
+  it('refuses invalid vendor totals and unposted accrual bills',()=>{expect(()=>postVendorBill(configuration(),ledger(),{...bill(),total:money('USD','2000')},'2026',actor)).toThrow('VENDOR_BILL_TOTAL_MISMATCH');expect(()=>postVendorPayment(configuration(),ledger(),bill(),vendorPayment(),actor)).toThrow('VENDOR_BILL_POSTING_REQUIRED');});
+  it('refuses changed vendor payment ids on retries',()=>{const config=configuration();let state=postVendorBill(config,ledger(),bill(),'2026',actor);state=postVendorPayment(config,state,bill(),vendorPayment(),actor);expect(()=>postVendorPayment(config,state,bill(),{...vendorPayment(),id:'different'},actor)).toThrow('IDEMPOTENCY_CONFLICT');});
+  it('separates opening cash and movements of a later reporting period',()=>{let state=postJournal(ledger(),journal(),actor,0);state=postCustomerInvoice(configuration(),state,invoice(),'2026',actor);state=postCustomerPayment(configuration(),state,invoice(),payment(),'2026',actor);const later={start:'2026-10-08',end:'2026-12-31'};expect(cashFlow(state,later)).toMatchObject({openingMinor:'100000',operatingMinor:'10825',financingMinor:'0',closingMinor:'110825'});expect(generalLedger(state,'cash',later).openingMinor).toBe('100000');expect(()=>profitAndLoss(state,{start:'2026-12-31',end:'2026-01-01'})).toThrow('INVALID_REPORT_RANGE');});
+});
+

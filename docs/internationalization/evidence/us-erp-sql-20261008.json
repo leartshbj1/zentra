@@ -1,0 +1,239 @@
+{
+  "executedAt": "2026-10-07T22:44:50.195Z",
+  "engine": "PostgreSQL 18.3 (PGlite 0.5.8) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+  "pgliteVersion": "0.5.8",
+  "migration": "20261007222349_international_us_erp_persistence.sql",
+  "migrationSha256": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c",
+  "passed": 57,
+  "results": [
+    {
+      "name": "all US store tables have RLS",
+      "passed": true
+    },
+    {
+      "name": "anon has no table or RPC privileges",
+      "passed": true
+    },
+    {
+      "name": "authenticated has no table or RPC privileges",
+      "passed": true
+    },
+    {
+      "name": "RPCs use invoker with empty search path",
+      "passed": true
+    },
+    {
+      "name": "minor units retain the ledger exact 36 digit financial bound",
+      "passed": true
+    },
+    {
+      "name": "line quantity and discount round separately with integer cents",
+      "passed": true
+    },
+    {
+      "name": "posting chart account types cannot invert the financial meaning",
+      "passed": true
+    },
+    {
+      "name": "initialize committed and read back from PostgreSQL",
+      "passed": true
+    },
+    {
+      "name": "initialize replay does not advance head",
+      "passed": true
+    },
+    {
+      "name": "other company remains empty",
+      "passed": true
+    },
+    {
+      "name": "reused request with different hash conflicts",
+      "passed": true
+    },
+    {
+      "name": "client cannot change actor tenant",
+      "passed": true
+    },
+    {
+      "name": "replay still requires management right",
+      "passed": true
+    },
+    {
+      "name": "customer record persisted",
+      "passed": true
+    },
+    {
+      "name": "stale CAS rejected with no record change",
+      "passed": true
+    },
+    {
+      "name": "estimate and counter committed together",
+      "passed": true
+    },
+    {
+      "name": "acceptance persisted with revision",
+      "passed": true
+    },
+    {
+      "name": "unbalanced journal rolls back invoice number and head",
+      "passed": true
+    },
+    {
+      "name": "decimal minor amount refused",
+      "passed": true
+    },
+    {
+      "name": "balanced journal at a different amount is refused",
+      "passed": true
+    },
+    {
+      "name": "balanced journal with swapped account meaning is refused",
+      "passed": true
+    },
+    {
+      "name": "invoice cannot replace the accepted estimate contents",
+      "passed": true
+    },
+    {
+      "name": "invoice totals cannot be fabricated with a matching balanced journal",
+      "passed": true
+    },
+    {
+      "name": "foreign tenant tax proof is refused",
+      "passed": true
+    },
+    {
+      "name": "a Swiss tax source cannot authorize a US invoice",
+      "passed": true
+    },
+    {
+      "name": "expired tax proof is refused without spending a document number",
+      "passed": true
+    },
+    {
+      "name": "tax request fingerprint must match invoice date and location",
+      "passed": true
+    },
+    {
+      "name": "tax aggregate must match evidence line amounts",
+      "passed": true
+    },
+    {
+      "name": "invoice number must match its own atomic counter",
+      "passed": true
+    },
+    {
+      "name": "customer invoice journal and audit are atomic",
+      "passed": true
+    },
+    {
+      "name": "issue response lost and retried returns same receipt",
+      "passed": true
+    },
+    {
+      "name": "issued estimate cannot be edited",
+      "passed": true
+    },
+    {
+      "name": "journal direct update is immutable",
+      "passed": true
+    },
+    {
+      "name": "journal direct unbalanced insert cannot bypass balance check",
+      "passed": true
+    },
+    {
+      "name": "direct invoice body modification blocked",
+      "passed": true
+    },
+    {
+      "name": "direct history removal has no grant",
+      "passed": true
+    },
+    {
+      "name": "overpayment rolls back journal",
+      "passed": true
+    },
+    {
+      "name": "payment journal must match the actual payment amount",
+      "passed": true
+    },
+    {
+      "name": "payment key must match the operation receipt",
+      "passed": true
+    },
+    {
+      "name": "partial payment and journal persisted together",
+      "passed": true
+    },
+    {
+      "name": "payment retry has no duplicate",
+      "passed": true
+    },
+    {
+      "name": "recorded payment cannot be changed",
+      "passed": true
+    },
+    {
+      "name": "period closure recorded",
+      "passed": true
+    },
+    {
+      "name": "period cannot be reopened",
+      "passed": true
+    },
+    {
+      "name": "configuration cannot be silently replaced",
+      "passed": true
+    },
+    {
+      "name": "read-only cannot mutate",
+      "passed": true
+    },
+    {
+      "name": "commercial member can save a customer",
+      "passed": true
+    },
+    {
+      "name": "commercial member cannot issue",
+      "passed": true
+    },
+    {
+      "name": "financial receipt replay still rejects a downgraded member",
+      "passed": true
+    },
+    {
+      "name": "member cannot refresh national configuration",
+      "passed": true
+    },
+    {
+      "name": "old configuration prevents unrelated writes until explicit refresh",
+      "passed": true
+    },
+    {
+      "name": "owner refreshes metadata while retaining historical invoice configuration",
+      "passed": true
+    },
+    {
+      "name": "configuration refresh is idempotent",
+      "passed": true
+    },
+    {
+      "name": "CH workspace cannot initialize US store",
+      "passed": true
+    },
+    {
+      "name": "snapshot revision is unchanged by all US business commits",
+      "passed": true
+    },
+    {
+      "name": "receipt lookup isolates tenant",
+      "passed": true
+    },
+    {
+      "name": "no US rows accidentally created for other companies",
+      "passed": true
+    }
+  ],
+  "scope": "Real PostgreSQL WASM SQL execution; complete synthetic flow and grants. No production, PostgREST, live tax provider, multi-connection race or native bridge proof."
+}

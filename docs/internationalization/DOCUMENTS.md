@@ -1,0 +1,44 @@
+# Projections imprimables et numérotation
+
+Le nouveau module `lib/international/documents.ts` est un socle **non branché**. Il réutilise `CompanyConfiguration`, les adresses, les montants exacts et les contrats d'`invoicing.ts`. Il ne modifie pas les factures natives, le renderer PDF existant, les numéros historiques ou les ressources de production. Aucun CRUD de gestion natif n'est déclaré terminé par ce module.
+
+## Projection publique
+
+`buildPrintableDocument(company, publicSeller, input, options?)` construit un snapshot immuable pour un devis, une facture ou un avoir (`credit_memo`). Le lecteur appelant doit déjà avoir autorisé la lecture de l'entreprise et du document. La fonction vérifie que vendeur, document et client appartiennent à la même organisation, et que la devise correspond au pays de l'entreprise.
+
+Le vendeur expose seulement son nom, l'adresse validée de l'entreprise et ses coordonnées publiques explicitement fournies. Le client expose seulement son nom et son adresse de facturation. Les identifiants internes, adresses mail privées du client, téléphone privé, acteur d'émission, références de paiement, clés et détails du prestataire fiscal sont exclus du snapshot et du HTML. Les identifiants fiscaux de la configuration ne sont pas imprimés automatiquement. Les adresses et lignes sont copiées ; modifier ensuite un objet source ne modifie pas le document préparé.
+
+Les devis conservent les quantités décimales, remises et montants exacts. Ils indiquent une taxe non déterminée tant qu'aucune détermination fiscale n'est dans leur contrat ; le sous-total estimé ne prétend pas être un total toutes taxes comprises. Les factures reprennent les montants déterminés lors de l'émission et vérifient leur cohérence avec les lignes. Leur `companyConfiguration` enregistrée à l'émission fixe le pays, la devise, la langue, l'adresse du vendeur et le contexte du calcul fiscal. Un changement actuel d'adresse, de langue ou de statut fiscal ne réécrit pas la facture et ne bloque pas son impression. La configuration actuelle est néanmoins validée ; elle doit conserver l'organisation, le pays et la devise de la facture et de son snapshot. L'expiration ultérieure d'une décision fiscale ne bloque pas l'impression historique : sa validité est évaluée au moment enregistré de l'émission, sans la renouveler. Les paiements sont contrôlés avant d'afficher le solde.
+
+`CreditMemoDocument` est un input de projection avec une facture de référence, des lignes, une détermination fiscale liée au document et un montant de crédit positif. Ce type ne crée pas un avoir réel et ne possède pas de factory archivant sa configuration. Le consommateur doit autoriser la lecture sous l'entreprise courante et fournir le contexte de configuration figé à l'émission de l'avoir, ainsi que ses données publiques archivées. Il devra autoriser et persister l'émission, contrôler la facture d'origine, le crédit déjà accordé et ses limites, puis comptabiliser la correction avec les protections du moteur métier. Le titre « Credit memo » ne constitue aucune de ces opérations.
+
+`renderPrintableDocumentHtml(snapshot)` produit du HTML autonome sans scripts, formulaires, URLs distantes, images ou polices téléchargées. Tous les textes dynamiques sont échappés, y compris les descriptions et notes multilignes. Le format de papier est strictement A4 ou Letter ; il ne peut pas injecter du CSS. Une politique CSP bloque les ressources réseau et scripts. L'utilisateur peut utiliser **Imprimer / Enregistrer au format PDF** du navigateur.
+
+Le papier par défaut est Letter pour US et A4 pour CH. Le document US affiche USD, les titres Estimate / Invoice / Credit memo en anglais, les adresses `City, ST ZIP`, le libellé Sales tax et des conditions explicites Net N ou Due on receipt. Il ne fabrique ni taux de sales tax ni TVA suisse. Une détermination `swiss-vat` est refusée pour US par le validateur existant. Les titres existent en français, allemand, italien et anglais ; les données des clients et les notes ne sont pas traduites.
+
+La projection CH est une mise en page générale **sans section QR**. Elle ne remplace pas le renderer QR-facture natif et ne doit pas être distribuée comme sa version officielle. Le choix de pays ne doit jamais modifier un document historique. Le nom public du vendeur et ses coordonnées restent fournis par `publicSeller` : ils ne font pas partie du snapshot `companyConfiguration`. L'intégration persistante devra les archiver atomiquement avec l'émission, puis charger ces valeurs historiques à l'impression ; fournir le nom actuel ne constitue pas une archive de l'ancien nom.
+
+## Numérotation persistante : port à implémenter
+
+`reserveDocumentNumber(company, request, store)` retourne un `NumberReservation` contenant l'identifiant du document, son numéro, la séquence et son éventuelle source de conversion. Le numéro est construit à partir du préfixe explicite de l'entreprise, du type (EST / INV / CM) et d'une séquence entière. Il n'existe aucun compteur global.
+
+Le port `DocumentNumberingStore` doit fournir :
+
+| Méthode                                   | Contrat                                                                                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readCounter(org,type)`                   | Compteur propre à l'organisation et au type ; révision et prochaine séquence                                                                         |
+| `readReservation(org,type,requestId)`     | Réservation historique immuable liée à la clé d'idempotence                                                                                          |
+| `readConversion(org,estimateId,revision)` | Facture déjà réservée pour cette révision du devis                                                                                                   |
+| `compareAndSwap(...)`                     | Une transaction persistante qui vérifie la révision, avance le compteur et inscrit les unicités de requête et conversion ; conflit = aucune écriture |
+
+L'identité fige pays, devise, préfixe, type, empreinte du document métier et source/révision du devis. `documentFingerprint` doit être calculé à partir d'un document autorisé et figé côté serveur ; ce hash n'est pas une signature ni un droit d'accès. Les objets de requête sont copiés avant les attentes asynchrones. Une clé rejouée avec un autre contenu, une autre cible ou un nouveau préfixe est refusée ; aucune ancienne réservation n'est renumérotée.
+
+Deux conversions simultanées avec des clés de clic différentes mais la même source, révision et contenu reprennent **l'identifiant et le numéro gagnants**. Le consommateur doit employer cet identifiant retourné, jamais continuer avec son identifiant perdant. Un contenu différent pour la même source est un conflit explicite. Les tentatives CAS sont bornées ; une forte contention demande une nouvelle tentative explicite avec la même identité. Une perte de réponse du stockage peut être reprise en relisant cette réservation. Aucun numéro n'est supprimé, libéré à expiration ou recyclé.
+
+Ce port ne persiste actuellement ni facture ni devis. Pour terminer la conversion, le vrai adaptateur doit, dans **la même transaction**, revalider membre/rôle/droits, état accepté et révision du devis, enregistrer la facture immuable et réserver le numéro avec les contraintes uniques `(organizationId,documentType,idempotencyKey)` et `(organizationId,sourceEstimateId,sourceEstimateRevision)`. Enregistrer un numéro puis créer librement deux factures en dehors de cette transaction ne respecte pas ce contrat. La période clôturée, la piste d'audit et l'écriture comptable doivent rester sous l'autorité du moteur existant.
+
+## Vérifications et limites
+
+`documents.test.ts` utilise exclusivement des entreprises, clients, déterminations fiscales et stores CAS fictifs. Il teste USD exact, précision supérieure à IEEE, titres/langues, notes, projections privées, injection HTML/CSS, entreprises étrangères, refus CHF/TVA suisse en US, soldes, retries, concurrence, conflits, réponse perdue et unicité de conversion. Tout appel réseau ferait échouer ces tests.
+
+Des impressions Edge hors ligne sur fixtures A4/Letter complètent la recette locale. Le HTML et la mise en page imprimée sont inspectés séparément ; les preuves restent dans `D:/Codex-Zentra-Temporary/2026-10-07/international-document-tests`. Cette recette ne prouve pas une imprimante physique, la cohérence multi-appareils, une émission fiscale officielle ou une transaction de production. Aucun endpoint, stockage persistant, connexion bancaire, migration, publication ou branchement natif n'a été ajouté.

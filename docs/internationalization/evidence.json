@@ -1,0 +1,627 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-10-07T20:57:16.4970149Z",
+  "repository": "C:/Users/alb/Documents/ChatGPT/chantier",
+  "head": "dd64a18c34b44bb4c9d8e4c0a921a3602d3d8944",
+  "dirtyCheckout": true,
+  "newFilesIncludingThisEvidence": 53,
+  "safety": {
+    "productionWrites": false,
+    "productionMigration": false,
+    "stripeMutation": false,
+    "dataDeletion": false,
+    "regionMove": false,
+    "legacyConsumersSwitched": false,
+    "countryApiDisabledByDefault": true,
+    "preexistingDirtyChangesPreserved": true
+  },
+  "sourceAlignment": {
+    "nativeDeclaredVersion": "1.46.1",
+    "readOnlyNewerSiteHead": "82871714b1b56eb17eb43b4f1351959d8be880ff",
+    "nativeDeploymentReady": false,
+    "reason": "Reconcile authoritative released app/site/sync/schema before native integration; this checkout must not overwrite newer releases."
+  },
+  "tests": [
+    {
+      "name": "root full Vitest sequential",
+      "passed": 1315,
+      "skipped": 71,
+      "files": 81,
+      "note": "Run before final late tests; international final rerun separately. Not live provider proof."
+    },
+    {
+      "name": "desktop full Vitest",
+      "passed": 1692,
+      "files": 189,
+      "note": "Onboarding final semantic fix rerun targeted; no native IPC proof."
+    },
+    {
+      "name": "international final Vitest",
+      "passed": 307,
+      "files": 8,
+      "failed": 0,
+      "success": true,
+      "command": "pnpm exec vitest run lib/international --maxWorkers=1"
+    },
+    {
+      "name": "onboarding targeted",
+      "passed": 15,
+      "note": "Included in desktop; rerun after semantic fixes."
+    },
+    {
+      "name": "Stripe regression",
+      "passed": 110,
+      "files": 15,
+      "note": "Fixture contracts only; no payment."
+    },
+    {
+      "name": "Auth regression",
+      "passed": 22,
+      "files": 2,
+      "note": "Fixture sessions/HTTP only; no real customer login."
+    },
+    {
+      "name": "D1/Miniflare targeted sequential",
+      "passed": 253,
+      "skipped": 63,
+      "files": 4,
+      "note": "Overlaps full root; avoids baseline EADDRINUSE collisions."
+    },
+    {
+      "name": "native CH QR",
+      "passed": 5,
+      "filtered": 1096,
+      "command": "cargo test --lib swiss_qr::tests --locked --offline",
+      "scope": "Synthetic native unit tests; no installed UI."
+    },
+    {
+      "name": "native vat selection",
+      "passed": 108,
+      "filtered": 993,
+      "seconds": 242.51,
+      "command": "cargo test --lib vat --locked --offline -- --test-threads=1",
+      "scope": "Includes VAT and names containing private; not entire Rust suite."
+    },
+    {
+      "name": "onboarding browser",
+      "inspections": 8,
+      "flows": 10,
+      "screenshots": 34,
+      "scope": "Synthetic save, 320/390/1280px, four languages."
+    },
+    {
+      "name": "pilot final browser",
+      "passed": 4,
+      "screenshots": 8,
+      "results": [
+        {
+          "basis": "cash",
+          "width": 390,
+          "customer": true,
+          "estimate": true,
+          "taxMissingBlocked": true,
+          "fixtureInvoice": true,
+          "exactUsdPrint": true,
+          "nativeModal": true,
+          "escapeFocusRestore": true,
+          "buttonDismiss": true,
+          "paymentOnce": true,
+          "balanced": true,
+          "errors": []
+        },
+        {
+          "basis": "cash",
+          "width": 1280,
+          "customer": true,
+          "estimate": true,
+          "taxMissingBlocked": true,
+          "fixtureInvoice": true,
+          "exactUsdPrint": true,
+          "nativeModal": true,
+          "escapeFocusRestore": true,
+          "buttonDismiss": true,
+          "paymentOnce": true,
+          "balanced": true,
+          "errors": []
+        },
+        {
+          "basis": "accrual",
+          "width": 390,
+          "customer": true,
+          "estimate": true,
+          "taxMissingBlocked": true,
+          "fixtureInvoice": true,
+          "exactUsdPrint": true,
+          "nativeModal": true,
+          "escapeFocusRestore": true,
+          "buttonDismiss": true,
+          "paymentOnce": true,
+          "balanced": true,
+          "errors": []
+        },
+        {
+          "basis": "accrual",
+          "width": 1280,
+          "customer": true,
+          "estimate": true,
+          "taxMissingBlocked": true,
+          "fixtureInvoice": true,
+          "exactUsdPrint": true,
+          "nativeModal": true,
+          "escapeFocusRestore": true,
+          "buttonDismiss": true,
+          "paymentOnce": true,
+          "balanced": true,
+          "errors": []
+        }
+      ],
+      "scope": "Shared core wired into development fixture only, synthetic authority and tax evidence; no native DB, Supabase, Stripe, mail, account provisioning or US tax compliance.",
+      "command": "node scripts/international/check-browser-pilot.mjs"
+    },
+    {
+      "name": "typecheck root",
+      "status": "passed",
+      "command": "pnpm exec tsc --noEmit --incremental false"
+    },
+    {
+      "name": "typecheck desktop",
+      "status": "passed",
+      "command": "pnpm --dir desktop exec tsc --noEmit"
+    },
+    {
+      "name": "typecheck pilot",
+      "status": "passed",
+      "scope": "Separate strict compiler invocation for desktop/tests/international-erp-pilot.tsx; noEmit ES2022 Bundler react-jsx"
+    },
+    {
+      "name": "lint",
+      "status": "passed",
+      "scope": "Root package lint and targeted oxlint for every new TS/TSX/JS route/helper/fixture."
+    },
+    {
+      "name": "production builds",
+      "status": "passed",
+      "scope": "Vinext site + Vite desktop frontend; no signed native bundles."
+    }
+  ],
+  "sql": {
+    "executedAt": "2026-10-07T20:46:55.44Z",
+    "engine": "PostgreSQL 18.3 (PGlite 0.5.8) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+    "pgliteVersion": "0.5.8",
+    "migration": "20261007194528_international_workspace_country_config.sql",
+    "migrationSha256": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9",
+    "assertionsSha256": "fdea0dba2320ec1162154c92f71cd89cab2ebff40e2c7a886aee53ea45aa7699",
+    "passed": 17,
+    "assertions": [
+      {
+        "name": "01_no_backfill",
+        "passed": true
+      },
+      {
+        "name": "02_rls_enabled",
+        "passed": true
+      },
+      {
+        "name": "03_anon_denied",
+        "passed": true
+      },
+      {
+        "name": "04_authenticated_denied",
+        "passed": true
+      },
+      {
+        "name": "05_service_invoker_minimum",
+        "passed": true
+      },
+      {
+        "name": "06_anon_rpc_execution_denied",
+        "passed": true
+      },
+      {
+        "name": "07_authenticated_rpc_execution_denied",
+        "passed": true
+      },
+      {
+        "name": "08_missing_workspace_not_created",
+        "passed": true
+      },
+      {
+        "name": "09_cross_organization_rejected",
+        "passed": true
+      },
+      {
+        "name": "10_invalid_config_rejected",
+        "passed": true
+      },
+      {
+        "name": "11_initial_write_atomic",
+        "passed": true
+      },
+      {
+        "name": "12_exact_retry_is_durable",
+        "passed": true
+      },
+      {
+        "name": "13_reused_id_refused",
+        "passed": true
+      },
+      {
+        "name": "14_stale_cas_has_no_side_effect",
+        "passed": true
+      },
+      {
+        "name": "15_jurisdiction_and_basis_locked",
+        "passed": true
+      },
+      {
+        "name": "16_edit_audited_and_old_retry_preserved",
+        "passed": true
+      },
+      {
+        "name": "17_history_append_only_and_receipt_required",
+        "passed": true
+      }
+    ],
+    "scope": "Isolated PostgreSQL WASM; synthetic workspace parent and roles only. No live Supabase, deployed-schema alignment, PostgREST or concurrent-connection certification."
+  },
+  "nonUniqueCounts": true,
+  "newFileInventory": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/country/route.ts",
+      "sha256": "ac63461472d45673882f1445cd0f60e3aea4ab4c483c9287c5ff72ddf4dac938",
+      "bytes": 490
+    },
+    {
+      "path": "desktop/src/international-company-setup.css",
+      "sha256": "0828b0530f8a001dd9c0a85e29846dc6e5e92ea2ab90164865acaa76b113f63d",
+      "bytes": 6778
+    },
+    {
+      "path": "desktop/src/internationalCompanySetup.test.ts",
+      "sha256": "67d8953c24c2c52f1393ce7d9c1d0b89fd303628100a97211e24c13b0fdcc37e",
+      "bytes": 7117
+    },
+    {
+      "path": "desktop/src/InternationalCompanySetup.tsx",
+      "sha256": "63d693b444b3908753193f4d405741484717e3c0412bcebb0a59fa9a8a548212",
+      "bytes": 30382
+    },
+    {
+      "path": "desktop/tests/international-company-harness.html",
+      "sha256": "d6462a8da3ba3230dbd67e55d51c0b51821711305a5bf9238338b1ed29a83c6c",
+      "bytes": 358
+    },
+    {
+      "path": "desktop/tests/international-company-harness.tsx",
+      "sha256": "dfe64e3a8942a64d9728ccca385b3f2e21cd998b9974c32fded377c72b0b79dc",
+      "bytes": 3640
+    },
+    {
+      "path": "desktop/tests/international-erp-pilot.css",
+      "sha256": "2caf7636f49f0b90c42376b3e9f3a061c92ba2d9f1c331d8b8e30a5e369e1170",
+      "bytes": 3648
+    },
+    {
+      "path": "desktop/tests/international-erp-pilot.html",
+      "sha256": "0cc2e4e2e3791f10b198a135dbf9195647afa5df9f2a470e7895dd5919d2038a",
+      "bytes": 293
+    },
+    {
+      "path": "desktop/tests/international-erp-pilot.tsx",
+      "sha256": "e187ea62586248cdf726e9ee61696984c91974d3b2a2e573a5454fbd53847252",
+      "bytes": 11443
+    },
+    {
+      "path": "docs/internationalization/audit-notes/backend.md",
+      "sha256": "55305d36fff8b9e62ac77d4b6c5d50ae5cda21c6c39b3835112ec1c4070a359b",
+      "bytes": 21034
+    },
+    {
+      "path": "docs/internationalization/audit-notes/billing-support.md",
+      "sha256": "2caf6ffd2a7fa6c68b3b624f9cfa264f4c214b5c49c5d5617d4f81b66d2432e5",
+      "bytes": 22772
+    },
+    {
+      "path": "docs/internationalization/audit-notes/desktop.md",
+      "sha256": "dbd8dd2569d5dc3f4c746f86a32441bd3d1b0cebcbdc83eae7b268fadd46bed9",
+      "bytes": 36059
+    },
+    {
+      "path": "docs/internationalization/audit-notes/live-supabase.json",
+      "sha256": "bff84c92488b7419abb4e2025f71c73d96c671fdcf575b7b38c7f6291afebda7",
+      "bytes": 47562
+    },
+    {
+      "path": "docs/internationalization/AUDIT.md",
+      "sha256": "6267e2d227ac0371b6a09ad79bedd4aebf32b2f6327b1538f97bb463c07e9a56",
+      "bytes": 18048
+    },
+    {
+      "path": "docs/internationalization/CORE.md",
+      "sha256": "65ff0ae519477ee7c1711b7197991d9f2ac332f446d7747f4de5ac88f23b4c44",
+      "bytes": 9860
+    },
+    {
+      "path": "docs/internationalization/DELIVERY.md",
+      "sha256": "2819a586e2b9568aeb3c279399117c0ae2433508d6750bc57dda5ee17efeb529",
+      "bytes": 15618
+    },
+    {
+      "path": "docs/internationalization/DOCUMENTS.md",
+      "sha256": "ceea624f267f32c78d03f8b9c519710d43c964407346ee92455621abef71b25b",
+      "bytes": 9064
+    },
+    {
+      "path": "docs/internationalization/FINANCE.md",
+      "sha256": "42e7b9d877329f5c5627ab76ff336595b6b633a3ce96b408593787fd78521724",
+      "bytes": 8650
+    },
+    {
+      "path": "docs/internationalization/INTEGRATIONS.md",
+      "sha256": "c7d0129077b99c216202264ccb76d2fdd54043563fd7c9947367cf21870cc13f",
+      "bytes": 9375
+    },
+    {
+      "path": "docs/internationalization/MIGRATIONS.md",
+      "sha256": "a4f991b5fbf9afea6a3e116ddee63840b85800d63c6e118d15442bc1b11c48fc",
+      "bytes": 11650
+    },
+    {
+      "path": "docs/internationalization/ONBOARDING.md",
+      "sha256": "5addf408f24df8bebc1283509afcd863032cfcc36a00e07d87615d3ee5930918",
+      "bytes": 12042
+    },
+    {
+      "path": "lib/international/accounting/ledger.ts",
+      "sha256": "693b46ba967370a5df14bffa1c396ef9ac401a4521bafb149a40862ee66f2af0",
+      "bytes": 11743
+    },
+    {
+      "path": "lib/international/accounting/postings.ts",
+      "sha256": "c216578499a33879da1463602ffeead083de8eb8951d24434d9d6d6181062147",
+      "bytes": 10369
+    },
+    {
+      "path": "lib/international/accounting/reconciliation.test.ts",
+      "sha256": "aef51cff7d118d75080add869ae5d36caf33d85feb21434ae454bd19aa812900",
+      "bytes": 6213
+    },
+    {
+      "path": "lib/international/accounting/reconciliation.ts",
+      "sha256": "0d6513eb08162d832cbd5bd22c682c11541001f29368be17b8b37af9240fa810",
+      "bytes": 8757
+    },
+    {
+      "path": "lib/international/accounting/reports.ts",
+      "sha256": "ade415d24c56f98b60dcddafb6b7628a5d9befe9f95dd28a3c75b5abcd4c0644",
+      "bytes": 6532
+    },
+    {
+      "path": "lib/international/addresses.ts",
+      "sha256": "ab99832d4839ba2ab41318c0cdadb7ac709c724d4f04804c3572e8622c87955a",
+      "bytes": 3428
+    },
+    {
+      "path": "lib/international/automation.ts",
+      "sha256": "2cd9b805677da5417cdb94e8fddfccc252add855ca5c87065de2226f775aba18",
+      "bytes": 26884
+    },
+    {
+      "path": "lib/international/core.test.ts",
+      "sha256": "a0b539592d3c56ef584fc0d19139a2a6a8aa4609b8190949d1076f5a0ba8c2e4",
+      "bytes": 14152
+    },
+    {
+      "path": "lib/international/countries/adapters.ts",
+      "sha256": "059c6d6917424ad4f6fb504834b0b32988003936193a1506d3bb46ae16b453d9",
+      "bytes": 1255
+    },
+    {
+      "path": "lib/international/countries/ch/accounting.ts",
+      "sha256": "f51acabfad6ac000df2f2b36eaff5ecae158dbf8a76da7c09af4b44c3ab8041e",
+      "bytes": 1073
+    },
+    {
+      "path": "lib/international/countries/us/accounting.ts",
+      "sha256": "293325666a087b381521f77db9822f0e60cea1aac8207716879968e49b330cb3",
+      "bytes": 1055
+    },
+    {
+      "path": "lib/international/country-config.ts",
+      "sha256": "f36d0363d0ff930595af56a1ff15132416b700dba790c3b78127bdb2d9979b7e",
+      "bytes": 6479
+    },
+    {
+      "path": "lib/international/documents.test.ts",
+      "sha256": "0531977ba3c255650d72e096b3b96a883139511c03d68801c2e249a5544d3263",
+      "bytes": 24845
+    },
+    {
+      "path": "lib/international/documents.ts",
+      "sha256": "4671e7b4b3041217f4b997d4ed1adb169102152c4a996bc5542bcb98351f2cf1",
+      "bytes": 28107
+    },
+    {
+      "path": "lib/international/finance.test.ts",
+      "sha256": "b8a7244192fe9d275b08446d30ff3eb236315e78ed09d5acc88e45dd8b4e80ca",
+      "bytes": 21353
+    },
+    {
+      "path": "lib/international/integration.test.ts",
+      "sha256": "bc6e43695a5833f1b25d44532b2dfff6aaa9c1fdbd4286a0484e94c1f0b85b1d",
+      "bytes": 33017
+    },
+    {
+      "path": "lib/international/invoicing.ts",
+      "sha256": "3b32d9b13dddcec210616b932bc48666648aeb40f8be79141f9239a3f667c838",
+      "bytes": 13690
+    },
+    {
+      "path": "lib/international/localization.ts",
+      "sha256": "63f581c1b6231ae1a215b06ba3d7c2da65423c74d9b3a2d21b926dc2ffcd16fe",
+      "bytes": 2757
+    },
+    {
+      "path": "lib/international/money.ts",
+      "sha256": "6288c87e78fab34a698d959609c440a77e6cd54b49776dadf1253322af095c55",
+      "bytes": 5124
+    },
+    {
+      "path": "lib/international/phone.test.ts",
+      "sha256": "0cda0c4d5becd06b1d38527335cd7f772e93d0336039ce1969cf3fe12e87e078",
+      "bytes": 1096
+    },
+    {
+      "path": "lib/international/phone.ts",
+      "sha256": "c6a33814d35104372e1560a6c13ccaaa72c81a1cb0686c8194585af559e33d8c",
+      "bytes": 1840
+    },
+    {
+      "path": "lib/international/subscriptions.ts",
+      "sha256": "7da0cff0162bafa91f6cdbc1a03ef8bb28217af8159a14a0ada4afe457a9b0b1",
+      "bytes": 10690
+    },
+    {
+      "path": "lib/international/types.ts",
+      "sha256": "864d9f23962593342c5acaf4ed1d3857042c2de5f3363f554c88de4694267ad8",
+      "bytes": 2078
+    },
+    {
+      "path": "lib/international/workspace-server.test.ts",
+      "sha256": "14c53d506f6e3115c1452bc925f83606f33b377232e341c451025927a8814a8e",
+      "bytes": 7353
+    },
+    {
+      "path": "lib/international/workspace-server.ts",
+      "sha256": "c4af20cf6aa22e8c237766135c42ab8372b3450604c0222c6880a65c1c82bedb",
+      "bytes": 4173
+    },
+    {
+      "path": "lib/international/workspace-service.test.ts",
+      "sha256": "1d5cabdc395b4094ace115a864930c547316a478bea2aeb12429ddda4cd6c114",
+      "bytes": 6057
+    },
+    {
+      "path": "lib/international/workspace-service.ts",
+      "sha256": "1c939b80ab735dcafa235d0e74cf29168b3d087271fc70cf5c7067fec7c76c58",
+      "bytes": 7751
+    },
+    {
+      "path": "scripts/international/check-browser-pilot.mjs",
+      "sha256": "f0afcd9830fcb33a65905be54c59d2b9b45ba683297a1f283adcb46cb287acda",
+      "bytes": 9754
+    },
+    {
+      "path": "scripts/international/test-country-migration.mjs",
+      "sha256": "6ba74a27b38afb4816978c9ba1d0270ba141863292c5bac1ab178e709e6f49b5",
+      "bytes": 2870
+    },
+    {
+      "path": "supabase/migrations/20261007194528_international_workspace_country_config.sql",
+      "sha256": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9",
+      "bytes": 16294
+    },
+    {
+      "path": "supabase/tests/database/international_country.test.sql",
+      "sha256": "fdea0dba2320ec1162154c92f71cd89cab2ebff40e2c7a886aee53ea45aa7699",
+      "bytes": 10238
+    }
+  ],
+  "selfHashExcluded": true,
+  "artifactProofs": [
+    {
+      "artifact": "root-final-tests.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/root-final-tests.log",
+      "sha256": "8dc30dba3d6bfdf736f5ea783c1aa5d10b9ea8a16d82403e2d40309c2cc9c68c",
+      "lastWriteUtc": "2026-10-07T20:31:43.4044943Z"
+    },
+    {
+      "artifact": "desktop-final-tests.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/desktop-final-tests.log",
+      "sha256": "3ea09606b19299c94810963a360ad100d5db2509a0f7a0a5f408cb15ee8ec637",
+      "lastWriteUtc": "2026-10-07T20:25:33.2012331Z"
+    },
+    {
+      "artifact": "international-final-tests.json",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/international-final-tests.json",
+      "sha256": "5d0048c777b2e49b134b1d6dc923a2783bb0ff20aad59142f14b28098cb06351",
+      "lastWriteUtc": "2026-10-07T20:32:53.1759635Z"
+    },
+    {
+      "artifact": "stripe-regression.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/stripe-regression.log",
+      "sha256": "0c1306dd6989eafd90e87fbb9228dfb52042ceaa326cffea50e1a8b0825714fa",
+      "lastWriteUtc": "2026-10-07T20:20:38.8932918Z"
+    },
+    {
+      "artifact": "auth-regression.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/auth-regression.log",
+      "sha256": "5d49e762243dd0bdcaa78aa71ca0bacb50eb337cee6e5646cde1a45fac94d2b1",
+      "lastWriteUtc": "2026-10-07T20:20:40.7860082Z"
+    },
+    {
+      "artifact": "sync-regression.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/sync-regression.log",
+      "sha256": "f7c0cf7aaa3fdee076999e19892de7e523eb27bca8cbbe957a303fd62043c1bd",
+      "lastWriteUtc": "2026-10-07T20:19:30.9574807Z"
+    },
+    {
+      "artifact": "site-build.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/site-build.log",
+      "sha256": "567754a2cdadb4c012382cc0ac30e8be6246da3a4957ce9c0d48072d0ca6cc16",
+      "lastWriteUtc": "2026-10-07T20:14:10.9439805Z"
+    },
+    {
+      "artifact": "desktop-build.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/desktop-build.log",
+      "sha256": "b89f5dac9fc93301d3f0730e92ad52a77b497a63ec003776528d73f5d71ad3b5",
+      "lastWriteUtc": "2026-10-07T20:13:31.7762355Z"
+    },
+    {
+      "artifact": "native-qr-tests.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/native-qr-tests.log",
+      "sha256": "818d20b8e26556bd2b10a41f7b82841eb64902778a64e48bac8c11cec13628e2",
+      "lastWriteUtc": "2026-10-07T20:45:37.6391192Z"
+    },
+    {
+      "artifact": "native-vat-tests.log",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/native-vat-tests.log",
+      "sha256": "07b9704c5182dc1eba8772fe9662ffc1f5deb579ddae4a9851a7a75f5c31ea4e",
+      "lastWriteUtc": "2026-10-07T20:51:05.4701186Z"
+    },
+    {
+      "artifact": "migration-final.json",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/migration-final.json",
+      "sha256": "c058f4014ddf505b0c5a6500e42fffaf6499a9812db0990f06a12a605dd876a0",
+      "lastWriteUtc": "2026-10-07T20:46:55.4885845Z"
+    },
+    {
+      "artifact": "pilot-qa-final/result.json",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/pilot-qa-final/result.json",
+      "sha256": "4ca2686703fc908c60aef9d2dcd7663dba7f66fec99392dc6ec95d5e1a26e354",
+      "lastWriteUtc": "2026-10-07T20:44:41.0859634Z"
+    },
+    {
+      "artifact": "onboarding-qa/inspection.json",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/onboarding-qa/inspection.json",
+      "sha256": "964726b1acbdb2be04c4565ad5487004a84f2288f8c82d04fbf60d2c20c98574",
+      "lastWriteUtc": "2026-10-07T20:19:42.7249716Z"
+    },
+    {
+      "artifact": "onboarding-qa/flows.json",
+      "absolutePath": "D:/Codex-Zentra-Temporary/2026-10-07/international/onboarding-qa/flows.json",
+      "sha256": "bbf756ab31e74da49ec49b840e6fda5c0cab21f7392a4d7ffe8c77bb9c7010de",
+      "lastWriteUtc": "2026-10-07T20:12:00.3606977Z"
+    }
+  ],
+  "notValidated": [
+    "native US CRUD and financial persistence",
+    "US tax provider determination",
+    "USD Stripe prices and live checkout",
+    "JEV live US classification accuracy",
+    "ACH/cards/bank connectors",
+    "PostgreSQL17.6 staging and concurrent connection migration tests",
+    "physical devices and multi-device offline/load/latency",
+    "legal compliance/certification"
+  ]
+}
