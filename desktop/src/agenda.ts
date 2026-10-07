@@ -273,7 +273,7 @@ export function buildAgendaItems(workspace: Workspace): AgendaItem[] {
     });
   }
 
-  const compareTitles = new Intl.Collator('fr-CH').compare;
+  const compareTitles = new Intl.Collator(getAppLocale()).compare;
   return items.sort(
     (left, right) =>
       left.date.localeCompare(right.date) ||
