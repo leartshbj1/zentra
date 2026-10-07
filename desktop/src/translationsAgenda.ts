@@ -36,6 +36,8 @@ export const agendaTranslations: Record<string, readonly [string,string,string]>
   'Les échéances de vos projets, factures et salaires apparaissent automatiquement. Ajoutez seulement les rendez-vous qui vous sont propres.':['Fristen für Projekte, Rechnungen und Löhne erscheinen automatisch. Ergänzen Sie Ihre eigenen Termine.','Le scadenze di progetti, fatture e stipendi appaiono automaticamente. Aggiungi i tuoi appuntamenti.','Project, invoice and payroll deadlines appear automatically. Add your own appointments.'],
   'Ajouter un rendez-vous':['Termin hinzufügen','Aggiungi appuntamento','Add appointment'],
   'Rendez-vous':['Termine','Appuntamenti','Appointments'],
+  'Tâche':['Aufgabe','Attività','Task'],
+  'Jalon':['Meilenstein','Traguardo','Milestone'],
   'Échéances':['Fristen','Scadenze','Deadlines'],
   'Légende':['Legende','Legenda','Legend'],
   'Lun':['Mo','Lun','Mon'], 'Mar':['Di','Mar','Tue'], 'Mer':['Mi','Mer','Wed'],

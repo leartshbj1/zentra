@@ -160,6 +160,31 @@ describe('calendar language and raw appointment values', () => {
     expect(data.projectMilestones[0]?.title).toBe(title);
   });
 
+  it.each([
+    ['fr', 'Tâche', 'Jalon'],
+    ['de', 'Aufgabe', 'Meilenstein'],
+    ['it', 'Attività', 'Traguardo'],
+    ['en', 'Task', 'Milestone'],
+  ] as const)('localizes task and milestone source badges in %s while preserving matching customer titles', async (language, taskLabel, milestoneLabel) => {
+    const data = workspace([stored]);
+    addMilestone(data);
+    data.projectMilestones[0]!.title = 'Jalon';
+    data.projectTasks = [{ ...data.projectMilestones[0]!, id: 'task', milestoneId: null, title: 'Tâche' }];
+    await render(language, <AgendaScreen workspace={data} busy={false} readOnly={false} initialEventId={stored.id} onSave={vi.fn(async () => true)} onDelete={vi.fn(async () => true)} onNavigate={vi.fn()} />);
+    const rows = [...host.querySelectorAll('.agenda-row--projects')].map(row => ({
+      title: row.querySelector('.agenda-row__content strong')?.textContent,
+      source: row.querySelector('.agenda-row__content small')?.textContent,
+    }));
+    expect(rows).toHaveLength(2);
+    expect(rows).toEqual(expect.arrayContaining([
+      { title: 'Tâche', source: taskLabel },
+      { title: `${milestoneLabel} · Jalon`, source: milestoneLabel },
+    ]));
+    expect(data.projectTasks[0]?.title).toBe('Tâche');
+    expect(data.projectMilestones[0]?.title).toBe('Jalon');
+    expect(stored.title).toBe(title);
+  });
+
   it.each(languages)('switches day, week and month in %s and retains the selected date across a language update', async language => {
     const data = workspace([stored]);
     addMilestone(data);
