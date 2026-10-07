@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     url: '/demo-facture',
     images: [
       {
-        url: '/tour/gestion/accueil-desktop.webp',
+        url: '/tour/gestion/current/fr/light/accueil-desktop.webp',
         width: 1440,
         height: 960,
         alt: 'Tableau de bord Zentra, entreprise fictive Atelier du Léman',

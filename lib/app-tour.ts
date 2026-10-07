@@ -35,6 +35,16 @@ export const appTourScreens = [
       'La visite de Résidence Bellevue est liée au projet et à la personne qui s’en occupe.',
   },
   {
+    id: 'notes',
+    label: 'Notes',
+    group: 0,
+    title: 'Une idée. Une note. Rien de perdu.',
+    description:
+      'Notez une information sur le terrain, retrouvez vos notes et reliez-les au bon projet.',
+    detail:
+      'Sur téléphone comme sur ordinateur, vos notes restent dans votre espace de travail.',
+  },
+  {
     id: 'projets',
     label: 'Projets',
     group: 0,
@@ -187,7 +197,14 @@ export const appTourScreens = [
 ] as const;
 export type TourScreen = (typeof appTourScreens)[number];
 export type TourDevice = 'desktop' | 'mobile';
-export function tourImage(id: string, device: TourDevice, language:string = 'fr') {
-  if(['de','it','en'].includes(language))return `/tour/gestion/${language}/${id}-${device}.png`;
-  return `/tour/gestion/${id}-${device}.webp`;
+export type TourTheme = 'light' | 'dark';
+export function tourImage(
+  id: string,
+  device: TourDevice,
+  language: string = 'fr',
+  theme: TourTheme = 'light',
+) {
+  const locale = ['fr', 'de', 'it', 'en'].includes(language) ? language : 'fr';
+  const screen = appTourScreens.find((item) => item.id === id)?.id ?? 'accueil';
+  return `/tour/gestion/current/${locale}/${theme}/${screen}-${device}.webp`;
 }

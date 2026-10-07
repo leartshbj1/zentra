@@ -1,0 +1,59 @@
+{
+  "updatedAt": "2026-10-07",
+  "company": "Atelier du Léman",
+  "syntheticOnly": true,
+  "baseAppVersion": "1.90.15",
+  "baseAppCommit": "0d2571a741883add178b485e8a1ad4d0222d4204",
+  "calendarFixCommit": "596a3f2ba1b65e2fe599a7996bd638d104a0d53d",
+  "modules": 19,
+  "languages": [
+    "fr",
+    "de",
+    "it",
+    "en"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "devices": [
+    "desktop",
+    "mobile"
+  ],
+  "mainCaptureSourceHashes": {
+    "package.json": "dfa74d038991b01400e7653b77e17cd6328bee878aa753445be432ce03d3ca19",
+    "tests/mobile-harness.tsx": "0d3d574601ef9b53c74d373379da92a09683f10f1d49de0ed00d9730e0f4b79e",
+    "tests/design-fixture.ts": "5da18f0eade2a8feb7da87188a6524ab14573250f80b5e29dc24567de2d689b8",
+    "tests/automation-company-fixture.ts": "adc0788a05fac7e869b6526a5ad0798f039e5dc00edb30f85eb54f43a5f37b77",
+    "tests/notes-fixture.ts": "5e455689eb28a5a3fe283c6aaf73f8865897b9b34e99d77b573752d34b0d657e",
+    "tests/finance-fixture.ts": "e502006b2ef0f281771ff84181661c7b2c5f0769f467f5f1fa86ec697f2d939b",
+    "src/WorkspaceApp.tsx": "ebb8c1c0555921c53de7b85e153d7e1324e454dac4ca743e8782856ff38aee41",
+    "src/NavigationPalette.tsx": "99c816dac833a0d5f2f605ff3551e03e63534c86fa32e568992b1bcef32467da",
+    "src/AgendaScreen.tsx": "e469e813ca2543876be4f2a785cd575e5afe8459518a251d2dc8534e34f4c90c",
+    "src/SettingsCategory.tsx": "94cfc4e73455179f13005c0a4e3ef57256ee1b1866d0c999eac4728e4224201f",
+    "src/ProjectReports.tsx": "9c1d28f2d650f7646fd51a09e6e4766b7d39127a11b0dbd7f6c211241d316ef3"
+  },
+  "agendaCaptureSourceHashes": {
+    "package.json": "dfa74d038991b01400e7653b77e17cd6328bee878aa753445be432ce03d3ca19",
+    "tests/mobile-harness.tsx": "0d3d574601ef9b53c74d373379da92a09683f10f1d49de0ed00d9730e0f4b79e",
+    "tests/design-fixture.ts": "5da18f0eade2a8feb7da87188a6524ab14573250f80b5e29dc24567de2d689b8",
+    "tests/automation-company-fixture.ts": "adc0788a05fac7e869b6526a5ad0798f039e5dc00edb30f85eb54f43a5f37b77",
+    "tests/notes-fixture.ts": "5e455689eb28a5a3fe283c6aaf73f8865897b9b34e99d77b573752d34b0d657e",
+    "tests/finance-fixture.ts": "e502006b2ef0f281771ff84181661c7b2c5f0769f467f5f1fa86ec697f2d939b",
+    "tests/agenda-guided-fixture.ts": "89ae85b6e1a2d1011fc7fcc811524ed5a21fba95bce178cee76d28bcd799ba1f",
+    "src/WorkspaceApp.tsx": "8bb378179f5b7ee3d20c0c9350b0664bb84184296482844fbd55415d0f8487b0",
+    "src/NavigationPalette.tsx": "99c816dac833a0d5f2f605ff3551e03e63534c86fa32e568992b1bcef32467da",
+    "src/AgendaScreen.tsx": "e469e813ca2543876be4f2a785cd575e5afe8459518a251d2dc8534e34f4c90c",
+    "src/SettingsCategory.tsx": "94cfc4e73455179f13005c0a4e3ef57256ee1b1866d0c999eac4728e4224201f",
+    "src/ProjectReports.tsx": "9c1d28f2d650f7646fd51a09e6e4766b7d39127a11b0dbd7f6c211241d316ef3"
+  },
+  "capturedImages": 304,
+  "agendaImagesReplaced": 16,
+  "encoding": {
+    "format": "webp",
+    "quality": 94,
+    "compositing": false
+  },
+  "productionBackendVerified": false,
+  "nativeReleasePublished": false
+}

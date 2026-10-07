@@ -9,7 +9,9 @@ import {
   ChevronDown,
   Expand,
   Laptop,
+  Moon,
   Smartphone,
+  Sun,
   X,
 } from 'lucide-react';
 import {
@@ -17,10 +19,39 @@ import {
   tourGroups,
   tourImage,
   type TourDevice,
+  type TourTheme,
 } from '@/lib/app-tour';
 import './app-tour.css';
 
 const phoneQuery = '(max-width: 760px)';
+const themeKey = 'zentra.tour.theme';
+const themeEvent = 'zentra-tour-theme';
+let sessionTheme: TourTheme | null = null;
+function readTheme(): TourTheme {
+  try {
+    const saved = localStorage.getItem(themeKey);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch {
+    /* Use the in-memory preference if storage is unavailable. */
+  }
+  return (
+    sessionTheme ??
+    (window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light')
+  );
+}
+function subscribeTheme(callback: () => void) {
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  window.addEventListener('storage', callback);
+  window.addEventListener(themeEvent, callback);
+  media.addEventListener('change', callback);
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener(themeEvent, callback);
+    media.removeEventListener('change', callback);
+  };
+}
 function subscribePhone(callback: () => void) {
   const query = window.matchMedia(phoneQuery);
   query.addEventListener('change', callback);
@@ -30,6 +61,11 @@ function subscribePhone(callback: () => void) {
 export function AppTour() {
   const [index, setIndex] = useState(0);
   const [device, setDevice] = useState<TourDevice | 'auto'>('auto');
+  const theme = useSyncExternalStore<TourTheme>(
+    subscribeTheme,
+    readTheme,
+    () => 'light',
+  );
   const [failedFor, setFailedFor] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -41,7 +77,8 @@ export function AppTour() {
   const actualDevice =
     device === 'auto' ? (phone ? 'mobile' : 'desktop') : device;
   const screen = appTourScreens[index];
-  const imageKey = `${screen.id}-${actualDevice}`;
+  const language = currentSiteLanguage();
+  const imageKey = `${screen.id}-${actualDevice}-${language}-${theme}`;
   const failed = failedFor === imageKey;
   const dialog = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -57,6 +94,16 @@ export function AppTour() {
     window.addEventListener('hashchange', read);
     return () => window.removeEventListener('hashchange', read);
   }, []);
+  function chooseTheme(next: TourTheme) {
+    sessionTheme = next;
+    setFailedFor(null);
+    try {
+      localStorage.setItem(themeKey, next);
+    } catch {
+      /* Keep the choice for this visit. */
+    }
+    window.dispatchEvent(new Event(themeEvent));
+  }
   function select(next: number) {
     if (next < 0 || next >= appTourScreens.length) return;
     setIndex(next);
@@ -73,7 +120,8 @@ export function AppTour() {
     });
   }
   const imagePath = (mode: TourDevice) =>
-    tourImage(screen.id, mode, currentSiteLanguage()) + (retry ? `?retry=${retry}` : '');
+    tourImage(screen.id, mode, language, theme) +
+    (retry ? `?retry=${retry}` : '');
   function picture(inDialog = false) {
     return (
       <picture>
@@ -81,7 +129,7 @@ export function AppTour() {
           <source media={phoneQuery} srcSet={imagePath('mobile')} />
         )}
         <img
-          key={`${screen.id}-${device}-${retry}-${inDialog}`}
+          key={`${imageKey}-${device}-${retry}-${inDialog}`}
           src={imagePath(device === 'auto' ? 'desktop' : device)}
           width={device === 'mobile' ? 390 : 1440}
           height={device === 'mobile' ? 844 : 960}
@@ -96,6 +144,7 @@ export function AppTour() {
   return (
     <section
       className="app-tour"
+      data-tour-theme={theme}
       aria-label="Visite visuelle de Zentra Gestion"
     >
       <div className="tour-mobile-menu">
@@ -149,26 +198,48 @@ export function AppTour() {
             Atelier du Léman{' '}
             <span className="tour-fiction">· entreprise fictive</span>
           </span>
-          <fieldset aria-label="Format de l’aperçu">
-            <button
-              type="button"
-              aria-label="Voir sur ordinateur"
-              aria-pressed={actualDevice === 'desktop'}
-              onClick={() => setDevice('desktop')}
-            >
-              <Laptop size={18} />
-              <span>Ordinateur</span>
-            </button>
-            <button
-              type="button"
-              aria-label="Voir sur mobile"
-              aria-pressed={actualDevice === 'mobile'}
-              onClick={() => setDevice('mobile')}
-            >
-              <Smartphone size={17} />
-              <span>Mobile</span>
-            </button>
-          </fieldset>
+          <div className="tour-controls">
+            <fieldset aria-label="Thème de l’aperçu">
+              <button
+                type="button"
+                aria-label="Voir en mode clair"
+                aria-pressed={theme === 'light'}
+                onClick={() => chooseTheme('light')}
+              >
+                <Sun size={18} aria-hidden="true" />
+                <span>Clair</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Voir en mode sombre"
+                aria-pressed={theme === 'dark'}
+                onClick={() => chooseTheme('dark')}
+              >
+                <Moon size={18} aria-hidden="true" />
+                <span>Sombre</span>
+              </button>
+            </fieldset>
+            <fieldset aria-label="Format de l’aperçu">
+              <button
+                type="button"
+                aria-label="Voir sur ordinateur"
+                aria-pressed={actualDevice === 'desktop'}
+                onClick={() => setDevice('desktop')}
+              >
+                <Laptop size={18} />
+                <span>Ordinateur</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Voir sur mobile"
+                aria-pressed={actualDevice === 'mobile'}
+                onClick={() => setDevice('mobile')}
+              >
+                <Smartphone size={17} />
+                <span>Mobile</span>
+              </button>
+            </fieldset>
+          </div>
         </div>
         <figure className={`tour-screen tour-screen--${actualDevice}`}>
           {failed ? (

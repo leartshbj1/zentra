@@ -4278,5 +4278,12 @@
   "Résiliable pour la fin de la période payée.": "Zum Ende des bezahlten Zeitraums kündbar.",
   "Renouvellement mensuel automatique. Résiliable pour la fin de la période payée.": "Automatische monatliche Verlängerung. Zum Ende des bezahlten Zeitraums kündbar.",
   "Le montant et les informations de commande sont confirmés sur la page de paiement avant tout paiement.": "Der Betrag und die Bestellangaben werden vor jeder Zahlung auf der Zahlungsseite bestätigt.",
-  "Renouvellement mensuel automatique. Résiliable pour la fin de la période payée. Le montant et les informations de commande sont confirmés sur la page de paiement avant tout paiement.": "Automatische monatliche Verlängerung. Zum Ende des bezahlten Zeitraums kündbar. Der Betrag und die Bestellangaben werden vor jeder Zahlung auf der Zahlungsseite bestätigt."
+  "Renouvellement mensuel automatique. Résiliable pour la fin de la période payée. Le montant et les informations de commande sont confirmés sur la page de paiement avant tout paiement.": "Automatische monatliche Verlängerung. Zum Ende des bezahlten Zeitraums kündbar. Der Betrag und die Bestellangaben werden vor jeder Zahlung auf der Zahlungsseite bestätigt.",
+  "Une idée. Une note. Rien de perdu.": "Eine Idee. Eine Notiz. Nichts geht verloren.",
+  "Notez une information sur le terrain, retrouvez vos notes et reliez-les au bon projet.": "Halten Sie Informationen vor Ort fest, finden Sie Ihre Notizen wieder und ordnen Sie sie dem passenden Projekt zu.",
+  "Sur téléphone comme sur ordinateur, vos notes restent dans votre espace de travail.": "Auf dem Smartphone und am Computer bleiben Ihre Notizen in Ihrem Arbeitsbereich.",
+  "Thème de l’aperçu": "Darstellung der Vorschau",
+  "Voir en mode clair": "Helle Darstellung anzeigen",
+  "Voir en mode sombre": "Dunkle Darstellung anzeigen",
+  "Notes": "Notizen"
 }
