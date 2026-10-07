@@ -55,6 +55,11 @@ describe('only curated interface messages change',()=>{
  it('keeps JSON-LD identity and numeric prices intact',()=>expect(translateSiteStructuredData({name:'Zentra',description:'Logiciel suisse',inLanguage:'fr-CH',price:49,url:'/gestion'},'de',dictionary)).toEqual({name:'Zentra',description:'Schweizer Software',inLanguage:'de-CH',price:49,url:'/gestion'}));
 });
 describe('compile-time interface adapter',()=>{
+ it('preserves US market copy and canonical metadata outside Swiss localization',()=>{
+  const usPage="export const metadata={title:'Zentra — AI-Powered Business Operations for SMBs',alternates:{canonical:'https://zentraapp.ch/us'}}; export default function Page(){return <h1>Run your business.</h1>}";
+  for(const path of ['app/us/page.tsx','app/us/privacy/page.tsx','components/us/pilot-form.tsx'])expect(transformSiteUi(usPage,path)).toBeNull();
+  expect(transformSiteUi(usPage,'app/gestion/page.tsx')!.code).toContain('generateMetadata');
+ });
  it('keeps JSX entity semantics when converting text into an expression',()=>expect(cleanJsxText('TVA&nbsp;: &amp; &#39;')).toBe("TVA\u00a0: & '"));
  const source=`'use client';\nconst names=[{id:'facture',label:'Mon compte'}]; export function Example({workspace,ticket}) {return <section id="facture" className="mon-compte"><h1>Mon compte</h1><input name="email" value={workspace.name} placeholder="Mon compte"/><p>{workspace.name}</p><p>{ticket.subject}</p><p>{ticket.body}</p><p>{names[0].label}</p><p>{error}</p><div data-site-raw>{name}</div></section>}`;
  it('preserves client directive, identifiers, CSS, input and customer content',()=>{

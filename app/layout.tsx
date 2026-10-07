@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { StructuredData } from '@/components/structured-data';
 import { identityData } from '@/lib/seo';
 import { AuthSessionGuard } from '@/components/auth-session-guard';
@@ -6,7 +7,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { ScrollExperience } from '@/components/scroll-experience';
 import { publicSiteUrl } from '@/lib/site-url';
 import { getSiteLanguage } from '@/lib/site-language-server';
-import { SITE_LANGUAGE_TAGS } from '@/lib/site-language';
+import { SITE_LANGUAGE_TAGS, SITE_PATH_HEADER } from '@/lib/site-language';
 import { serializeSiteDictionary } from '@/lib/site-copy';
 import './globals.css';
 import './refined.css';
@@ -93,8 +94,10 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const language = await getSiteLanguage();
+  const path = (await headers()).get(SITE_PATH_HEADER) || '';
+  const isUsMarketPage = path === '/us' || path.startsWith('/us/');
   return (
-    <html lang={SITE_LANGUAGE_TAGS[language]} suppressHydrationWarning>
+    <html lang={isUsMarketPage ? 'en-US' : SITE_LANGUAGE_TAGS[language]} suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -103,7 +106,7 @@ export default async function RootLayout({
         <ScrollExperience />
         <AuthSessionGuard />
         {children}
-        <div className="site-language-fallback"><SiteLanguagePicker /></div>
+        {!isUsMarketPage && <div className="site-language-fallback"><SiteLanguagePicker /></div>}
       </body>
     </html>
   );

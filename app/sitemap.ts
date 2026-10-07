@@ -35,10 +35,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ['/cookies', 0.3, 'monthly'],
   ] as const;
 
-  return pages.flatMap(([path, priority, changeFrequency]) => SITE_LANGUAGES.map(language=>({
+  return [...pages.flatMap(([path, priority, changeFrequency]) => SITE_LANGUAGES.map(language=>({
     url: absoluteSiteUrl(localizedSiteUrl(path,language)),
     changeFrequency,
     priority,
     alternates: {languages:Object.fromEntries(SITE_LANGUAGES.map(lang=>[SITE_LANGUAGE_TAGS[lang],absoluteSiteUrl(localizedSiteUrl(path,lang))]))},
-  })));
+  }))),
+  { url: absoluteSiteUrl('/us'), changeFrequency: 'monthly', priority: 0.8 },
+  { url: absoluteSiteUrl('/us/privacy'), changeFrequency: 'yearly', priority: 0.1 },
+  ];
 }

@@ -9,6 +9,8 @@ export function cleanJsxText(value){
  return lines.map((line,i)=>{line=line.replace(/\t/g,' ');if(i!==0)line=line.replace(/^ +/,'');if(i!==lines.length-1)line=line.replace(/ +$/,'');return line+(line&&i!==last?' ':'');}).join('');
 }
 export function transformSiteUi(code,relative){
+ // Country-specific US content owns its English copy and canonical metadata.
+ if(relative.startsWith('app/us/')||relative.startsWith('components/us/'))return null;
  if(!/^(?:app|components)\//.test(relative)||relative.startsWith('app/api/')||!/\.tsx$/.test(relative)||/\.(?:test|spec)\./.test(relative)||relative==='components/site-language-picker.tsx')return null;
  const sf=ts.createSourceFile(relative,code,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),edits=[];let used=false;
  const edit=(start,end,text)=>{edits.push({start,end,text});used=true;};
