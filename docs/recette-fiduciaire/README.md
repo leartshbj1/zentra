@@ -17,4 +17,4 @@ Pour chaque scénario :
 
 La paie comprend volontairement une différence entre net payé et net fiscal du certificat : l'IJM salariale n'est pas déduite au chiffre 9. Ses taux AANP/IJM et sa LPP sont des hypothèses de recette, à remplacer par les contrats du salarié pour un usage réel.
 
-Les informations commerciales connues sont Shabija Leart, non assujetti à la TVA, `leartshabija@gmail.com`. L'adresse professionnelle et le domaine sont encore attendus.
+Les informations commerciales connues sont Shabija Leart, non assujetti à la TVA, `info@zentraapp.ch`. L'adresse professionnelle et le domaine sont encore attendus.

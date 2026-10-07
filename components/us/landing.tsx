@@ -463,7 +463,7 @@ export function UsLanding() {
         </div>
         <nav aria-label="Footer navigation">
           <a href="/us/privacy">Privacy</a>
-          <a href="mailto:leartshabija@gmail.com">
+          <a href="mailto:info@zentraapp.ch">
             Contact the team
             <ArrowUpRight size={14} aria-hidden="true" />
           </a>

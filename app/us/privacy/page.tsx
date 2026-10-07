@@ -49,7 +49,7 @@ export default function UsPrivacy() {
         <h2>Questions or deletion requests</h2>
         <p>
           Contact{' '}
-          <a href="mailto:leartshabija@gmail.com">leartshabija@gmail.com</a> to
+          <a href="mailto:info@zentraapp.ch">info@zentraapp.ch</a> to
           ask about your application, correct it or request deletion. We keep
           applications while evaluating the pilot and any resulting business
           relationship, and remove information that is no longer needed.

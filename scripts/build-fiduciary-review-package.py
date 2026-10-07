@@ -84,7 +84,7 @@ story += [p("<b>Objectif :</b> comparer les résultats produits par Zentra à de
            ["Reprise et collaboration", "Copie restaurée, empreintes des pièces et relevé des conflits éventuels."]], [152,347]),
     p("Périmètre de la version examinée", "h2"),
     p("Le site de récupération a été publié le 8 septembre. Les installateurs actuellement annoncés restent en version 1.45.0. Les corrections natives de sauvegarde et la numérotation partagée sont en préparation ; la réplication métier complète n’est pas encore active."),
-    p("Vendeur communiqué : Shabija Leart, non assujetti à la TVA ; support : leartshabija@gmail.com. L’adresse professionnelle reste à fournir. Ce statut concerne la vente de Zentra et ne remplace pas le profil TVA de chaque entreprise cliente.", "small"), PageBreak()]
+    p("Vendeur communiqué : Shabija Leart, non assujetti à la TVA ; support : info@zentraapp.ch. L’adresse professionnelle reste à fournir. Ce statut concerne la vente de Zentra et ne remplace pas le profil TVA de chaque entreprise cliente.", "small"), PageBreak()]
 
 story += [p("01 / TVA et fin d’exercice", "title"), p("Entreprise de test assujettie, méthode effective sur contre-prestations convenues, CHF, exercice 2026. Solde initial : banque 10'000.00 et capital 10'000.00. Les achats sont entièrement consommés ; aucun stock final, aucun autre produit, aucune autre charge, aucun impôt sur le bénéfice dans ce cas."),
     table([["Opération de janvier", "HT", "TVA 8,1 %", "TTC"],
