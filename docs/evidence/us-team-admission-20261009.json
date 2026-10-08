@@ -1,0 +1,395 @@
+{
+  "schemaVersion": 1,
+  "phase": "US Team local admission",
+  "sourceBase": "93aedd8f6820446f45d6fc70b4818e532e1f17df",
+  "createdAt": "2026-10-08T23:28:30.168Z",
+  "sources": [
+    {
+      "path": "app/api/international/team-invitations/accept/route.ts",
+      "state": "created",
+      "bytes": 178,
+      "rawSha256": "a6b794f05347f33e525c821df95905253bff9df85480f00d408d69fcd854db73",
+      "gitLfSha256": "a6b794f05347f33e525c821df95905253bff9df85480f00d408d69fcd854db73"
+    },
+    {
+      "path": "app/api/international/team-invitations/resolve/route.ts",
+      "state": "created",
+      "bytes": 179,
+      "rawSha256": "aade0993096e584d0b223674c357e8403c181067df36d34cecdf87a144218c58",
+      "gitLfSha256": "aade0993096e584d0b223674c357e8403c181067df36d34cecdf87a144218c58"
+    },
+    {
+      "path": "app/api/international/workspaces/[organizationId]/team/route.ts",
+      "state": "created",
+      "bytes": 435,
+      "rawSha256": "0f267e614f3eb5ebb251788ae66f482b72bb154bd4738d92cf896a3c3501f81d",
+      "gitLfSha256": "0f267e614f3eb5ebb251788ae66f482b72bb154bd4738d92cf896a3c3501f81d"
+    },
+    {
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "state": "modified",
+      "bytes": 6409,
+      "rawSha256": "e6c92f4eb54a6d310a14b09afa9e2ee1d224def9687212ca7956c2faf7b6bf96",
+      "gitLfSha256": "4856bb2d9342c013d52e030d56e9fad34fef67d04b8245340d8440a329c4177d"
+    },
+    {
+      "path": "app/invitation/us/page.tsx",
+      "state": "created",
+      "bytes": 1175,
+      "rawSha256": "bcb0c9aa179178466937eaf26362d2534c7ed3871c81fc15628acec4883664c4",
+      "gitLfSha256": "bcb0c9aa179178466937eaf26362d2534c7ed3871c81fc15628acec4883664c4"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "state": "modified",
+      "bytes": 69508,
+      "rawSha256": "60c986b5d680999fc676885047e19b110b2b9b2b5bfe54743a99ed691020beb8",
+      "gitLfSha256": "f7dfc7230ec4c5e181dfba9e8e65395af53b497d24e2554b38e9b7d2565b05e2"
+    },
+    {
+      "path": "components/account/us-team-invitation.css",
+      "state": "created",
+      "bytes": 2146,
+      "rawSha256": "c3f931895c6ab8af6bdf95fd50dca5c74893661b826cbe5da2b7c7253b6c5292",
+      "gitLfSha256": "c3f931895c6ab8af6bdf95fd50dca5c74893661b826cbe5da2b7c7253b6c5292"
+    },
+    {
+      "path": "components/account/us-team-invitation.tsx",
+      "state": "created",
+      "bytes": 9341,
+      "rawSha256": "f6b1ab42f467ac6cf8c5415163abe073e6996e0169df3e6ce187c438d8d05cca",
+      "gitLfSha256": "f6b1ab42f467ac6cf8c5415163abe073e6996e0169df3e6ce187c438d8d05cca"
+    },
+    {
+      "path": "components/account/us-team-panel.css",
+      "state": "created",
+      "bytes": 4322,
+      "rawSha256": "5edadf24e020b4c37a7c23d795638b65358a4fb361abcba27a81aeda4e4a8d99",
+      "gitLfSha256": "5edadf24e020b4c37a7c23d795638b65358a4fb361abcba27a81aeda4e4a8d99"
+    },
+    {
+      "path": "components/account/us-team-panel.tsx",
+      "state": "created",
+      "bytes": 12602,
+      "rawSha256": "a1e0c11b150977f28b3fdcc394349fa677155b8f7324578d0bac7f18a9743360",
+      "gitLfSha256": "a1e0c11b150977f28b3fdcc394349fa677155b8f7324578d0bac7f18a9743360"
+    },
+    {
+      "path": "docs/internationalization/STATUS-20261009.md",
+      "state": "modified",
+      "bytes": 7815,
+      "rawSha256": "de504c316b26f0a28226be66feb0793e066008ef6e544a11da3846849cb3c3b7",
+      "gitLfSha256": "de504c316b26f0a28226be66feb0793e066008ef6e544a11da3846849cb3c3b7"
+    },
+    {
+      "path": "docs/internationalization/US-TEAM-DELIVERY-20261009.md",
+      "state": "created",
+      "bytes": 10764,
+      "rawSha256": "ffa7b6264bf124fdaf15df8c9b272af893128e3b0a0f9916af9d03dc1a6df8d6",
+      "gitLfSha256": "ffa7b6264bf124fdaf15df8c9b272af893128e3b0a0f9916af9d03dc1a6df8d6"
+    },
+    {
+      "path": "docs/internationalization/US-TEAM-PLAN-20261009.md",
+      "state": "created",
+      "bytes": 6512,
+      "rawSha256": "20cab692f6ed63aec960722fe3404014d84c7b6ce616941bd654a1526ea02af0",
+      "gitLfSha256": "20cab692f6ed63aec960722fe3404014d84c7b6ce616941bd654a1526ea02af0"
+    },
+    {
+      "path": "drizzle/0090_international_us_team_admission.sql",
+      "state": "created",
+      "bytes": 29214,
+      "rawSha256": "2e575085308e9b0ecac92005089a2c8be57faa60ea8d42754efa5f9065cbff5d",
+      "gitLfSha256": "2e575085308e9b0ecac92005089a2c8be57faa60ea8d42754efa5f9065cbff5d"
+    },
+    {
+      "path": "lib/international/browser-us-team-copy.ts",
+      "state": "created",
+      "bytes": 12967,
+      "rawSha256": "6fc6766338b6806fed8095a7ca6584909b9102c862e38d6f4a457a24e9bef919",
+      "gitLfSha256": "6fc6766338b6806fed8095a7ca6584909b9102c862e38d6f4a457a24e9bef919"
+    },
+    {
+      "path": "lib/international/browser-us-team-session.test.ts",
+      "state": "created",
+      "bytes": 21347,
+      "rawSha256": "f4ca0fc25191609221b403adcdeddc984226ebafe8977d39226c25fc759a5ce6",
+      "gitLfSha256": "f4ca0fc25191609221b403adcdeddc984226ebafe8977d39226c25fc759a5ce6"
+    },
+    {
+      "path": "lib/international/browser-us-team-session.ts",
+      "state": "created",
+      "bytes": 18301,
+      "rawSha256": "bbc3d6d01154f7ef116d930c7b0c23fcc35ae389b9d42d3b75195580ac289c30",
+      "gitLfSha256": "bbc3d6d01154f7ef116d930c7b0c23fcc35ae389b9d42d3b75195580ac289c30"
+    },
+    {
+      "path": "lib/international/browser-us-team.browser.test.ts",
+      "state": "created",
+      "bytes": 22375,
+      "rawSha256": "069551bdd2b8a8c80e3a8d2c866a356a2e9c5aeb6c9f00df9690cf0db1834712",
+      "gitLfSha256": "069551bdd2b8a8c80e3a8d2c866a356a2e9c5aeb6c9f00df9690cf0db1834712"
+    },
+    {
+      "path": "lib/international/us-team-bindings.test.ts",
+      "state": "created",
+      "bytes": 20028,
+      "rawSha256": "b82bdbdd1d7de5b0fb384fc940d4e06211094978b451bd9f2c24c9fcd03fe01d",
+      "gitLfSha256": "b82bdbdd1d7de5b0fb384fc940d4e06211094978b451bd9f2c24c9fcd03fe01d"
+    },
+    {
+      "path": "lib/international/us-team-bindings.ts",
+      "state": "created",
+      "bytes": 7835,
+      "rawSha256": "db218432ebf3c6242119e847cca256d4ca627b90ca225f26a09b4ad497da876b",
+      "gitLfSha256": "db218432ebf3c6242119e847cca256d4ca627b90ca225f26a09b4ad497da876b"
+    },
+    {
+      "path": "lib/international/us-team-contract.test.ts",
+      "state": "created",
+      "bytes": 5410,
+      "rawSha256": "df826c113cf8918641c6a136a1109082ed8bd0eee0bde88789520e577dcfb2ff",
+      "gitLfSha256": "df826c113cf8918641c6a136a1109082ed8bd0eee0bde88789520e577dcfb2ff"
+    },
+    {
+      "path": "lib/international/us-team-contract.ts",
+      "state": "created",
+      "bytes": 6672,
+      "rawSha256": "038bfdeb02ad04239907b829f4403f56a7e66bf37b805d1dfca29770ae3f1eb8",
+      "gitLfSha256": "038bfdeb02ad04239907b829f4403f56a7e66bf37b805d1dfca29770ae3f1eb8"
+    },
+    {
+      "path": "lib/international/us-team-server.test.ts",
+      "state": "created",
+      "bytes": 11989,
+      "rawSha256": "ab1fc3c0c9ba798109bda81be349298dac12288fda01dda0f8860d3be294351f",
+      "gitLfSha256": "ab1fc3c0c9ba798109bda81be349298dac12288fda01dda0f8860d3be294351f"
+    },
+    {
+      "path": "lib/international/us-team-server.ts",
+      "state": "created",
+      "bytes": 15003,
+      "rawSha256": "ee3fb70cb7eb68b29b788d8e91b59bbae31958bcb212bd7a5409460c6e69ca9f",
+      "gitLfSha256": "ee3fb70cb7eb68b29b788d8e91b59bbae31958bcb212bd7a5409460c6e69ca9f"
+    },
+    {
+      "path": "lib/international/us-team-store.test.ts",
+      "state": "created",
+      "bytes": 10559,
+      "rawSha256": "aca935005aa62d9fa25f4a7a215081ce6b4c17eaede4d66f5d2193a96c08a5bb",
+      "gitLfSha256": "aca935005aa62d9fa25f4a7a215081ce6b4c17eaede4d66f5d2193a96c08a5bb"
+    },
+    {
+      "path": "lib/international/us-team-store.ts",
+      "state": "created",
+      "bytes": 16890,
+      "rawSha256": "1a10680cddcc883c2c0faed718a6163e20b52a67b83b188b35be434f40b627f0",
+      "gitLfSha256": "1a10680cddcc883c2c0faed718a6163e20b52a67b83b188b35be434f40b627f0"
+    },
+    {
+      "path": "lib/international/us-team-test-fixture.ts",
+      "state": "created",
+      "bytes": 3212,
+      "rawSha256": "fdeffde6f90f7636d041e2d98cf493b2808d877634936c04dc3785dac33496c0",
+      "gitLfSha256": "fdeffde6f90f7636d041e2d98cf493b2808d877634936c04dc3785dac33496c0"
+    },
+    {
+      "path": "lib/international/us-team-validation.test.ts",
+      "state": "created",
+      "bytes": 18816,
+      "rawSha256": "3e9100305d8737b79773c2714361dc2eeb9a8aeb49f35c97462119fad6eb2b22",
+      "gitLfSha256": "3e9100305d8737b79773c2714361dc2eeb9a8aeb49f35c97462119fad6eb2b22"
+    },
+    {
+      "path": "lib/international/us-team-validation.ts",
+      "state": "created",
+      "bytes": 19857,
+      "rawSha256": "b5a693289e4a163bd2787f4e39a95482346c6778c8648675cf685497e9bda35f",
+      "gitLfSha256": "b5a693289e4a163bd2787f4e39a95482346c6778c8648675cf685497e9bda35f"
+    },
+    {
+      "path": "lib/international/us-team.migrations.test.ts",
+      "state": "created",
+      "bytes": 16273,
+      "rawSha256": "89b160e57950d8d0b6e9fc6eaa7a8f5de45bc849b67a0dbcc8b36afee0c031a1",
+      "gitLfSha256": "89b160e57950d8d0b6e9fc6eaa7a8f5de45bc849b67a0dbcc8b36afee0c031a1"
+    },
+    {
+      "path": "lib/international/us-team.workerd.test.ts",
+      "state": "created",
+      "bytes": 16425,
+      "rawSha256": "0e963bd3d74bbf90aa0b5e88de357d86ce7a5e26372e3e60bc0fe1411ce95ccd",
+      "gitLfSha256": "0e963bd3d74bbf90aa0b5e88de357d86ce7a5e26372e3e60bc0fe1411ce95ccd"
+    }
+  ],
+  "global": {
+    "path": ".qa/us-team/international-final.json",
+    "sha256": "7d10c8a0c8e66314c479ed1e32fbdbdb0fac78fb8506da059c0e5fb6e1d98256",
+    "passed": 5276,
+    "failed": 2,
+    "skipped": 36,
+    "success": false,
+    "files": 138
+  },
+  "targeted": [
+    {
+      "path": ".qa/us-team/core-final.json",
+      "sha256": "668a709f54f9b724012b5d537a57ee54a27505db3814a7cb1fe2183d3da2e4a8",
+      "passed": 97,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 2
+    },
+    {
+      "path": ".qa/us-team/bindings-final.json",
+      "sha256": "a06793e019cc64b5148e4329a7eafe0f2e3270b50827ebe58cab923c81e4be74",
+      "passed": 47,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 1
+    },
+    {
+      "path": ".qa/us-team/transport-regeneration-final.json",
+      "sha256": "c056df471485be813f5b3c31ceb4dbf50bfbebb4c3fed3992ed023310e819854",
+      "passed": 37,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 1
+    },
+    {
+      "path": ".qa/us-team/http-final.json",
+      "sha256": "d75447ae270598ba017602a528b2540c464321712ae16e29a63cb5012fdd3d73",
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 1
+    },
+    {
+      "path": ".qa/us-team/store-sqlite-final.json",
+      "sha256": "8a7a2567d9b0cfc10add128e0cc2da6b71f4454e774f057c395dd01b3e351c15",
+      "passed": 39,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 2
+    },
+    {
+      "path": ".qa/us-team/workerd-initial.json",
+      "sha256": "f834c3ec3624b6146ec97f03565f37fa6196936cd6a4a5bd20c9bd3636a10e56",
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 1
+    },
+    {
+      "path": ".qa/us-team/workerd-retry-final.json",
+      "sha256": "1bcee25dfbfe93227ff53f89d05bd4ae4819176a6f629569e6a92b8c1dca2fc2",
+      "passed": 10,
+      "failed": 2,
+      "skipped": 21,
+      "success": false,
+      "files": 4
+    },
+    {
+      "path": ".qa/us-team/ch-final.json",
+      "sha256": "66cfdf881a5393984011b73dee2e884e9ed0c6c542bdaaf3fc3785a40c1b28f3",
+      "passed": 87,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 7
+    },
+    {
+      "path": ".qa/us-team/browser-auth-confirmed.json",
+      "sha256": "b304d51584972fcfbadac55bd906e8191c07ae49870cfd5d9c6a4a93655601f1",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "files": 1
+    }
+  ],
+  "latestDistinctIdentityStatus": {
+    "passed": 5370,
+    "failed": 2,
+    "pending": 0,
+    "todo": 0,
+    "skipped": 35
+  },
+  "countMethod": "Suite path plus fullName plus same-title occurrence ordinal, actual report startTime order, latest report wins. Same-title parameter cases are kept separate, with stable row order assumed across unchanged definitions. Repeated runs are not summed. A failing full run stays failing.",
+  "quality": {
+    "typecheck": {
+      "exitCode": 0
+    },
+    "syntaxLint": {
+      "diagnostics": [],
+      "number_of_files": 25,
+      "number_of_rules": 191,
+      "threads_count": 16,
+      "start_time": 0.2789562
+    },
+    "build": {
+      "nodeHeapMb": 1024,
+      "exitCode": 0
+    },
+    "brand": {
+      "exitCode": 0
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "typedLint": "Core/UI scoped runs recorded; full typed lint not passed. Some Windows tsgolint starts failed UNKNOWN/-4094; syntax lint is not equivalent."
+  },
+  "detailReports": [
+    {
+      "path": ".qa/us-team/core-evidence.json",
+      "sha256": "3c681b2b3e83b754e55326dd6b1570f9b0eb1399e33f18067bae4ff83384bdf0"
+    },
+    {
+      "path": ".qa/us-team/bindings-evidence.json",
+      "sha256": "b8fe5898825b3cfb2de78d8ccf5fbd9211f743945db1264e1eb21b4bd4151a24"
+    },
+    {
+      "path": ".qa/us-team/store-evidence.json",
+      "sha256": "715342e56e092283d82e8a961d8144cc7e883828996dc5f618c0a6b1f9d06937"
+    },
+    {
+      "path": ".qa/us-team/ui-freeze.json",
+      "sha256": "cfbb6324009d6924fd1428c28f2637306cfde90289b4510ae640185eb02a7c37"
+    },
+    {
+      "path": ".qa/us-team/auth-confirmation/evidence.json",
+      "sha256": "2b4ab34a3e2eb1ba61eb20d0c30f684ef9789b858e9afe20cf4bdf01b4233ab5"
+    }
+  ],
+  "visual": {
+    "captures": 24,
+    "report": ".qa/us-team/browser-final.json",
+    "scope": "Four languages, light/dark, desktop/mobile320 text200; public invitation independent of account.css. Captures precede final Auth/copy and transport-correlation patches; later functional browser report has no new captures."
+  },
+  "preserved": [
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "status": ""
+    },
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "status": ""
+    }
+  ],
+  "boundaries": [
+    "Actual SQLite and workerd/D1 local only; Auth/catalogue/payment/PG facts injected TEST.",
+    "No hosted migration, production change, email, real provider, Stripe payment or native build/distribution.",
+    "No hosted multi-device/150-company capacity proof; CH application archives/native/payment/Auth tests not certified here.",
+    "US tax provider remains null and actual invoice issuance closed.",
+    "Fresh Supabase checks and D1 do not form a distributed transaction.",
+    "Owner transfer, role changes, membership reactivation and physical data deletion not implemented."
+  ]
+}

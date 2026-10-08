@@ -28,6 +28,8 @@ import { UsErpAccounting } from './us-erp-accounting';
 import { UsSupplierProposals } from './us-supplier-proposals';
 import { UsSupplierAnalysisPanel } from './us-supplier-analysis-panel';
 import type { BrowserUsAnalysisReadiness } from '@/lib/international/browser-us-analysis-session';
+import { UsTeamPanel } from './us-team-panel';
+import { browserUsTeamCopy } from '@/lib/international/browser-us-team-copy';
 import { browserAccountingError } from '@/lib/international/browser-accounting-copy';
 import './us-erp-workbench.css';
 
@@ -172,11 +174,12 @@ function UsSalesPanel({ state, language, role, disabled, invoiceIssuanceAvailabl
   </>;
 }
 
-export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion?: 1 | 2 | 3 | 4; salesEnabled?: boolean; invoiceIssuanceAvailable?: boolean; bankEnabled?: boolean; supplierEnabled?: boolean }
+export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion?: 1 | 2 | 3 | 4; salesEnabled?: boolean; invoiceIssuanceAvailable?: boolean; bankEnabled?: boolean; supplierEnabled?: boolean; teamEnabled?: boolean }
 export function UsErpWorkbench(props: UsErpWorkbenchProps) {
   return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}:${props.role}:${props.supportedSchemaVersion ?? 1}:${props.salesEnabled === true}:${props.invoiceIssuanceAvailable === true}:${props.bankEnabled === true}:${props.supplierEnabled === true}`} {...props} />;
 }
-function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, supportedSchemaVersion = 1, salesEnabled = false, invoiceIssuanceAvailable = false, bankEnabled = false, supplierEnabled = false }: UsErpWorkbenchProps) {
+function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, supportedSchemaVersion = 1, salesEnabled = false, invoiceIssuanceAvailable = false, bankEnabled = false, supplierEnabled = false, teamEnabled = false }: UsErpWorkbenchProps) {
+  const [view, setView] = useState<'management' | 'team'>('management');
   const c = browserWorkbenchCopy[language], p = browserPurchasingCopy[language], projectsCopy = browserProjectsCopy[language], prefix = useId(), purchasingEnabled = supportedSchemaVersion >= 2, projectsEnabled = supportedSchemaVersion >= 3;
   const session = useRef<BrowserErpSession | null>(null), generation = useRef(0), privacyEpoch = useRef(0), busyRef = useRef(true), pendingType = useRef<ErpCommand['type'] | null>(null), noticeRef = useRef<HTMLDivElement>(null), nextLine = useRef(2);
   const sellerBusyRef = useRef(true), sellerPendingRef = useRef(false);
@@ -342,6 +345,8 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
   const exportAccess = { organizationId, expectedUserId, supportedSchemaVersion, language, accessEpoch, currentAccessEpoch, disabled: blocked, onAccessDenied: invalidateAccess, sellerSettingsId: `${prefix}-seller-settings` };
   const s = browserSalesCopy[language];
   return <div className="us-erp-workbench" lang={language}>
+    {teamEnabled && <nav className="us-team-navigation" aria-label={browserUsTeamCopy[language].management}><button type="button" className="account-button secondary" aria-current={view === 'management' ? 'page' : undefined} onClick={() => setView('management')}>{browserUsTeamCopy[language].management}</button><button type="button" className="account-button secondary" aria-current={view === 'team' ? 'page' : undefined} onClick={() => setView('team')}>{browserUsTeamCopy[language].title}</button></nav>}
+    <div hidden={teamEnabled && view === 'team'}>
     <header className="us-erp-heading"><h1>{c.title}</h1><p>{salesEnabled ? s.introduction : purchasingEnabled ? p.introduction : c.introduction}</p><p className="us-erp-limitation">{salesEnabled ? s.limitation : purchasingEnabled ? p.limitation : c.limitation}</p></header>
     <div className="us-erp-toolbar"><button type="button" className="account-button secondary" disabled={busy || sellerBusy || taxBusy || bankBusy || supplierBusy || analysisBusy} onClick={() => void reload()}>{busy ? c.reloading : c.reload}</button>{read?.status === 'ready' && <span>{c.revision} {read.state.revision}</span>}</div>
     <p className="us-erp-muted">{c.draftKept}</p>
@@ -413,5 +418,8 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
       {salesEnabled && <UsErpReports {...exportAccess} state={read.state} />}
       {supportedSchemaVersion >= 4 && <UsErpAccounting key={`accounting:${accessEpoch}:${accountingResetEpoch}`} state={read.state} language={language} role={role} supportedSchemaVersion={supportedSchemaVersion} disabled={blocked} onWrite={command => void write(command)} {...(bankEnabled && read.state.schemaVersion === 4 && ['owner','admin','accountant'].includes(role) ? { bank: { expectedUserId, accessEpoch: currentAccessEpoch, otherBusy: bankOtherBusy, otherPending: bankOtherPending, onBusy: onBankBusy, onPending: onBankPending, onUnauthorized: invalidateAccess, onCommitted: onBankCommitted } } : {})} />}
     </>}
+    </div>
+    {teamEnabled && view === 'team' && writeLocked && <p role="alert">{browserUsTeamCopy[language].denied}</p>}
+    {teamEnabled && <div hidden={view !== 'team'}><UsTeamPanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} disabled={writeLocked} admitted={!writeLocked} accessEpoch={currentAccessEpoch} onInvalidated={invalidateAccess} /></div>}
   </div>;
 }
