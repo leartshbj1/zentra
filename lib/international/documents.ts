@@ -12,7 +12,7 @@ import {
   invoiceBalance,
   lineTotals,
   validateEstimate,
-  validateTaxAssessment,
+  validateHistoricalTaxAssessment,
   validatePublicSellerSnapshot,
   type Contact,
   type Estimate,
@@ -260,7 +260,7 @@ export function buildPrintableDocument(
     if (company.taxConfiguration.status !== 'configured')
       return fail('tax_mismatch');
     // Historical print uses issuance time; rendering a valid old invoice does not renew a tax decision.
-    tax = validateTaxAssessment(
+    tax = validateHistoricalTaxAssessment(
       buildTaxRequest(company, estimate, document.date),
       issued.taxAssessment,
       issued.issuedAt,

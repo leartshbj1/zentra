@@ -1,8 +1,12 @@
-import { AccountPublicError, requireAccountSameOrigin } from '../account-security';
+import { AccountPublicError, requireAccountSameOrigin, sha256Hex } from '../account-security';
 import { readJsonObjectWithinLimit, RequestBodyError } from '../request-body';
 import { LedgerError, type FinancialAuthority } from './accounting/ledger';
 import { ErpError, executeErp, canonicalErpJson } from './runtime';
-import type { ErpStore } from './runtime-types';
+import type { ErpExecutionDependencies } from './runtime';
+import { validateErpRequest } from './erp-request';
+import { validateErpReceipt } from './runtime-store';
+import { snapshotPrivateJson } from './private-json';
+import type { ErpRequest, ErpStore } from './runtime-types';
 import type { CompanyConfiguration } from './types';
 import type { TaxCalculationProvider,PublicSellerSnapshot } from './invoicing';
 import { publicCompanyConfiguration, publicErpState } from './public-projection';
@@ -17,6 +21,10 @@ export interface ErpServerDependencies {
   taxProvider:(config:CompanyConfiguration)=>Promise<TaxCalculationProvider|null>;
   projectExists?:(actor:FinancialAuthority,projectId:string)=>Promise<boolean>;
   seller?:(actor:FinancialAuthority)=>Promise<PublicSellerSnapshot|null>;
+  /** Optional private TEST issuer, supplied only by trusted server wiring.
+   * No runtime binding installs it by default. Only issue_invoice dispatches
+   * here; other ERP commands retain the existing engine and its atomic store. */
+  issueInvoiceTest?:(execution:Pick<ErpExecutionDependencies,'store'|'configuration'|'actor'|'revalidate'>,input:ErpRequest)=>Promise<Readonly<{receipt:unknown;replayed:boolean}>>;
   rateLimit:(request:Request,actor:FinancialAuthority,operation:'read'|'write')=>Promise<void>;
   /** No document text, addresses, secrets, token, tax raw response or payment details. */
   diagnostic:(event:{operation:'read'|'write';code:string;status:number})=>void;
@@ -76,11 +84,29 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
           if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);
           return fresh.actor;
         }
-        const result=await executeErp({store:await dependencies.store(),configuration:trusted.config,actor:trusted.actor,taxProvider:config=>dependencies.taxProvider(config),...(dependencies.seller?{seller:()=>dependencies.seller!(trusted.actor)}:{}),...(dependencies.projectExists?{projectExists:(_organizationId:string,projectId:string)=>dependencies.projectExists!(trusted.actor,projectId)}:{}),revalidate},input);
+        const requestInput=validateErpRequest(input,organizationId);
+        if(requestInput.command.type==='issue_invoice'&&!['owner','admin','accountant'].includes(trusted.actor.role))throw new ErpError('financial_permission_required',403);
+        const execution={store:await dependencies.store(),configuration:trusted.config,actor:trusted.actor,revalidate};
+        const result=requestInput.command.type==='issue_invoice'&&dependencies.issueInvoiceTest
+          ?await dependencies.issueInvoiceTest(execution,requestInput)
+          :await executeErp({...execution,taxProvider:config=>dependencies.taxProvider(config),...(dependencies.seller?{seller:()=>dependencies.seller!(trusted.actor)}:{}),...(dependencies.projectExists?{projectExists:(_organizationId:string,projectId:string)=>dependencies.projectExists!(trusted.actor,projectId)}:{})},requestInput);
+        // An injected private issuer must not project its proof or SDK metadata.
+        // A receipt remains the exact public five-field ERP contract.
+        async function publicResult(){
+          const detached=snapshotPrivateJson(result) as typeof result;
+          if(!detached||typeof detached!=='object'||Array.isArray(detached)||Reflect.ownKeys(detached).length!==2||!Object.hasOwn(detached,'receipt')||!Object.hasOwn(detached,'replayed'))throw new ErpError('invalid_receipt',503);
+          const receipt=validateErpReceipt(detached.receipt,organizationId);
+          const commandHash=await sha256Hex(canonicalErpJson([organizationId,trusted.actor.userId,requestInput]));
+          if(typeof detached.replayed!=='boolean'||receipt.idempotencyKey!==requestInput.idempotencyKey||receipt.commandHash!==commandHash||receipt.action!==requestInput.command.type||receipt.revision!==requestInput.expectedRevision+1)throw new ErpError('invalid_receipt',503);
+          if(requestInput.command.type==='issue_invoice'&&receipt.entityId!==requestInput.command.id)throw new ErpError('invalid_receipt',503);
+          return {receipt,replayed:detached.replayed};
+        }
+        let projected;
+        try{projected=await publicResult();}catch(error){await revalidate();throw error;}
         // A completed transaction remains committed if admission changes while
         // storage is pending. Withhold its receipt; an exact retry can recover it.
         await revalidate();
-        return json(result);
+        return json(projected);
       }catch(error){return failure(error,'write',dependencies);}
     },
   };

@@ -109,7 +109,7 @@ export function buildTaxRequest(configuration:CompanyConfiguration,estimate:Esti
   if (!validDate(transactionDate)) throw new LedgerError('INVALID_DATE');
   const lines=estimate.lines.map(line=>({id:line.id,netMinor:lineTotals(line,estimate.currency).net.minorUnits,taxTreatment:line.taxTreatment}));
   // Includes location and every monetary/tax input. A new revision invalidates old determinations.
-  const fingerprint=JSON.stringify([configuration.organizationId,configuration.country,configuration.currency,configuration.address,estimate.id,estimate.revision,transactionDate,estimate.customer.billingAddress,estimate.customer.shippingAddress??null,lines]);
+  const fingerprint=nationalAdapter(configuration.country).serializeTaxFingerprint([configuration.organizationId,configuration.country,configuration.currency,configuration.address,estimate.id,estimate.revision,transactionDate,estimate.customer.billingAddress,estimate.customer.shippingAddress??null,lines]);
   return Object.freeze({organizationId:configuration.organizationId,country:configuration.country,currency:configuration.currency,documentId:estimate.id,documentRevision:estimate.revision,fingerprint,transactionDate,customer:estimate.customer,lines:Object.freeze(lines)});
 }
 export function validateTaxAssessment(request:TaxRequest,assessment:TaxAssessment,now:string):Money {
@@ -147,7 +147,23 @@ export function taxAssessmentProof(assessment: TaxAssessment): TaxAssessment {
     }))),
   });
 }
+/** Read-only historical reconstruction/printing, not an issuance admission.
+ * The earlier US JSON property order may differ after JSONB persistence. Keep
+ * original proof bytes; all fiscal inputs, amounts and original expiry checks
+ * still match exactly. Fresh validateTaxAssessment remains strict. */
+export function validateHistoricalTaxAssessment(request: TaxRequest, assessment: TaxAssessment, issuedAt: string): Money {
+  const matched = nationalAdapter(request.country).historicalTaxFingerprintMatches(request.fingerprint, assessment.fingerprint);
+  return validateTaxAssessment(matched ? { ...request, fingerprint: assessment.fingerprint } : request, assessment, issuedAt);
+}
 export function invoiceFromEstimate(configuration:CompanyConfiguration,estimate:Estimate,input:{id:string;number:string;date:string;accountingDate:string;dueDate:string},assessment:TaxAssessment|null,actor:InvoicingAuthority,seller:PublicSellerSnapshot):IssuedInvoice {
+  return reconstructInvoice(configuration, estimate, input, assessment, actor, seller, validateTaxAssessment);
+}
+/** For validating an already issued invoice only. No number, receipt, journal,
+ * mutation or permission is created by this pure reconstruction function. */
+export function reconstructHistoricalInvoiceFromEstimate(configuration:CompanyConfiguration,estimate:Estimate,input:{id:string;number:string;date:string;accountingDate:string;dueDate:string},assessment:TaxAssessment|null,actor:InvoicingAuthority,seller:PublicSellerSnapshot):IssuedInvoice {
+  return reconstructInvoice(configuration, estimate, input, assessment, actor, seller, validateHistoricalTaxAssessment);
+}
+function reconstructInvoice(configuration:CompanyConfiguration,estimate:Estimate,input:{id:string;number:string;date:string;accountingDate:string;dueDate:string},assessment:TaxAssessment|null,actor:InvoicingAuthority,seller:PublicSellerSnapshot,checkAssessment: typeof validateTaxAssessment):IssuedInvoice {
   authority(configuration,actor); validateEstimate(configuration,estimate);
   if (estimate.status!=='accepted') throw new LedgerError('ESTIMATE_ACCEPTANCE_REQUIRED');
   if (!assessment || configuration.taxConfiguration.status!=='configured') throw new LedgerError('TAX_CONFIGURATION_REQUIRED');
@@ -155,7 +171,7 @@ export function invoiceFromEstimate(configuration:CompanyConfiguration,estimate:
   text(input.id,'DOCUMENT_ID_REQUIRED'); text(input.number,'DOCUMENT_NUMBER_REQUIRED');
   // Tax must be assessed for the invoice's transaction date, not a stale estimate date.
   const request=buildTaxRequest(configuration,estimate,input.date);
-  const tax=validateTaxAssessment(request,assessment,actor.timestamp); const totals=estimateTotals(estimate);
+  const tax=checkAssessment(request,assessment,actor.timestamp); const totals=estimateTotals(estimate);
   const sellerSnapshot = validatePublicSellerSnapshot(seller, configuration.organizationId);
   const immutableAssessment=taxAssessmentProof(assessment);
   return Object.freeze({...input,organizationId:configuration.organizationId,currency:configuration.currency,companyConfiguration:validateCompanyConfiguration(configuration),sellerSnapshot,sourceEstimateId:estimate.id,sourceEstimateRevision:estimate.revision,customer:Object.freeze({...estimate.customer,billingAddress:Object.freeze({...estimate.customer.billingAddress}),...(estimate.customer.shippingAddress?{shippingAddress:Object.freeze({...estimate.customer.shippingAddress})}:{})}),...(estimate.projectId===undefined?{}:{projectId:estimate.projectId}),lines:Object.freeze(estimate.lines.map(line=>Object.freeze({...line,unitPrice:Object.freeze({...line.unitPrice})}))),notes:estimate.notes,subtotal:totals.subtotal,discount:totals.discount,tax,total:addMoney(totals.net,tax),taxAssessment:immutableAssessment,payments:Object.freeze([]),issuedAt:actor.timestamp,issuedBy:actor.userId});

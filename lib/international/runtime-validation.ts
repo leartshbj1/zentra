@@ -1,7 +1,7 @@
 import { validateCompanyConfiguration } from './country-config';
 import { createLedger,closePeriod,type Ledger } from './accounting/ledger';
 import { postCustomerInvoice,postCustomerPayment } from './accounting/postings';
-import { invoiceFromEstimate,recordCustomerPayment,validateEstimate } from './invoicing';
+import { reconstructHistoricalInvoiceFromEstimate,recordCustomerPayment,validateEstimate } from './invoicing';
 import { ErpError,canonicalErpJson } from './erp-contract';
 import { validateErpRequest } from './erp-request';
 import { nationalAdapter } from './countries/adapters';
@@ -40,7 +40,7 @@ export function validateStoredErp(value: unknown, organizationId: string): ErpSt
       const estimate = s.estimates.find(q=>q.id===invoice.sourceEstimateId && q.revision===invoice.sourceEstimateRevision);
       if (!estimate) return unavailable();
       const snapshotConfig = validateCompanyConfiguration(invoice.companyConfiguration);
-      let reconstructed = invoiceFromEstimate(snapshotConfig,estimate,{id:invoice.id,number:invoice.number,date:invoice.date,accountingDate:invoice.accountingDate,dueDate:invoice.dueDate},invoice.taxAssessment,{organizationId,userId:invoice.issuedBy,canIssue:true,managementEntitled:true,timestamp:invoice.issuedAt},invoice.sellerSnapshot);
+      let reconstructed = reconstructHistoricalInvoiceFromEstimate(snapshotConfig,estimate,{id:invoice.id,number:invoice.number,date:invoice.date,accountingDate:invoice.accountingDate,dueDate:invoice.dueDate},invoice.taxAssessment,{organizationId,userId:invoice.issuedBy,canIssue:true,managementEntitled:true,timestamp:invoice.issuedAt},invoice.sellerSnapshot);
       for (const payment of invoice.payments) reconstructed=recordCustomerPayment(snapshotConfig,reconstructed,payment,{organizationId,userId:payment.recordedBy,canIssue:true,managementEntitled:true,timestamp:invoice.issuedAt});
       if (!same(reconstructed,invoice)) return unavailable();
     }
