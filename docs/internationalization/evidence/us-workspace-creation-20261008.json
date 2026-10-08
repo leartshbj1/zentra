@@ -1,0 +1,297 @@
+{
+  "date": "2026-10-08",
+  "generatedAtUtc": "2026-10-08T00:40:56.218Z",
+  "sourceBase": "2d2c8d3b136c5d22ba543dad79c813afd651573d",
+  "scope": "New US workspace reservation/admission foundation; not an operational or production US release",
+  "international": {
+    "files": 25,
+    "passed": 679,
+    "failed": 0,
+    "skipped": 0,
+    "perFile": [
+      {
+        "file": "lib/international/core.test.ts",
+        "passed": 82
+      },
+      {
+        "file": "lib/international/documents.test.ts",
+        "passed": 36
+      },
+      {
+        "file": "lib/international/finance.test.ts",
+        "passed": 78
+      },
+      {
+        "file": "lib/international/integration.test.ts",
+        "passed": 68
+      },
+      {
+        "file": "lib/international/legacy-country-guard.migrations.test.ts",
+        "passed": 12
+      },
+      {
+        "file": "lib/international/legacy-country-guard.test.ts",
+        "passed": 3
+      },
+      {
+        "file": "lib/international/new-us-workspace-admission.postgres.test.ts",
+        "passed": 18
+      },
+      {
+        "file": "lib/international/phone.test.ts",
+        "passed": 14
+      },
+      {
+        "file": "lib/international/public-projection.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "lib/international/runtime-bindings.test.ts",
+        "passed": 9
+      },
+      {
+        "file": "lib/international/runtime-postgres.test.ts",
+        "passed": 19
+      },
+      {
+        "file": "lib/international/runtime-server.test.ts",
+        "passed": 18
+      },
+      {
+        "file": "lib/international/runtime-sync.test.ts",
+        "passed": 27
+      },
+      {
+        "file": "lib/international/runtime-tax-proof-postgres.test.ts",
+        "passed": 9
+      },
+      {
+        "file": "lib/international/runtime.test.ts",
+        "passed": 31
+      },
+      {
+        "file": "lib/international/workspace-creation-d1.test.ts",
+        "passed": 26
+      },
+      {
+        "file": "lib/international/workspace-creation-review.test.ts",
+        "passed": 33
+      },
+      {
+        "file": "lib/international/workspace-creation.integration.test.ts",
+        "passed": 6
+      },
+      {
+        "file": "lib/international/workspace-creation.test.ts",
+        "passed": 48
+      },
+      {
+        "file": "lib/international/workspace-server.bindings.test.ts",
+        "passed": 18
+      },
+      {
+        "file": "lib/international/workspace-server.native.test.ts",
+        "passed": 43
+      },
+      {
+        "file": "lib/international/workspace-server.test.ts",
+        "passed": 18
+      },
+      {
+        "file": "lib/international/workspace-service.postgres.test.ts",
+        "passed": 10
+      },
+      {
+        "file": "lib/international/workspace-service.test.ts",
+        "passed": 36
+      },
+      {
+        "file": "lib/international/accounting/reconciliation.test.ts",
+        "passed": 11
+      }
+    ]
+  },
+  "legacy": {
+    "files": 6,
+    "passed": 260,
+    "skipped": 51,
+    "failed": 0,
+    "canonicalQueryPeak": 84,
+    "instrumentedQueryBudget": 100
+  },
+  "d1": {
+    "migrationChain": "0000..0086",
+    "actualWorkerd": true,
+    "guards": 114,
+    "tablesGuarded": 38,
+    "concurrentStoreCalls": 8,
+    "concurrentServiceCalls": 8,
+    "postgresPortInWorkerd": "simulated; separate actual PGlite integration below"
+  },
+  "postgres": {
+    "runtime": "PGlite 0.5.8 PostgreSQL 18.3 WASM",
+    "admissionTests": 18,
+    "combinedRealServiceStoreRpcTests": 6,
+    "combinedD1": "Node SQLite complete schemas",
+    "fullInternationalMigrationsInCombinedTest": 6,
+    "realConnections": 1,
+    "twoConnectionConcurrencyProven": false,
+    "livePostgRESTProven": false
+  },
+  "typecheck": {
+    "command": "tsc --noEmit --incremental false",
+    "exitCode": 0
+  },
+  "lint": {
+    "internationalExitCode": 0,
+    "internationalDiagnostics": 0,
+    "globalExitCode": 1,
+    "globalDiagnostics": 118,
+    "globalErrorsOnUnchangedTrackedFilesOnly": true,
+    "globalFiles": [
+      "lib/supplier-inbox/capture-concurrency.test.ts",
+      "lib/support/solicitation.ts",
+      "lib/site-language-server.ts",
+      "lib/site-number-format.ts",
+      "lib/support/solicitation-service.ts",
+      "lib/support/infomaniak.ts",
+      "lib/support/mail-sync.ts",
+      "lib/support/service.ts",
+      "lib/support/infomaniak-imap.ts",
+      "lib/automation/workflows.ts",
+      "lib/support/solicitation-service.test.ts",
+      "lib/support/workspace-state-admission.test.ts",
+      "lib/password-session-admission.test.ts",
+      "lib/support/infomaniak-imap.test.ts",
+      "lib/supplier-inbox/service.test.ts",
+      "lib/automation/workflows.test.ts",
+      "components/invitation-accept.tsx",
+      "lib/stripe-readiness.test.ts",
+      "app/compte/loading.tsx",
+      "lib/company-content.test.ts",
+      "lib/device-team.test.ts",
+      "lib/license-token.test.ts",
+      "app/compte/[section]/page.tsx",
+      "lib/support/support.test.ts",
+      "lib/support/types.ts",
+      "app/api/account/company-copy/route.ts",
+      "lib/account-preferences.ts",
+      "app/api/supplier-inbox/route.ts",
+      "lib/support/batch.ts",
+      "lib/support/connectors.ts",
+      "lib/phase2-admin.ts",
+      "lib/supabase-auth.test.ts",
+      "lib/supabase-server.test.ts",
+      "lib/complete/trial-sqlite-route.test.ts",
+      "lib/supplier-inbox/extraction.test.ts",
+      "lib/support/infomaniak.test.ts",
+      "lib/support/mail-claim.test.ts"
+    ]
+  },
+  "build": {
+    "brandAssetsExitCode": 0,
+    "vinextProductionExitCode": 0,
+    "warnings": [
+      "middleware convention deprecated",
+      "some routes not statically classified"
+    ]
+  },
+  "admission": {
+    "flagsChanged": false,
+    "readyForbidden": true,
+    "organizationMembershipSubscriptionCreated": false,
+    "legacyPreflightIntegrated": false,
+    "productionDataChanged": false,
+    "productionMigrationsApplied": false,
+    "nativeInstallersPublished": false
+  },
+  "limits": [
+    "No distributed D1/PostgreSQL atomicity",
+    "No staging or physical multi-device recipe",
+    "No external object upload absence proof",
+    "No real tax determination or US entitlement catalog",
+    "Not a complete US ERP or US GAAP certification"
+  ],
+  "hashes": [
+    {
+      "file": "app/api/international/workspaces/route.ts",
+      "sha256": "b09d95c73f4f033ebfe501f94d3359988c5ca513b5d8ec51c245b30a55d50dc7"
+    },
+    {
+      "file": "lib/international/workspace-creation.ts",
+      "sha256": "bac28d1070335e07332979477e322693ea56ba6a284331a50bcaa41c06e16595"
+    },
+    {
+      "file": "lib/international/workspace-creation-d1.ts",
+      "sha256": "2db4d0e0bc2fa199eb83589f078393935c0c6150014194ed0e7d0d86cd5ca829"
+    },
+    {
+      "file": "lib/international/workspace-creation-server.ts",
+      "sha256": "83cd29a11bee791a792e1d384655202edacf2d665df9473fcb258fe78721830b"
+    },
+    {
+      "file": "lib/international/workspace-creation.test.ts",
+      "sha256": "04a1603172d32b37eefd6eb2334e53816acbc41e4250db8502a41e2f7bb41af7"
+    },
+    {
+      "file": "lib/international/workspace-creation-d1.test.ts",
+      "sha256": "6d3c51f6d80d62495cd56599bc039cc85412dd77f88c98bc9cdef5c88d6702f4"
+    },
+    {
+      "file": "lib/international/workspace-creation-review.test.ts",
+      "sha256": "5943d83922faf33714d8116f93c214c6cb69e26a05f3a7e245094ae8f7f52a43"
+    },
+    {
+      "file": "lib/international/workspace-creation.integration.test.ts",
+      "sha256": "9c222f0cc866a79440758cb358617dc4dcd79016097ede9aa020235ac5f3f23a"
+    },
+    {
+      "file": "lib/international/new-us-workspace-admission.postgres.test.ts",
+      "sha256": "6d851208f64eb87a08a7791c6e8d5b8a928e968a78b3ace76418008649379713"
+    },
+    {
+      "file": "lib/international/legacy-country-guard.ts",
+      "sha256": "4cc95d6bc08114f489e9c6938b1f8ff7036e4d4f83c81d7b0d1d712d36631fa8"
+    },
+    {
+      "file": "lib/international/legacy-country-guard.test.ts",
+      "sha256": "67507c1577b09f274e45c8777d6e4aee0ec9a7677ddcfbb7a0caf69ea38b264c"
+    },
+    {
+      "file": "lib/international/legacy-country-guard.migrations.test.ts",
+      "sha256": "8526b15c615e0cbf22da0fb62ee2e2ba188ea6b46b8c08c1888c9828c3ebf685"
+    },
+    {
+      "file": "drizzle/0085_international_workspace_creation_intents.sql",
+      "sha256": "3b998382a90451c4f6d9794a1386aca7c3a5315112a236128472e5e703453f4d"
+    },
+    {
+      "file": "drizzle/0086_international_legacy_country_guards.sql",
+      "sha256": "57931b86cae5f7f22e3c973d6d5b5d88f2e563ccf0969d57705128da8fcfea44"
+    },
+    {
+      "file": "drizzle/meta/_journal.json",
+      "sha256": "4748f4149b4dd5d8743b2f793b66df60b0403494f5665ff5aeafe9a48831d239"
+    },
+    {
+      "file": "drizzle/meta/0085_snapshot.json",
+      "sha256": "a55111a4c637afd0731eb2b913d21fbb6fb1376c4adfa67e68f0a288986b044d"
+    },
+    {
+      "file": "drizzle/meta/0086_snapshot.json",
+      "sha256": "4815171dce7528e9632aef8f754ec9bdb986ebd969630ef71180087d02b93fb8"
+    },
+    {
+      "file": "supabase/migrations/20261008001726_new_us_workspace_admission.sql",
+      "sha256": "435f87289682dbed3b372bd6790d0f213a5a5e7a4c5aee32f70323798e87edcc"
+    },
+    {
+      "file": "docs/internationalization/LEGACY-D1-COUNTRY-GUARDS.md",
+      "sha256": "5ac2fd5a73fd6d2c1d3ae7d8a8c88bab5ea747489575ef8d452fb0f8e78b57a6"
+    },
+    {
+      "file": "docs/internationalization/US-WORKSPACE-CREATION-20261008.md",
+      "sha256": "60e42117fd327c9996b9d7b460e2e5c9b8247b9d2a398b3a00ba58b2af1ec73f"
+    }
+  ]
+}

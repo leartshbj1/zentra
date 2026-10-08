@@ -596,6 +596,20 @@
       "when": 1791323495688,
       "tag": "0084_prepaid_renewal_create_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "6",
+      "when": 1791418628395,
+      "tag": "0085_international_workspace_creation_intents",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "6",
+      "when": 1791418654253,
+      "tag": "0086_international_legacy_country_guards",
+      "breakpoints": true
     }
   ]
 }
