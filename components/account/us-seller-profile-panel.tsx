@@ -60,7 +60,7 @@ export function UsSellerProfilePanel(props: UsSellerProfilePanelProps) {
   useEffect(() => { if (notice && notice !== 'saved') noticeRef.current?.focus(); }, [notice]);
   async function reload() {
     const instance = session.current, current = generation.current, privacy = props.currentAccessEpoch();
-    if (!instance || busyRef.current) return;
+    if (!instance || busyRef.current || props.otherBusy()) return;
     occupy(true); setFresh(false); setNotice(null);
     try { const value = await instance.load(); if (generation.current === current && props.currentAccessEpoch() === privacy) { setState(value); setDataEpoch(privacy); if (!dirtyRef.current) setDraft(draftFrom(value)); setFresh(true); } }
     catch (error) { if (generation.current === current && props.currentAccessEpoch() === privacy) setNotice(failure(error)); }
@@ -84,7 +84,7 @@ export function UsSellerProfilePanel(props: UsSellerProfilePanelProps) {
   const field = (key: keyof BrowserSellerDraft, label: string, maximum: number, type = 'text', required = false) => <label htmlFor={`${prefix}-${key}`}>{label}<input id={`${prefix}-${key}`} name={key} type={type} required={required} maxLength={maximum} value={draft[key]} onChange={event => { dirtyRef.current = true; setDraft(previous => ({ ...previous, [key]: event.target.value })); }} /></label>;
   const form = <form onSubmit={submit}><fieldset className="us-erp-form" disabled={disabled}>{field('displayName', c.displayName, 256, 'text', true)}<div className="us-erp-grid">{field('contactEmail', c.contactEmail, 254, 'email')}{field('contactPhone', c.contactPhone, 80, 'tel')}</div><p className="us-erp-muted">{c.draftKept}</p><button type="submit" className="account-button">{c.save}</button></fieldset></form>;
   return <section className="us-erp-section us-seller-profile" aria-labelledby={`${prefix}-title`}>
-    <div className="us-erp-record-heading"><h2 id={`${prefix}-title`}>{c.sellerTitle}</h2><button type="button" className="account-button secondary" disabled={busy} onClick={() => void reload()}>{c.reload}</button></div><p>{c.sellerHelp}</p><p className="us-erp-muted">{c.nonVerified}</p>
+    <div className="us-erp-record-heading"><h2 id={`${prefix}-title`}>{c.sellerTitle}</h2><button type="button" className="account-button secondary" disabled={busy || props.otherBusy()} onClick={() => void reload()}>{c.reload}</button></div><p>{c.sellerHelp}</p><p className="us-erp-muted">{c.nonVerified}</p>
     {shownNotice && <div className={`us-erp-notice ${shownNotice === 'saved' ? 'success' : 'error'}`} ref={noticeRef} tabIndex={-1} role={shownNotice === 'saved' ? 'status' : 'alert'}>{c[shownNotice]}</div>}
     {pending && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><p>{c.pendingMemory}</p><button type="button" className="account-button" disabled={busy || blocked && props.otherBusy()} onClick={() => void write()}>{busy ? c.busy : c.retry}</button></aside>}
     {shownState ? <UsSellerProfileDetails state={shownState} language={language} /> : !shownNotice && <output>{c.loading}</output>}

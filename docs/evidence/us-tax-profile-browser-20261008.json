@@ -1,0 +1,247 @@
+{
+  "date": "2026-10-08",
+  "baseCommit": "f4c4ef31d8300b6881746f0648f9725f3027d62b",
+  "scope": "All prior international and targeted CH files, plus private UI/transport and three opt-in browser proofs. PostgreSQL local enabled; no hosted or native distribution proof.",
+  "results": {
+    "success": true,
+    "files": 57,
+    "passedTests": 1978,
+    "failedTests": 0,
+    "pendingTests": 0,
+    "typescriptExit": 0,
+    "oxlintExit": 0,
+    "productionBuildExit": 0,
+    "diffCheckExit": 0,
+    "transportTests": 83,
+    "panelInputTests": 10,
+    "threeBrowserProofsPassed": true,
+    "testsIncludeNewCases": true
+  },
+  "selectedTestFiles": [
+    "lib/account-security.test.ts",
+    "lib/account-workspace-pages.test.ts",
+    "lib/business-sync-cash-vat.test.ts",
+    "lib/document-number-reservations.test.ts",
+    "lib/international/accounting/reconciliation.test.ts",
+    "lib/international/browser-actor-binding.test.ts",
+    "lib/international/browser-erp-session.test.ts",
+    "lib/international/browser-seller-panel.test.ts",
+    "lib/international/browser-seller-session.test.ts",
+    "lib/international/browser-tax-profile-panel.test.ts",
+    "lib/international/browser-tax-profile-postgres.browser.test.ts",
+    "lib/international/browser-tax-profile-session.test.ts",
+    "lib/international/browser-tax-profile.browser.test.ts",
+    "lib/international/browser-workbench.browser.test.ts",
+    "lib/international/browser-workbench.test.ts",
+    "lib/international/core.test.ts",
+    "lib/international/documents.test.ts",
+    "lib/international/finance.test.ts",
+    "lib/international/integration.test.ts",
+    "lib/international/legacy-country-error.test.ts",
+    "lib/international/legacy-country-guard.migrations.test.ts",
+    "lib/international/legacy-country-guard.test.ts",
+    "lib/international/legacy-transport-routes.test.ts",
+    "lib/international/new-us-workspace-admission.postgres.test.ts",
+    "lib/international/phone.test.ts",
+    "lib/international/public-projection.test.ts",
+    "lib/international/runtime-bindings.test.ts",
+    "lib/international/runtime-postgres.test.ts",
+    "lib/international/runtime-response-guards.test.ts",
+    "lib/international/runtime-server.test.ts",
+    "lib/international/runtime-sync.test.ts",
+    "lib/international/runtime-tax-proof-postgres.test.ts",
+    "lib/international/runtime.test.ts",
+    "lib/international/saas-authorities.migrations.test.ts",
+    "lib/international/saas-authority.test.ts",
+    "lib/international/saas-authority.workerd.test.ts",
+    "lib/international/seller-profile-server.test.ts",
+    "lib/international/seller-profile.postgres.test.ts",
+    "lib/international/seller-profile.test.ts",
+    "lib/international/us-tax-profile-server.test.ts",
+    "lib/international/us-tax-profile.postgres.test.ts",
+    "lib/international/us-tax-profile.test.ts",
+    "lib/international/workspace-creation-d1.test.ts",
+    "lib/international/workspace-creation-review.test.ts",
+    "lib/international/workspace-creation.integration.test.ts",
+    "lib/international/workspace-creation.test.ts",
+    "lib/international/workspace-server.bindings.test.ts",
+    "lib/international/workspace-server.native.test.ts",
+    "lib/international/workspace-server.test.ts",
+    "lib/international/workspace-service.postgres.test.ts",
+    "lib/international/workspace-service.test.ts",
+    "lib/license-token.test.ts",
+    "lib/stripe-contract.test.ts",
+    "lib/stripe-event.test.ts",
+    "lib/stripe-plans.test.ts",
+    "lib/stripe-webhook-proof.test.ts",
+    "lib/stripe-webhook.test.ts"
+  ],
+  "ui": {
+    "views": 32,
+    "languages": [
+      "fr",
+      "de",
+      "it",
+      "en"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "widths": [
+      320,
+      390,
+      1280
+    ],
+    "rootTextScalesPercent": [
+      100,
+      200
+    ],
+    "overflow": "none in measured 32 views",
+    "minimumControlHeight": 45.75,
+    "minimumControlHeightAt200PercentText": 59,
+    "reducedMotion": true,
+    "exactSelectLabelsAndKeyboard": true,
+    "pageErrors": [],
+    "visualInspection": [
+      ".qa/us-tax-browser/fr-light-390.png",
+      ".qa/us-tax-browser/de-dark-1280.png",
+      ".qa/us-tax-browser/de-dark-1280-viewport.png",
+      ".qa/us-tax-browser/de-light-320-text200.png"
+    ],
+    "selectObservation": "Long selected time zone uses ellipsis in the closed native select at 320px/200% text; complete option text and exact accessible label remain available, keyboard selection verified."
+  },
+  "postgresBrowser": {
+    "scope": "Actual React UsErpWorkbench and private browser session -> loopback Node HTTP -> createUsTaxProfileHandlers -> private service -> existing PostgreSQL RPC. ERP/seller/sync handlers also use real SQL RPC. Synthetic local Auth/D1 admission, flags and postcommit receipt loss (successful HTTP200 body deliberately truncated as incomplete JSON). One serialized RAM PGlite PostgreSQL, no hosted Supabase/PostgREST, independent connections, restart/crash durability or provider/production proof. All entered facts are fictitious; no Stripe access, issuance or grant.",
+    "success": true,
+    "checks": [
+      "Actual UI save reached owner HTTP/service and real PostgreSQL head/audit revision 1",
+      "Explicit reload read SQL revision 1 and displayed its private facts; numeric revision is not shown in current panel",
+      "Real SQL-backed ERP state/delta/revision and seller projections contain no private tax facts",
+      "Real committed receipt JSON deliberately truncated after its HTTP200 headers; explicit retry made fresh owner GET then byte-identical PUT and replayed exact receipt without another SQL revision/history row",
+      "Private declarations remain unverified; resolver blocked, provider null, no invoice/journal issued",
+      "Actual owner-only HTTP 403 purged private facts/draft DOM; a later accepted public member GET could not reopen private UI or change history",
+      "Expected-user header on all channels, no persistent private browser storage, no private diagnostics or page errors, source snapshot unchanged"
+    ],
+    "taxHeadRevision": 2,
+    "taxHistoryRows": 2,
+    "exactReceiptReplayed": true,
+    "publicReadCount": 12,
+    "pageErrorCount": 0,
+    "receiptLoss": "Real successful HTTP200 after commit, JSON body deliberately truncated; manual GET-owner/byte-identical-PUT/GET recovery. Not a claimed network crash."
+  },
+  "invariants": [
+    "Private owner-only declarations stay unverified",
+    "Country/user/role replacement or access denial purges private RAM and DOM",
+    "Fresh owner GET before exact pending replay",
+    "No private data in public ERP state/delta/revision/seller or diagnostics",
+    "Tax resolver blocked and provider null",
+    "No new SQL migration; all 132 tracked SQL files unchanged",
+    "No CH/native/production/business data/subscription/region changes"
+  ],
+  "stripeProvider": {
+    "realAccountModified": false,
+    "verifiedCleanSandboxAccess": false,
+    "realTaxCalculationExecuted": false,
+    "temporaryAnonymousTestSandboxAbandoned": true,
+    "temporaryCredentialAppearedInCreationToolOutput": true,
+    "localProfileCleared": true,
+    "remoteCredentialRevocationEstablished": false,
+    "temporarySandboxExpiry": "2026-10-15",
+    "followingProvisionAttempts": "Browser login fallback; no authenticated sandbox produced",
+    "pendingUserAction": "Create a controlled Zentra US sandbox; do not share keys in chat"
+  },
+  "limitations": [
+    "Synthetic local Auth/D1 and flags",
+    "Single serialized in-memory PGlite; no hosted/PostgREST, two-connection, restart/crash or production proof",
+    "UI color/geometry checks and selected screenshots do not certify the entire application",
+    "Targeted CH regressions do not certify native distributions or real hosted Swiss QR/payment/session flows",
+    "No real Stripe Tax settings/registration/calculation or invoice issuance grant",
+    "US remains experimental and feature flags remain closed by default"
+  ],
+  "sourceSha256": [
+    {
+      "file": "components/account/us-erp-workbench.tsx",
+      "sha256": "e518d5a63e5777afdcdc0fcad98dd882718229153f3a5f83143405f017bb3996"
+    },
+    {
+      "file": "components/account/us-erp-workbench.css",
+      "sha256": "12ca7181b56c1e8da09c651d89f6826f9097c790f5e8d9d6a627347e2cd7c99a"
+    },
+    {
+      "file": "components/account/us-seller-profile-panel.tsx",
+      "sha256": "2d5c7b5ac62e3635648663952cb2ff2cd36ff207bd85ce92625fe56c548292d2"
+    },
+    {
+      "file": "components/account/us-tax-profile-panel.tsx",
+      "sha256": "3892800cb4b85d6df70fcf3addbc0f86396bfb121bf4db273618e874b245c2e4"
+    },
+    {
+      "file": "lib/international/browser-tax-profile-copy.ts",
+      "sha256": "2d9fe1ee84250e501bce3333261e4c508b324358d64f7afe3810798c8f8d34a1"
+    },
+    {
+      "file": "lib/international/browser-tax-profile-panel.test.ts",
+      "sha256": "e597967187a1a452834112257b1f8fab0e202ed232667024f5d88239ad476c36"
+    },
+    {
+      "file": "lib/international/browser-tax-profile-postgres.browser.test.ts",
+      "sha256": "48d59e0e6c4cc56920fc0fa6e78ca446d9908a9460a396b66ae1ee3ccce20701"
+    },
+    {
+      "file": "lib/international/browser-tax-profile-session.ts",
+      "sha256": "1714712c3cc8a277c5ed057f0a3aa7b0e5abfd6488e8fe3eb596bff763fb1f70"
+    },
+    {
+      "file": "lib/international/browser-tax-profile-session.test.ts",
+      "sha256": "db8d33064488f1a0bc07b179d8c1d53ec8476d75b96a0f125582a4b797612ceb"
+    },
+    {
+      "file": "lib/international/browser-tax-profile.browser.test.ts",
+      "sha256": "60b226167726bf0acd6e7956f66ddbe8cc9811d98a5bb2e9f1a714561facab5a"
+    },
+    {
+      "file": "lib/international/browser-workbench.browser.test.ts",
+      "sha256": "c714650ef89940c176fc5c524d0dd01a86f4235aabaa4e32d390cd9356694e11"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".qa/us-tax-profile-browser/regression-final.json",
+      "sha256": "13ff35c19955997cacbc4b2c8f27722e8a06ef2441acb8e62a28bb8993e8287c"
+    },
+    {
+      "path": ".qa/us-tax-profile-browser/selection.json",
+      "sha256": "72e922f37ff1c96d7c01dadac036ef2fbb444a0f807e723d32702957123faad3"
+    },
+    {
+      "path": ".qa/us-tax-profile-browser/build-final.log",
+      "sha256": "e77902e7b4d9b327a88229002e6edb950c67a2973dc743750e3d86460aa525e4"
+    },
+    {
+      "path": ".qa/us-tax-profile-browser/typecheck-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-tax-profile-browser/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-tax-browser/browser.json",
+      "sha256": "32adb4a3139e98c3fd808638f513f5fea64029ccd4bcaad00ff13850ef7a14f9"
+    },
+    {
+      "path": ".qa/us-seller-browser/browser.json",
+      "sha256": "945af60d4da4c2859db88d4813151b9f2368a185704bbd2ce9091e5d9e35dcdb"
+    },
+    {
+      "path": ".qa/us-tax-postgres-browser/browser.json",
+      "sha256": "1ea404adad04d66dfc6fb41518583c2f102c2da11bd0d20c68c9c09ed2856ea7"
+    },
+    {
+      "path": ".qa/us-tax-postgres-browser/auto-retry-observation.txt",
+      "sha256": "ab0cbe001e2a2d755ff2848bfbf038311f044540b838d464681b94be459d4e75"
+    }
+  ],
+  "report": "docs/internationalization/US-TAX-PROFILE-BROWSER-20261008.md"
+}

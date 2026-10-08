@@ -14,6 +14,7 @@ import { formatDateOnly } from '@/lib/international/localization';
 import { addMoney, decimalToMoney, formatMoney, money } from '@/lib/international/money';
 import type { ErpCommand, ErpState } from '@/lib/international/runtime-types';
 import { UsSellerProfilePanel } from './us-seller-profile-panel';
+import { UsTaxProfilePanel } from './us-tax-profile-panel';
 import './us-erp-workbench.css';
 
 export interface BrowserCustomerDraft {
@@ -84,24 +85,33 @@ export function UsErpRecords({ state, language, canWrite, disabled, onAccept }: 
 
 export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage }
 export function UsErpWorkbench(props: UsErpWorkbenchProps) {
-  return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}`} {...props} />;
+  return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}:${props.role}`} {...props} />;
 }
 function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }: UsErpWorkbenchProps) {
   const c = browserWorkbenchCopy[language], prefix = useId();
   const session = useRef<BrowserErpSession | null>(null), generation = useRef(0), privacyEpoch = useRef(0), busyRef = useRef(true), pendingType = useRef<ErpCommand['type'] | null>(null), noticeRef = useRef<HTMLDivElement>(null), nextLine = useRef(2);
   const sellerBusyRef = useRef(true), sellerPendingRef = useRef(false);
+  const taxBusyRef = useRef(false), taxPendingRef = useRef(false), taxInvalidation = useRef<(() => void) | null>(null), erpAdmittedRef = useRef(false);
   const [read, setRead] = useState<BrowserErpRead | null>(null), [busy, setBusy] = useState(true), [fresh, setFresh] = useState(false), [pending, setPending] = useState(false);
   const [readEpoch, setReadEpoch] = useState(0);
   const [sellerBusy, setSellerBusy] = useState(true), [sellerPending, setSellerPending] = useState(false), [accessEpoch, setAccessEpoch] = useState(0), [writeLocked, setWriteLocked] = useState(false);
+  const [taxBusy, setTaxBusy] = useState(false), [taxPending, setTaxPending] = useState(false), [taxAdmitted, setTaxAdmitted] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'error' | 'success'; key: 'invalid' | 'unavailable' | 'denied' | 'conflict' | 'uncertain' | 'saved' | 'savedReload' } | null>(null);
   const [customer, setCustomer] = useState(emptyCustomer), [estimate, setEstimate] = useState(emptyEstimate), [start, setStart] = useState(''), [end, setEnd] = useState(''), [acceptId, setAcceptId] = useState<string | null>(null);
-  const canWrite = role !== 'read_only', blocked = busy || pending || sellerBusy || sellerPending || !fresh || writeLocked;
+  const canWrite = role !== 'read_only', blocked = busy || pending || sellerBusy || sellerPending || taxBusy || taxPending || !fresh || writeLocked;
   const invalidateAccess = useCallback(() => {
     const epoch = ++privacyEpoch.current; setAccessEpoch(epoch); setWriteLocked(true);
+    taxInvalidation.current?.();
+    erpAdmittedRef.current = false;
+    setTaxAdmitted(false);
     setRead(null); setFresh(false); setAcceptId(null); setCustomer(emptyCustomer()); setEstimate(emptyEstimate()); setStart(''); setEnd(''); setNotice({ kind: 'error', key: 'denied' });
   }, []);
-  const currentAccessEpoch = useCallback(() => privacyEpoch.current, []), otherBusy = useCallback(() => busyRef.current, []), otherPending = useCallback(() => session.current?.hasPending() ?? false, []);
-  const onSellerBusy = useCallback((value: boolean) => { sellerBusyRef.current = value; setSellerBusy(value); }, []), onSellerPending = useCallback((value: boolean) => { sellerPendingRef.current = value; setSellerPending(value); }, []);
+  const currentAccessEpoch = useCallback(() => privacyEpoch.current, []), otherBusy = useCallback(() => busyRef.current || taxBusyRef.current, []), otherPending = useCallback(() => (session.current?.hasPending() ?? false) || taxPendingRef.current, []);
+  const taxOtherBusy = useCallback(() => busyRef.current || sellerBusyRef.current, []), taxOtherPending = useCallback(() => (session.current?.hasPending() ?? false) || sellerPendingRef.current, []);
+  const onTaxBusy = useCallback((value: boolean) => { taxBusyRef.current = value; setTaxBusy(value); }, []), onTaxPending = useCallback((value: boolean) => { taxPendingRef.current = value; setTaxPending(value); }, []);
+  const registerTaxInvalidation = useCallback((invalidate: (() => void) | null) => { taxInvalidation.current = invalidate; }, []);
+  const onSellerBusy = useCallback((value: boolean) => { sellerBusyRef.current = value; setSellerBusy(value); if (!value && erpAdmittedRef.current && privacyEpoch.current === 0) setTaxAdmitted(true); }, []), onSellerPending = useCallback((value: boolean) => { sellerPendingRef.current = value; setSellerPending(value); }, []);
+  const admitPrivate = useCallback(() => { erpAdmittedRef.current = true; if (!sellerBusyRef.current && privacyEpoch.current === 0) setTaxAdmitted(true); }, []);
   const errorNotice = useCallback((error: unknown) => {
     if (error instanceof BrowserErpError && (error.outcome === 'unauthorized' || [401, 402, 403].includes(error.status))) {
       invalidateAccess();
@@ -114,11 +124,11 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
   useEffect(() => {
     const current = ++generation.current, privacy = privacyEpoch.current;
     const instance = createBrowserErpSession({ organizationId, expectedUserId }); session.current = instance;
-    void instance.load().then(value => { if (generation.current === current && privacyEpoch.current === privacy) { setRead(value); setReadEpoch(privacy); setFresh(true); } }).catch(error => {
+    void instance.load().then(value => { if (generation.current === current && privacyEpoch.current === privacy) { setRead(value); setReadEpoch(privacy); setFresh(true); admitPrivate(); } }).catch(error => {
       if (generation.current === current && privacyEpoch.current === privacy) setNotice({ kind: 'error', key: errorNotice(error) });
     }).finally(() => { if (generation.current === current) { busyRef.current = false; setBusy(false); } });
     return () => { generation.current = current + 1; instance.dispose(); session.current = null; };
-  }, [organizationId, expectedUserId, errorNotice]);
+  }, [organizationId, expectedUserId, errorNotice, admitPrivate]);
   useEffect(() => {
     const changed = (event: Event) => {
       if (event instanceof StorageEvent && event.key !== AUTH_CHANGED_EVENT) return;
@@ -131,15 +141,15 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
   useEffect(() => { if (notice?.kind === 'error') noticeRef.current?.focus(); }, [notice]);
   async function reload() {
     const instance = session.current, current = generation.current, privacy = privacyEpoch.current;
-    if (!instance || busyRef.current) return;
+    if (!instance || busyRef.current || sellerBusyRef.current || taxBusyRef.current) return;
     busyRef.current = true; setBusy(true); setFresh(false); setAcceptId(null); setNotice(null);
-    try { const value = await instance.load(); if (generation.current === current && privacyEpoch.current === privacy) { setRead(value); setReadEpoch(privacy); setFresh(true); } }
+    try { const value = await instance.load(); if (generation.current === current && privacyEpoch.current === privacy) { setRead(value); setReadEpoch(privacy); setFresh(true); admitPrivate(); } }
     catch (error) { if (generation.current === current && privacyEpoch.current === privacy) setNotice({ kind: 'error', key: errorNotice(error) }); }
     finally { if (generation.current === current) { setPending(instance.hasPending()); busyRef.current = false; setBusy(false); } }
   }
   async function write(command?: ErpCommand) {
     const instance = session.current, current = generation.current, privacy = privacyEpoch.current;
-    if (!instance || busyRef.current || sellerBusyRef.current || command && (blocked || !canWrite || !read || privacy !== readEpoch || sellerPendingRef.current)) return;
+    if (!instance || busyRef.current || sellerBusyRef.current || taxBusyRef.current || command && (blocked || !canWrite || !read || privacy !== readEpoch || sellerPendingRef.current || taxPendingRef.current)) return;
     busyRef.current = true; setBusy(true); setFresh(false); setNotice(null); setAcceptId(null);
     let confirmed = false;
     if (command) pendingType.current = command.type;
@@ -173,15 +183,18 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
   const acceptedEstimate = read?.status === 'ready' ? read.state.estimates.find(item => item.id === acceptId && item.status === 'draft') : undefined;
   return <div className="us-erp-workbench" lang={language}>
     <header className="us-erp-heading"><h1>{c.title}</h1><p>{c.introduction}</p><p className="us-erp-limitation">{c.limitation}</p></header>
-    <div className="us-erp-toolbar"><button type="button" className="account-button secondary" disabled={busy} onClick={() => void reload()}>{busy ? c.reloading : c.reload}</button>{read?.status === 'ready' && <span>{c.revision} {read.state.revision}</span>}</div>
+    <div className="us-erp-toolbar"><button type="button" className="account-button secondary" disabled={busy || sellerBusy || taxBusy} onClick={() => void reload()}>{busy ? c.reloading : c.reload}</button>{read?.status === 'ready' && <span>{c.revision} {read.state.revision}</span>}</div>
     <p className="us-erp-muted">{c.draftKept}</p>
     {notice && <div className={`us-erp-notice ${notice.kind}`} ref={noticeRef} tabIndex={-1} role={notice.kind === 'error' ? 'alert' : 'status'}>{c[notice.key]}</div>}
-    {pending && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><p>{c.pendingMemory}</p><button type="button" className="account-button" disabled={busy || sellerBusy} onClick={() => void write()}>{busy ? c.busy : c.retry}</button></aside>}
+    {pending && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><p>{c.pendingMemory}</p><button type="button" className="account-button" disabled={busy || sellerBusy || taxBusy} onClick={() => void write()}>{busy ? c.busy : c.retry}</button></aside>}
     {!read && !notice && <output>{c.loading}</output>}
     {writeLocked && <p className="us-erp-muted">{browserSellerCopy[language].writeLocked}</p>}
-    <UsSellerProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} blocked={busy || pending} writeLocked={writeLocked} accessEpoch={accessEpoch}
+    <UsSellerProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} blocked={busy || pending || taxBusy || taxPending} writeLocked={writeLocked} accessEpoch={accessEpoch}
       currentAccessEpoch={currentAccessEpoch} otherBusy={otherBusy} otherPending={otherPending}
       onBusyChange={onSellerBusy} onPendingChange={onSellerPending} onAccessDenied={invalidateAccess} />
+    <UsTaxProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} admitted={taxAdmitted} blocked={busy || pending || sellerBusy || sellerPending} writeLocked={writeLocked} accessEpoch={accessEpoch}
+      currentAccessEpoch={currentAccessEpoch} otherBusy={taxOtherBusy} otherPending={taxOtherPending}
+      onBusyChange={onTaxBusy} onPendingChange={onTaxPending} onAccessDenied={invalidateAccess} registerInvalidation={registerTaxInvalidation} />
     {!canWrite && <p className="us-erp-muted">{c.readOnly}</p>}
     {read?.status === 'uninitialized' && <section className="us-erp-section"><h2>{c.initializeTitle}</h2><p>{c.initializeHelp}</p>{role === 'owner' ? <form onSubmit={event => submit(event, () => buildBrowserInitializeCommand(organizationId, start, end, crypto.randomUUID()))}>
       <fieldset disabled={blocked} className="us-erp-form"><div className="us-erp-grid">{field(c.periodStart, start, setStart, { type: 'date', required: true })}{field(c.periodEnd, end, setEnd, { type: 'date', required: true })}</div><button type="submit" className="account-button">{c.initialize}</button></fieldset>
