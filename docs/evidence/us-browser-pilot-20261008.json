@@ -1,0 +1,143 @@
+{
+  "phase": "US browser client and estimate pilot",
+  "baseline": "cc1e268e0945dde1c41dcc05d0297f55ea062c90",
+  "generatedAt": "2026-10-08T03:36:50.982112+00:00",
+  "scope": "isolated local, not deployed; US production flags remain closed",
+  "createdFiles": [
+    "components/account/us-erp-workbench.css",
+    "components/account/us-erp-workbench.tsx",
+    "docs/internationalization/US-BROWSER-PILOT-20261008.md",
+    "lib/international/browser-actor-binding.test.ts",
+    "lib/international/browser-erp-session.test.ts",
+    "lib/international/browser-erp-session.ts",
+    "lib/international/browser-workbench-copy.ts",
+    "lib/international/browser-workbench.browser.test.ts",
+    "lib/international/browser-workbench.test.ts",
+    "scripts/qa-us-browser-regression.mjs",
+    "docs/evidence/us-browser-pilot-20261008.json"
+  ],
+  "modifiedFiles": [
+    "app/compte/espaces/us/[organizationId]/page.tsx",
+    "components/account/account-shell.tsx",
+    "lib/account-workspace-copy.ts",
+    "lib/account-workspace-pages.test.ts",
+    "lib/international/read-admission.ts",
+    "lib/international/runtime-server.ts",
+    "lib/international/runtime-sync-server.ts"
+  ],
+  "migrations": {
+    "proposed": [],
+    "executedInProduction": [],
+    "historicalSqlCompared": 107,
+    "historicalSqlChanged": []
+  },
+  "tests": {
+    "selectedFiles": 84,
+    "distinctFinalStatuses": {
+      "skipped": 63,
+      "passed": 2251
+    },
+    "provenance": "Merged by file, full test title and occurrence index. Original run plus targeted recheck, final focused tests and explicitly enabled local browser test; overlapping counts are not added. Not one all-green batch and not entire repository.",
+    "firstRun": {
+      "passed": 2246,
+      "failed": 4,
+      "skipped": 64,
+      "artifact": ".qa/us-browser-pilot/regression.json"
+    },
+    "targetedRetry": {
+      "passed": 162,
+      "failed": 0,
+      "skipped": 50,
+      "artifact": ".qa/us-browser-pilot/regression-retry.json"
+    },
+    "focusedFinal": {
+      "passed": 141,
+      "failed": 0,
+      "artifact": ".qa/us-browser-pilot/final-focused.json"
+    },
+    "browserFinal": {
+      "passed": 1,
+      "failed": 0,
+      "artifact": ".qa/us-browser-pilot/browser-tests-final.json"
+    },
+    "failureAssessment": "Four initial Miniflare/workerd local fetch/service failures passed on isolated serial rerun. No production defect or definitive environmental cause is inferred. The first failing logs are retained."
+  },
+  "browser": {
+    "scope": "Actual React client and HTTP handlers with real ERP engine; synthetic Auth, in-memory store, no tax provider or hosted database. Second page uses shared local store, not real multi-device accounts.",
+    "standardViews": 24,
+    "enlargedTextViews": 8,
+    "screenshots": 8,
+    "javascriptErrors": [],
+    "localAtomicCommits": 6,
+    "operations": [
+      "explicit initialization",
+      "customer",
+      "estimate with exact rounding",
+      "actual commit followed by synthetic HTTP 503 instead of receipt",
+      "same-key recovery without duplicate",
+      "internal acceptance",
+      "conflict and explicit reread/confirmation",
+      "late authorized read withheld after synthetic Auth event",
+      "second page read",
+      "read-only UI and server refusal",
+      "draft preserved on reload",
+      "long company name"
+    ],
+    "artifact": ".qa/us-browser-pilot/browser.json"
+  },
+  "checks": {
+    "typecheck": {
+      "exit": 0,
+      "artifact": ".qa/us-browser-pilot/typecheck-final.log"
+    },
+    "lint": {
+      "exit": 0,
+      "artifact": ".qa/us-browser-pilot/lint-final.log",
+      "selectedSourceFiles": 15
+    },
+    "build": {
+      "exit": 0,
+      "artifact": ".qa/us-browser-pilot/build.log"
+    },
+    "diffCheck": {
+      "exit": 0
+    }
+  },
+  "sha256": {
+    "app/compte/espaces/us/[organizationId]/page.tsx": "59435d3d66e5dc9bfd69e38508dfd781d181bfab5c555144a48112aebb372847",
+    "components/account/account-shell.tsx": "e0e367b02ebe2e103809bda78065090a8107a167b59d6b3c5790ca87cb8dc145",
+    "lib/account-workspace-copy.ts": "df76467379ed338d472b41f4bb75e6f0dec04a43323fb5fb0a82b4e883ee5867",
+    "lib/account-workspace-pages.test.ts": "8ff0ea4319f40e63a71df4e084efde4af10562d6ab314f47f0e411a8d897f515",
+    "lib/international/read-admission.ts": "98600fde4d3bddd88bc87a82f492d48b8d076b14feff4c4ad913568a9e157a38",
+    "lib/international/runtime-server.ts": "6d5bdbc9d372fc67db673d187bf9b32a6138a8b5a2715d40759ca13e714bef24",
+    "lib/international/runtime-sync-server.ts": "53f20bf26a9aaa054df25ed8b8122bdca1619e93ffa1d0fba15ee0cde609df28",
+    "components/account/us-erp-workbench.css": "8306571422d909910cd0f9c9829ff0567e53b1ab5b20a755de9ae300bb8b810a",
+    "components/account/us-erp-workbench.tsx": "779f60d9780636e49bf974ab049d3360d00988a76a3c0e273e732644d1998167",
+    "lib/international/browser-actor-binding.test.ts": "a681e76bfd5adfcefe4b5748b63ca65bd5e51231b314a75faac6720c36adfe33",
+    "lib/international/browser-erp-session.test.ts": "6668864e55c4604a9a141599aa7c23d35661d0dec8eda2896fde236120638ec7",
+    "lib/international/browser-erp-session.ts": "434d0e4b141d718059b76b4e1e84a3dc4da4d84a229740548e83d4b5789d7f53",
+    "lib/international/browser-workbench-copy.ts": "9309e1a5adafc955f6834a34c056e83820a90b92172d1dc51625b2df5116302d",
+    "lib/international/browser-workbench.browser.test.ts": "5bc71b0a6bb7e1583cd4fbd9b69a966e21dbf8409b671783ce763c822b883c12",
+    "lib/international/browser-workbench.test.ts": "fce611d12d0c4c9682bfd9413fa18272304a2f3fc58a1691dc2f726bfb5e03f0",
+    "scripts/qa-us-browser-regression.mjs": "ad5438b6fea3359747134c01773319dc4fe7140e4e07c19f4e71763fc79e24bf"
+  },
+  "artifactSha256": {
+    "regression.json": "2e25dddf6d785ba24446a92d828d70d0d3ad43442ad8c1a757163f7c3d6d6789",
+    "regression-retry.json": "47fbe6362f4468fb59ed07dff84c10a6af82629e788e247e8125647899834797",
+    "final-focused.json": "7bbb6e0858585de3043330aaa7b3ae793f0a003f448975472650baf879495713",
+    "browser-tests-final.json": "ce92ea4f8a01e8f0a8aa4dc3d6242a939f712a6c7de13e5dfc2e443b399693dc",
+    "browser.json": "94c8c8e7c0dd29aa3192570821681c82cf02266f8da109f8a3debba8d9c1e500",
+    "build.log": "1255d1c4163089c1367d702d7fe8023f73d2c8aad025f18836b397f82c2261ab",
+    "typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lint-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "limits": [
+    "HTTP/browser Auth and ERP persistence fixture are synthetic/in-memory; separate tests exercise local PGlite and actual workerd D1, not hosted Auth or real devices.",
+    "No production migration, deployment, native US session issuer, real payment or configured tax provider.",
+    "Receipt commandHash is checked as SHA256 format, not recomputed cryptographically by the browser.",
+    "Abort or HTTP failure does not mean the server transaction was cancelled.",
+    "Pending requests exist only in panel RAM and are lost on disposal/reload; reread server state before attempting a new creation.",
+    "US invoicing remains closed until seller and trustworthy tax provider are configured and tested; internal estimate acceptance is not customer signature.",
+    "63 selected compatibility tests remain skipped; no global compliance, load, latency or physical iPhone/Mac certification."
+  ]
+}

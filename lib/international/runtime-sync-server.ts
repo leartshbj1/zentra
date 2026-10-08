@@ -3,7 +3,7 @@ import { ErpError } from './erp-contract';
 import type { ErpServerDependencies } from './runtime-server';
 import type { ErpSyncStore } from './runtime-sync';
 import { publicErpDelta } from './public-projection';
-import { confirmErpReadAdmission } from './read-admission';
+import { confirmErpReadAdmission, confirmErpExpectedUser } from './read-admission';
 export type ErpSyncServerDependencies=Pick<ErpServerDependencies,'enabled'|'authority'|'configuration'|'rateLimit'|'diagnostic'>&{syncStore:()=>ErpSyncStore|Promise<ErpSyncStore>};
 const headers={'Cache-Control':'no-store, max-age=0','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers});
@@ -21,6 +21,7 @@ export function createErpSyncHandlers(deps:ErpSyncServerDependencies){
       if(!await deps.enabled())return json({error:'feature_unavailable'},404);
       if(!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(organizationId))throw new ErpError('invalid_request',422);
       const trusted=await deps.authority(request,organizationId);
+      confirmErpExpectedUser(request,trusted);
       if(trusted.actor.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
       if(!trusted.actor.managementEntitled)throw new ErpError('management_entitlement_required',402);
       const config=await deps.configuration(trusted.actor);

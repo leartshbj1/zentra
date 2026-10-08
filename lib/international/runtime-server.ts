@@ -6,7 +6,7 @@ import type { ErpStore } from './runtime-types';
 import type { CompanyConfiguration } from './types';
 import type { TaxCalculationProvider,PublicSellerSnapshot } from './invoicing';
 import { publicCompanyConfiguration, publicErpState } from './public-projection';
-import { confirmErpReadAdmission } from './read-admission';
+import { confirmErpReadAdmission, confirmErpExpectedUser } from './read-admission';
 
 export interface ErpServerDependencies {
   enabled:()=>Promise<boolean> | boolean;
@@ -40,6 +40,7 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
   async function context(request:Request,organizationId:string,operation:'read'|'write'){
     path(organizationId);
     const result=await dependencies.authority(request,organizationId);
+    confirmErpExpectedUser(request,result);
     if(result.actor.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
     if(!result.actor.managementEntitled)throw new ErpError('management_entitlement_required',402);
     if(operation==='write'&&result.mode==='browser')requireAccountSameOrigin(request);
