@@ -11,6 +11,7 @@ import { requireUsWorkspaceAccess } from './saas-authority-d1';
 import { UsAuthorityError } from './saas-authority';
 import { getUsSellerProfile } from './seller-profile';
 import { createUsSellerProfileHandlers } from './seller-profile-server';
+import { createUsTaxProfileHandlers } from './us-tax-profile-server';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -66,6 +67,11 @@ export const erpServerDependencies:ErpServerDependencies={
 export const erpHandlers=createErpHandlers(erpServerDependencies);
 export const usSellerProfileHandlers=createUsSellerProfileHandlers({...erpServerDependencies,
   async store(){return (await import('../supabase-server-runtime')).supabaseServerClient();},
+});
+export const usTaxProfileHandlers=createUsTaxProfileHandlers({...erpServerDependencies,
+  async store(){return (await import('../supabase-server-runtime')).supabaseServerClient();},
+  async rateLimit(request,actor,operation){await(await import('../account')).enforceAccountRateLimit(request,`international-us-tax-profile-${operation}`,`${actor.organizationId}:${actor.userId}`,operation==='read'?600:120);},
+  diagnostic(event){console.warn('zentra.international.us-tax-profile',event);},
 });
 export const erpSyncHandlers=createErpSyncHandlers({...erpServerDependencies,
   async syncStore(){return createSupabaseErpSyncStore((await import('../supabase-server-runtime')).supabaseServerClient());},

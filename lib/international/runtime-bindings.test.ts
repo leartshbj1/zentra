@@ -11,6 +11,7 @@ vi.mock('../supabase-server-runtime',()=>({supabaseServerClient:()=>({select:f.s
 vi.mock('./saas-authority-d1',()=>({requireUsWorkspaceAccess:f.usAccess}));
 import { erpServerDependencies as binding } from './runtime-bindings';
 import { GET as sellerGET, PUT as sellerPUT } from '../../app/api/international/workspaces/[organizationId]/seller/route';
+import { GET as taxGET, PUT as taxPUT } from '../../app/api/international/workspaces/[organizationId]/tax-profile/route';
 const org='fictitious-us-binding';
 const request=(bearer=false)=>new Request('https://zentraapp.ch/erp',{headers:bearer?{Authorization:'Bearer fictitious-session'}:{}});
 beforeEach(()=>{
@@ -24,6 +25,11 @@ describe('actual ERP authority bindings',()=>{
   it('keeps the actual seller route closed when US feature bindings are absent',async()=>{
     const context={params:Promise.resolve({organizationId:org})};
     expect((await sellerGET(request(),context)).status).toBe(404);expect((await sellerPUT(request(),context)).status).toBe(404);expect(f.user).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled();
+  });
+  it('keeps private tax-profile routes closed without opening Auth or storage',async()=>{
+    const context={params:Promise.resolve({organizationId:org})};
+    expect((await taxGET(request(),context)).status).toBe(404);expect((await taxPUT(request(),context)).status).toBe(404);
+    expect(f.user).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled();
   });
   it('uses the scoped US registry and own USD rights, never the CHF licence/seat path',async()=>{
     const result=await binding.authority(request(),org);expect(result.mode).toBe('browser');expect(result.actor).toMatchObject({organizationId:org,userId:'browser-user',role:'member',managementEntitled:true});expect(f.user).toHaveBeenCalledWith({offerAccess:false});expect(f.usAccess).toHaveBeenCalledWith(org,'browser-user');expect(f.membership).not.toHaveBeenCalled();expect(f.seats).not.toHaveBeenCalled();expect(f.device).not.toHaveBeenCalled();

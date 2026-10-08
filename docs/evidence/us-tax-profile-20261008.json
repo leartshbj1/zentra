@@ -1,0 +1,604 @@
+{
+  "phase": "US owner-declared private tax facts; not verified tax authority",
+  "date": "2026-10-08",
+  "baseline": "cac89c2dd7ba84454026e1eb124ecab9ae3c874e",
+  "production": {
+    "deployed": false,
+    "migrated": false,
+    "nativeRelease": false,
+    "commercialSiteVersion": 354,
+    "taxProvider": null,
+    "pricesChanged": false,
+    "regionsChanged": false
+  },
+  "contract": {
+    "ownerOnly": true,
+    "verification": "unverified",
+    "schemaVersion": 1,
+    "providerResolver": "always blocked",
+    "freshServerAdmission": true,
+    "distributedRevocationAtomic": false,
+    "utcReceiptMicroseconds": 6
+  },
+  "tests": {
+    "regression": {
+      "success": true,
+      "passed": 1882,
+      "failed": 0,
+      "skipped": 1,
+      "files": [
+        {
+          "path": "lib/account-security.test.ts",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/account-workspace-pages.test.ts",
+          "status": "passed",
+          "passed": 35,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/business-sync-cash-vat.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/document-number-reservations.test.ts",
+          "status": "passed",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/license-token.test.ts",
+          "status": "passed",
+          "passed": 20,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/stripe-contract.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/stripe-event.test.ts",
+          "status": "passed",
+          "passed": 34,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/stripe-plans.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/stripe-webhook-proof.test.ts",
+          "status": "passed",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/stripe-webhook.test.ts",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-actor-binding.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-erp-session.test.ts",
+          "status": "passed",
+          "passed": 57,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-seller-panel.test.ts",
+          "status": "passed",
+          "passed": 43,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-seller-session.test.ts",
+          "status": "passed",
+          "passed": 63,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-workbench.browser.test.ts",
+          "status": "passed",
+          "passed": 0,
+          "failed": 0,
+          "skipped": 1
+        },
+        {
+          "path": "lib/international/browser-workbench.test.ts",
+          "status": "passed",
+          "passed": 42,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/core.test.ts",
+          "status": "passed",
+          "passed": 82,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/documents.test.ts",
+          "status": "passed",
+          "passed": 36,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/finance.test.ts",
+          "status": "passed",
+          "passed": 78,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/integration.test.ts",
+          "status": "passed",
+          "passed": 68,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/legacy-country-error.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/legacy-country-guard.migrations.test.ts",
+          "status": "passed",
+          "passed": 12,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/legacy-country-guard.test.ts",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/legacy-transport-routes.test.ts",
+          "status": "passed",
+          "passed": 170,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/new-us-workspace-admission.postgres.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/phone.test.ts",
+          "status": "passed",
+          "passed": 14,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/public-projection.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-postgres.test.ts",
+          "status": "passed",
+          "passed": 19,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed",
+          "passed": 23,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-server.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-sync.test.ts",
+          "status": "passed",
+          "passed": 27,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-tax-proof-postgres.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime.test.ts",
+          "status": "passed",
+          "passed": 36,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed",
+          "passed": 101,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "passed": 37,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/saas-authority.workerd.test.ts",
+          "status": "passed",
+          "passed": 4,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/seller-profile-server.test.ts",
+          "status": "passed",
+          "passed": 52,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/seller-profile.postgres.test.ts",
+          "status": "passed",
+          "passed": 34,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/seller-profile.test.ts",
+          "status": "passed",
+          "passed": 66,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/us-tax-profile-server.test.ts",
+          "status": "passed",
+          "passed": 61,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/us-tax-profile.postgres.test.ts",
+          "status": "passed",
+          "passed": 100,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/us-tax-profile.test.ts",
+          "status": "passed",
+          "passed": 173,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "passed": 26,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-creation-review.test.ts",
+          "status": "passed",
+          "passed": 33,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-creation.integration.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-creation.test.ts",
+          "status": "passed",
+          "passed": 48,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed",
+          "passed": 22,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-server.native.test.ts",
+          "status": "passed",
+          "passed": 43,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-server.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-service.postgres.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/workspace-service.test.ts",
+          "status": "passed",
+          "passed": 36,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/accounting/reconciliation.test.ts",
+          "status": "passed",
+          "passed": 11,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "skippedTests": [
+        {
+          "path": "lib/international/browser-workbench.browser.test.ts",
+          "name": "exercises the real US client and ERP engine in a local browser",
+          "status": "skipped"
+        }
+      ],
+      "selection": [
+        "lib/account-security.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting/reconciliation.test.ts",
+        "lib/international/browser-actor-binding.test.ts",
+        "lib/international/browser-erp-session.test.ts",
+        "lib/international/browser-seller-panel.test.ts",
+        "lib/international/browser-seller-session.test.ts",
+        "lib/international/browser-workbench.browser.test.ts",
+        "lib/international/browser-workbench.test.ts",
+        "lib/international/core.test.ts",
+        "lib/international/documents.test.ts",
+        "lib/international/finance.test.ts",
+        "lib/international/integration.test.ts",
+        "lib/international/legacy-country-error.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/legacy-transport-routes.test.ts",
+        "lib/international/new-us-workspace-admission.postgres.test.ts",
+        "lib/international/phone.test.ts",
+        "lib/international/public-projection.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-postgres.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime-tax-proof-postgres.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/saas-authority.workerd.test.ts",
+        "lib/international/seller-profile-server.test.ts",
+        "lib/international/seller-profile.postgres.test.ts",
+        "lib/international/seller-profile.test.ts",
+        "lib/international/us-tax-profile-server.test.ts",
+        "lib/international/us-tax-profile.postgres.test.ts",
+        "lib/international/us-tax-profile.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-creation-review.test.ts",
+        "lib/international/workspace-creation.integration.test.ts",
+        "lib/international/workspace-creation.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/international/workspace-server.native.test.ts",
+        "lib/international/workspace-server.test.ts",
+        "lib/international/workspace-service.postgres.test.ts",
+        "lib/international/workspace-service.test.ts",
+        "lib/license-token.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/stripe-event.test.ts",
+        "lib/stripe-plans.test.ts",
+        "lib/stripe-webhook-proof.test.ts",
+        "lib/stripe-webhook.test.ts"
+      ],
+      "report": ".qa/us-tax-profile/regression-final.json",
+      "sha256": "e76a7b096fe2aac37e2cf603c667727453aafd17333d4c2de9beaa1ac5e45653",
+      "localPostgresEnabled": true,
+      "browserQaEnabled": false
+    },
+    "newTests": {
+      "service": 173,
+      "http": 61,
+      "postgres": 100,
+      "total": 334,
+      "includedInRegression": true,
+      "httpThroughPostgresScenarios": 7
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "command": "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "log": ".qa/us-tax-profile/typecheck-final.log"
+    },
+    "lint": {
+      "exitCode": 0,
+      "tool": "Oxlint with repository configuration",
+      "files": [
+        "lib/international/us-tax-profile.ts",
+        "lib/international/us-tax-profile.test.ts",
+        "lib/international/us-tax-profile.postgres.test.ts",
+        "lib/international/us-tax-profile-server.ts",
+        "lib/international/us-tax-profile-server.test.ts",
+        "lib/international/runtime-bindings.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/workspace-creation.integration.test.ts",
+        "app/api/international/workspaces/[organizationId]/tax-profile/route.ts"
+      ],
+      "log": ".qa/us-tax-profile/lint-final.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "command": "pnpm run build",
+      "log": ".qa/us-tax-profile/build-final.log",
+      "sha256": "a3b998c367b2f8c3b945db5e0da684a7b1d9c95044a48f63792ac8e4fcbf3028",
+      "warning": "Vinext static route classification remains limited; build is not hosted-session verification"
+    },
+    "diffCheck": {
+      "exitCode": 0
+    }
+  },
+  "preservation": {
+    "trackedPriorSql": 131,
+    "changedPriorSql": [],
+    "oldMigrationsRewritten": false,
+    "CHNativeOrPhysicalQrRecertified": false
+  },
+  "migration": {
+    "path": "supabase/migrations/20261008044402_international_us_tax_profile.sql",
+    "additive": true,
+    "localPGliteOnly": true,
+    "productionApplied": false,
+    "rollback": "Keep US flags closed or withdraw new bindings; retain tables and history. No DROP or deletion."
+  },
+  "review": {
+    "independent": true,
+    "corrected": [
+      "SQL date constraints reject BC, infinity and UTC years outside 1..9999",
+      "All three SQL date projections use UTC with six microseconds, preserving replay across session time zones",
+      "Private input rejects unpaired UTF-16 surrogates with 422 before write hook or RPC",
+      "Stateless store dependency declared as function property to avoid unbound-method lint failure"
+    ],
+    "initialBroadBeforeUnicode": {
+      "passed": 1870,
+      "failed": 0,
+      "skipped": 1
+    },
+    "finalBroadAfterCorrections": true,
+    "remainingMaterialDefectsObserved": []
+  },
+  "limits": [
+    "PGlite in-memory local PostgreSQL and synthetic Auth/D1 authority",
+    "No hosted Supabase Auth, D1/PostgREST, staging or two concurrent database connections",
+    "No restart/crash durability or multi-device/load/physical-device evidence",
+    "No verified tax provider, registration, nexus, exemption, geocoding or real sandbox calculation",
+    "No owner tax setup UI in this phase; no US invoice issuance enabled",
+    "No Stripe SaaS prices or existing CH subscriptions changed",
+    "No US GAAP or legal certification"
+  ],
+  "sourceHashes": [
+    {
+      "path": "lib/international/us-tax-profile.ts",
+      "sha256": "cdf07e179e1d52a8ba9c60462009c45cbeeed27994461e71aa95db39ddcb634c",
+      "gitBlob": "75daef2a8b1bc10b2ef46923a6b830b98020a2e8"
+    },
+    {
+      "path": "lib/international/us-tax-profile.test.ts",
+      "sha256": "e36558f955424aa7c16decd5f55c1ff5fa6f909ab03a652924c8114b9a3e7b2e",
+      "gitBlob": "ec46c93f33685a14cce61d98cdf76c978d25483c"
+    },
+    {
+      "path": "lib/international/us-tax-profile.postgres.test.ts",
+      "sha256": "88b3cc33d49ceb1e141be0eb0f019a3987712ef8c1cff13d6773da297a3fdb56",
+      "gitBlob": "a1a9f820906992dfa298c7bced8f42efd9e228cd"
+    },
+    {
+      "path": "lib/international/us-tax-profile-server.ts",
+      "sha256": "a2429a92682b5c219c41c2af35f3167bd64bc6200d72402c305cd34dd66316c2",
+      "gitBlob": "493c1b42a58181ecd45451ee7c16fc77413d83bc"
+    },
+    {
+      "path": "lib/international/us-tax-profile-server.test.ts",
+      "sha256": "c65d30b788d38d73f6a62e3769a731a0dc8292ca814298dd2faba6ab11e2a7e6",
+      "gitBlob": "5bca085468784af7540bef610c437e3e5dffa388"
+    },
+    {
+      "path": "lib/international/runtime-bindings.ts",
+      "sha256": "e766ac43b5acadf5e403e4f3c56e942b7fca596ce27edb200e408abd6a1f8e1f",
+      "gitBlob": "e342d0b79ad8422420532e1f8bc22436b33409b3"
+    },
+    {
+      "path": "lib/international/runtime-bindings.test.ts",
+      "sha256": "cec181565b5e9453dc857a6f5ffdbc1ed37180426f4f46466fe4b9fde00f25fc",
+      "gitBlob": "caa9de4adb93a0572ad6136ae6ad49069d33b831"
+    },
+    {
+      "path": "lib/international/workspace-creation.integration.test.ts",
+      "sha256": "cacb24153cd26c987a6c32478c4af30aebde2013125c9767350cac750318c8b0",
+      "gitBlob": "06ecd116555c2765ab79f11de014a2e9455893cb"
+    },
+    {
+      "path": "app/api/international/workspaces/[organizationId]/tax-profile/route.ts",
+      "sha256": "eb9ed3501311fc6d24ba609db57b6e227c3df659fab2761408ff850dc5148f39",
+      "gitBlob": "0c0349748d451154ea1aa192878e92b6cf66af92"
+    },
+    {
+      "path": "supabase/migrations/20261008044402_international_us_tax_profile.sql",
+      "sha256": "98d5b4dd7b9842def1a036d512876a40ebc7131a44954a1e4ef09dab793e5034",
+      "gitBlob": "9a9a7cbb2ee17390da4dcc1ae8e51a4634048703"
+    },
+    {
+      "path": "docs/internationalization/US-TAX-PROFILE-20261008.md",
+      "sha256": "336b005afc35f3d2dd8908a609c1142013477c1a5dfa5253b84030f1091bcac3",
+      "gitBlob": "e186be72dbf999a42a9acf1e2cd16ce80dd2374e"
+    }
+  ]
+}
