@@ -4,8 +4,8 @@ import type { ErpServerDependencies } from './runtime-server';
 import type { ErpSyncStore } from './runtime-sync';
 import { publicErpDelta } from './public-projection';
 import { confirmErpReadAdmission, confirmErpExpectedUser } from './read-admission';
-import { erpClientSchemaVersion, requireErpClientSchema } from './erp-schema-capability';
-export type ErpSyncServerDependencies=Pick<ErpServerDependencies,'enabled'|'authority'|'configuration'|'rateLimit'|'diagnostic'>&{syncStore:(clientSchemaVersion?:1|2)=>ErpSyncStore|Promise<ErpSyncStore>};
+import { erpClientSchemaVersion, requireErpClientSchema, type ErpSchemaVersion } from './erp-schema-capability';
+export type ErpSyncServerDependencies=Pick<ErpServerDependencies,'enabled'|'authority'|'configuration'|'rateLimit'|'diagnostic'|'freshSupportedSchemaVersion'>&{syncStore:(clientSchemaVersion?:ErpSchemaVersion)=>ErpSyncStore|Promise<ErpSyncStore>};
 const headers={'Cache-Control':'no-store, max-age=0','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers});
 function cursor(request:Request){
@@ -34,12 +34,14 @@ export function createErpSyncHandlers(deps:ErpSyncServerDependencies){
       const store=await deps.syncStore(clientSchemaVersion);
       if(options){
         const delta=await store.changes(organizationId,options.after,options.limit);
+        if(delta&&deps.freshSupportedSchemaVersion)requireErpClientSchema(delta.schemaVersion,await deps.freshSupportedSchemaVersion(clientSchemaVersion));
         confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
         if(!await deps.enabled())throw new ErpError('feature_unavailable',404);
         if(delta)requireErpClientSchema(delta.schemaVersion,clientSchemaVersion);
         return json(delta?publicErpDelta(delta):null);
       }
       const head=await store.revision(organizationId);
+      if(head&&deps.freshSupportedSchemaVersion)requireErpClientSchema(head.schemaVersion,await deps.freshSupportedSchemaVersion(clientSchemaVersion));
       confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
       if(!await deps.enabled())throw new ErpError('feature_unavailable',404);
       if(head)requireErpClientSchema(head.schemaVersion,clientSchemaVersion);

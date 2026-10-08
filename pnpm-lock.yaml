@@ -15,6 +15,7 @@ overrides:
 
 patchedDependencies:
   '@wllama/wllama@3.6.1': af55ff0788afc0f1c56927c3aa38d5cfc5bb1f99bff0efe399dddd9d71aaf187
+  braces@3.0.3: 087c7abf69a4fb96aa6d326355a749cf855b6d081daae1e5240d3168db825a7c
   image-size@2.0.2: d288f2a6e04d29bafafaceb6aa78d3bda125f4b853f9bd51fca2c5d6ab24f456
 
 importers:
@@ -6969,7 +6970,7 @@ snapshots:
     dependencies:
       balanced-match: 4.0.4
 
-  braces@3.0.3:
+  braces@3.0.3(patch_hash=087c7abf69a4fb96aa6d326355a749cf855b6d081daae1e5240d3168db825a7c):
     dependencies:
       fill-range: 7.1.1
 
@@ -8024,7 +8025,7 @@ snapshots:
 
   micromatch@4.0.8:
     dependencies:
-      braces: 3.0.3
+      braces: 3.0.3(patch_hash=087c7abf69a4fb96aa6d326355a749cf855b6d081daae1e5240d3168db825a7c)
       picomatch: 2.3.2
 
   mime-db@1.54.0: {}

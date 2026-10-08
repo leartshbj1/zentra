@@ -1,5 +1,5 @@
 import type { SiteLanguage } from '../site-language';
-import { ERP_SCHEMA_HEADER } from './erp-schema-capability';
+import { ERP_SCHEMA_HEADER, type ErpSchemaVersion } from './erp-schema-capability';
 import { canonicalErpJson } from './erp-contract';
 import { validateUsExportSelector, validateUsExportSnapshot, type ExportSelector, type ExportSnapshot } from './export-snapshot';
 
@@ -35,10 +35,10 @@ const revision = (raw: string | null): number => {
 };
 /** No storage, bearer token, caller-supplied amounts or roles. Private reads are
  * bounded, abortable and invalidated before a late body can become a download. */
-export function createBrowserExportSession(options: { organizationId: string; expectedUserId: string; supportedSchemaVersion?: 1 | 2; fetch?: typeof globalThis.fetch; timeoutMs?: number }): BrowserExportSession {
+export function createBrowserExportSession(options: { organizationId: string; expectedUserId: string; supportedSchemaVersion?: ErpSchemaVersion; fetch?: typeof globalThis.fetch; timeoutMs?: number }): BrowserExportSession {
   const { organizationId, expectedUserId } = options, capability = options.supportedSchemaVersion ?? 1;
   browserExportUrl(organizationId, { kind: 'report', reportType: 'trial_balance', asOf: '2026-01-01' }, 'en', 'json');
-  if (!expectedUserId || expectedUserId.trim() !== expectedUserId || expectedUserId.length > 256 || Array.from(expectedUserId).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) || ![1, 2].includes(capability)) throw new BrowserExportError('invalid_export_selector', 422);
+  if (!expectedUserId || expectedUserId.trim() !== expectedUserId || expectedUserId.length > 256 || Array.from(expectedUserId).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) || ![1, 2, 3].includes(capability)) throw new BrowserExportError('invalid_export_selector', 422);
   const fetcher = options.fetch ?? globalThis.fetch.bind(globalThis), controllers = new Set<AbortController>(), urls = new Set<string>(), timers = new Set<ReturnType<typeof setTimeout>>(), cancellations = new Set<(reason: BrowserExportError) => void>(), ownedResults = new WeakSet<BrowserExportResult>();
   let disposed = false, epoch = 0;
   const alive = (started: number) => { if (disposed || started !== epoch) throw new BrowserExportError('session_changed', 0, true); };
@@ -54,7 +54,8 @@ export function createBrowserExportSession(options: { organizationId: string; ex
     const cancelled = new Promise<never>((_resolve, reject) => { cancel = reject; cancellations.add(cancel); });
     const wait = <T>(promise: Promise<T>) => Promise.race([promise, deadline, cancelled]);
     try {
-      const response = await wait(fetcher(browserExportUrl(organizationId, selector, language, format), { method: 'GET', headers: { Accept: media[format], 'X-Zentra-Expected-User': expectedUserId, ...(capability === 2 ? { [ERP_SCHEMA_HEADER]: '2' } : {}) }, credentials: 'same-origin', mode: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal })); alive(started);
+      if (selector.kind === 'document' && selector.documentType === 'project' && capability < 3) throw new BrowserExportError('client_upgrade_required',409);
+      const response = await wait(fetcher(browserExportUrl(organizationId, selector, language, format), { method: 'GET', headers: { Accept: media[format], 'X-Zentra-Expected-User': expectedUserId, ...(capability > 1 ? { [ERP_SCHEMA_HEADER]: String(capability) } : {}) }, credentials: 'same-origin', mode: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal })); alive(started);
       if ([401, 402, 403].includes(response.status)) { dispose(); throw new BrowserExportError('unauthorized', response.status, true); }
       if (!response.ok) {
         const value: unknown = await wait(response.json()); alive(started);

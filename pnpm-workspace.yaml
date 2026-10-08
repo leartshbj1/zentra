@@ -30,4 +30,5 @@ overrides:
 
 patchedDependencies:
   '@wllama/wllama@3.6.1': patches/@wllama__wllama@3.6.1.patch
+  braces@3.0.3: patches/braces@3.0.3.patch
   image-size@2.0.2: patches/image-size@2.0.2.patch

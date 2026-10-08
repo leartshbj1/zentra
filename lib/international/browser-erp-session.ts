@@ -3,7 +3,7 @@ import { validateCompanyConfiguration } from './country-config';
 import { validateStoredErp } from './runtime-validation';
 import type { CompanyConfiguration } from './types';
 import type { ErpCommand, ErpReceipt, ErpRequest, ErpState } from './runtime-types';
-import { ERP_SCHEMA_HEADER } from './erp-schema-capability';
+import { ERP_SCHEMA_HEADER, type ErpSchemaVersion } from './erp-schema-capability';
 
 export type BrowserErpRead=Readonly<{status:'ready';state:ErpState}|{status:'uninitialized';configuration:CompanyConfiguration}>;
 export type BrowserErpResult=Readonly<{receipt:ErpReceipt;replayed:boolean}>;
@@ -16,7 +16,7 @@ export interface BrowserErpSessionOptions {
   /** Non-secret stale-account fence. The server must compare it to its own Auth actor. */
   expectedUserId?:string;
   /** Client protocol support; never an entitlement or permission. Default1. */
-  supportedSchemaVersion?:1|2;
+  supportedSchemaVersion?:ErpSchemaVersion;
   fetch?:typeof globalThis.fetch;
   newId?:()=>string;
 }
@@ -27,14 +27,15 @@ export interface BrowserErpSession {
   hasPending():boolean;
   dispose():void;
 }
-const rejectedConflicts=new Set(['revision_conflict','estimate_revision_conflict','idempotency_conflict']);
+const rejectedConflicts=new Set(['revision_conflict','estimate_revision_conflict','project_revision_conflict','idempotency_conflict']);
 const responseTimeoutMs=30000;
 // Never turn arbitrary server/debug text into an error shown to a browser user.
 const publicErrors=new Set(['unauthorized','session_changed','forbidden','management_entitlement_required','financial_permission_required','owner_required','tenant_mismatch','feature_unavailable','edition_unavailable','country_configuration_required','configuration_changed','service_unavailable','invalid_request','invalid_date','invalid_customer','invalid_email','invalid_estimate','invalid_period','invalid_payment_terms','invalid_amount','revision_conflict','estimate_revision_conflict','idempotency_conflict','already_initialized','workspace_not_initialized','workspace_unavailable','immutable_record','invalid_state','invalid_stored_state','project_not_found','customer_required','estimate_not_found','issued_estimate_locked','invoice_already_issued','invoice_not_found','number_sequence_exhausted','accounting_period_not_open','tax_configuration_required','seller_configuration_required','tax_assessment_expired','stale_tax_assessment','payment_exceeds_balance','period_closed','event_too_large','client_upgrade_required','purchasing_unavailable','vendor_required','vendor_bill_not_found','vendor_bill_already_recorded','vendor_payment_already_recorded','purchase_account_required','overpayment']);
 publicErrors.add('rate_limited');
+for (const code of ['projects_unavailable','legacy_project_review_required','project_customer_locked','project_revision_conflict','vendor_bill_project_conflict','project_archived','project_customer_mismatch']) publicErrors.add(code);
 const exactObject=(value:unknown,keys:readonly string[]):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value))&&Reflect.ownKeys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
 function frozen<T>(value:T):T{if(value&&typeof value==='object'){for(const child of Object.values(value))frozen(child);Object.freeze(value);}return value;}
-function readProjection(value:unknown,organizationId:string,supportedSchemaVersion:1|2):BrowserErpRead {
+function readProjection(value:unknown,organizationId:string,supportedSchemaVersion:ErpSchemaVersion):BrowserErpRead {
   if(exactObject(value,['status','configuration'])&&value.status==='uninitialized'){
     const configuration=validateCompanyConfiguration(value.configuration);
     if(configuration.organizationId!==organizationId||configuration.country!=='US'||configuration.currency!=='USD'||Object.hasOwn(configuration,'ein'))throw new Error('Invalid public configuration');
@@ -53,6 +54,7 @@ function entityId(request:ErpRequest,organizationId:string):string {
     case 'initialize':case 'refresh_configuration':return organizationId;
     case 'save_customer':return request.command.customer.id;
     case 'save_vendor':return request.command.vendor.id;
+    case 'save_projects':return request.command.projects[0].id;
     case 'accept_estimate':return request.command.estimateId;
     case 'close_period':return request.command.periodId;
     default:return request.command.id;
@@ -72,14 +74,14 @@ function resultProjection(value:unknown,request:ErpRequest,organizationId:string
 export function createBrowserErpSession(options:BrowserErpSessionOptions):BrowserErpSession {
   const {organizationId,expectedUserId}=options;
   const supportedSchemaVersion=options.supportedSchemaVersion??1;
-  if(supportedSchemaVersion!==1&&supportedSchemaVersion!==2)throw new BrowserErpError('invalid_request',422,'rejected');
+  if(![1,2,3].includes(supportedSchemaVersion))throw new BrowserErpError('invalid_request',422,'rejected');
   if(typeof organizationId!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(organizationId)||expectedUserId!==undefined&&(typeof expectedUserId!=='string'||!expectedUserId.trim()||expectedUserId!==expectedUserId.trim()||expectedUserId.length>256||Array.from(expectedUserId).some(char=>char.charCodeAt(0)<32||char.charCodeAt(0)===127)))throw new BrowserErpError('invalid_request',422,'rejected');
   const fetcher=options.fetch??globalThis.fetch.bind(globalThis),newId=options.newId??(()=>globalThis.crypto.randomUUID());
   const url=`/api/international/workspaces/${encodeURIComponent(organizationId)}/erp`;
   const controllers=new Set<AbortController>();
   let disposed=false,writing=false,readRequired=false,mutationEpoch=0,accessEpoch=0,latestRead=0,pending:Readonly<{body:string;request:ErpRequest}>|null=null;
   function alive(){if(disposed)throw new BrowserErpError('session_disposed',0,'unauthorized');}
-  const headers=()=>({Accept:'application/json',...(supportedSchemaVersion===2?{[ERP_SCHEMA_HEADER]:'2'}:{}),...(expectedUserId===undefined?{}:{'X-Zentra-Expected-User':expectedUserId})});
+  const headers=()=>({Accept:'application/json',...(supportedSchemaVersion>1?{[ERP_SCHEMA_HEADER]:String(supportedSchemaVersion)}:{}),...(expectedUserId===undefined?{}:{'X-Zentra-Expected-User':expectedUserId})});
   async function response(request:RequestInit,write:boolean):Promise<{body:unknown;status:number}> {
     alive();const controller=new AbortController();controllers.add(controller);
     let timedOut=false,timer:ReturnType<typeof setTimeout>|undefined;
@@ -123,6 +125,7 @@ export function createBrowserErpSession(options:BrowserErpSessionOptions):Browse
       alive();if(pending||writing)throw new BrowserErpError('pending_operation',409,'rejected');
       if(readRequired)throw new BrowserErpError('read_required',409,'rejected');
       if(supportedSchemaVersion===1&&['save_vendor','record_vendor_bill','record_vendor_payment'].includes(command.type))throw new BrowserErpError('client_upgrade_required',409,'rejected');
+      if(supportedSchemaVersion<3&&command.type==='save_projects')throw new BrowserErpError('client_upgrade_required',409,'rejected');
       let request:ErpRequest,body:string;
       try {
         validateErpRequest({idempotencyKey:'input-validation',expectedRevision,command},organizationId);

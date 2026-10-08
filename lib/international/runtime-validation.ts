@@ -8,6 +8,7 @@ import { ErpError,canonicalErpJson } from './erp-contract';
 import { validateErpRequest } from './erp-request';
 import { nationalAdapter } from './countries/adapters';
 import type { ErpState } from './runtime-types';
+import { validateStoredProject } from './projects';
 const same = (a:unknown,b:unknown) => canonicalErpJson(a) === canonicalErpJson(b);
 function exactKeys(value:unknown,keys:readonly string[]):boolean{return !!value&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value))&&Reflect.ownKeys(value).every(k=>typeof k==='string'&&keys.includes(k));}
 function unavailable(): never { throw new ErpError('invalid_stored_state',503); }
@@ -16,14 +17,15 @@ export function validateStoredErp(value: unknown, organizationId: string): ErpSt
   try {
     const s = value as ErpState;
     const commonFields=['schemaVersion','revision','configuration','counters','ledger','customers','estimates','invoices'];
-    if (!exactKeys(s,s.schemaVersion===2?[...commonFields,'vendors','vendorBills','vendorPayments']:commonFields) || ![1,2].includes(s.schemaVersion) || !Number.isSafeInteger(s.revision) || s.revision < 1 || s.configuration.organizationId !== organizationId) return unavailable();
-    if(s.schemaVersion===2&&![s.vendors,s.vendorBills,s.vendorPayments].every(Array.isArray))return unavailable();
+    if (!exactKeys(s,s.schemaVersion===3?[...commonFields,'vendors','vendorBills','vendorPayments','projects']:s.schemaVersion===2?[...commonFields,'vendors','vendorBills','vendorPayments']:commonFields) || ![1,2,3].includes(s.schemaVersion) || !Number.isSafeInteger(s.revision) || s.revision < 1 || s.configuration.organizationId !== organizationId) return unavailable();
+    if(s.schemaVersion>=2&&![s.vendors,s.vendorBills,s.vendorPayments].every(Array.isArray))return unavailable();
+    if(s.schemaVersion===3&&!Array.isArray(s.projects))return unavailable();
     const config = validateCompanyConfiguration(s.configuration);
     if (config.country !== 'US' || !exactKeys(s.ledger,['organizationId','currency','basis','revision','accounts','periods','entries','audit']) || s.ledger.organizationId !== organizationId || s.ledger.currency !== config.currency || s.ledger.basis !== config.accountingBasis || !same(s.ledger.accounts,nationalAdapter(config.country).starterChart)) return unavailable();
-    if (!exactKeys(s.counters,['estimate','invoice']) || !Number.isSafeInteger(s.counters.invoice) || s.counters.invoice < 0 || !Number.isSafeInteger(s.counters.estimate) || s.counters.estimate < 0) return unavailable();
+    if (!exactKeys(s.counters,s.schemaVersion===3?['estimate','invoice','project']:['estimate','invoice']) || !Number.isSafeInteger(s.counters.invoice) || s.counters.invoice < 0 || !Number.isSafeInteger(s.counters.estimate) || s.counters.estimate < 0 || (s.schemaVersion===3&&(!Number.isSafeInteger(s.counters.project)||(s.counters.project??-1)<0||s.counters.project!==s.projects?.length))) return unavailable();
     if (![s.customers,s.estimates,s.invoices,s.ledger.entries,s.ledger.audit].every(Array.isArray)) return unavailable();
     if(s.counters.invoice!==s.invoices.length||s.counters.estimate!==s.estimates.length)return unavailable();
-    for (const rows of [s.customers,s.estimates,s.invoices,s.ledger.entries,s.vendors??[],s.vendorBills??[],s.vendorPayments??[]]) {
+    for (const rows of [s.customers,s.estimates,s.invoices,s.ledger.entries,s.vendors??[],s.vendorBills??[],s.vendorPayments??[],s.projects??[]]) {
       const ids = new Set<string>(); for (const row of rows) { if (row.organizationId !== organizationId || !row.id || ids.has(row.id)) return unavailable(); ids.add(row.id); }
     }
     for(const customer of s.customers){
@@ -46,6 +48,12 @@ export function validateStoredErp(value: unknown, organizationId: string): ErpSt
       const p=s.ledger.periods.find(p=>p.id===payment.periodId);if(!p||payment.accountingDate<p.start||payment.accountingDate>p.end)return unavailable();
     }
     for(const bill of s.vendorBills??[])vendorBillBalance(bill,(s.vendorPayments??[]).filter(p=>p.billId===bill.id));
+    const projectNumbers=new Set<string>(),projectBills=new Set<string>();
+    for(const project of s.projects??[]){
+      if(!same(validateStoredProject(project,config),project)||project.revision>s.revision||BigInt(project.number.slice(4))>BigInt(s.counters.project??0)||!s.customers.some(c=>c.id===project.customerId)||projectNumbers.has(project.number))return unavailable();projectNumbers.add(project.number);
+      for(const billId of project.vendorBillIds){if(!s.vendorBills?.some(b=>b.id===billId)||projectBills.has(billId))return unavailable();projectBills.add(billId);}
+    }
+    if(s.schemaVersion===3)for(const document of [...s.estimates,...s.invoices])if(document.projectId&&!s.projects?.some(p=>p.id===document.projectId&&p.customerId===document.customer.id))return unavailable();
     for (const estimate of s.estimates) {
       if(Reflect.ownKeys(estimate).some(key=>typeof key!=='string'||!['id','organizationId','revision','currency','number','customer','projectId','date','expiresAt','paymentTermsDays','lines','notes','status'].includes(key)))return unavailable();
       const parsed=validateErpRequest({idempotencyKey:'stored-validation',expectedRevision:0,command:{type:'save_customer',customer:estimate.customer}},organizationId);

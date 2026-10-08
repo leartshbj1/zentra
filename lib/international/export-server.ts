@@ -2,7 +2,7 @@ import { AccountPublicError, sha256Hex } from '../account-security';
 import { ErpError, canonicalErpJson } from './erp-contract';
 import { validDate } from './accounting/ledger';
 import { validateCompanyConfiguration } from './country-config';
-import { erpClientSchemaVersion, requireErpClientSchema } from './erp-schema-capability';
+import { erpClientSchemaVersion, requireErpClientSchema, type ErpSchemaVersion } from './erp-schema-capability';
 import { snapshotPrivateJson } from './private-json';
 import { confirmErpExpectedUser, confirmErpReadAdmission, type ErpReadAdmission } from './read-admission';
 import { validateStoredErp } from './runtime-validation';
@@ -21,22 +21,22 @@ export interface ExportServerDependencies extends Pick<ErpServerDependencies, 'e
   render?: (this: void, snapshot: ExportSnapshot, format: Exclude<ExportFormat, 'json'>, fonts?: ExportFonts) => Promise<string | Uint8Array> | string | Uint8Array;
   hash?: (this: void, bytes: Uint8Array) => Promise<string>;
   /** Fresh server ceiling, not a client grant. Absent seams keep the captured store ceiling. */
-  freshSupportedSchemaVersion?: (this: void, clientCapability: 1 | 2) => Promise<1 | 2> | 1 | 2;
+  freshSupportedSchemaVersion?: (this: void, clientCapability: ErpSchemaVersion) => Promise<ErpSchemaVersion> | ErpSchemaVersion;
   diagnostic?: (this: void, event: Readonly<{ operation: 'documents' | 'reports'; stage: ExportStage; code: string; status: number }>) => void;
 }
 export const MAX_EXPORT_BYTES = 12 * 1024 * 1024;
 const maximumFontBytes = 2 * 1024 * 1024;
 const formats = ['json', 'html', 'pdf', 'csv'] as const;
 const languages = ['fr', 'de', 'it', 'en'] as const;
-const documentKinds = ['estimate', 'invoice', 'vendor_bill'] as const;
+const documentKinds = ['estimate', 'invoice', 'vendor_bill', 'project'] as const;
 const reportKinds = ['trial_balance', 'profit_loss', 'balance_sheet', 'cash_flow', 'general_ledger'] as const;
 const securityHeaders = { 'Cache-Control': 'no-store, max-age=0', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
 const htmlPolicy = "default-src 'none'; script-src 'none'; connect-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'self'";
 const civilDate = (value: string) => !value.startsWith('0000-') && validDate(value);
 function invalid(): never { throw new ErpError('invalid_request', 422); }
 function unavailable(): never { throw new ErpError('service_unavailable', 503); }
-function schemaVersion(value: unknown): 1 | 2 { if (value !== 1 && value !== 2) return unavailable(); return value; }
-interface ExportSchemaAdmission { client: 1 | 2; captured: 1 | 2; source: 1 | 2 }
+function schemaVersion(value: unknown): ErpSchemaVersion { if (value !== 1 && value !== 2 && value !== 3) return unavailable(); return value; }
+interface ExportSchemaAdmission { client: ErpSchemaVersion; captured: ErpSchemaVersion; source: ErpSchemaVersion }
 function text(value: unknown, maximum: number): string {
   if (typeof value !== 'string' || !value || value !== value.trim() || value.length > maximum || Array.from(value).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) return invalid();
   try { return snapshotPrivateJson(value) as string; } catch { return invalid(); }

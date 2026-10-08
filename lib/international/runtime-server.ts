@@ -11,7 +11,7 @@ import type { CompanyConfiguration } from './types';
 import type { TaxCalculationProvider,PublicSellerSnapshot } from './invoicing';
 import { publicCompanyConfiguration, publicErpState } from './public-projection';
 import { confirmErpReadAdmission, confirmErpExpectedUser } from './read-admission';
-import { erpClientSchemaVersion, requireErpClientSchema } from './erp-schema-capability';
+import { erpClientSchemaVersion, requireErpClientSchema, type ErpSchemaVersion } from './erp-schema-capability';
 
 export interface ErpServerDependencies {
   enabled:()=>Promise<boolean> | boolean;
@@ -20,7 +20,9 @@ export interface ErpServerDependencies {
   configuration:(actor:FinancialAuthority)=>Promise<CompanyConfiguration>;
   /** Must cap the returned port to BOTH the client request and trusted server
    * configuration. A request header cannot enable a server feature. */
-  store:(clientSchemaVersion?:1|2)=>Promise<ErpStore> | ErpStore;
+  store:(clientSchemaVersion?:ErpSchemaVersion)=>Promise<ErpStore> | ErpStore;
+  /** Recheck dynamic capability flags without creating a new authority. */
+  freshSupportedSchemaVersion?:(clientSchemaVersion:ErpSchemaVersion)=>Promise<ErpSchemaVersion> | ErpSchemaVersion;
   taxProvider:(config:CompanyConfiguration)=>Promise<TaxCalculationProvider|null>;
   projectExists?:(actor:FinancialAuthority,projectId:string)=>Promise<boolean>;
   seller?:(actor:FinancialAuthority)=>Promise<PublicSellerSnapshot|null>;
@@ -68,6 +70,7 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
         const trusted=await context(request,organizationId,'read');
         const clientSchemaVersion=erpClientSchemaVersion(request);
         const state=await(await dependencies.store(clientSchemaVersion)).read(organizationId);
+        if(state&&dependencies.freshSupportedSchemaVersion)requireErpClientSchema(state.schemaVersion,await dependencies.freshSupportedSchemaVersion(clientSchemaVersion));
         confirmErpReadAdmission(trusted,await dependencies.authority(request,organizationId));
         if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);
         if(state)requireErpClientSchema(state.schemaVersion,clientSchemaVersion);
@@ -80,11 +83,13 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
         const trusted=await context(request,organizationId,'write');
         const clientSchemaVersion=erpClientSchemaVersion(request);
         const input=await readJsonObjectWithinLimit(request,262144);
+        let capturedCapability:ErpSchemaVersion=1;
         async function revalidate(){
           // Configuration stays private and scoped to the initial admission. Read
           // authority last so changes during this await cannot authorize a commit.
           const config=await dependencies.configuration(trusted.actor);
           if(canonicalErpJson(config)!==canonicalErpJson(trusted.config))throw new ErpError('configuration_changed',409);
+          if(dependencies.freshSupportedSchemaVersion)requireErpClientSchema(capturedCapability,await dependencies.freshSupportedSchemaVersion(clientSchemaVersion));
           const fresh=await dependencies.authority(request,organizationId);
           confirmErpReadAdmission(trusted,fresh);
           if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);
@@ -92,8 +97,10 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
         }
         const requestInput=validateErpRequest(input,organizationId);
         if(['save_vendor','record_vendor_bill','record_vendor_payment'].includes(requestInput.command.type))requireErpClientSchema(2,clientSchemaVersion);
+        if(requestInput.command.type==='save_projects')requireErpClientSchema(3,clientSchemaVersion);
         if(requestInput.command.type==='issue_invoice'&&!['owner','admin','accountant'].includes(trusted.actor.role))throw new ErpError('financial_permission_required',403);
         const store=await dependencies.store(clientSchemaVersion);
+        capturedCapability=store.supportedSchemaVersion??1;
         // Enforce the trusted factory contract even for an incorrectly wired
         // injected port. Legacy receipt lookup must use the guarded legacy RPC.
         requireErpClientSchema(store.supportedSchemaVersion??1,clientSchemaVersion);
@@ -110,6 +117,7 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
           const commandHash=await sha256Hex(canonicalErpJson([organizationId,trusted.actor.userId,requestInput]));
           if(typeof detached.replayed!=='boolean'||receipt.idempotencyKey!==requestInput.idempotencyKey||receipt.commandHash!==commandHash||receipt.action!==requestInput.command.type||receipt.revision!==requestInput.expectedRevision+1)throw new ErpError('invalid_receipt',503);
           if(requestInput.command.type==='issue_invoice'&&receipt.entityId!==requestInput.command.id)throw new ErpError('invalid_receipt',503);
+          if(requestInput.command.type==='save_projects'&&receipt.entityId!==requestInput.command.projects[0].id)throw new ErpError('invalid_receipt',503);
           return {receipt,replayed:detached.replayed};
         }
         let projected;

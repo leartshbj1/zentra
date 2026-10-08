@@ -1,7 +1,7 @@
 import { snapshotPrivateJson } from './private-json';
 import { validateStoredErp } from './runtime-validation';
 import { buildPrintableDocument, type PrintedParty } from './documents';
-import { validatePublicSellerSnapshot, type PublicSellerSnapshot } from './invoicing';
+import { estimateTotals, invoiceBalance, validatePublicSellerSnapshot, type PublicSellerSnapshot } from './invoicing';
 import { validateAddress } from './addresses';
 import { trialBalance, profitAndLoss, balanceSheet, cashFlow, generalLedger } from './accounting/reports';
 import { validDate } from './accounting/ledger';
@@ -9,12 +9,13 @@ import { vendorBillBalance } from './purchasing';
 import { formatDateOnly } from './localization';
 import { exportCopy, type ExportLabelKey } from './export-copy';
 import type { CompanyLanguage } from './types';
+import { formatMoney } from './money';
 
 export const MAX_EXPORT_ROWS = 1000;
 export const MAX_EXPORT_TEXT_CHARACTERS = 500_000;
 export const MAX_EXPORT_PDF_PAGES = 200;
 export type ExportSelector =
-  | Readonly<{ kind: 'document'; documentType: 'estimate' | 'invoice' | 'vendor_bill'; id: string }>
+  | Readonly<{ kind: 'document'; documentType: 'estimate' | 'invoice' | 'vendor_bill' | 'project'; id: string }>
   | Readonly<{ kind: 'report'; reportType: 'trial_balance' | 'balance_sheet'; asOf: string }>
   | Readonly<{ kind: 'report'; reportType: 'profit_loss' | 'cash_flow'; start: string; end: string }>
   | Readonly<{ kind: 'report'; reportType: 'general_ledger'; accountId: string; start: string; end: string }>;
@@ -65,8 +66,8 @@ export function validateUsExportSelector(input: unknown): ExportSelector {
     const value = snapshotPrivateJson(input) as Record<string, unknown>;
     if (value.kind === 'document') {
       object(value, ['kind', 'documentType', 'id']);
-      if (!['estimate', 'invoice', 'vendor_bill'].includes(String(value.documentType))) return fail('invalid_export_selector');
-      return Object.freeze({ kind: 'document', documentType: value.documentType as 'estimate' | 'invoice' | 'vendor_bill', id: key(value.id) });
+      if (!['estimate', 'invoice', 'vendor_bill', 'project'].includes(String(value.documentType))) return fail('invalid_export_selector');
+      return Object.freeze({ kind: 'document', documentType: value.documentType as 'estimate' | 'invoice' | 'vendor_bill' | 'project', id: key(value.id) });
     }
     if (value.kind !== 'report') return fail('invalid_export_selector');
     if (value.reportType === 'trial_balance' || value.reportType === 'balance_sheet') {
@@ -104,28 +105,33 @@ export function validateUsExportSnapshot(input: unknown): ExportSnapshot {
     const rows = value.rows.map(raw => { if (!Array.isArray(raw) || raw.length !== columns.length) return fail('invalid_export_snapshot'); return raw.map((cell, index) => columns[index].kind === 'money' ? minor(cell) : text(cell, 4000, true)); });
     const totals = value.totals.map(raw => { const t = object(raw, ['label', 'minorUnits']); return { label: label(t.label), minorUnits: minor(t.minorUnits) }; });
     if (new Set(totals.map(t => t.label)).size !== totals.length) return fail('invalid_export_snapshot');
-    const expectedColumns: readonly ExportLabelKey[] = selector.kind === 'document' ? selector.documentType === 'vendor_bill' ? ['description', 'net', 'tax', 'total'] : ['description', 'quantity', 'unitPrice', 'net'] : selector.reportType === 'trial_balance' ? ['account', 'description', 'accountType', 'debit', 'credit'] : selector.reportType === 'profit_loss' || selector.reportType === 'balance_sheet' ? ['account', 'accountType', 'amount'] : selector.reportType === 'cash_flow' ? ['description', 'amount'] : ['accountingDate', 'transactionDate', 'paymentDate', 'sourceReference', 'debit', 'credit', 'balance'];
+    const expectedColumns: readonly ExportLabelKey[] = selector.kind === 'document' ? selector.documentType === 'project' ? ['sourceType', 'number', 'date', 'net', 'tax', 'total', 'balance'] : selector.documentType === 'vendor_bill' ? ['description', 'net', 'tax', 'total'] : ['description', 'quantity', 'unitPrice', 'net'] : selector.reportType === 'trial_balance' ? ['account', 'description', 'accountType', 'debit', 'credit'] : selector.reportType === 'profit_loss' || selector.reportType === 'balance_sheet' ? ['account', 'accountType', 'amount'] : selector.reportType === 'cash_flow' ? ['description', 'amount'] : ['accountingDate', 'transactionDate', 'paymentDate', 'sourceReference', 'debit', 'credit', 'balance'];
     const moneyLabels: readonly ExportLabelKey[] = ['unitPrice', 'net', 'tax', 'total', 'debit', 'credit', 'amount', 'balance'];
     if (columns.length !== expectedColumns.length || columns.some((col, i) => col.label !== expectedColumns[i] || col.kind !== (moneyLabels.includes(col.label) ? 'money' : 'text') || col.align !== (moneyLabels.includes(col.label) ? 'right' : 'left'))) return fail('invalid_export_snapshot');
-    const expectedTotals: readonly ExportLabelKey[] = selector.kind === 'document' ? selector.documentType === 'vendor_bill' ? ['net', 'tax', 'total', 'balance'] : selector.documentType === 'invoice' ? ['subtotal', 'discount', 'tax', 'total', 'balance'] : ['subtotal', 'discount', 'total'] : selector.reportType === 'trial_balance' ? ['debit', 'credit'] : selector.reportType === 'profit_loss' ? ['income', 'expense', 'profit'] : selector.reportType === 'balance_sheet' ? ['assets', 'liabilities', 'equity', 'unclosedEarnings'] : selector.reportType === 'cash_flow' ? ['opening', 'operating', 'investing', 'financing', 'netChange', 'closing'] : ['opening', 'closing'];
+    const expectedTotals: readonly ExportLabelKey[] = selector.kind === 'document' ? selector.documentType === 'project' ? ['estimatesNet', 'invoicedNet', 'invoicedTax', 'invoicedTotal', 'received', 'outstanding', 'purchasesNet', 'purchasesTax', 'purchasesTotal', 'purchasesBalance'] : selector.documentType === 'vendor_bill' ? ['net', 'tax', 'total', 'balance'] : selector.documentType === 'invoice' ? ['subtotal', 'discount', 'tax', 'total', 'balance'] : ['subtotal', 'discount', 'total'] : selector.reportType === 'trial_balance' ? ['debit', 'credit'] : selector.reportType === 'profit_loss' ? ['income', 'expense', 'profit'] : selector.reportType === 'balance_sheet' ? ['assets', 'liabilities', 'equity', 'unclosedEarnings'] : selector.reportType === 'cash_flow' ? ['opening', 'operating', 'investing', 'financing', 'netChange', 'closing'] : ['opening', 'closing'];
     if (totals.length !== expectedTotals.length || totals.some((t, i) => t.label !== expectedTotals[i]) || new Set(facts.map(f => f.label)).size !== facts.length) return fail('invalid_export_snapshot');
-    const specificFacts: readonly ExportLabelKey[] = selector.kind === 'document' ? selector.documentType === 'vendor_bill' ? ['date', 'accountingDate', 'dueDate', 'period', 'sourceReference'] : selector.documentType === 'invoice' ? ['date', 'dueDate', 'termsDays', 'accountingDate', 'sourceEstimateRevision'] : ['date', 'expiresAt', 'termsDays'] : 'asOf' in selector ? ['asOf'] : selector.reportType === 'general_ledger' ? ['from', 'to', 'account'] : ['from', 'to'];
-    const requiredFacts = ['currency', 'accountingBasis', ...specificFacts.filter(k => k !== 'expiresAt')] as const;
+    const specificFacts: readonly ExportLabelKey[] = selector.kind === 'document' ? selector.documentType === 'project' ? ['projectName', 'projectStatus', 'budgetNet', 'startDate', 'targetDate'] : selector.documentType === 'vendor_bill' ? ['date', 'accountingDate', 'dueDate', 'period', 'sourceReference'] : selector.documentType === 'invoice' ? ['date', 'dueDate', 'termsDays', 'accountingDate', 'sourceEstimateRevision'] : ['date', 'expiresAt', 'termsDays'] : 'asOf' in selector ? ['asOf'] : selector.reportType === 'general_ledger' ? ['from', 'to', 'account'] : ['from', 'to'];
+    const requiredFacts = ['currency', 'accountingBasis', ...specificFacts.filter(k => !['expiresAt', 'startDate', 'targetDate'].includes(k))] as const;
     if (facts.some(f => !['currency', 'accountingBasis', ...specificFacts].includes(f.label) || !f.value.trim()) || requiredFacts.some(k => !facts.some(f => f.label === k)) || facts.find(f => f.label === 'currency')?.value !== 'USD' || ![exportCopy[value.language as CompanyLanguage].cash, exportCopy[value.language as CompanyLanguage].accrual].includes(facts.find(f => f.label === 'accountingBasis')!.value)) return fail('invalid_export_snapshot');
     const typeIndex = columns.findIndex(col => col.label === 'accountType');
     if (typeIndex >= 0 && rows.some(row => !['asset', 'liability', 'equity', 'income', 'expense'].includes(row[typeIndex]))) return fail('invalid_export_snapshot');
     if (rows.some(row => columns.some((col, i) => ['unitPrice', 'net', 'tax', 'total', 'debit', 'credit'].includes(col.label) && BigInt(row[i]) < BigInt(0)))) return fail('invalid_export_snapshot');
     const debitIndex = columns.findIndex(col => col.label === 'debit'), creditIndex = columns.findIndex(col => col.label === 'credit');
     if (debitIndex >= 0 && rows.some(row => BigInt(row[debitIndex]) > BigInt(0) && BigInt(row[creditIndex]) > BigInt(0))) return fail('invalid_export_snapshot');
-    if (selector.kind === 'document' && (!rows.length || rows.some(row => !row[0].trim()))) return fail('invalid_export_snapshot');
-    if (selector.kind === 'document' && selector.documentType !== 'vendor_bill' && rows.some(row => !/^(?:[1-9][0-9]*|0)(?:\.[0-9]*[1-9])?$/.test(row[1]) || !/[1-9]/.test(row[1]))) return fail('invalid_export_snapshot');
+    if (selector.kind === 'document' && ((selector.documentType !== 'project' && !rows.length) || rows.some(row => !row[0].trim()))) return fail('invalid_export_snapshot');
+    if (selector.kind === 'document' && (selector.documentType === 'estimate' || selector.documentType === 'invoice') && rows.some(row => !/^(?:[1-9][0-9]*|0)(?:\.[0-9]*[1-9])?$/.test(row[1]) || !/[1-9]/.test(row[1]))) return fail('invalid_export_snapshot');
     const notes = text(value.notes, 20_000, true);
     const sum = (column: ExportLabelKey) => { const index = columns.findIndex(c => c.label === column && c.kind === 'money'); if (index < 0) return fail('invalid_export_snapshot'); return rows.reduce((total, row) => total + BigInt(row[index]), BigInt(0)); };
     const total = (name: ExportLabelKey) => { const found = totals.find(t => t.label === name); if (!found) return fail('invalid_export_snapshot'); return BigInt(found.minorUnits); };
     if (selector.kind === 'document') {
-      if (selector.documentType === 'vendor_bill') { if (rows.length !== 1 || sum('net') !== total('net') || sum('tax') !== total('tax') || sum('total') !== total('total') || total('net') + total('tax') !== total('total')) return fail('invalid_export_snapshot'); }
+      if (selector.documentType === 'project') {
+        const copy = exportCopy[value.language as CompanyLanguage], byType = (type: string, index: number) => rows.filter(row => row[0] === type).reduce((sum, row) => sum + BigInt(row[index]), BigInt(0));
+        if (recordRevision === null || ![copy.active, copy.archived].includes(facts.find(f => f.label === 'projectStatus')!.value) || rows.some(row => ![copy.estimate, copy.invoice, copy.vendor_bill].includes(row[0]) || !row[1].trim() || !row[2].trim() || BigInt(row[3]) + BigInt(row[4]) !== BigInt(row[5]) || BigInt(row[6]) < BigInt(0) || BigInt(row[6]) > BigInt(row[5]) || (row[0] === copy.estimate && (row[4] !== '0' || row[6] !== '0')))) return fail('invalid_export_snapshot');
+        if (byType(copy.estimate, 3) !== total('estimatesNet') || byType(copy.invoice, 3) !== total('invoicedNet') || byType(copy.invoice, 4) !== total('invoicedTax') || byType(copy.invoice, 5) !== total('invoicedTotal') || byType(copy.invoice, 6) !== total('outstanding') || total('invoicedTotal') - total('outstanding') !== total('received') || byType(copy.vendor_bill, 3) !== total('purchasesNet') || byType(copy.vendor_bill, 4) !== total('purchasesTax') || byType(copy.vendor_bill, 5) !== total('purchasesTotal') || byType(copy.vendor_bill, 6) !== total('purchasesBalance')) return fail('invalid_export_snapshot');
+      }
+      else if (selector.documentType === 'vendor_bill') { if (rows.length !== 1 || sum('net') !== total('net') || sum('tax') !== total('tax') || sum('total') !== total('total') || total('net') + total('tax') !== total('total')) return fail('invalid_export_snapshot'); }
       else if (sum('net') !== total('subtotal') - total('discount') || total('subtotal') - total('discount') + (selector.documentType === 'invoice' ? total('tax') : BigInt(0)) !== total('total')) return fail('invalid_export_snapshot');
-      if (selector.documentType !== 'estimate' && (total('balance') < BigInt(0) || total('balance') > total('total'))) return fail('invalid_export_snapshot');
+      if ((selector.documentType === 'invoice' || selector.documentType === 'vendor_bill') && (total('balance') < BigInt(0) || total('balance') > total('total'))) return fail('invalid_export_snapshot');
       if (totals.some(t => BigInt(t.minorUnits) < BigInt(0))) return fail('invalid_export_snapshot');
     } else if (selector.reportType === 'trial_balance') { if (sum('debit') !== total('debit') || sum('credit') !== total('credit') || total('debit') !== total('credit')) return fail('invalid_export_snapshot'); }
     else if (selector.reportType === 'profit_loss' || selector.reportType === 'balance_sheet') {
@@ -172,7 +178,20 @@ export function buildUsExportSnapshot(input: unknown, sellerInput: PublicSellerS
     let publicSeller: PrintedParty = { name: seller.displayName, address: state.configuration.address, ...(seller.contactEmail ? { contactEmail: seller.contactEmail } : {}), ...(seller.contactPhone ? { contactPhone: seller.contactPhone } : {}) };
     let recipient: PrintedParty | null = null, number: string | null = null, notes = '', recordRevision: number | null = null, columns: ExportSnapshot['columns'] = [], rows: ExportSnapshot['rows'] = [];
     fact('currency', 'USD'); fact('accountingBasis', copy[(invoice?.companyConfiguration ?? state.configuration).accountingBasis]);
-    if (selector.kind === 'document' && selector.documentType !== 'vendor_bill') {
+    if (selector.kind === 'document' && selector.documentType === 'project') {
+      const project = state.schemaVersion === 3 ? state.projects?.find(p => p.id === selector.id) : null;
+      if (!project) return fail('export_source_not_found');
+      const customer = state.customers.find(c => c.id === project.customerId); if (!customer) return fail('invalid_export_snapshot');
+      recipient = { name: customer.name, address: customer.billingAddress, ...(customer.email ? { contactEmail: customer.email } : {}), ...(customer.phone ? { contactPhone: customer.phone } : {}) };
+      number = project.number; recordRevision = project.revision; notes = project.notes;
+      fact('projectName', project.name); fact('projectStatus', copy[project.status]); fact('budgetNet', project.budget === null ? copy.notSet : formatMoney(project.budget, locale));
+      if (project.startDate !== null) fact('startDate', date(project.startDate)); if (project.targetDate !== null) fact('targetDate', date(project.targetDate));
+      const quotes = state.estimates.filter(e => e.projectId === project.id), invoices = state.invoices.filter(i => i.projectId === project.id), bills = (state.vendorBills ?? []).filter(b => project.vendorBillIds.includes(b.id));
+      columns = [column('sourceType'), column('number'), column('date'), column('net', 'money'), column('tax', 'money'), column('total', 'money'), column('balance', 'money')];
+      rows = [...quotes.map(e => { const net = estimateTotals(e).net.minorUnits; return [copy.estimate, e.number, date(e.date), net, '0', net, '0']; }), ...invoices.map(i => [copy.invoice, i.number, date(i.date), (BigInt(i.subtotal.minorUnits) - BigInt(i.discount.minorUnits)).toString(), i.tax.minorUnits, i.total.minorUnits, invoiceBalance(i).minorUnits]), ...bills.map(b => [copy.vendor_bill, b.reference, date(b.date), b.net.minorUnits, b.tax.minorUnits, b.total.minorUnits, vendorBillBalance(b, (state.vendorPayments ?? []).filter(p => p.billId === b.id)).minorUnits])];
+      const byType = (type: string, index: number) => rows.filter(row => row[0] === type).reduce((sum, row) => sum + BigInt(row[index]), BigInt(0));
+      total('estimatesNet', byType(copy.estimate, 3).toString()); total('invoicedNet', byType(copy.invoice, 3).toString()); total('invoicedTax', byType(copy.invoice, 4).toString()); total('invoicedTotal', byType(copy.invoice, 5).toString()); total('received', (byType(copy.invoice, 5) - byType(copy.invoice, 6)).toString()); total('outstanding', byType(copy.invoice, 6).toString()); total('purchasesNet', byType(copy.vendor_bill, 3).toString()); total('purchasesTax', byType(copy.vendor_bill, 4).toString()); total('purchasesTotal', byType(copy.vendor_bill, 5).toString()); total('purchasesBalance', byType(copy.vendor_bill, 6).toString());
+    } else if (selector.kind === 'document' && selector.documentType !== 'vendor_bill') {
       const document = selector.documentType === 'invoice' ? invoice! : state.estimates.find(e => e.id === selector.id);
       if (!document) return fail('export_source_not_found');
       const printed = buildPrintableDocument(state.configuration, seller, selector.documentType === 'invoice' ? { type: 'invoice', document: invoice! } : { type: 'estimate', document: document as typeof state.estimates[number] }, { paper: 'Letter' });

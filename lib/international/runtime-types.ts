@@ -2,13 +2,15 @@ import type { CompanyConfiguration } from './types';
 import type { Contact, Estimate, IssuedInvoice, SalesLine } from './invoicing';
 import type { AccountingPeriod, FinancialAuthority, Ledger, LedgerAuditEvent } from './accounting/ledger';
 import type { BillInput, PaymentInput, RecordedVendorBill, RecordedVendorPayment } from './purchasing';
+import type { ErpSchemaVersion } from './erp-schema-capability';
+import type { ProjectInput, StoredProject } from './projects';
 
 /** One financial authority per workspace. The CH historical SQLite book is not imported here. */
 export interface ErpState {
-  readonly schemaVersion: 1 | 2;
+  readonly schemaVersion: ErpSchemaVersion;
   readonly revision: number;
   readonly configuration: CompanyConfiguration;
-  readonly counters: Readonly<{ estimate: number; invoice: number }>;
+  readonly counters: Readonly<{ estimate: number; invoice: number; project?: number }>;
   readonly ledger: Ledger;
   readonly customers: readonly Contact[];
   readonly estimates: readonly Estimate[];
@@ -18,11 +20,13 @@ export interface ErpState {
   readonly vendors?: readonly Contact[];
   readonly vendorBills?: readonly RecordedVendorBill[];
   readonly vendorPayments?: readonly RecordedVendorPayment[];
+  /** Present only in schema3; old books never gain a synthetic empty registry. */
+  readonly projects?: readonly StoredProject[];
 }
-export type ErpHeader = Omit<ErpState, 'customers' | 'estimates' | 'invoices' | 'vendors' | 'vendorBills' | 'vendorPayments' | 'ledger'> & {
+export type ErpHeader = Omit<ErpState, 'customers' | 'estimates' | 'invoices' | 'vendors' | 'vendorBills' | 'vendorPayments' | 'projects' | 'ledger'> & {
   readonly ledger: Omit<Ledger, 'entries' | 'audit'>;
 };
-export type ErpRecordKind = 'customer' | 'estimate' | 'invoice' | 'journal' | 'vendor' | 'vendor_bill' | 'vendor_payment';
+export type ErpRecordKind = 'customer' | 'estimate' | 'invoice' | 'journal' | 'vendor' | 'vendor_bill' | 'vendor_payment' | 'project';
 export type ErpRecordChange = Readonly<{ kind: ErpRecordKind; id: string; payload: unknown }>;
 export interface ErpReceipt {
   readonly idempotencyKey: string;
@@ -43,7 +47,7 @@ export interface ErpCommit {
 /** commit must atomically CAS, store changed entities, append journal/audit and retain a receipt. */
 export interface ErpStore {
   /** Trusted server capability; default1. This is not a browser grant. */
-  readonly supportedSchemaVersion?: 1 | 2;
+  readonly supportedSchemaVersion?: ErpSchemaVersion;
   read:(organizationId: string)=>Promise<ErpState | null>;
   receipt:(organizationId: string, idempotencyKey: string)=>Promise<ErpReceipt | null>;
   commit:(input: ErpCommit)=>Promise<ErpReceipt>;
@@ -57,6 +61,7 @@ export type ErpCommand =
   | Readonly<{ type: 'issue_invoice'; id: string; estimateId: string; expectedEstimateRevision: number; date: string; accountingDate: string; dueDate: string; periodId: string }>
   | Readonly<{ type: 'record_payment'; id: string; invoiceId: string; amountMinor: string; paymentDate: string; accountingDate: string; periodId: string; reference: string }>
   | Readonly<{ type: 'save_vendor'; vendor: Contact }>
+  | Readonly<{ type: 'save_projects'; projects: readonly ProjectInput[] }>
   | (Readonly<{ type: 'record_vendor_bill' }> & BillInput)
   | (Readonly<{ type: 'record_vendor_payment' }> & PaymentInput)
   | Readonly<{ type: 'close_period'; periodId: string }>;

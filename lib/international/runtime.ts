@@ -7,6 +7,7 @@ import { recordVendorBill, recordVendorPayment, vendorBillBalance } from './purc
 import { validateEstimate, estimateTotals, buildTaxRequest, invoiceFromEstimate, recordCustomerPayment, lineTotals, validatePublicSellerSnapshot, type PublicSellerSnapshot, type InvoicingAuthority, type TaxCalculationProvider } from './invoicing';
 import { money } from './money';
 import { parseInstant } from './localization';
+import { recordProject } from './projects';
 import type { CompanyConfiguration } from './types';
 import type { ErpCommand, ErpCommit, ErpHeader, ErpReceipt, ErpState, ErpStore } from './runtime-types';
 
@@ -22,7 +23,7 @@ function authorize(config: CompanyConfiguration, actor: FinancialAuthority, comm
   if (!['owner','admin','accountant','member','read_only'].includes(actor.role)) throw new ErpError('forbidden',403);
   if (!command) return;
   if (['initialize','refresh_configuration'].includes(command.type) && actor.role !== 'owner') throw new ErpError('owner_required',403);
-  const financial = ['issue_invoice','record_payment','close_period','save_vendor','record_vendor_bill','record_vendor_payment'].includes(command.type);
+  const financial = ['issue_invoice','record_payment','close_period','save_vendor','record_vendor_bill','record_vendor_payment','save_projects'].includes(command.type);
   if (actor.role === 'read_only' || (financial && !['owner','admin','accountant'].includes(actor.role))) throw new ErpError('financial_permission_required',403);
 }
 const canonical = canonicalErpJson;
@@ -38,7 +39,7 @@ export function erpHeader(state: ErpState): ErpHeader {
 }
 export function erpCommit(before: ErpState | null, after: ErpState, receipt: ErpReceipt, actor: FinancialAuthority): ErpCommit {
   const changes: ErpCommit['changes'][number][] = [];
-  const groups = [['customer',before?.customers,after.customers],['estimate',before?.estimates,after.estimates],['invoice',before?.invoices,after.invoices],['vendor',before?.vendors,after.vendors??[]],['vendor_bill',before?.vendorBills,after.vendorBills??[]],['vendor_payment',before?.vendorPayments,after.vendorPayments??[]],['journal',before?.ledger.entries,after.ledger.entries]] as const;
+  const groups = [['customer',before?.customers,after.customers],['estimate',before?.estimates,after.estimates],['invoice',before?.invoices,after.invoices],['vendor',before?.vendors,after.vendors??[]],['vendor_bill',before?.vendorBills,after.vendorBills??[]],['vendor_payment',before?.vendorPayments,after.vendorPayments??[]],['project',before?.projects,after.projects??[]],['journal',before?.ledger.entries,after.ledger.entries]] as const;
   for (const [kind,oldRows,rows] of groups) for (const row of rows) {
     const old = oldRows?.find(old=>old.id===row.id);
     if (!old || canonical(old)!==canonical(row)) changes.push({kind,id:row.id,payload:row});
@@ -65,7 +66,9 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
   const command = request.command;
   authorize(config,dependencies.actor,command);
   const purchasing = ['save_vendor','record_vendor_bill','record_vendor_payment'].includes(command.type);
-  if (purchasing && dependencies.store.supportedSchemaVersion !== 2) throw new ErpError('purchasing_unavailable',409);
+  const capability=dependencies.store.supportedSchemaVersion??1;
+  if (purchasing && capability < 2) throw new ErpError('purchasing_unavailable',409);
+  if (command.type==='save_projects' && capability < 3) throw new ErpError('projects_unavailable',409);
   const hash = await sha256Hex(canonical([config.organizationId,dependencies.actor.userId,request]));
   const existing = await dependencies.store.receipt(config.organizationId,request.idempotencyKey);
   if (existing) {
@@ -76,7 +79,7 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
     return {receipt:existing,replayed:true};
   }
   const before = await dependencies.store.read(config.organizationId);
-  if (before?.schemaVersion === 2 && dependencies.store.supportedSchemaVersion !== 2) throw new ErpError('client_upgrade_required',409);
+  if (before && before.schemaVersion > capability) throw new ErpError('client_upgrade_required',409);
   if ((before?.revision??0)!==request.expectedRevision) throw new ErpError('revision_conflict',409);
   if (before && canonical(before.configuration)!==canonical(config) && command.type !== 'refresh_configuration') throw new ErpError('configuration_changed',409);
   let state: ErpState; let entityId: string;
@@ -97,6 +100,32 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
       }
       case 'save_customer': state = {...state,customers:replace(state.customers,command.customer)}; entityId=command.customer.id; break;
       case 'save_vendor': state = {...state,vendors:replace(state.vendors??[],command.vendor)}; entityId=command.vendor.id; break;
+      case 'save_projects': {
+        const oldProjects=state.projects??[];
+        const byId=new Map(command.projects.map(project=>[project.id,project]));
+        // Legacy document links are review input, never an implicit backfill.
+        // Each must have a genuine project in this exact promotion transaction.
+        for(const document of [...state.estimates,...state.invoices])if(document.projectId){
+          const project=byId.get(document.projectId)??oldProjects.find(project=>project.id===document.projectId);
+          if(!project)throw new ErpError('legacy_project_review_required',409);
+          if(project.customerId!==document.customer.id)throw new ErpError('project_customer_locked',409);
+        }
+        let counter=state.counters.project??0;
+        const numbers=new Map<string,string>();
+        for(const input of command.projects){
+          const previous=oldProjects.find(project=>project.id===input.id)??null;
+          if(!state.customers.some(customer=>customer.id===input.customerId))throw new ErpError('customer_required',422);
+          if(previous&&(state.estimates.some(q=>q.projectId===previous.id)||state.invoices.some(i=>i.projectId===previous.id))&&previous.customerId!==input.customerId)throw new ErpError('project_customer_locked',409);
+          for(const billId of input.vendorBillIds)if(!state.vendorBills?.some(bill=>bill.id===billId))throw new ErpError('vendor_bill_not_found',404);
+          if((previous?.revision??0)!==input.expectedProjectRevision)throw new ErpError('project_revision_conflict',409);
+          numbers.set(input.id,previous?.number??`PRJ-${String(counter=nextCounter(counter)).padStart(6,'0')}`);
+        }
+        const associations=new Set<string>();
+        for(const project of [...oldProjects.filter(p=>!byId.has(p.id)),...command.projects])for(const billId of project.vendorBillIds){if(associations.has(billId))throw new ErpError('vendor_bill_project_conflict',409);associations.add(billId);}
+        state={...state,schemaVersion:3,counters:{...state.counters,project:counter},vendors:state.vendors??[],vendorBills:state.vendorBills??[],vendorPayments:state.vendorPayments??[],projects:oldProjects};
+        finalizePurchase=actor=>{let projects=oldProjects;for(const input of command.projects){const previous=oldProjects.find(p=>p.id===input.id)??null;projects=replace(projects,recordProject(config,input,previous,numbers.get(input.id)!,actor));}state={...state,projects};};
+        entityId=command.projects[0].id;break;
+      }
       case 'record_vendor_bill': {
         const vendor = state.vendors?.find(v=>v.id===command.vendorId); if (!vendor) throw new ErpError('vendor_required',422);
         if (state.vendorBills?.some(b=>b.id===command.id || (b.vendorId===command.vendorId && b.reference===command.reference && b.date===command.date))) throw new ErpError('vendor_bill_already_recorded',409);
@@ -128,7 +157,10 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
         if ((previous?.revision??0)!==command.expectedEstimateRevision) throw new ErpError('estimate_revision_conflict',409);
         if (state.invoices.some(i=>i.sourceEstimateId===command.id)) throw new ErpError('issued_estimate_locked',409);
         const customer = state.customers.find(c=>c.id===command.customerId); if (!customer) throw new ErpError('customer_required');
-        if(command.projectId && (!dependencies.projectExists || !await dependencies.projectExists(config.organizationId,command.projectId))) throw new ErpError('project_not_found',422);
+        if(command.projectId){
+          if(state.schemaVersion===3){const project=state.projects?.find(project=>project.id===command.projectId);if(!project)throw new ErpError('project_not_found',422);if(project.status!=='active')throw new ErpError('project_archived',409);if(project.customerId!==command.customerId)throw new ErpError('project_customer_mismatch',422);}
+          else if(!dependencies.projectExists || !await dependencies.projectExists(config.organizationId,command.projectId))throw new ErpError('project_not_found',422);
+        }
         command.lines.forEach(line=>lineTotals(line,config.currency));
         const counter = previous ? state.counters.estimate : nextCounter(state.counters.estimate);
         const estimate = validateEstimate(config,{...command,organizationId:config.organizationId,currency:config.currency,revision:nextCounter(previous?.revision??0),number:previous?.number??`EST-${String(counter).padStart(6,'0')}`,customer,status:'draft'});

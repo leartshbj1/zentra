@@ -1,0 +1,793 @@
+{
+  "source": {
+    "package": "braces@3.0.3",
+    "registry": "https://registry.npmjs.org/braces/3.0.3",
+    "integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==",
+    "recordedAt": "2026-10-08",
+    "purpose": "Output compatibility observations from the untouched upstream package, not a security certification."
+  },
+  "cases": [
+    {
+      "input": "a/{b,c}/d",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "a/(b|c)/d"
+          ]
+        },
+        "compile": {
+          "value": "a/(b|c)/d"
+        },
+        "expand": {
+          "value": [
+            "a/b/d",
+            "a/c/d"
+          ]
+        },
+        "stringify": {
+          "value": "a/{b,c}/d"
+        }
+      }
+    },
+    {
+      "input": "a/{b,{c,d}}/e",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "a/(b|(c|d))/e"
+          ]
+        },
+        "compile": {
+          "value": "a/(b|(c|d))/e"
+        },
+        "expand": {
+          "value": [
+            "a/b/e",
+            "a/c/e",
+            "a/d/e"
+          ]
+        },
+        "stringify": {
+          "value": "a/{b,{c,d}}/e"
+        }
+      }
+    },
+    {
+      "input": "{a,b}{x,y}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "(a|b)(x|y)"
+          ]
+        },
+        "compile": {
+          "value": "(a|b)(x|y)"
+        },
+        "expand": {
+          "value": [
+            "ax",
+            "ay",
+            "bx",
+            "by"
+          ]
+        },
+        "stringify": {
+          "value": "{a,b}{x,y}"
+        }
+      }
+    },
+    {
+      "input": "{1..5}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "([1-5])"
+          ]
+        },
+        "compile": {
+          "value": "([1-5])"
+        },
+        "expand": {
+          "value": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "stringify": {
+          "value": "{1..5}"
+        }
+      }
+    },
+    {
+      "input": "{01..05}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "(0[1-5])"
+          ]
+        },
+        "compile": {
+          "value": "(0[1-5])"
+        },
+        "expand": {
+          "value": [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05"
+          ]
+        },
+        "stringify": {
+          "value": "{01..05}"
+        }
+      }
+    },
+    {
+      "input": "{5..1..2}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "(1|3|5)"
+          ]
+        },
+        "compile": {
+          "value": "(1|3|5)"
+        },
+        "expand": {
+          "value": [
+            "5",
+            "3",
+            "1"
+          ]
+        },
+        "stringify": {
+          "value": "{5..1..2}"
+        }
+      }
+    },
+    {
+      "input": "{a..e..2}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "(a|c|e)"
+          ]
+        },
+        "compile": {
+          "value": "(a|c|e)"
+        },
+        "expand": {
+          "value": [
+            "a",
+            "c",
+            "e"
+          ]
+        },
+        "stringify": {
+          "value": "{a..e..2}"
+        }
+      }
+    },
+    {
+      "input": "{1..1001}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "([1-9]|[1-9][0-9]{1,2}|100[01])"
+          ]
+        },
+        "compile": {
+          "value": "([1-9]|[1-9][0-9]{1,2}|100[01])"
+        },
+        "expand": {
+          "error": "RangeError",
+          "message": "expanded array length exceeds range limit. Use options.rangeLimit to increase or disable the limit."
+        },
+        "stringify": {
+          "value": "{1..1001}"
+        }
+      }
+    },
+    {
+      "input": "{1..5}",
+      "options": {
+        "rangeLimit": 3
+      },
+      "expected": {
+        "default": {
+          "value": [
+            "([1-5])"
+          ]
+        },
+        "compile": {
+          "value": "([1-5])"
+        },
+        "expand": {
+          "error": "RangeError",
+          "message": "expanded array length exceeds range limit. Use options.rangeLimit to increase or disable the limit."
+        },
+        "stringify": {
+          "value": "{1..5}"
+        }
+      }
+    },
+    {
+      "input": "{1..5}",
+      "options": {
+        "rangeLimit": false
+      },
+      "expected": {
+        "default": {
+          "value": [
+            "([1-5])"
+          ]
+        },
+        "compile": {
+          "value": "([1-5])"
+        },
+        "expand": {
+          "value": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "stringify": {
+          "value": "{1..5}"
+        }
+      }
+    },
+    {
+      "input": "{a,a,,b}",
+      "options": {
+        "nodupes": true,
+        "noempty": true
+      },
+      "expected": {
+        "default": {
+          "value": [
+            "(a|a|b)"
+          ]
+        },
+        "compile": {
+          "value": "(a|a|b)"
+        },
+        "expand": {
+          "value": [
+            "a",
+            "b"
+          ]
+        },
+        "stringify": {
+          "value": "{a,a,,b}"
+        }
+      }
+    },
+    {
+      "input": "{a,,b}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "(a|b)"
+          ]
+        },
+        "compile": {
+          "value": "(a|b)"
+        },
+        "expand": {
+          "value": [
+            "a",
+            "",
+            "b"
+          ]
+        },
+        "stringify": {
+          "value": "{a,,b}"
+        }
+      }
+    },
+    {
+      "input": "{}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "{}"
+          ]
+        },
+        "compile": {
+          "value": "{}"
+        },
+        "expand": {
+          "value": [
+            "{}"
+          ]
+        },
+        "stringify": {
+          "value": "{}"
+        }
+      }
+    },
+    {
+      "input": "",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            ""
+          ]
+        },
+        "compile": {
+          "value": ""
+        },
+        "expand": {
+          "value": []
+        },
+        "stringify": {
+          "value": ""
+        }
+      }
+    },
+    {
+      "input": "x",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "x"
+          ]
+        },
+        "compile": {
+          "value": "x"
+        },
+        "expand": {
+          "value": [
+            "x"
+          ]
+        },
+        "stringify": {
+          "value": "x"
+        }
+      }
+    },
+    {
+      "input": "file.txt",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "file.txt"
+          ]
+        },
+        "compile": {
+          "value": "file.txt"
+        },
+        "expand": {
+          "value": [
+            "file.txt"
+          ]
+        },
+        "stringify": {
+          "value": "file.txt"
+        }
+      }
+    },
+    {
+      "input": "a/{b,c",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "a/{b,c"
+          ]
+        },
+        "compile": {
+          "value": "a/{b,c"
+        },
+        "expand": {
+          "value": [
+            "a/{b,c"
+          ]
+        },
+        "stringify": {
+          "value": "a/{b,c"
+        }
+      }
+    },
+    {
+      "input": "a/{b,c",
+      "options": {
+        "escapeInvalid": true
+      },
+      "expected": {
+        "default": {
+          "value": [
+            "a/\\{b,c"
+          ]
+        },
+        "compile": {
+          "value": "a/\\{b,c"
+        },
+        "expand": {
+          "value": [
+            "a/{b,c"
+          ]
+        },
+        "stringify": {
+          "value": "a/{b,c"
+        }
+      }
+    },
+    {
+      "input": "a/\\{b,c\\}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "a/{b,c}"
+          ]
+        },
+        "compile": {
+          "value": "a/{b,c}"
+        },
+        "expand": {
+          "value": [
+            "a/{b,c}"
+          ]
+        },
+        "stringify": {
+          "value": "a/{b,c}"
+        }
+      }
+    },
+    {
+      "input": "a/\\{b,c\\}",
+      "options": {
+        "keepEscaping": true
+      },
+      "expected": {
+        "default": {
+          "value": [
+            "a/\\{b,c\\}"
+          ]
+        },
+        "compile": {
+          "value": "a/\\{b,c\\}"
+        },
+        "expand": {
+          "value": [
+            "a/\\{b,c\\}"
+          ]
+        },
+        "stringify": {
+          "value": "a/\\{b,c\\}"
+        }
+      }
+    },
+    {
+      "input": "\"literal {a,b}\"",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "literal {a,b}"
+          ]
+        },
+        "compile": {
+          "value": "literal {a,b}"
+        },
+        "expand": {
+          "value": [
+            "literal {a,b}"
+          ]
+        },
+        "stringify": {
+          "value": "literal {a,b}"
+        }
+      }
+    },
+    {
+      "input": "\"literal {a,b}\"",
+      "options": {
+        "keepQuotes": true
+      },
+      "expected": {
+        "default": {
+          "value": [
+            "\"literal {a,b}\""
+          ]
+        },
+        "compile": {
+          "value": "\"literal {a,b}\""
+        },
+        "expand": {
+          "value": [
+            "\"literal {a,b}\""
+          ]
+        },
+        "stringify": {
+          "value": "\"literal {a,b}\""
+        }
+      }
+    },
+    {
+      "input": "'literal {a,b}'",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "literal {a,b}"
+          ]
+        },
+        "compile": {
+          "value": "literal {a,b}"
+        },
+        "expand": {
+          "value": [
+            "literal {a,b}"
+          ]
+        },
+        "stringify": {
+          "value": "literal {a,b}"
+        }
+      }
+    },
+    {
+      "input": "`literal {a,b}`",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "literal {a,b}"
+          ]
+        },
+        "compile": {
+          "value": "literal {a,b}"
+        },
+        "expand": {
+          "value": [
+            "literal {a,b}"
+          ]
+        },
+        "stringify": {
+          "value": "literal {a,b}"
+        }
+      }
+    },
+    {
+      "input": "[{}()]/{a,b}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "[{}()]/(a|b)"
+          ]
+        },
+        "compile": {
+          "value": "[{}()]/(a|b)"
+        },
+        "expand": {
+          "value": [
+            "[{}()]/a",
+            "[{}()]/b"
+          ]
+        },
+        "stringify": {
+          "value": "[{}()]/{a,b}"
+        }
+      }
+    },
+    {
+      "input": "src/(x|y)/{a,b}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "src/(x|y)/(a|b)"
+          ]
+        },
+        "compile": {
+          "value": "src/(x|y)/(a|b)"
+        },
+        "expand": {
+          "value": [
+            "src/(x|y)/a",
+            "src/(x|y)/b"
+          ]
+        },
+        "stringify": {
+          "value": "src/(x|y)/{a,b}"
+        }
+      }
+    },
+    {
+      "input": "src/@(x|y)/{a,b}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "src/@(x|y)/(a|b)"
+          ]
+        },
+        "compile": {
+          "value": "src/@(x|y)/(a|b)"
+        },
+        "expand": {
+          "value": [
+            "src/@(x|y)/a",
+            "src/@(x|y)/b"
+          ]
+        },
+        "stringify": {
+          "value": "src/@(x|y)/{a,b}"
+        }
+      }
+    },
+    {
+      "input": "${a,{b,c}}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "${a,{b,c}}"
+          ]
+        },
+        "compile": {
+          "value": "${a,{b,c}}"
+        },
+        "expand": {
+          "value": [
+            "${a,{b,c}}"
+          ]
+        },
+        "stringify": {
+          "value": "${a,{b,c}}"
+        }
+      }
+    },
+    {
+      "input": "{a...b}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "{a...b}"
+          ]
+        },
+        "compile": {
+          "value": "{a...b}"
+        },
+        "expand": {
+          "value": [
+            "{a...b}"
+          ]
+        },
+        "stringify": {
+          "value": "{a...b}"
+        }
+      }
+    },
+    {
+      "input": "{foo,bar}/**/*.{ts,tsx}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "(foo|bar)/**/*.(ts|tsx)"
+          ]
+        },
+        "compile": {
+          "value": "(foo|bar)/**/*.(ts|tsx)"
+        },
+        "expand": {
+          "value": [
+            "foo/**/*.ts",
+            "foo/**/*.tsx",
+            "bar/**/*.ts",
+            "bar/**/*.tsx"
+          ]
+        },
+        "stringify": {
+          "value": "{foo,bar}/**/*.{ts,tsx}"
+        }
+      }
+    },
+    {
+      "input": "{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+          ]
+        },
+        "compile": {
+          "value": "{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+        },
+        "expand": {
+          "value": [
+            "{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+          ]
+        },
+        "stringify": {
+          "value": "{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+        }
+      }
+    },
+    {
+      "input": "((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((x))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((x))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+          ]
+        },
+        "compile": {
+          "value": "((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((x))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+        },
+        "expand": {
+          "value": [
+            "((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((x))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+          ]
+        },
+        "stringify": {
+          "value": "((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((x))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+        }
+      }
+    },
+    {
+      "input": "(((((((((((((((((((((((((((((((((((((((((((((((((({{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}))))))))))))))))))))))))))))))))))))))))))))))))))",
+      "options": {},
+      "expected": {
+        "default": {
+          "value": [
+            "(((((((((((((((((((((((((((((((((((((((((((((((((({{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}))))))))))))))))))))))))))))))))))))))))))))))))))"
+          ]
+        },
+        "compile": {
+          "value": "(((((((((((((((((((((((((((((((((((((((((((((((((({{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}))))))))))))))))))))))))))))))))))))))))))))))))))"
+        },
+        "expand": {
+          "value": [
+            "(((((((((((((((((((((((((((((((((((((((((((((((((({{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}))))))))))))))))))))))))))))))))))))))))))))))))))"
+          ]
+        },
+        "stringify": {
+          "value": "(((((((((((((((((((((((((((((((((((((((((((((((((({{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}))))))))))))))))))))))))))))))))))))))))))))))))))"
+        }
+      }
+    }
+  ],
+  "sharedExpected": {
+    "compile": {
+      "value": "(a|b)(a|b)"
+    },
+    "expand": {
+      "value": [
+        "aa",
+        "ab",
+        "ba",
+        "bb"
+      ]
+    },
+    "stringify": {
+      "value": "{a,b}{a,b}"
+    }
+  }
+}

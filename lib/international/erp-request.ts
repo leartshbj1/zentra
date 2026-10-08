@@ -3,11 +3,15 @@ import { validDate } from './accounting/ledger';
 import { ErpError } from './erp-contract';
 import type { SalesLine } from './invoicing';
 import type { ErpCommand,ErpRequest } from './runtime-types';
+import { validateProjectInput } from './projects';
+import { snapshotPrivateJson } from './private-json';
 function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new ErpError('invalid_request');
   const result = value as Record<string, unknown>;
   if (Reflect.ownKeys(result).some(key => typeof key !== 'string' || !keys.includes(key))) throw new ErpError('invalid_request');
-  return result;
+  const copied:Record<string,unknown>={};
+  for(const key of Object.getOwnPropertyNames(result)){const descriptor=Object.getOwnPropertyDescriptor(result,key);if(!descriptor||!descriptor.enumerable||!('value' in descriptor))throw new ErpError('invalid_request');copied[key]=descriptor.value;}
+  return copied;
 }
 function required(value: unknown, maximum = 160): string {
   if (typeof value !== 'string' || !value.trim() || value.length > maximum || Array.from(value).some(char=>char.charCodeAt(0)<32||char.charCodeAt(0)===127)) throw new ErpError('invalid_request');
@@ -26,6 +30,7 @@ const commandFields = {
   issue_invoice: ['type','id','estimateId','expectedEstimateRevision','date','accountingDate','dueDate','periodId'],
   record_payment: ['type','id','invoiceId','amountMinor','paymentDate','accountingDate','periodId','reference'],
   save_vendor: ['type','vendor'],
+  save_projects: ['type','projects'],
   record_vendor_bill: ['type','id','vendorId','reference','date','accountingDate','dueDate','periodId','netMinor','purchaseTaxMinor','expenseAccountId','sourceReference'],
   record_vendor_payment: ['type','id','billId','amountMinor','paymentDate','accountingDate','periodId','reference'],
   close_period: ['type','periodId'],
@@ -49,6 +54,13 @@ export function validateErpRequest(value: unknown, organizationId: string): ErpR
     }
     case 'save_customer': command = { type, customer: validateErpContact(raw.customer, organizationId) }; break;
     case 'save_vendor': command = { type, vendor: validateErpContact(raw.vendor, organizationId) }; break;
+    case 'save_projects': {
+      let copied:unknown;try{copied=snapshotPrivateJson(raw.projects);}catch{throw new ErpError('invalid_request');}
+      if (!Array.isArray(copied) || copied.length < 1 || copied.length > 1000) throw new ErpError('invalid_request');
+      const projects=copied.map(validateProjectInput);
+      if(new Set(projects.map(project=>project.id)).size!==projects.length)throw new ErpError('invalid_request');
+      command={type,projects};break;
+    }
     case 'record_vendor_bill': {
       if (typeof raw.netMinor !== 'string' || !/^(0|[1-9][0-9]{0,35})$/.test(raw.netMinor) || typeof raw.purchaseTaxMinor !== 'string' || !/^(0|[1-9][0-9]{0,35})$/.test(raw.purchaseTaxMinor)) throw new ErpError('invalid_amount');
       if (raw.expenseAccountId !== 'purchases') throw new ErpError('invalid_request');

@@ -6,9 +6,9 @@ import { formatAddress } from './addresses';
 import type { PDFFont, PDFPage } from 'pdf-lib';
 
 const title = (snapshot: ExportSnapshot) => exportCopy[snapshot.language][snapshot.selector.kind === 'document' ? snapshot.selector.documentType : snapshot.selector.reportType];
-const notice = (snapshot: ExportSnapshot) => snapshot.selector.kind === 'report' ? exportCopy[snapshot.language].reportNotice : snapshot.selector.documentType === 'vendor_bill' ? exportCopy[snapshot.language].internalBillNotice : snapshot.selector.documentType === 'estimate' ? exportCopy[snapshot.language].taxPending : '';
+const notice = (snapshot: ExportSnapshot) => snapshot.selector.kind === 'report' ? exportCopy[snapshot.language].reportNotice : snapshot.selector.documentType === 'project' ? exportCopy[snapshot.language].projectNotice : snapshot.selector.documentType === 'vendor_bill' ? exportCopy[snapshot.language].internalBillNotice : snapshot.selector.documentType === 'estimate' ? exportCopy[snapshot.language].taxPending : '';
 const amount = (snapshot: ExportSnapshot, value: string) => formatMoney(money('USD', value), `${snapshot.language}-US`);
-const companyLabel = (snapshot: ExportSnapshot): string => exportCopy[snapshot.language][snapshot.selector.kind === 'report' || snapshot.selector.documentType === 'vendor_bill' ? 'company' : 'seller'];
+const companyLabel = (snapshot: ExportSnapshot): string => exportCopy[snapshot.language][snapshot.selector.kind === 'report' || snapshot.selector.documentType === 'vendor_bill' || snapshot.selector.documentType === 'project' ? 'company' : 'seller'];
 const address = (party: PrintedParty): string[] => [party.name, ...formatAddress(party.address), ...(party.contactEmail ? [party.contactEmail] : []), ...(party.contactPhone ? [party.contactPhone] : [])];
 const cell = (snapshot: ExportSnapshot, value: string, index: number): string => {
   const column = snapshot.columns[index], c = exportCopy[snapshot.language];
@@ -91,8 +91,25 @@ export async function renderUsExportPdf(input: unknown, fontInput: UsExportFonts
   }
   draw(title(s), { size: 20, strong: true }); if (s.number) draw(s.number, { size: 12, strong: true }); y -= 10;
   if (notice(s)) { draw(notice(s), { size: 9, color: muted }); y -= 12; }
-  draw(companyLabel(s), { size: 9, strong: true }); for (const value of address(s.seller)) draw(value, { size: 10 }); y -= 12;
-  if (s.recipient) { draw(s.selector.kind === 'document' && s.selector.documentType === 'vendor_bill' ? c.vendor : c.customer, { size: 9, strong: true }); for (const value of address(s.recipient)) draw(value, { size: 10 }); y -= 12; }
+  if (s.selector.kind === 'document' && s.selector.documentType === 'project' && s.recipient) {
+    const partyWidth = (contentWidth - 24) / 2, start = y;
+    const parties = [[companyLabel(s), s.seller], [c.customer, s.recipient]] as const;
+    const blocks = parties.map(([label, party]) => [label, ...address(party)].map((text, index) => ({ strong: index === 0, size: index === 0 ? 9 : 10, lines: wrap(text, index === 0 ? bold : regular, index === 0 ? 9 : 10, partyWidth) })));
+    const height = Math.max(...blocks.map(block => block.reduce((height, line) => height + line.lines.length * line.size * 1.45, 0)));
+    if (height > pageHeight - margin - bottom) {
+      // Fully valid long parties can exceed one page in narrow columns. The
+      // ordinary full-width draw path fragments safely without dropping text.
+      for (const [label, party] of parties) { draw(label, { size:9, strong:true }); for (const value of address(party)) draw(value,{size:10}); y -= 12; }
+    } else {
+      if (start - height < bottom) newPage();
+      const top = y;
+      blocks.forEach((block, index) => { let baseline = top; for (const line of block) for (const value of line.lines) { page.drawText(value, { x: margin + index * (partyWidth + 24), y: baseline - line.size, size: line.size, font: line.strong ? bold : regular, color: ink }); baseline -= line.size * 1.45; } });
+      y = top - height - 12;
+    }
+  } else {
+    draw(companyLabel(s), { size: 9, strong: true }); for (const value of address(s.seller)) draw(value, { size: 10 }); y -= 12;
+    if (s.recipient) { draw(s.selector.kind === 'document' && s.selector.documentType === 'vendor_bill' ? c.vendor : c.customer, { size: 9, strong: true }); for (const value of address(s.recipient)) draw(value, { size: 10 }); y -= 12; }
+  }
   for (const fact of s.facts) draw(`${c[fact.label]}: ${fact.value}`, { size: 9 }); y -= 18;
   const textColumns = s.columns.filter(col => col.kind === 'text').length;
   const weights = s.columns.map((col, index) => s.columns.length <= 4 && index === 0 ? 3 : col.kind === 'text' && textColumns < 3 ? 1.6 : 1);
@@ -116,7 +133,7 @@ export async function renderUsExportPdf(input: unknown, fontInput: UsExportFonts
     }
   }
   y -= 18; for (const total of s.totals) draw(`${c[total.label]}: ${amount(s, total.minorUnits)}`, { size: 10, strong: true });
-  if (s.notes) { y -= 18; draw(c.notes, { size: 10, strong: true }); draw(s.notes, { size: 10 }); }
+  if (s.notes) { const firstLines = Math.min(wrap(s.notes, regular, 10, contentWidth).length, 3); if (y - 18 - (1 + firstLines) * 14.5 < bottom) newPage(); y -= 18; draw(c.notes, { size: 10, strong: true }); draw(s.notes, { size: 10 }); }
   pdf.getPages().forEach((sheet, index) => {
     sheet.drawLine({ start: { x: margin, y: 49 }, end: { x: pageWidth - margin, y: 49 }, thickness: .5, color: lineColor });
     const footer = `${trace(s)} | ${c.page} ${index + 1} ${c.of} ${pdf.getPageCount()}`;

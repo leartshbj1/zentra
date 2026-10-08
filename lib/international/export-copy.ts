@@ -1,6 +1,7 @@
 import type { CompanyLanguage } from './types';
 
 const en = {
+  project: 'Project dossier', projectName: 'Project', projectStatus: 'Status', active: 'Active', archived: 'Archived', startDate: 'Planned start', targetDate: 'Target date', budgetNet: 'Net budget', notSet: 'Not set', projectNotice: 'Recorded documents and balances for this project. Estimates are separate from invoiced amounts. Vendor records do not replace original supplier documents.', estimatesNet: 'Estimates, net', invoicedNet: 'Invoiced, net', invoicedTax: 'Tax on issued invoices', invoicedTotal: 'Invoiced, total', received: 'Payments received', outstanding: 'Customer balance', purchasesNet: 'Purchases, net', purchasesTax: 'Tax on recorded purchases', purchasesTotal: 'Purchases, total', purchasesBalance: 'Supplier balance',
   estimate: 'Estimate',
   invoice: 'Invoice',
   vendor_bill: 'Vendor bill',
@@ -77,6 +78,7 @@ export type ExportLabelKey = keyof typeof en;
 export const exportCopy: Readonly<Record<CompanyLanguage, Record<ExportLabelKey, string>>> = {
   en,
   fr: {
+    project: 'Dossier du projet', projectName: 'Projet', projectStatus: 'Statut', active: 'Actif', archived: 'Archivé', startDate: 'Début prévu', targetDate: 'Date cible', budgetNet: 'Budget hors taxes', notSet: 'Non renseigné', projectNotice: 'Documents et soldes enregistrés pour ce projet. Les devis restent distincts des montants facturés. Les fiches fournisseurs ne remplacent pas les documents originaux.', estimatesNet: 'Devis, hors taxes', invoicedNet: 'Facturé, hors taxes', invoicedTax: 'Taxes des factures émises', invoicedTotal: 'Facturé, total', received: 'Encaissements enregistrés', outstanding: 'Solde client', purchasesNet: 'Achats, hors taxes', purchasesTax: 'Taxes des achats enregistrés', purchasesTotal: 'Achats, total', purchasesBalance: 'Solde fournisseur',
     estimate: 'Devis',
     invoice: 'Facture',
     vendor_bill: 'Facture fournisseur',
@@ -148,6 +150,7 @@ export const exportCopy: Readonly<Record<CompanyLanguage, Record<ExportLabelKey,
     balanced: 'Équilibré',
   },
   de: {
+    project: 'Projektdossier', projectName: 'Projekt', projectStatus: 'Status', active: 'Aktiv', archived: 'Archiviert', startDate: 'Geplanter Beginn', targetDate: 'Zieldatum', budgetNet: 'Nettobudget', notSet: 'Nicht angegeben', projectNotice: 'Erfasste Dokumente und Salden für dieses Projekt. Angebote bleiben von Rechnungsbeträgen getrennt. Lieferantenbuchungen ersetzen keine Originalbelege.', estimatesNet: 'Angebote, netto', invoicedNet: 'Fakturiert, netto', invoicedTax: 'Steuern auf ausgestellte Rechnungen', invoicedTotal: 'Fakturiert, gesamt', received: 'Erfasste Zahlungseingänge', outstanding: 'Kundensaldo', purchasesNet: 'Einkäufe, netto', purchasesTax: 'Steuern auf erfasste Einkäufe', purchasesTotal: 'Einkäufe, gesamt', purchasesBalance: 'Lieferantensaldo',
     estimate: 'Offerte',
     invoice: 'Rechnung',
     vendor_bill: 'Lieferantenrechnung',
@@ -219,6 +222,7 @@ export const exportCopy: Readonly<Record<CompanyLanguage, Record<ExportLabelKey,
     balanced: 'Ausgeglichen',
   },
   it: {
+    project: 'Dossier del progetto', projectName: 'Progetto', projectStatus: 'Stato', active: 'Attivo', archived: 'Archiviato', startDate: 'Inizio previsto', targetDate: 'Data prevista', budgetNet: 'Budget netto', notSet: 'Non indicato', projectNotice: 'Documenti e saldi registrati per questo progetto. I preventivi restano distinti dagli importi fatturati. Le registrazioni dei fornitori non sostituiscono i documenti originali.', estimatesNet: 'Preventivi, netto', invoicedNet: 'Fatturato, netto', invoicedTax: 'Imposte sulle fatture emesse', invoicedTotal: 'Fatturato, totale', received: 'Incassi registrati', outstanding: 'Saldo cliente', purchasesNet: 'Acquisti, netto', purchasesTax: 'Imposte sugli acquisti registrati', purchasesTotal: 'Acquisti, totale', purchasesBalance: 'Saldo fornitore',
     estimate: 'Preventivo',
     invoice: 'Fattura',
     vendor_bill: 'Fattura fornitore',

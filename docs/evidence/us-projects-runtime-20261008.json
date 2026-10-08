@@ -1,0 +1,1130 @@
+{
+  "recordedAt": "2026-10-08T11:36:06.211Z",
+  "baseCommit": "42d516ad70d8547a8914f19daa5597b5ce2d00b9",
+  "branch": "codex/international-runtime",
+  "scope": "Local isolated CH/US development; no production migration, deployment or native release",
+  "commercialWebsite": {
+    "directDemo": true,
+    "status": 200,
+    "outcomeHero": true,
+    "receivedAt": "2026-10-08T11:29:13.2721211Z",
+    "publication": "The commercial Sites354 change was published separately; this ERP branch was not deployed over it."
+  },
+  "createdFiles": [
+    "components/account/us-erp-projects.css",
+    "components/account/us-erp-projects.tsx",
+    "docs/evidence/us-projects-runtime-20261008.json",
+    "docs/internationalization/BRACES-DEPTH-HARDENING-20261008.md",
+    "docs/internationalization/NATIVE-US-ADMISSION-PLAN-20261008.md",
+    "docs/internationalization/NATIVE-US-ALIGNMENT-AUDIT-20261008.md",
+    "docs/internationalization/US-PROJECTS-RUNTIME-20261008.md",
+    "docs/internationalization/US-PROJECTS-RUNTIME-PLAN-20261008.md",
+    "lib/international/browser-projects-copy.ts",
+    "lib/international/browser-projects-session.test.ts",
+    "lib/international/browser-projects.browser.test.ts",
+    "lib/international/browser-projects.test.ts",
+    "lib/international/browser-projects.ts",
+    "lib/international/projects-bindings.test.ts",
+    "lib/international/projects-export-server.test.ts",
+    "lib/international/projects-exports.test.ts",
+    "lib/international/projects-transport.test.ts",
+    "lib/international/projects.postgres.test.ts",
+    "lib/international/projects.test.ts",
+    "lib/international/projects.ts",
+    "patches/braces@3.0.3.patch",
+    "scripts/braces-depth.test.mjs",
+    "scripts/fixtures/braces-3.0.3-compatibility.json",
+    "supabase/migrations/20261008105120_international_us_projects_v3.sql"
+  ],
+  "modifiedFiles": [
+    "components/account/us-erp-reports.tsx",
+    "components/account/us-erp-workbench.tsx",
+    "lib/international/browser-erp-session.ts",
+    "lib/international/browser-export-session.ts",
+    "lib/international/erp-request.ts",
+    "lib/international/erp-schema-capability.ts",
+    "lib/international/export-bindings.ts",
+    "lib/international/export-copy.ts",
+    "lib/international/export-renderer.ts",
+    "lib/international/export-server.test.ts",
+    "lib/international/export-server.ts",
+    "lib/international/export-snapshot.ts",
+    "lib/international/export-test-fixture.ts",
+    "lib/international/exports.postgres.test.ts",
+    "lib/international/purchasing-transport.test.ts",
+    "lib/international/runtime-bindings.ts",
+    "lib/international/runtime-server.ts",
+    "lib/international/runtime-store.ts",
+    "lib/international/runtime-sync-server.ts",
+    "lib/international/runtime-sync-store.ts",
+    "lib/international/runtime-sync.ts",
+    "lib/international/runtime-types.ts",
+    "lib/international/runtime-validation.ts",
+    "lib/international/runtime.ts",
+    "lib/international/workspace-creation.integration.test.ts",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml"
+  ],
+  "validation": {
+    "tests": {
+      "passed": 3570,
+      "failed": 0,
+      "skipped": 0,
+      "files": 94,
+      "selectedFiles": 94,
+      "actualTestFiles": [
+        {
+          "file": "lib/account-security.test.ts",
+          "tests": 5
+        },
+        {
+          "file": "lib/account-workspace-pages.test.ts",
+          "tests": 38
+        },
+        {
+          "file": "lib/business-sync-cash-vat.test.ts",
+          "tests": 9
+        },
+        {
+          "file": "lib/document-number-reservations.test.ts",
+          "tests": 15
+        },
+        {
+          "file": "lib/license-token.test.ts",
+          "tests": 20
+        },
+        {
+          "file": "lib/stripe-contract.test.ts",
+          "tests": 6
+        },
+        {
+          "file": "lib/stripe-event.test.ts",
+          "tests": 34
+        },
+        {
+          "file": "lib/stripe-plans.test.ts",
+          "tests": 10
+        },
+        {
+          "file": "lib/stripe-webhook-proof.test.ts",
+          "tests": 2
+        },
+        {
+          "file": "lib/stripe-webhook.test.ts",
+          "tests": 5
+        },
+        {
+          "file": "lib/international/browser-actor-binding.test.ts",
+          "tests": 10
+        },
+        {
+          "file": "lib/international/browser-erp-session.test.ts",
+          "tests": 57
+        },
+        {
+          "file": "lib/international/browser-export-session.test.ts",
+          "tests": 31
+        },
+        {
+          "file": "lib/international/browser-projects-session.test.ts",
+          "tests": 6
+        },
+        {
+          "file": "lib/international/browser-projects.browser.test.ts",
+          "tests": 1
+        },
+        {
+          "file": "lib/international/browser-projects.test.ts",
+          "tests": 35
+        },
+        {
+          "file": "lib/international/browser-purchasing.browser.test.ts",
+          "tests": 1
+        },
+        {
+          "file": "lib/international/browser-purchasing.test.ts",
+          "tests": 54
+        },
+        {
+          "file": "lib/international/browser-sales.browser.test.ts",
+          "tests": 1
+        },
+        {
+          "file": "lib/international/browser-sales.test.ts",
+          "tests": 39
+        },
+        {
+          "file": "lib/international/browser-seller-panel.test.ts",
+          "tests": 43
+        },
+        {
+          "file": "lib/international/browser-seller-session.test.ts",
+          "tests": 63
+        },
+        {
+          "file": "lib/international/browser-tax-profile-panel.test.ts",
+          "tests": 10
+        },
+        {
+          "file": "lib/international/browser-tax-profile-postgres.browser.test.ts",
+          "tests": 1
+        },
+        {
+          "file": "lib/international/browser-tax-profile-session.test.ts",
+          "tests": 83
+        },
+        {
+          "file": "lib/international/browser-tax-profile.browser.test.ts",
+          "tests": 1
+        },
+        {
+          "file": "lib/international/browser-workbench.browser.test.ts",
+          "tests": 1
+        },
+        {
+          "file": "lib/international/browser-workbench.test.ts",
+          "tests": 42
+        },
+        {
+          "file": "lib/international/core.test.ts",
+          "tests": 82
+        },
+        {
+          "file": "lib/international/documents.test.ts",
+          "tests": 36
+        },
+        {
+          "file": "lib/international/export-fonts.test.ts",
+          "tests": 2
+        },
+        {
+          "file": "lib/international/export-server.test.ts",
+          "tests": 72
+        },
+        {
+          "file": "lib/international/export-snapshot.test.ts",
+          "tests": 41
+        },
+        {
+          "file": "lib/international/exports.postgres.test.ts",
+          "tests": 19
+        },
+        {
+          "file": "lib/international/finance.test.ts",
+          "tests": 78
+        },
+        {
+          "file": "lib/international/integration.test.ts",
+          "tests": 68
+        },
+        {
+          "file": "lib/international/legacy-country-error.test.ts",
+          "tests": 6
+        },
+        {
+          "file": "lib/international/legacy-country-guard.migrations.test.ts",
+          "tests": 12
+        },
+        {
+          "file": "lib/international/legacy-country-guard.test.ts",
+          "tests": 5
+        },
+        {
+          "file": "lib/international/legacy-transport-routes.test.ts",
+          "tests": 170
+        },
+        {
+          "file": "lib/international/new-us-workspace-admission.postgres.test.ts",
+          "tests": 18
+        },
+        {
+          "file": "lib/international/phone.test.ts",
+          "tests": 14
+        },
+        {
+          "file": "lib/international/private-json.test.ts",
+          "tests": 19
+        },
+        {
+          "file": "lib/international/projects-bindings.test.ts",
+          "tests": 8
+        },
+        {
+          "file": "lib/international/projects-export-server.test.ts",
+          "tests": 14
+        },
+        {
+          "file": "lib/international/projects-exports.test.ts",
+          "tests": 21
+        },
+        {
+          "file": "lib/international/projects-transport.test.ts",
+          "tests": 18
+        },
+        {
+          "file": "lib/international/projects.postgres.test.ts",
+          "tests": 39
+        },
+        {
+          "file": "lib/international/projects.test.ts",
+          "tests": 78
+        },
+        {
+          "file": "lib/international/public-projection.test.ts",
+          "tests": 6
+        },
+        {
+          "file": "lib/international/purchasing-bindings.test.ts",
+          "tests": 8
+        },
+        {
+          "file": "lib/international/purchasing-composition.test.ts",
+          "tests": 15
+        },
+        {
+          "file": "lib/international/purchasing-runtime.test.ts",
+          "tests": 63
+        },
+        {
+          "file": "lib/international/purchasing-transport.test.ts",
+          "tests": 27
+        },
+        {
+          "file": "lib/international/purchasing.postgres.test.ts",
+          "tests": 57
+        },
+        {
+          "file": "lib/international/purchasing.test.ts",
+          "tests": 133
+        },
+        {
+          "file": "lib/international/runtime-bindings.test.ts",
+          "tests": 18
+        },
+        {
+          "file": "lib/international/runtime-postgres.test.ts",
+          "tests": 19
+        },
+        {
+          "file": "lib/international/runtime-response-guards.test.ts",
+          "tests": 23
+        },
+        {
+          "file": "lib/international/runtime-server-us-tax.test.ts",
+          "tests": 44
+        },
+        {
+          "file": "lib/international/runtime-server.test.ts",
+          "tests": 20
+        },
+        {
+          "file": "lib/international/runtime-store.test.ts",
+          "tests": 83
+        },
+        {
+          "file": "lib/international/runtime-sync.test.ts",
+          "tests": 29
+        },
+        {
+          "file": "lib/international/runtime-tax-proof-postgres.test.ts",
+          "tests": 9
+        },
+        {
+          "file": "lib/international/runtime.test.ts",
+          "tests": 36
+        },
+        {
+          "file": "lib/international/saas-authorities.migrations.test.ts",
+          "tests": 101
+        },
+        {
+          "file": "lib/international/saas-authority.test.ts",
+          "tests": 37
+        },
+        {
+          "file": "lib/international/saas-authority.workerd.test.ts",
+          "tests": 4
+        },
+        {
+          "file": "lib/international/seller-profile-server.test.ts",
+          "tests": 52
+        },
+        {
+          "file": "lib/international/seller-profile.postgres.test.ts",
+          "tests": 34
+        },
+        {
+          "file": "lib/international/seller-profile.test.ts",
+          "tests": 66
+        },
+        {
+          "file": "lib/international/stripe-tax-calculation.test.ts",
+          "tests": 74
+        },
+        {
+          "file": "lib/international/stripe-tax-resolved-request.test.ts",
+          "tests": 56
+        },
+        {
+          "file": "lib/international/stripe-tax-sdk-body.test.ts",
+          "tests": 24
+        },
+        {
+          "file": "lib/international/tax-request-history.test.ts",
+          "tests": 31
+        },
+        {
+          "file": "lib/international/tax-request-identity.test.ts",
+          "tests": 12
+        },
+        {
+          "file": "lib/international/us-tax-financial-context.test.ts",
+          "tests": 98
+        },
+        {
+          "file": "lib/international/us-tax-invoice.postgres.test.ts",
+          "tests": 20
+        },
+        {
+          "file": "lib/international/us-tax-invoice.test.ts",
+          "tests": 111
+        },
+        {
+          "file": "lib/international/us-tax-operation-store.test.ts",
+          "tests": 141
+        },
+        {
+          "file": "lib/international/us-tax-operations.postgres.test.ts",
+          "tests": 89
+        },
+        {
+          "file": "lib/international/us-tax-profile-server.test.ts",
+          "tests": 61
+        },
+        {
+          "file": "lib/international/us-tax-profile.postgres.test.ts",
+          "tests": 100
+        },
+        {
+          "file": "lib/international/us-tax-profile.test.ts",
+          "tests": 173
+        },
+        {
+          "file": "lib/international/workspace-creation-d1.test.ts",
+          "tests": 26
+        },
+        {
+          "file": "lib/international/workspace-creation-review.test.ts",
+          "tests": 33
+        },
+        {
+          "file": "lib/international/workspace-creation.integration.test.ts",
+          "tests": 6
+        },
+        {
+          "file": "lib/international/workspace-creation.test.ts",
+          "tests": 48
+        },
+        {
+          "file": "lib/international/workspace-server.bindings.test.ts",
+          "tests": 22
+        },
+        {
+          "file": "lib/international/workspace-server.native.test.ts",
+          "tests": 43
+        },
+        {
+          "file": "lib/international/workspace-server.test.ts",
+          "tests": 18
+        },
+        {
+          "file": "lib/international/workspace-service.postgres.test.ts",
+          "tests": 10
+        },
+        {
+          "file": "lib/international/workspace-service.test.ts",
+          "tests": 36
+        },
+        {
+          "file": "lib/international/accounting/reconciliation.test.ts",
+          "tests": 11
+        }
+      ],
+      "log": ".qa/us-projects/tests.log",
+      "firstFailure": "An exact migration-list fixture lacked the new migration. Only that expected list was updated; its six real integration tests then ran successfully. The final complete run followed the correction."
+    },
+    "types": {
+      "exitCode": 0
+    },
+    "lint": {
+      "exitCode": 0,
+      "typescriptFiles": 38
+    },
+    "build": {
+      "exitCode": 0
+    },
+    "sourceUnchanged": true,
+    "sourceFiles": 45,
+    "sourceSha256": {
+      "components/account/us-erp-projects.css": "90af843feb9e4a1cb4f391ea6df3ff37d93ed15e39c400d3b746468045ccf161",
+      "components/account/us-erp-projects.tsx": "110b69803963f589574ac153be0c43f8c7ffc0fddb9d817b5e25dad268bbe985",
+      "components/account/us-erp-reports.tsx": "562dcefcab263fd547134e2c6d701f2a3ef1a0ea98cb21039876bc73a6ae7b34",
+      "components/account/us-erp-workbench.tsx": "9dee6c80c598762fa4e6f5333109a152afa7e603f7dd676b07cb466f8e95c1d1",
+      "lib/international/browser-erp-session.ts": "38bf76eea538490a934d5ce28fbf9a3c7254ed05ec34b92ee6a52e3da6f278a2",
+      "lib/international/browser-export-session.ts": "e13bc59d4c6cc38aafde6c8e11983f60780516d3d4b01b557fdaabb81910894f",
+      "lib/international/browser-projects-copy.ts": "2cbdcc2fea94257fd45d02333547d16ee652067cb1b65ab83ca7607f87f1e9a2",
+      "lib/international/browser-projects-session.test.ts": "5f53887cc18ce569f49ac60d4fd322ec9c45b89d668a35aab000ec73ec57c18e",
+      "lib/international/browser-projects.browser.test.ts": "e24b3cae6432c81a34506ac4709239b7c22fdbd363cb1877332003a185e30804",
+      "lib/international/browser-projects.test.ts": "1ec8f633955971d812a2cccc0e12e2160f129d238897b1c465dc3ccca3ecc300",
+      "lib/international/browser-projects.ts": "369af016dfa3f3ce1007306ddbc7d782bed0baa0b29b0df01518ca04a33ef62f",
+      "lib/international/erp-request.ts": "ebfa9ab102dd56235c8cae3766fe3a1c657f6926819b496da58a8357acdadd18",
+      "lib/international/erp-schema-capability.ts": "e6a2ea58a1dbf3981d56364c23f8c7d116f75da612f4ee32696fdf430107cef6",
+      "lib/international/export-bindings.ts": "cd4e8cb9ca1867957c820adfef4c82ce2d261e086a86bf5d6b5190c9726c5e61",
+      "lib/international/export-copy.ts": "5b85a07d42cce441ebbe7b10e92411c184e7304d27d4c2c04ce515a6d3b7ed3d",
+      "lib/international/export-renderer.ts": "0ba521e4697cc6ef72406d42faaf79481f87172ba291c0c88498cbeb6ec6e523",
+      "lib/international/export-server.test.ts": "eae9620fdcef2bcf44ebe2a765956407ad68fec48d1ac28466b7c60a3c7ef62e",
+      "lib/international/export-server.ts": "f3ae0b8ba88f001104aa9bc7f3995ffcab831037f4954e5fa4d3cc87171bbc76",
+      "lib/international/export-snapshot.ts": "3cfc5e3719cdcb08f7217c8b1ab98344e6bdad50a6d6692c57e5587d1a2c6b43",
+      "lib/international/export-test-fixture.ts": "6f81e28ccd83955a8088d3e9c4a1d8914424db69588d046120eeddb8ce96f44d",
+      "lib/international/exports.postgres.test.ts": "be1f5222f5fcf5dd56c2d9d8cc5fa684545464d19b5eb343d627a8ec410edc9a",
+      "lib/international/projects-bindings.test.ts": "ee755fc8ea540945311428e0da62d04947c73d3b05d9b0193e66b5eb648e9796",
+      "lib/international/projects-export-server.test.ts": "64beb8ebfc0b1ecb8fcd64504aa2387edf2d0ee6129284df07f390378ec7b191",
+      "lib/international/projects-exports.test.ts": "9d744881055f7529ea5f312e8759327fbbb7bf25f33e665939a60b76047eb68d",
+      "lib/international/projects-transport.test.ts": "a05273502878ebbca99689764a94cef0e35dded416a4565fbc073e8be1036dc0",
+      "lib/international/projects.postgres.test.ts": "4dcf0fb15c76414b677c97b1ec46cf011cca2aba594314717f8f5f0c7d7aef6d",
+      "lib/international/projects.test.ts": "298fcfeca3e93a2d9f5f95b329cb21a62b22c96cf9e2dfe79af519ff3b86c11d",
+      "lib/international/projects.ts": "141c730039d69bd9b94de267fb47ced9a4a29e925c12f7bf86df0caf43bb89a6",
+      "lib/international/purchasing-transport.test.ts": "b6a2e524fb1e8aa616468a21ddfa771cc0340a86eb4e7cb303a488fe90517fa0",
+      "lib/international/runtime-bindings.ts": "b25048f78051e4298ea9246f3d954dc34ab3dddf2633d0dd51222cf16d2a8d41",
+      "lib/international/runtime-server.ts": "c8ecfed33c1751a796954416ab11c0f96f6aaecd1cb40f6f69108dfbfbc47c6e",
+      "lib/international/runtime-store.ts": "2cbf40bc5638078adc15fa09b502cffdd39b94378163990b57359cf6be38b82b",
+      "lib/international/runtime-sync-server.ts": "5be75a38650498457bc2f2642a312a91d1283e6a415c43f411acbeb2cf932b9d",
+      "lib/international/runtime-sync-store.ts": "dbe6205c1eb3954a519d3302491ca7f21e3eb5c3e9e7780679dd44da2682b4c0",
+      "lib/international/runtime-sync.ts": "75b400e1243e01b6f7e6d7b2eac971f91b77a49942dfc995f963dec6fbdf59e3",
+      "lib/international/runtime-types.ts": "655dfefe8dd212a9cd617127257b0782eeb7ab0bfa20b6bf306224750b3a6626",
+      "lib/international/runtime-validation.ts": "5f5559388498b0fb64e4701f11cebc638487290dea658fd590692be85cd34e75",
+      "lib/international/runtime.ts": "e84edb5ec733058288971f044e1c2a444baed4545850f65fcf2300b38c239310",
+      "lib/international/workspace-creation.integration.test.ts": "24fc31c3e559b55781291f28994c96adb05265cef4535658f4ead8a7ad731759",
+      "patches/braces@3.0.3.patch": "de37d6ae08a44ce551902fa739b1002cb6f2d9e7613b460c70f27c3ba00184b6",
+      "pnpm-lock.yaml": "b0692129a395ac950d9a8fd31291352dc094c1c5a987bf85acbf85cf88fee315",
+      "pnpm-workspace.yaml": "e881fe991a263fd89abbb0668039dad499fbffdcbeb8a26b5a147ba4c54cb00e",
+      "scripts/braces-depth.test.mjs": "69aac0749084cc009f02cba75c7269cc8b00dc369cfa2e11a72aadacddf6e7a1",
+      "scripts/fixtures/braces-3.0.3-compatibility.json": "8c433d35fc7c4432315e951e24fa8b80bf745690e663274fa3d59ede19c37705",
+      "supabase/migrations/20261008105120_international_us_projects_v3.sql": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d"
+    },
+    "diffCheck": {
+      "stagedSourcesSqlDocumentsExitCode": 0,
+      "unifiedPatchContextWhitespace": {
+        "path": "patches/braces@3.0.3.patch",
+        "count": 20,
+        "onlyRequiredBlankContext": true,
+        "globalCheckFlagsTheseFormatLines": true
+      },
+      "newSecurityExclusions": []
+    }
+  },
+  "migrations": {
+    "historicalSql": {
+      "base": "42d516ad70d8547a8914f19daa5597b5ce2d00b9",
+      "unchanged": true,
+      "historicalFiles": 134,
+      "differences": [],
+      "sha256": {
+        "desktop/src-tauri/src/bank_customer_credit_refund_schema.sql": "5cb28b61b1c944fad74ad674405fd74c4e717f08b72943be415b2b1ba0c81c20",
+        "desktop/src-tauri/src/bank_expense_correction_schema.sql": "de103e1a63e90cdf1ffafe02941f3a1da8ecc96e964fd1578fa2d254ba94c086",
+        "desktop/src-tauri/src/bank_expense_refund_schema.sql": "6a5a0bfe02b940466dfb01c5a265752bf2af539d2fe349fdec82061efa7a089b",
+        "desktop/src-tauri/src/bank_supplier_credit_refund_schema.sql": "5d214679eb43928082c9e47fa815ab53779e01e04f95a6df52ee50f462adc8d6",
+        "desktop/src-tauri/src/business_sync_baseline.sql": "e13ca4eeafb2e6f4e98fe7e1f107f2f7b9e8160dce6e26c62b395c36a4747f39",
+        "desktop/src-tauri/src/business_sync_installed.sql": "3a799d47b64a290c9a7195437c04be610c088470f063a7d564427e97b9313ebd",
+        "desktop/src-tauri/src/business_sync_resolution.sql": "f1a7caadfe6ef6e7cc80953ab9092161d1395c9bffc1bbe15333cb5d784fe95c",
+        "desktop/src-tauri/src/business_sync_schema.sql": "064a9563070a6e90c8e54a70da0053bb48e5d7da302a78a6d6bf32b75f89609f",
+        "desktop/src-tauri/src/customer_credit_attachment_schema.sql": "df4eded4690f45d16713f4a0a9553d2ca2182aa57dda00f947766ddd172e81ac",
+        "desktop/src-tauri/src/customer_credit_recovery_schema.sql": "e8c6348a575b38ff7b4276625a38d6a4ff3520a545e67007e6e0f6511e66d2b8",
+        "desktop/src-tauri/src/customer_credit_recovery_vat_schema.sql": "aba9fb1c09fd77c8b81d31f055f76447ecb375be34418d8020cf13cb45995aa9",
+        "desktop/src-tauri/src/customer_credit_settlement_schema.sql": "b0cd2a8655eaeaae790c6ae4f9524852667a64ad7289ed725d030bc1673c95c0",
+        "desktop/src-tauri/src/expense_refund_attachment_schema.sql": "9753b9a956b2c9ccf70da788324a2c026b19785d3eee9f26853a27aa06e0b1d9",
+        "desktop/src-tauri/src/expense_refund_schema.sql": "8503f53f79f5e681097204f2c7afca68e76d40478f8f32a7ded4906eef951567",
+        "desktop/src-tauri/src/project_sync/business_documents.sql": "62e0da531270e8fff0e4868ecefa88db134ec52e6aa6146c38497157d5839774",
+        "desktop/src-tauri/src/project_sync_schema.sql": "e7e50d87b44af301e92cf5243c624f4a61996aaa75ba2ece5d92658f79ea5f28",
+        "desktop/src-tauri/src/quote_invoice_pair_schema.sql": "0d359e4c35d61c4b01f963e1c2f003a93cfcb300f7e4a4bf19bb2892cb250289",
+        "desktop/src-tauri/src/shared_numbering_schema.sql": "7a4232aaa2960f6b53093ef2c7d0264fdb8f0d477df8918c03c5513dd36f6f62",
+        "desktop/src-tauri/src/supplier_credit_refund_schema.sql": "feedae97cdc84a1701c08aa63e857a8edf0a996e5474488160a10f98e868b1f2",
+        "docs/SUPPLIER-MAIL-SCHEDULER.sql": "4ead4642725ca4655094782c61a570469a1e27bf8b3ecc5424b739e12e58b7e6",
+        "drizzle/0000_sweet_owl.sql": "5b68f23832a3d4692499d6697c88fa68d836787994c3a3fb8d6e2968243f450a",
+        "drizzle/0001_brief_mephisto.sql": "033719ca271d52519ed5db87debce30e8a34fd259b8c0d0bd4b0a8d8695a9c0a",
+        "drizzle/0002_wonderful_sheva_callister.sql": "fe71985eb0d39bb53b895a092757f46d1ca2ef5d6f53b7507091daf448d87158",
+        "drizzle/0003_thin_the_santerians.sql": "4e9e2e82772d66cd69218c633fb71353e1c395fa3697d8d0d082bc40e20e5e69",
+        "drizzle/0004_zippy_harry_osborn.sql": "d7520fc766c7c3c566b2e090a6ebf2c10384ed77857cdf5ae862decebdb7a980",
+        "drizzle/0005_dashing_union_jack.sql": "f5756ef7165426b6ceabaa8d12985d8a67f89da0977983a7eba616409d47c4c5",
+        "drizzle/0006_account_guards.sql": "8f841976a0401796444b0ff1715495dd70d1563e7897626aa8269ba22b27f853",
+        "drizzle/0007_device_activation_revocation.sql": "5596fbaffceeac2d89b8c0864411fef637128a830dff04be4a37467e2e963112",
+        "drizzle/0008_unlimited_collaborators.sql": "66df1e84c075734aa12d697d4dd38aa2704bc904dd0535d315c5ddb7205c1a59",
+        "drizzle/0009_nosy_madame_web.sql": "a319cbf174bdbf31cbf179599dcf276e56fe1cdb2a10b7e05fe97a70fe014b08",
+        "drizzle/0010_even_fenris.sql": "8a4e02512f6c7788a9e2818e0ff43ae58eca3cbdd7d7bccc21beda44656a1c93",
+        "drizzle/0011_burly_thing.sql": "f09135c07e2762fbf0cb94e6f5adc2cfe62d8accbde1b872c1cd2cee6f43fe2b",
+        "drizzle/0012_odd_mongu.sql": "64fc1ef2646339c5c7a3484e126abc2e1a2e440a94e0e234a854ffc768073d67",
+        "drizzle/0013_concerned_goliath.sql": "a6dcf2770449220ec4cab1528d07e824dde78c388ff3d2b33239ac42b0fe0867",
+        "drizzle/0014_brainy_slayback.sql": "e0ecbd437d29c8669e4411b3dc603accf79c79a8f78ca6b4330df1d36c6e0910",
+        "drizzle/0015_business_sync_structural_checks.sql": "76aebb941dbf54e2b88f9c1299cd0ebb00cd177797f51713d60c22afc4cd9118",
+        "drizzle/0016_business_sync_integrity.sql": "d16d71a68b915f1e551db1b81c9bdc063c7c5f97b02893d7d7012b8402e8d873",
+        "drizzle/0017_business_sync_financial_progress.sql": "38c0956e8cfa5bfb561a56c568ec8f90eb56f256be2574712b38166f319bb9ef",
+        "drizzle/0018_jazzy_captain_stacy.sql": "d3c771805e9ea3da523ee0371e69166e131821e8f07d6fe53c3d8639d8be24a7",
+        "drizzle/0019_young_richard_fisk.sql": "474ae71c513c445adac4b5e746dd0acfda816ee6db297e9b5f35df0e651ca1c1",
+        "drizzle/0020_cute_thor.sql": "769c165a2f4009552c293fd7cf9fec18b9bc0e0ea1495c3809ee8c6b5db77fa1",
+        "drizzle/0021_glorious_kingpin.sql": "212ca2663b4694f3488a5326cac012f55d6080455aebff651c5ebffc7da530e0",
+        "drizzle/0022_messy_random.sql": "db74a35405bf4c9291e1ca59716a7f0eab17d49e429edf7dae7086e26a02414d",
+        "drizzle/0023_sharp_justice.sql": "1f7d2b9d0533b1d25f675a26fade1429f4f97f15f43236ac785711c7e5613bd8",
+        "drizzle/0024_remarkable_praxagora.sql": "1cd426891fee866e7306f4f53a2b128c6fcd40c175f28d742aa56ddb05f3c24a",
+        "drizzle/0025_mature_logan.sql": "b7ba502b8b8d126cfc7031e497e3b2eea20654e3573c22371da49b2dad2130f8",
+        "drizzle/0026_dark_wasp.sql": "c8b97dc076befd8712f819e7065dbb079b0ffdcfa96e547d190cc4638b989bd1",
+        "drizzle/0027_gifted_leper_queen.sql": "1a52687e5c9cb4c05fd4397dd06a3814badba3482e27bd91b010c8b718681242",
+        "drizzle/0028_previous_wilson_fisk.sql": "ebc3c28617e074490e9d10a5bc5fa696daca657aec7fd975be2b6894c6b0ae5d",
+        "drizzle/0029_marvelous_reavers.sql": "9cb9fb19eb34778d24ae233a822bd961edf7e22d365c1931152c6283ad351dd6",
+        "drizzle/0030_charming_vivisector.sql": "ef039145b451ec361e732c51c977666f3533160c035f962b150d7971c1deae2d",
+        "drizzle/0031_acoustic_microbe.sql": "a3e3d37b8ffca841b9b081f8e8e9f5a2dca7f2040db00ba45d1015c8e086afb3",
+        "drizzle/0032_previous_tusk.sql": "6faf62cf971e23670c12c6f8c7d9226fd44508b0f69eb6c577f7be54de30ba56",
+        "drizzle/0033_young_emma_frost.sql": "af7789b403ed916e775c2eac01b90207fe6e79e14a26c00983cdc544197ef31e",
+        "drizzle/0034_ancient_ricochet.sql": "eff77a9de05e0d6fc1fa9a42f64f9bffb5a98309cdb3b9ed709f4121e396715c",
+        "drizzle/0035_spicy_gorilla_man.sql": "3add13783408a049914d433a0b0d97618e74cebc3503bdca33cd291535855965",
+        "drizzle/0036_cooing_old_lace.sql": "38129f445136b0efa7394e04619460edbdb615e67e0240100bfe986a4d4d6b35",
+        "drizzle/0037_sloppy_lockjaw.sql": "b55ab850a9d67975bc1d8d4cf8c5d4178b8fc0ae902a089fec9aafcd2de7685d",
+        "drizzle/0038_military_silver_surfer.sql": "e158c5a44a26e07248a406af32facdbafefb1a78994f916c50ceaa00a105b7b7",
+        "drizzle/0039_account_checkout_activation.sql": "b20ed199d8592785f3963a01c86c5e48e30f2fb41d61e5b758dd73e39788c051",
+        "drizzle/0040_founder_email_access.sql": "aebd9ee5d7374d1b37e1f7c02bbc1612e19ca96153e5689d41bc224691fb92a8",
+        "drizzle/0041_mysterious_brother_voodoo.sql": "d4e7be7dfcdd09d9a3ba7e64770a1253667930e302e42e27ec6b1ec7da25ee9e",
+        "drizzle/0042_support_triage_context.sql": "ee9802ab77bc5eac540df33d876f7cb8bc6e061067ab72cd39bb0bfb5ba63db5",
+        "drizzle/0043_support_billing.sql": "1823d4ac5879ad617ef968e363aa6df9cfe7544f97e52a876b85e74d3339f0b4",
+        "drizzle/0044_support_onboarding.sql": "f19668093878c1f7b3af97414ee4f0ddc22d44cdb7d8d393cdeca9ba6e465769",
+        "drizzle/0045_support_oauth_rotation.sql": "54737b1d586fd2c61b6334ca1d9211b8089aef3fd829386415eff501b1d441e4",
+        "drizzle/0046_founder_support_access.sql": "44435ab4c15580b7d6f174f34ec2e374835f6f121968deb7133ab68f30a52fa3",
+        "drizzle/0047_zentra_automation.sql": "13ab458e284ceb2f06cd6c3963f7ffa3201701f2a3130c7727bfe5737a5c4f52",
+        "drizzle/0048_automation_checkout_guard.sql": "37f3348f6da989be1235c9f61c895365c6e347cbd071e4ed65dfa1f8538d379f",
+        "drizzle/0049_referral_reward_invoice.sql": "93163026f8c4087ec490600bbeb0f6bc7be3c61822abbbbeb513627d96982043",
+        "drizzle/0050_automation_checkout_retry.sql": "dfa71ed884624c6306a7f16b67b561f5518de716aaf23ebdcc0939f4567f3ce9",
+        "drizzle/0051_founder_automation_access.sql": "5d9dd93e98d42bad2a0d992a290453ea7206b89c976ca2f01850cf9e4aa6f3b9",
+        "drizzle/0052_support_mailboxes.sql": "73d53572781ece14b38b2632a25fa2938dc7054e826469783a72d2d071aaa80a",
+        "drizzle/0053_founder_platform_keys.sql": "a94d1a244d2583975537fd8d69b9313b3286b303f10afdf0001db452fed5da3b",
+        "drizzle/0054_automation_company_activity.sql": "1111a0999019431fc8d1b147f66addcd7297914958791fa866e1107b80ab7156",
+        "drizzle/0055_supplier_inbox.sql": "c2f5284222b73b09ca40a2429484ca0249403822a43d83c9f8a6e7a6cd6c47ad",
+        "drizzle/0056_account_phase2.sql": "f72f8dda4f2c354890e7664351e60f0fb1a78f0eebf1458d600eff5de7176ac0",
+        "drizzle/0057_absent_energizer.sql": "b79b9675d967b0505dcbfa1b2de8decc0777b1921eb1183e08730f2608dc5f7e",
+        "drizzle/0058_automation_refund_evidence.sql": "d506bc8d1ca49fc85cbca1fa64592f55afb1a020948c992d592d7c5d3338a7fd",
+        "drizzle/0059_careless_proteus.sql": "a8c74d41079ffa914acdf466e1f4789c995c2a4e587a3ed0ca4f53c795cf4fd4",
+        "drizzle/0060_bent_triton.sql": "21cabdb32121f7627fcc42ba7b06f3326a4d10e22140fb5560d09018edd4951f",
+        "drizzle/0061_complete_journey.sql": "219966ce9ac46dee55b5fda55bf92296f02f3c7041613dd40a835ae64f5e2e7f",
+        "drizzle/0062_scheduler_health.sql": "68d7a0a20bb816bc8d2e4707c0dcfffaa84732d4ed8642aa296651b6f7ccf3d1",
+        "drizzle/0063_company_mail.sql": "88d6b7ece568d5d70e4136e90a6589bee14ebbd2097c20ef3fc56c680ac8ff64",
+        "drizzle/0064_company_mail_identity.sql": "8823cb005c605ca2abdb5499b504804f4d86e6438c0b19e7f7e31ba62539d7a9",
+        "drizzle/0065_scheduler_run_identity.sql": "ff15449e3b2d1dd1218c99b02e9e765c56985e705c5e010a8e60ac5292788c4d",
+        "drizzle/0066_operations_queue_index.sql": "2ddafb78922898e345200ac09d876165c3483f33567038bce516d97217327c9e",
+        "drizzle/0067_quiet_expediter.sql": "ed413ed2e860946c13a77e456100d15077a2369a9465d37217d8a23dff7db4d3",
+        "drizzle/0068_burly_silverclaw.sql": "275bacf21c7c3a57c2bdeaae7d4f168307be5d8a98858229c2fe99313837d3e6",
+        "drizzle/0069_supplier_capture_analysis.sql": "b31f5987d8e2d58ce6823c0d35b366726e657bdaafe583fac32a7ddd9a4e0c85",
+        "drizzle/0070_supplier_capture_quota_requirement.sql": "b780a7d25d5cc8f105bde7e798bcc45a398c8edecd04a45044e893820a73715b",
+        "drizzle/0071_mail_scan_resume.sql": "ea8378fc405914652e3afe5528f10f58339490e9dfdc9611b37a7590d7e541a8",
+        "drizzle/0072_melodic_tinkerer.sql": "12e6bc9b4f5b4e5d463b7db328482c94451a91033ca78a34e062d48c5b775f65",
+        "drizzle/0073_complex_molly_hayes.sql": "a37ee5dab3c1fe7016a262c8c1e82f7f14f430337f27c86d57a9f00e4d4fa479",
+        "drizzle/0074_prepaid_rights_guards.sql": "8e846ba39f9696cb9ac3cd6debf03dad6a6df527407ccb6788ef1b6f79a4af96",
+        "drizzle/0075_prepaid_reconciliation_fences.sql": "a74f319018b87fed43a7839516a776f1ef3b359862637e695ed80b88d0756e01",
+        "drizzle/0076_purchase_intent_reservations.sql": "abeb9e0dab6c5feac4b809434a643751b06cad4537fdcdf8f233b02837ae527e",
+        "drizzle/0077_gestion_purchase_target.sql": "6eeac7daeca4a68b33b34f3401d83f02209d5f8d0eede2dc340f398ca75e342d",
+        "drizzle/0078_prepaid_subscription_lifecycle.sql": "a73ecc5207b120444a8dc91e17244a548c2e757cdc51a26bbcaf2c1dc9faf73b",
+        "drizzle/0079_stripe_product_handoffs.sql": "e944930bc15aac209eb9e063b60df79b3f2954bb27cc7f909ceb416703dba28f",
+        "drizzle/0080_standalone_support_plan_change.sql": "13cadb7df3f0cbcbd079f94c3de36f51497e100c5c39a7abec69ee82190a2fc7",
+        "drizzle/0081_prepaid_create_recovery.sql": "e13dcc1d4cadf8c33ef23254e15835508a7958779644792e6a69cd886951a03a",
+        "drizzle/0082_prepaid_renewal_admissions.sql": "188b140fc46301baaf269bd063333354e1ed54b7a403c58acaf3d81ddd13b37f",
+        "drizzle/0083_postfinance_observation_outbox.sql": "74a0a0ae30bcf110433d8a88c30b25b53e2c530e71c25862a5fcde9cd47382b6",
+        "drizzle/0084_prepaid_renewal_create_recovery.sql": "b58330703f829646ff2531bc7a3ab7bb56cfe67d8e117b5c54ed0cf13b835cd7",
+        "drizzle/0085_international_workspace_creation_intents.sql": "3b998382a90451c4f6d9794a1386aca7c3a5315112a236128472e5e703453f4d",
+        "drizzle/0086_international_legacy_country_guards.sql": "57931b86cae5f7f22e3c973d6d5b5d88f2e563ccf0969d57705128da8fcfea44",
+        "drizzle/0087_international_saas_authorities.sql": "1cc92fc0f30ca3fd5cc147e6c707f77fbaf915d2cd1e3d65f7d6d1499e11e200",
+        "supabase/migrations/20260902000100_zentra_platform.sql": "05264ef5dc1766fecba1415bee127cd30a1b91f513d9a04ec942680eb30e61e7",
+        "supabase/migrations/20260902000200_zentra_archive_storage.sql": "aca7f28f5fb3c68aa534fdfdf23a33884549c3f22fd80e323527891afe2ded31",
+        "supabase/migrations/20260902000300_zentra_archive_retention.sql": "c4b30843b86977f15c8999296de55e3b8c7ff153db145564867c9a89e6903f6e",
+        "supabase/migrations/202609140100_company_profiles.sql": "232844d1d2dbfcd9a6e30dd8e7cfd79b34caba9ca9d89c26ff3fd2e95739830d",
+        "supabase/migrations/202609140200_company_collaboration.sql": "b9496af37062ed7978480fd70447bd565634db3dc3f975cfb48eb45743f47a0a",
+        "supabase/migrations/202609200300_company_content.sql": "8949838fcb0c4177cdd6ebd2ff6722ebd26774971661d71324ab3763b9f13712",
+        "supabase/migrations/20261004150344_restrict_rls_auto_enable_client_execution.sql": "7afdc12f3df9879dccd2d9ce288879d6f4adda74092e2a62020363986c1a4c17",
+        "supabase/migrations/20261004171300_prepare_private_mail_scheduler_relay.sql": "4ead4642725ca4655094782c61a570469a1e27bf8b3ecc5424b739e12e58b7e6",
+        "supabase/migrations/20261005002340_proportional_mail_scheduler_dispatch.sql": "35874373d06a82d2be1361e46dda74289c4695e6e138b79ff11fbc1a9c1420ab",
+        "supabase/migrations/20261006114402_prepare_private_postfinance_scheduler.sql": "4eb2a765d5c8028b41adaae25507faef58458977f0478e6a53d690a7041e0fe9",
+        "supabase/migrations/20261006155425_fair_postfinance_settlement_waiting.sql": "e7dcc238525974968a9138a9bfd76d4545fd7e1596a9c24a1fd2c0394bc44d2a",
+        "supabase/migrations/20261007165615_us_pilot_market_test.sql": "d30b662c3bbf461dfae894c72dcdf83125b2578ddd20e9ff0c7725b8aac28316",
+        "supabase/migrations/20261007173315_us_pilot_free_month_offer.sql": "1985cfd263e217bdc86bb811e3b63f191779be02c5d27a43987043f7c414d9c4",
+        "supabase/migrations/20261007194528_international_workspace_country_config.sql": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9",
+        "supabase/migrations/20261007222349_international_us_erp_persistence.sql": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c",
+        "supabase/migrations/20261007224820_international_us_erp_delta_stream.sql": "3df54310c2da0012d9065886df86a6524963ab594a1f314d10d45fac551af345",
+        "supabase/migrations/20261007225725_international_us_erp_seller_snapshot.sql": "119e0c850c04c6772c0b002384c2cf86c8ab3427ec24586eb77f73a2a314f4f9",
+        "supabase/migrations/20261008001726_new_us_workspace_admission.sql": "435f87289682dbed3b372bd6790d0f213a5a5e7a4c5aee32f70323798e87edcc",
+        "supabase/migrations/20261008013200_international_tax_proof_allowlist.sql": "7f2d18ba19defb35dc3352624b18f951a26f806b86eb19d2c10c0c2bf4f977d8",
+        "supabase/migrations/20261008034422_international_us_seller_profile.sql": "a97274cb5e8f4d1153e5e0c98749a1d3c89a5d41debd721a3f7e7c1c9e56546b",
+        "supabase/migrations/20261008044402_international_us_tax_profile.sql": "98d5b4dd7b9842def1a036d512876a40ebc7131a44954a1e4ef09dab793e5034",
+        "supabase/migrations/20261008060826_international_us_tax_operations.sql": "a34d2fa9a78876a1c48910c004f25e795c73cfe35797824eb1ca5eaffb161330",
+        "supabase/migrations/20261008081825_international_us_purchasing_v2.sql": "1c0008e766a358166f0eccc25b68c60ee4dcd0f68d9b3220e946df213980013b",
+        "supabase/tests/database/international_country.test.sql": "fdea0dba2320ec1162154c92f71cd89cab2ebff40e2c7a886aee53ea45aa7699",
+        "supabase/tests/database/us_pilot_rls.test.sql": "161df30e8c4bf5920f0a1a7da3d7ad239ee8142ceb3c0f5f38e45e65007a9e2d",
+        "supabase/tests/database/zentra_rls.test.sql": "4179757425005010472ed1f0ff7726399fcf2ee8874d1e2b731521f38d470ec4"
+      },
+      "added": [
+        {
+          "path": "supabase/migrations/20261008105120_international_us_projects_v3.sql",
+          "sha256": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d"
+        }
+      ],
+      "scope": "Normalized historical SQL against the current Git base; new migration only. No hosted database execution."
+    },
+    "appliedToProduction": false,
+    "testRuntime": "PGlite RAM service_role on one serialized connection; real SQL plus synthetic Auth/D1 boundaries"
+  },
+  "browser": {
+    "scope": "Actual React/HTTP/ERP/delta/export with fictitious Auth and RAM CAS, private TEST tax issuer. Local Arial fixture font; no native, hosted multi-device or physical-device proof.",
+    "commits": 9,
+    "writes": 10,
+    "providerCalls": 1,
+    "exports": [
+      "/api/international/workspaces/fictitious-export-company/exports/documents/project/6696475b-0cae-445c-8139-c0724f5d3aea?format=pdf&language=en"
+    ],
+    "downloads": [
+      "project-PRJ-000002-r19-en.pdf"
+    ],
+    "views": [
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 390,
+        "overflow": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0
+        }
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 1280,
+        "overflow": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0
+        }
+      }
+    ],
+    "errors": [],
+    "checks": [
+      "byte-exact lost project receipt retry",
+      "create/edit budget above Number precision",
+      "single purchase association",
+      "active same-customer project selection",
+      "estimate/accept/TEST invoice/partial payment",
+      "archive/restore without deleting sales history",
+      "real PDF project download",
+      "four languages, light/dark, desktop/mobile, 320px 200% text",
+      "role-change draft purge and late Auth-denied read suppression"
+    ],
+    "screenshots": "Nine captured project views were inspected in a bounded pass; sixteen language/theme/breakpoint checks plus 320px/200% text."
+  },
+  "pdf": {
+    "languages": [
+      "fr",
+      "de",
+      "it",
+      "en"
+    ],
+    "pageSize": "US Letter 612 x 792",
+    "independentInspection": "pypdf/pdfplumber glyph bounds, all four normal PDFs; maximum valid long-party text retained all 2112 test glyphs with no page overflow. Poppler render inspected locally.",
+    "formats": [
+      "json",
+      "csv",
+      "html",
+      "pdf"
+    ],
+    "bundle": {
+      "scope": "Static inspection of the local successful Vinext production build; no hosted Worker CPU, memory, latency or execution proof",
+      "fixedFontDataInClientJavaScript": [],
+      "fixedFontDataInServerJavaScript": [
+        {
+          "path": "dist/server/_next/static/export-fonts-DTBcMu7b.js",
+          "size": 1526800,
+          "gzipBytes": 720070
+        }
+      ],
+      "fontDataIsServerOnly": true
+    }
+  },
+  "dependencies": {
+    "patch": "patches/braces@3.0.3.patch",
+    "actualInstalledTests": {
+      "passed": 42,
+      "failed": 0,
+      "log": ".qa/us-projects/braces-tests.log"
+    },
+    "upstreamProof": {
+      "recordedAt": "2026-10-08T11:02:24.930680+00:00",
+      "scope": "Local isolated clone. Upstream braces 3.0.3, no official fixed release and no production/native deployment. Actual installed dependency tested; no new audit exclusion.",
+      "baseHead": "42d516ad70d8547a8914f19daa5597b5ce2d00b9",
+      "depthLimit": 100,
+      "tests": {
+        "passed": 42,
+        "failed": 0,
+        "compatibilityCases": 33,
+        "entryPointsPerCase": 4,
+        "subprocesses": 2,
+        "timeoutMsEach": 5000,
+        "maxHeapMiB": 64,
+        "stacks": [
+          "default",
+          "512KiB"
+        ],
+        "stringRefusalsPerProcess": 10,
+        "boundaryAcceptancesPerProcess": 10,
+        "astRefusalsPerProcess": 6
+      },
+      "build": {
+        "command": "pnpm run build",
+        "exitCode": 0,
+        "log": "build.log"
+      },
+      "lint": {
+        "command": "oxlint scripts/braces-depth.test.mjs",
+        "exitCode": 0
+      },
+      "preservedAuditExclusions": [
+        "GHSA-w3rx-r6r6-pgpr",
+        "GHSA-5p2g-fcmc-qvqq"
+      ],
+      "auditBefore": {
+        "exitCode": 1,
+        "metadata": {
+          "info": 0,
+          "low": 6,
+          "moderate": 20,
+          "high": 14,
+          "critical": 4
+        },
+        "filteredAdvisoryCounts": {
+          "low": 6,
+          "moderate": 20,
+          "high": 12,
+          "critical": 4
+        },
+        "filteredAdvisoryIds": [
+          "GHSA-2gqq-gqf2-x968",
+          "GHSA-2jfj-6hjv-fm6j",
+          "GHSA-35p6-xmwp-9g52",
+          "GHSA-3wwx-pv8p-q78v",
+          "GHSA-3xpg-4rpp-hhhm",
+          "GHSA-4cwx-7wf7-3272",
+          "GHSA-4mjr-xmp4-gh2g",
+          "GHSA-58qx-3vcg-4xpx",
+          "GHSA-5gmw-xhrv-c9v3",
+          "GHSA-5xrq-8626-4rwp",
+          "GHSA-67mh-4wv8-2f99",
+          "GHSA-6j4f-fj2g-mc7p",
+          "GHSA-6qxp-vccf-f47h",
+          "GHSA-82fw-gwwq-j7x9",
+          "GHSA-8436-99hf-9mmv",
+          "GHSA-85c8-ppgw-ccpr",
+          "GHSA-8xcm-r25x-g524",
+          "GHSA-96hv-2xvq-fx4p",
+          "GHSA-g7r4-m6w7-qqqr",
+          "GHSA-g8m3-5g58-fq7m",
+          "GHSA-hm92-r4w5-c3mj",
+          "GHSA-hxh3-vqpv-xpqv",
+          "GHSA-jqcg-44mw-7w3h",
+          "GHSA-jr45-8vmc-qm54",
+          "GHSA-m8rv-5g2x-5cg5",
+          "GHSA-p88m-4jfj-68fv",
+          "GHSA-pmjh-fq2x-6v4x",
+          "GHSA-pr7r-676h-xcf6",
+          "GHSA-q2hr-2g5m-vwhr",
+          "GHSA-qhr7-859c-m2p7",
+          "GHSA-r53p-7pc4-xj5r",
+          "GHSA-rfgv-xxqx-mfg5",
+          "GHSA-rj75-hqrm-r3gf",
+          "GHSA-rx4f-c7p8-82vq",
+          "GHSA-v3r7-h72x-cjcm",
+          "GHSA-vfj7-8cjw-p6xm",
+          "GHSA-vmh5-mc38-953g",
+          "GHSA-vxpw-j846-p89q",
+          "GHSA-w293-vg96-wgc3",
+          "GHSA-wq5f-xc86-pv6w",
+          "GHSA-x5fp-wj9c-mxmx"
+        ]
+      },
+      "auditAfter": {
+        "exitCode": 1,
+        "metadata": {
+          "info": 0,
+          "low": 6,
+          "moderate": 20,
+          "high": 14,
+          "critical": 4
+        },
+        "filteredAdvisoryCounts": {
+          "low": 6,
+          "moderate": 20,
+          "high": 12,
+          "critical": 4
+        },
+        "filteredAdvisoryIds": [
+          "GHSA-2gqq-gqf2-x968",
+          "GHSA-2jfj-6hjv-fm6j",
+          "GHSA-35p6-xmwp-9g52",
+          "GHSA-3wwx-pv8p-q78v",
+          "GHSA-3xpg-4rpp-hhhm",
+          "GHSA-4cwx-7wf7-3272",
+          "GHSA-4mjr-xmp4-gh2g",
+          "GHSA-58qx-3vcg-4xpx",
+          "GHSA-5gmw-xhrv-c9v3",
+          "GHSA-5xrq-8626-4rwp",
+          "GHSA-67mh-4wv8-2f99",
+          "GHSA-6j4f-fj2g-mc7p",
+          "GHSA-6qxp-vccf-f47h",
+          "GHSA-82fw-gwwq-j7x9",
+          "GHSA-8436-99hf-9mmv",
+          "GHSA-85c8-ppgw-ccpr",
+          "GHSA-8xcm-r25x-g524",
+          "GHSA-96hv-2xvq-fx4p",
+          "GHSA-g7r4-m6w7-qqqr",
+          "GHSA-g8m3-5g58-fq7m",
+          "GHSA-hm92-r4w5-c3mj",
+          "GHSA-hxh3-vqpv-xpqv",
+          "GHSA-jqcg-44mw-7w3h",
+          "GHSA-jr45-8vmc-qm54",
+          "GHSA-m8rv-5g2x-5cg5",
+          "GHSA-p88m-4jfj-68fv",
+          "GHSA-pmjh-fq2x-6v4x",
+          "GHSA-pr7r-676h-xcf6",
+          "GHSA-q2hr-2g5m-vwhr",
+          "GHSA-qhr7-859c-m2p7",
+          "GHSA-r53p-7pc4-xj5r",
+          "GHSA-rfgv-xxqx-mfg5",
+          "GHSA-rj75-hqrm-r3gf",
+          "GHSA-rx4f-c7p8-82vq",
+          "GHSA-v3r7-h72x-cjcm",
+          "GHSA-vfj7-8cjw-p6xm",
+          "GHSA-vmh5-mc38-953g",
+          "GHSA-vxpw-j846-p89q",
+          "GHSA-w293-vg96-wgc3",
+          "GHSA-wq5f-xc86-pv6w",
+          "GHSA-x5fp-wj9c-mxmx"
+        ]
+      },
+      "prodAuditBefore": {
+        "exitCode": 1,
+        "metadata": {
+          "info": 0,
+          "low": 0,
+          "moderate": 0,
+          "high": 3,
+          "critical": 0
+        },
+        "filteredAdvisoryCounts": {
+          "low": 0,
+          "moderate": 0,
+          "high": 1,
+          "critical": 0
+        },
+        "filteredAdvisoryIds": [
+          "GHSA-vfj7-8cjw-p6xm"
+        ]
+      },
+      "prodAuditAfter": {
+        "exitCode": 1,
+        "metadata": {
+          "info": 0,
+          "low": 0,
+          "moderate": 0,
+          "high": 3,
+          "critical": 0
+        },
+        "filteredAdvisoryCounts": {
+          "low": 0,
+          "moderate": 0,
+          "high": 1,
+          "critical": 0
+        },
+        "filteredAdvisoryIds": [
+          "GHSA-vfj7-8cjw-p6xm"
+        ]
+      },
+      "sha256": {
+        "pnpm-workspace.yaml": "e881fe991a263fd89abbb0668039dad499fbffdcbeb8a26b5a147ba4c54cb00e",
+        "pnpm-lock.yaml": "b0692129a395ac950d9a8fd31291352dc094c1c5a987bf85acbf85cf88fee315",
+        "patches/braces@3.0.3.patch": "de37d6ae08a44ce551902fa739b1002cb6f2d9e7613b460c70f27c3ba00184b6",
+        "scripts/braces-depth.test.mjs": "69aac0749084cc009f02cba75c7269cc8b00dc369cfa2e11a72aadacddf6e7a1",
+        "scripts/fixtures/braces-3.0.3-compatibility.json": "8c433d35fc7c4432315e951e24fa8b80bf745690e663274fa3d59ede19c37705",
+        "docs/internationalization/BRACES-DEPTH-HARDENING-20261008.md": "5d0d4f7a74b00a1c250f621ce5bc0c47e1c6b10725dbe91d4f9a9e63f5809bb9"
+      },
+      "pnpmPatchHashLFNormalized": "087c7abf69a4fb96aa6d326355a749cf855b6d081daae1e5240d3168db825a7c"
+    },
+    "auditClean": false,
+    "newAuditExclusions": []
+  },
+  "finished": [
+    "Schema3 project registry in the existing CAS/receipt/delta stream",
+    "Explicit review of all legacy project references before promotion",
+    "Project customer/planning/exact net budget/notes/unique vendor bill associations",
+    "Separated quote/invoice/received/purchase project figures",
+    "Four-language light/dark responsive project dossiers and authorized portable exports"
+  ],
+  "experimental": [
+    "US edition and accounting reports",
+    "Private fictional TEST tax issuance"
+  ],
+  "remaining": [
+    "Native country-aware admission and one shared US shell session",
+    "Real hosted staging with Auth/PostgREST, concurrent devices and reconnect/restart/load tests",
+    "Trusted tax provider, customer invoice payment provider and reviewed USD commercial plans",
+    "Sales orders, credit notes, retained original document storage and country-aware Support/Automation workflows",
+    "Qualified review of regulatory accounting/tax treatments before production activation"
+  ],
+  "production": {
+    "migration": false,
+    "deployment": false,
+    "nativeDistribution": false,
+    "realTaxProvider": false,
+    "newStripePrices": false,
+    "usGaapCertification": false
+  }
+}

@@ -108,7 +108,7 @@ describe('US exports HTTP source and security boundaries', () => {
     const t = await fixture(); let ceiling: 1 | 2 = 2;
     await t.seed({ type: 'save_vendor', vendor: { id: 'vendor', organizationId, kind: 'business', name: 'Vendor', billingAddress: configuration.address, paymentTermsDays: 30 } });
     t.commit.mockClear();
-    const freshCapability = vi.fn(async (_client: 1 | 2) => ceiling);
+    const freshCapability = vi.fn(async (_client: 1 | 2 | 3) => ceiling);
     t.deps.freshSupportedSchemaVersion = freshCapability;
     t.deps.render = () => { ceiling = 1; return syntheticPdf; };
     await error(await t.handlers.documents(t.request('format=pdf'), organizationId, 'estimate', 'estimate'), 409, 'client_upgrade_required');
@@ -122,7 +122,7 @@ describe('US exports HTTP source and security boundaries', () => {
     expect(response.status).toBe(200); expect(t.state().schemaVersion).toBe(1); expect(t.authority).toHaveBeenCalledTimes(2);
   });
   it('validates the fresh ceiling exactly and rechecks authority after its awaited failure', async () => {
-    const t = await fixture(); t.deps.freshSupportedSchemaVersion = async () => 3 as 1;
+    const t = await fixture(); t.deps.freshSupportedSchemaVersion = async () => 4 as 1;
     await error(await t.handlers.documents(t.request(), organizationId, 'estimate', 'estimate'), 503, 'service_unavailable');
     expect(t.authority).toHaveBeenCalledTimes(2);
     const revoked = await fixture(); revoked.deps.freshSupportedSchemaVersion = async () => { revoked.revoke(403); throw new Error('PRIVATE FLAG STORAGE'); };
