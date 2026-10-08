@@ -1,0 +1,3196 @@
+{
+  "recordedAt": "2026-10-08T13:13:40.587619+00:00",
+  "scope": "LOCAL_ONLY_NATIVE_US_ADMISSION_AND_SHARED_ERP_SCREENS",
+  "productionMigration": false,
+  "usCodeDeployed": false,
+  "nativeRelease": false,
+  "commercialSite": {
+    "date": "2026-10-08",
+    "projectId": "appgprj_6a942972adf481918671ac74e99e1fa7",
+    "commitSha": "5c165545fe6588bc118166dc023efd0dae39d0ee",
+    "versionNumber": 354,
+    "versionId": "appgprj_6a942972adf481918671ac74e99e1fa7~appgver_a7baae24637c81919e0fec8634b41b2d",
+    "deploymentId": "appgdep_6ac6f53643808191a355aa5be580a013",
+    "status": "succeeded",
+    "siteUrl": "https://www.zentraapp.ch",
+    "archive": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results-354.tar.gz",
+    "archiveSha256": "sha256:b318290b1c75c02c3ff9f0a5ae311b7160ef8fc1274dc6d1ecc8a378f11a1284",
+    "browserPages": 60,
+    "languages": [
+      "fr",
+      "de",
+      "it",
+      "en"
+    ],
+    "widths": [
+      1440,
+      390,
+      320
+    ],
+    "siteTests": 67,
+    "usCodePublished": false,
+    "productionMigrations": false
+  },
+  "web": {
+    "path": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site",
+    "baseCommit": "a30915ab7500a1a3af57da0d26b915cdc2b83e06",
+    "tests": {
+      "report": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site\\.qa\\us-admission\\results.json",
+      "success": true,
+      "files": 102,
+      "tests": 3699,
+      "passed": 3699,
+      "failed": 0,
+      "pending": 0
+    },
+    "checks": {
+      "tests": {
+        "sourceChanges": [],
+        "sourceUnchanged": true,
+        "check": "tests",
+        "files": [
+          "lib/account-security.test.ts",
+          "lib/account-workspace-pages.test.ts",
+          "lib/business-sync-cash-vat.test.ts",
+          "lib/document-number-reservations.test.ts",
+          "lib/international/accounting/reconciliation.test.ts",
+          "lib/international/browser-actor-binding.test.ts",
+          "lib/international/browser-erp-session.test.ts",
+          "lib/international/browser-export-session.test.ts",
+          "lib/international/browser-projects-session.test.ts",
+          "lib/international/browser-projects.browser.test.ts",
+          "lib/international/browser-projects.test.ts",
+          "lib/international/browser-purchasing.browser.test.ts",
+          "lib/international/browser-purchasing.test.ts",
+          "lib/international/browser-sales.browser.test.ts",
+          "lib/international/browser-sales.test.ts",
+          "lib/international/browser-seller-panel.test.ts",
+          "lib/international/browser-seller-session.test.ts",
+          "lib/international/browser-tax-profile-panel.test.ts",
+          "lib/international/browser-tax-profile-postgres.browser.test.ts",
+          "lib/international/browser-tax-profile-session.test.ts",
+          "lib/international/browser-tax-profile.browser.test.ts",
+          "lib/international/browser-us-device-approval.test.ts",
+          "lib/international/browser-workbench.browser.test.ts",
+          "lib/international/browser-workbench.test.ts",
+          "lib/international/canonical-hash.test.ts",
+          "lib/international/core.test.ts",
+          "lib/international/documents.test.ts",
+          "lib/international/export-fonts.test.ts",
+          "lib/international/export-server.test.ts",
+          "lib/international/export-snapshot.test.ts",
+          "lib/international/exports.postgres.test.ts",
+          "lib/international/finance.test.ts",
+          "lib/international/integration.test.ts",
+          "lib/international/legacy-country-error.test.ts",
+          "lib/international/legacy-country-guard.migrations.test.ts",
+          "lib/international/legacy-country-guard.test.ts",
+          "lib/international/legacy-transport-routes.test.ts",
+          "lib/international/new-us-workspace-admission.postgres.test.ts",
+          "lib/international/phone.test.ts",
+          "lib/international/private-json.test.ts",
+          "lib/international/projects-bindings.test.ts",
+          "lib/international/projects-export-server.test.ts",
+          "lib/international/projects-exports.test.ts",
+          "lib/international/projects-transport.test.ts",
+          "lib/international/projects.postgres.test.ts",
+          "lib/international/projects.test.ts",
+          "lib/international/public-projection.test.ts",
+          "lib/international/purchasing-bindings.test.ts",
+          "lib/international/purchasing-composition.test.ts",
+          "lib/international/purchasing-runtime.test.ts",
+          "lib/international/purchasing-transport.test.ts",
+          "lib/international/purchasing.postgres.test.ts",
+          "lib/international/purchasing.test.ts",
+          "lib/international/runtime-bindings.test.ts",
+          "lib/international/runtime-postgres.test.ts",
+          "lib/international/runtime-response-guards.test.ts",
+          "lib/international/runtime-server-us-tax.test.ts",
+          "lib/international/runtime-server.test.ts",
+          "lib/international/runtime-store.test.ts",
+          "lib/international/runtime-sync.test.ts",
+          "lib/international/runtime-tax-proof-postgres.test.ts",
+          "lib/international/runtime.test.ts",
+          "lib/international/saas-authorities.migrations.test.ts",
+          "lib/international/saas-authority.test.ts",
+          "lib/international/saas-authority.workerd.test.ts",
+          "lib/international/seller-profile-server.test.ts",
+          "lib/international/seller-profile.postgres.test.ts",
+          "lib/international/seller-profile.test.ts",
+          "lib/international/stripe-tax-calculation.test.ts",
+          "lib/international/stripe-tax-resolved-request.test.ts",
+          "lib/international/stripe-tax-sdk-body.test.ts",
+          "lib/international/tax-request-history.test.ts",
+          "lib/international/tax-request-identity.test.ts",
+          "lib/international/us-device-approval-page.test.ts",
+          "lib/international/us-device-approval.browser.test.ts",
+          "lib/international/us-device-bindings.test.ts",
+          "lib/international/us-device-d1.test.ts",
+          "lib/international/us-device-server.test.ts",
+          "lib/international/us-device-workerd.test.ts",
+          "lib/international/us-tax-financial-context.test.ts",
+          "lib/international/us-tax-invoice.postgres.test.ts",
+          "lib/international/us-tax-invoice.test.ts",
+          "lib/international/us-tax-operation-store.test.ts",
+          "lib/international/us-tax-operations.postgres.test.ts",
+          "lib/international/us-tax-profile-server.test.ts",
+          "lib/international/us-tax-profile.postgres.test.ts",
+          "lib/international/us-tax-profile.test.ts",
+          "lib/international/workspace-creation-d1.test.ts",
+          "lib/international/workspace-creation-review.test.ts",
+          "lib/international/workspace-creation.integration.test.ts",
+          "lib/international/workspace-creation.test.ts",
+          "lib/international/workspace-server.bindings.test.ts",
+          "lib/international/workspace-server.native.test.ts",
+          "lib/international/workspace-server.test.ts",
+          "lib/international/workspace-service.postgres.test.ts",
+          "lib/international/workspace-service.test.ts",
+          "lib/license-token.test.ts",
+          "lib/stripe-contract.test.ts",
+          "lib/stripe-event.test.ts",
+          "lib/stripe-plans.test.ts",
+          "lib/stripe-webhook-proof.test.ts",
+          "lib/stripe-webhook.test.ts"
+        ],
+        "exitCode": 0,
+        "sourceSha256": {
+          "app/api/international/device/approve/route.ts": "adb5f2e48b66bc71b84d99f0db1beffd98cd9e983d622ad387a2039de9550088",
+          "app/api/international/device/exchange/route.ts": "50dba33f4daa013d39b159cd7d4781bc76e5d9d4bb408d7e139b7ec8da5bd90d",
+          "app/api/international/device/me/route.ts": "cbe5f1ec4a3dd5be860d18b8cb19402837adf30ecee3e31caf5f80215be929cf",
+          "app/api/international/device/revoke/route.ts": "8a5e6f6488671e57b5fce0979e4fd721cda897cd211b0c32af37bb6a48b157e7",
+          "app/api/international/device/start/route.ts": "42d9f2b920eca52b35105a1d41d4df3ce5a810f8be080aa2d875420eb87be7ec",
+          "app/appareil/us/page.tsx": "b7664dbe9cd64a96a59497078dfcd4736d1df2491abad75be4a000c42553be20",
+          "components/us-device-approval.css": "92b9a881f4d2cbd24b7fa0940a86a99b7372e7c14a7e08aa339a60e5daeb4063",
+          "components/us-device-approval.tsx": "3c63f61e737b524cdf1d289517c3f9f48c96a26ac59c3d21a67aa17628b8da76",
+          "drizzle/0088_international_us_device_admission.sql": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8",
+          "lib/international/browser-us-device-approval.test.ts": "857b6e4448b81e81cb3e1e8f27d71f6b1bcd4b2657969e0947163a762d8d5578",
+          "lib/international/browser-us-device-approval.ts": "12208036121d962b4a42353e23245ce11084b292068f83e399259f869a2f2bef",
+          "lib/international/canonical-hash.test.ts": "b0974e62688d4954157644ab93e3da04bc41d16190a47710472b8061b6559ae3",
+          "lib/international/canonical-hash.ts": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87",
+          "lib/international/runtime-bindings.test.ts": "c7b9b68f205bab48e6b3fb74060e2aefc1dfc01785a4d03231794e26c6628333",
+          "lib/international/runtime-bindings.ts": "d90916941e5cafb07b623fd7b1cf5d62452a4ec3a7dea238a4b0968744b835ad",
+          "lib/international/runtime.ts": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b",
+          "lib/international/us-device-approval-copy.ts": "14fe899e2c500a987d10b064a3f91cc8870d793b2782234211095a1fd0919075",
+          "lib/international/us-device-approval-page.test.ts": "fd21e594691bcc2b5a754574442b9357a3e299579257098e44ddf872b1803ec0",
+          "lib/international/us-device-approval-page.ts": "7ad0d40f16bd6a4a6545b6ce917f7024daf9305754fb302d636e676e48e0354f",
+          "lib/international/us-device-approval.browser.test.ts": "374301d92dabcc854a99d53ffe3e49804f19e0384131371276706be92e136495",
+          "lib/international/us-device-bindings.test.ts": "736c18df0425ab14535f3b4678623a15f50e9ca14e723f95fcca2ccd20ff9a21",
+          "lib/international/us-device-bindings.ts": "e90a7caa2568bb9b694654b99198d1e9effff022866a007e9165ae04c9827b84",
+          "lib/international/us-device-contract.ts": "339665fbc292f99b098544fdd09e6ce61770854f28a3b9d6d20a82f1458e4141",
+          "lib/international/us-device-d1.test.ts": "30c32079b5e821a6276e1c6348dcc3739ac8b2b0a3d0dd2d35860ce87f24c915",
+          "lib/international/us-device-d1.ts": "7adbc23fd988e9708fdc2aa012b757895bcf237f9cb5ede7393b37e7fe09fe7a",
+          "lib/international/us-device-display-text.ts": "c2331c3d812c2cfed5dace4df90c0a735f2ce211d675633d6d6d5358faaa2402",
+          "lib/international/us-device-protocol.ts": "2be8a9c08fd26699ff4d388b7d9f18ddb0fed80ce7109c502c682a8d34a26c38",
+          "lib/international/us-device-server.test.ts": "039488b3fe7c282b73943cb769eb89ecfd66302ed1a7cfb4d8ca8854bf6c6b0e",
+          "lib/international/us-device-server.ts": "1069af0fbefd19c0a827b9fc39059fd5c0b9ce9568e1d2bd6def9ed2c534556c",
+          "lib/international/us-device-test-fixture.ts": "11e2d9e35ce0f44c4adf3d61f2ad5c7822898978c718019d074551baf06f2620",
+          "lib/international/us-device-workerd.test.ts": "81b5914c93924f731a7272a335f68840d442714939d214a55fe2e2573c76ff27",
+          "lib/international/workspace-server.ts": "ebe3322fae190909bda25ba7d0b9b54b6ee11820798eca5bbcf02add9a28f66a"
+        },
+        "completedAt": "2026-10-08T12:46:29.6755395Z"
+      },
+      "types": {
+        "check": "types",
+        "completedAt": "2026-10-08T12:53:01.9683205Z",
+        "sourceSha256": {
+          "app/api/international/device/approve/route.ts": "adb5f2e48b66bc71b84d99f0db1beffd98cd9e983d622ad387a2039de9550088",
+          "app/api/international/device/exchange/route.ts": "50dba33f4daa013d39b159cd7d4781bc76e5d9d4bb408d7e139b7ec8da5bd90d",
+          "app/api/international/device/me/route.ts": "cbe5f1ec4a3dd5be860d18b8cb19402837adf30ecee3e31caf5f80215be929cf",
+          "app/api/international/device/revoke/route.ts": "8a5e6f6488671e57b5fce0979e4fd721cda897cd211b0c32af37bb6a48b157e7",
+          "app/api/international/device/start/route.ts": "42d9f2b920eca52b35105a1d41d4df3ce5a810f8be080aa2d875420eb87be7ec",
+          "app/appareil/us/page.tsx": "b7664dbe9cd64a96a59497078dfcd4736d1df2491abad75be4a000c42553be20",
+          "components/us-device-approval.css": "92b9a881f4d2cbd24b7fa0940a86a99b7372e7c14a7e08aa339a60e5daeb4063",
+          "components/us-device-approval.tsx": "3c63f61e737b524cdf1d289517c3f9f48c96a26ac59c3d21a67aa17628b8da76",
+          "drizzle/0088_international_us_device_admission.sql": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8",
+          "lib/international/browser-us-device-approval.test.ts": "857b6e4448b81e81cb3e1e8f27d71f6b1bcd4b2657969e0947163a762d8d5578",
+          "lib/international/browser-us-device-approval.ts": "12208036121d962b4a42353e23245ce11084b292068f83e399259f869a2f2bef",
+          "lib/international/canonical-hash.test.ts": "b0974e62688d4954157644ab93e3da04bc41d16190a47710472b8061b6559ae3",
+          "lib/international/canonical-hash.ts": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87",
+          "lib/international/runtime-bindings.test.ts": "c7b9b68f205bab48e6b3fb74060e2aefc1dfc01785a4d03231794e26c6628333",
+          "lib/international/runtime-bindings.ts": "d90916941e5cafb07b623fd7b1cf5d62452a4ec3a7dea238a4b0968744b835ad",
+          "lib/international/runtime.ts": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b",
+          "lib/international/us-device-approval-copy.ts": "14fe899e2c500a987d10b064a3f91cc8870d793b2782234211095a1fd0919075",
+          "lib/international/us-device-approval-page.test.ts": "fd21e594691bcc2b5a754574442b9357a3e299579257098e44ddf872b1803ec0",
+          "lib/international/us-device-approval-page.ts": "7ad0d40f16bd6a4a6545b6ce917f7024daf9305754fb302d636e676e48e0354f",
+          "lib/international/us-device-approval.browser.test.ts": "374301d92dabcc854a99d53ffe3e49804f19e0384131371276706be92e136495",
+          "lib/international/us-device-bindings.test.ts": "736c18df0425ab14535f3b4678623a15f50e9ca14e723f95fcca2ccd20ff9a21",
+          "lib/international/us-device-bindings.ts": "e90a7caa2568bb9b694654b99198d1e9effff022866a007e9165ae04c9827b84",
+          "lib/international/us-device-contract.ts": "339665fbc292f99b098544fdd09e6ce61770854f28a3b9d6d20a82f1458e4141",
+          "lib/international/us-device-d1.test.ts": "30c32079b5e821a6276e1c6348dcc3739ac8b2b0a3d0dd2d35860ce87f24c915",
+          "lib/international/us-device-d1.ts": "7adbc23fd988e9708fdc2aa012b757895bcf237f9cb5ede7393b37e7fe09fe7a",
+          "lib/international/us-device-display-text.ts": "c2331c3d812c2cfed5dace4df90c0a735f2ce211d675633d6d6d5358faaa2402",
+          "lib/international/us-device-protocol.ts": "2be8a9c08fd26699ff4d388b7d9f18ddb0fed80ce7109c502c682a8d34a26c38",
+          "lib/international/us-device-server.test.ts": "039488b3fe7c282b73943cb769eb89ecfd66302ed1a7cfb4d8ca8854bf6c6b0e",
+          "lib/international/us-device-server.ts": "1069af0fbefd19c0a827b9fc39059fd5c0b9ce9568e1d2bd6def9ed2c534556c",
+          "lib/international/us-device-test-fixture.ts": "11e2d9e35ce0f44c4adf3d61f2ad5c7822898978c718019d074551baf06f2620",
+          "lib/international/us-device-workerd.test.ts": "81b5914c93924f731a7272a335f68840d442714939d214a55fe2e2573c76ff27",
+          "lib/international/workspace-server.ts": "ebe3322fae190909bda25ba7d0b9b54b6ee11820798eca5bbcf02add9a28f66a"
+        },
+        "sourceChanges": [],
+        "files": [],
+        "sourceUnchanged": true,
+        "exitCode": 0
+      },
+      "lint": {
+        "sourceUnchanged": true,
+        "sourceChanges": [],
+        "check": "lint",
+        "sourceSha256": {
+          "app/api/international/device/approve/route.ts": "adb5f2e48b66bc71b84d99f0db1beffd98cd9e983d622ad387a2039de9550088",
+          "app/api/international/device/exchange/route.ts": "50dba33f4daa013d39b159cd7d4781bc76e5d9d4bb408d7e139b7ec8da5bd90d",
+          "app/api/international/device/me/route.ts": "cbe5f1ec4a3dd5be860d18b8cb19402837adf30ecee3e31caf5f80215be929cf",
+          "app/api/international/device/revoke/route.ts": "8a5e6f6488671e57b5fce0979e4fd721cda897cd211b0c32af37bb6a48b157e7",
+          "app/api/international/device/start/route.ts": "42d9f2b920eca52b35105a1d41d4df3ce5a810f8be080aa2d875420eb87be7ec",
+          "app/appareil/us/page.tsx": "b7664dbe9cd64a96a59497078dfcd4736d1df2491abad75be4a000c42553be20",
+          "components/us-device-approval.css": "92b9a881f4d2cbd24b7fa0940a86a99b7372e7c14a7e08aa339a60e5daeb4063",
+          "components/us-device-approval.tsx": "3c63f61e737b524cdf1d289517c3f9f48c96a26ac59c3d21a67aa17628b8da76",
+          "drizzle/0088_international_us_device_admission.sql": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8",
+          "lib/international/browser-us-device-approval.test.ts": "857b6e4448b81e81cb3e1e8f27d71f6b1bcd4b2657969e0947163a762d8d5578",
+          "lib/international/browser-us-device-approval.ts": "12208036121d962b4a42353e23245ce11084b292068f83e399259f869a2f2bef",
+          "lib/international/canonical-hash.test.ts": "b0974e62688d4954157644ab93e3da04bc41d16190a47710472b8061b6559ae3",
+          "lib/international/canonical-hash.ts": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87",
+          "lib/international/runtime-bindings.test.ts": "c7b9b68f205bab48e6b3fb74060e2aefc1dfc01785a4d03231794e26c6628333",
+          "lib/international/runtime-bindings.ts": "d90916941e5cafb07b623fd7b1cf5d62452a4ec3a7dea238a4b0968744b835ad",
+          "lib/international/runtime.ts": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b",
+          "lib/international/us-device-approval-copy.ts": "14fe899e2c500a987d10b064a3f91cc8870d793b2782234211095a1fd0919075",
+          "lib/international/us-device-approval-page.test.ts": "fd21e594691bcc2b5a754574442b9357a3e299579257098e44ddf872b1803ec0",
+          "lib/international/us-device-approval-page.ts": "7ad0d40f16bd6a4a6545b6ce917f7024daf9305754fb302d636e676e48e0354f",
+          "lib/international/us-device-approval.browser.test.ts": "374301d92dabcc854a99d53ffe3e49804f19e0384131371276706be92e136495",
+          "lib/international/us-device-bindings.test.ts": "736c18df0425ab14535f3b4678623a15f50e9ca14e723f95fcca2ccd20ff9a21",
+          "lib/international/us-device-bindings.ts": "e90a7caa2568bb9b694654b99198d1e9effff022866a007e9165ae04c9827b84",
+          "lib/international/us-device-contract.ts": "339665fbc292f99b098544fdd09e6ce61770854f28a3b9d6d20a82f1458e4141",
+          "lib/international/us-device-d1.test.ts": "30c32079b5e821a6276e1c6348dcc3739ac8b2b0a3d0dd2d35860ce87f24c915",
+          "lib/international/us-device-d1.ts": "7adbc23fd988e9708fdc2aa012b757895bcf237f9cb5ede7393b37e7fe09fe7a",
+          "lib/international/us-device-display-text.ts": "c2331c3d812c2cfed5dace4df90c0a735f2ce211d675633d6d6d5358faaa2402",
+          "lib/international/us-device-protocol.ts": "2be8a9c08fd26699ff4d388b7d9f18ddb0fed80ce7109c502c682a8d34a26c38",
+          "lib/international/us-device-server.test.ts": "039488b3fe7c282b73943cb769eb89ecfd66302ed1a7cfb4d8ca8854bf6c6b0e",
+          "lib/international/us-device-server.ts": "1069af0fbefd19c0a827b9fc39059fd5c0b9ce9568e1d2bd6def9ed2c534556c",
+          "lib/international/us-device-test-fixture.ts": "11e2d9e35ce0f44c4adf3d61f2ad5c7822898978c718019d074551baf06f2620",
+          "lib/international/us-device-workerd.test.ts": "81b5914c93924f731a7272a335f68840d442714939d214a55fe2e2573c76ff27",
+          "lib/international/workspace-server.ts": "ebe3322fae190909bda25ba7d0b9b54b6ee11820798eca5bbcf02add9a28f66a"
+        },
+        "files": [
+          "app/api/international/device/approve/route.ts",
+          "app/api/international/device/exchange/route.ts",
+          "app/api/international/device/me/route.ts",
+          "app/api/international/device/revoke/route.ts",
+          "app/api/international/device/start/route.ts",
+          "app/appareil/us/page.tsx",
+          "components/us-device-approval.tsx",
+          "lib/international/browser-us-device-approval.test.ts",
+          "lib/international/browser-us-device-approval.ts",
+          "lib/international/canonical-hash.test.ts",
+          "lib/international/canonical-hash.ts",
+          "lib/international/runtime-bindings.test.ts",
+          "lib/international/runtime-bindings.ts",
+          "lib/international/runtime.ts",
+          "lib/international/us-device-approval-copy.ts",
+          "lib/international/us-device-approval-page.test.ts",
+          "lib/international/us-device-approval-page.ts",
+          "lib/international/us-device-approval.browser.test.ts",
+          "lib/international/us-device-bindings.test.ts",
+          "lib/international/us-device-bindings.ts",
+          "lib/international/us-device-contract.ts",
+          "lib/international/us-device-d1.test.ts",
+          "lib/international/us-device-d1.ts",
+          "lib/international/us-device-display-text.ts",
+          "lib/international/us-device-protocol.ts",
+          "lib/international/us-device-server.test.ts",
+          "lib/international/us-device-server.ts",
+          "lib/international/us-device-test-fixture.ts",
+          "lib/international/us-device-workerd.test.ts",
+          "lib/international/workspace-server.ts"
+        ],
+        "completedAt": "2026-10-08T12:49:35.0198851Z",
+        "exitCode": 0
+      },
+      "build": {
+        "sourceSha256": {
+          "app/api/international/device/approve/route.ts": "adb5f2e48b66bc71b84d99f0db1beffd98cd9e983d622ad387a2039de9550088",
+          "app/api/international/device/exchange/route.ts": "50dba33f4daa013d39b159cd7d4781bc76e5d9d4bb408d7e139b7ec8da5bd90d",
+          "app/api/international/device/me/route.ts": "cbe5f1ec4a3dd5be860d18b8cb19402837adf30ecee3e31caf5f80215be929cf",
+          "app/api/international/device/revoke/route.ts": "8a5e6f6488671e57b5fce0979e4fd721cda897cd211b0c32af37bb6a48b157e7",
+          "app/api/international/device/start/route.ts": "42d9f2b920eca52b35105a1d41d4df3ce5a810f8be080aa2d875420eb87be7ec",
+          "app/appareil/us/page.tsx": "b7664dbe9cd64a96a59497078dfcd4736d1df2491abad75be4a000c42553be20",
+          "components/us-device-approval.css": "92b9a881f4d2cbd24b7fa0940a86a99b7372e7c14a7e08aa339a60e5daeb4063",
+          "components/us-device-approval.tsx": "3c63f61e737b524cdf1d289517c3f9f48c96a26ac59c3d21a67aa17628b8da76",
+          "drizzle/0088_international_us_device_admission.sql": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8",
+          "lib/international/browser-us-device-approval.test.ts": "857b6e4448b81e81cb3e1e8f27d71f6b1bcd4b2657969e0947163a762d8d5578",
+          "lib/international/browser-us-device-approval.ts": "12208036121d962b4a42353e23245ce11084b292068f83e399259f869a2f2bef",
+          "lib/international/canonical-hash.test.ts": "b0974e62688d4954157644ab93e3da04bc41d16190a47710472b8061b6559ae3",
+          "lib/international/canonical-hash.ts": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87",
+          "lib/international/runtime-bindings.test.ts": "c7b9b68f205bab48e6b3fb74060e2aefc1dfc01785a4d03231794e26c6628333",
+          "lib/international/runtime-bindings.ts": "d90916941e5cafb07b623fd7b1cf5d62452a4ec3a7dea238a4b0968744b835ad",
+          "lib/international/runtime.ts": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b",
+          "lib/international/us-device-approval-copy.ts": "14fe899e2c500a987d10b064a3f91cc8870d793b2782234211095a1fd0919075",
+          "lib/international/us-device-approval-page.test.ts": "fd21e594691bcc2b5a754574442b9357a3e299579257098e44ddf872b1803ec0",
+          "lib/international/us-device-approval-page.ts": "7ad0d40f16bd6a4a6545b6ce917f7024daf9305754fb302d636e676e48e0354f",
+          "lib/international/us-device-approval.browser.test.ts": "374301d92dabcc854a99d53ffe3e49804f19e0384131371276706be92e136495",
+          "lib/international/us-device-bindings.test.ts": "736c18df0425ab14535f3b4678623a15f50e9ca14e723f95fcca2ccd20ff9a21",
+          "lib/international/us-device-bindings.ts": "e90a7caa2568bb9b694654b99198d1e9effff022866a007e9165ae04c9827b84",
+          "lib/international/us-device-contract.ts": "339665fbc292f99b098544fdd09e6ce61770854f28a3b9d6d20a82f1458e4141",
+          "lib/international/us-device-d1.test.ts": "30c32079b5e821a6276e1c6348dcc3739ac8b2b0a3d0dd2d35860ce87f24c915",
+          "lib/international/us-device-d1.ts": "7adbc23fd988e9708fdc2aa012b757895bcf237f9cb5ede7393b37e7fe09fe7a",
+          "lib/international/us-device-display-text.ts": "c2331c3d812c2cfed5dace4df90c0a735f2ce211d675633d6d6d5358faaa2402",
+          "lib/international/us-device-protocol.ts": "2be8a9c08fd26699ff4d388b7d9f18ddb0fed80ce7109c502c682a8d34a26c38",
+          "lib/international/us-device-server.test.ts": "b82f0ef28a6e7f26535171bf10f50cb38413f548e2b6ab9a3bc950d2e30162e3",
+          "lib/international/us-device-server.ts": "1069af0fbefd19c0a827b9fc39059fd5c0b9ce9568e1d2bd6def9ed2c534556c",
+          "lib/international/us-device-test-fixture.ts": "8689c0ec8b8c2e6ed8a5b25e00715af0080774f8edb52743e8112de41fd3c1f4",
+          "lib/international/us-device-workerd.test.ts": "81b5914c93924f731a7272a335f68840d442714939d214a55fe2e2573c76ff27",
+          "lib/international/workspace-server.ts": "ebe3322fae190909bda25ba7d0b9b54b6ee11820798eca5bbcf02add9a28f66a"
+        },
+        "check": "build",
+        "exitCode": 0,
+        "sourceUnchanged": true,
+        "files": [],
+        "sourceChanges": [],
+        "completedAt": "2026-10-08T12:28:35.3699757Z"
+      }
+    },
+    "productionBuildSourcesMatchCurrent": true,
+    "files": {
+      "modified": [
+        {
+          "path": "lib/international/runtime-bindings.test.ts",
+          "sha256": "c7b9b68f205bab48e6b3fb74060e2aefc1dfc01785a4d03231794e26c6628333"
+        },
+        {
+          "path": "lib/international/runtime-bindings.ts",
+          "sha256": "d90916941e5cafb07b623fd7b1cf5d62452a4ec3a7dea238a4b0968744b835ad"
+        },
+        {
+          "path": "lib/international/runtime.ts",
+          "sha256": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b"
+        },
+        {
+          "path": "lib/international/workspace-server.ts",
+          "sha256": "ebe3322fae190909bda25ba7d0b9b54b6ee11820798eca5bbcf02add9a28f66a"
+        }
+      ],
+      "created": [
+        {
+          "path": ".impeccable/briefs/us-device-approval.md",
+          "sha256": "79a2c8964ea59f8fff9ba5c5a7aabe06b15bee709fa210a92b4a0d0d71f40a36"
+        },
+        {
+          "path": "app/api/international/device/approve/route.ts",
+          "sha256": "adb5f2e48b66bc71b84d99f0db1beffd98cd9e983d622ad387a2039de9550088"
+        },
+        {
+          "path": "app/api/international/device/exchange/route.ts",
+          "sha256": "50dba33f4daa013d39b159cd7d4781bc76e5d9d4bb408d7e139b7ec8da5bd90d"
+        },
+        {
+          "path": "app/api/international/device/me/route.ts",
+          "sha256": "cbe5f1ec4a3dd5be860d18b8cb19402837adf30ecee3e31caf5f80215be929cf"
+        },
+        {
+          "path": "app/api/international/device/revoke/route.ts",
+          "sha256": "8a5e6f6488671e57b5fce0979e4fd721cda897cd211b0c32af37bb6a48b157e7"
+        },
+        {
+          "path": "app/api/international/device/start/route.ts",
+          "sha256": "42d9f2b920eca52b35105a1d41d4df3ce5a810f8be080aa2d875420eb87be7ec"
+        },
+        {
+          "path": "app/appareil/us/page.tsx",
+          "sha256": "b7664dbe9cd64a96a59497078dfcd4736d1df2491abad75be4a000c42553be20"
+        },
+        {
+          "path": "components/us-device-approval.css",
+          "sha256": "92b9a881f4d2cbd24b7fa0940a86a99b7372e7c14a7e08aa339a60e5daeb4063"
+        },
+        {
+          "path": "components/us-device-approval.tsx",
+          "sha256": "3c63f61e737b524cdf1d289517c3f9f48c96a26ac59c3d21a67aa17628b8da76"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-US-PURCHASING-EXPORT-PLAN-20261008.md",
+          "sha256": "4ad06823639a9f8ee5f328484b839416d8639597567bd97956bacea307e0d900"
+        },
+        {
+          "path": "docs/internationalization/US-NATIVE-ADMISSION-CONTRACT-20261008.md",
+          "sha256": "ff9d0a7c3412ef4dc409ea7cd91f2b8ab46407d5e0d44f74e0588f1fb0fd7411"
+        },
+        {
+          "path": "docs/internationalization/US-NATIVE-ADMISSION-DELIVERY-20261008.md",
+          "sha256": "4b7316a6e33ed867c4485609107d63e407906003a1d5dced3c1743ce01778cec"
+        },
+        {
+          "path": "drizzle/0088_international_us_device_admission.sql",
+          "sha256": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8"
+        },
+        {
+          "path": "lib/international/browser-us-device-approval.test.ts",
+          "sha256": "857b6e4448b81e81cb3e1e8f27d71f6b1bcd4b2657969e0947163a762d8d5578"
+        },
+        {
+          "path": "lib/international/browser-us-device-approval.ts",
+          "sha256": "12208036121d962b4a42353e23245ce11084b292068f83e399259f869a2f2bef"
+        },
+        {
+          "path": "lib/international/canonical-hash.test.ts",
+          "sha256": "b0974e62688d4954157644ab93e3da04bc41d16190a47710472b8061b6559ae3"
+        },
+        {
+          "path": "lib/international/canonical-hash.ts",
+          "sha256": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87"
+        },
+        {
+          "path": "lib/international/us-device-approval-copy.ts",
+          "sha256": "14fe899e2c500a987d10b064a3f91cc8870d793b2782234211095a1fd0919075"
+        },
+        {
+          "path": "lib/international/us-device-approval-page.test.ts",
+          "sha256": "fd21e594691bcc2b5a754574442b9357a3e299579257098e44ddf872b1803ec0"
+        },
+        {
+          "path": "lib/international/us-device-approval-page.ts",
+          "sha256": "7ad0d40f16bd6a4a6545b6ce917f7024daf9305754fb302d636e676e48e0354f"
+        },
+        {
+          "path": "lib/international/us-device-approval.browser.test.ts",
+          "sha256": "374301d92dabcc854a99d53ffe3e49804f19e0384131371276706be92e136495"
+        },
+        {
+          "path": "lib/international/us-device-bindings.test.ts",
+          "sha256": "736c18df0425ab14535f3b4678623a15f50e9ca14e723f95fcca2ccd20ff9a21"
+        },
+        {
+          "path": "lib/international/us-device-bindings.ts",
+          "sha256": "e90a7caa2568bb9b694654b99198d1e9effff022866a007e9165ae04c9827b84"
+        },
+        {
+          "path": "lib/international/us-device-contract.ts",
+          "sha256": "339665fbc292f99b098544fdd09e6ce61770854f28a3b9d6d20a82f1458e4141"
+        },
+        {
+          "path": "lib/international/us-device-d1.test.ts",
+          "sha256": "30c32079b5e821a6276e1c6348dcc3739ac8b2b0a3d0dd2d35860ce87f24c915"
+        },
+        {
+          "path": "lib/international/us-device-d1.ts",
+          "sha256": "7adbc23fd988e9708fdc2aa012b757895bcf237f9cb5ede7393b37e7fe09fe7a"
+        },
+        {
+          "path": "lib/international/us-device-display-text.ts",
+          "sha256": "c2331c3d812c2cfed5dace4df90c0a735f2ce211d675633d6d6d5358faaa2402"
+        },
+        {
+          "path": "lib/international/us-device-protocol.ts",
+          "sha256": "2be8a9c08fd26699ff4d388b7d9f18ddb0fed80ce7109c502c682a8d34a26c38"
+        },
+        {
+          "path": "lib/international/us-device-server.test.ts",
+          "sha256": "039488b3fe7c282b73943cb769eb89ecfd66302ed1a7cfb4d8ca8854bf6c6b0e"
+        },
+        {
+          "path": "lib/international/us-device-server.ts",
+          "sha256": "1069af0fbefd19c0a827b9fc39059fd5c0b9ce9568e1d2bd6def9ed2c534556c"
+        },
+        {
+          "path": "lib/international/us-device-test-fixture.ts",
+          "sha256": "11e2d9e35ce0f44c4adf3d61f2ad5c7822898978c718019d074551baf06f2620"
+        },
+        {
+          "path": "lib/international/us-device-workerd.test.ts",
+          "sha256": "81b5914c93924f731a7272a335f68840d442714939d214a55fe2e2573c76ff27"
+        }
+      ]
+    }
+  },
+  "historicalFailures": {
+    "workerInterruptedRun": {
+      "report": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site\\.qa\\us-admission\\initial-results-workers-interrupted.json",
+      "success": true,
+      "files": 102,
+      "tests": 3698,
+      "passed": 3640,
+      "failed": 0,
+      "pending": 0
+    },
+    "isolatedWorkerRecovery": {
+      "report": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site\\.qa\\us-admission\\worker-retest.json",
+      "success": true,
+      "files": 3,
+      "tests": 58,
+      "passed": 58,
+      "failed": 0,
+      "pending": 0
+    },
+    "clockBoundaryBeforeFix": {
+      "report": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site\\.qa\\us-admission\\clock-boundary-before-fix.json",
+      "success": false,
+      "files": 102,
+      "tests": 3698,
+      "passed": 3697,
+      "failed": 1,
+      "pending": 0
+    },
+    "clockFixRecovery": {
+      "report": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site\\.qa\\us-admission\\clock-retest.json",
+      "success": true,
+      "files": 3,
+      "tests": 54,
+      "passed": 54,
+      "failed": 0,
+      "pending": 0
+    },
+    "cause": "Node Date.now can lead SQLite unixepoch by 1 second on this host; fixture now uses the database clock. Production SQL fences unchanged."
+  },
+  "native": {
+    "path": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission",
+    "baseCommit": "0f53e632982fdc9cdc43d5e5a322aa33cb565571",
+    "typescriptFreeze": {
+      "baseCommit": "0f53e632982fdc9cdc43d5e5a322aa33cb565571",
+      "sourceCommit": "a30915ab7500a1a3af57da0d26b915cdc2b83e06",
+      "scope": "native TS admission + shared pure US schemas 1/2/3",
+      "files": [
+        {
+          "path": "desktop/scripts/align-international-domain.mjs",
+          "sha256": "f9e9184331d4d5a0cc19a5222922f8aedb88201af0de823e43eef67c40f010a8"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.json",
+          "sha256": "9dc16371049dacb0c43785f9ff69dfb9c4629636c77cdc72f5aface741a93b60"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.manifest.json",
+          "sha256": "bbd38d23861c7fe3d183ed0cf25026b9216ffe83541986c6cb763a03aec95afe"
+        },
+        {
+          "path": "desktop/src/App.tsx",
+          "sha256": "5a3ae06dfd55ed6bd94f16406b24053ae82ea4ce29f19eb1e7b2826201059257"
+        },
+        {
+          "path": "desktop/src/dark.generated.css",
+          "sha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f"
+        },
+        {
+          "path": "desktop/src/internationalErp.ts",
+          "sha256": "57efdac54bba5dab00d7c4de61972b167536f0739d5bceb54e02dcd4d05795b1"
+        },
+        {
+          "path": "desktop/src/InternationalErpPilot.tsx",
+          "sha256": "26ffa2d292c8a8edb3041b6cc2230698a5bdbaf71ecc02826ef6af6cd3aec0a8"
+        },
+        {
+          "path": "desktop/src/internationalErpSession.test.ts",
+          "sha256": "544aaf27889c57e1ef0b7f98259f7698e9f86db87b3824d453dde208e533b359"
+        },
+        {
+          "path": "desktop/src/internationalErpSession.ts",
+          "sha256": "4d8f13c6c31e7d5cad5ccd1d3ab057685210a4065ef5e7dcd43ae4a7e4555c5a"
+        },
+        {
+          "path": "desktop/src/native-us-shell.css",
+          "sha256": "220e7b668abdf3ad9a8b55ddc76c5bd5831a670d7e5eebef6a3553a1845298e6"
+        },
+        {
+          "path": "desktop/src/nativeAdmission.test.ts",
+          "sha256": "7d7242b315eca3a047edc90c5b67bebd16c0fc83b41ab0a79ff50aa7628dc934"
+        },
+        {
+          "path": "desktop/src/nativeAdmission.ts",
+          "sha256": "3d89604945fc674ef22fd56744c3918a62c8c081bbe87cc070717bc13a852016"
+        },
+        {
+          "path": "desktop/src/NativeAdmissionRoot.tsx",
+          "sha256": "005834bfa7839ef19c9e8546d3b538933b875a7339f725a3ec4f9487df32d852"
+        },
+        {
+          "path": "desktop/src/nativeChPreservation.test.ts",
+          "sha256": "d5730deaf90832944c18ef52c1a6c7c1b3225ddc25321bc6756a76020560901d"
+        },
+        {
+          "path": "desktop/src/nativeSharedDomain.test.ts",
+          "sha256": "e017a34516b93fb7a22eb621becc6840a4d8dc26d3fe9a1aeab1b623a1d990ec"
+        },
+        {
+          "path": "desktop/src/nativeUsCopy.test.ts",
+          "sha256": "919ed37142bf1971175525c72b59fb994c3ea7b02e8b956e71b89f510a7568a5"
+        },
+        {
+          "path": "desktop/src/nativeUsForms.test.ts",
+          "sha256": "fe5cfed3fbfd587c8b689a6349f207889e3f984519e3df8967269dc900a7aa82"
+        },
+        {
+          "path": "desktop/src/nativeUsForms.ts",
+          "sha256": "07505b4e222d85b56bafa6016556c877dd96e62ccf992b7b9540f6e69487f483"
+        },
+        {
+          "path": "desktop/src/NativeUsPreferences.tsx",
+          "sha256": "3e6cf862546d842e41e7dcd4fdc97c365f462129492fabec09900041520c6e71"
+        },
+        {
+          "path": "desktop/src/NativeUsProjects.tsx",
+          "sha256": "1827785b8a8828a3d35da30997f831812fff610d7d94dcb53596ab4ad6785fef"
+        },
+        {
+          "path": "desktop/src/NativeUsReports.tsx",
+          "sha256": "a053872f5fb04213b4eb47d99bd860b06ef0280969251a49ae0af0cdcd5b6fd6"
+        },
+        {
+          "path": "desktop/src/nativeUsShell.test.tsx",
+          "sha256": "27ea81475742b8b1b46befc781c48923db6717932609d34f843e46ac915362af"
+        },
+        {
+          "path": "desktop/src/nativeUsViews.ts",
+          "sha256": "9600d936552b91c06a9984574d136f4daa5635241b531cd45ee5a24105d104d9"
+        },
+        {
+          "path": "desktop/src/NativeUsWorkspace.tsx",
+          "sha256": "91aae87f16a38195ab30ce616bf3a64fffa7cbefde00794592bc43b7f79e21e7"
+        },
+        {
+          "path": "desktop/src/translations.ts",
+          "sha256": "84c954fe009f12e3d3c80f4329efe1db1284a68c4cbfc778b26545962b12a748"
+        },
+        {
+          "path": "desktop/src/translationsNativeUs.ts",
+          "sha256": "bbbdaf90e5c5b1bace4a00b4a1c6a80a23452989c74bd1a8d1ea1d192874faa2"
+        },
+        {
+          "path": "desktop/src/WorkspaceApp.tsx",
+          "sha256": "8bb378179f5b7ee3d20c0c9350b0664bb84184296482844fbd55415d0f8487b0"
+        },
+        {
+          "path": "desktop/tests/generate-native-us-corpus.test.ts",
+          "sha256": "da7ad464d51e515142510945eb00a32d27825c709c720242d6c4e3c0a4e8759b"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-preview.html",
+          "sha256": "67da52910d702af1aa6a5065795ffbefea353d442e4dc29692c29ae7fde426f1"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-preview.tsx",
+          "sha256": "cc61c9542993c658d074bfba6c02aaee50378bd02d12ee03f11950672ad1acfe"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-review.mjs",
+          "sha256": "9dfd8dabda66e903bbc8aca6c14648337999800aeb4ab8bbb9ba8e0a7edc4955"
+        },
+        {
+          "path": "desktop/tests/native-us-fixture.ts",
+          "sha256": "81b744e31995059f3750ec782aebdfd7790d7623a1daea96f86ce1684a629eb1"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-SHARED-DOMAIN-MANIFEST-20261008.json",
+          "sha256": "a0c1b6974509c3361a1b9d7226bf0037e69da8db88a31c418e800c32ac58a043"
+        },
+        {
+          "path": "lib/international/accounting/ledger.ts",
+          "sha256": "693b46ba967370a5df14bffa1c396ef9ac401a4521bafb149a40862ee66f2af0"
+        },
+        {
+          "path": "lib/international/accounting/postings.ts",
+          "sha256": "c216578499a33879da1463602ffeead083de8eb8951d24434d9d6d6181062147"
+        },
+        {
+          "path": "lib/international/accounting/reports.ts",
+          "sha256": "ade415d24c56f98b60dcddafb6b7628a5d9befe9f95dd28a3c75b5abcd4c0644"
+        },
+        {
+          "path": "lib/international/addresses.ts",
+          "sha256": "ab99832d4839ba2ab41318c0cdadb7ac709c724d4f04804c3572e8622c87955a"
+        },
+        {
+          "path": "lib/international/canonical-hash.ts",
+          "sha256": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87"
+        },
+        {
+          "path": "lib/international/contacts.ts",
+          "sha256": "4cc30d430e43d503aace32f2cff6308870351d372f622f1f38536898b030d04a"
+        },
+        {
+          "path": "lib/international/countries/adapters.ts",
+          "sha256": "886cdee844d9cbae858a11f61ff008cb67a3ec0958146f457ff48c12c7c5e3c4"
+        },
+        {
+          "path": "lib/international/countries/ch/accounting.ts",
+          "sha256": "f51acabfad6ac000df2f2b36eaff5ecae158dbf8a76da7c09af4b44c3ab8041e"
+        },
+        {
+          "path": "lib/international/countries/us/accounting.ts",
+          "sha256": "293325666a087b381521f77db9822f0e60cea1aac8207716879968e49b330cb3"
+        },
+        {
+          "path": "lib/international/country-config.ts",
+          "sha256": "f36d0363d0ff930595af56a1ff15132416b700dba790c3b78127bdb2d9979b7e"
+        },
+        {
+          "path": "lib/international/erp-contract.ts",
+          "sha256": "1f49a257a335c040c627c8ed4b873fcd6b78a489fd07bb4edc7e16aa2f28c783"
+        },
+        {
+          "path": "lib/international/erp-request.ts",
+          "sha256": "6ac39c6b07f63839f0b614e0ecfa4ddfee340924a061c21977172eaae56b649c"
+        },
+        {
+          "path": "lib/international/erp-schema-capability.ts",
+          "sha256": "e6a2ea58a1dbf3981d56364c23f8c7d116f75da612f4ee32696fdf430107cef6"
+        },
+        {
+          "path": "lib/international/export-test-fixture.ts",
+          "sha256": "ac19faed6dc6eb18094d7611e85fa03dd1d6c14741f932d1466286ff8db407de"
+        },
+        {
+          "path": "lib/international/invoicing.ts",
+          "sha256": "552f245749d6172f7f07276234d12c8ce1b05b60ded1da2e92f1dafbf14bbf8e"
+        },
+        {
+          "path": "lib/international/localization.ts",
+          "sha256": "63f581c1b6231ae1a215b06ba3d7c2da65423c74d9b3a2d21b926dc2ffcd16fe"
+        },
+        {
+          "path": "lib/international/money.ts",
+          "sha256": "6288c87e78fab34a698d959609c440a77e6cd54b49776dadf1253322af095c55"
+        },
+        {
+          "path": "lib/international/private-json.ts",
+          "sha256": "9781f34bdb416a90e2a1045fa2ac5eeca35e953258012e034a499fee49282c22"
+        },
+        {
+          "path": "lib/international/projects.ts",
+          "sha256": "141c730039d69bd9b94de267fb47ced9a4a29e925c12f7bf86df0caf43bb89a6"
+        },
+        {
+          "path": "lib/international/public-projection.ts",
+          "sha256": "71687afdad2fd12b85043a3a1152d371044fba80d132397702e0bc2342d1b67b"
+        },
+        {
+          "path": "lib/international/purchasing.ts",
+          "sha256": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d"
+        },
+        {
+          "path": "lib/international/runtime-sync.ts",
+          "sha256": "6174bdf9d54635af4a9bae493b6f5f59fcb54b064101173a950db639fd83eb0f"
+        },
+        {
+          "path": "lib/international/runtime-types.ts",
+          "sha256": "655dfefe8dd212a9cd617127257b0782eeb7ab0bfa20b6bf306224750b3a6626"
+        },
+        {
+          "path": "lib/international/runtime-validation.ts",
+          "sha256": "8afbf387263a67c2473b6f1629d65d7642b1fffed9cbfd9313ef194c22176808"
+        },
+        {
+          "path": "lib/international/runtime.ts",
+          "sha256": "f2f9195b1424178229def7fbe46295c86ee3a12895d93887cf8b444cd50517c0"
+        },
+        {
+          "path": "lib/international/types.ts",
+          "sha256": "864d9f23962593342c5acaf4ed1d3857042c2de5f3363f554c88de4694267ad8"
+        },
+        {
+          "path": ".gitattributes",
+          "sha256": "f9def0bc55d35a8bc14120b82edf6f0a54f35765f2d6f4e70f20763470569c50"
+        }
+      ],
+      "tests": {
+        "targetedFiles": 10,
+        "passed": 101,
+        "corpusVectors": 24,
+        "visualBatch": 91,
+        "visualConfirmation": 7,
+        "functionalFinal": "passed",
+        "keyboardHorizontalScroll": "actual scrollLeft increase verified",
+        "lint": "new and changed US source/test19 files, with desktop tsconfig, passed",
+        "historicalChLint": "explicit wider invocation reported pre-existing diagnostics; preserved source, not claimed clean",
+        "buildWeb": "passed: branding + dark palette + tsc --noEmit + vite build",
+        "nativeUsChunkKb": "128.44",
+        "mainIndexKb": "477.44",
+        "corrections": [
+          "Vendor payments scoped per bill across project membership; regression two bills and one partial payment",
+          "Ambiguous post-commit configuration_changed retains exact envelope; actual executeErp payment replay unique",
+          "Only locally proven rejection or strict pre-commit CAS/idempotency codes release pending; auth/role/context purge unchanged"
+        ],
+        "finalArtifactBuild": "passed: Vite only after exact HEAD byte restoration of CH dark.generated.css; no generator replay",
+        "chGeneratedCss": "exact HEAD bytes verified; no CH CSS diff",
+        "earlierFullBuildScope": "build.log records prior full branding/palette/tsc/Vite validation; final preserved-CH-CSS artifact is logged separately",
+        "lfAttributesTargeted": {
+          "passed": 9,
+          "files": 1,
+          "newGuard": 1,
+          "paths": 29,
+          "lint": "passed for changed test",
+          "fullRunBeforeAttributes": "101 tests in10files; no logic changed after that run",
+          "additionalBuild": "not rerun: attributes and test only"
+        },
+        "lfNormalizedProvenance": {
+          "domainTests": 9,
+          "generatorTests": 1,
+          "corpusVectors": 24,
+          "corpusSHA256": "9dc16371049dacb0c43785f9ff69dfb9c4629636c77cdc72f5aface741a93b60",
+          "normalization": "strictUTF8,CRLF/CRtoLF beforewrite/hash; rawsourceSHA256recordedfor26",
+          "lint": "changed alignscript and domain test passed",
+          "businessLogic": "unchanged",
+          "newBuild": "not required: line-ending/provenance normalization only"
+        }
+      },
+      "evidence": [
+        "desktop/.impeccable/review/native-us-admission/results.json",
+        "desktop/.impeccable/review/native-us-admission-confirmation/results.json",
+        "desktop/.impeccable/review/native-us-admission-functional-final/results.json",
+        "desktop/.impeccable/review/native-us-admission-functional-final/vitest-results.json",
+        "desktop/.impeccable/review/native-us-admission-functional-final/lint.log",
+        "desktop/.impeccable/review/native-us-admission-functional-final/build.log",
+        "desktop/.impeccable/review/native-us-admission-functional-final/functional.log",
+        "desktop/.impeccable/review/native-us-admission-functional-final/vite-only-preserved-ch-css.log",
+        "desktop/.impeccable/review/native-us-admission-functional-final/lf-attributes-vitest-results.json",
+        "desktop/.impeccable/review/native-us-admission-functional-final/lf-attributes-lint.log",
+        "desktop/.impeccable/review/native-us-admission-functional-final/lf-normalized-corpus-vitest-results.json",
+        "desktop/.impeccable/review/native-us-admission-functional-final/lf-normalized-domain-vitest-results.json",
+        "desktop/.impeccable/review/native-us-admission-functional-final/lf-normalized-lint.log"
+      ],
+      "limitations": [
+        "No real Rust binary validation on this Windows host; Windows 4551 block tracked by Rust agent",
+        "No actual account, live approval, multi-device, staging or production test",
+        "Native US invoice issuance remains closed without trusted tax provider",
+        "Native reports deterministic on real admitted data, no native export port in this lot",
+        "Legacy unmaterialized project refs require explicit reviewed migration in web",
+        "No US Support/Automation native workflow integration in this admission lot",
+        "Existing large CH/libraries chunks retain build warnings"
+      ],
+      "production": false,
+      "evidenceHashes": [
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-confirmation/results.json",
+          "sha256": "06832271ca189fe953af80e4606f2ad8c2f014409ccae3614577f9b6e79d7376"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/build.log",
+          "sha256": "addea52b4bc464c48b06edff0920a205fed2ed774414139e651be492bbe02b53"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/functional.log",
+          "sha256": "3cc82d12a46336745caa727db84e9dd78fd166633a21cf915a0bf1ac7e6db6fd"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/lf-attributes-lint.log",
+          "sha256": "78e1eefdd5b61c51d0683723752d200301095922e4bb612ea6dd3ea448d410bf"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/lf-attributes-vitest-results.json",
+          "sha256": "3e00b35ed397153d1f7f3693f47da90d65fb8eec64ab68f73f3706a50a86b024"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/lf-normalized-corpus-vitest-results.json",
+          "sha256": "7fd120791c8e72aaf548d9f7f7e409ddbdeef0ef0c7690fc5a2abdd11ed8bd37"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/lf-normalized-domain-vitest-results.json",
+          "sha256": "4b1ee08b4c4771e98cb372ef5844b8ea6e2a78ea065c1c7dff823b9101622feb"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/lf-normalized-lint.log",
+          "sha256": "78e1eefdd5b61c51d0683723752d200301095922e4bb612ea6dd3ea448d410bf"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/lint.log",
+          "sha256": "78e1eefdd5b61c51d0683723752d200301095922e4bb612ea6dd3ea448d410bf"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/results.json",
+          "sha256": "f5bfdd410f753b841b7d32320b72dfd313f7a14d4fdbf08803216ee9bb45fe3c"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/vite-only-preserved-ch-css.log",
+          "sha256": "bab910928f45e64995421006cfd7504a7ccfe734292a451bf0afe12f38b50568"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission-functional-final/vitest-results.json",
+          "sha256": "965779ea415658a3ec33a73f0ad3a8dd4a1448c7c2a4527f13a2a97aa0568ae4"
+        },
+        {
+          "path": "desktop/.impeccable/review/native-us-admission/results.json",
+          "sha256": "ab3f5c9539ecb05e3bb92880d616e7ac739d7c9a9114cde5747a8924e945663a"
+        }
+      ]
+    },
+    "typescriptFreezeSha256": "f42ce868e8d14af35dfcf47d3412ec6430ecae1be5f2f607b005c63cb37faf35",
+    "tests": {
+      "report": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission\\desktop\\.impeccable\\review\\native-us-admission-functional-final\\vitest-results.json",
+      "success": true,
+      "files": 10,
+      "tests": 101,
+      "passed": 101,
+      "failed": 0,
+      "pending": 0
+    },
+    "lfAttributesFocusedTests": {
+      "report": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission\\desktop\\.impeccable\\review\\native-us-admission-functional-final\\lf-attributes-vitest-results.json",
+      "success": true,
+      "files": 1,
+      "tests": 9,
+      "passed": 9,
+      "failed": 0,
+      "pending": 0
+    },
+    "indexedLfCheckout": {
+      "success": true,
+      "scope": "indexed checkout of the 29 reviewed hash artifacts with core.autocrlf=true",
+      "checkoutPath": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission\\desktop\\.impeccable\\review\\native-us-admission-functional-final\\indexed-checkout-c594953a2ca2457ca0d785f10067830e",
+      "files": [
+        {
+          "path": "lib/international/accounting/ledger.ts",
+          "sha256": "693b46ba967370a5df14bffa1c396ef9ac401a4521bafb149a40862ee66f2af0"
+        },
+        {
+          "path": "lib/international/accounting/postings.ts",
+          "sha256": "c216578499a33879da1463602ffeead083de8eb8951d24434d9d6d6181062147"
+        },
+        {
+          "path": "lib/international/accounting/reports.ts",
+          "sha256": "ade415d24c56f98b60dcddafb6b7628a5d9befe9f95dd28a3c75b5abcd4c0644"
+        },
+        {
+          "path": "lib/international/addresses.ts",
+          "sha256": "ab99832d4839ba2ab41318c0cdadb7ac709c724d4f04804c3572e8622c87955a"
+        },
+        {
+          "path": "lib/international/canonical-hash.ts",
+          "sha256": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87"
+        },
+        {
+          "path": "lib/international/contacts.ts",
+          "sha256": "4cc30d430e43d503aace32f2cff6308870351d372f622f1f38536898b030d04a"
+        },
+        {
+          "path": "lib/international/countries/adapters.ts",
+          "sha256": "886cdee844d9cbae858a11f61ff008cb67a3ec0958146f457ff48c12c7c5e3c4"
+        },
+        {
+          "path": "lib/international/countries/ch/accounting.ts",
+          "sha256": "f51acabfad6ac000df2f2b36eaff5ecae158dbf8a76da7c09af4b44c3ab8041e"
+        },
+        {
+          "path": "lib/international/countries/us/accounting.ts",
+          "sha256": "293325666a087b381521f77db9822f0e60cea1aac8207716879968e49b330cb3"
+        },
+        {
+          "path": "lib/international/country-config.ts",
+          "sha256": "f36d0363d0ff930595af56a1ff15132416b700dba790c3b78127bdb2d9979b7e"
+        },
+        {
+          "path": "lib/international/erp-contract.ts",
+          "sha256": "1f49a257a335c040c627c8ed4b873fcd6b78a489fd07bb4edc7e16aa2f28c783"
+        },
+        {
+          "path": "lib/international/erp-request.ts",
+          "sha256": "6ac39c6b07f63839f0b614e0ecfa4ddfee340924a061c21977172eaae56b649c"
+        },
+        {
+          "path": "lib/international/erp-schema-capability.ts",
+          "sha256": "e6a2ea58a1dbf3981d56364c23f8c7d116f75da612f4ee32696fdf430107cef6"
+        },
+        {
+          "path": "lib/international/export-test-fixture.ts",
+          "sha256": "ac19faed6dc6eb18094d7611e85fa03dd1d6c14741f932d1466286ff8db407de"
+        },
+        {
+          "path": "lib/international/invoicing.ts",
+          "sha256": "552f245749d6172f7f07276234d12c8ce1b05b60ded1da2e92f1dafbf14bbf8e"
+        },
+        {
+          "path": "lib/international/localization.ts",
+          "sha256": "63f581c1b6231ae1a215b06ba3d7c2da65423c74d9b3a2d21b926dc2ffcd16fe"
+        },
+        {
+          "path": "lib/international/money.ts",
+          "sha256": "6288c87e78fab34a698d959609c440a77e6cd54b49776dadf1253322af095c55"
+        },
+        {
+          "path": "lib/international/private-json.ts",
+          "sha256": "9781f34bdb416a90e2a1045fa2ac5eeca35e953258012e034a499fee49282c22"
+        },
+        {
+          "path": "lib/international/projects.ts",
+          "sha256": "141c730039d69bd9b94de267fb47ced9a4a29e925c12f7bf86df0caf43bb89a6"
+        },
+        {
+          "path": "lib/international/public-projection.ts",
+          "sha256": "71687afdad2fd12b85043a3a1152d371044fba80d132397702e0bc2342d1b67b"
+        },
+        {
+          "path": "lib/international/purchasing.ts",
+          "sha256": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d"
+        },
+        {
+          "path": "lib/international/runtime-sync.ts",
+          "sha256": "6174bdf9d54635af4a9bae493b6f5f59fcb54b064101173a950db639fd83eb0f"
+        },
+        {
+          "path": "lib/international/runtime-types.ts",
+          "sha256": "655dfefe8dd212a9cd617127257b0782eeb7ab0bfa20b6bf306224750b3a6626"
+        },
+        {
+          "path": "lib/international/runtime-validation.ts",
+          "sha256": "8afbf387263a67c2473b6f1629d65d7642b1fffed9cbfd9313ef194c22176808"
+        },
+        {
+          "path": "lib/international/runtime.ts",
+          "sha256": "f2f9195b1424178229def7fbe46295c86ee3a12895d93887cf8b444cd50517c0"
+        },
+        {
+          "path": "lib/international/types.ts",
+          "sha256": "864d9f23962593342c5acaf4ed1d3857042c2de5f3363f554c88de4694267ad8"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-SHARED-DOMAIN-MANIFEST-20261008.json",
+          "sha256": "a0c1b6974509c3361a1b9d7226bf0037e69da8db88a31c418e800c32ac58a043"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.json",
+          "sha256": "9dc16371049dacb0c43785f9ff69dfb9c4629636c77cdc72f5aface741a93b60"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.manifest.json",
+          "sha256": "bbd38d23861c7fe3d183ed0cf25026b9216ffe83541986c6cb763a03aec95afe"
+        }
+      ],
+      "vectorManifest": {
+        "vectorCount": 24,
+        "schemas": [
+          1,
+          2,
+          3
+        ],
+        "sha256": "9dc16371049dacb0c43785f9ff69dfb9c4629636c77cdc72f5aface741a93b60",
+        "sourceAlignment": {
+          "sourceCommit": "a30915ab7500a1a3af57da0d26b915cdc2b83e06",
+          "scope": "pure-domain-only",
+          "normalization": {
+            "encoding": "UTF-8",
+            "lineEndings": "LF",
+            "rule": "CRLF and CR normalized to LF before write and SHA256"
+          },
+          "schemas": [
+            1,
+            2,
+            3
+          ],
+          "files": [
+            {
+              "path": "lib/international/accounting/ledger.ts",
+              "sha256": "693b46ba967370a5df14bffa1c396ef9ac401a4521bafb149a40862ee66f2af0",
+              "sourceRawSha256": "693b46ba967370a5df14bffa1c396ef9ac401a4521bafb149a40862ee66f2af0",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/accounting/postings.ts",
+              "sha256": "c216578499a33879da1463602ffeead083de8eb8951d24434d9d6d6181062147",
+              "sourceRawSha256": "c216578499a33879da1463602ffeead083de8eb8951d24434d9d6d6181062147",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/accounting/reports.ts",
+              "sha256": "ade415d24c56f98b60dcddafb6b7628a5d9befe9f95dd28a3c75b5abcd4c0644",
+              "sourceRawSha256": "ade415d24c56f98b60dcddafb6b7628a5d9befe9f95dd28a3c75b5abcd4c0644",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/addresses.ts",
+              "sha256": "ab99832d4839ba2ab41318c0cdadb7ac709c724d4f04804c3572e8622c87955a",
+              "sourceRawSha256": "ab99832d4839ba2ab41318c0cdadb7ac709c724d4f04804c3572e8622c87955a",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/canonical-hash.ts",
+              "sha256": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87",
+              "sourceRawSha256": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87",
+              "testOnly": false,
+              "source": "authorized-pure-hash-extraction-after-source-commit"
+            },
+            {
+              "path": "lib/international/contacts.ts",
+              "sha256": "4cc30d430e43d503aace32f2cff6308870351d372f622f1f38536898b030d04a",
+              "sourceRawSha256": "4cc30d430e43d503aace32f2cff6308870351d372f622f1f38536898b030d04a",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/countries/adapters.ts",
+              "sha256": "886cdee844d9cbae858a11f61ff008cb67a3ec0958146f457ff48c12c7c5e3c4",
+              "sourceRawSha256": "886cdee844d9cbae858a11f61ff008cb67a3ec0958146f457ff48c12c7c5e3c4",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/countries/ch/accounting.ts",
+              "sha256": "f51acabfad6ac000df2f2b36eaff5ecae158dbf8a76da7c09af4b44c3ab8041e",
+              "sourceRawSha256": "f51acabfad6ac000df2f2b36eaff5ecae158dbf8a76da7c09af4b44c3ab8041e",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/countries/us/accounting.ts",
+              "sha256": "293325666a087b381521f77db9822f0e60cea1aac8207716879968e49b330cb3",
+              "sourceRawSha256": "293325666a087b381521f77db9822f0e60cea1aac8207716879968e49b330cb3",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/country-config.ts",
+              "sha256": "f36d0363d0ff930595af56a1ff15132416b700dba790c3b78127bdb2d9979b7e",
+              "sourceRawSha256": "f36d0363d0ff930595af56a1ff15132416b700dba790c3b78127bdb2d9979b7e",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/erp-contract.ts",
+              "sha256": "1f49a257a335c040c627c8ed4b873fcd6b78a489fd07bb4edc7e16aa2f28c783",
+              "sourceRawSha256": "1f49a257a335c040c627c8ed4b873fcd6b78a489fd07bb4edc7e16aa2f28c783",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/erp-request.ts",
+              "sha256": "6ac39c6b07f63839f0b614e0ecfa4ddfee340924a061c21977172eaae56b649c",
+              "sourceRawSha256": "6ac39c6b07f63839f0b614e0ecfa4ddfee340924a061c21977172eaae56b649c",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/erp-schema-capability.ts",
+              "sha256": "e6a2ea58a1dbf3981d56364c23f8c7d116f75da612f4ee32696fdf430107cef6",
+              "sourceRawSha256": "e6a2ea58a1dbf3981d56364c23f8c7d116f75da612f4ee32696fdf430107cef6",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/export-test-fixture.ts",
+              "sha256": "ac19faed6dc6eb18094d7611e85fa03dd1d6c14741f932d1466286ff8db407de",
+              "sourceRawSha256": "ac19faed6dc6eb18094d7611e85fa03dd1d6c14741f932d1466286ff8db407de",
+              "testOnly": true,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/invoicing.ts",
+              "sha256": "552f245749d6172f7f07276234d12c8ce1b05b60ded1da2e92f1dafbf14bbf8e",
+              "sourceRawSha256": "552f245749d6172f7f07276234d12c8ce1b05b60ded1da2e92f1dafbf14bbf8e",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/localization.ts",
+              "sha256": "63f581c1b6231ae1a215b06ba3d7c2da65423c74d9b3a2d21b926dc2ffcd16fe",
+              "sourceRawSha256": "63f581c1b6231ae1a215b06ba3d7c2da65423c74d9b3a2d21b926dc2ffcd16fe",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/money.ts",
+              "sha256": "6288c87e78fab34a698d959609c440a77e6cd54b49776dadf1253322af095c55",
+              "sourceRawSha256": "6288c87e78fab34a698d959609c440a77e6cd54b49776dadf1253322af095c55",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/private-json.ts",
+              "sha256": "9781f34bdb416a90e2a1045fa2ac5eeca35e953258012e034a499fee49282c22",
+              "sourceRawSha256": "9781f34bdb416a90e2a1045fa2ac5eeca35e953258012e034a499fee49282c22",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/projects.ts",
+              "sha256": "141c730039d69bd9b94de267fb47ced9a4a29e925c12f7bf86df0caf43bb89a6",
+              "sourceRawSha256": "141c730039d69bd9b94de267fb47ced9a4a29e925c12f7bf86df0caf43bb89a6",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/public-projection.ts",
+              "sha256": "71687afdad2fd12b85043a3a1152d371044fba80d132397702e0bc2342d1b67b",
+              "sourceRawSha256": "71687afdad2fd12b85043a3a1152d371044fba80d132397702e0bc2342d1b67b",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/purchasing.ts",
+              "sha256": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d",
+              "sourceRawSha256": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/runtime-sync.ts",
+              "sha256": "6174bdf9d54635af4a9bae493b6f5f59fcb54b064101173a950db639fd83eb0f",
+              "sourceRawSha256": "6174bdf9d54635af4a9bae493b6f5f59fcb54b064101173a950db639fd83eb0f",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/runtime-types.ts",
+              "sha256": "655dfefe8dd212a9cd617127257b0782eeb7ab0bfa20b6bf306224750b3a6626",
+              "sourceRawSha256": "655dfefe8dd212a9cd617127257b0782eeb7ab0bfa20b6bf306224750b3a6626",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/runtime-validation.ts",
+              "sha256": "8afbf387263a67c2473b6f1629d65d7642b1fffed9cbfd9313ef194c22176808",
+              "sourceRawSha256": "8afbf387263a67c2473b6f1629d65d7642b1fffed9cbfd9313ef194c22176808",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            },
+            {
+              "path": "lib/international/runtime.ts",
+              "sha256": "f2f9195b1424178229def7fbe46295c86ee3a12895d93887cf8b444cd50517c0",
+              "sourceRawSha256": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b",
+              "testOnly": false,
+              "source": "authorized-pure-hash-extraction-after-source-commit"
+            },
+            {
+              "path": "lib/international/types.ts",
+              "sha256": "864d9f23962593342c5acaf4ed1d3857042c2de5f3363f554c88de4694267ad8",
+              "sourceRawSha256": "864d9f23962593342c5acaf4ed1d3857042c2de5f3363f554c88de4694267ad8",
+              "testOnly": false,
+              "source": "a30915ab7500a1a3af57da0d26b915cdc2b83e06"
+            }
+          ]
+        }
+      }
+    },
+    "normalizedProvenanceEvidence": [
+      {
+        "path": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission\\desktop\\.impeccable\\review\\native-us-admission-functional-final\\lf-normalized-corpus-vitest-results.json",
+        "sha256": "7fd120791c8e72aaf548d9f7f7e409ddbdeef0ef0c7690fc5a2abdd11ed8bd37"
+      },
+      {
+        "path": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission\\desktop\\.impeccable\\review\\native-us-admission-functional-final\\lf-normalized-domain-vitest-results.json",
+        "sha256": "4b1ee08b4c4771e98cb372ef5844b8ea6e2a78ea065c1c7dff823b9101622feb"
+      },
+      {
+        "path": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission\\desktop\\.impeccable\\review\\native-us-admission-functional-final\\lf-normalized-lint.log",
+        "sha256": "78e1eefdd5b61c51d0683723752d200301095922e4bb612ea6dd3ea448d410bf"
+      }
+    ],
+    "typesAfterAttributes": {
+      "exitCode": 0,
+      "log": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission\\desktop\\.impeccable\\review\\native-us-admission-functional-final\\types-after-lf.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "files": {
+      "modified": [
+        {
+          "path": "desktop/src-tauri/Cargo.lock",
+          "sha256": "137e4222dd57c5f97a10053d63088cdb6d31eda17c29b8632a5b5cfd0adf02ea"
+        },
+        {
+          "path": "desktop/src-tauri/Cargo.toml",
+          "sha256": "2e00db1864812198b46a34038b60e630302c3a7c594931cf227e5bfc5354ec9e"
+        },
+        {
+          "path": "desktop/src-tauri/src/account_cloud.rs",
+          "sha256": "d1aa9fff04f4bc9bdb3dea329ed519ee733383493ae30b26371b4890838297b0"
+        },
+        {
+          "path": "desktop/src-tauri/src/database.rs",
+          "sha256": "491871c02c11ff97d2045646d387b59b7dc0e1ea1e9f23f06d95cd25ad078b90"
+        },
+        {
+          "path": "desktop/src-tauri/src/international_erp.rs",
+          "sha256": "bd81477c81c1a39971af475013c5feb11fe401305180b8638e0d257729d85d31"
+        },
+        {
+          "path": "desktop/src-tauri/src/lib.rs",
+          "sha256": "262d9ee18093dd63484244f2e89d2da343ce1a930f045522b93174b02ca6490f"
+        },
+        {
+          "path": "desktop/src-tauri/src/workspace_volume_tests.rs",
+          "sha256": "189c2ab99e42e987f3f04ad55d6499ff16cd8fed98fd05017526e431751e600b"
+        },
+        {
+          "path": "desktop/src/App.tsx",
+          "sha256": "5a3ae06dfd55ed6bd94f16406b24053ae82ea4ce29f19eb1e7b2826201059257"
+        },
+        {
+          "path": "desktop/src/InternationalErpPilot.tsx",
+          "sha256": "26ffa2d292c8a8edb3041b6cc2230698a5bdbaf71ecc02826ef6af6cd3aec0a8"
+        },
+        {
+          "path": "desktop/src/WorkspaceApp.tsx",
+          "sha256": "8bb378179f5b7ee3d20c0c9350b0664bb84184296482844fbd55415d0f8487b0"
+        },
+        {
+          "path": "desktop/src/internationalErp.ts",
+          "sha256": "57efdac54bba5dab00d7c4de61972b167536f0739d5bceb54e02dcd4d05795b1"
+        },
+        {
+          "path": "desktop/src/internationalErpSession.test.ts",
+          "sha256": "544aaf27889c57e1ef0b7f98259f7698e9f86db87b3824d453dde208e533b359"
+        },
+        {
+          "path": "desktop/src/internationalErpSession.ts",
+          "sha256": "4d8f13c6c31e7d5cad5ccd1d3ab057685210a4065ef5e7dcd43ae4a7e4555c5a"
+        },
+        {
+          "path": "desktop/src/translations.ts",
+          "sha256": "84c954fe009f12e3d3c80f4329efe1db1284a68c4cbfc778b26545962b12a748"
+        },
+        {
+          "path": "lib/international/countries/adapters.ts",
+          "sha256": "886cdee844d9cbae858a11f61ff008cb67a3ec0958146f457ff48c12c7c5e3c4"
+        },
+        {
+          "path": "lib/international/erp-request.ts",
+          "sha256": "6ac39c6b07f63839f0b614e0ecfa4ddfee340924a061c21977172eaae56b649c"
+        },
+        {
+          "path": "lib/international/invoicing.ts",
+          "sha256": "552f245749d6172f7f07276234d12c8ce1b05b60ded1da2e92f1dafbf14bbf8e"
+        },
+        {
+          "path": "lib/international/runtime-sync.ts",
+          "sha256": "6174bdf9d54635af4a9bae493b6f5f59fcb54b064101173a950db639fd83eb0f"
+        },
+        {
+          "path": "lib/international/runtime-types.ts",
+          "sha256": "655dfefe8dd212a9cd617127257b0782eeb7ab0bfa20b6bf306224750b3a6626"
+        },
+        {
+          "path": "lib/international/runtime-validation.ts",
+          "sha256": "8afbf387263a67c2473b6f1629d65d7642b1fffed9cbfd9313ef194c22176808"
+        }
+      ],
+      "created": [
+        {
+          "path": ".gitattributes",
+          "sha256": "f9def0bc55d35a8bc14120b82edf6f0a54f35765f2d6f4e70f20763470569c50"
+        },
+        {
+          "path": "desktop/scripts/align-international-domain.mjs",
+          "sha256": "f9e9184331d4d5a0cc19a5222922f8aedb88201af0de823e43eef67c40f010a8"
+        },
+        {
+          "path": "desktop/src-tauri/src/us_admission.rs",
+          "sha256": "e6099b7f76226c53f1f669aa2763c125895bf5f6ddf7ebb32d81684fbad2776a"
+        },
+        {
+          "path": "desktop/src-tauri/src/us_admission_tests.rs",
+          "sha256": "0da309efd1d9aa0f37a4d562b2345ca9e7b0743edf2445044331ee24a6b9000a"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.json",
+          "sha256": "9dc16371049dacb0c43785f9ff69dfb9c4629636c77cdc72f5aface741a93b60"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.manifest.json",
+          "sha256": "bbd38d23861c7fe3d183ed0cf25026b9216ffe83541986c6cb763a03aec95afe"
+        },
+        {
+          "path": "desktop/src/NativeAdmissionRoot.tsx",
+          "sha256": "005834bfa7839ef19c9e8546d3b538933b875a7339f725a3ec4f9487df32d852"
+        },
+        {
+          "path": "desktop/src/NativeUsPreferences.tsx",
+          "sha256": "3e6cf862546d842e41e7dcd4fdc97c365f462129492fabec09900041520c6e71"
+        },
+        {
+          "path": "desktop/src/NativeUsProjects.tsx",
+          "sha256": "1827785b8a8828a3d35da30997f831812fff610d7d94dcb53596ab4ad6785fef"
+        },
+        {
+          "path": "desktop/src/NativeUsReports.tsx",
+          "sha256": "a053872f5fb04213b4eb47d99bd860b06ef0280969251a49ae0af0cdcd5b6fd6"
+        },
+        {
+          "path": "desktop/src/NativeUsWorkspace.tsx",
+          "sha256": "91aae87f16a38195ab30ce616bf3a64fffa7cbefde00794592bc43b7f79e21e7"
+        },
+        {
+          "path": "desktop/src/native-us-shell.css",
+          "sha256": "220e7b668abdf3ad9a8b55ddc76c5bd5831a670d7e5eebef6a3553a1845298e6"
+        },
+        {
+          "path": "desktop/src/nativeAdmission.test.ts",
+          "sha256": "7d7242b315eca3a047edc90c5b67bebd16c0fc83b41ab0a79ff50aa7628dc934"
+        },
+        {
+          "path": "desktop/src/nativeAdmission.ts",
+          "sha256": "3d89604945fc674ef22fd56744c3918a62c8c081bbe87cc070717bc13a852016"
+        },
+        {
+          "path": "desktop/src/nativeChPreservation.test.ts",
+          "sha256": "d5730deaf90832944c18ef52c1a6c7c1b3225ddc25321bc6756a76020560901d"
+        },
+        {
+          "path": "desktop/src/nativeSharedDomain.test.ts",
+          "sha256": "e017a34516b93fb7a22eb621becc6840a4d8dc26d3fe9a1aeab1b623a1d990ec"
+        },
+        {
+          "path": "desktop/src/nativeUsCopy.test.ts",
+          "sha256": "919ed37142bf1971175525c72b59fb994c3ea7b02e8b956e71b89f510a7568a5"
+        },
+        {
+          "path": "desktop/src/nativeUsForms.test.ts",
+          "sha256": "fe5cfed3fbfd587c8b689a6349f207889e3f984519e3df8967269dc900a7aa82"
+        },
+        {
+          "path": "desktop/src/nativeUsForms.ts",
+          "sha256": "07505b4e222d85b56bafa6016556c877dd96e62ccf992b7b9540f6e69487f483"
+        },
+        {
+          "path": "desktop/src/nativeUsShell.test.tsx",
+          "sha256": "27ea81475742b8b1b46befc781c48923db6717932609d34f843e46ac915362af"
+        },
+        {
+          "path": "desktop/src/nativeUsViews.ts",
+          "sha256": "9600d936552b91c06a9984574d136f4daa5635241b531cd45ee5a24105d104d9"
+        },
+        {
+          "path": "desktop/src/translationsNativeUs.ts",
+          "sha256": "bbbdaf90e5c5b1bace4a00b4a1c6a80a23452989c74bd1a8d1ea1d192874faa2"
+        },
+        {
+          "path": "desktop/tests/generate-native-us-corpus.test.ts",
+          "sha256": "da7ad464d51e515142510945eb00a32d27825c709c720242d6c4e3c0a4e8759b"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-preview.html",
+          "sha256": "67da52910d702af1aa6a5065795ffbefea353d442e4dc29692c29ae7fde426f1"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-preview.tsx",
+          "sha256": "cc61c9542993c658d074bfba6c02aaee50378bd02d12ee03f11950672ad1acfe"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-review.mjs",
+          "sha256": "9dfd8dabda66e903bbc8aca6c14648337999800aeb4ab8bbb9ba8e0a7edc4955"
+        },
+        {
+          "path": "desktop/tests/native-us-fixture.ts",
+          "sha256": "81b744e31995059f3750ec782aebdfd7790d7623a1daea96f86ce1684a629eb1"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-SHARED-DOMAIN-MANIFEST-20261008.json",
+          "sha256": "a0c1b6974509c3361a1b9d7226bf0037e69da8db88a31c418e800c32ac58a043"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-US-PURCHASING-EXPORT-PLAN-20261008.md",
+          "sha256": "4ad06823639a9f8ee5f328484b839416d8639597567bd97956bacea307e0d900"
+        },
+        {
+          "path": "docs/internationalization/US-NATIVE-ADMISSION-CONTRACT-20261008.md",
+          "sha256": "ff9d0a7c3412ef4dc409ea7cd91f2b8ab46407d5e0d44f74e0588f1fb0fd7411"
+        },
+        {
+          "path": "docs/internationalization/US-NATIVE-ADMISSION-DELIVERY-20261008.md",
+          "sha256": "4b7316a6e33ed867c4485609107d63e407906003a1d5dced3c1743ce01778cec"
+        },
+        {
+          "path": "lib/international/canonical-hash.ts",
+          "sha256": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87"
+        },
+        {
+          "path": "lib/international/contacts.ts",
+          "sha256": "4cc30d430e43d503aace32f2cff6308870351d372f622f1f38536898b030d04a"
+        },
+        {
+          "path": "lib/international/erp-schema-capability.ts",
+          "sha256": "e6a2ea58a1dbf3981d56364c23f8c7d116f75da612f4ee32696fdf430107cef6"
+        },
+        {
+          "path": "lib/international/export-test-fixture.ts",
+          "sha256": "ac19faed6dc6eb18094d7611e85fa03dd1d6c14741f932d1466286ff8db407de"
+        },
+        {
+          "path": "lib/international/private-json.ts",
+          "sha256": "9781f34bdb416a90e2a1045fa2ac5eeca35e953258012e034a499fee49282c22"
+        },
+        {
+          "path": "lib/international/projects.ts",
+          "sha256": "141c730039d69bd9b94de267fb47ced9a4a29e925c12f7bf86df0caf43bb89a6"
+        },
+        {
+          "path": "lib/international/purchasing.ts",
+          "sha256": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d"
+        },
+        {
+          "path": "lib/international/runtime.ts",
+          "sha256": "f2f9195b1424178229def7fbe46295c86ee3a12895d93887cf8b444cd50517c0"
+        }
+      ]
+    },
+    "rust": {
+      "testsDeclared": 31,
+      "testsExecuted": 0,
+      "compiled": false,
+      "cargoCheckAttempt": "Windows application-control OS4551 on dependency build executables before the app crate",
+      "cargoMetadata": "locked/offline succeeded",
+      "rustfmtSelected": "succeeded",
+      "securityBypass": false,
+      "evidenceKind": "Delegated tool-result summary; original cargo stdout was not saved on disk",
+      "cargoToolSession": 50482
+    }
+  },
+  "browser": {
+    "scope": "LOCAL_TEST_ONLY",
+    "authority": "fictional Auth/PG/payment evidence; real React+HTTP+SQLite SQL",
+    "requests": 2,
+    "views": [
+      {
+        "language": "fr",
+        "width": 320,
+        "metrics": {
+          "width": 320,
+          "scroll": 320,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "fr",
+        "width": 390,
+        "metrics": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "fr",
+        "width": 1280,
+        "metrics": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "de",
+        "width": 320,
+        "metrics": {
+          "width": 320,
+          "scroll": 320,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "de",
+        "width": 390,
+        "metrics": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "de",
+        "width": 1280,
+        "metrics": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "it",
+        "width": 320,
+        "metrics": {
+          "width": 320,
+          "scroll": 320,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "it",
+        "width": 390,
+        "metrics": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "it",
+        "width": 1280,
+        "metrics": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "en",
+        "width": 320,
+        "metrics": {
+          "width": 320,
+          "scroll": 320,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "en",
+        "width": 390,
+        "metrics": {
+          "width": 390,
+          "scroll": 390,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      },
+      {
+        "language": "en",
+        "width": 1280,
+        "metrics": {
+          "width": 1280,
+          "scroll": 1280,
+          "controls": 0,
+          "buttonHeight": 49.59375
+        }
+      }
+    ],
+    "largeText": {
+      "language": "de",
+      "width": 320,
+      "scale": "200%",
+      "metrics": {
+        "textWidth": 178.82375,
+        "available": 228,
+        "returnHeight": 48
+      }
+    },
+    "errors": [],
+    "session": {
+      "organizationId": "a3bbee5b-7994-4b55-80ac-78d9a17313bd",
+      "userId": "da572cc0-c395-4403-bf22-da756942789b",
+      "supportedSchemaVersion": 3
+    },
+    "limitations": [
+      "not real Auth",
+      "not real PostgreSQL API",
+      "not native executable",
+      "not physical device",
+      "not production"
+    ]
+  },
+  "nativeVisual": {
+    "initial": {
+      "checks": 91,
+      "results": [
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-light-fr-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-light-fr-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-light-fr-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-light-fr-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-light-fr-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-light-fr-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-light-fr-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-light-fr-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-light-fr-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-light-fr-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-dark-fr-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-dark-fr-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-dark-fr-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-dark-fr-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-dark-fr-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-dark-fr-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-dark-fr-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-dark-fr-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-dark-fr-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "fr",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-dark-fr-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-light-de-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-light-de-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-light-de-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-light-de-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-light-de-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-light-de-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-light-de-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-light-de-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-light-de-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-light-de-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-dark-de-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-dark-de-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-dark-de-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-dark-de-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-dark-de-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-dark-de-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-dark-de-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-dark-de-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-dark-de-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-dark-de-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-light-it-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-light-it-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-light-it-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-light-it-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-light-it-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-light-it-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-light-it-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-light-it-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-light-it-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-light-it-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-dark-it-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-dark-it-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-dark-it-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-dark-it-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-dark-it-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-dark-it-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-dark-it-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-dark-it-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-dark-it-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "it",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-dark-it-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-light-en-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-light-en-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-light-en-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-light-en-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-light-en-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-light-en-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-light-en-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-light-en-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-light-en-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "light",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-light-en-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/1440-dark-en-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/1440-dark-en-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/1440-dark-en-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/1440-dark-en-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 1440,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/1440-dark-en-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/390-dark-en-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/390-dark-en-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/390-dark-en-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/390-dark-en-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 390,
+            "large": false
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/390-dark-en-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/320-light-de-200text-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/320-light-de-200text-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/320-light-de-200text-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/320-light-de-200text-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/320-light-de-200text-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission/320-dark-en-200text-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "invoices",
+          "file": ".impeccable/review/native-us-admission/320-dark-en-200text-invoices.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "customers",
+          "file": ".impeccable/review/native-us-admission/320-dark-en-200text-customers.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission/320-dark-en-200text-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission/320-dark-en-200text-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "width": 390,
+            "theme": "light",
+            "language": "fr"
+          },
+          "surface": "pending",
+          "file": ".impeccable/review/native-us-admission/390-light-fr-pending.png",
+          "documentOverflow": 0,
+          "count": 0,
+          "pilotCount": 0,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        }
+      ],
+      "failures": [],
+      "functionalJourney": "passed: real synthetic project+quote+accept/payment exact retry+5reports+rolepurge+logout+pending approval+explicitCH",
+      "production": false
+    },
+    "confirmation": {
+      "checks": 7,
+      "results": [
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission-confirmation/320-light-de-200text-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission-confirmation/320-light-de-200text-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "de",
+            "theme": "light",
+            "width": 320,
+            "large": true
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission-confirmation/320-light-de-200text-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "sales",
+          "file": ".impeccable/review/native-us-admission-confirmation/320-dark-en-200text-sales.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "projects",
+          "file": ".impeccable/review/native-us-admission-confirmation/320-dark-en-200text-projects.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "language": "en",
+            "theme": "dark",
+            "width": 320,
+            "large": true
+          },
+          "surface": "accounting",
+          "file": ".impeccable/review/native-us-admission-confirmation/320-dark-en-200text-accounting.png",
+          "documentOverflow": 0,
+          "count": 1,
+          "pilotCount": 1,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        },
+        {
+          "config": {
+            "width": 390,
+            "theme": "light",
+            "language": "fr"
+          },
+          "surface": "pending",
+          "file": ".impeccable/review/native-us-admission-confirmation/390-light-fr-pending.png",
+          "documentOverflow": 0,
+          "count": 0,
+          "pilotCount": 0,
+          "font": "-apple-system, BlinkMacSystemFont, \"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+          "offenders": []
+        }
+      ],
+      "failures": [],
+      "functionalJourney": "passed: real synthetic project+quote+accept/payment exact retry+5reports+rolepurge+logout+pending approval+explicitCH",
+      "production": false
+    },
+    "functional": {
+      "checks": 0,
+      "results": [],
+      "failures": [],
+      "functionalJourney": "passed: real synthetic project+quote+accept/payment exact retry+5reports+rolepurge+logout+pending approval+explicitCH",
+      "production": false
+    }
+  },
+  "protectedCheckouts": [
+    {
+      "path": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native",
+      "head": "0f53e632982fdc9cdc43d5e5a322aa33cb565571",
+      "clean": true
+    },
+    {
+      "path": "D:\\Codex-Zentra-Temporary\\2026-10-08\\app-current-corrections",
+      "head": "56daec734529c06bae6dd73729c74b3a655edb86",
+      "clean": true
+    }
+  ],
+  "limitations": [
+    "Synthetic Auth/PG/payment ports in the local integration tests",
+    "No runnable native binary or physical device validation",
+    "No hosted Supabase/PostgREST or real customer two-installation test",
+    "No production USD catalogue/provider/financial issuance activation",
+    "Not a legal, tax, accessibility or security certification",
+    "Native purchases and protected exports remain the next implementation slice"
+  ]
+}

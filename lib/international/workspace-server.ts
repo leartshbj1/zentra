@@ -6,6 +6,8 @@ import type { CompanyConfiguration } from './types';
 import { publicCompanyConfiguration } from './public-projection';
 import { isUsWorkspaceAdmission, requireUsWorkspaceAccess } from './saas-authority-d1';
 import { UsAuthorityError } from './saas-authority';
+import { requireUsDeviceSession } from './us-device-bindings';
+import { UsDeviceError } from './us-device-contract';
 
 export interface WorkspaceCountryDeviceSession {
   readonly userId: string;
@@ -40,6 +42,7 @@ class CountryBoundaryError extends Error {
 const headers = { 'Cache-Control': 'no-store, max-age=0', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers });
 function failure(error: unknown): Response {
+  if (error instanceof UsDeviceError) return json({error:error.code},error.status);
   if (error instanceof CountryBoundaryError) return json({ error: error.code }, error.status);
   if (error instanceof WorkspaceCountryError) return json({ error: error.code }, error.status);
   if (error instanceof UsAuthorityError) return json({ error: error.code === 'subscription_required' ? 'management_entitlement_required' : error.status === 403 ? 'forbidden' : 'service_unavailable' }, error.status === 422 ? 503 : error.status);
@@ -134,7 +137,10 @@ export const workspaceCountryDependencies: WorkspaceCountryDependencies = {
     }
     return (await import('@/lib/account')).requireBrowserMembership(userId, organizationId, roles);
   },
-  async deviceSession(request, roles) { return (await import('@/lib/account')).requireDeviceSession(request, roles); },
+  async deviceSession(request, roles) {
+    if ((request.headers.get('Authorization') ?? '').startsWith('Bearer zus_')) return requireUsDeviceSession(request, roles);
+    return (await import('@/lib/account')).requireDeviceSession(request, roles);
+  },
   async management(organizationId, actor) {
     if (await isUsWorkspaceAdmission(organizationId)) {
       if (!actor || actor.organizationId !== organizationId) return false;

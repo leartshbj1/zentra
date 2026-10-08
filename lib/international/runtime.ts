@@ -1,4 +1,4 @@
-import { sha256Hex } from '../account-security';
+import { sha256Hex } from './canonical-hash';
 import { validateCompanyConfiguration } from './country-config';
 import { nationalAdapter } from './countries/adapters';
 import { createLedger, closePeriod, LedgerError, minorInteger, type FinancialAuthority } from './accounting/ledger';

@@ -2,9 +2,10 @@ import { describe,it,expect,vi,beforeEach } from 'vitest';
 import { AccountPublicError } from '../account-security';
 import { UsAuthorityError } from './saas-authority';
 const f=vi.hoisted(()=>({
-  device:vi.fn(),membership:vi.fn(),user:vi.fn(),seats:vi.fn(),select:vi.fn(),rpc:vi.fn(),rate:vi.fn(),usAccess:vi.fn(),
+  device:vi.fn(),chDevice:vi.fn(),membership:vi.fn(),user:vi.fn(),seats:vi.fn(),select:vi.fn(),rpc:vi.fn(),rate:vi.fn(),usAccess:vi.fn(),
 }));
-vi.mock('../account',()=>({requireDeviceSession:f.device,requireBrowserMembership:f.membership,enforceAccountRateLimit:f.rate}));
+vi.mock('../account',()=>({requireDeviceSession:f.chDevice,requireBrowserMembership:f.membership,enforceAccountRateLimit:f.rate}));
+vi.mock('./us-device-bindings',()=>({requireUsDeviceSession:f.device}));
 vi.mock('../../app/zentra-auth',()=>({getZentraUser:f.user}));
 vi.mock('../team-seats',()=>({teamSeats:f.seats}));
 vi.mock('../supabase-server-runtime',()=>({supabaseServerClient:()=>({select:f.select,rpc:f.rpc})}));
@@ -22,6 +23,10 @@ beforeEach(()=>{
   f.usAccess.mockImplementation(async (_org:string,userId:string)=>({organizationId:org,userId,role:userId==='device-user'?'accountant':'member',subscriptionId:'sub_US',seatLimit:3}));
 });
 describe('actual ERP authority bindings',()=>{
+  it('selects only the US native reader and never the CH reader or browser cookies',async()=>{
+    expect((await binding.authority(request(true),org)).mode).toBe('device');
+    expect(f.device).toHaveBeenCalledOnce();expect(f.chDevice).not.toHaveBeenCalled();expect(f.user).not.toHaveBeenCalled();
+  });
   it('keeps the actual seller route closed when US feature bindings are absent',async()=>{
     const context={params:Promise.resolve({organizationId:org})};
     expect((await sellerGET(request(),context)).status).toBe(404);expect((await sellerPUT(request(),context)).status).toBe(404);expect(f.user).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled();

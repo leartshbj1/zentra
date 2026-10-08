@@ -13,6 +13,8 @@ import { getUsSellerProfile } from './seller-profile';
 import { createUsSellerProfileHandlers } from './seller-profile-server';
 import { createUsTaxProfileHandlers } from './us-tax-profile-server';
 import type { ErpSchemaVersion } from './erp-schema-capability';
+import { requireUsDeviceSession } from './us-device-bindings';
+import { UsDeviceError } from './us-device-contract';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -27,10 +29,11 @@ export async function usPurchasingSchemaVersion(clientSchemaVersion:ErpSchemaVer
   catch{return 1;}
 }
 async function authority(request:Request,organizationId:string):Promise<{mode:'browser'|'device';actor:FinancialAuthority}>{
-  const {requireDeviceSession}=await import('../account');
   let userId:string,deviceRole:FinancialAuthority['role']|undefined,mode:'browser'|'device';
   if(request.headers.has('Authorization')){
-    const session=await requireDeviceSession(request);
+    let session;
+    try { session=await requireUsDeviceSession(request); }
+    catch(error){if(error instanceof UsDeviceError)throw new ErpError(error.code,error.status);throw error;}
     if(session.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
     userId=session.userId;deviceRole=session.role;mode='device';
   }else{
@@ -39,7 +42,7 @@ async function authority(request:Request,organizationId:string):Promise<{mode:'b
     userId=user.userId;mode='browser';
   }
   // The US ERP cannot inherit a CHF licence, seat reader or account-wide trial.
-  // Native enrollment still requires its own US session issuer in a later phase.
+  // Native Authorization admits only the separate US credential family.
   try {
     const access=await requireUsWorkspaceAccess(organizationId,userId);
     if(access.organizationId!==organizationId||access.userId!==userId)throw new ErpError('tenant_mismatch',403);
