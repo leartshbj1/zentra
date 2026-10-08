@@ -69,7 +69,7 @@ export function createBrowserErpSession(options:BrowserErpSessionOptions):Browse
   const fetcher=options.fetch??globalThis.fetch.bind(globalThis),newId=options.newId??(()=>globalThis.crypto.randomUUID());
   const url=`/api/international/workspaces/${encodeURIComponent(organizationId)}/erp`;
   const controllers=new Set<AbortController>();
-  let disposed=false,writing=false,readRequired=false,mutationEpoch=0,latestRead=0,pending:Readonly<{body:string;request:ErpRequest}>|null=null;
+  let disposed=false,writing=false,readRequired=false,mutationEpoch=0,accessEpoch=0,latestRead=0,pending:Readonly<{body:string;request:ErpRequest}>|null=null;
   function alive(){if(disposed)throw new BrowserErpError('session_disposed',0,'unauthorized');}
   const headers=()=>({Accept:'application/json',...(expectedUserId===undefined?{}:{'X-Zentra-Expected-User':expectedUserId})});
   async function response(request:RequestInit,write:boolean):Promise<{body:unknown;status:number}> {
@@ -79,13 +79,13 @@ export function createBrowserErpSession(options:BrowserErpSessionOptions):Browse
     try {
       const result=await Promise.race([fetcher(url,{...request,credentials:'same-origin',mode:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal}),deadline]);alive();
       const unauthorizedCode=result.status===401?'unauthorized':result.status===402?'management_entitlement_required':result.status===403?'forbidden':null;
-      let body:unknown;try{body=await Promise.race([result.json(),deadline]);}catch{if(unauthorizedCode){mutationEpoch++;throw new BrowserErpError(unauthorizedCode,result.status,'unauthorized');}if(timedOut)throw new BrowserErpError('response_timeout',0,write?'uncertain':'rejected');throw new BrowserErpError('invalid_response',result.status,write?'uncertain':'rejected');}alive();
+      // Deny at headers, without waiting on a potentially stalled/private body.
+      if(unauthorizedCode){mutationEpoch++;accessEpoch++;readRequired=true;controller.abort();throw new BrowserErpError(unauthorizedCode,result.status,'unauthorized');}
+      let body:unknown;try{body=await Promise.race([result.json(),deadline]);}catch{if(timedOut)throw new BrowserErpError('response_timeout',0,write?'uncertain':'rejected');throw new BrowserErpError('invalid_response',result.status,write?'uncertain':'rejected');}alive();
       if(!result.ok){
         const code=exactObject(body,['error'])&&typeof body.error==='string'&&publicErrors.has(body.error)?body.error:'service_unavailable';
-        const unauthorized=[401,402,403].includes(result.status);
-        if(unauthorized)mutationEpoch++;
         if(write&&result.status===409&&rejectedConflicts.has(code)){pending=null;readRequired=true;throw new BrowserErpError(code,result.status,'rejected');}
-        throw new BrowserErpError(code,result.status,unauthorized?'unauthorized':write?'uncertain':'rejected');
+        throw new BrowserErpError(code,result.status,write?'uncertain':'rejected');
       }
       return {body,status:result.status};
     } catch(error){alive();if(error instanceof BrowserErpError&&error.outcome==='unauthorized')throw error;if(timedOut)throw new BrowserErpError('response_timeout',0,write?'uncertain':'rejected');if(error instanceof BrowserErpError)throw error;throw new BrowserErpError('response_unavailable',0,write?'uncertain':'rejected');}
@@ -94,9 +94,11 @@ export function createBrowserErpSession(options:BrowserErpSessionOptions):Browse
   async function send():Promise<BrowserErpResult> {
     alive();if(writing)throw new BrowserErpError('pending_operation',409,'rejected');
     if(!pending)throw new BrowserErpError('no_pending_operation',409,'rejected');
-    const original=pending;writing=true;
+    const original=pending,startedAccess=accessEpoch;writing=true;
     try {
       const result=await response({method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:original.body},true);alive();
+      // Preserve exact recovery if a parallel read already observed revocation.
+      if(accessEpoch!==startedAccess)throw new BrowserErpError('session_changed',0,'unauthorized');
       let value:BrowserErpResult;try{value=resultProjection(result.body,original.request,organizationId);}catch{throw new BrowserErpError('invalid_response',result.status,'uncertain');}
       pending=null;readRequired=true;return value;
     }finally{mutationEpoch++;writing=false;}

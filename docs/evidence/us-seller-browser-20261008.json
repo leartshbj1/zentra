@@ -1,0 +1,561 @@
+{
+  "phase": "US seller browser pilot",
+  "date": "2026-10-08",
+  "baseline": "3328a3c394541b22f1e6a0977d7b0f16547956b9",
+  "production": {
+    "deployed": false,
+    "migrated": false,
+    "nativeRelease": false,
+    "commercialSiteVersion": 354,
+    "taxProvider": null
+  },
+  "tests": {
+    "regression": {
+      "passed": 524,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        {
+          "path": "lib/account-workspace-pages.test.ts",
+          "status": "passed",
+          "passed": 35,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-actor-binding.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-erp-session.test.ts",
+          "status": "passed",
+          "passed": 57,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-seller-panel.test.ts",
+          "status": "passed",
+          "passed": 43,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-seller-session.test.ts",
+          "status": "passed",
+          "passed": 63,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/browser-workbench.test.ts",
+          "status": "passed",
+          "passed": 42,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "passed": 17,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-postgres.test.ts",
+          "status": "passed",
+          "passed": 19,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed",
+          "passed": 23,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-server.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime-tax-proof-postgres.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/runtime.test.ts",
+          "status": "passed",
+          "passed": 36,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/seller-profile-server.test.ts",
+          "status": "passed",
+          "passed": 52,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/seller-profile.postgres.test.ts",
+          "status": "passed",
+          "passed": 34,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "path": "lib/international/seller-profile.test.ts",
+          "status": "passed",
+          "passed": 66,
+          "failed": 0,
+          "skipped": 0
+        }
+      ]
+    },
+    "browser": {
+      "success": true,
+      "scope": "Actual React client, seller service/HTTP and ERP engine. Synthetic Auth, ERP memory store and seller RPC memory model; no hosted database, D1/payment/tax provider or staging. Local PostgreSQL invariants and replay tested separately; no restart/crash durability proof. Second page is shared local state, not real multi-device accounts.",
+      "standardViews": 24,
+      "largeTextViews": 8,
+      "views": [
+        {
+          "language": "fr",
+          "theme": "light",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "fr",
+          "theme": "light",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "fr",
+          "theme": "light",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "fr",
+          "theme": "light",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        },
+        {
+          "language": "fr",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "fr",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "fr",
+          "theme": "dark",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "fr",
+          "theme": "dark",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        },
+        {
+          "language": "en",
+          "theme": "light",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "en",
+          "theme": "light",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "en",
+          "theme": "light",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "en",
+          "theme": "light",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        },
+        {
+          "language": "de",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "de",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "de",
+          "theme": "dark",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "de",
+          "theme": "dark",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        },
+        {
+          "language": "it",
+          "theme": "light",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "it",
+          "theme": "light",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "it",
+          "theme": "light",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "it",
+          "theme": "light",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        },
+        {
+          "language": "it",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 1,
+          "scrollWidth": 320
+        },
+        {
+          "language": "it",
+          "theme": "dark",
+          "width": 320,
+          "textScale": 2,
+          "scrollWidth": 320
+        },
+        {
+          "language": "it",
+          "theme": "dark",
+          "width": 390,
+          "textScale": 1,
+          "scrollWidth": 390
+        },
+        {
+          "language": "it",
+          "theme": "dark",
+          "width": 1440,
+          "textScale": 1,
+          "scrollWidth": 1440
+        }
+      ],
+      "pageErrors": [],
+      "erpCommits": 6,
+      "sellerCommits": 6,
+      "operations": [
+        "explicit initialization",
+        "customer",
+        "estimate with exact rounding",
+        "actual commit followed by synthetic HTTP 503 instead of receipt",
+        "same-key recovery without duplicate",
+        "internal acceptance",
+        "conflict and explicit reread/confirmation",
+        "late authorized read withheld after synthetic Auth event",
+        "second page read",
+        "read-only UI and server refusal",
+        "draft preserved on reload",
+        "long company name",
+        "seller before accounting initialization",
+        "seller postcommit503 exact retry after newer peer head",
+        "independent seller revision",
+        "seller CAS conflict explicit reread/confirmation",
+        "seller postcommit401 purges ERP and seller, exact retry retained",
+        "stale owner remains locked after GET",
+        "ERP denial purges seller draft and late seller GET",
+        "member reads seller without owner form"
+      ],
+      "vitestReport": "Final Vitest result observed from terminal; browser.json records the completed scenario. Available terminal transcripts are local QA artifacts."
+    },
+    "otherChecks": {
+      "typecheck": {
+        "exitCode": 0,
+        "command": "tsc --noEmit --incremental false"
+      },
+      "lint": {
+        "exitCode": 0,
+        "tool": "Oxlint",
+        "changedTypeScriptFiles": 10
+      },
+      "build": {
+        "exitCode": 0,
+        "tool": "Vinext production build",
+        "warnings": "Existing route static-classification warnings remain."
+      },
+      "diffCheck": {
+        "exitCode": 0
+      }
+    }
+  },
+  "migration": {
+    "new": 0,
+    "existingTrackedSql": 131,
+    "changedSinceBaseline": []
+  },
+  "sourceChecks": [
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "checkedSha256": "d95e9f58c347981b0860269ea0ae958e69b8caa94ad747ca7515eddd63c24fd0",
+      "finalSha256": "d95e9f58c347981b0860269ea0ae958e69b8caa94ad747ca7515eddd63c24fd0"
+    },
+    {
+      "path": "components/account/us-erp-workbench.css",
+      "checkedSha256": "08a066fc89eecbfc79f0deb46440c65a01b5078789e897632369e1319ac25d93",
+      "finalSha256": "08a066fc89eecbfc79f0deb46440c65a01b5078789e897632369e1319ac25d93"
+    },
+    {
+      "path": "components/account/us-seller-profile-panel.tsx",
+      "checkedSha256": "7b33ab03b6a2fd24696d3ea5726cbc4fe301119d4c29b0a3e4eb55169e447f4d",
+      "finalSha256": "7b33ab03b6a2fd24696d3ea5726cbc4fe301119d4c29b0a3e4eb55169e447f4d"
+    },
+    {
+      "path": "lib/international/browser-workbench-copy.ts",
+      "checkedSha256": "2891d2b8593cdf6332ff0c24cff25ba82a732239037b43ba20c84a8dcdfe93f6",
+      "finalSha256": "2891d2b8593cdf6332ff0c24cff25ba82a732239037b43ba20c84a8dcdfe93f6"
+    },
+    {
+      "path": "lib/international/browser-workbench.browser.test.ts",
+      "checkedSha256": "f3879f2ff345ba4bf7083e183cceafe3b3d5071ecbf31eff06ae056bb1ea2462",
+      "finalSha256": "738b19d402abfdd0b8f49d0d649fa9891f5c4d893e5c69db6d0a5c380c16d56d",
+      "editorialOnlyDifference": true
+    },
+    {
+      "path": "lib/international/browser-seller-panel.test.ts",
+      "checkedSha256": "c8b25ef71cc6aa152835939e12211789a89f29c1d6a1de8d2272bcc4f8f1f5b2",
+      "finalSha256": "c8b25ef71cc6aa152835939e12211789a89f29c1d6a1de8d2272bcc4f8f1f5b2"
+    },
+    {
+      "path": "lib/international/browser-seller-session.ts",
+      "checkedSha256": "1f781e689b357c55925337c8e422cb0ed0dfddbe12321d684645636196105386",
+      "finalSha256": "1f781e689b357c55925337c8e422cb0ed0dfddbe12321d684645636196105386"
+    },
+    {
+      "path": "lib/international/browser-seller-session.test.ts",
+      "checkedSha256": "d5edff4e7eef1afaf326ec3d0036b773fa9a3d84347a8332d41f5405adf4c4a2",
+      "finalSha256": "d5edff4e7eef1afaf326ec3d0036b773fa9a3d84347a8332d41f5405adf4c4a2"
+    },
+    {
+      "path": "lib/international/browser-erp-session.ts",
+      "checkedSha256": "ddbf2a6270efc4f52350122d0289fe1d44e6050725e409956317987e79eef77f",
+      "finalSha256": "ddbf2a6270efc4f52350122d0289fe1d44e6050725e409956317987e79eef77f"
+    },
+    {
+      "path": "lib/international/browser-erp-session.test.ts",
+      "checkedSha256": "a4f8b1eb2e049e053b02c606f20b4113da3806dc25e9a7519e80002bada93b55",
+      "finalSha256": "a4f8b1eb2e049e053b02c606f20b4113da3806dc25e9a7519e80002bada93b55"
+    },
+    {
+      "path": "lib/international/seller-profile.ts",
+      "checkedSha256": "b09364e3d51fa1c1a299e93672ca90e84266dda3d56139c7bcfe561868f80c98",
+      "finalSha256": "b09364e3d51fa1c1a299e93672ca90e84266dda3d56139c7bcfe561868f80c98"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".qa/us-seller-browser/regression.json",
+      "sha256": "edf9c1ebda3c650fcb0fc288aa2a1eedb646ae2adb5a88243dd12f8604b42e80",
+      "bytes": 209279
+    },
+    {
+      "path": ".qa/us-seller-browser/browser.json",
+      "sha256": "eefd80d17165ec19c98399c12472886e2e8b98c9cb5cb3092c8971a839c6c48e",
+      "bytes": 88988
+    },
+    {
+      "path": ".qa/us-seller-browser/browser-failure.json",
+      "sha256": "f157e344d07747bf143042ea32248b3072319dba6d1cc0fb3c42994a646e7d3a",
+      "bytes": 10951
+    },
+    {
+      "path": ".qa/us-seller-browser/selection.json",
+      "sha256": "cd62b0c9bd4c2cbdff12b0ce60ab156da3799e06da91f22a22a1b6cbd12430b7",
+      "bytes": 1039
+    },
+    {
+      "path": ".qa/us-seller-browser/build.log",
+      "sha256": "e79e441f559fa8e3af3b054097f75e703ba020819dbbdc14a8a9198e736a4e21",
+      "bytes": 12742
+    },
+    {
+      "path": ".qa/us-seller-browser/typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".qa/us-seller-browser/lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".qa/us-seller-browser/check-source-sha256.json",
+      "sha256": "26c2cac2f7a9125afacd313089ea1cf435ca0e9e07cc934caba214e5f6114cec",
+      "bytes": 1305
+    },
+    {
+      "path": ".qa/us-seller-browser/seller-fr-light-390.png",
+      "sha256": "37e0f668d393cbf40a5d6e46c2a0c58b1532a89e49a69ae4acfc466387066b6f",
+      "bytes": 32003
+    },
+    {
+      "path": ".qa/us-seller-browser/seller-fr-dark-390.png",
+      "sha256": "b69a835344e90e6df7ef78ac8755fbefe3aed99a8cfde36085be2aed16f46600",
+      "bytes": 32079
+    },
+    {
+      "path": ".qa/us-seller-browser/seller-fr-light-1440.png",
+      "sha256": "c4cdd565f5681a7ea39419895cbf6a97e3f6f76230ff166dcc84683a65ee8253",
+      "bytes": 31068
+    },
+    {
+      "path": ".qa/us-seller-browser/seller-fr-dark-1440.png",
+      "sha256": "8d1bd6fe2b792f9393432eec0240676f220e2becca7bea26a925010319aafb25",
+      "bytes": 31227
+    }
+  ],
+  "visualReview": {
+    "inspectedCrops": 4,
+    "widths": [
+      390,
+      1440
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "languages": [
+      "fr"
+    ],
+    "finding": "No additional material defect observed in the batched crop review; this is not a physical-device or accessibility certification."
+  },
+  "initialBrowserFailures": {
+    "count": 2,
+    "cause": "Harness closed an already open details disclosure before attempting to edit hidden controls.",
+    "fix": "Idempotent openSeller helper with existing assertions preserved.",
+    "provenance": "Second failure details retained in browser-failure.json. First failure file was overwritten during the second attempt. Available terminal transcriptions saved separately. Final complete scenario succeeded."
+  },
+  "limitations": [
+    "Synthetic Auth and in-memory ERP/seller RPC for browser interactions; local PostgreSQL tests are separate.",
+    "No hosted Auth/D1/PostgREST, two-connection database contention, production multi-device latency, load or physical-device proof.",
+    "No real Stripe payment, tax calculation, registration, USD price creation or legal/compliance certification.",
+    "Pending write envelopes exist only in RAM while the panel remains mounted. Reloading or leaving requires reconciliation before new mutations.",
+    "All US flags remain closed by default. Staging schema reconciliation, approval and fiscal-provider work remain required."
+  ],
+  "editorialCorrectionAfterChecks": {
+    "path": "lib/international/browser-workbench.browser.test.ts",
+    "change": "Only an explanatory scope sentence and an explanatory comment changed after the browser run. Scope metadata in browser.json corrected without altering views, errors, commits, operations or success.",
+    "reason": "PGlite tests prove SQL invariants and replay; no restart or crash durability was tested."
+  }
+}

@@ -31,15 +31,15 @@ describe('browser ERP cookie transport, not offline or persistent storage',()=>{
     t.enqueue({receipt,replayed:true});expect(await t.session.retry()).toEqual({receipt,replayed:true});expect(t.session.hasPending()).toBe(false);expect(t.newId).toHaveBeenCalledOnce();expect(t.fetcher.mock.calls[1][1]?.body).toBe(t.fetcher.mock.calls[0][1]?.body);expect(JSON.parse(t.fetcher.mock.calls[1][1]?.body as string).command.periods[0].id).toBe('2026');
   });
   it.each([[503,'service_unavailable','uncertain'],[404,'feature_unavailable','uncertain'],[409,'configuration_changed','uncertain'],[401,'session_changed','unauthorized'],[402,'management_entitlement_required','unauthorized'],[403,'forbidden','unauthorized']] as const)('does not reinterpret postcommit HTTP %s as a rejected transaction',async(status,code,outcome)=>{
-    const t=fixture();t.enqueue({error:code},status);await error(t.session.submit(command,0),code,outcome,status);expect(t.session.hasPending()).toBe(true);
+    const t=fixture();t.enqueue({error:code},status);await error(t.session.submit(command,0),status===401?'unauthorized':code,outcome,status);expect(t.session.hasPending()).toBe(true);
     t.enqueue({receipt,replayed:true});expect(await t.session.retry()).toEqual({receipt,replayed:true});expect(t.newId).toHaveBeenCalledOnce();expect(t.fetcher.mock.calls[1][1]?.body).toBe(t.fetcher.mock.calls[0][1]?.body);
   });
   it.each([[401,'unauthorized'],[402,'management_entitlement_required'],[403,'forbidden']] as const)('HTTP%s remains unauthorized when its body is not JSON, preserving pending privately',async(status,code)=>{
     const t=fixture();t.queue.push(()=>new Response('<html>private proxy token</html>',{status}));await error(t.session.submit(command,0),code,'unauthorized',status);expect(t.session.hasPending()).toBe(true);t.enqueue({receipt,replayed:true});await t.session.retry();expect(t.fetcher.mock.calls[1][1]?.body).toBe(t.fetcher.mock.calls[0][1]?.body);
     t.queue.push(()=>new Response('private forbidden page',{status}));await error(t.session.load(),code,'unauthorized',status);
   });
-  it.each([[401,'unauthorized'],[402,'management_entitlement_required'],[403,'forbidden']] as const)('HTTP%s remains unauthorized if JSON body reading times out',async(status,code)=>{
-    vi.useFakeTimers();try{const t=fixture();const response=Response.json({error:code},{status});vi.spyOn(response,'json').mockImplementation(()=>new Promise(()=>{}));t.queue.push(()=>response);const assertion=error(t.session.submit(command,0),code,'unauthorized',status);await vi.advanceTimersByTimeAsync(30000);await assertion;expect(t.session.hasPending()).toBe(true);expect(t.fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true);expect(vi.getTimerCount()).toBe(0);}finally{vi.useRealTimers();}
+  it.each([[401,'unauthorized'],[402,'management_entitlement_required'],[403,'forbidden']] as const)('HTTP%s rejects immediately without consuming a stalled JSON body',async(status,code)=>{
+    vi.useFakeTimers();try{const t=fixture();const response=Response.json({error:code},{status});const json=vi.spyOn(response,'json').mockImplementation(()=>new Promise(()=>{}));t.queue.push(()=>response);await error(t.session.submit(command,0),code,'unauthorized',status);expect(json).not.toHaveBeenCalled();expect(t.session.hasPending()).toBe(true);expect(t.fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true);expect(vi.getTimerCount()).toBe(0);}finally{vi.useRealTimers();}
   });
   it.each(['revision_conflict','estimate_revision_conflict','idempotency_conflict'])('treats the explicit precommit %s as rejected and requires a read before another submission',async code=>{
     const t=fixture();t.enqueue({error:code},409);await error(t.session.submit(command,0),code,'rejected',409);expect(t.session.hasPending()).toBe(false);await error(t.session.submit(command,0),'read_required','rejected',409);expect(t.fetcher).toHaveBeenCalledOnce();
@@ -61,18 +61,26 @@ describe('browser ERP cookie transport, not offline or persistent storage',()=>{
   });
   it('does not deliver an older read after a newer read or an unauthorized write',async()=>{
     const t=fixture();let finish!:(response:Response)=>void;t.queue.push(()=>new Promise(resolve=>{finish=resolve;}));const old=t.session.load();t.enqueue({status:'ready',state});await t.session.load();finish(Response.json({status:'uninitialized',configuration}));await error(old,'stale_read','rejected',0);
-    t.queue.push(()=>new Promise(resolve=>{finish=resolve;}));const revoked=t.session.load();t.enqueue({error:'session_changed'},401);await error(t.session.submit(command,0),'session_changed','unauthorized',401);finish(Response.json({status:'ready',state}));await error(revoked,'stale_read','rejected',0);expect(t.session.hasPending()).toBe(true);
+    t.queue.push(()=>new Promise(resolve=>{finish=resolve;}));const revoked=t.session.load();t.enqueue({error:'session_changed'},401);await error(t.session.submit(command,0),'unauthorized','unauthorized',401);finish(Response.json({status:'ready',state}));await error(revoked,'stale_read','rejected',0);expect(t.session.hasPending()).toBe(true);
   });
   it('a read begun before an uncertain write cannot present precommit state as the latest read',async()=>{
     const t=fixture();let finish!:(response:Response)=>void;t.queue.push(()=>new Promise(resolve=>{finish=resolve;}));const old=t.session.load();t.enqueue({error:'service_unavailable'},503);await error(t.session.submit(command,0),'service_unavailable','uncertain',503);finish(Response.json({status:'uninitialized',configuration}));await error(old,'stale_read','rejected',0);expect(t.session.hasPending()).toBe(true);
     t.enqueue({status:'ready',state});await t.session.load();expect(t.session.hasPending()).toBe(true);
+  });
+  it.each([401,402,403])('withholds a delayed authorized POST after a parallel denied GET%s and preserves exact recovery',async status=>{
+    const t=fixture();let finish!:(response:Response)=>void;t.queue.push(()=>new Promise(resolve=>{finish=resolve;}));
+    const writing=t.session.submit(command,0).catch(error=>error);t.enqueue({error:'forbidden'},status);
+    await error(t.session.load(),status===401?'unauthorized':status===402?'management_entitlement_required':'forbidden','unauthorized',status);finish(Response.json({receipt,replayed:false}));
+    expect(await writing).toMatchObject({code:'session_changed',outcome:'unauthorized',status:0});expect(t.session.hasPending()).toBe(true);
+    t.enqueue({receipt,replayed:true});expect(await t.session.retry()).toEqual({receipt,replayed:true});
+    expect(t.fetcher.mock.calls[2][1]?.body).toBe(t.fetcher.mock.calls[0][1]?.body);expect(t.newId).toHaveBeenCalledOnce();
   });
   it.each(['malformed','private','wrong-status'])('keeps uncertainty for %s error responses without exposing private response text',async kind=>{
     const t=fixture();if(kind==='malformed')t.queue.push(()=>new Response('private <html>debug token</html>',{status:503}));if(kind==='private')t.enqueue({error:'private_account_secret',debug:'private-token'},409);if(kind==='wrong-status')t.enqueue({error:'revision_conflict'},503);
     const expected=kind==='malformed'?'invalid_response':kind==='private'?'service_unavailable':'revision_conflict';await error(t.session.submit(command,0),expected,'uncertain',kind==='private'?409:503);expect(t.session.hasPending()).toBe(true);t.enqueue({receipt,replayed:true});await t.session.retry();
   });
   it('does not reuse financial state after the cookie account changes',async()=>{
-    const t=fixture();t.enqueue({status:'ready',state});await t.session.load();t.enqueue({error:'session_changed'},401);await error(t.session.submit(command,0),'session_changed','unauthorized',401);t.enqueue({error:'unauthorized'},401);await error(t.session.load(),'unauthorized','unauthorized',401);expect(t.session.hasPending()).toBe(true);
+    const t=fixture();t.enqueue({status:'ready',state});await t.session.load();t.enqueue({error:'session_changed'},401);await error(t.session.submit(command,0),'unauthorized','unauthorized',401);t.enqueue({error:'unauthorized'},401);await error(t.session.load(),'unauthorized','unauthorized',401);expect(t.session.hasPending()).toBe(true);
     t.enqueue({error:'idempotency_conflict'},409);await error(t.session.retry(),'idempotency_conflict','rejected',409);await error(t.session.submit(command,0),'read_required','rejected',409);expect(t.newId).toHaveBeenCalledOnce();
   });
   it.each(['key','action','entity','revision','hash','shape'])('withholds a malformed receipt %s while preserving exact retry',async field=>{

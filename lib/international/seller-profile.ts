@@ -56,6 +56,22 @@ function configured(input:unknown,organizationId:string,receipt=false):UsSellerP
   parseInstant(value.updatedAt.replace(/(\.[0-9]{3})[0-9]{1,3}(?=Z|[+-])/,'$1'));
   return Object.freeze({status:'configured',organizationId,revision:value.revision as number,profile:parsed,updatedBy:value.updatedBy,updatedAt:value.updatedAt});
 }
+/** Shared strict projection boundary. These public fields never grant a role. */
+export function validateUsSellerProfileState(input:unknown,organizationId:string):UsSellerProfileState {
+  if(typeof organizationId!=='string'||!scope.test(organizationId))throw new SellerProfileError('invalid_request',422);
+  const row=object(input,['status','organizationId','revision','profile','updatedBy','updatedAt'],['status','organizationId','revision']);
+  if(row.status==='unconfigured'){
+    const value=object(row,['status','organizationId','revision'],['status','organizationId','revision']);
+    if(value.organizationId!==organizationId||value.revision!==0)throw new Error('Invalid empty seller response');
+    return Object.freeze({status:'unconfigured',organizationId,revision:0});
+  }
+  return configured(input,organizationId);
+}
+export function validateUsSellerProfileReceipt(input:unknown,organizationId:string,userId:string,expectedWrite:UsSellerProfileWrite):UsSellerProfileReceipt {
+  const write=validateUsSellerProfileWrite(expectedWrite),state=configured(input,organizationId,true),row=input as Record<string,unknown>;
+  if(row.requestId!==write.requestId||typeof row.replayed!=='boolean'||state.updatedBy!==userId||state.revision!==write.expectedRevision+1||canonicalErpJson(state.profile)!==canonicalErpJson(write.profile))throw new Error('Invalid seller receipt');
+  return Object.freeze({...state,requestId:write.requestId,replayed:row.replayed});
+}
 function storageError(error:unknown):SellerProfileError {
   if(error instanceof SupabaseServerError){
     const states={PS001:['revision_conflict',409],PS002:['request_id_conflict',409],PS003:['workspace_unavailable',409],PS004:['invalid_request',422]} as const;
@@ -67,13 +83,7 @@ export async function getUsSellerProfile(store:SellerProfileStore,actor:SellerPr
   actorValid(actor);const organizationId=actor.organizationId;
   try {
     const result=await store.rpc<unknown>('zentra_read_us_seller_profile',{p_organization:organizationId});
-    const row=object(result,['status','organizationId','revision','profile','updatedBy','updatedAt'],['status','organizationId','revision']);
-    if(row.status==='unconfigured'){
-      const value=object(row,['status','organizationId','revision'],['status','organizationId','revision']);
-      if(value.organizationId!==organizationId||value.revision!==0)throw new Error('Invalid empty seller response');
-      return Object.freeze({status:'unconfigured',organizationId,revision:0});
-    }
-    return configured(result,organizationId);
+    return validateUsSellerProfileState(result,organizationId);
   }catch(error){throw storageError(error);}
 }
 export async function putUsSellerProfile(store:SellerProfileStore,actor:SellerProfileActor,input:unknown,beforeWrite?:()=>Promise<void>):Promise<UsSellerProfileReceipt> {
@@ -83,8 +93,6 @@ export async function putUsSellerProfile(store:SellerProfileStore,actor:SellerPr
   if(beforeWrite)await beforeWrite();
   try {
     const result=await store.rpc<unknown>('zentra_put_us_seller_profile',{p_organization:organizationId,p_actor:userId,p_expected_revision:write.expectedRevision,p_request_id:write.requestId,p_profile:write.profile});
-    const state=configured(result,organizationId,true),row=result as Record<string,unknown>;
-    if(row.requestId!==write.requestId||typeof row.replayed!=='boolean'||state.updatedBy!==userId||state.revision!==write.expectedRevision+1||canonicalErpJson(state.profile)!==canonicalErpJson(write.profile))throw new Error('Invalid seller receipt');
-    return Object.freeze({...state,requestId:write.requestId,replayed:row.replayed});
+    return validateUsSellerProfileReceipt(result,organizationId,userId,write);
   }catch(error){throw storageError(error);}
 }
