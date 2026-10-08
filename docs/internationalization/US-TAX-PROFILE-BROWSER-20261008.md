@@ -50,6 +50,8 @@ Une sandbox anonyme temporaire a été créée, mais sa clé de TEST est apparue
 
 Les tentatives suivantes ont demandé une connexion navigateur plutôt que fournir une sandbox authentifiée ; un exit 0 de la commande ne constitue donc pas une provision réussie. Une sandbox « Zentra US » contrôlée par le titulaire est demandée et son accès reste à établir. Aucun calcul Stripe Tax réel ni preuve d'émission n'est revendiqué.
 
+La tentative d'inventaire des onglets pour terminer cet accès a échoué avant toute interaction navigateur : `failed to write kernel assets ... (os error 3)`. Une réinitialisation du noyau suivie d'un nouvel inventaire a retourné la même erreur. Aucun onglet Stripe n'a donc été lu ou modifié dans cette tentative. C'est une limite de l'outil de navigation, pas un diagnostic d'une panne de Zentra ou du compte Stripe.
+
 ## Fichiers et suite
 
 Créés :
