@@ -56,7 +56,7 @@ const publicErpFailures: Readonly<Record<string, number>> = Object.freeze({
   invalid_tax_calculation: 409, tax_calculation_expired: 409, tax_binding_changed: 409,
   unsupported_tax_calculation: 409, unsupported_tax_request: 422,
   invoice_permission_required: 403, tax_assessment_expired: 409, stale_tax_assessment: 409,
-  client_upgrade_required: 409,
+  client_upgrade_required: 409, accounting_period_closed: 409,
 });
 function invalid(): never { throw new ErpError('invalid_stored_tax_operation', 503); }
 function actor(input: unknown, organizationId: string): FinancialAuthority {
@@ -84,7 +84,7 @@ function controlled(error: unknown): ErpError {
   // Public, known domain failures only. An arbitrary LedgerError message from
   // an injected port must never become a browser error or diagnostic payload.
   if (error instanceof LedgerError) {
-    const statuses: Record<string, number> = { TENANT_MISMATCH: 403, MANAGEMENT_ENTITLEMENT_REQUIRED: 402, FINANCIAL_PERMISSION_REQUIRED: 403, INVOICE_PERMISSION_REQUIRED: 403, ESTIMATE_ACCEPTANCE_REQUIRED: 409, INVALID_DATE: 422, TAX_CONFIGURATION_REQUIRED: 409, TAX_ASSESSMENT_EXPIRED: 409, STALE_TAX_ASSESSMENT: 409 };
+    const statuses: Record<string, number> = { TENANT_MISMATCH: 403, MANAGEMENT_ENTITLEMENT_REQUIRED: 402, FINANCIAL_PERMISSION_REQUIRED: 403, INVOICE_PERMISSION_REQUIRED: 403, ESTIMATE_ACCEPTANCE_REQUIRED: 409, INVALID_DATE: 422, TAX_CONFIGURATION_REQUIRED: 409, TAX_ASSESSMENT_EXPIRED: 409, STALE_TAX_ASSESSMENT: 409, ACCOUNTING_PERIOD_CLOSED: 409 };
     if (Object.hasOwn(statuses, error.message)) return new ErpError(error.message.toLowerCase(), statuses[error.message]);
   }
   return new ErpError('service_unavailable', 503);

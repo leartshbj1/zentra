@@ -1,0 +1,691 @@
+{
+  "schemaVersion": 1,
+  "scope": "isolated native US TEST readiness; real RAM ERP executor with explicitly mocked Rust/readiness/provider in browser and React tests",
+  "baseCommit": "3e35b81ea17b33e46108c7b299a78b100118d4d5",
+  "createdAt": "2026-10-08T18:09:59.305Z",
+  "sourceFiles": [
+    {
+      "path": "desktop/src-tauri/src/lib.rs",
+      "bytes": 587189,
+      "rawSha256": "151f3fe478f0674c9ada9ed68aec2505eb4edc17dfe95754d2a3c839a43b6417",
+      "lfSha256": "151f3fe478f0674c9ada9ed68aec2505eb4edc17dfe95754d2a3c839a43b6417"
+    },
+    {
+      "path": "desktop/src-tauri/src/us_admission.rs",
+      "bytes": 42256,
+      "rawSha256": "c46677f1c1151224392f8d068137fe0ae72b09a4d2bab62ca552e7b1bec86b63",
+      "lfSha256": "c46677f1c1151224392f8d068137fe0ae72b09a4d2bab62ca552e7b1bec86b63"
+    },
+    {
+      "path": "desktop/src-tauri/src/us_tax_readiness.rs",
+      "bytes": 10463,
+      "rawSha256": "5094402fdfeb9baae2d739a6d54c52ae709c5e6fd577e12dc86eb3b3d32782af",
+      "lfSha256": "5094402fdfeb9baae2d739a6d54c52ae709c5e6fd577e12dc86eb3b3d32782af"
+    },
+    {
+      "path": "desktop/src-tauri/src/us_tax_readiness_tests.rs",
+      "bytes": 9955,
+      "rawSha256": "2f2b2ee92c127888704eb76adcfbfa03db06714d2ea6e9465dd4138646766bca",
+      "lfSha256": "2f2b2ee92c127888704eb76adcfbfa03db06714d2ea6e9465dd4138646766bca"
+    },
+    {
+      "path": "desktop/src/InternationalErpPilot.tsx",
+      "bytes": 43921,
+      "rawSha256": "50926db6f3c0bc1d4ebb92228172aa06cc2baeffe35c1873ad07096caeb4d3e0",
+      "lfSha256": "2c77b37235ec19912aac3e0b6c9a4a15388ae368a1e3dcdf4c3b81e4597e0b23"
+    },
+    {
+      "path": "desktop/src/NativeUsWorkspace.tsx",
+      "bytes": 5255,
+      "rawSha256": "2d3f5b3c665d1f91dbc69900d79dcff8668d0c098b4519176bafbc28b25f28bf",
+      "lfSha256": "2d3f5b3c665d1f91dbc69900d79dcff8668d0c098b4519176bafbc28b25f28bf"
+    },
+    {
+      "path": "desktop/src/internationalErp.ts",
+      "bytes": 18020,
+      "rawSha256": "9fc0ff856d7b00dbc1d67a3b89778119ac878b2f96e35b42fda4f67bc8e58ccf",
+      "lfSha256": "448ad282f69dde16bc6c73f42e3e98c93d9807dfaa592b7c587ec8a74bd25327"
+    },
+    {
+      "path": "desktop/src/nativeUsAccountingBoundary.test.ts",
+      "bytes": 2492,
+      "rawSha256": "017bf95e77c6db797b7bb523fc3c19a2fa958bade3157374be4a9ebde0380b40",
+      "lfSha256": "017bf95e77c6db797b7bb523fc3c19a2fa958bade3157374be4a9ebde0380b40"
+    },
+    {
+      "path": "desktop/src/nativeUsCopy.test.ts",
+      "bytes": 2834,
+      "rawSha256": "b11d7ec68771a9c91e3ca11e31922c78e9d9aa500d049ed67c9d2d7721f2ee8e",
+      "lfSha256": "b11d7ec68771a9c91e3ca11e31922c78e9d9aa500d049ed67c9d2d7721f2ee8e"
+    },
+    {
+      "path": "desktop/src/translationsNativeUs.ts",
+      "bytes": 10087,
+      "rawSha256": "a74b76a7fb09e0231b157138b62ee42a7c58b22ec767220a5130cf3f2bf737f7",
+      "lfSha256": "a74b76a7fb09e0231b157138b62ee42a7c58b22ec767220a5130cf3f2bf737f7"
+    },
+    {
+      "path": "desktop/tests/native-us-admission-preview.tsx",
+      "bytes": 9200,
+      "rawSha256": "9e89feac14baaca908d0079eb5a9e65971f8cb071c94997d2951342a0e8a96d7",
+      "lfSha256": "9e89feac14baaca908d0079eb5a9e65971f8cb071c94997d2951342a0e8a96d7"
+    },
+    {
+      "path": "desktop/src/nativeUsTaxReadiness.ts",
+      "bytes": 9667,
+      "rawSha256": "efa496d87d29edb194b72ced1723afeb651c56d333aa173c9951aedc1fc793f6",
+      "lfSha256": "efa496d87d29edb194b72ced1723afeb651c56d333aa173c9951aedc1fc793f6"
+    },
+    {
+      "path": "desktop/src/NativeUsTaxReadinessStatus.tsx",
+      "bytes": 3441,
+      "rawSha256": "5dc7f3604551229812ec225848bcd3cb66da96213a4b5cca0a788f7619e0a684",
+      "lfSha256": "5dc7f3604551229812ec225848bcd3cb66da96213a4b5cca0a788f7619e0a684"
+    },
+    {
+      "path": "desktop/src/translationsNativeUsTax.ts",
+      "bytes": 9707,
+      "rawSha256": "9b989507987a615350f55388f76d3daf767abdcd5e41e73e8e964a22b0148ed7",
+      "lfSha256": "9b989507987a615350f55388f76d3daf767abdcd5e41e73e8e964a22b0148ed7"
+    },
+    {
+      "path": "desktop/src/nativeUsTaxReadiness.test.ts",
+      "bytes": 7413,
+      "rawSha256": "22e5d98a9b5de826023389933e56ede5fe522ee540eb1f1276f97d5b65550038",
+      "lfSha256": "22e5d98a9b5de826023389933e56ede5fe522ee540eb1f1276f97d5b65550038"
+    },
+    {
+      "path": "desktop/src/NativeUsTaxIssuance.test.tsx",
+      "bytes": 10225,
+      "rawSha256": "480ea4b681702788ba6ae479c20adbab178e8f3c32bfe515cb1af17e108c8faf",
+      "lfSha256": "480ea4b681702788ba6ae479c20adbab178e8f3c32bfe515cb1af17e108c8faf"
+    },
+    {
+      "path": "desktop/src/nativeUsTaxBoundary.test.ts",
+      "bytes": 4456,
+      "rawSha256": "eef3490374abb4617dbf1358d03a6ad6a6544edfb035872f99cc206b86df2219",
+      "lfSha256": "eef3490374abb4617dbf1358d03a6ad6a6544edfb035872f99cc206b86df2219"
+    },
+    {
+      "path": "desktop/tests/native-us-tax-readiness-review.mjs",
+      "bytes": 6442,
+      "rawSha256": "fed2804c6674d276bbe230288fa6fb3e7a6dfdc5ec8f577719ae15e266d79c51",
+      "lfSha256": "fed2804c6674d276bbe230288fa6fb3e7a6dfdc5ec8f577719ae15e266d79c51"
+    }
+  ],
+  "deliveryDocument": {
+    "path": "docs/internationalization/NATIVE-US-TAX-READINESS-DELIVERY-20261008.md",
+    "bytes": 6444,
+    "rawSha256": "49013e869db728a158d3130a6c0b89ea5c78f0ffcfbe688b97ceba7cfb72fa8f",
+    "lfSha256": "49013e869db728a158d3130a6c0b89ea5c78f0ffcfbe688b97ceba7cfb72fa8f"
+  },
+  "publicContract": {
+    "path": "docs/internationalization/US-TAX-ISSUANCE-CONTRACT-20261008.md",
+    "bytes": 6329,
+    "rawSha256": "5aaafbc383cd3f29806a11a772591aa8bf0ae58f1d75d49d521dad57c4535407",
+    "lfSha256": "5aaafbc383cd3f29806a11a772591aa8bf0ae58f1d75d49d521dad57c4535407"
+  },
+  "checks": {
+    "frontendRegression": {
+      "files": 21,
+      "passed": 203,
+      "failed": 0,
+      "skipped": 0,
+      "success": true,
+      "reporter": "desktop/.impeccable/review/native-us-tax-readiness/native-regression-final.json",
+      "testsAfterFinalPeriodLabel": true
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "log": "desktop/.impeccable/review/native-us-tax-readiness/typecheck-final.log"
+    },
+    "syntaxLint": {
+      "exitCode": 0,
+      "files": 14,
+      "rules": 191,
+      "diagnostics": 0,
+      "log": "desktop/.impeccable/review/native-us-tax-readiness/lint-syntax-final.json"
+    },
+    "typeAwareLint": {
+      "status": "blocked",
+      "reason": "Windows tsgolint binary could not spawn; no passing claim",
+      "log": "desktop/.impeccable/review/native-us-tax-readiness/lint-type-aware-attempt.log"
+    },
+    "viteOnlyBuild": {
+      "exitCode": 0,
+      "finalSources": true,
+      "seconds": 1.86,
+      "warning": "existing chunks larger than 500 kB",
+      "log": "desktop/.impeccable/review/native-us-tax-readiness/build-vite-final.log",
+      "chGeneratorExecuted": false
+    },
+    "rustFormat": {
+      "exitCode": 0,
+      "files": [
+        "desktop/src-tauri/src/us_admission.rs",
+        "desktop/src-tauri/src/us_tax_readiness.rs",
+        "desktop/src-tauri/src/us_tax_readiness_tests.rs"
+      ],
+      "log": "desktop/.impeccable/review/native-us-tax-readiness/rustfmt-source-final.log"
+    },
+    "incumbentLibFormatAttempt": {
+      "exitCode": 1,
+      "reason": "Existing module-order formatting, not modified to preserve CH scope",
+      "log": "desktop/.impeccable/review/native-us-tax-readiness/rustfmt-incumbent-lib-attempt.log"
+    },
+    "rustExecution": {
+      "compiled": 0,
+      "executed": 0,
+      "newDeclaredTests": 9,
+      "currentUsDeclarations": [
+        {
+          "path": "desktop/src-tauri/src/us_admission_tests.rs",
+          "declared": 33
+        },
+        {
+          "path": "desktop/src-tauri/src/us_exports_tests.rs",
+          "declared": 36
+        },
+        {
+          "path": "desktop/src-tauri/src/us_tax_readiness_tests.rs",
+          "declared": 9
+        }
+      ],
+      "totalCurrentUsDeclaredTests": 78,
+      "status": "source-only; no Cargo execution"
+    },
+    "diffCheck": {
+      "exitCode": 0,
+      "log": "desktop/.impeccable/review/native-us-tax-readiness/diff-check-final.log"
+    }
+  },
+  "visuals": {
+    "initialBatch": {
+      "configurations": 18,
+      "pageErrors": [],
+      "functional": "passed",
+      "captures": [
+        {
+          "language": "fr",
+          "theme": "light",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-light-fr-tax-review.png",
+            "bytes": 55022,
+            "rawSha256": "d2fdc1067ea635104be005997fc333266785e3c8863744b64e16ebfad042d676",
+            "lfSha256": "25fff8e19ec6ebdd2f1d0dc717341439fe9b56bd503aa8744669fe9759260268"
+          }
+        },
+        {
+          "language": "fr",
+          "theme": "light",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-light-fr-tax-review.png",
+            "bytes": 52765,
+            "rawSha256": "65c2f6d9bb7136a412591c1e87c455ac207436a897030a3f19d9b880fdec7244",
+            "lfSha256": "aaa807fdadd23e6a0daeb799b068af083573a5025d755623fcc1655b8abb88f0"
+          }
+        },
+        {
+          "language": "fr",
+          "theme": "dark",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-dark-fr-tax-review.png",
+            "bytes": 57812,
+            "rawSha256": "e530e6ddcd4dddb8d5cf91982502306453501497bed50f38f9d95cc0637629ab",
+            "lfSha256": "d3a11595f61fe41f11b2ed8ee62e2d27f96aba3381b5925862fc49906ab29679"
+          }
+        },
+        {
+          "language": "fr",
+          "theme": "dark",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-dark-fr-tax-review.png",
+            "bytes": 55333,
+            "rawSha256": "2b2b3abfe4283030276e3ba3bf06b541c15ed0c34e5219d2694e49cef8ae169a",
+            "lfSha256": "138216a01c79c08ce068444cd53679a307897e58e649dab03e683cd40abdff21"
+          }
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-light-de-tax-review.png",
+            "bytes": 56310,
+            "rawSha256": "a091b4a643bee4a0059f5d989617761ec18ffd47f90a5ea0435b742839d7a8ab",
+            "lfSha256": "cd5ed805758d3301038cd554ec2a446f46781fedd21e40609ad13f43bd5d9c1e"
+          }
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-light-de-tax-review.png",
+            "bytes": 53825,
+            "rawSha256": "1bf4a9ace21078a806a5c8b5adb479216f0af4c78e24f278d85e4b6c1a63869c",
+            "lfSha256": "1d38530ea50abc5375283a63de51470670d279685ade57b802c23f7e93750370"
+          }
+        },
+        {
+          "language": "de",
+          "theme": "dark",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-dark-de-tax-review.png",
+            "bytes": 58902,
+            "rawSha256": "126d92e0273b7dbdb10a3be205a01a6d27c0bd804d38b8202943f2496b35fbbd",
+            "lfSha256": "af3fecbc952232795d0148091c8960fbd7cc49b44682a8b3bc409bfdf6f704dd"
+          }
+        },
+        {
+          "language": "de",
+          "theme": "dark",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-dark-de-tax-review.png",
+            "bytes": 56750,
+            "rawSha256": "a6975c8d0078b501376ca5bde3235d26164b31123906bbdc3f31db30e43ab332",
+            "lfSha256": "89896d108b23d29d8ca15977311f6e1bbb4a978efc176e5f138b5df916211f60"
+          }
+        },
+        {
+          "language": "it",
+          "theme": "light",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-light-it-tax-review.png",
+            "bytes": 53090,
+            "rawSha256": "9c0c48082e15bd78946173e0b1b9cca960463fd93695a8c32e965f48cc9036f1",
+            "lfSha256": "eb275a5d0f75d9f21b3a1282b5809914cc6a4805790c7bace90dde5bb3a131c3"
+          }
+        },
+        {
+          "language": "it",
+          "theme": "light",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-light-it-tax-review.png",
+            "bytes": 51426,
+            "rawSha256": "ff2292c511e6d0c6041781f44d6d819c784fc94c6f3593dd2750e9498f096833",
+            "lfSha256": "7bb50347a08524c1fd7ed36e6fc07282047b041abeabdaa332d7491e857762ac"
+          }
+        },
+        {
+          "language": "it",
+          "theme": "dark",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-dark-it-tax-review.png",
+            "bytes": 55536,
+            "rawSha256": "62c4dd9b34dd1c1f873f6672e6048c4dc6d659471b8abd514d6dc78833f60601",
+            "lfSha256": "6dcd8a8df504ee82834c01bda8a355450f5eb575cd51b0a8ff9a918fde4da916"
+          }
+        },
+        {
+          "language": "it",
+          "theme": "dark",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-dark-it-tax-review.png",
+            "bytes": 53941,
+            "rawSha256": "cdb8c561c0e78afcbaa4d393e5bd92289cb726141335bbd017778f2042502fe2",
+            "lfSha256": "6d994c38d1fba59bc2c2b2df5493b55aed6dcb533200af9f18ce67df3ce7b73e"
+          }
+        },
+        {
+          "language": "en",
+          "theme": "light",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-light-en-tax-review.png",
+            "bytes": 54794,
+            "rawSha256": "374354cb630b901d907cb7bdd673b11527cd62763d02c1f96f6719a177e08cfb",
+            "lfSha256": "df37b55d2da0c2c393df0e081f3159c07e7628505d2593083f6299b8ff18dc67"
+          }
+        },
+        {
+          "language": "en",
+          "theme": "light",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-light-en-tax-review.png",
+            "bytes": 51982,
+            "rawSha256": "6ea688029fef6c061bf19b40fa93690f2b4a2d7380a0af1ee0e66a0ff2bc4a6d",
+            "lfSha256": "2f479c0e9cf5effcd880af17c30f25baacba44316895d1cfbca97318ba82ffa0"
+          }
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-dark-en-tax-review.png",
+            "bytes": 57356,
+            "rawSha256": "4ed1b456f651a9305a3d32d7e41ad73dc007c75078b46cf1cb3d3f05aa2e4de1",
+            "lfSha256": "fa88c9bbc7baa6aeb35fba2d0d2603ba8b1e85b5fb887cfac9eb81a31997d899"
+          }
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 390,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/390-dark-en-tax-review.png",
+            "bytes": 54803,
+            "rawSha256": "55ec63bc3d8c32f979ea8528ccca86596a98b8a5a2c2be75ad6d3ba4f935a793",
+            "lfSha256": "2227e4bdffb9233c63c68983cf30ad0fec7b88df958a447818b611615c620b5d"
+          }
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 320,
+          "rootTextPercent": 200,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/320-light-de-200text-tax-review.png",
+            "bytes": 146835,
+            "rawSha256": "2fb38b1302e50c48f74b0d1269195b10da3334f042f6f63ba094c3b3be763b43",
+            "lfSha256": "390df357814538a7657ea1c33b4f1798622bb9536d598569aaa471101872209a"
+          }
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 320,
+          "rootTextPercent": 200,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/320-dark-en-200text-tax-review.png",
+            "bytes": 137646,
+            "rawSha256": "4afc02cc7f49ce0819a7fa98c30b081fddebe84900cc63a2251a365cfa54af33",
+            "lfSha256": "ddeda73a506e4e60fe1f50f4a28526d485b8867636eccfd57139b1dec37eac3e"
+          }
+        }
+      ],
+      "phase": "before small final accounting-period label correction",
+      "visuallyInspected": true
+    },
+    "confirmationBatch": {
+      "configurations": 3,
+      "pageErrors": [],
+      "functional": "not repeated",
+      "captures": [
+        {
+          "language": "de",
+          "theme": "dark",
+          "width": 1440,
+          "rootTextPercent": 100,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/1440-dark-de-tax-review-confirmation.png",
+            "bytes": 59932,
+            "rawSha256": "f520c9f1818cbfae5428daf61936f69e059a8a40c94321be94e3fbdda56125b8",
+            "lfSha256": "51024d4d4d5336c7b63bb59cdde141baadcdc2bf3ba9a634a74fc1c9a4721208"
+          }
+        },
+        {
+          "language": "de",
+          "theme": "light",
+          "width": 320,
+          "rootTextPercent": 200,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/320-light-de-200text-tax-review-confirmation.png",
+            "bytes": 150732,
+            "rawSha256": "f51519e90cc5abfcd3ceef5331d835286eaecc07dd5936d16a79ed83599aeb83",
+            "lfSha256": "b53c788a0cdd8ee82706c9a888dd6954b785cd86c0bfae5d0fe859834d052515"
+          }
+        },
+        {
+          "language": "en",
+          "theme": "dark",
+          "width": 320,
+          "rootTextPercent": 200,
+          "overflow": 0,
+          "editors": 1,
+          "pilots": 1,
+          "writesBeforeConfirmation": 0,
+          "artifact": {
+            "path": "desktop/.impeccable/review/native-us-tax-readiness/320-dark-en-200text-tax-review-confirmation.png",
+            "bytes": 141638,
+            "rawSha256": "c956756b5e8c8c88ce99bcf14d0e7723bf1c837c873d20a3629fb9cf7a701ead",
+            "lfSha256": "765a32fda7a44f600fd347de2a3be2bed1dfbe63549c6a0f8031111140dc3193"
+          }
+        }
+      ],
+      "phase": "after final period range label; final source tests also rerun",
+      "visuallyInspected": true,
+      "consoleNote": "Confirmation console contains generic functional: passed; authoritative JSON says not repeated."
+    },
+    "physicalDevicesTested": 0,
+    "installedNativeDevicesTested": 0,
+    "liveProviderObservations": 0
+  },
+  "preserved": [
+    {
+      "path": "desktop/src/dark.generated.css",
+      "bytes": 928656,
+      "rawSha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f",
+      "lfSha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f",
+      "headRawSha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f",
+      "headLfSha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f",
+      "matchesHeadLf": true
+    },
+    {
+      "path": "desktop/src-tauri/src/account_cloud.rs",
+      "bytes": 128494,
+      "rawSha256": "d1aa9fff04f4bc9bdb3dea329ed519ee733383493ae30b26371b4890838297b0",
+      "lfSha256": "9ee94e8da17cd93d24aab4ae323a505251e5c3d1064b8b13d0f162db5dc07ad8",
+      "headRawSha256": "9ee94e8da17cd93d24aab4ae323a505251e5c3d1064b8b13d0f162db5dc07ad8",
+      "headLfSha256": "9ee94e8da17cd93d24aab4ae323a505251e5c3d1064b8b13d0f162db5dc07ad8",
+      "matchesHeadLf": true
+    },
+    {
+      "path": "desktop/src/WorkspaceApp.tsx",
+      "bytes": 445894,
+      "rawSha256": "8bb378179f5b7ee3d20c0c9350b0664bb84184296482844fbd55415d0f8487b0",
+      "lfSha256": "f854339fad5159f124a4591d73417583e1c8f6c81c1a4bc5e8e5c2d384391b36",
+      "headRawSha256": "f854339fad5159f124a4591d73417583e1c8f6c81c1a4bc5e8e5c2d384391b36",
+      "headLfSha256": "f854339fad5159f124a4591d73417583e1c8f6c81c1a4bc5e8e5c2d384391b36",
+      "matchesHeadLf": true
+    },
+    {
+      "path": "desktop/src-tauri/src/commands.rs",
+      "bytes": 85316,
+      "rawSha256": "23cfef2b37ccf7db5ea9a01b38901ee229c36ea35dfe26d4f3fd699f96fe7192",
+      "lfSha256": "c37659429edb28f8577a01b5f84efa3f5420c84d0c5d5b792a5a23bb94e8b195",
+      "headRawSha256": "c37659429edb28f8577a01b5f84efa3f5420c84d0c5d5b792a5a23bb94e8b195",
+      "headLfSha256": "c37659429edb28f8577a01b5f84efa3f5420c84d0c5d5b792a5a23bb94e8b195",
+      "matchesHeadLf": true
+    },
+    {
+      "path": "desktop/src-tauri/src/database.rs",
+      "bytes": 515123,
+      "rawSha256": "491871c02c11ff97d2045646d387b59b7dc0e1ea1e9f23f06d95cd25ad078b90",
+      "lfSha256": "3b38ea81f27591c9d609fda875787af6d1c7d4140386e309fd5156f43d95c74d",
+      "headRawSha256": "3b38ea81f27591c9d609fda875787af6d1c7d4140386e309fd5156f43d95c74d",
+      "headLfSha256": "3b38ea81f27591c9d609fda875787af6d1c7d4140386e309fd5156f43d95c74d",
+      "matchesHeadLf": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/native-regression-final.json",
+      "bytes": 80033,
+      "rawSha256": "9477b9d5ab846500e46867d919196707e1a87b711ced7229879663b0fbfcc08f",
+      "lfSha256": "9477b9d5ab846500e46867d919196707e1a87b711ced7229879663b0fbfcc08f"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/native-regression-final.log",
+      "bytes": 3009,
+      "rawSha256": "453ee27de70a4c8bde3a4eb22dbdbd4fe57701318200346ed6bba0c83fcaa5b2",
+      "lfSha256": "eea642bfc97cb4e74a00dad0fed569c3dac6c40635069268351b6a7596e44db6"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/typecheck-final.log",
+      "bytes": 8,
+      "rawSha256": "cc258d839e50d5e0cf220528399d5c29a6bcc5c3a9ee2616a915627e0363d91d",
+      "lfSha256": "418a5c17f33c70e99b0cc0a07fce69191489cfedc94164bfa903785777c5bd4b"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/lint-syntax-final.json",
+      "bytes": 202,
+      "rawSha256": "c6870d120d36f856427191d6a756d8369f80f92a948574729061c43acaba9029",
+      "lfSha256": "6adac654ce2a851c38f935398be488d40f81294e1d2eacdef2bbdbf8f16d76d9"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/lint-type-aware-attempt.log",
+      "bytes": 1846,
+      "rawSha256": "490770f18665c3a7f592d7b96790ca76030b59dc5533babd603046638a8a40f4",
+      "lfSha256": "09778bfd8ff8cc5f74702d04df13a45d14306bc70e554e54191f296d1bd5382d"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/build-vite-final.log",
+      "bytes": 17480,
+      "rawSha256": "30d0ebaba1497f250c0cf1b4a266175a9d7c5a5d54f8302053ced7d75a3b2c6d",
+      "lfSha256": "eb29bb3a0a76cd5d2ea3a6522006e3f8c549a2e19d30c06f0a9c43917ae158d5"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/rustfmt-source-final.log",
+      "bytes": 8,
+      "rawSha256": "cc258d839e50d5e0cf220528399d5c29a6bcc5c3a9ee2616a915627e0363d91d",
+      "lfSha256": "418a5c17f33c70e99b0cc0a07fce69191489cfedc94164bfa903785777c5bd4b"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/rustfmt-incumbent-lib-attempt.log",
+      "bytes": 82254,
+      "rawSha256": "b95d24799e16675162e58f9676487ece33662ccafa01f87d30a3db4cbc9f67b9",
+      "lfSha256": "56eb5c6d796941986b63cb51332d32c6107b52cf0fa3341342feebc95191b588"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/diff-check-final.log",
+      "bytes": 1178,
+      "rawSha256": "1b0ab24d56e639710cdc49230b6db3653ba635f196eed9d7a0769dccd4c9870b",
+      "lfSha256": "951a30e105f3d017f1dbbd036b08331466f755dec529c5ecc28b60919d600b8e"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/browser-initial.json",
+      "bytes": 8965,
+      "rawSha256": "c896b1c50fd0841f538fa0d519961dfb655a453016895633a3cfcfe762c97f0b",
+      "lfSha256": "c896b1c50fd0841f538fa0d519961dfb655a453016895633a3cfcfe762c97f0b"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/browser-confirmation.json",
+      "bytes": 1690,
+      "rawSha256": "e299f109c86bf277432cb956311202143b92d0300b7aee8ecc45d18fce3b266b",
+      "lfSha256": "e299f109c86bf277432cb956311202143b92d0300b7aee8ecc45d18fce3b266b"
+    },
+    {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/browser-confirmation.log",
+      "bytes": 53,
+      "rawSha256": "e218dc9e282643c89829f0c4168d22a884ec819ee150a1bbbd8403a17865f06b",
+      "lfSha256": "c1a88711dffa808cd83a7a8bc42dac302e86bb2756cd9a87ce5f015690a44c99"
+    }
+  ],
+  "limitations": [
+    "No production provider grant or deployment",
+    "No live provider validation",
+    "No Cargo compilation or Rust test execution",
+    "No native release or physical-device test",
+    "Type-aware lint blocked, syntax lint and TypeScript passed",
+    "No compliance certification claim"
+  ]
+}

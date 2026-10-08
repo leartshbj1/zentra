@@ -1,0 +1,1170 @@
+{
+  "phase": "US protected TEST readiness and fiscal capability/replay guards",
+  "date": "2026-10-08",
+  "recordedAt": "2026-10-08T18:27:04.107072+00:00",
+  "web": {
+    "workspace": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site",
+    "baseCommit": "47bd26388d15472742a4bf4b2a7ecb072ea933c6",
+    "files": [
+      {
+        "path": "app/api/international/workspaces/[organizationId]/tax-readiness/route.ts",
+        "status": "created",
+        "bytes": 313,
+        "rawSha256": "88e722b9467522571dfc99d998408dd47f82b12e18cd105bb68369c568f5ac42",
+        "utf8LfSha256": "88e722b9467522571dfc99d998408dd47f82b12e18cd105bb68369c568f5ac42"
+      },
+      {
+        "path": "docs/evidence/native-us-tax-readiness-20261008.json",
+        "status": "created",
+        "bytes": 27692,
+        "rawSha256": "2bfdbd601ed9439d41bfd56e2b90b80b9a3bc3e68c6502665375c2168812c452",
+        "utf8LfSha256": "2bfdbd601ed9439d41bfd56e2b90b80b9a3bc3e68c6502665375c2168812c452"
+      },
+      {
+        "path": "docs/evidence/us-tax-readiness-20261008.json",
+        "status": "created",
+        "rawSha256": null,
+        "utf8LfSha256": null,
+        "note": "Self-referential common delivery artifacts excluded from hashing"
+      },
+      {
+        "path": "docs/internationalization/NATIVE-US-TAX-READINESS-DELIVERY-20261008.md",
+        "status": "created",
+        "bytes": 6444,
+        "rawSha256": "49013e869db728a158d3130a6c0b89ea5c78f0ffcfbe688b97ceba7cfb72fa8f",
+        "utf8LfSha256": "49013e869db728a158d3130a6c0b89ea5c78f0ffcfbe688b97ceba7cfb72fa8f"
+      },
+      {
+        "path": "docs/internationalization/US-REGULATORY-GATES-20261008.md",
+        "status": "created",
+        "bytes": 4946,
+        "rawSha256": "ed4d0c92f8e2fefbef4d252a74674515f4baf307b4d34287d7872d447b9dbbb9",
+        "utf8LfSha256": "ed4d0c92f8e2fefbef4d252a74674515f4baf307b4d34287d7872d447b9dbbb9"
+      },
+      {
+        "path": "docs/internationalization/US-TAX-ISSUANCE-CONTRACT-20261008.md",
+        "status": "created",
+        "bytes": 6688,
+        "rawSha256": "6628531c9ec8c0a337a5f22fabfe6c50ab549f04917431a1d9f8521a1ce3bb76",
+        "utf8LfSha256": "6628531c9ec8c0a337a5f22fabfe6c50ab549f04917431a1d9f8521a1ce3bb76"
+      },
+      {
+        "path": "docs/internationalization/US-TAX-READINESS-DELIVERY-20261008.md",
+        "status": "created",
+        "rawSha256": null,
+        "utf8LfSha256": null,
+        "note": "Self-referential common delivery artifacts excluded from hashing"
+      },
+      {
+        "path": "lib/international/exports.postgres.test.ts",
+        "status": "modified",
+        "bytes": 27714,
+        "rawSha256": "b245200ee45de0f99bb281d094e4d39257c13bf691981429d1fa0c0e39f09442",
+        "utf8LfSha256": "b245200ee45de0f99bb281d094e4d39257c13bf691981429d1fa0c0e39f09442"
+      },
+      {
+        "path": "lib/international/projects.postgres.test.ts",
+        "status": "modified",
+        "bytes": 36991,
+        "rawSha256": "9610b5d6ede3a2591cf5e6edf3be140736bcebfae78602e3306f15c6caab2603",
+        "utf8LfSha256": "9610b5d6ede3a2591cf5e6edf3be140736bcebfae78602e3306f15c6caab2603"
+      },
+      {
+        "path": "lib/international/purchasing.postgres.test.ts",
+        "status": "modified",
+        "bytes": 49460,
+        "rawSha256": "ee1644cf56584526d04eb03f62c668f6866249523870a919b21cbda34dc0584e",
+        "utf8LfSha256": "ee1644cf56584526d04eb03f62c668f6866249523870a919b21cbda34dc0584e"
+      },
+      {
+        "path": "lib/international/runtime-bindings.ts",
+        "status": "modified",
+        "bytes": 7463,
+        "rawSha256": "64a5583c3a58cfb4f0de8c6354256e2464ad18840ec9d2c80d4768e0b0ca4bdf",
+        "utf8LfSha256": "64a5583c3a58cfb4f0de8c6354256e2464ad18840ec9d2c80d4768e0b0ca4bdf"
+      },
+      {
+        "path": "lib/international/stripe-tax-test-gateway.test.ts",
+        "status": "created",
+        "bytes": 34597,
+        "rawSha256": "4505778b4d2efd5ea237f0aa96de78b2250c03a437064b1667da7192521f2e01",
+        "utf8LfSha256": "4505778b4d2efd5ea237f0aa96de78b2250c03a437064b1667da7192521f2e01"
+      },
+      {
+        "path": "lib/international/stripe-tax-test-gateway.ts",
+        "status": "created",
+        "bytes": 19764,
+        "rawSha256": "f9b0264b6bdb0194576aa8c4c1d8425cad042a0067429d928a3e049362096cfa",
+        "utf8LfSha256": "f9b0264b6bdb0194576aa8c4c1d8425cad042a0067429d928a3e049362096cfa"
+      },
+      {
+        "path": "lib/international/us-device-server.test.ts",
+        "status": "modified",
+        "bytes": 19013,
+        "rawSha256": "92240cd3012da4c2409618b94c91f63fadc5b9787ceccbfea866f2312dab1551",
+        "utf8LfSha256": "92240cd3012da4c2409618b94c91f63fadc5b9787ceccbfea866f2312dab1551"
+      },
+      {
+        "path": "lib/international/us-tax-invoice.postgres.test.ts",
+        "status": "modified",
+        "bytes": 32175,
+        "rawSha256": "c7114a6e1fbf6731190efb14374d727feb7ef695aea6447b3fc1c688eac6c65e",
+        "utf8LfSha256": "c7114a6e1fbf6731190efb14374d727feb7ef695aea6447b3fc1c688eac6c65e"
+      },
+      {
+        "path": "lib/international/us-tax-invoice.test.ts",
+        "status": "modified",
+        "bytes": 46046,
+        "rawSha256": "d009de799086dc2fc8faf4d1e0b3426aa20b0cf01d7725f028d6acf8e95ae8e8",
+        "utf8LfSha256": "d009de799086dc2fc8faf4d1e0b3426aa20b0cf01d7725f028d6acf8e95ae8e8"
+      },
+      {
+        "path": "lib/international/us-tax-invoice.ts",
+        "status": "modified",
+        "bytes": 21534,
+        "rawSha256": "2388ae8f936a7e6443aed3adcfbe25188a8e8cd641724ac44d68a0d5711b2952",
+        "utf8LfSha256": "2388ae8f936a7e6443aed3adcfbe25188a8e8cd641724ac44d68a0d5711b2952"
+      },
+      {
+        "path": "lib/international/us-tax-operation-store.test.ts",
+        "status": "modified",
+        "bytes": 33215,
+        "rawSha256": "40d25b915738f76f72b5c86fa4caf372c4090a8a9548c19a7f16a370fe4e885c",
+        "utf8LfSha256": "40d25b915738f76f72b5c86fa4caf372c4090a8a9548c19a7f16a370fe4e885c"
+      },
+      {
+        "path": "lib/international/us-tax-operation-store.ts",
+        "status": "modified",
+        "bytes": 13743,
+        "rawSha256": "c01728e8406008844b638c87eabd80e179df547e2f5b1e3f938a77870db91a6e",
+        "utf8LfSha256": "c01728e8406008844b638c87eabd80e179df547e2f5b1e3f938a77870db91a6e"
+      },
+      {
+        "path": "lib/international/us-tax-operations.postgres.test.ts",
+        "status": "modified",
+        "bytes": 60875,
+        "rawSha256": "32a9bc235dd7e19a163c1d0d585524aaacfd6b6080dd4d2842ef01e43d4b4cc4",
+        "utf8LfSha256": "32a9bc235dd7e19a163c1d0d585524aaacfd6b6080dd4d2842ef01e43d4b4cc4"
+      },
+      {
+        "path": "lib/international/us-tax-readiness-server.test.ts",
+        "status": "created",
+        "bytes": 17313,
+        "rawSha256": "f102b60c623a37daad56e23aeca07e54ca87573480a61ab3759d184d5a3a7866",
+        "utf8LfSha256": "f102b60c623a37daad56e23aeca07e54ca87573480a61ab3759d184d5a3a7866"
+      },
+      {
+        "path": "lib/international/us-tax-readiness-server.ts",
+        "status": "created",
+        "bytes": 12221,
+        "rawSha256": "f26a821a224073b549de3d57ed57730d5e5b81eca1b16221f733d9de8e8a594e",
+        "utf8LfSha256": "f26a821a224073b549de3d57ed57730d5e5b81eca1b16221f733d9de8e8a594e"
+      },
+      {
+        "path": "lib/international/us-tax-readiness.test.ts",
+        "status": "created",
+        "bytes": 9913,
+        "rawSha256": "7f60ebcbaf300e0508e0aedf8b13a197b5ebf1a2e8ad24ede4d7c37715a3c044",
+        "utf8LfSha256": "7f60ebcbaf300e0508e0aedf8b13a197b5ebf1a2e8ad24ede4d7c37715a3c044"
+      },
+      {
+        "path": "lib/international/us-tax-readiness.ts",
+        "status": "created",
+        "bytes": 13515,
+        "rawSha256": "a9908f97a41b9bd1adf2c212e5fdbf27527b3a0a71ae7b4dfc3603072a49fbb4",
+        "utf8LfSha256": "a9908f97a41b9bd1adf2c212e5fdbf27527b3a0a71ae7b4dfc3603072a49fbb4"
+      },
+      {
+        "path": "lib/international/workspace-creation.integration.test.ts",
+        "status": "modified",
+        "bytes": 19902,
+        "rawSha256": "deb770d4adaf4dd9f85cff94c90a28700aacb9edd0679320d3416ed08ea4f980",
+        "utf8LfSha256": "deb770d4adaf4dd9f85cff94c90a28700aacb9edd0679320d3416ed08ea4f980"
+      },
+      {
+        "path": "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql",
+        "status": "created",
+        "bytes": 8008,
+        "rawSha256": "f5beddce39dec119e1b606724be9c3ab6b7738260792cbd72d3a45f97993a718",
+        "utf8LfSha256": "f5beddce39dec119e1b606724be9c3ab6b7738260792cbd72d3a45f97993a718"
+      }
+    ]
+  },
+  "native": {
+    "workspace": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission",
+    "baseCommit": "3e35b81ea17b33e46108c7b299a78b100118d4d5",
+    "files": [
+      {
+        "path": "desktop/src-tauri/src/lib.rs",
+        "status": "modified",
+        "bytes": 587189,
+        "rawSha256": "151f3fe478f0674c9ada9ed68aec2505eb4edc17dfe95754d2a3c839a43b6417",
+        "utf8LfSha256": "151f3fe478f0674c9ada9ed68aec2505eb4edc17dfe95754d2a3c839a43b6417"
+      },
+      {
+        "path": "desktop/src-tauri/src/us_admission.rs",
+        "status": "modified",
+        "bytes": 42256,
+        "rawSha256": "c46677f1c1151224392f8d068137fe0ae72b09a4d2bab62ca552e7b1bec86b63",
+        "utf8LfSha256": "c46677f1c1151224392f8d068137fe0ae72b09a4d2bab62ca552e7b1bec86b63"
+      },
+      {
+        "path": "desktop/src-tauri/src/us_tax_readiness.rs",
+        "status": "created",
+        "bytes": 10463,
+        "rawSha256": "5094402fdfeb9baae2d739a6d54c52ae709c5e6fd577e12dc86eb3b3d32782af",
+        "utf8LfSha256": "5094402fdfeb9baae2d739a6d54c52ae709c5e6fd577e12dc86eb3b3d32782af"
+      },
+      {
+        "path": "desktop/src-tauri/src/us_tax_readiness_tests.rs",
+        "status": "created",
+        "bytes": 9955,
+        "rawSha256": "2f2b2ee92c127888704eb76adcfbfa03db06714d2ea6e9465dd4138646766bca",
+        "utf8LfSha256": "2f2b2ee92c127888704eb76adcfbfa03db06714d2ea6e9465dd4138646766bca"
+      },
+      {
+        "path": "desktop/src/InternationalErpPilot.tsx",
+        "status": "modified",
+        "bytes": 43921,
+        "rawSha256": "50926db6f3c0bc1d4ebb92228172aa06cc2baeffe35c1873ad07096caeb4d3e0",
+        "utf8LfSha256": "2c77b37235ec19912aac3e0b6c9a4a15388ae368a1e3dcdf4c3b81e4597e0b23"
+      },
+      {
+        "path": "desktop/src/NativeUsTaxIssuance.test.tsx",
+        "status": "created",
+        "bytes": 10225,
+        "rawSha256": "480ea4b681702788ba6ae479c20adbab178e8f3c32bfe515cb1af17e108c8faf",
+        "utf8LfSha256": "480ea4b681702788ba6ae479c20adbab178e8f3c32bfe515cb1af17e108c8faf"
+      },
+      {
+        "path": "desktop/src/NativeUsTaxReadinessStatus.tsx",
+        "status": "created",
+        "bytes": 3441,
+        "rawSha256": "5dc7f3604551229812ec225848bcd3cb66da96213a4b5cca0a788f7619e0a684",
+        "utf8LfSha256": "5dc7f3604551229812ec225848bcd3cb66da96213a4b5cca0a788f7619e0a684"
+      },
+      {
+        "path": "desktop/src/NativeUsWorkspace.tsx",
+        "status": "modified",
+        "bytes": 5255,
+        "rawSha256": "2d3f5b3c665d1f91dbc69900d79dcff8668d0c098b4519176bafbc28b25f28bf",
+        "utf8LfSha256": "2d3f5b3c665d1f91dbc69900d79dcff8668d0c098b4519176bafbc28b25f28bf"
+      },
+      {
+        "path": "desktop/src/internationalErp.ts",
+        "status": "modified",
+        "bytes": 18020,
+        "rawSha256": "9fc0ff856d7b00dbc1d67a3b89778119ac878b2f96e35b42fda4f67bc8e58ccf",
+        "utf8LfSha256": "448ad282f69dde16bc6c73f42e3e98c93d9807dfaa592b7c587ec8a74bd25327"
+      },
+      {
+        "path": "desktop/src/nativeUsAccountingBoundary.test.ts",
+        "status": "modified",
+        "bytes": 2492,
+        "rawSha256": "017bf95e77c6db797b7bb523fc3c19a2fa958bade3157374be4a9ebde0380b40",
+        "utf8LfSha256": "017bf95e77c6db797b7bb523fc3c19a2fa958bade3157374be4a9ebde0380b40"
+      },
+      {
+        "path": "desktop/src/nativeUsCopy.test.ts",
+        "status": "modified",
+        "bytes": 2834,
+        "rawSha256": "b11d7ec68771a9c91e3ca11e31922c78e9d9aa500d049ed67c9d2d7721f2ee8e",
+        "utf8LfSha256": "b11d7ec68771a9c91e3ca11e31922c78e9d9aa500d049ed67c9d2d7721f2ee8e"
+      },
+      {
+        "path": "desktop/src/nativeUsTaxBoundary.test.ts",
+        "status": "created",
+        "bytes": 4456,
+        "rawSha256": "eef3490374abb4617dbf1358d03a6ad6a6544edfb035872f99cc206b86df2219",
+        "utf8LfSha256": "eef3490374abb4617dbf1358d03a6ad6a6544edfb035872f99cc206b86df2219"
+      },
+      {
+        "path": "desktop/src/nativeUsTaxReadiness.test.ts",
+        "status": "created",
+        "bytes": 7413,
+        "rawSha256": "22e5d98a9b5de826023389933e56ede5fe522ee540eb1f1276f97d5b65550038",
+        "utf8LfSha256": "22e5d98a9b5de826023389933e56ede5fe522ee540eb1f1276f97d5b65550038"
+      },
+      {
+        "path": "desktop/src/nativeUsTaxReadiness.ts",
+        "status": "created",
+        "bytes": 9667,
+        "rawSha256": "efa496d87d29edb194b72ced1723afeb651c56d333aa173c9951aedc1fc793f6",
+        "utf8LfSha256": "efa496d87d29edb194b72ced1723afeb651c56d333aa173c9951aedc1fc793f6"
+      },
+      {
+        "path": "desktop/src/translationsNativeUs.ts",
+        "status": "modified",
+        "bytes": 10087,
+        "rawSha256": "a74b76a7fb09e0231b157138b62ee42a7c58b22ec767220a5130cf3f2bf737f7",
+        "utf8LfSha256": "a74b76a7fb09e0231b157138b62ee42a7c58b22ec767220a5130cf3f2bf737f7"
+      },
+      {
+        "path": "desktop/src/translationsNativeUsTax.ts",
+        "status": "created",
+        "bytes": 9707,
+        "rawSha256": "9b989507987a615350f55388f76d3daf767abdcd5e41e73e8e964a22b0148ed7",
+        "utf8LfSha256": "9b989507987a615350f55388f76d3daf767abdcd5e41e73e8e964a22b0148ed7"
+      },
+      {
+        "path": "desktop/tests/native-us-admission-preview.tsx",
+        "status": "modified",
+        "bytes": 9200,
+        "rawSha256": "9e89feac14baaca908d0079eb5a9e65971f8cb071c94997d2951342a0e8a96d7",
+        "utf8LfSha256": "9e89feac14baaca908d0079eb5a9e65971f8cb071c94997d2951342a0e8a96d7"
+      },
+      {
+        "path": "desktop/tests/native-us-tax-readiness-review.mjs",
+        "status": "created",
+        "bytes": 6442,
+        "rawSha256": "fed2804c6674d276bbe230288fa6fb3e7a6dfdc5ec8f577719ae15e266d79c51",
+        "utf8LfSha256": "fed2804c6674d276bbe230288fa6fb3e7a6dfdc5ec8f577719ae15e266d79c51"
+      },
+      {
+        "path": "docs/evidence/native-us-tax-readiness-20261008.json",
+        "status": "created",
+        "bytes": 27692,
+        "rawSha256": "2bfdbd601ed9439d41bfd56e2b90b80b9a3bc3e68c6502665375c2168812c452",
+        "utf8LfSha256": "2bfdbd601ed9439d41bfd56e2b90b80b9a3bc3e68c6502665375c2168812c452"
+      },
+      {
+        "path": "docs/evidence/us-tax-readiness-20261008.json",
+        "status": "created",
+        "rawSha256": null,
+        "utf8LfSha256": null,
+        "note": "Self-referential common delivery artifacts excluded from hashing"
+      },
+      {
+        "path": "docs/internationalization/NATIVE-US-TAX-READINESS-DELIVERY-20261008.md",
+        "status": "created",
+        "bytes": 6444,
+        "rawSha256": "49013e869db728a158d3130a6c0b89ea5c78f0ffcfbe688b97ceba7cfb72fa8f",
+        "utf8LfSha256": "49013e869db728a158d3130a6c0b89ea5c78f0ffcfbe688b97ceba7cfb72fa8f"
+      },
+      {
+        "path": "docs/internationalization/US-REGULATORY-GATES-20261008.md",
+        "status": "created",
+        "bytes": 4946,
+        "rawSha256": "ed4d0c92f8e2fefbef4d252a74674515f4baf307b4d34287d7872d447b9dbbb9",
+        "utf8LfSha256": "ed4d0c92f8e2fefbef4d252a74674515f4baf307b4d34287d7872d447b9dbbb9"
+      },
+      {
+        "path": "docs/internationalization/US-TAX-ISSUANCE-CONTRACT-20261008.md",
+        "status": "created",
+        "bytes": 6688,
+        "rawSha256": "6628531c9ec8c0a337a5f22fabfe6c50ab549f04917431a1d9f8521a1ce3bb76",
+        "utf8LfSha256": "6628531c9ec8c0a337a5f22fabfe6c50ab549f04917431a1d9f8521a1ce3bb76"
+      },
+      {
+        "path": "docs/internationalization/US-TAX-READINESS-DELIVERY-20261008.md",
+        "status": "created",
+        "rawSha256": null,
+        "utf8LfSha256": null,
+        "note": "Self-referential common delivery artifacts excluded from hashing"
+      }
+    ]
+  },
+  "executed": {
+    "internationalFinal": {
+      "path": ".qa/us-tax-provider/full-international-final.json",
+      "sha256": "4829bdb3bcb1bcdd786583910b5c6981f21475aa9c8996da8c4e01af4b04ae8d",
+      "files": 103,
+      "total": 3926,
+      "passed": 3918,
+      "failed": 0,
+      "skipped": 8,
+      "success": true
+    },
+    "chAuthBillingLocalRegression": {
+      "path": ".qa/us-tax-provider/ch-auth-billing-regression.json",
+      "sha256": "d17ddd52ec3cfc0ee63e26e9fbdc478bfc0570e120e0517ddeb5a2026e80e270",
+      "files": 6,
+      "total": 52,
+      "passed": 52,
+      "failed": 0,
+      "skipped": 0,
+      "success": true
+    },
+    "nativeFrontendFinal": {
+      "path": "desktop/.impeccable/review/native-us-tax-readiness/native-regression-final.json",
+      "sha256": "9477b9d5ab846500e46867d919196707e1a87b711ced7229879663b0fbfcc08f",
+      "files": 21,
+      "total": 203,
+      "passed": 203,
+      "failed": 0,
+      "skipped": 0,
+      "success": true
+    },
+    "webQuality": {
+      "files": [
+        "lib/international/exports.postgres.test.ts",
+        "lib/international/projects.postgres.test.ts",
+        "lib/international/purchasing.postgres.test.ts",
+        "lib/international/runtime-bindings.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-tax-invoice.postgres.test.ts",
+        "lib/international/us-tax-invoice.test.ts",
+        "lib/international/us-tax-invoice.ts",
+        "lib/international/us-tax-operation-store.test.ts",
+        "lib/international/us-tax-operation-store.ts",
+        "lib/international/us-tax-operations.postgres.test.ts",
+        "lib/international/workspace-creation.integration.test.ts",
+        "app/api/international/workspaces/[organizationId]/tax-readiness/route.ts",
+        "lib/international/stripe-tax-test-gateway.test.ts",
+        "lib/international/stripe-tax-test-gateway.ts",
+        "lib/international/us-tax-readiness-server.test.ts",
+        "lib/international/us-tax-readiness-server.ts",
+        "lib/international/us-tax-readiness.test.ts",
+        "lib/international/us-tax-readiness.ts"
+      ],
+      "checks": [
+        {
+          "label": "typecheck-final",
+          "started": "2026-10-08T18:23:20.682Z",
+          "finished": "2026-10-08T18:23:25.526Z",
+          "exitCode": 0,
+          "log": ".qa/us-tax-provider/typecheck-final.log"
+        },
+        {
+          "label": "syntax-lint-final",
+          "started": "2026-10-08T18:23:25.528Z",
+          "finished": "2026-10-08T18:23:25.624Z",
+          "exitCode": 0,
+          "log": ".qa/us-tax-provider/syntax-lint-final.log"
+        },
+        {
+          "label": "brand-check-final",
+          "started": "2026-10-08T18:23:25.624Z",
+          "finished": "2026-10-08T18:23:25.673Z",
+          "exitCode": 0,
+          "log": ".qa/us-tax-provider/brand-check-final.log"
+        },
+        {
+          "label": "vinext-build-final",
+          "started": "2026-10-08T18:23:25.673Z",
+          "finished": "2026-10-08T18:23:46.469Z",
+          "exitCode": 0,
+          "log": ".qa/us-tax-provider/vinext-build-final.log"
+        },
+        {
+          "label": "diff-check-final",
+          "started": "2026-10-08T18:23:46.470Z",
+          "finished": "2026-10-08T18:23:46.538Z",
+          "exitCode": 0,
+          "log": ".qa/us-tax-provider/diff-check-final.log"
+        }
+      ],
+      "typedLint": "Not reattempted: Windows tsgolint executable rejection retained in earlier logs; syntax lint and separate TypeScript only."
+    },
+    "nativeProof": {
+      "path": "docs/evidence/native-us-tax-readiness-20261008.json",
+      "sha256": "2bfdbd601ed9439d41bfd56e2b90b80b9a3bc3e68c6502665375c2168812c452"
+    }
+  },
+  "preservedCompatibility": {
+    "scope": "Source compatibility only, not hosted/data/native execution proof",
+    "webBase": "47bd26388d15472742a4bf4b2a7ecb072ea933c6",
+    "nativeBase": "3e35b81ea17b33e46108c7b299a78b100118d4d5",
+    "sharedDomainFiles": [
+      {
+        "path": "lib/international/accounting/ledger.ts",
+        "utf8LfSha256": "23fbd7a415f206dd88dabfb02d7cc43751cd68d22f70af5185ad7092aa8cbda3"
+      },
+      {
+        "path": "lib/international/accounting/postings.ts",
+        "utf8LfSha256": "c216578499a33879da1463602ffeead083de8eb8951d24434d9d6d6181062147"
+      },
+      {
+        "path": "lib/international/accounting/reports.ts",
+        "utf8LfSha256": "ade415d24c56f98b60dcddafb6b7628a5d9befe9f95dd28a3c75b5abcd4c0644"
+      },
+      {
+        "path": "lib/international/accounting/us-journal.ts",
+        "utf8LfSha256": "05ed04c36b76cff010c6c93880ecb7b2c9d3a08d54e14ddad693c26e2026ebe1"
+      },
+      {
+        "path": "lib/international/addresses.ts",
+        "utf8LfSha256": "ab99832d4839ba2ab41318c0cdadb7ac709c724d4f04804c3572e8622c87955a"
+      },
+      {
+        "path": "lib/international/canonical-hash.ts",
+        "utf8LfSha256": "cbbeb4d0df0cc9c7877ad498b5aceb00a1e596e2df63fbc2d8fbdd4281217e87"
+      },
+      {
+        "path": "lib/international/contacts.ts",
+        "utf8LfSha256": "4cc30d430e43d503aace32f2cff6308870351d372f622f1f38536898b030d04a"
+      },
+      {
+        "path": "lib/international/countries/adapters.ts",
+        "utf8LfSha256": "886cdee844d9cbae858a11f61ff008cb67a3ec0958146f457ff48c12c7c5e3c4"
+      },
+      {
+        "path": "lib/international/countries/ch/accounting.ts",
+        "utf8LfSha256": "f51acabfad6ac000df2f2b36eaff5ecae158dbf8a76da7c09af4b44c3ab8041e"
+      },
+      {
+        "path": "lib/international/countries/us/accounting.ts",
+        "utf8LfSha256": "293325666a087b381521f77db9822f0e60cea1aac8207716879968e49b330cb3"
+      },
+      {
+        "path": "lib/international/country-config.ts",
+        "utf8LfSha256": "f36d0363d0ff930595af56a1ff15132416b700dba790c3b78127bdb2d9979b7e"
+      },
+      {
+        "path": "lib/international/erp-contract.ts",
+        "utf8LfSha256": "1f49a257a335c040c627c8ed4b873fcd6b78a489fd07bb4edc7e16aa2f28c783"
+      },
+      {
+        "path": "lib/international/erp-request.ts",
+        "utf8LfSha256": "c0528cdb6842db76da0bf676fd06f1312ddbaad67705e28bf88155cc726b6996"
+      },
+      {
+        "path": "lib/international/erp-schema-capability.ts",
+        "utf8LfSha256": "7f1bd9cf522c96a38a3f04959b3ca2eca27d4652242b001e72ae2647a3a14d1a"
+      },
+      {
+        "path": "lib/international/export-test-fixture.ts",
+        "utf8LfSha256": "ac19faed6dc6eb18094d7611e85fa03dd1d6c14741f932d1466286ff8db407de"
+      },
+      {
+        "path": "lib/international/invoicing.ts",
+        "utf8LfSha256": "552f245749d6172f7f07276234d12c8ce1b05b60ded1da2e92f1dafbf14bbf8e"
+      },
+      {
+        "path": "lib/international/localization.ts",
+        "utf8LfSha256": "63f581c1b6231ae1a215b06ba3d7c2da65423c74d9b3a2d21b926dc2ffcd16fe"
+      },
+      {
+        "path": "lib/international/money.ts",
+        "utf8LfSha256": "6288c87e78fab34a698d959609c440a77e6cd54b49776dadf1253322af095c55"
+      },
+      {
+        "path": "lib/international/private-json.ts",
+        "utf8LfSha256": "9781f34bdb416a90e2a1045fa2ac5eeca35e953258012e034a499fee49282c22"
+      },
+      {
+        "path": "lib/international/projects.ts",
+        "utf8LfSha256": "141c730039d69bd9b94de267fb47ced9a4a29e925c12f7bf86df0caf43bb89a6"
+      },
+      {
+        "path": "lib/international/public-projection.ts",
+        "utf8LfSha256": "71687afdad2fd12b85043a3a1152d371044fba80d132397702e0bc2342d1b67b"
+      },
+      {
+        "path": "lib/international/purchasing.ts",
+        "utf8LfSha256": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d"
+      },
+      {
+        "path": "lib/international/runtime-sync.ts",
+        "utf8LfSha256": "bd11b517d3b9883b5ac008a585f873cd7be75fd82ceaa1f166e3066e24fc8014"
+      },
+      {
+        "path": "lib/international/runtime-types.ts",
+        "utf8LfSha256": "8f9ca079e4d6b13f74e8444383306a9108b64dfc12ecb3399c4b3be11ce1df38"
+      },
+      {
+        "path": "lib/international/runtime-validation.ts",
+        "utf8LfSha256": "1e9876448b69b31bb766b029929d39c411c8d7b459ccb0bbbd6a5b51adb0ff55"
+      },
+      {
+        "path": "lib/international/runtime.ts",
+        "utf8LfSha256": "f95d5946dd2c4ea4592855bfabaca2d636f10964fd58809d9b3c0fe1be7b356c"
+      },
+      {
+        "path": "lib/international/types.ts",
+        "utf8LfSha256": "864d9f23962593342c5acaf4ed1d3857042c2de5f3363f554c88de4694267ad8"
+      }
+    ],
+    "chDarkCssSha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f",
+    "historicalSqlChanged": false,
+    "chLedgerChanged": false,
+    "historicalEvidencePreserved": true,
+    "publishedSiteCommit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "publishedSiteWorkingTreeClean": true,
+    "productionChanged": false
+  },
+  "history": {
+    "firstBroadRun": {
+      "path": ".qa/us-tax-provider/full-international.json",
+      "sha256": "0bce5c623505e0611dc3caf2094d28113c9a0a6bd0b4b6b9e652c38915696c63",
+      "files": 103,
+      "total": 3922,
+      "passed": 3821,
+      "failed": 11,
+      "skipped": 90,
+      "success": false
+    },
+    "intermediateBroadRun": {
+      "path": ".qa/us-tax-provider/full-international-intermediate.json",
+      "sha256": "c8873991533ae08182ebb83bdd4edb03c123a82011337fb36ee63b0756621adb",
+      "files": 103,
+      "total": 3923,
+      "passed": 3915,
+      "failed": 0,
+      "skipped": 8,
+      "success": true
+    },
+    "afterPromotionBroadRun": {
+      "path": ".qa/us-tax-provider/full-international-after-promotion.json",
+      "sha256": "cee94688723fc38a2ecadd92729cc3160343e134078aa681e92a8a8d41af7289",
+      "files": 103,
+      "total": 3926,
+      "passed": 3918,
+      "failed": 0,
+      "skipped": 8,
+      "success": true
+    },
+    "syntaxLintBeforeControlGuardRefactor": {
+      "path": ".qa/us-tax-provider/syntax-lint-control-regex-baseline.log",
+      "sha256": "e6a88a7f89e14c242961404e96eca24a8987a8ba7a4ffa5406b289f0f412f022"
+    },
+    "note": "Intermediate success precedes the reproduced historical promotion/replay fix. The final run also follows the equivalent ASCII-control predicate refactor required by syntax lint. Earlier readiness/storage proof/source hashes are historical; final inventory, final run and final replay proof supersede them.",
+    "historicalNativePublicContract": {
+      "scope": "Documentation provenance only; native source and execution evidence unchanged",
+      "reviewedAt": "2026-10-08T18:34:59.145745+00:00",
+      "nativeProofRecordedAt": "2026-10-08T18:09:59.305Z",
+      "historicalContractSnapshot": {
+        "path": "docs/internationalization/US-TAX-ISSUANCE-CONTRACT-20261008.md",
+        "bytes": 6329,
+        "rawSha256": "5aaafbc383cd3f29806a11a772591aa8bf0ae58f1d75d49d521dad57c4535407",
+        "lfSha256": "5aaafbc383cd3f29806a11a772591aa8bf0ae58f1d75d49d521dad57c4535407"
+      },
+      "currentSharedContract": {
+        "path": "docs/internationalization/US-TAX-ISSUANCE-CONTRACT-20261008.md",
+        "bytes": 6688,
+        "rawSha256": "6628531c9ec8c0a337a5f22fabfe6c50ab549f04917431a1d9f8521a1ce3bb76",
+        "utf8LfSha256": "6628531c9ec8c0a337a5f22fabfe6c50ab549f04917431a1d9f8521a1ce3bb76"
+      },
+      "note": "The dedicated native proof preserves the contract snapshot observed before the parent updated the historical replay and readiness contract. Its publicContract hash is historical, not the current file hash. The parent inventory and currentSharedContract identify the final delivered contract. No historical native proof was rewritten."
+    }
+  },
+  "subproofs": [
+    {
+      "path": ".qa/us-tax-provider/issuer-errors-evidence.json",
+      "sha256": "667373224b5838c70ed86d5166e0dfd45d65235a7790f99059915e59ee78fe62",
+      "content": {
+        "scope": "Local issuer/HTTP regression; injected Auth, operation store and TEST gateway; no Stripe, hosted PostgreSQL, production or deployment proof",
+        "baseline": {
+          "json": ".qa/us-tax-provider/issuer-errors-baseline.json",
+          "log": ".qa/us-tax-provider/issuer-errors-baseline.log",
+          "files": 1,
+          "tests": 113,
+          "passed": 111,
+          "failed": 2,
+          "exitCode": 1,
+          "actualFailures": [
+            "New invoice: ACCOUNTING_PERIOD_CLOSED normalized incorrectly to service_unavailable503",
+            "Known LedgerError ACCOUNTING_PERIOD_CLOSED lost across guarded/revalidation conversion"
+          ]
+        },
+        "final": {
+          "json": ".qa/us-tax-provider/issuer-errors-final.json",
+          "log": ".qa/us-tax-provider/issuer-errors-final.log",
+          "files": 2,
+          "tests": 158,
+          "passed": 158,
+          "failed": 0,
+          "exitCode": 0,
+          "scopes": {
+            "issuer": 114,
+            "http": 44
+          },
+          "baselineSupersededByCorrection": true
+        },
+        "lint": {
+          "log": ".qa/us-tax-provider/issuer-errors-lint.log",
+          "exitCode": 0,
+          "scope": [
+            "lib/international/us-tax-invoice.ts",
+            "lib/international/us-tax-invoice.test.ts"
+          ]
+        },
+        "source": [
+          {
+            "path": "lib/international/us-tax-invoice.ts",
+            "sha256": "2388ae8f936a7e6443aed3adcfbe25188a8e8cd641724ac44d68a0d5711b2952"
+          },
+          {
+            "path": "lib/international/us-tax-invoice.test.ts",
+            "sha256": "d009de799086dc2fc8faf4d1e0b3426aa20b0cf01d7725f028d6acf8e95ae8e8"
+          }
+        ],
+        "behavior": [
+          "Preserve closed journal accounting boundary; normalize known refusal to409 at both conversions",
+          "Historical ERP and committed-operation receipts bypass unavailable private/provider context but retain fresh admission",
+          "New schema4 invoice composes invoice/journal with matching actor timestamp; in-memory store only"
+        ],
+        "limits": [
+          "PU008 operation-store mapper and committed SQL capability fence owned separately",
+          "Commit wrapper performs additional pending-proof/Auth awaits after core composition; captured actor stamp unchanged, not an atomic Auth/PG fence",
+          "No global TypeScript/build run in this isolated correction"
+        ]
+      }
+    },
+    {
+      "path": ".qa/us-tax-issuance/storage-evidence.json",
+      "sha256": "0ac4f17fe57336cc8bd025e1d3c2c07f449dac14a98d0bf71c9a96ad5922d3ce",
+      "content": {
+        "base": "47bd26388d15472742a4bf4b2a7ecb072ea933c6",
+        "scope": "isolated local private TEST fiscal SQL capability fence",
+        "productionMutations": false,
+        "realTaxProviderTest": false,
+        "regulatoryValidation": false,
+        "fixtures": "explicitly fictitious test_fixture bindings/proofs; not a tax grant",
+        "cli": {
+          "version": "2.119.0",
+          "helpCommand": "supabase migration new --help",
+          "newCommand": "supabase migration new international_us_tax_invoice_capability_v2",
+          "observedGeneratedPath": "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql"
+        },
+        "baseline": {
+          "log": "storage-baseline.log",
+          "executed": 3,
+          "failed": 3,
+          "skipped": 89,
+          "meaning": "legacy SQL admits book4 initial issuance and replay through downgraded headers1/3"
+        },
+        "intermediate": {
+          "log": "storage-first-correction.log",
+          "executed": 266,
+          "passed": 265,
+          "failed": 1,
+          "meaning": "real counterfeit journal fingerprint [] accepted by fiscal4 SQL before new exact guard"
+        },
+        "correction": {
+          "command": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts lib/international/us-tax-operation-store.test.ts lib/international/us-tax-operations.postgres.test.ts",
+          "PGLITE_MODULE_DIR": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+          "log": "storage-correction.log",
+          "files": 2,
+          "executed": 273,
+          "passed": 273,
+          "failed": 0,
+          "skipped": 0,
+          "unitPortTests": 154,
+          "actualPostgresTests": 119
+        },
+        "limits": [
+          "No production or remote SQL was run",
+          "Fresh D1/device/browser entitlement/role admission remains the server boundary responsibility",
+          "No real provider observation or live registration/classification validation is proven",
+          "No Cargo or native release was attempted",
+          "No independent typecheck/lint result is claimed"
+        ],
+        "sources": [
+          {
+            "path": "lib/international/us-tax-operation-store.ts",
+            "rawBytes": 13743,
+            "rawSHA256": "c01728e8406008844b638c87eabd80e179df547e2f5b1e3f938a77870db91a6e",
+            "utf8LF_SHA256": "c01728e8406008844b638c87eabd80e179df547e2f5b1e3f938a77870db91a6e"
+          },
+          {
+            "path": "lib/international/us-tax-operation-store.test.ts",
+            "rawBytes": 33215,
+            "rawSHA256": "40d25b915738f76f72b5c86fa4caf372c4090a8a9548c19a7f16a370fe4e885c",
+            "utf8LF_SHA256": "40d25b915738f76f72b5c86fa4caf372c4090a8a9548c19a7f16a370fe4e885c"
+          },
+          {
+            "path": "lib/international/us-tax-operations.postgres.test.ts",
+            "rawBytes": 58205,
+            "rawSHA256": "a380cac775e60fe2807f91068d42d837ea5829b44e9aeaeada883a9c9a1e6740",
+            "utf8LF_SHA256": "a380cac775e60fe2807f91068d42d837ea5829b44e9aeaeada883a9c9a1e6740"
+          },
+          {
+            "path": "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql",
+            "rawBytes": 6975,
+            "rawSHA256": "8229ebba9a1450364080c6095402aa7bdfc70b97d7e5a8c183975ab8025b7408",
+            "utf8LF_SHA256": "8229ebba9a1450364080c6095402aa7bdfc70b97d7e5a8c183975ab8025b7408"
+          }
+        ]
+      }
+    },
+    {
+      "path": ".qa/us-tax-issuance/replay-promotion-evidence.json",
+      "sha256": "6b4a9c0171867b408e46c214b766eec1da8b2f744aa349488d902fc2d4c646c4",
+      "content": {
+        "phase": "private-test-fiscal-historical-replay-after-schema-promotion",
+        "observedAt": "2026-10-08T18:12:25.6775057Z",
+        "baseline": {
+          "testsExecuted": 3,
+          "log": ".qa/us-tax-issuance/replay-promotion-baseline.log",
+          "skipped": 119,
+          "failed": 3
+        },
+        "correction": {
+          "testsExecuted": 122,
+          "log": ".qa/us-tax-issuance/replay-promotion-correction.log",
+          "passed": 122,
+          "failed": 0
+        },
+        "newTestsWritten": 3,
+        "sourceHashes": {
+          "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql": "f5beddce39dec119e1b606724be9c3ab6b7738260792cbd72d3a45f97993a718",
+          "lib/international/us-tax-operations.postgres.test.ts": "32a9bc235dd7e19a163c1d0d585524aaacfd6b6080dd4d2842ef01e43d4b4cc4"
+        },
+        "diffCheck": {
+          "exitCode": 0,
+          "log": ".qa/us-tax-issuance/replay-promotion-diff-check.log"
+        },
+        "origin": "single serialized RAM PostgreSQL PGlite using actual versioned migration chain and actual ERP engine",
+        "providerEvidence": "explicit fictitious TEST fixture, not real Stripe",
+        "changes": [
+          "new unpublished additive fiscal capability migration only",
+          "three local PostgreSQL regression scenarios"
+        ],
+        "security": [
+          "trusted ceiling and current HEAD before receipt",
+          "original schema read from same-org immutable ERP event at exact original receipt revision",
+          "event header/schema and exact receipt correlation; no fallback1",
+          "current financial role and entitlement before replay",
+          "new mutations retain candidate>=HEAD fence",
+          "legacy wrapper ceiling3 unchanged; rejects HEAD4",
+          "CH unchanged"
+        ],
+        "notExecuted": [
+          "production SQL",
+          "real Stripe/API",
+          "concurrent independent connections",
+          "native build/release"
+        ],
+        "qualityLimitation": "no lint rerun after previously blocked tsgolint executable; root owns final global typecheck/build"
+      }
+    },
+    {
+      "path": ".qa/us-tax-provider/readiness-evidence.json",
+      "sha256": "b870007df50f8e729d55b47d1f72ac81e0640a20b7308ccfd90ef66f4acb17d1",
+      "content": {
+        "scope": "Local real readiness handler/validator/evaluator with injected Auth/D1/book and provider observation fixtures; no actual provider connection",
+        "tests": {
+          "json": ".qa/us-tax-provider/readiness-final.json",
+          "log": ".qa/us-tax-provider/readiness-final.log",
+          "files": 2,
+          "passed": 78,
+          "failed": 0,
+          "http": 34,
+          "serviceAndDTO": 44,
+          "exitCode": 0
+        },
+        "typecheck": {
+          "log": ".qa/us-tax-provider/readiness-tsc-final.log",
+          "exitCode": 0
+        },
+        "lint": {
+          "status": "tool_failed_before_analysis",
+          "exitCode": 1,
+          "logs": [
+            ".qa/us-tax-provider/readiness-lint.log",
+            ".qa/us-tax-provider/readiness-lint-retry.log"
+          ],
+          "error": "tsgolint.exe spawnSync UNKNOWN (-4094)",
+          "checksDisabled": false
+        },
+        "sources": [
+          {
+            "path": "lib/international/us-tax-readiness.ts",
+            "sha256": "a9908f97a41b9bd1adf2c212e5fdbf27527b3a0a71ae7b4dfc3603072a49fbb4"
+          },
+          {
+            "path": "lib/international/us-tax-readiness-server.ts",
+            "sha256": "44950ec139677ae8def2b5dc121d52d43c3747e6364c7c399e39885a205148fe"
+          },
+          {
+            "path": "lib/international/us-tax-readiness.test.ts",
+            "sha256": "7f60ebcbaf300e0508e0aedf8b13a197b5ebf1a2e8ad24ede4d7c37715a3c044"
+          },
+          {
+            "path": "lib/international/us-tax-readiness-server.test.ts",
+            "sha256": "f102b60c623a37daad56e23aeca07e54ca87573480a61ab3759d184d5a3a7866"
+          },
+          {
+            "path": "app/api/international/workspaces/[organizationId]/tax-readiness/route.ts",
+            "sha256": "88e722b9467522571dfc99d998408dd47f82b12e18cd105bb68369c568f5ac42"
+          }
+        ],
+        "behavior": [
+          "Read-only GET, no mutation or provider calculation port",
+          "Default no evaluator/provider -> blocked provider_test_unavailable",
+          "Public exact whitelist, USD, actual capped book capability, second precision, lifetime <=120s and observation deadline",
+          "Observed gateway verification around fresh admission; test_fixture cannot become ready",
+          "Auth401/402/403 retains priority over simultaneous configuration/capability/flag failures",
+          "Private projection and error accessors are never invoked"
+        ],
+        "limits": [
+          "Readiness is volatile information, never a grant or estimate-specific classification/tax assessment",
+          "Integer-second clock admits valid timestamps inside current second with exclusive next-second bound, under1sec precision",
+          "Composed Auth/config/provider reads are not an atomic database/provider fence; actual POST must repeat validation",
+          "No hosted Auth/D1, Stripe API, production/staging migration, deploy, native compilation or release evidence"
+        ]
+      }
+    },
+    {
+      "path": ".qa/us-tax-provider/gateway-evidence.json",
+      "sha256": "b625cb5b6a98b5fb118ca35563771e29992346a30e2b1f5056a14749e9065445",
+      "content": {
+        "schemaVersion": 1,
+        "scope": "source-only injected Stripe22.6 TEST gateway",
+        "createdAt": "2026-10-08T17:56:01.233Z",
+        "sources": [
+          {
+            "path": "lib/international/stripe-tax-test-gateway.ts",
+            "sha256": "f9b0264b6bdb0194576aa8c4c1d8425cad042a0067429d928a3e049362096cfa",
+            "utf8LfSha256": "f9b0264b6bdb0194576aa8c4c1d8425cad042a0067429d928a3e049362096cfa",
+            "bytes": 19764
+          },
+          {
+            "path": "lib/international/stripe-tax-test-gateway.test.ts",
+            "sha256": "4505778b4d2efd5ea237f0aa96de78b2250c03a437064b1667da7192521f2e01",
+            "utf8LfSha256": "4505778b4d2efd5ea237f0aa96de78b2250c03a437064b1667da7192521f2e01",
+            "bytes": 34597
+          }
+        ],
+        "executed": {
+          "gatewayMockTests": 82,
+          "totalPureTests": 236,
+          "vitestExit": 0,
+          "typecheckExit": 0,
+          "targetedLintExit": 0,
+          "diffCheckExit": 0,
+          "sourceWhitespaceCheck": true
+        },
+        "logs": [
+          ".qa/us-tax-provider/gateway-mock-first.log",
+          ".qa/us-tax-provider/gateway-mock.log",
+          ".qa/us-tax-provider/gateway-tsc-first.log",
+          ".qa/us-tax-provider/gateway-tsc.log",
+          ".qa/us-tax-provider/gateway-lint.log",
+          ".qa/us-tax-provider/gateway-diff-check.log"
+        ],
+        "primaryDocs": [
+          ".qa/us-tax-provider/tax-settings.md",
+          ".qa/us-tax-provider/tax-calculations.md",
+          ".qa/us-tax-provider/tax-testing.md"
+        ],
+        "bindingHashContract": {
+          "settings": "sha256 UTF8 canonicalErpJson full settings JSON body without SDK lastResponse",
+          "registrations": "sha256 UTF8 canonicalErpJson full active registration bodies from all countries sorted lexical id; ten pages max, limit100, at least one US"
+        },
+        "constraints": {
+          "sdkVersion": "22.6.0",
+          "apiVersion": "2026-08-26.dahlia",
+          "maxNetworkRetries": 0,
+          "callTimeoutMs": 20000,
+          "fixturesAccepted": false,
+          "connectAccepted": false,
+          "credentialsRead": false,
+          "realApiCalls": 0,
+          "providerActivated": false,
+          "runtimeBound": false,
+          "productionChanged": false,
+          "settingsOrRegistrationsWritten": false,
+          "legalComplianceValidated": false
+        }
+      }
+    },
+    {
+      "path": ".qa/us-tax-provider/pg-adapters-evidence.json",
+      "sha256": "c4edd09c7b39c6bf50c5005d45b22603344d62509ee7a7ce6e08f81fc4cf3119",
+      "content": {
+        "schemaVersion": 1,
+        "createdAt": "2026-10-08T18:03:30.416Z",
+        "scope": "test adapters and local migration chains only",
+        "sources": [
+          {
+            "path": "lib/international/us-tax-invoice.postgres.test.ts",
+            "sha256": "c7114a6e1fbf6731190efb14374d727feb7ef695aea6447b3fc1c688eac6c65e",
+            "utf8LfSha256": "c7114a6e1fbf6731190efb14374d727feb7ef695aea6447b3fc1c688eac6c65e"
+          },
+          {
+            "path": "lib/international/purchasing.postgres.test.ts",
+            "sha256": "ee1644cf56584526d04eb03f62c668f6866249523870a919b21cbda34dc0584e",
+            "utf8LfSha256": "ee1644cf56584526d04eb03f62c668f6866249523870a919b21cbda34dc0584e"
+          }
+        ],
+        "baseline": {
+          "targetedFailures": 10,
+          "targetedPasses": 10,
+          "targetedSkipped": 57,
+          "suiteFailures": 2,
+          "log": ".qa/us-tax-provider/pg-adapters-baseline.log",
+          "fullSuiteSubset": ".qa/us-tax-provider/pg-adapters-full-suite-baseline.json",
+          "fullSuiteSubsetSha256": "456c5bd339586e3257ef4e216c8aa3f852020f816d3daeb77aabc7524cedb0dc"
+        },
+        "correction": {
+          "pgliteTestsExecuted": 77,
+          "issuerTests": 20,
+          "purchasingTests": 57,
+          "vitestExit": 0,
+          "log": ".qa/us-tax-provider/pg-adapters-correction.log",
+          "diffCheckExit": 0
+        },
+        "lint": {
+          "executedAttempt": 1,
+          "result": "blocked",
+          "exit": 1,
+          "code": "spawnSync tsgolint.exe UNKNOWN",
+          "errno": -4094,
+          "log": ".qa/us-tax-provider/pg-adapters-lint.log",
+          "noBypass": true
+        },
+        "typecheck": {
+          "rerun": false,
+          "reason": "parent owns global final validation"
+        },
+        "contract": {
+          "issuerPort": "actual zentra_commit_us_tax_invoice_test_v2 with captured store capability",
+          "historicalSeed": "purchasing before fiscal-v2 uses declared private adapter to the historical eight-argument RPC, capability1..3 only",
+          "afterChain": "real nine-argument v2 RPC; no redirection after migration",
+          "chain": [
+            "purchasing_v2",
+            "projects_v3",
+            "journal_periods_v4",
+            "tax_invoice_capability_v2"
+          ]
+        },
+        "constraints": {
+          "runtimeSourcesChanged": false,
+          "sqlMigrationsChanged": false,
+          "assertionsLoosened": false,
+          "gatewaySourcesChanged": false,
+          "productionTouched": false,
+          "realStripeCalls": 0,
+          "hostedAuthEvidence": false,
+          "multiConnectionEvidence": false
+        }
+      }
+    },
+    {
+      "path": ".qa/us-tax-provider/fixture-chain-evidence.json",
+      "sha256": "add1ea0c9a4688f14193a73cc16bcebf3c1c96b4a180f4a228a7f2058908b490",
+      "content": {
+        "scope": "Only stale test fixtures/adapters fixed; local serialized RAM PGlite service_role, Node SQLite0000..0086, actual PDF renderer/fonts. Synthetic Auth/D1/provider observations; no Stripe call, hosted DB, crash/restart or two-connection proof",
+        "baseline": {
+          "json": ".qa/us-tax-provider/fixture-chain-baseline.json",
+          "log": ".qa/us-tax-provider/fixture-chain-baseline.log",
+          "failedSuites": 2,
+          "skipped": 25,
+          "exitCode": 1,
+          "causes": [
+            "Export seed adapter has no tax RPCv2 query; factory ceiling stale",
+            "Creation exact migration manifest omits journal4 and tax capabilityv2"
+          ]
+        },
+        "final": {
+          "json": ".qa/us-tax-provider/fixture-chain-final.json",
+          "log": ".qa/us-tax-provider/fixture-chain-final.log",
+          "passed": 26,
+          "failed": 0,
+          "skipped": 0,
+          "files": 2,
+          "exports": 20,
+          "creation": 6,
+          "exitCode": 0
+        },
+        "typecheck": {
+          "log": ".qa/us-tax-provider/fixture-chain-tsc.log",
+          "exitCode": 0
+        },
+        "sources": [
+          {
+            "path": "lib/international/exports.postgres.test.ts",
+            "sha256": "b245200ee45de0f99bb281d094e4d39257c13bf691981429d1fa0c0e39f09442"
+          },
+          {
+            "path": "lib/international/workspace-creation.integration.test.ts",
+            "sha256": "deb770d4adaf4dd9f85cff94c90a28700aacb9edd0679320d3416ed08ea4f980"
+          }
+        ],
+        "invariants": [
+          "Explicit pre-v2 tax seed uses historical eight-argument RPC only before migration",
+          "Current fiscal factory captures trusted ERP store ceiling and executes real nine-argument RPCv2 after migration",
+          "Pre-migration v1/v2 headers records receipts events ledger audit tax operations and links remain byte-exact after3/4/taxv2 migrations",
+          "Full creation migration manifest remains exact; all13international SQL files executed in order",
+          "New v2 invoice exported and exact replayed without another calculation or altered history",
+          "No runtime/SQL/production edits or weakened assertions"
+        ]
+      }
+    },
+    {
+      "path": ".qa/us-tax-provider/credential-observation-status.json",
+      "sha256": "db98eda5f8022facfeff4b6fbc961e586f88ecaa81770cf1d607c9200dd77c68",
+      "content": {
+        "date": "2026-10-08",
+        "realStripeTaxObservationExecuted": false,
+        "sdkGatewayRealApiCalls": 0,
+        "productionAccountModified": false,
+        "firstTemporarySandbox": {
+          "creationConfirmed": true,
+          "temporaryTestCredentialAccidentallyDisplayed": true,
+          "productionCredentialExposed": false,
+          "localProfileQuarantined": true,
+          "safeQaLogSanitized": true,
+          "credentialUseStopped": true,
+          "revocationConfirmed": false,
+          "automaticExpiry": "2026-10-15",
+          "userActionRequested": "Claim the temporary sandbox and revoke or expire its temporary TEST key in Stripe; no secret should be sent in chat."
+        },
+        "secondSafeCreationAttempt": {
+          "outcome": "uncertain",
+          "cliExit": 0,
+          "expectedJsonAndPrivateProfileObserved": false,
+          "stdoutWithheld": true,
+          "resourceCreationNotRetried": true
+        },
+        "limits": [
+          "Local quarantine does not revoke a provider credential.",
+          "No real tax calculation, tax-setting change or registration creation was performed.",
+          "No Stripe MCP command was used after sandbox creation pending sandbox claim."
+        ]
+      }
+    },
+    {
+      "path": ".qa/us-tax-provider/menu-status-current.json",
+      "sha256": "729a9f3453152b2266d2024cac8234f5d38154cadb7d1b070442a1cdfb0a3225",
+      "content": {
+        "projectId": "appgprj_6a942972adf481918671ac74e99e1fa7",
+        "version": 355,
+        "siteStatus": "active",
+        "url": "https://www.zentraapp.ch",
+        "deploymentId": "appgdep_6ac79b783e588191aef4577853622e7e",
+        "deploymentStatus": "succeeded",
+        "versionId": "appgprj_6a942972adf481918671ac74e99e1fa7~appgver_598cab67a89c8191b1d655568e888a92",
+        "publicationUpdatedAt": "2026-10-08T13:33:54.145243+00:00",
+        "checkedOn": "2026-10-08",
+        "sourceCommit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+        "livePixelsRechecked": false
+      }
+    }
+  ],
+  "migration": {
+    "path": "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql",
+    "additive": true,
+    "existingMigrationsRewritten": false,
+    "testedLocalSerializedPglite": true,
+    "hostedStagingApplied": false,
+    "productionApplied": false,
+    "rollback": "Close US feature/provider/native gates; preserve operations, events, receipts and books. Do not downgrade books or remove committed financial history."
+  },
+  "publication": {
+    "menuVersion": 355,
+    "menuCommit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "menuStatusVerifiedThisContinuation": "succeeded",
+    "menuUrl": "https://www.zentraapp.ch",
+    "usPhasePublished": false,
+    "liveVisualRecheck": false
+  },
+  "limits": {
+    "realStripeTaxApiCalls": 0,
+    "issuerInstalledInRuntime": false,
+    "readinessEvaluatorInstalledInRuntime": false,
+    "taxProviderDefault": null,
+    "productionFlagsChanged": false,
+    "livePricesOrSubscriptionsChanged": false,
+    "rustCompiledTests": 0,
+    "rustExecutedTests": 0,
+    "nativeInstallerPublished": false,
+    "hostedAuthRlsRealtimeOrIndependentConnectionsValidated": false,
+    "fullAccessibilityOrLegalCertification": false,
+    "typedLint": "Windows tsgolint executable rejected before analysis; syntax lint plus separate TypeScript are the successful checks.",
+    "eightSkipped": "Eight legacy opt-in real-browser test wrappers remain skipped in Node; the 18 native visual cases and three final confirmations are separate local mocked-port evidence.",
+    "temporaryTestKeyRevocationConfirmed": false
+  }
+}

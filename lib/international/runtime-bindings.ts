@@ -16,6 +16,7 @@ import type { ErpSchemaVersion } from './erp-schema-capability';
 import { requireUsDeviceSession } from './us-device-bindings';
 import { UsDeviceError } from './us-device-contract';
 import { erpClientSchemaVersion } from './erp-schema-capability';
+import { createUsTaxReadinessHandlers } from './us-tax-readiness-server';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -82,6 +83,12 @@ export const erpServerDependencies:ErpServerDependencies={
   diagnostic(event){console.warn('zentra.international.erp',event);},
 };
 export const erpHandlers=createErpHandlers(erpServerDependencies);
+// Informative projection only. No gateway/evaluator is installed until an
+// independently observed TEST merchant binding has been validated. Default
+// refusal preserves CH and cannot upgrade a credential or authorize issuance.
+export const usTaxReadinessHandlers=createUsTaxReadinessHandlers({
+  ...erpServerDependencies, now:()=>Math.floor(Date.now()/1000),
+});
 export const usSellerProfileHandlers=createUsSellerProfileHandlers({...erpServerDependencies,
   async store(){return (await import('../supabase-server-runtime')).supabaseServerClient();},
 });

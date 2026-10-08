@@ -16,6 +16,8 @@ import type { UsTaxFacts } from './us-tax-profile';
 import { validateCompanyConfiguration } from './country-config';
 import { createSupabaseUsTaxOperationStore } from './us-tax-operation-store';
 import { validateStoredStripeTaxCalculation } from './stripe-tax-calculation';
+import type { ErpSchemaVersion } from './erp-schema-capability';
+import { applyErpDelta, type ErpDelta } from './runtime-sync';
 
 // SQL-local invariant tests only: one serialized RAM PGlite PostgreSQL instance.
 // All provider bindings/proofs below are explicitly test_fixture, never real
@@ -26,19 +28,24 @@ type Sql = { exec(sql: string): Promise<unknown>; query<T = Record<string, unkno
 type Database = Sql & { transaction<T>(task: (sql: Sql) => Promise<T>): Promise<T>; close(): Promise<void> };
 type Mutable<T> = T extends object ? { -readonly [K in keyof T]: Mutable<T[K]> } : T;
 let db: Database;
+let historicalTax:Awaited<ReturnType<typeof fixture>>,historicalTaxRows:unknown;
 const chOrg=randomUUID(),chActor=randomUUID();let chBefore:unknown;
 const snapshotCH=async()=> (await db.query('select to_jsonb(p) profile,(select to_jsonb(w) from public.zentra_workspaces w where w.organization_id=p.organization_id) workspace,(select to_jsonb(c) from public.zentra_workspace_country_configs c where c.organization_id=p.organization_id) country from public.zentra_company_profiles p where p.organization_id=$1',[chOrg])).rows;
 const digest = (body: string) => createHash('sha256').update(body).digest('hex');
+const snapshotTax = (org:string) => sql(`select (select row_to_json(h)::text from public.zentra_us_erp_heads h where organization_id=$1) head,(select jsonb_agg(row_to_json(r) order by kind,id)::text from public.zentra_us_erp_records r where organization_id=$1) records,(select jsonb_agg(row_to_json(r) order by revision)::text from public.zentra_us_erp_receipts r where organization_id=$1) receipts,(select jsonb_agg(row_to_json(e) order by revision)::text from public.zentra_us_erp_events e where organization_id=$1) events,(select jsonb_agg(row_to_json(a) order by revision)::text from public.zentra_us_erp_ledger_audit a where organization_id=$1) audit,(select jsonb_agg(row_to_json(o) order by operation_id)::text from public.zentra_us_tax_operations o where organization_id=$1) operations,(select jsonb_agg(row_to_json(l) order by invoice_id)::text from public.zentra_us_tax_invoice_links l where organization_id=$1) links`,[org]);
 const sql = <T = Record<string, unknown>>(query: string, values: unknown[] = [], role = 'service_role') => db.transaction(async tx => { await tx.exec(`set local role ${role}`); return (await tx.query<T>(query, values)).rows; });
 const result = async <T = unknown>(query: string, values: unknown[]) => (await sql<{ result: T }>(query, values))[0].result;
 const rpcQueries: Record<string, { sql: string; keys: string[] }> = {
   zentra_read_us_erp: { sql: 'select public.zentra_read_us_erp($1) result', keys: ['p_organization'] },
+  zentra_read_us_erp_v4: { sql: 'select public.zentra_read_us_erp_v4($1) result', keys: ['p_organization'] },
   zentra_us_erp_receipt: { sql: 'select public.zentra_us_erp_receipt($1,$2) result', keys: ['p_organization', 'p_idempotency_key'] },
+  zentra_us_erp_receipt_v4: { sql: 'select public.zentra_us_erp_receipt_v4($1,$2) result', keys: ['p_organization', 'p_idempotency_key'] },
   zentra_commit_us_erp: { sql: 'select public.zentra_commit_us_erp($1,$2,$3::jsonb,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb) result', keys: ['p_organization', 'p_expected_revision', 'p_header', 'p_changes', 'p_ledger_audit', 'p_receipt', 'p_actor'] },
   zentra_read_us_tax_operation: { sql: 'select public.zentra_read_us_tax_operation($1,$2,$3,$4::jsonb) result', keys: ['p_organization','p_erp_idempotency_key','p_command_hash','p_actor'] },
   zentra_reserve_us_tax_operation: { sql: 'select public.zentra_reserve_us_tax_operation($1,$2::jsonb,$3::uuid,$4,$5,$6,$7,$8) result', keys: ['p_organization','p_actor','p_operation_id','p_resolved_body','p_resolved_sha256','p_params_body','p_params_sha256','p_provider_idempotency_key'] },
   zentra_record_us_tax_calculation: { sql: 'select public.zentra_record_us_tax_calculation($1,$2::uuid,$3::jsonb,$4,$5,$6::jsonb) result', keys: ['p_organization','p_operation_id','p_actor','p_proof_body','p_proof_sha256','p_assessment'] },
   zentra_commit_us_tax_invoice_test: { sql: 'select public.zentra_commit_us_tax_invoice_test($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb) result', keys: ['p_organization','p_operation_id','p_expected_revision','p_header','p_changes','p_ledger_audit','p_receipt','p_actor'] },
+  zentra_commit_us_tax_invoice_test_v2: { sql: 'select public.zentra_commit_us_tax_invoice_test_v2($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9) result', keys: ['p_organization','p_operation_id','p_expected_revision','p_header','p_changes','p_ledger_audit','p_receipt','p_actor','p_supported_schema_version'] },
 };
 const client: Pick<SupabaseServerClient, 'rpc'> = { async rpc<T>(name: string, parameters: Record<string, unknown>): Promise<T> {
   const query = rpcQueries[name]; if (!query) throw new Error('Unexpected local ERP RPC');
@@ -47,10 +54,10 @@ const client: Pick<SupabaseServerClient, 'rpc'> = { async rpc<T>(name: string, p
 } };
 type PrivateOperation = { status: string; organizationId: string; operationId: string; actorUserId: string; erpIdempotencyKey: string; commandHash: string; reservedAt: string; retryUntil: string; resolvedBody: string; resolvedSha256: string; paramsBody: string; paramsSha256: string; providerKey: string; proofBody: string | null; proofSha256: string | null; assessment: TaxAssessment | null; receipt: ErpCommit['receipt'] | null };
 const commitParameters = (commit: ErpCommit) => [commit.organizationId, commit.expectedRevision, JSON.stringify(commit.header), JSON.stringify(commit.changes), JSON.stringify(commit.ledgerAudit), JSON.stringify(commit.receipt), JSON.stringify(commit.actor)];
-async function fixture(options:{lineCount?:number;description?:string;taxMinor?:string}={}) {
+async function fixture(options:{lineCount?:number;description?:string;taxMinor?:string;capability?:ErpSchemaVersion;basis?:'cash'|'accrual'}={}) {
   const org = randomUUID(), owner = randomUUID(), now = new Date(), day = now.toISOString().slice(0, 10), year = now.getUTCFullYear();
   const actor: FinancialAuthority = { organizationId: org, userId: owner, role: 'owner', managementEntitled: true, timestamp: now.toISOString() };
-  const config: CompanyConfiguration = validateCompanyConfiguration({ schemaVersion: 1, organizationId: org, country: 'US', currency: 'USD', language: 'en', timeZone: 'America/New_York', address: { country: 'US', line1: '1 Fictitious Public Street', city: 'New York', subdivision: 'NY', postalCode: '10001' }, accountingBasis: 'accrual', invoiceNumberPrefix: 'INV', taxConfiguration: { status: 'configured' } });
+  const config: CompanyConfiguration = validateCompanyConfiguration({ schemaVersion: 1, organizationId: org, country: 'US', currency: 'USD', language: 'en', timeZone: 'America/New_York', address: { country: 'US', line1: '1 Fictitious Public Street', city: 'New York', subdivision: 'NY', postalCode: '10001' }, accountingBasis: options.basis??'accrual', invoiceNumberPrefix: 'INV', taxConfiguration: { status: 'configured' } });
   const initial = { ...config, taxConfiguration: { status: 'unconfigured' } };
   await result('select public.zentra_admit_new_us_workspace_v1($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6) result', [org, randomUUID(), owner, randomUUID(), JSON.stringify(initial), digest(org)]);
   // Explicit synthetic TEST configuration, never copied from private declarations.
@@ -61,7 +68,7 @@ async function fixture(options:{lineCount?:number;description?:string;taxMinor?:
   await result('select public.zentra_put_us_tax_profile($1,$2,0,$3::uuid,$4::jsonb) result', [org, owner, randomUUID(), JSON.stringify(facts)]);
   const binding: StripeTaxTestBinding = { organizationId: org, accountId: 'acct_FictitiousTestAccount', mode: 'test', apiVersion: '2026-08-26.dahlia', revision: 1, settingsSha256: digest('fixture-settings'), registrationsSha256: digest('fixture-registrations'), observedAt: new Date(now.getTime() - 1000).toISOString(), validUntil: new Date(now.getTime() + 3600000).toISOString(), evidenceKind: 'test_fixture', scope: 'erp_invoice_tax' };
   await result('select public.zentra_put_us_tax_provider_binding($1,$2,0,$3::uuid,$4::jsonb) result', [org, owner, randomUUID(), JSON.stringify(binding)]);
-  const store = createSupabaseErpStore(client), sellerSnapshot = { organizationId: org, ...seller };
+  const store = createSupabaseErpStore(client,{supportedSchemaVersion:options.capability??1}), sellerSnapshot = { organizationId: org, ...seller };
   const dependencies = { store, configuration: config, actor, revalidate: async () => ({ ...actor, timestamp: new Date().toISOString() }), seller: async () => sellerSnapshot, taxProvider: async () => null };
   let sequence = 0;
   const send = async (command: ErpCommand) => executeErp(dependencies, { idempotencyKey: `fixture-${++sequence}`, expectedRevision: (await store.read(org))?.revision ?? 0, command });
@@ -92,9 +99,10 @@ async function fixture(options:{lineCount?:number;description?:string;taxMinor?:
   };
   const record = (p: unknown = proof, a: unknown = assessment, body = canonicalErpJson(p), sha = digest(body)) => result<PrivateOperation>('select public.zentra_record_us_tax_calculation($1,$2::uuid,$3::jsonb,$4,$5,$6::jsonb) result', [org, operationId, JSON.stringify(actor), body, sha, JSON.stringify(a)]);
   const write = (candidate = commit!) => result<ErpCommit['receipt']>('select public.zentra_commit_us_tax_invoice_test($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb) result', [org, operationId, ...commitParameters(candidate).slice(1)]);
+  const writeV2 = (capability=options.capability??1,candidate=commit!) => result<ErpCommit['receipt']>(rpcQueries.zentra_commit_us_tax_invoice_test_v2.sql,[org,operationId,...commitParameters(candidate).slice(1),capability]);
   const read = (admitted = actor, commandHash = resolved.commandHash) => result<PrivateOperation>('select public.zentra_read_us_tax_operation($1,$2,$3,$4::jsonb) result', [org, key, commandHash, JSON.stringify(admitted)]);
   const counts = async () => (await sql<{ invoices: number; journals: number; links: number; operations: number; events: number; receipts: number; counter: number }>(`select (select count(*)::int from public.zentra_us_erp_records where organization_id=$1 and kind='invoice') invoices,(select count(*)::int from public.zentra_us_erp_records where organization_id=$1 and kind='journal') journals,(select count(*)::int from public.zentra_us_tax_invoice_links where organization_id=$1) links,(select count(*)::int from public.zentra_us_tax_operations where organization_id=$1) operations,(select count(*)::int from public.zentra_us_erp_events where organization_id=$1) events,(select count(*)::int from public.zentra_us_erp_receipts where organization_id=$1) receipts,(select (header->'counters'->>'invoice')::int from public.zentra_us_erp_heads where organization_id=$1) counter`, [org]))[0];
-  return { org, owner, actor, config, binding, facts, resolved, proof, assessment, commit, reserve,reservePayload, record, write, read, counts, store, send, seller };
+  return { org, owner, actor, config, binding, facts, resolved, proof, assessment, commit, reserve,reservePayload, record, write, writeV2, read, counts, store, send, seller };
 }
 
 describe.runIf(enabled)('durable TEST tax operations and atomic invoice proof on real local PostgreSQL', () => {
@@ -107,8 +115,89 @@ describe.runIf(enabled)('durable TEST tax operations and atomic invoice proof on
     await db.query('insert into public.zentra_company_profiles(organization_id,profile,updated_by) values($1,$2::jsonb,$3)',[chOrg,JSON.stringify({company_name:'Unchanged fictitious CH company',private_identifier:'fixture-only'}),chActor]);
     await db.query('select public.zentra_put_workspace_country_config($1,$2,0,$3::uuid,$4::jsonb)',[chOrg,chActor,randomUUID(),JSON.stringify({schemaVersion:1,organizationId:chOrg,country:'CH',currency:'CHF',language:'fr',timeZone:'Europe/Zurich',address:{country:'CH',line1:'1 Rue Fictive',city:'Genève',subdivision:'GE',postalCode:'1201'},accountingBasis:'accrual',invoiceNumberPrefix:'CH',taxConfiguration:{status:'unconfigured'}})]);chBefore=await snapshotCH();
     for (const name of ['20261007222349_international_us_erp_persistence','20261007224820_international_us_erp_delta_stream','20261007225725_international_us_erp_seller_snapshot','20261008001726_new_us_workspace_admission','20261008013200_international_tax_proof_allowlist','20261008034422_international_us_seller_profile','20261008044402_international_us_tax_profile',migration]) await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`, import.meta.url), 'utf8'));
+    for(const name of ['20261008081825_international_us_purchasing_v2','20261008105120_international_us_projects_v3','20261008161118_international_us_journal_periods_v4'])await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`,import.meta.url),'utf8'));
+    historicalTax=await fixture();await historicalTax.reserve();await historicalTax.record();await historicalTax.write();historicalTaxRows=await snapshotTax(historicalTax.org);
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql',import.meta.url),'utf8'));
   }, 20_000);
   afterAll(async () => { await db?.close(); });
+  it('baseline regression: legacy private fiscal RPC must refuse an initial schema4 issuance',async()=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();const before=await f.counts();
+    await expect(f.write()).rejects.toMatchObject({code:'PU008'});expect(await f.counts()).toEqual(before);
+  });
+  it.each([1,3] as const)('baseline regression: legacy private fiscal replay cannot bypass the schema4 fence with header%s',async cap=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();await f.writeV2();const before=await f.counts();
+    const candidate={...f.commit,header:{...f.commit.header,schemaVersion:cap}} as ErpCommit;
+    await expect(f.write(candidate)).rejects.toMatchObject({code:'PU008'});expect(await f.counts()).toEqual(before);
+  });
+  it('preserves every historical tax/ERP row and legacy exact replay across the additive migration',async()=>{
+    expect(await snapshotTax(historicalTax.org)).toEqual(historicalTaxRows);expect(await historicalTax.write()).toEqual(historicalTax.commit.receipt);expect(await snapshotTax(historicalTax.org)).toEqual(historicalTaxRows);expect(await snapshotCH()).toEqual(chBefore);
+  });
+  it.each([2,3,4] as const)('replays an original schema1 private TEST invoice after promotion to schema%s only with an adequate trusted ceiling',async target=>{
+    const f=await fixture();await f.reserve();await f.record();await f.writeV2(1);
+    expect(Object.keys(f.commit.receipt).sort()).toEqual(['action','commandHash','entityId','idempotencyKey','revision']);
+    const store=createSupabaseErpStore(client,{supportedSchemaVersion:4});
+    const dependencies={store,configuration:f.config,actor:f.actor,revalidate:async()=>({...f.actor,timestamp:new Date().toISOString()}),seller:async()=>({organizationId:f.org,...f.seller}),taxProvider:async()=>null};
+    let sequence=0;
+    const promote=async(command:ErpCommand)=>executeErp(dependencies,{idempotencyKey:`promotion-${++sequence}`,expectedRevision:(await store.read(f.org))!.revision,command});
+    await promote({type:'save_vendor',vendor:{id:'vendor',organizationId:f.org,kind:'business',name:'Fictitious promotion vendor',billingAddress:f.config.address,paymentTermsDays:30}});
+    if(target>=3)await promote({type:'save_projects',projects:[{id:'project',expectedProjectRevision:0,customerId:'customer',name:'Fictitious promotion project',status:'active',notes:'Local TEST only',startDate:null,targetDate:null,budgetMinor:'100',vendorBillIds:[]}]});
+    if(target===4)await promote({type:'upgrade_accounting'});
+    expect((await store.read(f.org))!.schemaVersion).toBe(target);
+    const event=await result<{schemaVersion:number;header:{schemaVersion:number};receipt:ErpCommit['receipt']}>('select event result from public.zentra_us_erp_events where organization_id=$1 and revision=$2',[f.org,f.commit.receipt.revision]);
+    expect(event.schemaVersion).toBe(1);expect(event.header.schemaVersion).toBe(1);expect(event.receipt).toEqual(f.commit.receipt);
+    const before=await snapshotTax(f.org);
+    if(target<4){expect(await f.write()).toEqual(f.commit.receipt);expect(await f.writeV2(3)).toEqual(f.commit.receipt);}
+    else {await expect(f.write()).rejects.toMatchObject({code:'PU008'});await expect(f.writeV2(3)).rejects.toMatchObject({code:'PU008'});}
+    expect(await f.writeV2(target)).toEqual(f.commit.receipt);
+    await expect(f.writeV2((target-1) as ErpSchemaVersion)).rejects.toMatchObject({code:'PU008'});
+    await expect(f.writeV2(4,{...f.commit,header:{...f.commit.header,schemaVersion:target}} as ErpCommit)).rejects.toMatchObject({code:'PU008'});
+    await expect(f.writeV2(4,{...f.commit,actor:{...f.commit.actor,managementEntitled:false}})).rejects.toMatchObject({code:'PX007'});
+    expect(await snapshotTax(f.org)).toEqual(before);expect(await snapshotCH()).toEqual(chBefore);
+  });
+  it.each(['cash','accrual'] as const)('commits a private TEST invoice on book4 then replays it after payment/manual/open/close operations (%s)',async basis=>{
+    const f=await fixture({capability:4,basis}),port=createSupabaseUsTaxOperationStore(client,{supportedSchemaVersion:f.store.supportedSchemaVersion});
+    await port.reserve(f.actor,f.resolved);const calculated=await validateStoredStripeTaxCalculation(f.resolved,{proofBody:canonicalErpJson(f.proof),proofSha256:digest(canonicalErpJson(f.proof)),assessment:f.assessment},new Date().toISOString());await port.record(f.actor,f.resolved,calculated);
+    expect(await port.commit(f.resolved.operationId,f.commit)).toEqual(f.commit.receipt);
+    const issued=(await f.store.read(f.org))!;expect(issued.schemaVersion).toBe(4);expect(issued.invoices[0].tax.minorUnits).toBe('825');expect(issued.ledger.entries).toHaveLength(basis==='accrual'?1:0);
+    if(basis==='accrual'){expect(issued.ledger.entries[0].postedAt).toBe(f.commit.actor.timestamp);expect(issued.ledger.audit[0].timestamp).toBe(f.commit.actor.timestamp);}
+    const day=f.resolved.invoiceDate,year=Number(day.slice(0,4));await f.send({type:'record_payment',id:'payment',invoiceId:'invoice',amountMinor:'500',paymentDate:day,accountingDate:day,periodId:'current',reference:'TEST partial'});
+    await f.send({type:'post_manual_journal',id:'capital',transactionDate:day,accountingDate:day,periodId:'current',description:'Reviewed TEST capital',sourceReference:'TEST-bank-ref',cashFlowCategory:'financing',lines:[{accountId:'cash',debitMinor:'100',creditMinor:'0'},{accountId:'equity',debitMinor:'0',creditMinor:'100'}]});
+    await f.send({type:'open_period',id:'next',start:`${year+1}-01-01`,end:`${year+1}-12-31`});await f.send({type:'close_period',periodId:'current'});
+    await result('select public.zentra_put_us_tax_profile($1,$2,1,$3::uuid,$4::jsonb) result',[f.org,f.owner,randomUUID(),JSON.stringify({...f.facts,legalName:'New private fictitious declaration'})]);
+    await result('select public.zentra_put_us_seller_profile($1,$2,1,$3::uuid,$4::jsonb) result',[f.org,f.owner,randomUUID(),JSON.stringify({...f.seller,displayName:'New public fictitious seller'})]);
+    await result('select public.zentra_put_us_tax_provider_binding($1,$2,1,$3::uuid,$4::jsonb) result',[f.org,f.owner,randomUUID(),JSON.stringify({...f.binding,revision:2,observedAt:new Date(Date.now()-3600000).toISOString(),validUntil:new Date(Date.now()-1000).toISOString()})]);
+    const before=await snapshotTax(f.org);expect(await port.commit(f.resolved.operationId,f.commit)).toEqual(f.commit.receipt);expect(await snapshotTax(f.org)).toEqual(before);
+    const page=await result<ErpDelta>('select public.zentra_us_erp_delta_v4($1,0,100) result',[f.org]);expect(applyErpDelta(null,page,f.org,4)).toEqual(await f.store.read(f.org));
+  });
+  it.each([1,3] as const)('refuses trusted capability%s before a new private book4 issuance without consuming the calculated operation',async cap=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();const before=await snapshotTax(f.org);await expect(f.writeV2(cap)).rejects.toMatchObject({code:'PU008'});expect(await snapshotTax(f.org)).toEqual(before);expect((await f.read()).status).toBe('calculated');
+  });
+  it.each([1,3] as const)('refuses trusted capability%s before a private book4 replay even when the header declares4',async cap=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();await f.writeV2();const before=await snapshotTax(f.org);await expect(f.writeV2(cap)).rejects.toMatchObject({code:'PU008'});expect(await snapshotTax(f.org)).toEqual(before);
+  });
+  it.each([1,3] as const)('refuses downgraded header%s before private book4 replay even with trusted ceiling4',async cap=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();await f.writeV2();const before=await snapshotTax(f.org);await expect(f.writeV2(4,{...f.commit,header:{...f.commit.header,schemaVersion:cap}} as ErpCommit)).rejects.toMatchObject({code:'PU008'});expect(await snapshotTax(f.org)).toEqual(before);
+  });
+  it.each(['member','read_only','entitlement','foreignUser','foreignTenant'] as const)('refuses stale or foreign financial authority %s before private4 replay',async field=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();await f.writeV2();const before=await snapshotTax(f.org),actor={...f.commit.actor};
+    if(field==='member'||field==='read_only')actor.role=field;else if(field==='entitlement')actor.managementEntitled=false;else if(field==='foreignUser')actor.userId=randomUUID();else actor.organizationId=randomUUID();
+    await expect(f.writeV2(4,{...f.commit,actor})).rejects.toMatchObject({code:field==='foreignUser'?'PX002':'PX007'});expect(await snapshotTax(f.org)).toEqual(before);
+  });
+  it('refuses routing a private4 commit into CH and leaves all Swiss rows untouched',async()=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();const before=await snapshotTax(f.org),candidate={...f.commit,organizationId:chOrg,actor:{...f.commit.actor,organizationId:chOrg,userId:chActor}};
+    await expect(result(rpcQueries.zentra_commit_us_tax_invoice_test_v2.sql,[chOrg,f.resolved.operationId,...commitParameters(candidate).slice(1),4])).rejects.toMatchObject({code:'PX003'});expect(await snapshotCH()).toEqual(chBefore);expect(await snapshotTax(f.org)).toEqual(before);
+  });
+  it.each(['missingJournal','missingAudit','timestamp','fingerprint','prettyFingerprint','source','periodClosed'] as const)('rolls back a counterfeit private4 commit %s without consuming its invoice number or proof',async field=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();const before=await snapshotTax(f.org),candidate=structuredClone(f.commit) as Mutable<ErpCommit>;
+    if(field==='missingJournal')candidate.changes=candidate.changes.filter(c=>c.kind!=='journal');else if(field==='missingAudit')candidate.ledgerAudit=[];else if(field==='periodClosed')candidate.header={...candidate.header,ledger:{...candidate.header.ledger,periods:candidate.header.ledger.periods.map(p=>({...p,status:'closed'}))}};else candidate.changes=candidate.changes.map(c=>{if(c.kind!=='journal')return c;const payload=c.payload as Record<string,unknown>;return {...c,payload:{...payload,[field==='source'?'source':field==='timestamp'?'postedAt':'fingerprint']:field==='source'?{type:'manual_journal',id:'fake'}:field==='timestamp'?'2026-01-01T00:00:00.000Z':field==='prettyFingerprint'?JSON.stringify(JSON.parse(payload.fingerprint as string),null,1):'[]'}};});
+    await expect(f.writeV2(4,candidate)).rejects.toThrow();expect(await snapshotTax(f.org)).toEqual(before);expect((await f.read()).status).toBe('calculated');
+  });
+  it.each([0,5,null] as const)('rejects malformed trusted SQL ceiling %s without returning even a committed private receipt',async cap=>{
+    const f=await fixture({capability:4});await f.reserve();await f.record();await f.writeV2();const before=await snapshotTax(f.org);await expect(result(rpcQueries.zentra_commit_us_tax_invoice_test_v2.sql,[f.org,f.resolved.operationId,...commitParameters(f.commit).slice(1),cap])).rejects.toMatchObject({code:'PU008'});expect(await snapshotTax(f.org)).toEqual(before);
+  });
+  it.each(['anon','authenticated'])('denies the capability-aware private4 RPC to %s before reading any tax data',async role=>{
+    const f=await fixture({capability:4});await f.reserve();const before=await snapshotTax(f.org);await expect(sql(rpcQueries.zentra_commit_us_tax_invoice_test_v2.sql,[f.org,f.resolved.operationId,...commitParameters(f.commit).slice(1),4],role)).rejects.toMatchObject({code:'42501'});expect(await snapshotTax(f.org)).toEqual(before);
+  });
   it('reserves exact immutable bytes and opaque provider key without issuing anything', async () => {
     const f = await fixture(); const first = await f.reserve(); expect(first).toEqual(await f.reserve());
     expect(first).toEqual({ status: 'reserved', organizationId: f.org, operationId: f.resolved.operationId, actorUserId: f.owner, erpIdempotencyKey: f.resolved.erpIdempotencyKey, commandHash: f.resolved.commandHash, reservedAt: first.reservedAt, retryUntil: first.retryUntil, resolvedBody: f.resolved.resolvedBody, resolvedSha256: f.resolved.resolvedSha256, paramsBody: f.resolved.paramsBody, paramsSha256: f.resolved.paramsSha256, providerKey: f.resolved.idempotencyKey, proofBody: null, proofSha256: null, assessment: null, receipt: null });
@@ -289,8 +378,8 @@ describe.runIf(enabled)('durable TEST tax operations and atomic invoice proof on
     const tables=['zentra_us_tax_provider_bindings','zentra_us_tax_provider_binding_changes','zentra_us_tax_operations','zentra_us_tax_invoice_links'];
     const rows=await db.query<{name:string;rls:boolean;anon:boolean;authenticated:boolean;server:boolean;deleting:boolean}>('select relname name,relrowsecurity rls,has_table_privilege(\'anon\',c.oid,\'SELECT\') anon,has_table_privilege(\'authenticated\',c.oid,\'SELECT\') authenticated,has_table_privilege(\'service_role\',c.oid,\'SELECT\') server,has_table_privilege(\'service_role\',c.oid,\'DELETE\') deleting from pg_class c where relname=any($1::text[])',[tables]);
     expect(rows.rows).toHaveLength(4);for(const row of rows.rows)expect(row).toMatchObject({rls:true,anon:false,authenticated:false,server:true,deleting:false});
-    const funcs=await db.query<{name:string;definer:boolean;config:string[];anon:boolean;authenticated:boolean;server:boolean}>('select proname name,prosecdef definer,proconfig config,has_function_privilege(\'anon\',p.oid,\'EXECUTE\') anon,has_function_privilege(\'authenticated\',p.oid,\'EXECUTE\') authenticated,has_function_privilege(\'service_role\',p.oid,\'EXECUTE\') server from pg_proc p where proname=any($1::text[])',[['zentra_read_us_tax_provider_binding','zentra_put_us_tax_provider_binding','zentra_reserve_us_tax_operation','zentra_read_us_tax_operation','zentra_record_us_tax_calculation','zentra_commit_us_tax_invoice_test']]);
-    expect(funcs.rows).toHaveLength(6);for(const row of funcs.rows){expect(row).toMatchObject({definer:false,anon:false,authenticated:false,server:true});expect(row.config).toEqual(['search_path=""']);}
+    const funcs=await db.query<{name:string;definer:boolean;config:string[];anon:boolean;authenticated:boolean;server:boolean}>('select proname name,prosecdef definer,proconfig config,has_function_privilege(\'anon\',p.oid,\'EXECUTE\') anon,has_function_privilege(\'authenticated\',p.oid,\'EXECUTE\') authenticated,has_function_privilege(\'service_role\',p.oid,\'EXECUTE\') server from pg_proc p where proname=any($1::text[])',[['zentra_read_us_tax_provider_binding','zentra_put_us_tax_provider_binding','zentra_reserve_us_tax_operation','zentra_read_us_tax_operation','zentra_record_us_tax_calculation','zentra_commit_us_tax_invoice_test','zentra_commit_us_tax_invoice_test_v2']]);
+    expect(funcs.rows).toHaveLength(7);for(const row of funcs.rows){expect(row).toMatchObject({definer:false,anon:false,authenticated:false,server:true});expect(row.config).toEqual(['search_path=""']);}
     for(const table of ['zentra_us_tax_provider_binding_changes','zentra_us_tax_invoice_links'])expect((await db.query<{allowed:boolean}>('select has_table_privilege(\'service_role\',$1,\'UPDATE\') allowed',[`public.${table}`])).rows[0].allowed).toBe(false);
   });
   it('reserves a real Unicode estimate beyond one MiB UTF8 within the shared UTF16 bound',async()=>{

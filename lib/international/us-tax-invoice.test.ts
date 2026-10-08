@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AccountPublicError } from '../account-security';
-import { LedgerError, type FinancialAuthority } from './accounting/ledger';
+import { LedgerError, type AccountingPeriod, type FinancialAuthority } from './accounting/ledger';
 import { ErpError, canonicalErpJson } from './erp-contract';
 import { executeErp } from './runtime';
 import type { ErpCommand, ErpCommit, ErpReceipt, ErpRequest, ErpState, ErpStore } from './runtime-types';
@@ -32,7 +32,7 @@ function observation(resolved: ResolvedStripeTaxRequest, now: string): StripeTax
   };
 }
 
-async function fixture(role: 'admin' | 'accountant' = 'accountant') {
+async function fixture(role: 'admin' | 'accountant' = 'accountant', periods: readonly AccountingPeriod[] = [{ id: '2026', start: '2026-01-01', end: '2026-12-31', status: 'open' }], supportedSchemaVersion: 1 | 4 = 1) {
   let time = start, flags = true, admissionError: Error | null = null, state: ErpState | null = null, saved: StoredUsTaxOperation | null = null;
   const now = () => new Date(time).toISOString();
   const revision = () => state?.revision ?? 0;
@@ -52,17 +52,18 @@ async function fixture(role: 'admin' | 'accountant' = 'accountant') {
       for (const change of input.changes.filter(change => change.kind === kind)) values.set(change.id, structuredClone(change.payload) as T);
       return [...values.values()];
     };
-    state = { ...structuredClone(input.header), customers: rows('customer', state?.customers ?? []), estimates: rows('estimate', state?.estimates ?? []), invoices: rows('invoice', state?.invoices ?? []), ledger: { ...structuredClone(input.header.ledger), entries: rows('journal', state?.ledger.entries ?? []), audit: [...(state?.ledger.audit ?? []), ...structuredClone(input.ledgerAudit)] } };
+    state = { ...structuredClone(input.header), customers: rows('customer', state?.customers ?? []), estimates: rows('estimate', state?.estimates ?? []), invoices: rows('invoice', state?.invoices ?? []), ...(input.header.schemaVersion > 1 ? { vendors: rows('vendor', state?.vendors ?? []), vendorBills: rows('vendor_bill', state?.vendorBills ?? []), vendorPayments: rows('vendor_payment', state?.vendorPayments ?? []) } : {}), ...(input.header.schemaVersion > 2 ? { projects: rows('project', state?.projects ?? []) } : {}), ledger: { ...structuredClone(input.header.ledger), entries: rows('journal', state?.ledger.entries ?? []), audit: [...(state?.ledger.audit ?? []), ...structuredClone(input.ledgerAudit)] } };
     receipts.set(input.receipt.idempotencyKey, structuredClone(input.receipt)); return structuredClone(input.receipt);
   });
   const store = {
+    supportedSchemaVersion,
     read: vi.fn(async org => { if (org !== organizationId) throw new ErpError('tenant_mismatch', 403); const value = structuredClone(state); await fire('erpRead', value); return value; }),
     receipt: vi.fn(async (org, key) => { if (org !== organizationId) throw new ErpError('tenant_mismatch', 403); const value = structuredClone(receipts.get(key) ?? null); await fire('receipt', value); return value; }),
     commit: coreCommit,
   } satisfies ErpStore;
   const owner: FinancialAuthority = { ...initialActor, userId: 'fictitious-creation-owner', role: 'owner' };
   for (const command of [
-    { type: 'initialize', periods: [{ id: '2026', start: '2026-01-01', end: '2026-12-31', status: 'open' }] },
+    { type: 'initialize', periods },
     { type: 'save_customer', customer: { id: 'customer', organizationId, kind: 'business', name: 'Fictitious Customer', billingAddress: config.address, paymentTermsDays: 30 } },
     { type: 'save_estimate', id: 'estimate', expectedEstimateRevision: 0, customerId: 'customer', date: '2026-10-08', expiresAt: '2026-11-08', paymentTermsDays: 30, lines: [{ id: 'line', description: 'Fictitious service', quantityUnits: '2', quantityScale: 0, unitPrice: { currency: 'USD', minorUnits: '1000' }, discountBasisPoints: 0, taxTreatment: 'taxable' }], notes: 'Fictitious only' },
     { type: 'accept_estimate', estimateId: 'estimate', expectedEstimateRevision: 1 },
@@ -136,6 +137,18 @@ async function reResolve(r: ResolvedStripeTaxRequest, overrides: Partial<StripeT
 }
 
 describe('private TEST issuer through the real ERP engine', () => {
+  it('composes a new schema4 invoice then replays its exact historical receipt without any current provider context', async () => {
+    const t = await fixture('accountant', undefined, 4), result = await t.issue(), before = t.state();
+    expect(before.schemaVersion).toBe(4); expect(before.invoices).toHaveLength(1); expect(before.ledger.entries).toHaveLength(1);
+    const commit = vi.mocked(t.operations.commit).mock.calls[0][1];
+    expect(before.invoices[0].issuedAt).toBe(commit.actor.timestamp); expect(before.ledger.entries[0].postedAt).toBe(commit.actor.timestamp);
+    t.dependencies.contexts.read.mockRejectedValue(new Error(secret)); t.dependencies.gateway.verify.mockRejectedValue(new Error(secret)); t.dependencies.gateway.calculate.mockRejectedValue(new Error(secret));
+    t.operations.read.mockRejectedValue(new Error(secret)); t.advance(72 * 3600000);
+    const contextCalls = t.dependencies.contexts.read.mock.calls.length, verifyCalls = t.dependencies.gateway.verify.mock.calls.length;
+    expect(await t.issue()).toEqual({ receipt: result.receipt, replayed: true }); expect(t.state()).toEqual(before);
+    expect(t.dependencies.contexts.read).toHaveBeenCalledTimes(contextCalls); expect(t.dependencies.gateway.verify).toHaveBeenCalledTimes(verifyCalls);
+    expect(t.dependencies.gateway.calculate).toHaveBeenCalledTimes(1); expect(t.operations.commit).toHaveBeenCalledTimes(1); expect(t.coreCommit).toHaveBeenCalledTimes(1);
+  });
   it.each(['admin','accountant'] as const)('issues with the actual %s and unchanged configured company', async role => {
     const t = await fixture(role), result = await t.issue(), state = t.state();
     expect(result.replayed).toBe(false); expect(result.receipt).toMatchObject({ idempotencyKey: t.request.idempotencyKey, revision: 5, entityId: 'invoice', action: 'issue_invoice' });
@@ -150,19 +163,42 @@ describe('private TEST issuer through the real ERP engine', () => {
     const t = await fixture(), first = await t.issue();
     t.setConfig({ ...t.context.configuration, taxConfiguration: { status: 'unconfigured' } });
     vi.mocked(t.dependencies.contexts.read).mockRejectedValue(new Error(secret)); vi.mocked(t.operations.read).mockRejectedValue(new Error(secret));
+    t.dependencies.gateway.verify.mockRejectedValue(new Error(secret)); t.dependencies.gateway.calculate.mockRejectedValue(new Error(secret));
     const contextCalls = vi.mocked(t.dependencies.contexts.read).mock.calls.length, opCalls = vi.mocked(t.operations.read).mock.calls.length;
+    const verifyCalls = t.dependencies.gateway.verify.mock.calls.length;
     t.advance(72 * 3600000);
     expect(await t.issue()).toEqual({ receipt: first.receipt, replayed: true });
     expect(t.dependencies.contexts.read).toHaveBeenCalledTimes(contextCalls); expect(t.operations.read).toHaveBeenCalledTimes(opCalls); expect(t.dependencies.gateway.calculate).toHaveBeenCalledTimes(1); expect(t.state().counters.invoice).toBe(1);
+    expect(t.dependencies.gateway.verify).toHaveBeenCalledTimes(verifyCalls); expect(t.coreCommit).toHaveBeenCalledTimes(1);
+    t.change('revoked'); await failure(t.issue(), 'unauthorized', 401);
+    expect(t.dependencies.contexts.read).toHaveBeenCalledTimes(contextCalls); expect(t.dependencies.gateway.verify).toHaveBeenCalledTimes(verifyCalls); expect(t.coreCommit).toHaveBeenCalledTimes(1);
   });
   it('handles a committed-operation race after a missing ERP receipt without revalidating historical proof', async () => {
     const t = await fixture(), beforeConcurrentCommit = t.state(), first = await t.issue();
     // The first receipt/state reads began before the concurrent commit, while
     // the subsequent private operation read observes its durable completion.
     t.store.receipt.mockResolvedValueOnce(null); t.store.read.mockResolvedValueOnce(beforeConcurrentCommit); t.advance(72 * 3600000);
+    t.dependencies.contexts.read.mockRejectedValue(new Error(secret));
+    t.dependencies.gateway.verify.mockRejectedValue(new Error(secret)); t.dependencies.gateway.calculate.mockRejectedValue(new Error(secret));
     const calls = vi.mocked(t.dependencies.contexts.read).mock.calls.length;
+    const verifyCalls = t.dependencies.gateway.verify.mock.calls.length;
     expect(await t.issue()).toEqual({ receipt: first.receipt, replayed: true });
     expect(t.dependencies.contexts.read).toHaveBeenCalledTimes(calls); expect(t.dependencies.gateway.calculate).toHaveBeenCalledTimes(1); expect(t.operations.commit).toHaveBeenCalledTimes(1); expect(t.state().counters.invoice).toBe(1);
+    expect(t.dependencies.gateway.verify).toHaveBeenCalledTimes(verifyCalls);
+  });
+  it('preserves the journal closed-period refusal for a new invoice in an earlier legacy open period', async () => {
+    const t = await fixture('accountant', [
+      { id: '2026', start: '2026-01-01', end: '2026-10-31', status: 'open' },
+      { id: 'later', start: '2026-11-01', end: '2026-12-31', status: 'open' },
+    ]);
+    await executeErp({ ...t.dependencies.erp, taxProvider: async () => null }, {
+      idempotencyKey: 'legacy-close-later', expectedRevision: 4, command: { type: 'close_period', periodId: 'later' },
+    });
+    const before = t.state(); t.coreCommit.mockClear();
+    expect(before.schemaVersion).toBe(1); expect(before.ledger.periods.map(p => p.status)).toEqual(['open', 'closed']);
+    await failure(t.issue({ ...t.request, expectedRevision: before.revision }), 'accounting_period_closed', 409);
+    expect(t.state()).toEqual(before); expect(t.coreCommit).not.toHaveBeenCalled(); expect(t.operations.commit).not.toHaveBeenCalled();
+    expect(t.dependencies.gateway.calculate).toHaveBeenCalledTimes(1); expect(t.saved()?.status).toBe('calculated');
   });
   it('retains reserved UUID, body, parameters, date and key after a lost gateway result', async () => {
     const t = await fixture(); t.once('calculate', () => { throw new Error(secret); });
@@ -245,7 +281,7 @@ describe('adversarial issuer admission and awaited private state', () => {
     const t = await fixture(); t.once('calculate', () => { throw new LedgerError(message); });
     await failure(t.issue(), code, status); noInvoice(t);
   });
-  it.each([['TAX_ASSESSMENT_EXPIRED','tax_assessment_expired',409], ['STALE_TAX_ASSESSMENT','stale_tax_assessment',409], ['INVOICE_PERMISSION_REQUIRED','invoice_permission_required',403]] as const)('preserves LedgerError %s through nested conversion and admission refusals', async (message, code, status) => {
+  it.each([['TAX_ASSESSMENT_EXPIRED','tax_assessment_expired',409], ['STALE_TAX_ASSESSMENT','stale_tax_assessment',409], ['INVOICE_PERMISSION_REQUIRED','invoice_permission_required',403], ['ACCOUNTING_PERIOD_CLOSED','accounting_period_closed',409]] as const)('preserves LedgerError %s through nested conversion and admission refusals', async (message, code, status) => {
     for (const phase of ['calculate','revalidate'] as const) {
       const t = await fixture(), error = new LedgerError(message);
       t.once('calculate', () => { if (phase === 'revalidate') t.dependencies.erp.revalidate.mockRejectedValue(error); else throw error; });

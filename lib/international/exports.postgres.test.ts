@@ -31,6 +31,9 @@ const enabled = Boolean(moduleDirectory && isAbsolute(moduleDirectory));
 type Sql = { exec(sql: string): Promise<unknown>; query<T = Record<string, unknown>>(sql: string, values?: unknown[]): Promise<{ rows: T[] }> };
 type Database = Sql & { transaction<T>(task: (sql: Sql) => Promise<T>): Promise<T>; close(): Promise<void> };
 let db: Database;
+// Preserve a genuinely pre-v2 seed through the old eight-argument RPC. This
+// explicit fixture path ends once the additive capability migration is loaded.
+let historicalTaxFixture = true;
 const digest = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 const serviceSql = <T = Record<string, unknown>>(query: string, values: unknown[] = []) => db.transaction(async tx => { await tx.exec('set local role service_role'); return (await tx.query<T>(query, values)).rows; });
 const result = async <T = unknown>(query: string, values: unknown[]) => (await serviceSql<{ result: T }>(query, values))[0].result;
@@ -45,15 +48,21 @@ const rpcQueries: Record<string, { sql: string; keys: string[] }> = {
   zentra_reserve_us_tax_operation: { sql: 'select public.zentra_reserve_us_tax_operation($1,$2::jsonb,$3::uuid,$4,$5,$6,$7,$8) result', keys: ['p_organization','p_actor','p_operation_id','p_resolved_body','p_resolved_sha256','p_params_body','p_params_sha256','p_provider_idempotency_key'] },
   zentra_record_us_tax_calculation: { sql: 'select public.zentra_record_us_tax_calculation($1,$2::uuid,$3::jsonb,$4,$5,$6::jsonb) result', keys: ['p_organization','p_operation_id','p_actor','p_proof_body','p_proof_sha256','p_assessment'] },
   zentra_commit_us_tax_invoice_test: { sql: 'select public.zentra_commit_us_tax_invoice_test($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb) result', keys: ['p_organization','p_operation_id','p_expected_revision','p_header','p_changes','p_ledger_audit','p_receipt','p_actor'] },
+  zentra_commit_us_tax_invoice_test_v2: { sql: 'select public.zentra_commit_us_tax_invoice_test_v2($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9) result', keys: ['p_organization','p_operation_id','p_expected_revision','p_header','p_changes','p_ledger_audit','p_receipt','p_actor','p_supported_schema_version'] },
 };
 function localClient() {
-  const calls: string[] = [];
+  const calls: string[] = [], executedCalls: string[] = [];
   const rpc: SupabaseServerClient['rpc'] = async <T>(name: string, params: Record<string, unknown>): Promise<T> => {
-    calls.push(name); const query = rpcQueries[name]; if (!query) throw new Error('Unexpected local RPC');
+    calls.push(name);
+    if (name === 'zentra_commit_us_tax_invoice_test_v2' && historicalTaxFixture) {
+      if (![1, 2, 3].includes(params.p_supported_schema_version as number)) throw new Error('Historical fixture requires an explicit legacy capability');
+      name = 'zentra_commit_us_tax_invoice_test';
+    }
+    const query = rpcQueries[name]; if (!query) throw new Error('Unexpected local RPC'); executedCalls.push(name);
     try { return await result<T>(query.sql, query.keys.map(key => typeof params[key] === 'object' ? JSON.stringify(params[key]) : params[key])); }
     catch (error) { throw new SupabaseServerError(400, error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'local_sql_failure'); }
   };
-  return { client: { rpc }, calls };
+  return { client: { rpc }, calls, executedCalls };
 }
 async function fixture(basis: 'cash' | 'accrual', capability: 1 | 2) {
   const org = randomUUID(), user = randomUUID(), now = new Date().toISOString();
@@ -102,12 +111,13 @@ async function issueTestInvoice(f:Fixture) {
   await f.send({type:'accept_estimate',estimateId:'tax-estimate',expectedEstimateRevision:1});
   const calculate=vi.fn(async(resolved:ResolvedStripeTaxRequest)=>fixtureObservation(resolved,now)),verify=vi.fn(async()=>undefined);
   const request=await f.request({type:'issue_invoice',id:'tax-invoice',estimateId:'tax-estimate',expectedEstimateRevision:2,date:day,accountingDate:day,dueDate:day,periodId:'current'},'tax-invoice');
-  const dependencies={erp:{store:f.store,configuration,actor,revalidate:async()=>actor},contexts:{read:async()=>({organizationId:f.org,actor,recordedAt:now,countryRevision:2,configuration,sellerRevision:1,seller,taxFactsRevision:1,taxFacts:facts,binding})},operations:createSupabaseUsTaxOperationStore(f.client),gateway:{verify,calculate},classifications:async()=>[{lineId:'line',taxCode:'txcd_99999999',kind:'service' as const,taxBehavior:'exclusive' as const,revision:1,evidenceReference:'Synthetic TEST classification'}],transactionLocation:async()=>({taxDateInstant:day+'T12:00:00Z',addressSource:'billing' as const}),operationId:()=>randomUUID(),now:()=>now,allowTestFixtures:true};
+  const dependencies={erp:{store:f.store,configuration,actor,revalidate:async()=>actor},contexts:{read:async()=>({organizationId:f.org,actor,recordedAt:now,countryRevision:2,configuration,sellerRevision:1,seller,taxFactsRevision:1,taxFacts:facts,binding})},operations:createSupabaseUsTaxOperationStore(f.client,{supportedSchemaVersion:f.store.supportedSchemaVersion}),gateway:{verify,calculate},classifications:async()=>[{lineId:'line',taxCode:'txcd_99999999',kind:'service' as const,taxBehavior:'exclusive' as const,revision:1,evidenceReference:'Synthetic TEST classification'}],transactionLocation:async()=>({taxDateInstant:day+'T12:00:00Z',addressSource:'billing' as const}),operationId:()=>randomUUID(),now:()=>now,allowTestFixtures:true};
   const response=await executeUsTaxInvoiceTest(dependencies,request);return {response,dependencies,request,calculate};
 }
 
 
 let v1: Fixture, v2: Fixture, chOrg: string, chBefore: unknown;
+let historicalV1: unknown, historicalV2: unknown;
 const history = (org: string) => serviceSql('select (select row_to_json(h)::text from public.zentra_us_erp_heads h where organization_id=$1) head,(select jsonb_agg(row_to_json(r) order by kind,id)::text from public.zentra_us_erp_records r where organization_id=$1) records,(select jsonb_agg(row_to_json(r) order by revision)::text from public.zentra_us_erp_receipts r where organization_id=$1) receipts,(select jsonb_agg(event order by revision)::text from public.zentra_us_erp_events where organization_id=$1) events,(select jsonb_agg(row_to_json(a) order by revision)::text from public.zentra_us_erp_ledger_audit a where organization_id=$1) audit,(select jsonb_agg(row_to_json(o) order by operation_id)::text from public.zentra_us_tax_operations o where organization_id=$1) tax_operations,(select jsonb_agg(row_to_json(l) order by invoice_id)::text from public.zentra_us_tax_invoice_links l where organization_id=$1) tax_links', [org]);
 function handlers(f: Fixture) {
   return createUsExportHandlers({ enabled: () => true, authority: async () => ({ mode: 'browser', actor: { ...f.dependencies.actor, timestamp: new Date(Date.now() + 86_400_000).toISOString() } }), configuration: async () => f.dependencies.configuration, store: () => f.store, seller: async actor => { const state = await getUsSellerProfile(f.client, actor); return state.status === 'configured' ? validatePublicSellerSnapshot({ organizationId: f.org, ...state.profile }, f.org) : null; }, rateLimit: async () => {}, fonts: getUsExportFonts });
@@ -133,6 +143,13 @@ describe.runIf(enabled)('durable US HTTP exports with local PostgreSQL and real 
     await v2.send({ type: 'save_vendor', vendor: { ...v2.vendor, name: 'Later vendor name' } });
     chOrg = randomUUID(); await db.query('insert into public.zentra_workspaces(organization_id,revision,updated_by,number_floors) values($1,7,$2,\'[7]\'::jsonb)', [chOrg, 'CH-OWNER-SENTINEL']);
     chBefore = (await db.query('select row_to_json(w)::text from public.zentra_workspaces w where organization_id=$1', [chOrg])).rows;
+    historicalV1 = await history(v1.org); historicalV2 = await history(v2.org);
+    for (const f of [v1, v2]) {
+      expect(f.executedCalls).toContain('zentra_commit_us_tax_invoice_test');
+      expect(f.executedCalls).not.toContain('zentra_commit_us_tax_invoice_test_v2');
+    }
+    for (const name of ['20261008105120_international_us_projects_v3', '20261008161118_international_us_journal_periods_v4', '20261008172520_international_us_tax_invoice_capability_v2']) await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`, import.meta.url), 'utf8'));
+    historicalTaxFixture = false;
   }, 30_000);
   afterAll(async () => { await db?.close(); });
   it.each(['json', 'html', 'csv', 'pdf'] as const)('exports the durable accepted estimate %s using the current public seller without changing it', async format => {
@@ -175,9 +192,20 @@ describe.runIf(enabled)('durable US HTTP exports with local PostgreSQL and real 
     expect(await history(v2.org)).toEqual(before); expect((await db.query('select row_to_json(w)::text from public.zentra_workspaces w where organization_id=$1', [chOrg])).rows).toEqual(chBefore);
   }, 20_000);
   it('keeps v1 receipts/events byte-exact and refuses old-capability access to the v2 book', async () => {
+    expect(await history(v1.org)).toEqual(historicalV1); expect(await history(v2.org)).toEqual(historicalV2);
     const before = await history(v2.org), calls = v2.calls.length;
     const capped = createUsExportHandlers({ enabled: () => true, authority: async () => ({ mode: 'browser', actor: v2.dependencies.actor }), configuration: async () => v2.dependencies.configuration, store: capability => createSupabaseErpStore(v2.client, { supportedSchemaVersion: capability ?? 1 }), seller: async () => null, rateLimit: async () => {}, fonts: getUsExportFonts });
     const response = await capped.documents(exportRequest(v2, 'format=json', 1), v2.org, 'invoice', 'tax-invoice'); expect(response.status).toBe(409); expect(await response.json()).toEqual({ error: 'client_upgrade_required' }); expect(v2.calls.slice(calls)).toEqual(['zentra_read_us_erp']); expect(await history(v2.org)).toEqual(before);
+  });
+  it('uses the real versioned fiscal RPC with the trusted purchasing ceiling after the additive migration', async () => {
+    const f = await fixture('accrual', 2); await f.send({ type: 'save_vendor', vendor: f.vendor });
+    const issued = await issueTestInvoice(f);
+    expect((await f.store.read(f.org))?.schemaVersion).toBe(2);
+    expect(f.executedCalls).toContain('zentra_commit_us_tax_invoice_test_v2'); expect(f.executedCalls).not.toContain('zentra_commit_us_tax_invoice_test');
+    const before = await history(f.org), response = await handlers(f).documents(exportRequest(f, 'format=json'), f.org, 'invoice', 'tax-invoice');
+    expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ organizationId: f.org, currency: 'USD' }); expect(await history(f.org)).toEqual(before);
+    expect(await executeUsTaxInvoiceTest(issued.dependencies, issued.request)).toEqual({ receipt: issued.response.receipt, replayed: true });
+    expect(issued.calculate).toHaveBeenCalledTimes(1); expect(await history(f.org)).toEqual(before);
   });
   it('withholds a real rendered PDF after authorization is revoked and still performs no mutation', async () => {
     const before = await history(v2.org); let revoked = false;

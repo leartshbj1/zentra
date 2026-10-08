@@ -47,6 +47,7 @@ const rpcQueries: Record<string, { sql: string; keys: string[] }> = {
   zentra_reserve_us_tax_operation: { sql: 'select public.zentra_reserve_us_tax_operation($1,$2::jsonb,$3::uuid,$4,$5,$6,$7,$8) result', keys: ['p_organization', 'p_actor', 'p_operation_id', 'p_resolved_body', 'p_resolved_sha256', 'p_params_body', 'p_params_sha256', 'p_provider_idempotency_key'] },
   zentra_record_us_tax_calculation: { sql: 'select public.zentra_record_us_tax_calculation($1,$2::uuid,$3::jsonb,$4,$5,$6::jsonb) result', keys: ['p_organization', 'p_operation_id', 'p_actor', 'p_proof_body', 'p_proof_sha256', 'p_assessment'] },
   zentra_commit_us_tax_invoice_test: { sql: 'select public.zentra_commit_us_tax_invoice_test($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb) result', keys: ['p_organization', 'p_operation_id', 'p_expected_revision', 'p_header', 'p_changes', 'p_ledger_audit', 'p_receipt', 'p_actor'] },
+  zentra_commit_us_tax_invoice_test_v2: { sql: 'select public.zentra_commit_us_tax_invoice_test_v2($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9) result', keys: ['p_organization', 'p_operation_id', 'p_expected_revision', 'p_header', 'p_changes', 'p_ledger_audit', 'p_receipt', 'p_actor', 'p_supported_schema_version'] },
 };
 type RpcCall = { name: string; parameters: Record<string, unknown>; returned?: unknown };
 type Hooks = {
@@ -81,7 +82,7 @@ function localClient(hooks: Hooks, calls: RpcCall[]) {
       const returned = await db.transaction(async tx => {
         await tx.exec('set local role service_role');
         const rows = await tx.query<{ result: unknown }>(query.sql, query.keys.map(key => typeof parameters[key] === 'object' ? JSON.stringify(parameters[key]) : parameters[key]));
-        if (name === 'zentra_commit_us_tax_invoice_test' && hooks.rollbackCommit) { hooks.rollbackCommit = false; throw new Error('synthetic_outer_transaction_rollback'); }
+        if (name === 'zentra_commit_us_tax_invoice_test_v2' && hooks.rollbackCommit) { hooks.rollbackCommit = false; throw new Error('synthetic_outer_transaction_rollback'); }
         return rows.rows[0].result;
       });
       call.returned = returned;
@@ -154,7 +155,7 @@ async function fixture(role: 'owner' | 'admin' | 'accountant' = 'owner') {
   const dependencies: UsTaxInvoiceTestDependencies = {
     erp: { store, configuration, actor: initialActor, revalidate },
     contexts: createUsTaxFinancialContextReader(client, { revalidate, now, allowTestFixtures: true }),
-    operations: createSupabaseUsTaxOperationStore(client), gateway: { verify, calculate },
+    operations: createSupabaseUsTaxOperationStore(client, { supportedSchemaVersion: store.supportedSchemaVersion }), gateway: { verify, calculate },
     classifications: async () => [{ lineId: 'line', taxCode: 'txcd_99999999', kind: 'service', taxBehavior: 'exclusive', revision: 1, evidenceReference: 'fictitious classification, not legal or provider verification' }],
     transactionLocation: async () => ({ taxDateInstant: day + 'T12:00:00Z', addressSource: 'billing' }), operationId: vi.fn(() => randomUUID()), now, allowTestFixtures: true,
   };
@@ -175,7 +176,9 @@ describe.runIf(enabled)('private TEST invoice issuer vertical path through real 
     expect(JSON.parse(await readFile(join(moduleDirectory!, 'package.json'), 'utf8')).name).toBe('@electric-sql/pglite');
     const { PGlite } = createRequire(import.meta.url)(join(moduleDirectory!, 'dist/index.cjs')) as { PGlite: new () => Database }; db = new PGlite();
     await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);grant usage on schema public to service_role;');
-    for (const name of ['202609140100_company_profiles', '202609140200_company_collaboration', '202609200300_company_content', '20261007194528_international_workspace_country_config', '20261007222349_international_us_erp_persistence', '20261007224820_international_us_erp_delta_stream', '20261007225725_international_us_erp_seller_snapshot', '20261008001726_new_us_workspace_admission', '20261008013200_international_tax_proof_allowlist', '20261008034422_international_us_seller_profile', '20261008044402_international_us_tax_profile', '20261008060826_international_us_tax_operations']) await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`, import.meta.url), 'utf8'));
+    // Run the historical cap1 issuer through the entire additive chain. Its
+    // store ceiling stays captured at1; later migrations must not promote it.
+    for (const name of ['202609140100_company_profiles', '202609140200_company_collaboration', '202609200300_company_content', '20261007194528_international_workspace_country_config', '20261007222349_international_us_erp_persistence', '20261007224820_international_us_erp_delta_stream', '20261007225725_international_us_erp_seller_snapshot', '20261008001726_new_us_workspace_admission', '20261008013200_international_tax_proof_allowlist', '20261008034422_international_us_seller_profile', '20261008044402_international_us_tax_profile', '20261008060826_international_us_tax_operations', '20261008081825_international_us_purchasing_v2', '20261008105120_international_us_projects_v3', '20261008161118_international_us_journal_periods_v4', '20261008172520_international_us_tax_invoice_capability_v2']) await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`, import.meta.url), 'utf8'));
   }, 20_000);
   afterAll(async () => { await db?.close(); });
 
@@ -188,7 +191,8 @@ describe.runIf(enabled)('private TEST invoice issuer vertical path through real 
     expect(op.status).toBe('committed'); expect(op.proof_sha256).toBe(digest(op.proof_body!));
     const proof = JSON.parse(op.proof_body!); expect(proof).toMatchObject({ mode: 'test', evidenceKind: 'test_fixture', operationId: op.operation_id, netMinor: '2000', taxMinor: '160', totalMinor: '2160' });
     expect(proof.lines[0].breakdowns.map((b: { taxabilityReason: string }) => b.taxabilityReason)).toEqual(['standard_rated', 'not_subject_to_tax']);
-    expect(f.calls.filter(c => c.name === 'zentra_commit_us_tax_invoice_test')).toHaveLength(1); expect(f.calls.some(c => c.name === 'zentra_commit_us_erp')).toBe(false);
+    expect(f.calls.filter(c => c.name === 'zentra_commit_us_tax_invoice_test_v2')).toHaveLength(1); expect(f.calls.some(c => c.name === 'zentra_commit_us_erp')).toBe(false);
+    expect(f.calls.find(c => c.name === 'zentra_commit_us_tax_invoice_test_v2')?.parameters.p_supported_schema_version).toBe(f.store.supportedSchemaVersion);
     expect(f.calls.find(c => c.name === 'zentra_reserve_us_tax_operation')?.parameters.p_actor).toMatchObject({ role });
     if (role !== 'owner') expect(f.dependencies.erp.actor.userId).not.toBe(f.owner);
     expect(f.calculate).toHaveBeenCalledTimes(1); expect(await executeUsTaxInvoiceTest(f.dependencies, f.request)).toEqual({ receipt: response.receipt, replayed: true });
@@ -219,7 +223,7 @@ describe.runIf(enabled)('private TEST invoice issuer vertical path through real 
   it.each(['record_response_lost', 'commit_failed_before', 'commit_outer_rollback'] as const)('resumes durable calculated proof after %s without another calculation', async kind => {
     const f = await fixture();
     if (kind === 'record_response_lost') f.hooks.loseAfter = 'zentra_record_us_tax_calculation';
-    if (kind === 'commit_failed_before') f.hooks.failBefore = 'zentra_commit_us_tax_invoice_test';
+    if (kind === 'commit_failed_before') f.hooks.failBefore = 'zentra_commit_us_tax_invoice_test_v2';
     if (kind === 'commit_outer_rollback') f.hooks.rollbackCommit = true;
     await expect(executeUsTaxInvoiceTest(f.dependencies, f.request)).rejects.toMatchObject({ status: 503 });
     const op = await f.operation(); expect(op.status).toBe('calculated'); expect(await f.counts()).toEqual({ invoices: 0, journals: 0, links: 0, operations: 1, events: 4, receipts: 4, counter: 0 });
@@ -227,7 +231,7 @@ describe.runIf(enabled)('private TEST invoice issuer vertical path through real 
     expect(f.calculate).toHaveBeenCalledTimes(1); expect((await f.operation()).proof_body).toBe(op.proof_body); expect(await f.counts()).toMatchObject({ invoices: 1, journals: 1, links: 1, counter: 1 });
   });
   it('replays a commit whose HTTP result was lost after newer heads and a later ERP payment', async () => {
-    const f = await fixture(); f.hooks.loseAfter = 'zentra_commit_us_tax_invoice_test';
+    const f = await fixture(); f.hooks.loseAfter = 'zentra_commit_us_tax_invoice_test_v2';
     await expect(executeUsTaxInvoiceTest(f.dependencies, f.request)).rejects.toMatchObject({ status: 503 });
     expect((await f.operation()).status).toBe('committed'); const receipt = await f.store.receipt(f.org, f.request.idempotencyKey);
     for (const kind of ['country', 'seller', 'facts', 'binding'] as const) await f.headABA(kind);
@@ -250,7 +254,7 @@ describe.runIf(enabled)('private TEST invoice issuer vertical path through real 
     expect(await f.counts()).toMatchObject({ invoices: 0, journals: 0, links: 0, receipts: 4, counter: 0 }); expect((await f.operation()).status).toBe('reserved');
   });
   it('retains the durable committed receipt but withholds it after a postcommit Auth refusal, then replays on restored admission', async () => {
-    const f = await fixture(); f.hooks.after = async name => { if (name === 'zentra_commit_us_tax_invoice_test') f.deny(403); };
+    const f = await fixture(); f.hooks.after = async name => { if (name === 'zentra_commit_us_tax_invoice_test_v2') f.deny(403); };
     await expect(executeUsTaxInvoiceTest(f.dependencies, f.request)).rejects.toMatchObject({ status: 403 });
     expect((await f.operation()).status).toBe('committed'); const before = await f.counts();
     f.deny(); f.hooks.after = undefined;

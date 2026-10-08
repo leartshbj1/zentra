@@ -76,7 +76,7 @@ function transport(result: unknown) {
   const rpc = vi.fn<(name: string, parameters: Readonly<Record<string, unknown>>) => Promise<unknown>>().mockResolvedValue(result);
   const client: Pick<SupabaseServerClient, 'rpc'> = { async rpc<T>(name: string, parameters: Readonly<Record<string, unknown>>): Promise<T> { return await rpc(name, parameters) as T; } };
   const store = createSupabaseUsTaxOperationStore(client);
-  return { rpc, store };
+  return { rpc, store, client };
 }
 async function safeFailure(promise: Promise<unknown>, expected: { code: string; status: number }) {
   try { await promise; throw new Error('Expected private operation rejection'); }
@@ -113,9 +113,23 @@ describe('private TEST operation RPC transport', () => {
   });
   it('sends one complete commit RPC and returns only five receipt fields', async () => {
     const t = transport(receipt()), input = commit(), result = await t.store.commit(resolved.operationId, input);
-    expect(t.rpc).toHaveBeenCalledExactlyOnceWith('zentra_commit_us_tax_invoice_test', { p_organization: input.organizationId, p_operation_id: resolved.operationId, p_expected_revision: input.expectedRevision, p_header: input.header, p_changes: input.changes, p_ledger_audit: input.ledgerAudit, p_receipt: input.receipt, p_actor: actor });
+    expect(t.rpc).toHaveBeenCalledExactlyOnceWith('zentra_commit_us_tax_invoice_test_v2', { p_organization: input.organizationId, p_operation_id: resolved.operationId, p_expected_revision: input.expectedRevision, p_header: input.header, p_changes: input.changes, p_ledger_audit: input.ledgerAudit, p_receipt: input.receipt, p_actor: actor, p_supported_schema_version: 1 });
     expect(result).toEqual(receipt()); expect(result).not.toBe(input.receipt);
     expect(Object.keys(result)).toEqual(['idempotencyKey','commandHash','revision','entityId','action']); expect(Object.isFrozen(result)).toBe(true);
+  });
+  it.each([1,2,3,4] as const)('passes only the captured trusted factory capability%s to commit',async cap=>{
+    const t=transport(receipt()),options={supportedSchemaVersion:cap},store=createSupabaseUsTaxOperationStore(t.client,options);
+    options.supportedSchemaVersion=1;
+    const input={...commit(),header:{...commit().header,schemaVersion:cap}};
+    await store.commit(resolved.operationId,input);
+    expect(t.rpc).toHaveBeenCalledExactlyOnceWith('zentra_commit_us_tax_invoice_test_v2',expect.objectContaining({p_supported_schema_version:cap,p_header:input.header}));
+  });
+  it.each([2,3,4] as const)('does not infer capability%s from a supplied candidate header',async cap=>{
+    const t=transport(receipt()),input={...commit(),header:{...commit().header,schemaVersion:cap}};
+    await safeFailure(t.store.commit(resolved.operationId,input),{code:'client_upgrade_required',status:409});expect(t.rpc).not.toHaveBeenCalled();
+  });
+  it.each([0,5,null,'4',NaN] as const)('rejects unsupported trusted factory capability %s before constructing a port',cap=>{
+    const t=transport(receipt());expect(()=>createSupabaseUsTaxOperationStore(t.client,{supportedSchemaVersion:cap} as unknown as Parameters<typeof createSupabaseUsTaxOperationStore>[1])).toThrow('service_unavailable');expect(t.rpc).not.toHaveBeenCalled();
   });
   it.each(['owner','admin','accountant'] as const)('preserves real %s actor without synthesizing an owner', async role => {
     const t = transport(raw()); await t.store.reserve({ ...actor, role }, resolved);
@@ -313,6 +327,7 @@ describe('stable private RPC errors and commit receipt boundary', () => {
   it.each([
     ['PX001','tax_configuration_changed',409], ['PX002','tax_operation_conflict',409], ['PX003','tax_binding_unavailable',409], ['PX004','invalid_tax_operation',422], ['PX005','invalid_stored_tax_operation',503], ['PX006','tax_operation_expired',409], ['PX007','financial_permission_required',403],
     ['PU001','revision_conflict',409], ['PU002','idempotency_conflict',409], ['PU003','immutable_record',409], ['PU004','invalid_state',422], ['PU005','workspace_unavailable',409], ['PU006','configuration_changed',409], ['PU007','event_too_large',413],
+    ['PU008','client_upgrade_required',409],
   ] as const)('maps %s to %s for every RPC without retrying or exposing private details', async (sqlCode, code, status) => {
     for (const method of ['read','reserve','record','commit'] as const) {
       const t = transport(null); t.rpc.mockRejectedValueOnce(new SupabaseServerError(500, sqlCode, secret));

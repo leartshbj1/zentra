@@ -30,6 +30,9 @@ type Sql = { exec(sql: string): Promise<unknown>; query<T = Record<string, unkno
 type Database = Sql & { transaction<T>(task: (sql: Sql) => Promise<T>): Promise<T>; close(): Promise<void> };
 type MutableCommit = { -readonly [K in keyof ErpCommit]: ErpCommit[K] };
 let db!: Database;
+// This seed deliberately uses the historical eight-argument fiscal RPC before
+// the additive v2 migration exists, then switches to its real versioned port.
+let historicalTaxFixture = true;
 const digest = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex');
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const serviceSql = <T = Record<string, unknown>>(query: string, values: unknown[] = []) => db.transaction(async tx => {
@@ -56,11 +59,17 @@ const rpcQueries: Record<string, { sql: string; keys: string[] }> = {
   zentra_reserve_us_tax_operation: { sql: 'select public.zentra_reserve_us_tax_operation($1,$2::jsonb,$3::uuid,$4,$5,$6,$7,$8) result', keys: ['p_organization','p_actor','p_operation_id','p_resolved_body','p_resolved_sha256','p_params_body','p_params_sha256','p_provider_idempotency_key'] },
   zentra_record_us_tax_calculation: { sql: 'select public.zentra_record_us_tax_calculation($1,$2::uuid,$3::jsonb,$4,$5,$6::jsonb) result', keys: ['p_organization','p_operation_id','p_actor','p_proof_body','p_proof_sha256','p_assessment'] },
   zentra_commit_us_tax_invoice_test: { sql: 'select public.zentra_commit_us_tax_invoice_test($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb) result', keys: ['p_organization','p_operation_id','p_expected_revision','p_header','p_changes','p_ledger_audit','p_receipt','p_actor'] },
+  zentra_commit_us_tax_invoice_test_v2: { sql: 'select public.zentra_commit_us_tax_invoice_test_v2($1,$2::uuid,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9) result', keys: ['p_organization','p_operation_id','p_expected_revision','p_header','p_changes','p_ledger_audit','p_receipt','p_actor','p_supported_schema_version'] },
 };
 function localClient() {
   const calls: string[] = [], hooks: { loseCommit?: boolean; rollbackCommit?: boolean } = {};
   const rpc: SupabaseServerClient['rpc'] = async <T>(name: string, params: Record<string, unknown>): Promise<T> => {
-    calls.push(name); const query = rpcQueries[name]; if (!query) throw new Error('Unexpected local RPC');
+    calls.push(name);
+    if (name === 'zentra_commit_us_tax_invoice_test_v2' && historicalTaxFixture) {
+      if (!Number.isInteger(params.p_supported_schema_version) || Number(params.p_supported_schema_version)>3) throw new Error('Legacy fixture cannot declare capability4');
+      name='zentra_commit_us_tax_invoice_test';
+    }
+    const query = rpcQueries[name]; if (!query) throw new Error('Unexpected local RPC');
     try {
       const returned = await db.transaction(async tx => {
         await tx.exec('set local role service_role');
@@ -138,7 +147,7 @@ async function issueTestInvoice(f:Fixture) {
   await f.send({type:'accept_estimate',estimateId:'tax-estimate',expectedEstimateRevision:1});
   const calculate=vi.fn(async(resolved:ResolvedStripeTaxRequest)=>fixtureObservation(resolved,now)),verify=vi.fn(async()=>undefined);
   const request=await f.request({type:'issue_invoice',id:'tax-invoice',estimateId:'tax-estimate',expectedEstimateRevision:2,date:day,accountingDate:day,dueDate:day,periodId:'current'},'tax-invoice');
-  const dependencies={erp:{store:f.store,configuration,actor,revalidate:async()=>actor},contexts:{read:async()=>({organizationId:f.org,actor,recordedAt:now,countryRevision:2,configuration,sellerRevision:1,seller,taxFactsRevision:1,taxFacts:facts,binding})},operations:createSupabaseUsTaxOperationStore(f.client),gateway:{verify,calculate},classifications:async()=>[{lineId:'line',taxCode:'txcd_99999999',kind:'service' as const,taxBehavior:'exclusive' as const,revision:1,evidenceReference:'Synthetic TEST classification'}],transactionLocation:async()=>({taxDateInstant:day+'T12:00:00Z',addressSource:'billing' as const}),operationId:()=>randomUUID(),now:()=>now,allowTestFixtures:true};
+  const dependencies={erp:{store:f.store,configuration,actor,revalidate:async()=>actor},contexts:{read:async()=>({organizationId:f.org,actor,recordedAt:now,countryRevision:2,configuration,sellerRevision:1,seller,taxFactsRevision:1,taxFacts:facts,binding})},operations:createSupabaseUsTaxOperationStore(f.client,{supportedSchemaVersion:f.store.supportedSchemaVersion}),gateway:{verify,calculate},classifications:async()=>[{lineId:'line',taxCode:'txcd_99999999',kind:'service' as const,taxBehavior:'exclusive' as const,revision:1,evidenceReference:'Synthetic TEST classification'}],transactionLocation:async()=>({taxDateInstant:day+'T12:00:00Z',addressSource:'billing' as const}),operationId:()=>randomUUID(),now:()=>now,allowTestFixtures:true};
   const response=await executeUsTaxInvoiceTest(dependencies,request);return {response,dependencies,request,calculate};
 }
 
@@ -159,6 +168,8 @@ describe.runIf(enabled)('project capability3 real PostgreSQL',()=>{
     await db.exec(await readFile(new URL('../../supabase/migrations/20261008105120_international_us_projects_v3.sql',import.meta.url),'utf8'));
     // Regression of every historical branch against the additive v4 migration.
     await db.exec(await readFile(new URL('../../supabase/migrations/20261008161118_international_us_journal_periods_v4.sql',import.meta.url),'utf8'));
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql',import.meta.url),'utf8'));
+    historicalTaxFixture=false;
   },30_000);
   afterAll(async()=>{await db?.close();});
   it('preserves v1/v2 heads, historical receipts/events/proofs and CH byte-for-byte',async()=>{

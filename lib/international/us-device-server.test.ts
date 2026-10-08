@@ -10,7 +10,7 @@ async function connected(f:Awaited<ReturnType<typeof fixture>>){const c=await f.
 const count=(f:Awaited<ReturnType<typeof fixture>>,table:string)=>f.sql.prepare('SELECT count(*) AS total FROM '+table).get()!.total;
 
 describe('US native HTTP with actual full SQLite D1 schema (synthetic Auth/PG/payment TEST ports)',()=>{
-  it('uses all 89 actual D1 migrations without skipping additive SQL',()=>{expect(usDeviceMigrationFiles.map(name=>Number(name.slice(0,4)))).toEqual(Array.from({length:89},(_,i)=>i));});
+  it('uses all 90 actual D1 migrations (0000..0089) without skipping additive SQL',()=>{expect(usDeviceMigrationFiles.map(name=>Number(name.slice(0,4)))).toEqual(Array.from({length:90},(_,i)=>i));});
   it('seeds against the database clock even when JavaScript leads the SQL admission fence',async()=>{
     const db=sqliteUsDeviceDatabase();databases.push(db);
     const sqlTime=Number(db.sql.prepare('SELECT unixepoch() AS timestamp').get()!.timestamp);

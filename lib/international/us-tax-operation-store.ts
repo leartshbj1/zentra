@@ -8,6 +8,7 @@ import { validateErpReceipt } from './runtime-store';
 import type { ErpCommit, ErpReceipt } from './runtime-types';
 import type { ResolvedStripeTaxRequest } from './stripe-tax-resolved-request';
 import type { ValidatedStripeTaxCalculation } from './stripe-tax-calculation';
+import { requireErpClientSchema, type ErpSchemaVersion } from './erp-schema-capability';
 
 export interface StoredUsTaxOperation {
   readonly status: 'reserved' | 'calculated' | 'committed';
@@ -38,6 +39,7 @@ function error(input: unknown): ErpError {
       PX001: ['tax_configuration_changed', 409], PX002: ['tax_operation_conflict', 409], PX003: ['tax_binding_unavailable', 409], PX004: ['invalid_tax_operation', 422],
       PX005: ['invalid_stored_tax_operation', 503], PX006: ['tax_operation_expired', 409], PX007: ['financial_permission_required', 403],
       PU001: ['revision_conflict', 409], PU002: ['idempotency_conflict', 409], PU003: ['immutable_record', 409], PU004: ['invalid_state', 422], PU005: ['workspace_unavailable', 409], PU006: ['configuration_changed', 409], PU007: ['event_too_large', 413],
+      PU008: ['client_upgrade_required', 409],
     };
     if (mapping[input.code]) return new ErpError(...mapping[input.code]);
   }
@@ -92,7 +94,11 @@ async function operation(input: unknown, actor: FinancialAuthority, erpKey: stri
 /** Private server-only transport; it never admits a user from a submitted role,
  * enables a tax profile, retries RPC mutations or returns private DTOs to HTTP.
  * The caller must perform fresh Auth/D1 admission around every awaited phase. */
-export function createSupabaseUsTaxOperationStore(client: Pick<SupabaseServerClient, 'rpc'>): UsTaxOperationStore {
+export function createSupabaseUsTaxOperationStore(client: Pick<SupabaseServerClient, 'rpc'>, options: Readonly<{supportedSchemaVersion?:ErpSchemaVersion}> = {}): UsTaxOperationStore {
+  // Capture a server factory's capability once. Never derive it from the
+  // candidate header, request body, browser locale or a later mutable option.
+  const supportedSchemaVersion = options.supportedSchemaVersion === undefined ? 1 : options.supportedSchemaVersion;
+  requireErpClientSchema(supportedSchemaVersion,supportedSchemaVersion);
   return {
     async read(inputActor, erpIdempotencyKey, commandHash) {
       const actor = actorSnapshot(inputActor);
@@ -124,8 +130,9 @@ export function createSupabaseUsTaxOperationStore(client: Pick<SupabaseServerCli
       const actor = actorSnapshot(input.actor);
       const expectedReceipt = validateErpReceipt(input.receipt, input.organizationId);
       if (actor.organizationId !== input.organizationId || expectedReceipt.action !== 'issue_invoice') throw new ErpError('invalid_tax_operation', 422);
+      requireErpClientSchema(input.header.schemaVersion,supportedSchemaVersion);
       try {
-        const value = await client.rpc<unknown>('zentra_commit_us_tax_invoice_test', { p_organization: input.organizationId, p_operation_id: operationId, p_expected_revision: input.expectedRevision, p_header: input.header, p_changes: input.changes, p_ledger_audit: input.ledgerAudit, p_receipt: expectedReceipt, p_actor: actor });
+        const value = await client.rpc<unknown>('zentra_commit_us_tax_invoice_test_v2', { p_organization: input.organizationId, p_operation_id: operationId, p_expected_revision: input.expectedRevision, p_header: input.header, p_changes: input.changes, p_ledger_audit: input.ledgerAudit, p_receipt: expectedReceipt, p_actor: actor, p_supported_schema_version: supportedSchemaVersion });
         const receipt = validateErpReceipt(value, input.organizationId); if (canonicalErpJson(receipt) !== canonicalErpJson(expectedReceipt)) return invalid(); return receipt;
       } catch (e) { throw error(e); }
     },
