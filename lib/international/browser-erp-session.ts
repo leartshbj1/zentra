@@ -33,6 +33,8 @@ const responseTimeoutMs=30000;
 const publicErrors=new Set(['unauthorized','session_changed','forbidden','management_entitlement_required','financial_permission_required','owner_required','tenant_mismatch','feature_unavailable','edition_unavailable','country_configuration_required','configuration_changed','service_unavailable','invalid_request','invalid_date','invalid_customer','invalid_email','invalid_estimate','invalid_period','invalid_payment_terms','invalid_amount','revision_conflict','estimate_revision_conflict','idempotency_conflict','already_initialized','workspace_not_initialized','workspace_unavailable','immutable_record','invalid_state','invalid_stored_state','project_not_found','customer_required','estimate_not_found','issued_estimate_locked','invoice_already_issued','invoice_not_found','number_sequence_exhausted','accounting_period_not_open','tax_configuration_required','seller_configuration_required','tax_assessment_expired','stale_tax_assessment','payment_exceeds_balance','period_closed','event_too_large','client_upgrade_required','purchasing_unavailable','vendor_required','vendor_bill_not_found','vendor_bill_already_recorded','vendor_payment_already_recorded','purchase_account_required','overpayment']);
 publicErrors.add('rate_limited');
 for (const code of ['projects_unavailable','legacy_project_review_required','project_customer_locked','project_revision_conflict','vendor_bill_project_conflict','project_archived','project_customer_mismatch']) publicErrors.add(code);
+for (const code of ['accounting_unavailable','accounting_upgrade_required','accounting_already_upgraded','period_limit_reached','period_already_exists','accounting_period_order_conflict','manual_account_forbidden','manual_journal_required','entry_not_found','invalid_reversal','accounting_period_closed','unbalanced_entry','account_not_found','invalid_entry','cash_flow_category_required']) publicErrors.add(code);
+for (const code of ['unbalanced_journal','unknown_account','invalid_journal_line','cash_flow_classification_required']) publicErrors.add(code);
 const exactObject=(value:unknown,keys:readonly string[]):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value))&&Reflect.ownKeys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
 function frozen<T>(value:T):T{if(value&&typeof value==='object'){for(const child of Object.values(value))frozen(child);Object.freeze(value);}return value;}
 function readProjection(value:unknown,organizationId:string,supportedSchemaVersion:ErpSchemaVersion):BrowserErpRead {
@@ -51,7 +53,7 @@ function readProjection(value:unknown,organizationId:string,supportedSchemaVersi
 }
 function entityId(request:ErpRequest,organizationId:string):string {
   switch(request.command.type){
-    case 'initialize':case 'refresh_configuration':return organizationId;
+    case 'initialize':case 'refresh_configuration':case 'upgrade_accounting':return organizationId;
     case 'save_customer':return request.command.customer.id;
     case 'save_vendor':return request.command.vendor.id;
     case 'save_projects':return request.command.projects[0].id;
@@ -74,7 +76,7 @@ function resultProjection(value:unknown,request:ErpRequest,organizationId:string
 export function createBrowserErpSession(options:BrowserErpSessionOptions):BrowserErpSession {
   const {organizationId,expectedUserId}=options;
   const supportedSchemaVersion=options.supportedSchemaVersion??1;
-  if(![1,2,3].includes(supportedSchemaVersion))throw new BrowserErpError('invalid_request',422,'rejected');
+  if(![1,2,3,4].includes(supportedSchemaVersion))throw new BrowserErpError('invalid_request',422,'rejected');
   if(typeof organizationId!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(organizationId)||expectedUserId!==undefined&&(typeof expectedUserId!=='string'||!expectedUserId.trim()||expectedUserId!==expectedUserId.trim()||expectedUserId.length>256||Array.from(expectedUserId).some(char=>char.charCodeAt(0)<32||char.charCodeAt(0)===127)))throw new BrowserErpError('invalid_request',422,'rejected');
   const fetcher=options.fetch??globalThis.fetch.bind(globalThis),newId=options.newId??(()=>globalThis.crypto.randomUUID());
   const url=`/api/international/workspaces/${encodeURIComponent(organizationId)}/erp`;
@@ -126,6 +128,7 @@ export function createBrowserErpSession(options:BrowserErpSessionOptions):Browse
       if(readRequired)throw new BrowserErpError('read_required',409,'rejected');
       if(supportedSchemaVersion===1&&['save_vendor','record_vendor_bill','record_vendor_payment'].includes(command.type))throw new BrowserErpError('client_upgrade_required',409,'rejected');
       if(supportedSchemaVersion<3&&command.type==='save_projects')throw new BrowserErpError('client_upgrade_required',409,'rejected');
+      if(supportedSchemaVersion<4&&['upgrade_accounting','open_period','post_manual_journal','reverse_manual_journal'].includes(command.type))throw new BrowserErpError('client_upgrade_required',409,'rejected');
       let request:ErpRequest,body:string;
       try {
         validateErpRequest({idempotencyKey:'input-validation',expectedRevision,command},organizationId);

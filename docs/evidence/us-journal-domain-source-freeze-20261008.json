@@ -1,0 +1,94 @@
+{
+  "base": "90d131646a352e149c03b80b9260ec8eda724a2d",
+  "capturedHead": "90d131646a352e149c03b80b9260ec8eda724a2d",
+  "capturedAt": "2026-10-08T16:34:22.9793705Z",
+  "files": [
+    {
+      "path": "lib/international/accounting/ledger.ts",
+      "sha256": "23fbd7a415f206dd88dabfb02d7cc43751cd68d22f70af5185ad7092aa8cbda3"
+    },
+    {
+      "path": "lib/international/accounting/us-journal.ts",
+      "sha256": "05ed04c36b76cff010c6c93880ecb7b2c9d3a08d54e14ddad693c26e2026ebe1"
+    },
+    {
+      "path": "lib/international/accounting/us-journal.test.ts",
+      "sha256": "cd3d411439ef215afc3b4126db862780e73ee845c78662a7f478fabc7c81424f"
+    },
+    {
+      "path": "lib/international/accounting-runtime.test.ts",
+      "sha256": "a1c737ee3238666d84f9220e3beb9bfb34e99c4b991e35fff9e6f70b87f16235"
+    },
+    {
+      "path": "lib/international/runtime-types.ts",
+      "sha256": "8f9ca079e4d6b13f74e8444383306a9108b64dfc12ecb3399c4b3be11ce1df38"
+    },
+    {
+      "path": "lib/international/erp-request.ts",
+      "sha256": "595dab28bc17d10ca0757d912e317265deb8c350f462a3c3192d1f11a8a8be95"
+    },
+    {
+      "path": "lib/international/erp-schema-capability.ts",
+      "sha256": "7f1bd9cf522c96a38a3f04959b3ca2eca27d4652242b001e72ae2647a3a14d1a"
+    },
+    {
+      "path": "lib/international/runtime.ts",
+      "sha256": "b6168116d9cec30fa7372c4942c3cf04861d3f2a3760854ffee899d2d4f40064"
+    },
+    {
+      "path": "lib/international/runtime-validation.ts",
+      "sha256": "7ff8cf7301f6dde41bb7d845facf93a3ac82d007f4ddd046ae25b45568608708"
+    },
+    {
+      "path": "lib/international/runtime-sync.ts",
+      "sha256": "e4dd34b6329219a5c1f82728c4073ae3c705035d0052cc45bd28b81d715f9573"
+    },
+    {
+      "path": "lib/international/projects-transport.test.ts",
+      "sha256": "8037ff567f5f935337ae4719cbbf57379154661e9e16a3ed02da7c39a6f3b6a4"
+    },
+    {
+      "path": "lib/international/export-server.test.ts",
+      "sha256": "72da91b71bf239dcf68dd3e81a3254fd1cfa8b57738e2aeee359d39286a3cd62"
+    },
+    {
+      "path": "lib/international/exports.postgres.test.ts",
+      "sha256": "6b0592ebcd1c359e927fb5646acffade6389165f89040c79d0a84bb58a36bd9a"
+    },
+    {
+      "path": "lib/international/purchasing-transport.test.ts",
+      "sha256": "e6ba05f75661ff3c1144f5d1384f02974ffeceeff026727e6cd369acf260b188"
+    },
+    {
+      "path": "lib/international/runtime-postgres.test.ts",
+      "sha256": "52637e83a1eaa6544955ddcd0325f880e90f14fb36eb42ac691f11f27d530735"
+    },
+    {
+      "path": "docs/internationalization/US-JOURNAL-PERIODS-CONTRACT-20261008.md",
+      "sha256": "826be5caba7a114845fd463cc471cb8088b4db754199107cb021b6f43f319ac5"
+    }
+  ],
+  "tests": {
+    "selection": ".qa/us-journal-periods/domain-selection.json",
+    "finalJson": ".qa/us-journal-periods/domain-tests-v3.json",
+    "finalLog": ".qa/us-journal-periods/domain-tests-v3.log",
+    "files": 10,
+    "passed": 402,
+    "failed": 0,
+    "newTests": 64,
+    "superseded": "v1 had three obsolete capability4-invalid assertions; v2 passed400 before new delta-source regression; manual-source-baseline reproduced actual delta failure with31pass1fail"
+  },
+  "lint": {
+    "log": ".qa/us-journal-periods/domain-lint-v3.log",
+    "exit": 0,
+    "files": 15
+  },
+  "typecheck": {
+    "log": ".qa/us-journal-periods/domain-tsc-v3.log",
+    "exit": 2,
+    "remaining": "4 unknown-type diagnostics in concurrent us-device-bindings.test.ts; none in these domain files"
+  },
+  "scope": "Local pure facade, actual executor, delta and existing focused regressions via DI store. Not PostgreSQL, D1, hosted Auth, two-connection concurrency, crash recovery, native execution or production proof.",
+  "ch": "ledger.ts action union TYPE ONLY; no shared CH function changed",
+  "compatibility": "Legacy invalid cap4 assertions now5; test mock signature unions add4; pre-existing runtime-postgres fixture USD literal made const only. No financial assertion weakened."
+}

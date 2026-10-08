@@ -36,7 +36,7 @@ export interface ErpServerDependencies {
 }
 const headers={'Cache-Control':'no-store, max-age=0','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 function json(value:unknown,status=200){return Response.json(value,{status,headers});}
-const financialCodes:Record<string,number>={TENANT_MISMATCH:403,MANAGEMENT_ENTITLEMENT_REQUIRED:402,FINANCIAL_PERMISSION_REQUIRED:403,INVOICE_PERMISSION_REQUIRED:403,REVISION_CONFLICT:409,IDEMPOTENCY_CONFLICT:409,PAYMENT_EXCEEDS_BALANCE:422,TAX_CONFIGURATION_REQUIRED:409,TAX_ASSESSMENT_EXPIRED:409,STALE_TAX_ASSESSMENT:409,PERIOD_CLOSED:409};
+const financialCodes:Record<string,number>={TENANT_MISMATCH:403,MANAGEMENT_ENTITLEMENT_REQUIRED:402,FINANCIAL_PERMISSION_REQUIRED:403,INVOICE_PERMISSION_REQUIRED:403,REVISION_CONFLICT:409,IDEMPOTENCY_CONFLICT:409,PAYMENT_EXCEEDS_BALANCE:422,TAX_CONFIGURATION_REQUIRED:409,TAX_ASSESSMENT_EXPIRED:409,STALE_TAX_ASSESSMENT:409,PERIOD_CLOSED:409,ACCOUNTING_PERIOD_CLOSED:409,INVALID_REVERSAL:409};
 function failure(error:unknown,operation:'read'|'write',dependencies:ErpServerDependencies):Response{
   let code='service_unavailable',status=503;
   if(error instanceof ErpError){code=error.code;status=error.status;}

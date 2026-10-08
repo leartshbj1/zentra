@@ -10,12 +10,12 @@ import { createUsDeviceHandlers, type UsDeviceDependencies } from './us-device-s
 import { d1UsDeviceStore } from './us-device-d1';
 import { US_DEVICE_PROTOCOL, hashUsDeviceSecret } from './us-device-contract';
 
-// Actual complete SQL 0000..0088. Auth, PG confirmation/config and verified
+// Actual complete SQL 0000..0089. Auth, PG confirmation/config and verified
 // payment/Price are explicitly trusted TEST fixtures, never live providers.
-export const usDeviceMigrationFiles=readdirSync(new URL('../../drizzle/',import.meta.url)).filter(name=>/^\d{4}_.+\.sql$/.test(name)&&Number(name.slice(0,4))<=88).sort();
+export const usDeviceMigrationFiles=readdirSync(new URL('../../drizzle/',import.meta.url)).filter(name=>/^\d{4}_.+\.sql$/.test(name)&&Number(name.slice(0,4))<=89).sort();
 export const usDeviceMigrationSources=usDeviceMigrationFiles.map(name=>readFileSync(new URL('../../drizzle/'+name,import.meta.url),'utf8'));
-export function sqliteUsDeviceDatabase(){
-  const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');for(const source of usDeviceMigrationSources)sql.exec(source);
+export function sqliteUsDeviceDatabase(maxMigration=89){
+  const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');for(let i=0;i<usDeviceMigrationSources.length;i++)if(Number(usDeviceMigrationFiles[i].slice(0,4))<=maxMigration)sql.exec(usDeviceMigrationSources[i]);
   const database={
     prepare(text:string){let values:SQLInputValue[]=[];const statement={bind(...bound:SQLInputValue[]){values=bound;return statement;},async first(){return sql.prepare(text).get(...values)??null;},async all(){return {success:true,results:sql.prepare(text).all(...values)};},async run(){const result=sql.prepare(text).run(...values);return {success:true,meta:{changes:Number(result.changes)}};}};return statement;},
     async batch(statements:{run():Promise<unknown>}[]){sql.exec('BEGIN');try{const results=[];for(const statement of statements)results.push(await statement.run());sql.exec('COMMIT');return results;}catch(error){sql.exec('ROLLBACK');throw error;}},

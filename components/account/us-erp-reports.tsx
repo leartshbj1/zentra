@@ -11,7 +11,7 @@ import type { ErpState } from '@/lib/international/runtime-types';
 import './us-erp-reports.css';
 
 interface ExportAccess {
-  organizationId: string; expectedUserId: string; supportedSchemaVersion: 1 | 2 | 3; language: SiteLanguage;
+  organizationId: string; expectedUserId: string; supportedSchemaVersion: 1 | 2 | 3 | 4; language: SiteLanguage;
   accessEpoch: number; currentAccessEpoch: () => number; disabled: boolean; onAccessDenied: () => void; sellerSettingsId?: string;
 }
 type ExportNotice = 'failure' | 'saved' | keyof typeof browserExportErrorCopy.en;

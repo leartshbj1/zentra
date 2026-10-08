@@ -22,7 +22,7 @@ export function eligibleBrowserProjects(state: ErpState, customerId: string): re
   return (state.projects ?? []).filter(project => project.status === 'active' && project.customerId === customerId);
 }
 export function checkBrowserEstimateProject(state: ErpState, customerId: string, projectId: string): void {
-  if (state.schemaVersion !== 3 || !eligibleBrowserProjects(state, customerId).some(project => project.id === projectId)) throw new TypeError('Invalid project selection');
+  if (state.schemaVersion < 3 || !eligibleBrowserProjects(state, customerId).some(project => project.id === projectId)) throw new TypeError('Invalid project selection');
 }
 export interface LegacyProjectReference { readonly id: string; readonly customerIds: readonly string[]; readonly estimateIds: readonly string[]; readonly invoiceIds: readonly string[] }
 /** Real unresolved IDs only. Never derive or manufacture a project name. */

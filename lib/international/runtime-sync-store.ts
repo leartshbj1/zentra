@@ -12,10 +12,10 @@ function failure(error:unknown):never{
 }
 export function createSupabaseErpSyncStore(client:Pick<SupabaseServerClient,'rpc'>,options:Readonly<{supportedSchemaVersion?:ErpSchemaVersion}>={}):ErpSyncStore{
   const supportedSchemaVersion=options.supportedSchemaVersion??1;
-  if(![1,2,3].includes(supportedSchemaVersion))throw new ErpError('invalid_request');
+  if(![1,2,3,4].includes(supportedSchemaVersion))throw new ErpError('invalid_request');
   return {
     supportedSchemaVersion,
-    async revision(organizationId){try{const result=await client.rpc<unknown>(supportedSchemaVersion===3?'zentra_us_erp_revision_v3':supportedSchemaVersion===2?'zentra_us_erp_revision_v2':'zentra_us_erp_revision',{p_organization:organizationId});return result===null?null:validateErpRevision(result,organizationId,supportedSchemaVersion);}catch(error){return failure(error);}},
-    async changes(organizationId,afterRevision,limit){try{const result=await client.rpc<unknown>(supportedSchemaVersion===3?'zentra_us_erp_delta_v3':supportedSchemaVersion===2?'zentra_us_erp_delta_v2':'zentra_us_erp_delta',{p_organization:organizationId,p_after_revision:afterRevision,p_limit:limit});return result===null?null:validateErpDelta(result,organizationId,afterRevision,limit,supportedSchemaVersion);}catch(error){return failure(error);}},
+    async revision(organizationId){try{const result=await client.rpc<unknown>(supportedSchemaVersion===4?'zentra_us_erp_revision_v4':supportedSchemaVersion===3?'zentra_us_erp_revision_v3':supportedSchemaVersion===2?'zentra_us_erp_revision_v2':'zentra_us_erp_revision',{p_organization:organizationId});return result===null?null:validateErpRevision(result,organizationId,supportedSchemaVersion);}catch(error){return failure(error);}},
+    async changes(organizationId,afterRevision,limit){try{const result=await client.rpc<unknown>(supportedSchemaVersion===4?'zentra_us_erp_delta_v4':supportedSchemaVersion===3?'zentra_us_erp_delta_v3':supportedSchemaVersion===2?'zentra_us_erp_delta_v2':'zentra_us_erp_delta',{p_organization:organizationId,p_after_revision:afterRevision,p_limit:limit});return result===null?null:validateErpDelta(result,organizationId,afterRevision,limit,supportedSchemaVersion);}catch(error){return failure(error);}},
   };
 }

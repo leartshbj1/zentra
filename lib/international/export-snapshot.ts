@@ -179,7 +179,7 @@ export function buildUsExportSnapshot(input: unknown, sellerInput: PublicSellerS
     let recipient: PrintedParty | null = null, number: string | null = null, notes = '', recordRevision: number | null = null, columns: ExportSnapshot['columns'] = [], rows: ExportSnapshot['rows'] = [];
     fact('currency', 'USD'); fact('accountingBasis', copy[(invoice?.companyConfiguration ?? state.configuration).accountingBasis]);
     if (selector.kind === 'document' && selector.documentType === 'project') {
-      const project = state.schemaVersion === 3 ? state.projects?.find(p => p.id === selector.id) : null;
+      const project = state.schemaVersion >= 3 ? state.projects?.find(p => p.id === selector.id) : null;
       if (!project) return fail('export_source_not_found');
       const customer = state.customers.find(c => c.id === project.customerId); if (!customer) return fail('invalid_export_snapshot');
       recipient = { name: customer.name, address: customer.billingAddress, ...(customer.email ? { contactEmail: customer.email } : {}), ...(customer.phone ? { contactPhone: customer.phone } : {}) };

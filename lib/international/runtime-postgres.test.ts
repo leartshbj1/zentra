@@ -136,7 +136,7 @@ describe.skipIf(!enabled)('US ERP runtime and HTTP boundary on real PostgreSQL W
   it('keeps financial strings exact above the JavaScript safe-integer range',async()=>{
     const f=await fixture();await f.initialize();const amount='900719925474099300';
     if(f.estimate.type!=='save_estimate')throw new Error('Unexpected fixture command');
-    await f.send({...f.estimate,expectedEstimateRevision:2,lines:f.estimate.lines.map(line=>({...line,unitPrice:{currency:'USD',minorUnits:amount}}))});
+    await f.send({...f.estimate,expectedEstimateRevision:2,lines:f.estimate.lines.map(line=>({...line,unitPrice:{currency:'USD' as const,minorUnits:amount}}))});
     await f.send({type:'accept_estimate',estimateId:'estimate-1',expectedEstimateRevision:3});
     if(f.issueCommand.type!=='issue_invoice')throw new Error('Unexpected fixture command');
     await f.send({...f.issueCommand,expectedEstimateRevision:4});

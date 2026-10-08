@@ -9,20 +9,22 @@ import { validateErpRequest } from './erp-request';
 import { nationalAdapter } from './countries/adapters';
 import type { ErpState } from './runtime-types';
 import { validateStoredProject } from './projects';
+import { openUsAccountingPeriod, postUsManualJournal, reverseUsManualJournal, validateUsOpenPeriodInput } from './accounting/us-journal';
 const same = (a:unknown,b:unknown) => canonicalErpJson(a) === canonicalErpJson(b);
 function exactKeys(value:unknown,keys:readonly string[]):boolean{return !!value&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value))&&Reflect.ownKeys(value).every(k=>typeof k==='string'&&keys.includes(k));}
 function unavailable(): never { throw new ErpError('invalid_stored_state',503); }
+function accountingReplay<T>(operation:()=>T):T{try{return operation();}catch{return unavailable();}}
 /** Validate stored calculations without applying today's tax expiry to historical invoices. */
 export function validateStoredErp(value: unknown, organizationId: string): ErpState {
   try {
     const s = value as ErpState;
     const commonFields=['schemaVersion','revision','configuration','counters','ledger','customers','estimates','invoices'];
-    if (!exactKeys(s,s.schemaVersion===3?[...commonFields,'vendors','vendorBills','vendorPayments','projects']:s.schemaVersion===2?[...commonFields,'vendors','vendorBills','vendorPayments']:commonFields) || ![1,2,3].includes(s.schemaVersion) || !Number.isSafeInteger(s.revision) || s.revision < 1 || s.configuration.organizationId !== organizationId) return unavailable();
+    if (!exactKeys(s,s.schemaVersion>=3?[...commonFields,'vendors','vendorBills','vendorPayments','projects']:s.schemaVersion===2?[...commonFields,'vendors','vendorBills','vendorPayments']:commonFields) || ![1,2,3,4].includes(s.schemaVersion) || !Number.isSafeInteger(s.revision) || s.revision < 1 || s.configuration.organizationId !== organizationId) return unavailable();
     if(s.schemaVersion>=2&&![s.vendors,s.vendorBills,s.vendorPayments].every(Array.isArray))return unavailable();
-    if(s.schemaVersion===3&&!Array.isArray(s.projects))return unavailable();
+    if(s.schemaVersion>=3&&!Array.isArray(s.projects))return unavailable();
     const config = validateCompanyConfiguration(s.configuration);
     if (config.country !== 'US' || !exactKeys(s.ledger,['organizationId','currency','basis','revision','accounts','periods','entries','audit']) || s.ledger.organizationId !== organizationId || s.ledger.currency !== config.currency || s.ledger.basis !== config.accountingBasis || !same(s.ledger.accounts,nationalAdapter(config.country).starterChart)) return unavailable();
-    if (!exactKeys(s.counters,s.schemaVersion===3?['estimate','invoice','project']:['estimate','invoice']) || !Number.isSafeInteger(s.counters.invoice) || s.counters.invoice < 0 || !Number.isSafeInteger(s.counters.estimate) || s.counters.estimate < 0 || (s.schemaVersion===3&&(!Number.isSafeInteger(s.counters.project)||(s.counters.project??-1)<0||s.counters.project!==s.projects?.length))) return unavailable();
+    if (!exactKeys(s.counters,s.schemaVersion>=3?['estimate','invoice','project']:['estimate','invoice']) || !Number.isSafeInteger(s.counters.invoice) || s.counters.invoice < 0 || !Number.isSafeInteger(s.counters.estimate) || s.counters.estimate < 0 || (s.schemaVersion>=3&&(!Number.isSafeInteger(s.counters.project)||(s.counters.project??-1)<0||s.counters.project!==s.projects?.length))) return unavailable();
     if (![s.customers,s.estimates,s.invoices,s.ledger.entries,s.ledger.audit].every(Array.isArray)) return unavailable();
     if(s.counters.invoice!==s.invoices.length||s.counters.estimate!==s.estimates.length)return unavailable();
     for (const rows of [s.customers,s.estimates,s.invoices,s.ledger.entries,s.vendors??[],s.vendorBills??[],s.vendorPayments??[],s.projects??[]]) {
@@ -53,7 +55,7 @@ export function validateStoredErp(value: unknown, organizationId: string): ErpSt
       if(!same(validateStoredProject(project,config),project)||project.revision>s.revision||BigInt(project.number.slice(4))>BigInt(s.counters.project??0)||!s.customers.some(c=>c.id===project.customerId)||projectNumbers.has(project.number))return unavailable();projectNumbers.add(project.number);
       for(const billId of project.vendorBillIds){if(!s.vendorBills?.some(b=>b.id===billId)||projectBills.has(billId))return unavailable();projectBills.add(billId);}
     }
-    if(s.schemaVersion===3)for(const document of [...s.estimates,...s.invoices])if(document.projectId&&!s.projects?.some(p=>p.id===document.projectId&&p.customerId===document.customer.id))return unavailable();
+    if(s.schemaVersion>=3)for(const document of [...s.estimates,...s.invoices])if(document.projectId&&!s.projects?.some(p=>p.id===document.projectId&&p.customerId===document.customer.id))return unavailable();
     for (const estimate of s.estimates) {
       if(Reflect.ownKeys(estimate).some(key=>typeof key!=='string'||!['id','organizationId','revision','currency','number','customer','projectId','date','expiresAt','paymentTermsDays','lines','notes','status'].includes(key)))return unavailable();
       const parsed=validateErpRequest({idempotencyKey:'stored-validation',expectedRevision:0,command:{type:'save_customer',customer:estimate.customer}},organizationId);
@@ -73,7 +75,18 @@ export function validateStoredErp(value: unknown, organizationId: string): ErpSt
       if (!same(reconstructed,invoice)) return unavailable();
     }
     // Rebuild from the invoice/payment sources. Balanced fabricated entries are still invalid.
-    let replay:Ledger=createLedger({organizationId,currency:config.currency,basis:config.accountingBasis,accounts:s.ledger.accounts,periods:s.ledger.periods.map(p=>({...p,status:'open'}))});
+    const opened=new Set<string>();
+    if(s.schemaVersion===4){
+      if(s.revision>=Number.MAX_SAFE_INTEGER||s.ledger.periods.length<1||s.ledger.periods.length>100)return unavailable();
+      for(const p of s.ledger.periods)accountingReplay(()=>validateUsOpenPeriodInput({id:p.id,start:p.start,end:p.end}));
+      for(const event of s.ledger.audit)if(event.action==='period_opened'){
+        if(opened.has(event.entityId)||!s.ledger.periods.some(p=>p.id===event.entityId))return unavailable();
+        opened.add(event.entityId);
+      }
+    }
+    const initialPeriods=s.ledger.periods.filter(p=>!opened.has(p.id)).map(p=>({...p,status:'open' as const}));
+    if(s.schemaVersion===4&&!initialPeriods.length)return unavailable();
+    let replay:Ledger=createLedger({organizationId,currency:config.currency,basis:config.accountingBasis,accounts:s.ledger.accounts,periods:initialPeriods});
     const paidBefore = new Map<string, typeof s.invoices[number]>();
     const postedInvoices = new Set<string>();
     const postedBills = new Set<string>(),postedVendorPayments = new Set<string>();
@@ -107,10 +120,18 @@ export function validateStoredErp(value: unknown, organizationId: string): ErpSt
           if(prior!==preceding)return unavailable();
           replay=postVendorPayment(config,replay,bill,{id:payment.id,idempotencyKey:payment.idempotencyKey,paymentDate:payment.paymentDate,accountingDate:payment.accountingDate,periodId:payment.periodId,amount:payment.amount,paidBefore:money(config.currency,prior.toString()),cashFlowCategory:'operating'},actor);
           postedVendorPayments.add(payment.id);paidVendors.set(bill.id,prior+BigInt(payment.amount.minorUnits));
+        } else if(s.schemaVersion===4&&entry.source.type==='manual_journal'){
+          replay=accountingReplay(()=>postUsManualJournal(replay,{id:entry.id,transactionDate:entry.transactionDate,accountingDate:entry.accountingDate,periodId:entry.periodId,description:entry.description,sourceReference:entry.source.id,lines:entry.lines,...(entry.cashFlowCategory!==undefined?{cashFlowCategory:entry.cashFlowCategory}:{})},entry.idempotencyKey,actor,replay.revision));
+        } else if(s.schemaVersion===4&&entry.source.type==='manual_reversal'){
+          replay=accountingReplay(()=>reverseUsManualJournal(replay,{id:entry.id,entryId:entry.source.id,transactionDate:entry.transactionDate,accountingDate:entry.accountingDate,periodId:entry.periodId,reason:entry.description},entry.idempotencyKey,actor,replay.revision));
         } else return unavailable();
         const result=replay.entries[replay.entries.length-1];
         if (!same(result,entry)) return unavailable();
       } else if (event.action==='period_closed') replay=closePeriod(replay,event.entityId,actor,replay.revision);
+      else if(s.schemaVersion===4&&event.action==='period_opened'){
+        const p=s.ledger.periods.find(p=>p.id===event.entityId);if(!p)return unavailable();
+        replay=accountingReplay(()=>openUsAccountingPeriod(replay,{id:p.id,start:p.start,end:p.end},actor,replay.revision));
+      }
       else return unavailable();
     }
     for (const invoice of s.invoices) {

@@ -3,9 +3,13 @@ import { readJsonObjectWithinLimit, RequestBodyError } from '../request-body';
 import { UsAuthorityError } from './saas-authority';
 import { US_DEVICE_PROTOCOL, UsDeviceError, hashUsDeviceSecret, newUsDeviceCode, usDeviceBearer, usDeviceExact, usDeviceHash, usDeviceSeconds, usDeviceUuid, validateUsDeviceAdmission, validateUsDeviceApprove, validateUsDeviceExchange, validateUsDeviceStart, type UsDeviceAdmission, type UsDeviceSession } from './us-device-contract';
 import type { UsDeviceChallenge, UsDeviceSessionRow, UsDeviceStore } from './us-device-d1';
+import type { ErpSchemaVersion } from './erp-schema-capability';
 
 export interface UsDeviceDependencies {
   enabled(this:void):boolean|Promise<boolean>;
+  /** New challenge admission only. Closing a capability does not rewrite or
+   * block exact exchange/revocation of an already captured credential. */
+  maxSchemaVersion?(this:void):ErpSchemaVersion|Promise<ErpSchemaVersion>;
   user(this:void):Promise<{userId:string}|null>;
   access(this:void,organizationId:string,userId:string):Promise<UsDeviceAdmission>;
   store(this:void):UsDeviceStore|Promise<UsDeviceStore>;
@@ -18,7 +22,7 @@ export interface UsDeviceDependencies {
 }
 const headers = {'Cache-Control':'no-store, max-age=0','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 const json = (value:unknown,status=200)=>Response.json(value,{status,headers});
-const publicErrors:Readonly<Record<string,number>>={invalid_request:422,authorization_expired:410,authorization_conflict:409,unauthorized:401,session_changed:401,forbidden:403,management_entitlement_required:402,seat_limit_reached:403,feature_unavailable:404,rate_limited:429,service_unavailable:503};
+const publicErrors:Readonly<Record<string,number>>={invalid_request:422,authorization_expired:410,authorization_conflict:409,unauthorized:401,session_changed:401,forbidden:403,management_entitlement_required:402,seat_limit_reached:403,feature_unavailable:404,rate_limited:429,service_unavailable:503,client_upgrade_required:409};
 function failure(error:unknown):Response {
   if(error instanceof UsDeviceError){const status=publicErrors[error.code];return status===error.status?json({error:error.code},status):json({error:'service_unavailable'},503);}
   if(error instanceof UsAuthorityError)return json({error:error.code==='subscription_required'?'management_entitlement_required':error.status===403?'forbidden':'service_unavailable'},error.status===422?503:error.status);
@@ -31,7 +35,7 @@ function approved(c:UsDeviceChallenge,a:UsDeviceAdmission):boolean {return c.org
 function cleanRow(row:UsDeviceSessionRow):UsDeviceSessionRow {
   try {
     const v=usDeviceExact(row,['session_id','device_code_hash','token_hash','installation_id','organization_id','user_id','role','subscription_id','supported_schema_version','created_at','expires_at','entitlement_valid_until','revoked_at']);
-    if(typeof v.session_id!=='string'||!v.session_id.startsWith('usd_')||!usDeviceUuid(v.session_id.slice(4))||!usDeviceHash(v.device_code_hash)||!usDeviceHash(v.token_hash)||!usDeviceUuid(v.installation_id)||!usDeviceUuid(v.organization_id)||!usDeviceUuid(v.user_id)||!isAccountRole(v.role)||typeof v.subscription_id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(v.subscription_id)||![1,2,3].includes(v.supported_schema_version as number)||!usDeviceSeconds(v.created_at)||!usDeviceSeconds(v.expires_at)||!usDeviceSeconds(v.entitlement_valid_until)||v.expires_at<=v.created_at||v.expires_at>v.entitlement_valid_until||v.expires_at>v.created_at+2592000||(v.revoked_at!==null&&(!usDeviceSeconds(v.revoked_at)||v.revoked_at<v.created_at)))throw new Error();
+    if(typeof v.session_id!=='string'||!v.session_id.startsWith('usd_')||!usDeviceUuid(v.session_id.slice(4))||!usDeviceHash(v.device_code_hash)||!usDeviceHash(v.token_hash)||!usDeviceUuid(v.installation_id)||!usDeviceUuid(v.organization_id)||!usDeviceUuid(v.user_id)||!isAccountRole(v.role)||typeof v.subscription_id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(v.subscription_id)||![1,2,3,4].includes(v.supported_schema_version as number)||!usDeviceSeconds(v.created_at)||!usDeviceSeconds(v.expires_at)||!usDeviceSeconds(v.entitlement_valid_until)||v.expires_at<=v.created_at||v.expires_at>v.entitlement_valid_until||v.expires_at>v.created_at+2592000||(v.revoked_at!==null&&(!usDeviceSeconds(v.revoked_at)||v.revoked_at<v.created_at)))throw new Error();
     return v as unknown as UsDeviceSessionRow;
   }catch{throw new UsDeviceError('service_unavailable',503);}
 }
@@ -95,10 +99,12 @@ export function createUsDeviceHandlers(deps:UsDeviceDependencies) {
     START(this:void,request:Request){return guard(request,async()=>{
       await enabled();if(request.headers.has('Authorization'))throw new UsDeviceError('unauthorized',401);
       await deps.rateLimit(request,'start','ip');const v=validateUsDeviceStart(await readJsonObjectWithinLimit(request,2048));
+      const capability=async()=>{const max=await deps.maxSchemaVersion?.()??3;if(![1,2,3,4].includes(max))throw new UsDeviceError('service_unavailable',503);if(v.supportedSchemaVersion>max)throw new UsDeviceError('client_upgrade_required',409);};
+      await capability();
       await deps.rateLimit(request,'start',v.installationId);const code=deps.newCode?.()??newUsDeviceCode(),codeHash=await hash('code',code),userCode=deps.newUserCode?.()??newUserCode();
       const store=await deps.store();await enabled();const timestamp=now();
       await store.start({codeHash,userCode,installationId:v.installationId,tokenHash:v.sessionTokenHash,schema:v.supportedSchemaVersion,now:timestamp});
-      await enabled();if(now()>=timestamp+600)throw new UsDeviceError('authorization_expired',410);return json({protocol:US_DEVICE_PROTOCOL,deviceCode:code,userCode,verificationUri:'https://zentraapp.ch/appareil/us?code='+encodeURIComponent(userCode),expiresAt:timestamp+600,interval:3,supportedSchemaVersion:v.supportedSchemaVersion},201);
+      await enabled();await capability();if(now()>=timestamp+600)throw new UsDeviceError('authorization_expired',410);return json({protocol:US_DEVICE_PROTOCOL,deviceCode:code,userCode,verificationUri:'https://zentraapp.ch/appareil/us?code='+encodeURIComponent(userCode),expiresAt:timestamp+600,interval:3,supportedSchemaVersion:v.supportedSchemaVersion},201);
     });},
     APPROVE(this:void,request:Request){return guard(request,async()=>{
       await enabled();requireAccountSameOrigin(request);const userId=await browser(request);await deps.rateLimit(request,'approve',userId);

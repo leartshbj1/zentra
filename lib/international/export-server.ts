@@ -35,7 +35,7 @@ const htmlPolicy = "default-src 'none'; script-src 'none'; connect-src 'none'; s
 const civilDate = (value: string) => !value.startsWith('0000-') && validDate(value);
 function invalid(): never { throw new ErpError('invalid_request', 422); }
 function unavailable(): never { throw new ErpError('service_unavailable', 503); }
-function schemaVersion(value: unknown): ErpSchemaVersion { if (value !== 1 && value !== 2 && value !== 3) return unavailable(); return value; }
+function schemaVersion(value: unknown): ErpSchemaVersion { if (value !== 1 && value !== 2 && value !== 3 && value !== 4) return unavailable(); return value; }
 interface ExportSchemaAdmission { client: ErpSchemaVersion; captured: ErpSchemaVersion; source: ErpSchemaVersion }
 function text(value: unknown, maximum: number): string {
   if (typeof value !== 'string' || !value || value !== value.trim() || value.length > maximum || Array.from(value).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) return invalid();

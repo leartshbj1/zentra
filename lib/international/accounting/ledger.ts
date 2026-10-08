@@ -25,7 +25,7 @@ export type JournalInput = Readonly<{
   reversesEntryId?: string;
 }>;
 export type PostedJournal = JournalInput & Readonly<{ postedBy: string; postedAt: string; revision: number; fingerprint: string }>;
-export type LedgerAuditEvent = Readonly<{ revision: number; action: 'posted' | 'period_closed'; actorId: string; timestamp: string; entityId: string }>;
+export type LedgerAuditEvent = Readonly<{ revision: number; action: 'posted' | 'period_closed' | 'period_opened'; actorId: string; timestamp: string; entityId: string }>;
 export type Ledger = Readonly<{
   organizationId: string;
   currency: Currency;

@@ -8,6 +8,7 @@ import { validateEstimate, estimateTotals, buildTaxRequest, invoiceFromEstimate,
 import { money } from './money';
 import { parseInstant } from './localization';
 import { recordProject } from './projects';
+import { closeUsAccountingPeriod, openUsAccountingPeriod, postUsManualJournal, reverseUsManualJournal, validateUsOpenPeriodInput } from './accounting/us-journal';
 import type { CompanyConfiguration } from './types';
 import type { ErpCommand, ErpCommit, ErpHeader, ErpReceipt, ErpState, ErpStore } from './runtime-types';
 
@@ -22,8 +23,8 @@ function authorize(config: CompanyConfiguration, actor: FinancialAuthority, comm
   parseInstant(actor.timestamp);
   if (!['owner','admin','accountant','member','read_only'].includes(actor.role)) throw new ErpError('forbidden',403);
   if (!command) return;
-  if (['initialize','refresh_configuration'].includes(command.type) && actor.role !== 'owner') throw new ErpError('owner_required',403);
-  const financial = ['issue_invoice','record_payment','close_period','save_vendor','record_vendor_bill','record_vendor_payment','save_projects'].includes(command.type);
+  if (['initialize','refresh_configuration','upgrade_accounting'].includes(command.type) && actor.role !== 'owner') throw new ErpError('owner_required',403);
+  const financial = ['issue_invoice','record_payment','close_period','save_vendor','record_vendor_bill','record_vendor_payment','save_projects','open_period','post_manual_journal','reverse_manual_journal'].includes(command.type);
   if (actor.role === 'read_only' || (financial && !['owner','admin','accountant'].includes(actor.role))) throw new ErpError('financial_permission_required',403);
 }
 const canonical = canonicalErpJson;
@@ -67,6 +68,9 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
   authorize(config,dependencies.actor,command);
   const purchasing = ['save_vendor','record_vendor_bill','record_vendor_payment'].includes(command.type);
   const capability=dependencies.store.supportedSchemaVersion??1;
+  if(![1,2,3,4].includes(capability))throw new ErpError('service_unavailable',503);
+  const accounting=['upgrade_accounting','open_period','post_manual_journal','reverse_manual_journal'].includes(command.type);
+  if(accounting&&capability<4)throw new ErpError('accounting_unavailable',409);
   if (purchasing && capability < 2) throw new ErpError('purchasing_unavailable',409);
   if (command.type==='save_projects' && capability < 3) throw new ErpError('projects_unavailable',409);
   const hash = await sha256Hex(canonical([config.organizationId,dependencies.actor.userId,request]));
@@ -86,10 +90,12 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
   let finalizePurchase: ((actor:FinancialAuthority)=>void)|null=null;
   if (command.type === 'initialize') {
     if (before) throw new ErpError('already_initialized',409);
-    state = {schemaVersion:1,revision:1,configuration:config,counters:{estimate:0,invoice:0},ledger:createLedger({organizationId:config.organizationId,currency:config.currency,basis:config.accountingBasis,accounts:nationalAdapter(config.country).starterChart,periods:command.periods}),customers:[],estimates:[],invoices:[]};
+    const periods=capability===4?command.periods.map(p=>({...validateUsOpenPeriodInput({id:p.id,start:p.start,end:p.end}),status:'open' as const})):command.periods;
+    state = {schemaVersion:capability===4?4:1,revision:1,configuration:config,counters:{estimate:0,invoice:0,...(capability===4?{project:0}:{})},ledger:createLedger({organizationId:config.organizationId,currency:config.currency,basis:config.accountingBasis,accounts:nationalAdapter(config.country).starterChart,periods}),customers:[],estimates:[],invoices:[],...(capability===4?{vendors:[],vendorBills:[],vendorPayments:[],projects:[]}:{})};
     entityId = config.organizationId;
   } else {
     if (!before) throw new ErpError('workspace_not_initialized',409);
+    if(accounting&&command.type!=='upgrade_accounting'&&before.schemaVersion!==4)throw new ErpError('accounting_upgrade_required',409);
     state = {...before,revision:nextCounter(before.revision)};
     if (purchasing && state.schemaVersion === 1) state = {...state,schemaVersion:2,vendors:[],vendorBills:[],vendorPayments:[]};
     switch (command.type) {
@@ -97,6 +103,29 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
         const immutable = (c:CompanyConfiguration)=>[c.schemaVersion,c.organizationId,c.country,c.currency,c.accountingBasis];
         if (canonical(immutable(before.configuration))!==canonical(immutable(config))) throw new ErpError('jurisdiction_locked',409);
         state={...state,configuration:config}; entityId=config.organizationId; break;
+      }
+      case 'upgrade_accounting': {
+        if(before.schemaVersion===4)throw new ErpError('accounting_already_upgraded',409);
+        if(before.schemaVersion!==3)throw new ErpError('accounting_upgrade_required',409);
+        state={...state,schemaVersion:4};entityId=config.organizationId;break;
+      }
+      case 'open_period': {
+        const {type:_type,...period}=command;
+        openUsAccountingPeriod(state.ledger,period,dependencies.actor,state.ledger.revision);
+        finalizePurchase=actor=>{state={...state,ledger:openUsAccountingPeriod(state.ledger,period,actor,state.ledger.revision)};};
+        entityId=command.id;break;
+      }
+      case 'post_manual_journal': {
+        const {type:_type,...input}=command;
+        postUsManualJournal(state.ledger,input,request.idempotencyKey,dependencies.actor,state.ledger.revision);
+        finalizePurchase=actor=>{state={...state,ledger:postUsManualJournal(state.ledger,input,request.idempotencyKey,actor,state.ledger.revision)};};
+        entityId=command.id;break;
+      }
+      case 'reverse_manual_journal': {
+        const {type:_type,...input}=command;
+        reverseUsManualJournal(state.ledger,input,request.idempotencyKey,dependencies.actor,state.ledger.revision);
+        finalizePurchase=actor=>{state={...state,ledger:reverseUsManualJournal(state.ledger,input,request.idempotencyKey,actor,state.ledger.revision)};};
+        entityId=command.id;break;
       }
       case 'save_customer': state = {...state,customers:replace(state.customers,command.customer)}; entityId=command.customer.id; break;
       case 'save_vendor': state = {...state,vendors:replace(state.vendors??[],command.vendor)}; entityId=command.vendor.id; break;
@@ -122,7 +151,7 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
         }
         const associations=new Set<string>();
         for(const project of [...oldProjects.filter(p=>!byId.has(p.id)),...command.projects])for(const billId of project.vendorBillIds){if(associations.has(billId))throw new ErpError('vendor_bill_project_conflict',409);associations.add(billId);}
-        state={...state,schemaVersion:3,counters:{...state.counters,project:counter},vendors:state.vendors??[],vendorBills:state.vendorBills??[],vendorPayments:state.vendorPayments??[],projects:oldProjects};
+        state={...state,schemaVersion:state.schemaVersion===4?4:3,counters:{...state.counters,project:counter},vendors:state.vendors??[],vendorBills:state.vendorBills??[],vendorPayments:state.vendorPayments??[],projects:oldProjects};
         finalizePurchase=actor=>{let projects=oldProjects;for(const input of command.projects){const previous=oldProjects.find(p=>p.id===input.id)??null;projects=replace(projects,recordProject(config,input,previous,numbers.get(input.id)!,actor));}state={...state,projects};};
         entityId=command.projects[0].id;break;
       }
@@ -158,7 +187,7 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
         if (state.invoices.some(i=>i.sourceEstimateId===command.id)) throw new ErpError('issued_estimate_locked',409);
         const customer = state.customers.find(c=>c.id===command.customerId); if (!customer) throw new ErpError('customer_required');
         if(command.projectId){
-          if(state.schemaVersion===3){const project=state.projects?.find(project=>project.id===command.projectId);if(!project)throw new ErpError('project_not_found',422);if(project.status!=='active')throw new ErpError('project_archived',409);if(project.customerId!==command.customerId)throw new ErpError('project_customer_mismatch',422);}
+          if(state.schemaVersion>=3){const project=state.projects?.find(project=>project.id===command.projectId);if(!project)throw new ErpError('project_not_found',422);if(project.status!=='active')throw new ErpError('project_archived',409);if(project.customerId!==command.customerId)throw new ErpError('project_customer_mismatch',422);}
           else if(!dependencies.projectExists || !await dependencies.projectExists(config.organizationId,command.projectId))throw new ErpError('project_not_found',422);
         }
         command.lines.forEach(line=>lineTotals(line,config.currency));
@@ -191,16 +220,28 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
         if (actor.userId!==dependencies.actor.userId) throw new ErpError('session_changed',401);
         const n = nextCounter(state.counters.invoice);
         const invoice = invoiceFromEstimate(config,estimate,{id:command.id,number:`${config.invoiceNumberPrefix}-${String(n).padStart(6,'0')}`,date:command.date,accountingDate:command.accountingDate,dueDate:command.dueDate},assessment,{...actor,canIssue:true} satisfies InvoicingAuthority,seller);
-        state = {...state,counters:{...state.counters,invoice:n},invoices:[...state.invoices,invoice],ledger:postCustomerInvoice(config,state.ledger,invoice,command.periodId,actor)}; entityId=invoice.id; break;
+        if(state.schemaVersion===4){
+          postCustomerInvoice(config,state.ledger,invoice,command.periodId,actor);
+          finalizePurchase=fresh=>{const issued=invoiceFromEstimate(config,estimate,{id:command.id,number:`${config.invoiceNumberPrefix}-${String(n).padStart(6,'0')}`,date:command.date,accountingDate:command.accountingDate,dueDate:command.dueDate},assessment,{...fresh,canIssue:true},seller);state={...state,counters:{...state.counters,invoice:n},invoices:[...state.invoices,issued],ledger:postCustomerInvoice(config,state.ledger,issued,command.periodId,fresh)};};
+        }else state = {...state,counters:{...state.counters,invoice:n},invoices:[...state.invoices,invoice],ledger:postCustomerInvoice(config,state.ledger,invoice,command.periodId,actor)};
+        entityId=invoice.id; break;
       }
       case 'record_payment': {
         const invoice = state.invoices.find(i=>i.id===command.invoiceId); if (!invoice) throw new ErpError('invoice_not_found',404);
         periodOpen(state,command.periodId,command.accountingDate);
         const payment = {id:command.id,idempotencyKey:request.idempotencyKey,organizationId:config.organizationId,invoiceId:invoice.id,amount:money(config.currency,command.amountMinor),paymentDate:command.paymentDate,accountingDate:command.accountingDate,reference:command.reference,recordedBy:dependencies.actor.userId};
         const paid = recordCustomerPayment(config,invoice,payment,{...dependencies.actor,canIssue:true});
-        state = {...state,invoices:replace(state.invoices,paid),ledger:postCustomerPayment(config,state.ledger,invoice,payment,command.periodId,dependencies.actor)}; entityId=command.id; break;
+        if(state.schemaVersion===4){
+          postCustomerPayment(config,state.ledger,invoice,payment,command.periodId,dependencies.actor);
+          finalizePurchase=actor=>{const confirmed=recordCustomerPayment(config,invoice,payment,{...actor,canIssue:true});state={...state,invoices:replace(state.invoices,confirmed),ledger:postCustomerPayment(config,state.ledger,invoice,payment,command.periodId,actor)};};
+        }else state = {...state,invoices:replace(state.invoices,paid),ledger:postCustomerPayment(config,state.ledger,invoice,payment,command.periodId,dependencies.actor)};
+        entityId=command.id; break;
       }
-      case 'close_period': state={...state,ledger:closePeriod(state.ledger,command.periodId,dependencies.actor,state.ledger.revision)}; entityId=command.periodId; break;
+      case 'close_period': {
+        if(state.schemaVersion===4){closeUsAccountingPeriod(state.ledger,command.periodId,dependencies.actor,state.ledger.revision);finalizePurchase=actor=>{state={...state,ledger:closeUsAccountingPeriod(state.ledger,command.periodId,actor,state.ledger.revision)};};}
+        else state={...state,ledger:closePeriod(state.ledger,command.periodId,dependencies.actor,state.ledger.revision)};
+        entityId=command.periodId;break;
+      }
     }
   }
   const fresh = await dependencies.revalidate(); authorize(config,fresh,command);

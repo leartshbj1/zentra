@@ -38,7 +38,7 @@ const revision = (raw: string | null): number => {
 export function createBrowserExportSession(options: { organizationId: string; expectedUserId: string; supportedSchemaVersion?: ErpSchemaVersion; fetch?: typeof globalThis.fetch; timeoutMs?: number }): BrowserExportSession {
   const { organizationId, expectedUserId } = options, capability = options.supportedSchemaVersion ?? 1;
   browserExportUrl(organizationId, { kind: 'report', reportType: 'trial_balance', asOf: '2026-01-01' }, 'en', 'json');
-  if (!expectedUserId || expectedUserId.trim() !== expectedUserId || expectedUserId.length > 256 || Array.from(expectedUserId).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) || ![1, 2, 3].includes(capability)) throw new BrowserExportError('invalid_export_selector', 422);
+  if (!expectedUserId || expectedUserId.trim() !== expectedUserId || expectedUserId.length > 256 || Array.from(expectedUserId).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) || ![1, 2, 3, 4].includes(capability)) throw new BrowserExportError('invalid_export_selector', 422);
   const fetcher = options.fetch ?? globalThis.fetch.bind(globalThis), controllers = new Set<AbortController>(), urls = new Set<string>(), timers = new Set<ReturnType<typeof setTimeout>>(), cancellations = new Set<(reason: BrowserExportError) => void>(), ownedResults = new WeakSet<BrowserExportResult>();
   let disposed = false, epoch = 0;
   const alive = (started: number) => { if (disposed || started !== epoch) throw new BrowserExportError('session_changed', 0, true); };

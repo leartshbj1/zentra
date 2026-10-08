@@ -15,6 +15,7 @@ import { createUsTaxProfileHandlers } from './us-tax-profile-server';
 import type { ErpSchemaVersion } from './erp-schema-capability';
 import { requireUsDeviceSession } from './us-device-bindings';
 import { UsDeviceError } from './us-device-contract';
+import { erpClientSchemaVersion } from './erp-schema-capability';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -25,7 +26,7 @@ async function enabled(){
  * client's header, country, language, subscription or existing CHF licence. */
 export async function usPurchasingSchemaVersion(clientSchemaVersion:ErpSchemaVersion=1):Promise<ErpSchemaVersion>{
   if(clientSchemaVersion===1)return 1;
-  try {const {env}=await import('cloudflare:workers');const flags=env as unknown as {INTERNATIONAL_US_PURCHASING_V2_ENABLED?:string;INTERNATIONAL_US_PROJECTS_V3_ENABLED?:string};if(flags.INTERNATIONAL_US_PURCHASING_V2_ENABLED!=='true')return 1;return clientSchemaVersion===3&&flags.INTERNATIONAL_US_PROJECTS_V3_ENABLED==='true'?3:2;}
+  try {const {env}=await import('cloudflare:workers');const flags=env as unknown as {INTERNATIONAL_US_PURCHASING_V2_ENABLED?:string;INTERNATIONAL_US_PROJECTS_V3_ENABLED?:string;INTERNATIONAL_US_ACCOUNTING_V4_ENABLED?:string};if(flags.INTERNATIONAL_US_PURCHASING_V2_ENABLED!=='true')return 1;if(clientSchemaVersion<3||flags.INTERNATIONAL_US_PROJECTS_V3_ENABLED!=='true')return 2;return clientSchemaVersion===4&&flags.INTERNATIONAL_US_ACCOUNTING_V4_ENABLED==='true'?4:3;}
   catch{return 1;}
 }
 async function authority(request:Request,organizationId:string):Promise<{mode:'browser'|'device';actor:FinancialAuthority}>{
@@ -35,6 +36,10 @@ async function authority(request:Request,organizationId:string):Promise<{mode:'b
     try { session=await requireUsDeviceSession(request); }
     catch(error){if(error instanceof UsDeviceError)throw new ErpError(error.code,error.status);throw error;}
     if(session.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
+    if(![1,2,3,4].includes(session.supportedSchemaVersion))throw new ErpError('service_unavailable',503);
+    // Captured credential support is immutable. A newer header alone cannot
+    // upgrade an older installation's financial protocol or reveal a v4 book.
+    if(erpClientSchemaVersion(request)>session.supportedSchemaVersion)throw new ErpError('client_upgrade_required',409);
     userId=session.userId;deviceRole=session.role;mode='device';
   }else{
     const user=await(await import('../../app/zentra-auth')).getZentraUser({offerAccess:false});

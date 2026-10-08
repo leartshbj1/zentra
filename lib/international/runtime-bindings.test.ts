@@ -16,13 +16,26 @@ import { GET as taxGET, PUT as taxPUT } from '../../app/api/international/worksp
 const org='fictitious-us-binding';
 const request=(bearer=false)=>new Request('https://zentraapp.ch/erp',{headers:bearer?{Authorization:'Bearer fictitious-session'}:{}});
 beforeEach(()=>{
-  vi.clearAllMocks();f.device.mockResolvedValue({organizationId:org,userId:'device-user',role:'accountant'});
+  vi.clearAllMocks();f.device.mockResolvedValue({organizationId:org,userId:'device-user',role:'accountant',supportedSchemaVersion:3});
   f.user.mockResolvedValue({userId:'browser-user'});f.membership.mockResolvedValue({organizationId:org,role:'member'});
   f.seats.mockResolvedValue({subscriptionActive:true});f.select.mockResolvedValue([]);
   f.rpc.mockResolvedValue({status:'unconfigured',organizationId:org,revision:0});
   f.usAccess.mockImplementation(async (_org:string,userId:string)=>({organizationId:org,userId,role:userId==='device-user'?'accountant':'member',subscriptionId:'sub_US',seatLimit:3}));
 });
 describe('actual ERP authority bindings',()=>{
+  it('refuses a v4 header on an immutable v3 credential before reading US rights',async()=>{
+    const req=new Request('https://zentraapp.ch/erp',{headers:{Authorization:'Bearer fictitious-session','X-Zentra-Erp-Schema-Version':'4'}});
+    await expect(binding.authority(req,org)).rejects.toMatchObject({code:'client_upgrade_required',status:409});expect(f.usAccess).not.toHaveBeenCalled();expect(f.select).not.toHaveBeenCalled();expect(f.user).not.toHaveBeenCalled();
+  });
+  it('admits a captured v4 credential only through fresh US rights',async()=>{
+    f.device.mockResolvedValue({organizationId:org,userId:'device-user',role:'accountant',supportedSchemaVersion:4});
+    const req=new Request('https://zentraapp.ch/erp',{headers:{Authorization:'Bearer fictitious-session','X-Zentra-Erp-Schema-Version':'4'}});
+    expect((await binding.authority(req,org)).actor.role).toBe('accountant');expect(f.usAccess).toHaveBeenCalledWith(org,'device-user');expect(f.user).not.toHaveBeenCalled();
+  });
+  it('fails closed for an invalid captured capability rather than trusting the header',async()=>{
+    f.device.mockResolvedValue({organizationId:org,userId:'device-user',role:'accountant'});
+    await expect(binding.authority(request(true),org)).rejects.toMatchObject({code:'service_unavailable',status:503});expect(f.usAccess).not.toHaveBeenCalled();
+  });
   it('selects only the US native reader and never the CH reader or browser cookies',async()=>{
     expect((await binding.authority(request(true),org)).mode).toBe('device');
     expect(f.device).toHaveBeenCalledOnce();expect(f.chDevice).not.toHaveBeenCalled();expect(f.user).not.toHaveBeenCalled();

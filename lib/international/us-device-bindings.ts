@@ -5,6 +5,13 @@ import { requireUsWorkspaceAccess } from './saas-authority-d1';
 import { getWorkspaceCountry } from './workspace-service';
 import { canonicalCreationJson } from './workspace-creation';
 import type { AccountRole } from '../account-security';
+import type { ErpSchemaVersion } from './erp-schema-capability';
+
+/** Only new pairing can capture4, after every independent server gate is on.
+ * Previously captured credentials are never silently promoted or rewritten. */
+export async function usNativeMaximumSchemaVersion():Promise<ErpSchemaVersion>{
+  try{const {env}=await import('cloudflare:workers');const flags=env as unknown as Record<string,string|undefined>;return ['INTERNATIONAL_CORE_ENABLED','INTERNATIONAL_US_ERP_ENABLED','INTERNATIONAL_US_NATIVE_ADMISSION_ENABLED','INTERNATIONAL_US_PURCHASING_V2_ENABLED','INTERNATIONAL_US_PROJECTS_V3_ENABLED','INTERNATIONAL_US_ACCOUNTING_V4_ENABLED'].every(name=>flags[name]==='true')?4:3;}catch{return 3;}
+}
 
 /** Fresh and default closed; no data query or implicit CH entitlement. */
 export async function usNativeAdmissionEnabled():Promise<boolean>{
@@ -29,6 +36,7 @@ async function access(organizationId:string,userId:string):Promise<UsDeviceAdmis
 }
 export const usDeviceHandlers=createUsDeviceHandlers({
   enabled:usNativeAdmissionEnabled,
+  maxSchemaVersion:usNativeMaximumSchemaVersion,
   async user(){return(await import('../../app/zentra-auth')).getZentraUser({offerAccess:false,refreshSession:true});},
   access,
   async store(){return d1UsDeviceStore((await import('../runtime')).database());},

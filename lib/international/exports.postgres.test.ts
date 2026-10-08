@@ -112,7 +112,7 @@ const history = (org: string) => serviceSql('select (select row_to_json(h)::text
 function handlers(f: Fixture) {
   return createUsExportHandlers({ enabled: () => true, authority: async () => ({ mode: 'browser', actor: { ...f.dependencies.actor, timestamp: new Date(Date.now() + 86_400_000).toISOString() } }), configuration: async () => f.dependencies.configuration, store: () => f.store, seller: async actor => { const state = await getUsSellerProfile(f.client, actor); return state.status === 'configured' ? validatePublicSellerSnapshot({ organizationId: f.org, ...state.profile }, f.org) : null; }, rateLimit: async () => {}, fonts: getUsExportFonts });
 }
-const exportRequest = (f: Fixture, query: string, capability: 1 | 2 | 3 = f.store.supportedSchemaVersion ?? 1) => new Request(`https://zentra.test/exports?${query}`, { headers: { 'X-Zentra-Expected-User': f.user, 'X-Zentra-Erp-Schema-Version': String(capability) } });
+const exportRequest = (f: Fixture, query: string, capability: 1 | 2 | 3 | 4 = f.store.supportedSchemaVersion ?? 1) => new Request(`https://zentra.test/exports?${query}`, { headers: { 'X-Zentra-Expected-User': f.user, 'X-Zentra-Erp-Schema-Version': String(capability) } });
 describe.runIf(enabled)('durable US HTTP exports with local PostgreSQL and real PDF', () => {
   beforeAll(async () => {
     expect(JSON.parse(await readFile(join(moduleDirectory!, 'package.json'), 'utf8')).name).toBe('@electric-sql/pglite');

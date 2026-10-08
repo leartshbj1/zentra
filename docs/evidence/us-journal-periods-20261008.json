@@ -1,0 +1,704 @@
+{
+  "phase": "US journal and periods v4",
+  "date": "2026-10-08",
+  "recordedAt": "2026-10-08T17:15:47.206525+00:00",
+  "publication": {
+    "publicMenu": {
+      "commit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "version": 355,
+      "status": "succeeded",
+      "url": "https://www.zentraapp.ch",
+      "productionUsCode": false
+    },
+    "usPhasePublished": false,
+    "productionMigrations": false,
+    "productionPriceOrProviderChanges": false
+  },
+  "web": {
+    "workspace": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site",
+    "baseCommit": "90d131646a352e149c03b80b9260ec8eda724a2d",
+    "files": [
+      {
+        "path": ".gitattributes",
+        "status": "created",
+        "sha256": "8dd7cc9ebe7c89125b9aa0a81f10bdec0556aefd492e29eef9d989eef9e73cb7"
+      },
+      {
+        "path": "components/account/us-erp-accounting.css",
+        "status": "created",
+        "sha256": "43892bfa97a7b50c394c097f29d6cfdc52b018fd07c43d7dbbc5b85de27ff606"
+      },
+      {
+        "path": "components/account/us-erp-accounting.tsx",
+        "status": "created",
+        "sha256": "62f7b673e414711829da6850e40a07a5717cdf758ab29a54dc32bc486e15d979"
+      },
+      {
+        "path": "components/account/us-erp-reports.tsx",
+        "status": "modified",
+        "sha256": "029cf55aeaa034080354b1cf47584b40001fdbfcbcdb51763005aa77eaad0351"
+      },
+      {
+        "path": "components/account/us-erp-workbench.tsx",
+        "status": "modified",
+        "sha256": "00351d4d46aad56b008586eeecb0afe548b14f8f7f6577c3aa2e1c6a76ba67b0"
+      },
+      {
+        "path": "docs/evidence/us-journal-domain-source-freeze-20261008.json",
+        "status": "created",
+        "sha256": "cc1098be27bd9746def03a412c05f20b2c2b8b3cf6a6fdd890b76b2770348b85"
+      },
+      {
+        "path": "docs/evidence/us-journal-periods-20261008.json",
+        "status": "created",
+        "sha256": null,
+        "note": "self-referential delivery artifacts excluded from hashing"
+      },
+      {
+        "path": "docs/internationalization/NATIVE-US-JOURNAL-PERIODS-DELIVERY-20261008.md",
+        "status": "created",
+        "sha256": "ce7dddc048361185b86742471e1054c5e10abe40c7e8ece0ce8a0a72dca6d3bb"
+      },
+      {
+        "path": "docs/internationalization/US-JOURNAL-PERIODS-CONTRACT-20261008.md",
+        "status": "created",
+        "sha256": "6a5f584a9673d2722bd2e9acf8b20bdc634282e0599fcdd1b7ac9fe1beac5fc1"
+      },
+      {
+        "path": "docs/internationalization/US-JOURNAL-PERIODS-DELIVERY-20261008.md",
+        "status": "created",
+        "sha256": null,
+        "note": "self-referential delivery artifacts excluded from hashing"
+      },
+      {
+        "path": "docs/internationalization/US-JOURNAL-PERIODS-STORAGE-EVIDENCE-20261008.md",
+        "status": "created",
+        "sha256": "1674bb52d72ea9828dc65c13797de6453e2f3cf41023947aa09be557ee0cf026"
+      },
+      {
+        "path": "drizzle/0089_international_us_device_capability_v4.sql",
+        "status": "created",
+        "sha256": "18145da9ad4d057da39088daa8ec8cb53e4b1d9443158c3c5faf60bdfb78712a"
+      },
+      {
+        "path": "lib/international/accounting-exports.test.ts",
+        "status": "created",
+        "sha256": "ea91e019b9ec046e6347490a9d89c34e967afe8027fd93a152d5ad656779f4c3"
+      },
+      {
+        "path": "lib/international/accounting-runtime.test.ts",
+        "status": "created",
+        "sha256": "a1c737ee3238666d84f9220e3beb9bfb34e99c4b991e35fff9e6f70b87f16235"
+      },
+      {
+        "path": "lib/international/accounting/ledger.ts",
+        "status": "modified",
+        "sha256": "23fbd7a415f206dd88dabfb02d7cc43751cd68d22f70af5185ad7092aa8cbda3"
+      },
+      {
+        "path": "lib/international/accounting/us-journal.test.ts",
+        "status": "created",
+        "sha256": "cd3d411439ef215afc3b4126db862780e73ee845c78662a7f478fabc7c81424f"
+      },
+      {
+        "path": "lib/international/accounting/us-journal.ts",
+        "status": "created",
+        "sha256": "05ed04c36b76cff010c6c93880ecb7b2c9d3a08d54e14ddad693c26e2026ebe1"
+      },
+      {
+        "path": "lib/international/browser-accounting-copy.ts",
+        "status": "created",
+        "sha256": "f417a1b6d433db0be9ec8f49cefcf1c6e408258038708d05d99449a0e3949548"
+      },
+      {
+        "path": "lib/international/browser-accounting.browser.test.ts",
+        "status": "created",
+        "sha256": "e241f730f5aa4e29c431cbe652dc505c8d66cf66a6d59f55b4141d75102f2025"
+      },
+      {
+        "path": "lib/international/browser-accounting.test.ts",
+        "status": "created",
+        "sha256": "cb79d2580b3cfc160a419f046ffff774434abada926b24a9a393365b34889e47"
+      },
+      {
+        "path": "lib/international/browser-accounting.ts",
+        "status": "created",
+        "sha256": "9f0c7916112c1345142f2132bfea95956afcdf0f237043f600007124f11bd4ba"
+      },
+      {
+        "path": "lib/international/browser-erp-session.ts",
+        "status": "modified",
+        "sha256": "fbdba38ba6ad8a7b8f11a0cba644ac08ded7ddd37d27b4347a5386212aed8297"
+      },
+      {
+        "path": "lib/international/browser-export-session.ts",
+        "status": "modified",
+        "sha256": "cbe28fcc777e285ec2cfb9846b01069e14e168bad58e0ae53ce85c7f2a209630"
+      },
+      {
+        "path": "lib/international/browser-projects.ts",
+        "status": "modified",
+        "sha256": "3217609a31926a07854f3493b8c5c342acfffe1cfad33e9d6fc68596152f09c9"
+      },
+      {
+        "path": "lib/international/erp-request.ts",
+        "status": "modified",
+        "sha256": "595dab28bc17d10ca0757d912e317265deb8c350f462a3c3192d1f11a8a8be95"
+      },
+      {
+        "path": "lib/international/erp-schema-capability.ts",
+        "status": "modified",
+        "sha256": "7f1bd9cf522c96a38a3f04959b3ca2eca27d4652242b001e72ae2647a3a14d1a"
+      },
+      {
+        "path": "lib/international/export-bindings.ts",
+        "status": "modified",
+        "sha256": "ed487ad290b91625635035645c6b706c64f79ccb39d41d04d893e2767d7c36ad"
+      },
+      {
+        "path": "lib/international/export-server.test.ts",
+        "status": "modified",
+        "sha256": "72da91b71bf239dcf68dd3e81a3254fd1cfa8b57738e2aeee359d39286a3cd62"
+      },
+      {
+        "path": "lib/international/export-server.ts",
+        "status": "modified",
+        "sha256": "c314faaff710191ef23dc0670c205aef78a8c7ae7d03a8f940e16d39c20f6e93"
+      },
+      {
+        "path": "lib/international/export-snapshot.ts",
+        "status": "modified",
+        "sha256": "f360993df6ff99b20925fd9370d382e438f158cc2e6ec2f93bc9b88a6b6a68b7"
+      },
+      {
+        "path": "lib/international/exports.postgres.test.ts",
+        "status": "modified",
+        "sha256": "6b0592ebcd1c359e927fb5646acffade6389165f89040c79d0a84bb58a36bd9a"
+      },
+      {
+        "path": "lib/international/journal-periods.postgres.test.ts",
+        "status": "created",
+        "sha256": "b8efb8912df63be24c6d43d74c2e28e4cc5053a4ac3cb539023f59b8aebc73a6"
+      },
+      {
+        "path": "lib/international/projects-transport.test.ts",
+        "status": "modified",
+        "sha256": "8037ff567f5f935337ae4719cbbf57379154661e9e16a3ed02da7c39a6f3b6a4"
+      },
+      {
+        "path": "lib/international/projects.postgres.test.ts",
+        "status": "modified",
+        "sha256": "6b90f0c975e0c42f5ea0763e3fe9e30024fac1d1ad509d4a9813fbc9ff21a0ed"
+      },
+      {
+        "path": "lib/international/purchasing-transport.test.ts",
+        "status": "modified",
+        "sha256": "e6ba05f75661ff3c1144f5d1384f02974ffeceeff026727e6cd369acf260b188"
+      },
+      {
+        "path": "lib/international/runtime-bindings.test.ts",
+        "status": "modified",
+        "sha256": "fd818e3916c1d4717dfdd3b8124f952855b545981b1247e78247cac0211b9c27"
+      },
+      {
+        "path": "lib/international/runtime-bindings.ts",
+        "status": "modified",
+        "sha256": "10abdc3a296ac85811593612bb5d4463100b09d14584034e42b72a8ae05271ab"
+      },
+      {
+        "path": "lib/international/runtime-postgres.test.ts",
+        "status": "modified",
+        "sha256": "52637e83a1eaa6544955ddcd0325f880e90f14fb36eb42ac691f11f27d530735"
+      },
+      {
+        "path": "lib/international/runtime-server.test.ts",
+        "status": "modified",
+        "sha256": "7657f4684a0bff3e6b3436e43534e6421403d5ac3018b3034c5ca0734a1087d0"
+      },
+      {
+        "path": "lib/international/runtime-server.ts",
+        "status": "modified",
+        "sha256": "044b8d27a2721c886960fdbe46b2cb0f38b02059ff65df796cef2159b0f4acec"
+      },
+      {
+        "path": "lib/international/runtime-store.ts",
+        "status": "modified",
+        "sha256": "6ec35bfefeb711953e5dff2976eda3430d71ac6002f8ec2339572e52dbbe3cd5"
+      },
+      {
+        "path": "lib/international/runtime-sync-store.ts",
+        "status": "modified",
+        "sha256": "61f17a2143065df8fb045527c61706c0275a823c631552955f840722531b35bb"
+      },
+      {
+        "path": "lib/international/runtime-sync.ts",
+        "status": "modified",
+        "sha256": "e4dd34b6329219a5c1f82728c4073ae3c705035d0052cc45bd28b81d715f9573"
+      },
+      {
+        "path": "lib/international/runtime-types.ts",
+        "status": "modified",
+        "sha256": "8f9ca079e4d6b13f74e8444383306a9108b64dfc12ecb3399c4b3be11ce1df38"
+      },
+      {
+        "path": "lib/international/runtime-validation.ts",
+        "status": "modified",
+        "sha256": "7ff8cf7301f6dde41bb7d845facf93a3ac82d007f4ddd046ae25b45568608708"
+      },
+      {
+        "path": "lib/international/runtime.ts",
+        "status": "modified",
+        "sha256": "b6168116d9cec30fa7372c4942c3cf04861d3f2a3760854ffee899d2d4f40064"
+      },
+      {
+        "path": "lib/international/us-device-bindings.test.ts",
+        "status": "modified",
+        "sha256": "c08c450b6ad7ec69fe81c67ce41954aae9cf205aebbd7b863170216f27bb4d3c"
+      },
+      {
+        "path": "lib/international/us-device-bindings.ts",
+        "status": "modified",
+        "sha256": "9fa2c2e20fd8963d9f6cd78389f900e312c0c4bc9ccde908bae28de5d05d38fb"
+      },
+      {
+        "path": "lib/international/us-device-capability-v4.test.ts",
+        "status": "created",
+        "sha256": "953e5d417c62324487b6536390d204a52da92140caee0e998468b24bad23a2c6"
+      },
+      {
+        "path": "lib/international/us-device-contract.ts",
+        "status": "modified",
+        "sha256": "92571dc7df925b3db4376c651fa60d3bd049e0c27c89be9927147960a9b88917"
+      },
+      {
+        "path": "lib/international/us-device-d1.ts",
+        "status": "modified",
+        "sha256": "e6f506e1bf5f56a5ed3828be3faa199b4a8154bb3062bce5614b686a6d45389d"
+      },
+      {
+        "path": "lib/international/us-device-server.ts",
+        "status": "modified",
+        "sha256": "2b5ee02973d500c70a35b844d8140da13801f5d3c07a51f8c4f71363133f1126"
+      },
+      {
+        "path": "lib/international/us-device-test-fixture.ts",
+        "status": "modified",
+        "sha256": "7452613c49e6905dd6c1d6bedde1692e8925728cd040e74d1258f7ce16c46b32"
+      },
+      {
+        "path": "lib/international/us-device-workerd.test.ts",
+        "status": "modified",
+        "sha256": "b96f197cbb0c197d1d6fdb826f8a3aa0ac9114e2b9f3114107fbca24386edad8"
+      },
+      {
+        "path": "supabase/migrations/20261008161118_international_us_journal_periods_v4.sql",
+        "status": "created",
+        "sha256": "3d33a8ff4406a72c5a82a42bdc67bf6a02885b02745cc81fce8976bb10c2a31c"
+      }
+    ],
+    "tests": {
+      "files": 28,
+      "passed": 770,
+      "failed": 0,
+      "skipped": 0,
+      "selection": [
+        "lib/international/accounting/us-journal.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/purchasing-composition.test.ts",
+        "lib/international/finance.test.ts",
+        "lib/international/projects-transport.test.ts",
+        "lib/international/purchasing-transport.test.ts",
+        "lib/international/export-server.test.ts",
+        "lib/international/journal-periods.postgres.test.ts",
+        "lib/international/projects.postgres.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-workerd.test.ts",
+        "lib/international/browser-accounting.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/browser-erp-session.test.ts",
+        "lib/international/browser-export-session.test.ts",
+        "lib/international/accounting-exports.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-error.test.ts",
+        "lib/international/native-purchasing-exports.integration.test.ts",
+        "lib/international/browser-accounting.browser.test.ts"
+      ],
+      "overlap": "Includes the105 storage and domain subgroup tests; do not add them again.",
+      "log": "root-tests-final.log",
+      "reportSha256": "b9ef57a482f3428b6bbe03b3173226657a1709c7eb188ce34d3e1abfaa15f374",
+      "sourceUnchanged": true
+    },
+    "checks": {
+      "typecheck": {
+        "exitCode": 0,
+        "log": "root-tsc-final.log"
+      },
+      "lintSyntax": {
+        "exitCode": 0,
+        "log": "root-lint-syntax-final.log"
+      },
+      "build": {
+        "exitCode": 0,
+        "log": "root-build-final.log"
+      },
+      "diffCheck": {
+        "exitCode": 0,
+        "log": "root-diff-check-final.log"
+      }
+    },
+    "syntaxLintFiles": 45,
+    "visual": {
+      "configurations": 24,
+      "errors": 0,
+      "horizontalOverflow": 0,
+      "languages": [
+        "fr",
+        "en",
+        "de",
+        "it"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "widths": [
+        1200,
+        390,
+        320
+      ],
+      "de320Text200Percent": true,
+      "selectedTabMinimumContrast": 7.0443533588072995,
+      "localEvidenceSha256": "608f62ca9019a7a10910a1bad5e3bc216bb81a43920f868174db4f16cadd7683"
+    },
+    "sourceProofSha256": "74c1c5916630b731134a6e4f5418ee7885786ef532fbe13ab1502287f9924a3e"
+  },
+  "native": {
+    "workspace": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-native-admission",
+    "baseCommit": "59d1c771a00b1c8502ab270c187222d42e390c11",
+    "files": [
+      {
+        "path": ".gitattributes",
+        "status": "modified",
+        "sha256": "3d7f8145ef5f86f8fd7670336c990c23faaef2f4ff244136bde66ad1231bbdb9"
+      },
+      {
+        "path": "desktop/scripts/align-international-domain.mjs",
+        "status": "modified",
+        "sha256": "be66ed96344444b2276c06bb6618a6eb1e852ecaf2f3cf6a42b213b1277e68eb"
+      },
+      {
+        "path": "desktop/src-tauri/src/international_erp.rs",
+        "status": "modified",
+        "sha256": "3930a40825ff4165bb6576d595e67cbebcd700fc0a09c9e9e9e423abf289a9aa"
+      },
+      {
+        "path": "desktop/src-tauri/src/us_admission.rs",
+        "status": "modified",
+        "sha256": "635c95e66a54886ef1700b6e20a79eb951c21840e4a419dc16e39559cf09a89a"
+      },
+      {
+        "path": "desktop/src-tauri/src/us_admission_tests.rs",
+        "status": "modified",
+        "sha256": "c2ddeaeed49392085a14260edb4a64d49cadd7349da0fde797c7d74474410872"
+      },
+      {
+        "path": "desktop/src-tauri/src/us_exports.rs",
+        "status": "modified",
+        "sha256": "0df6bb8dbfae0cd3ee2581bd5402fa92934c37d231706ecaa07eac4edd26244f"
+      },
+      {
+        "path": "desktop/src-tauri/src/us_exports_tests.rs",
+        "status": "modified",
+        "sha256": "53cded31113036c100afbcc53f81e0efb5beefb389b87376eadec430623f4ba2"
+      },
+      {
+        "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.json",
+        "status": "modified",
+        "sha256": "04a0c4892e5c153e4bd43b60d1d277477d1f258b4d7d28749f6a9bd141e4e564"
+      },
+      {
+        "path": "desktop/src-tauri/tests/fixtures/us-native-domain-vectors.manifest.json",
+        "status": "modified",
+        "sha256": "ef99de4ea83875b73ead2fe0c3312ee3e637ef8db8badbee79c69a113abaa5ae"
+      },
+      {
+        "path": "desktop/src/InternationalErpPilot.test.tsx",
+        "status": "modified",
+        "sha256": "241601e972498ed50f4d88e723bece9db470e735fd79b5cb049a3c5e6a884bf9"
+      },
+      {
+        "path": "desktop/src/InternationalErpPilot.tsx",
+        "status": "modified",
+        "sha256": "b82596f7e16d2f9f320b59a447fcf7e0315164907e1bac6a61a7ba808e8b4733"
+      },
+      {
+        "path": "desktop/src/NativeAdmissionRoot.tsx",
+        "status": "modified",
+        "sha256": "e2606fb4a0339e07c7d4453cf82f4b7e46ff789a9383d5ed53cf644ee537046c"
+      },
+      {
+        "path": "desktop/src/NativeUsAccounting.test.tsx",
+        "status": "created",
+        "sha256": "26ae1fc2b5b25fcc31a82f736fb73c27c0ce9c1451f8fee33fcd8ca25469e7fe"
+      },
+      {
+        "path": "desktop/src/NativeUsAccounting.tsx",
+        "status": "created",
+        "sha256": "4cee3fb7caf10c592981411954ab148eb6daef1e34716ad0f5c5cee81f48adfd"
+      },
+      {
+        "path": "desktop/src/internationalErp.ts",
+        "status": "modified",
+        "sha256": "74492d2ad26fa7642dcc6f8034899d5db0a677880bf79e3c674aff541ea1e55c"
+      },
+      {
+        "path": "desktop/src/nativeAdmission.test.ts",
+        "status": "modified",
+        "sha256": "2b3a84f677354fe4ce99738abe0acecd26884495ac243a0315039eb80e818237"
+      },
+      {
+        "path": "desktop/src/nativeAdmission.ts",
+        "status": "modified",
+        "sha256": "db1c1a115ab3f0d34e68d6ffd38af1d025f1fcaddd620da34e87eb370922209c"
+      },
+      {
+        "path": "desktop/src/nativeSharedDomain.test.ts",
+        "status": "modified",
+        "sha256": "104799a7f8918c0f1e812567bf50068923425cef1991ca96f10e2b737aef50b5"
+      },
+      {
+        "path": "desktop/src/nativeUsAccountingBoundary.test.ts",
+        "status": "created",
+        "sha256": "5fac67b9a8c091e1ada26a8d8a9ad67d8c10265d6a43951e2b435b3abcb50760"
+      },
+      {
+        "path": "desktop/src/nativeUsAccountingForms.test.ts",
+        "status": "created",
+        "sha256": "95455bbcb10db6173108b4236e26de225cabc4edfe4aa79713a70fa8df1ce399"
+      },
+      {
+        "path": "desktop/src/nativeUsAccountingForms.ts",
+        "status": "created",
+        "sha256": "3e5c764fb8527f1bb828189f98f6fc25687574f3890ffb287b38008c9e638c5d"
+      },
+      {
+        "path": "desktop/src/nativeUsAccountingSession.test.ts",
+        "status": "created",
+        "sha256": "3f2d952ef56736ef349c76271c287df5654563689179397358c7a939ee2a6066"
+      },
+      {
+        "path": "desktop/src/nativeUsCopy.test.ts",
+        "status": "modified",
+        "sha256": "2d51b9d0dea66c8f531670c330a207e4098b03a8a83cae26e7b34f9b39762d82"
+      },
+      {
+        "path": "desktop/src/translationsNativeUs.ts",
+        "status": "modified",
+        "sha256": "f695991d39b33d785581016b6b4049705a8257cccdabfab611fa321e2fe3c1ea"
+      },
+      {
+        "path": "desktop/src/translationsNativeUsAccounting.ts",
+        "status": "created",
+        "sha256": "8d2ebe47e029b7e69772744d12acf60409a4dd5174c706f4d18641f68c98f674"
+      },
+      {
+        "path": "desktop/tests/generate-native-us-corpus.test.ts",
+        "status": "modified",
+        "sha256": "7532084b5aa74354cc1b52c982ae0a463563196be5dfd5b7124c6a1ae1ee0376"
+      },
+      {
+        "path": "desktop/tests/native-us-accounting-review.mjs",
+        "status": "created",
+        "sha256": "dc65cdc76cd87f2bda451b0cc60bbaf58c7c0ced0fce31509e951de846bd5217"
+      },
+      {
+        "path": "desktop/tests/native-us-admission-preview.tsx",
+        "status": "modified",
+        "sha256": "d536b086b6ac9b3a86ea8257ea49882ad983ba2ff7e13da9b3ea42d48dd560de"
+      },
+      {
+        "path": "desktop/tests/native-us-fixture.ts",
+        "status": "modified",
+        "sha256": "680c56b9cb620479db4dcc0850e62195fba6e4fe91f45e3c2f7c321190c65b18"
+      },
+      {
+        "path": "docs/evidence/us-journal-domain-source-freeze-20261008.json",
+        "status": "created",
+        "sha256": "cc1098be27bd9746def03a412c05f20b2c2b8b3cf6a6fdd890b76b2770348b85"
+      },
+      {
+        "path": "docs/evidence/us-journal-periods-20261008.json",
+        "status": "created",
+        "sha256": null,
+        "note": "self-referential delivery artifacts excluded from hashing"
+      },
+      {
+        "path": "docs/internationalization/NATIVE-SHARED-DOMAIN-MANIFEST-20261008.json",
+        "status": "modified",
+        "sha256": "0bd05bfda9ab8ebe11b2f7f1ea68456285bad332af9ab53dfdfdef210a48fa50"
+      },
+      {
+        "path": "docs/internationalization/NATIVE-US-JOURNAL-PERIODS-DELIVERY-20261008.md",
+        "status": "created",
+        "sha256": "ce7dddc048361185b86742471e1054c5e10abe40c7e8ece0ce8a0a72dca6d3bb"
+      },
+      {
+        "path": "docs/internationalization/US-JOURNAL-PERIODS-CONTRACT-20261008.md",
+        "status": "created",
+        "sha256": "6a5f584a9673d2722bd2e9acf8b20bdc634282e0599fcdd1b7ac9fe1beac5fc1"
+      },
+      {
+        "path": "docs/internationalization/US-JOURNAL-PERIODS-DELIVERY-20261008.md",
+        "status": "created",
+        "sha256": null,
+        "note": "self-referential delivery artifacts excluded from hashing"
+      },
+      {
+        "path": "docs/internationalization/US-JOURNAL-PERIODS-STORAGE-EVIDENCE-20261008.md",
+        "status": "created",
+        "sha256": "1674bb52d72ea9828dc65c13797de6453e2f3cf41023947aa09be557ee0cf026"
+      },
+      {
+        "path": "lib/international/accounting/ledger.ts",
+        "status": "modified",
+        "sha256": "23fbd7a415f206dd88dabfb02d7cc43751cd68d22f70af5185ad7092aa8cbda3"
+      },
+      {
+        "path": "lib/international/accounting/us-journal.ts",
+        "status": "created",
+        "sha256": "05ed04c36b76cff010c6c93880ecb7b2c9d3a08d54e14ddad693c26e2026ebe1"
+      },
+      {
+        "path": "lib/international/erp-request.ts",
+        "status": "modified",
+        "sha256": "c0528cdb6842db76da0bf676fd06f1312ddbaad67705e28bf88155cc726b6996"
+      },
+      {
+        "path": "lib/international/erp-schema-capability.ts",
+        "status": "modified",
+        "sha256": "7f1bd9cf522c96a38a3f04959b3ca2eca27d4652242b001e72ae2647a3a14d1a"
+      },
+      {
+        "path": "lib/international/runtime-sync.ts",
+        "status": "modified",
+        "sha256": "bd11b517d3b9883b5ac008a585f873cd7be75fd82ceaa1f166e3066e24fc8014"
+      },
+      {
+        "path": "lib/international/runtime-types.ts",
+        "status": "modified",
+        "sha256": "8f9ca079e4d6b13f74e8444383306a9108b64dfc12ecb3399c4b3be11ce1df38"
+      },
+      {
+        "path": "lib/international/runtime-validation.ts",
+        "status": "modified",
+        "sha256": "1e9876448b69b31bb766b029929d39c411c8d7b459ccb0bbbd6a5b51adb0ff55"
+      },
+      {
+        "path": "lib/international/runtime.ts",
+        "status": "modified",
+        "sha256": "f95d5946dd2c4ea4592855bfabaca2d636f10964fd58809d9b3c0fe1be7b356c"
+      }
+    ],
+    "tests": {
+      "files": 18,
+      "passed": 146,
+      "failed": 0,
+      "skipped": 0,
+      "reportSha256": "e1438058f4ca5359ea597502ea88a5ddeed470f538a73111f3a9a5c6ca37ef5f",
+      "scope": "product tests before versioned provenance-only change; unchanged product bytes verified against previous freeze"
+    },
+    "checks": {
+      "typecheckExitCode": 0,
+      "syntaxLintExitCode": 0,
+      "syntaxLintFiles": 21,
+      "viteOnlyExitCode": 0,
+      "rustfmtExitCode": 0,
+      "diffCheckExitCode": 0
+    },
+    "rust": {
+      "declaredInTwoSuites": 69,
+      "compiled": 0,
+      "executed": 0,
+      "cargoRunInPhase": false,
+      "reason": "Earlier Windows dependency execution refusal4551; no security bypass attempted."
+    },
+    "sourceFreezeSha256": "bc65f978a0df94f21a430b55e7186f578673325684026f08005e97b9bb377f54",
+    "domainModules": 27,
+    "domainVectors": 38,
+    "domainVectorsSha256": "04a0c4892e5c153e4bd43b60d1d277477d1f258b4d7d28749f6a9bd141e4e564",
+    "visual": {
+      "configurations": 18,
+      "errors": 0,
+      "horizontalOverflow": 0,
+      "languages": [
+        "fr",
+        "en",
+        "de",
+        "it"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "widths": [
+        1440,
+        390,
+        320
+      ],
+      "text200PercentAt320": true,
+      "functionalRerunPassed": true,
+      "initialFunctionalSelectorTimeoutRetained": true,
+      "localEvidenceSha256": "0550cb98b2fbae4833bac7e9c8ab5dfa726eb9a173248ff67738338dab575ea1"
+    },
+    "preservedChDarkCssSha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f",
+    "complementaryTests": {
+      "scope": "versioned provenance, domain alignment, corpus regeneration and CH boundary after provenance-only changes; distinct evidence, not added to product total",
+      "files": 3,
+      "total": 13,
+      "passed": 13,
+      "failed": 0,
+      "pending": 0,
+      "reportSha256": "4a6f464627644b9d7fc328f9920bfd6292b2864e169e4d2ebbdf8e7762637513",
+      "provenanceTypecheckExitCode": 0,
+      "syntaxLintFiles": 2,
+      "syntaxLintDiagnostics": 0
+    }
+  },
+  "migrations": [
+    "drizzle/0089_international_us_device_capability_v4.sql",
+    "supabase/migrations/20261008161118_international_us_journal_periods_v4.sql"
+  ],
+  "finished": [
+    "Explicit protected capability4 and owner-only book3-to4 promotion",
+    "Balanced exact-cent USD manual journal with immutable source and audit",
+    "Exact single reversal preserving original journal",
+    "Append future period and chronological new closures",
+    "Stable drafts and fresh confirmation, exact retry after committed response loss",
+    "English/French/German/Italian interfaces and existing PDF/CSV/JSON reports",
+    "Additive local SQL migration validation and captured capability boundaries"
+  ],
+  "limitations": [
+    "Typed lint blocked by tsgolint.exe spawnSync UNKNOWN; separate full TS and syntax lint passed.",
+    "Serialized RAM PGlite and local workerd D1, synthetic Auth/subscription authorities; no hosted concurrency or crash durability proof.",
+    "Native browser QA uses mocked Rust ports; no compiled Rust, physical device or installer.",
+    "No production US tax/provider/price grant or regulatory certification.",
+    "D1 additive migration must precede any handler unioning credential tables; production needs explicit approval.",
+    "US fiscal invoice issuance remains closed without real verified TEST provider and approved seller classifications."
+  ],
+  "nextPhase": "Real observed TEST tax provider vertical estimate-to-invoice-to-journal-to-PDF, staging authority/storage evidence and authorized native compilation; keep real client data and production flags closed.",
+  "versionedDomainSourceFreeze": {
+    "path": "docs/evidence/us-journal-domain-source-freeze-20261008.json",
+    "sha256": "cc1098be27bd9746def03a412c05f20b2c2b8b3cf6a6fdd890b76b2770348b85",
+    "sameBytesBothRepositories": true,
+    "gitAttribute": "-text and explicit default whitespace rules plus cr-at-eol for this exact path preserve archived CRLF bytes without disabling normal whitespace checks",
+    "historicalContractScope": "Frozen historical16file record preserved exactly; actual contract Markdown was subsequently clarified. Pure15domain/test files remain identical."
+  }
+}

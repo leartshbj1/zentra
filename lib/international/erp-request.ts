@@ -5,6 +5,7 @@ import type { SalesLine } from './invoicing';
 import type { ErpCommand,ErpRequest } from './runtime-types';
 import { validateProjectInput } from './projects';
 import { snapshotPrivateJson } from './private-json';
+import { validateUsManualJournalInput, validateUsManualReversalInput, validateUsOpenPeriodInput } from './accounting/us-journal';
 function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new ErpError('invalid_request');
   const result = value as Record<string, unknown>;
@@ -24,7 +25,7 @@ function integer(value: unknown): number {
 function date(value: unknown): string { if (typeof value !== 'string' || !validDate(value)) throw new ErpError('invalid_date'); return value; }
 function days(value: unknown): number { const n = integer(value); if (n > 365) throw new ErpError('invalid_payment_terms'); return n; }
 const commandFields = {
-  initialize: ['type','periods'], refresh_configuration: ['type'], save_customer: ['type','customer'],
+  initialize: ['type','periods'], refresh_configuration: ['type'], upgrade_accounting: ['type'], save_customer: ['type','customer'],
   save_estimate: ['type','id','expectedEstimateRevision','customerId','projectId','date','expiresAt','paymentTermsDays','lines','notes'],
   accept_estimate: ['type','estimateId','expectedEstimateRevision'],
   issue_invoice: ['type','id','estimateId','expectedEstimateRevision','date','accountingDate','dueDate','periodId'],
@@ -34,6 +35,9 @@ const commandFields = {
   record_vendor_bill: ['type','id','vendorId','reference','date','accountingDate','dueDate','periodId','netMinor','purchaseTaxMinor','expenseAccountId','sourceReference'],
   record_vendor_payment: ['type','id','billId','amountMinor','paymentDate','accountingDate','periodId','reference'],
   close_period: ['type','periodId'],
+  open_period: ['type','id','start','end'],
+  post_manual_journal: ['type','id','transactionDate','accountingDate','periodId','description','sourceReference','lines','cashFlowCategory'],
+  reverse_manual_journal: ['type','id','entryId','transactionDate','accountingDate','periodId','reason'],
 } as const;
 /** Sales tax is never caller-authorized. A manual purchase has an explicitly
  * supplied tax amount, but never a role, total, journal, approval or grant. */
@@ -48,6 +52,10 @@ export function validateErpRequest(value: unknown, organizationId: string): ErpR
   let command: ErpCommand;
   switch (type) {
     case 'refresh_configuration': command = {type}; break;
+    case 'upgrade_accounting': command = {type}; break;
+    case 'open_period': {const {type:_type,...v}=raw;command={type,...validateUsOpenPeriodInput(v)};break;}
+    case 'post_manual_journal': {const {type:_type,...v}=raw;command={type,...validateUsManualJournalInput(v)};break;}
+    case 'reverse_manual_journal': {const {type:_type,...v}=raw;command={type,...validateUsManualReversalInput(v)};break;}
     case 'initialize': {
       if (!Array.isArray(raw.periods) || raw.periods.length < 1 || raw.periods.length > 100) throw new ErpError('invalid_period');
       command = {type, periods: raw.periods.map(value => { const p = object(value, ['id','start','end','status']); if (p.status !== 'open') throw new ErpError('invalid_period'); return {id: required(p.id),start: date(p.start),end: date(p.end),status:'open'}; })}; break;

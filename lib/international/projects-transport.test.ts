@@ -32,7 +32,7 @@ describe('project capability3 projection and request boundaries',()=>{
   });
   it('validates capability3 only as a protocol value; extra/combined values fail',()=>{
     expect(erpClientSchemaVersion(new Request('https://zentra.test',{headers:{'X-Zentra-Erp-Schema-Version':'3'}}))).toBe(3);
-    for(const value of ['4','03','3, 2',' 3x'])expect(()=>erpClientSchemaVersion(new Request('https://zentra.test',{headers:{'X-Zentra-Erp-Schema-Version':value}}))).toThrow('invalid_request');
+    for(const value of ['5','03','3, 2',' 3x'])expect(()=>erpClientSchemaVersion(new Request('https://zentra.test',{headers:{'X-Zentra-Erp-Schema-Version':value}}))).toThrow('invalid_request');
   });
   it('rejects own getters without evaluating the project or command accessor',async()=>{
     const t=await fixture(),getter=vi.fn(()=>t.input.command);const input={...t.input};Object.defineProperty(input,'command',{enumerable:true,get:getter});expect(()=>validateErpRequest(input,t.org)).toThrow('invalid_request');expect(getter).not.toHaveBeenCalled();

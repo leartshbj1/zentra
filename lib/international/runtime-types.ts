@@ -4,6 +4,7 @@ import type { AccountingPeriod, FinancialAuthority, Ledger, LedgerAuditEvent } f
 import type { BillInput, PaymentInput, RecordedVendorBill, RecordedVendorPayment } from './purchasing';
 import type { ErpSchemaVersion } from './erp-schema-capability';
 import type { ProjectInput, StoredProject } from './projects';
+import type { UsManualJournalInput, UsManualReversalInput, UsOpenPeriodInput } from './accounting/us-journal';
 
 /** One financial authority per workspace. The CH historical SQLite book is not imported here. */
 export interface ErpState {
@@ -55,6 +56,7 @@ export interface ErpStore {
 export type ErpCommand =
   | Readonly<{ type: 'initialize'; periods: readonly AccountingPeriod[] }>
   | Readonly<{ type: 'refresh_configuration' }>
+  | Readonly<{ type: 'upgrade_accounting' }>
   | Readonly<{ type: 'save_customer'; customer: Contact }>
   | Readonly<{ type: 'save_estimate'; id: string; expectedEstimateRevision: number; customerId: string; projectId?: string; date: string; expiresAt: string; paymentTermsDays: number; lines: readonly SalesLine[]; notes: string }>
   | Readonly<{ type: 'accept_estimate'; estimateId: string; expectedEstimateRevision: number }>
@@ -64,7 +66,10 @@ export type ErpCommand =
   | Readonly<{ type: 'save_projects'; projects: readonly ProjectInput[] }>
   | (Readonly<{ type: 'record_vendor_bill' }> & BillInput)
   | (Readonly<{ type: 'record_vendor_payment' }> & PaymentInput)
-  | Readonly<{ type: 'close_period'; periodId: string }>;
+  | Readonly<{ type: 'close_period'; periodId: string }>
+  | (Readonly<{ type: 'open_period' }> & UsOpenPeriodInput)
+  | (Readonly<{ type: 'post_manual_journal' }> & UsManualJournalInput)
+  | (Readonly<{ type: 'reverse_manual_journal' }> & UsManualReversalInput);
 export interface ErpRequest {
   readonly idempotencyKey: string;
   readonly expectedRevision: number;

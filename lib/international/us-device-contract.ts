@@ -21,7 +21,7 @@ export function usDeviceExact(input: unknown, keys: readonly string[]): Record<s
 }
 export function validateUsDeviceStart(input: unknown) {
   const v = usDeviceExact(input, ['protocol','installationId','sessionTokenHash','supportedSchemaVersion']);
-  if (v.protocol !== US_DEVICE_PROTOCOL || !usDeviceUuid(v.installationId) || !usDeviceHash(v.sessionTokenHash) || ![1,2,3].includes(v.supportedSchemaVersion as number)) throw new UsDeviceError('invalid_request', 422);
+  if (v.protocol !== US_DEVICE_PROTOCOL || !usDeviceUuid(v.installationId) || !usDeviceHash(v.sessionTokenHash) || ![1,2,3,4].includes(v.supportedSchemaVersion as number)) throw new UsDeviceError('invalid_request', 422);
   return Object.freeze({ protocol: US_DEVICE_PROTOCOL, installationId: v.installationId, sessionTokenHash: v.sessionTokenHash, supportedSchemaVersion: v.supportedSchemaVersion as ErpSchemaVersion });
 }
 export function validateUsDeviceApprove(input: unknown) {

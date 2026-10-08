@@ -32,7 +32,7 @@ function fixture(serverCapability:1|2=2) {
     const delta:ErpDelta={schemaVersion:serverCapability,organizationId:org,fromRevision:commit.expectedRevision,toRevision:commit.header.revision,headRevision:commit.header.revision,hasMore:false,resetRequired:false,events:[event]};
     state=applyErpDelta(state,delta,org,serverCapability);events.push(structuredClone(event));commits.push(structuredClone(commit));receipts.set(commit.receipt.idempotencyKey,structuredClone(commit.receipt));return structuredClone(commit.receipt);
   })};
-  const dependencies:ErpServerDependencies={enabled:()=>true,authority:vi.fn(async()=>({mode:'browser' as const,actor:{...actor,timestamp:new Date(Date.UTC(2026,9,8,12,0,0,++clock)).toISOString()}})),configuration:async()=>configuration,store:vi.fn((cap?:1|2|3)=>({...store,supportedSchemaVersion:Math.min(cap??1,serverCapability) as 1|2,receipt:async(organizationId:string,key:string)=>{
+  const dependencies:ErpServerDependencies={enabled:()=>true,authority:vi.fn(async()=>({mode:'browser' as const,actor:{...actor,timestamp:new Date(Date.UTC(2026,9,8,12,0,0,++clock)).toISOString()}})),configuration:async()=>configuration,store:vi.fn((cap?:1|2|3|4)=>({...store,supportedSchemaVersion:Math.min(cap??1,serverCapability) as 1|2,receipt:async(organizationId:string,key:string)=>{
     if((state?.schemaVersion??1)>(cap??1))throw new ErpError('client_upgrade_required',409);
     return store.receipt(organizationId,key);
   }})),taxProvider:async()=>null,rateLimit:vi.fn(async()=>{}),diagnostic:vi.fn()};
@@ -84,7 +84,7 @@ describe('explicit purchasing transport capability and unchanged Auth admission'
   it.each(['save_vendor','record_vendor_bill','record_vendor_payment'])('requires an explicit v2 header for %s even when the server supports it',async action=>{
     const t=fixture();const command=[vendor,bill,payment].find(item=>item.type===action)!;const r=await t.send(command,1);expect(r.status).toBe(409);expect(await r.json()).toEqual({error:'client_upgrade_required'});expect(t.dependencies.store).not.toHaveBeenCalled();expect(t.store.commit).not.toHaveBeenCalled();
   });
-  it.each(['4','02','2, 2',' 2 ',''])('rejects malformed capability %j (whitespace normalization tested separately)',async value=>{
+  it.each(['5','02','2, 2',' 2 ',''])('rejects malformed capability %j (whitespace normalization tested separately)',async value=>{
     const t=fixture();const r=t.request();r.headers.set(ERP_SCHEMA_HEADER,value);const normalized=r.headers.get(ERP_SCHEMA_HEADER);const response=await t.handler.GET(r,org);expect(response.status).toBe(normalized==='2'?200:422);if(normalized!=='2')expect(t.store.read).not.toHaveBeenCalled();
   });
   it.each(['member','read_only'] as const)('v2 never supplies financial permission for %s',async role=>{
@@ -102,7 +102,7 @@ describe('explicit purchasing transport capability and unchanged Auth admission'
     const accepted=await t.sync[operation](current,org);expect(accepted.status).toBe(200);const result=await accepted.json();expect(result).toMatchObject({schemaVersion:2,organizationId:org});if(operation==='changes'){const replica=applyErpDelta(null,result,org,2)!;expect(replica).toEqual(publicErpState(t.state()));expect((result as ErpDelta).events.map(event=>event.schemaVersion)).toEqual([1,2,2]);}
   });
   it('bounds schema headers without changing omitted/default v1 behavior',()=>{
-    expect(erpClientSchemaVersion(new Request('https://zentraapp.ch'))).toBe(1);expect(erpClientSchemaVersion(new Request('https://zentraapp.ch',{headers:{[ERP_SCHEMA_HEADER]:'1'}}))).toBe(1);expect(erpClientSchemaVersion(new Request('https://zentraapp.ch',{headers:{[ERP_SCHEMA_HEADER]:'2'}}))).toBe(2);expect(()=>createBrowserErpSession({organizationId:org,supportedSchemaVersion:4 as 1|2})).toThrow('invalid_request');
+    expect(erpClientSchemaVersion(new Request('https://zentraapp.ch'))).toBe(1);expect(erpClientSchemaVersion(new Request('https://zentraapp.ch',{headers:{[ERP_SCHEMA_HEADER]:'1'}}))).toBe(1);expect(erpClientSchemaVersion(new Request('https://zentraapp.ch',{headers:{[ERP_SCHEMA_HEADER]:'2'}}))).toBe(2);expect(()=>createBrowserErpSession({organizationId:org,supportedSchemaVersion:5 as 1|2})).toThrow('invalid_request');
   });
 });
 describe('capability-selected Supabase ports',()=>{

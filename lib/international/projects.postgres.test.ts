@@ -157,6 +157,8 @@ describe.runIf(enabled)('project capability3 real PostgreSQL',()=>{
     v2=await fixture('accrual',2);await customer(v2);await v2.send({type:'save_vendor',vendor:v2.vendor});await v2.send(v2.bill);bytes2=await history(v2.org);
     chOrg=randomUUID();await db.query('insert into public.zentra_workspaces(organization_id,revision,updated_by,number_floors) values($1,7,$2,\'[7]\'::jsonb)',[chOrg,'CH-OWNER-SENTINEL']);chBytes=(await db.query('select row_to_json(w)::text from public.zentra_workspaces w where organization_id=$1',[chOrg])).rows;
     await db.exec(await readFile(new URL('../../supabase/migrations/20261008105120_international_us_projects_v3.sql',import.meta.url),'utf8'));
+    // Regression of every historical branch against the additive v4 migration.
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261008161118_international_us_journal_periods_v4.sql',import.meta.url),'utf8'));
   },30_000);
   afterAll(async()=>{await db?.close();});
   it('preserves v1/v2 heads, historical receipts/events/proofs and CH byte-for-byte',async()=>{
@@ -216,7 +218,7 @@ describe.runIf(enabled)('project capability3 real PostgreSQL',()=>{
     const f=await fixture();await customer(f);const commit=await f.prepare({type:'save_projects',projects:[project()]});await result(commitSql,commitValues(commit));
     const old={...commit,header:{...commit.header,schemaVersion}};await expect(result(commitSql,commitValues(old))).rejects.toMatchObject({code:'PU008'});
   });
-  it.each([null,'3',4] as const)('does not replay a committed receipt through a malformed schema capability %j',async schemaVersion=>{
+  it.each([null,'3',5] as const)('does not replay a committed receipt through a malformed schema capability %j',async schemaVersion=>{
     const f=await fixture();await customer(f);const c=await f.prepare({type:'save_projects',projects:[project()]});await result(commitSql,commitValues(c));const forged=clone(c) as unknown as {header:Record<string,unknown>};forged.header.schemaVersion=schemaVersion;
     await expect(result(commitSql,commitValues(forged as unknown as ErpCommit))).rejects.toMatchObject({code:'PU008'});
   });

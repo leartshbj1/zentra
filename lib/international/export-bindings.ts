@@ -6,7 +6,7 @@ import type { ErpSchemaVersion } from './erp-schema-capability';
  * each export independently rechecks the actual ERP authority and flags. */
 export async function usExportReadiness(): Promise<Readonly<{ enabled: boolean; supportedSchemaVersion: ErpSchemaVersion }>> {
   if (!await erpServerDependencies.enabled()) return { enabled: false, supportedSchemaVersion: 1 };
-  const supportedSchemaVersion = await usPurchasingSchemaVersion(3);
+  const supportedSchemaVersion = await usPurchasingSchemaVersion(4);
   return { enabled: await erpServerDependencies.enabled(), supportedSchemaVersion };
 }
 export const usExportHandlers = createUsExportHandlers({
