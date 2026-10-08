@@ -1,6 +1,6 @@
 import { QuickStart } from '@/components/account/subscription-overview';
 import { subscriptionJourney } from '@/lib/complete/journey';
-import { requireZentraUser } from '@/app/zentra-auth';
+import { requireZentraUser, getZentraUser } from '@/app/zentra-auth';
 import { membershipsForUser } from '@/lib/account';
 import { accountPreferences } from '@/lib/account-preferences';
 import { CompanyDraftForm } from '@/components/account/account-forms';
@@ -9,11 +9,29 @@ import { redirect } from 'next/navigation';
 import { prepaidReceiptPath } from '@/lib/payments/prepaid-receipt-types';
 import { listOwnedPendingPrepaidReceipts } from '@/lib/payments/pending-prepaid-receipts';
 import { PendingPayments } from '@/components/account/pending-payments';
+import { accountWorkspaceDiscoveryEnabled, accountWorkspacesForUser, AccountWorkspaceDiscoveryError } from '@/lib/account-workspaces';
+import { WorkspacePicker } from '@/components/account/workspace-picker';
+import { accountWorkspaceDestination } from '@/lib/account-workspace-navigation';
 import { getSiteLanguage } from '@/lib/site-language-server';
 export const dynamic = 'force-dynamic';
 export default async function AccountPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   const query=await searchParams;
   if(query.achat !== undefined) redirect(prepaidReceiptPath(query.achat));
+  if(await accountWorkspaceDiscoveryEnabled()) {
+    const viewer=await requireZentraUser('/compte',{offerAccess:false});
+    let workspaces;
+    try {workspaces=await accountWorkspacesForUser(viewer.userId);}catch(error){
+      if(!(error instanceof AccountWorkspaceDiscoveryError))throw error;
+      return <WorkspacePicker workspaces={[]} language={await getSiteLanguage()} unavailable/>;
+    }
+    const current=await getZentraUser({offerAccess:false});
+    if(!current||current.userId!==viewer.userId)redirect('/compte/espaces');
+    if(await accountWorkspaceDiscoveryEnabled()&&workspaces.some(item=>item.edition==='us_experimental')) {
+      const selected=typeof query.organizationId==='string'?workspaces.find(item=>item.organizationId===query.organizationId):undefined;
+      if(!selected)redirect('/compte/espaces');
+      if(selected.edition==='us_experimental')redirect(accountWorkspaceDestination(selected));
+    }
+  }
   const user = await requireZentraUser('/compte');
   const [organizations, preferences, pendingPayments, language] = await Promise.all([
     membershipsForUser(user.userId), accountPreferences(user.userId),

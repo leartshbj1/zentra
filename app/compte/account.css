@@ -17,3 +17,19 @@
 .account-content .automation-checks input{accent-color:var(--ac-accent)}
 .account-content .automation-daily{padding:20px;border-radius:16px}
 @media(max-width:760px){.account-index.account-onboarding .account-workspace{display:flex;flex-direction:column}.account-index.account-onboarding .account-content{order:-1;padding-top:0}.account-index.account-onboarding .account-sidebar{margin-top:32px}.account-content .automation-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.account-content .automation-metrics div{padding:12px}.account-content .automation-metrics dt{font-size:12px}}
+
+/* Workspace choice uses metadata only and keeps country destinations separate. */
+.account-space-list{list-style:none;padding:0;margin:32px 0;display:grid;gap:12px}
+.account-space-choice{display:flex;align-items:center;gap:18px;padding:24px;border:1px solid var(--ac-line);border-radius:20px;background:var(--ac-panel);min-height:108px;text-decoration:none;transition:border-color .18s,background .18s}
+.account-space-choice:hover{border-color:var(--ac-accent);background:var(--ac-tint)}
+.account-space-icon{display:grid;place-items:center;width:48px;height:48px;flex:0 0 48px;border-radius:14px;background:var(--ac-input);color:var(--ac-accent)}
+.account-space-name{flex:1;overflow-wrap:anywhere}.account-space-name>strong{font-size:20px;line-height:1.35;font-weight:600}
+.account-space-metadata{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:14px;line-height:1.5;color:var(--ac-muted)}
+.account-space-open{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ac-accent);min-height:44px;flex-shrink:0}
+.account-space-edition{display:inline-block;margin-bottom:16px;font-size:14px;line-height:1.5;color:var(--ac-accent)}
+@media(max-width:480px){.account-space-choice{padding:20px;gap:12px;flex-wrap:wrap}.account-space-name{min-width:calc(100% - 70px)}.account-space-name>strong{font-size:19px}.account-space-open{margin-left:auto}.account-space-metadata{font-size:14px}.account-space-list{margin-top:24px}}
+@media(prefers-reduced-motion:reduce){.account-space-choice{transition:none}}
+
+.account-space-settings{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 32px}.account-space-settings a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 16px;border-radius:999px;background:var(--ac-panel);border:1px solid var(--ac-line);font-size:14px;text-decoration:none}.account-space-settings a[aria-current]{background:var(--ac-tint);color:var(--ac-accent);border-color:var(--ac-accent)}
+
+.account-brand,.account-signout button{min-height:44px}

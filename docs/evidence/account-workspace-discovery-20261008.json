@@ -1,0 +1,106 @@
+{
+  "phase": "Account workspace discovery",
+  "baseline": "002854a923b764d7b729802452babfe824a96d00",
+  "date": "2026-10-08",
+  "scope": "isolated local branch; not deployed",
+  "createdFiles": [
+    "app/api/account/workspaces/route.ts",
+    "app/compte/espaces/page.tsx",
+    "app/compte/espaces/us/[organizationId]/page.tsx",
+    "components/account/workspace-picker.tsx",
+    "docs/internationalization/ACCOUNT-WORKSPACE-DISCOVERY-20261008.md",
+    "lib/account-workspace-copy.ts",
+    "lib/account-workspace-entry.test.ts",
+    "lib/account-workspace-navigation.test.ts",
+    "lib/account-workspace-navigation.ts",
+    "lib/account-workspace-pages.test.ts",
+    "lib/account-workspaces-route.test.ts",
+    "lib/account-workspaces.test.ts",
+    "lib/account-workspaces.ts",
+    "scripts/qa-account-workspace-regression.mjs",
+    "scripts/qa-account-workspaces.mjs",
+    "docs/evidence/account-workspace-discovery-20261008.json"
+  ],
+  "modifiedFiles": [
+    "app/compte/account.css",
+    "app/compte/layout.tsx",
+    "app/compte/page.tsx",
+    "components/account/account-shell.tsx"
+  ],
+  "migrations": {
+    "added": 0,
+    "productionApplied": false,
+    "historicalCount": 107,
+    "unchangedCanonicalGitBlobs": true
+  },
+  "tests": {
+    "selectedFiles": 79,
+    "passed": 2105,
+    "failed": 0,
+    "skipped": 63,
+    "finalFiveFilesPassed": 80,
+    "countsOverlap": true,
+    "fullRepositorySuite": false,
+    "realAuthOrPhysicalDeviceProof": false
+  },
+  "browser": {
+    "views": 24,
+    "success": true,
+    "languages": [
+      "fr",
+      "en",
+      "de",
+      "it"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "widths": [
+      320,
+      390,
+      1440
+    ],
+    "fixture": "Actual React shell + picker rendered with scoped account and Apple account CSS. Auth, language picker and signout controls mocked; no live session/backend.",
+    "externalRequestsAllowed": false
+  },
+  "checks": {
+    "typecheckExitCode": 0,
+    "changedFilesLintExitCode": 0,
+    "productionBuildExitCode": 0,
+    "globalLintRun": false
+  },
+  "sha256": {
+    "app/api/account/workspaces/route.ts": "12194f04db913935e4cd023f7401a4daeb38824646835c8814df25b888141637",
+    "app/compte/espaces/page.tsx": "710d9c63d79f863c90fb175f0cce7f4c25d89be30e061889f3514c6c88ee59fa",
+    "app/compte/espaces/us/[organizationId]/page.tsx": "6fff1d8f155d01ffdd954276d7bd1e1f7f2fc6ebe25d401db9a982dbf34bdbec",
+    "components/account/workspace-picker.tsx": "9d0ffe47f9910989c33938a0aaa30eaf1c518ab52c430f79f696d93f109908c9",
+    "docs/internationalization/ACCOUNT-WORKSPACE-DISCOVERY-20261008.md": "7d5a2b3404ca4a123a50fca8115764644fd2648960cc75950afb7fe1e0692e4c",
+    "lib/account-workspace-copy.ts": "c7d65ae76897d0728d5c996f0316a037155d5925e1661a317e559edcf16c80a8",
+    "lib/account-workspace-entry.test.ts": "976322e50b025021d3f05cd0601412fe91d07672531051ea7f61515e70802742",
+    "lib/account-workspace-navigation.test.ts": "916b6b978a65af05ba2de963ad319ec6f1ba0e04c1fb714f6e381c79d4f03ad2",
+    "lib/account-workspace-navigation.ts": "8c5e3a2a2eaa155023a6462033b8a97115253e065fbbe61f9962b3bcfc3b425b",
+    "lib/account-workspace-pages.test.ts": "b227fbdb5548e58495a0579c9adbd6a4faf8445b079dd3769f7614756526200f",
+    "lib/account-workspaces-route.test.ts": "adb446d3eff105a3f379cd12c4ec9ce57c129862249beabbedb3c08fcbcb4f49",
+    "lib/account-workspaces.test.ts": "002fff141d803dce71376ba698e703c34cacb12d1949290ba0739fe13b4906d1",
+    "lib/account-workspaces.ts": "83ecd7b96d3190991e1e375df4691ff12b1cd02a2a839e77af4d1b4a561ccda1",
+    "scripts/qa-account-workspace-regression.mjs": "7f1ce47e10da3df4251763d46571148578e0ea12d984300427b249bf85c36ae9",
+    "scripts/qa-account-workspaces.mjs": "d3a1dc54511c325b32a1a30dc14731a65db5212c361e942e0c5851e0ab2de2e0",
+    "app/compte/account.css": "c20919c03ffd47b655b0686093250a5273ce853dad59e0d9a0287d294a814d02",
+    "app/compte/layout.tsx": "a702e22cee72525bd7c039c4806036ae903e11c745608eca6714842aa03c54fc",
+    "app/compte/page.tsx": "a88b5fc837f7137f78b67f6cfeb32ee2419a1ed6aee71be658d4d5a278921cae",
+    "components/account/account-shell.tsx": "ac27005a7adb01b650b039c0fa0a68882a7b20ef4247c5554ceb863d32a26189"
+  },
+  "logSha256": {
+    "tests.json": "7ecf77bba6dad7d9f13191ada75c67054cc69cbd42720dc21e3147bb511eca52",
+    "tests.log": "d52f54b35cc91267a2dc98c15ae7bb30a2bbbe0404265dc92cf3eade38c57246",
+    "selection.json": "d31e7ed056515185e5a9783665d50492237bef8d7f2444fadf074593802e6650",
+    "migration-preservation.json": "1f5552683779300c04fb5d92b6138e3941ed721494fb70624c8bc922348a6fef",
+    "final-five.json": "512f1ffab0cb655a22729d211c40e3b7c463ccd42bf0fa1383ad5ec0d3de5e53",
+    "browser.json": "d8c4f187d19c54525a3a977592db5dde0e8b1496a70d00beb9e7d481ee8bbffb",
+    "typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lint.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build.log": "87705c924f7ae9161ddf1a9c67d0f2a0d989dc3fa1716678545405daacce9cfb"
+  },
+  "nextPhase": "ERP replay postflight and flag guards, then dedicated US seller and browser workbench; tax/payment dependencies remain closed"
+}
