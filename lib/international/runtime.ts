@@ -65,7 +65,13 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
   authorize(config,dependencies.actor,command);
   const hash = await sha256Hex(canonical([config.organizationId,dependencies.actor.userId,request]));
   const existing = await dependencies.store.receipt(config.organizationId,request.idempotencyKey);
-  if (existing) { if (existing.commandHash !== hash) throw new ErpError('idempotency_conflict',409); return {receipt:existing,replayed:true}; }
+  if (existing) {
+    // A persisted receipt is not permission to disclose it after a slow read.
+    const fresh=await dependencies.revalidate();authorize(config,fresh,command);
+    if(fresh.userId!==dependencies.actor.userId)throw new ErpError('session_changed',401);
+    if(existing.commandHash!==hash)throw new ErpError('idempotency_conflict',409);
+    return {receipt:existing,replayed:true};
+  }
   const before = await dependencies.store.read(config.organizationId);
   if ((before?.revision??0)!==request.expectedRevision) throw new ErpError('revision_conflict',409);
   if (before && canonical(before.configuration)!==canonical(config) && command.type !== 'refresh_configuration') throw new ErpError('configuration_changed',409);

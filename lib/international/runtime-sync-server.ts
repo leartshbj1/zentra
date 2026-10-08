@@ -32,10 +32,12 @@ export function createErpSyncHandlers(deps:ErpSyncServerDependencies){
       if(options){
         const delta=await store.changes(organizationId,options.after,options.limit);
         confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
+        if(!await deps.enabled())throw new ErpError('feature_unavailable',404);
         return json(delta?publicErpDelta(delta):null);
       }
       const head=await store.revision(organizationId);
       confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
+      if(!await deps.enabled())throw new ErpError('feature_unavailable',404);
       return json(head);
     }catch(error){
       let code='service_unavailable',status=503;

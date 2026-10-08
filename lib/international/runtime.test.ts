@@ -38,6 +38,19 @@ function setup(basis:'cash'|'accrual'='accrual'){
   return {store,dependencies,send,initialize,issue,pay,customer,estimate};
 }
 describe('persistable international ERP transitions',()=>{
+  it.each(['access','user','tenant','role'] as const)('revalidates an existing receipt after its read changes %s',async change=>{
+    const t=setup();await t.initialize();const read=t.store.receipt.bind(t.store);
+    t.store.receipt=async(organizationId,key)=>{const receipt=await read(organizationId,key);t.dependencies.revalidate=async()=>({...actor,...(change==='access'?{managementEntitled:false}:change==='user'?{userId:'different-user'}:change==='tenant'?{organizationId:'different-tenant'}:{role:'member' as const})});return receipt;};
+    const input={idempotencyKey:'request-1',expectedRevision:0,command:{type:'initialize',periods:[{id:'2026',start:'2026-01-01',end:'2026-12-31',status:'open'}]}};
+    const code=change==='access'?'management_entitlement_required':change==='user'?'session_changed':change==='tenant'?'tenant_mismatch':'owner_required';
+    await expect(executeErp(t.dependencies,input)).rejects.toThrow(code);expect(t.store.commits).toHaveLength(4);expect(t.store.state!.revision).toBe(4);
+  });
+  it('revalidates an existing receipt without repeating the stored operation',async()=>{
+    const t=setup();await t.initialize();const revalidate=vi.fn(async()=>actor);t.dependencies.revalidate=revalidate;
+    const result=await executeErp(t.dependencies,{idempotencyKey:'request-1',expectedRevision:0,command:{type:'initialize',periods:[{id:'2026',start:'2026-01-01',end:'2026-12-31',status:'open'}]}});
+    expect(result.replayed).toBe(true);expect(revalidate).toHaveBeenCalledOnce();expect(t.store.commits).toHaveLength(4);expect(t.store.state!.revision).toBe(4);
+  });
+
   it.each(['cash','accrual'] as const)('composes exact quote → issued invoice → partial payments and reports (%s)',async basis=>{
     const t=setup(basis);await t.initialize();await t.issue();const issued=t.store.state!;expect(issued.invoices[0].number).toBe('INV-000001');expect(issued.invoices[0].tax.minorUnits).toBe('825');expect(issued.ledger.entries).toHaveLength(basis==='cash'?0:1);
     await t.pay('p1','3608');await t.pay('p2','3608');await t.pay('p3','3609');const state=t.store.state!;expect(invoiceBalance(state.invoices[0]).minorUnits).toBe('0');expect(trialBalance(state.ledger,'2026-12-31').balanced).toBe(true);expect(profitAndLoss(state.ledger,{start:'2026-01-01',end:'2026-12-31'}).incomeMinor).toBe('10000');expect(validateStoredErp(state,org)).toBe(state);

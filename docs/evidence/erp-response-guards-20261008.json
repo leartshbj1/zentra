@@ -1,0 +1,52 @@
+{
+  "phase": "US ERP response and replay guards",
+  "baseCommit": "ae426dafefa0a5b4e1013450fbe60d42ae40ec8b",
+  "scope": "isolated local US only, feature flags closed outside tests",
+  "generatedAt": "2026-10-08T03:04:12.422478+00:00",
+  "tests": {
+    "command": "vitest run lib/international --maxWorkers=2 --reporter=json",
+    "PGLITE_MODULE_DIR": "local PGlite 0.5.8 / PostgreSQL 18.3",
+    "ZENTRA_V4_RUNTIME_PROOF": "1",
+    "passed": 1034,
+    "failed": 0,
+    "pending": 0,
+    "selectedFiles": 31,
+    "success": true,
+    "artifact": ".qa/erp-response-guards/international-final.json"
+  },
+  "reproductions": {
+    "core": {
+      "initialFailed": 5,
+      "finalPassed": 36,
+      "initialArtifact": ".qa/erp-response-guards/core-initial.json",
+      "finalArtifact": ".qa/erp-response-guards/core-final.json"
+    },
+    "http": {
+      "agentReportedBeforeFixFailed": 20,
+      "agentReportedControlPassed": 1,
+      "newTestsFinal": 23,
+      "provenance": "agent tool transcript; no persisted baseline log; final cases included in full 1034-test artifact"
+    }
+  },
+  "checks": {
+    "typecheck": "exit 0; .qa/erp-response-guards/typecheck.log",
+    "changedFileLint": "exit 0; .qa/erp-response-guards/lint.log",
+    "build": "exit 0; .qa/erp-response-guards/build.log",
+    "diffCheck": "exit 0",
+    "historicalSqlFilesCompared": 107,
+    "historicalSqlChanged": []
+  },
+  "sources": {
+    "lib/international/runtime.ts": "e5617fbb763aaab136f0387fde88f5cd4e0bff094e577b66ee13764031c91249",
+    "lib/international/runtime.test.ts": "b0b0409f8ee8b9163d2aad2273d453dcc25890c1e66f9165006f879a31bce4ec",
+    "lib/international/runtime-server.ts": "ef4097eac53b046fecf6aada1431f674fe022a05cffc05a7057c689308e081cf",
+    "lib/international/runtime-sync-server.ts": "6a0bf29da0cfeecbc84e7f0d3fc4f1ef9cc394088a9c808a0978d416dfb7f8d6",
+    "lib/international/runtime-response-guards.test.ts": "585b693778b54f396c05421d578b9682ee5dfeba5641186036491acb897bd803"
+  },
+  "limits": [
+    "Local PGlite and Miniflare/workerd plus deterministic HTTP mocks; not production or multi-device evidence.",
+    "D1 revocation and PostgreSQL commit are not a distributed atomic transaction.",
+    "Already committed transaction is retained after late rejection; caller must retry exact original key/request.",
+    "No production migration, deployed US entitlement, verified real Stripe payment, tax provider or native package."
+  ]
+}

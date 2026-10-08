@@ -56,6 +56,7 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
         const trusted=await context(request,organizationId,'read');
         const state=await(await dependencies.store()).read(organizationId);
         confirmErpReadAdmission(trusted,await dependencies.authority(request,organizationId));
+        if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);
         return json(state?{status:'ready',state:publicErpState(state)}:{status:'uninitialized',configuration:publicCompanyConfiguration(trusted.config)});
       }catch(error){return failure(error,'read',dependencies);}
     },
@@ -64,13 +65,20 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
         if(!await dependencies.enabled())return json({error:'feature_unavailable'},404);
         const trusted=await context(request,organizationId,'write');
         const input=await readJsonObjectWithinLimit(request,262144);
-        const result=await executeErp({store:await dependencies.store(),configuration:trusted.config,actor:trusted.actor,taxProvider:config=>dependencies.taxProvider(config),...(dependencies.seller?{seller:()=>dependencies.seller!(trusted.actor)}:{}),...(dependencies.projectExists?{projectExists:(_organizationId:string,projectId:string)=>dependencies.projectExists!(trusted.actor,projectId)}:{}),async revalidate(){
-          const fresh=await dependencies.authority(request,organizationId);
-          if(fresh.mode!==trusted.mode||fresh.actor.organizationId!==trusted.actor.organizationId||fresh.actor.userId!==trusted.actor.userId)throw new ErpError('session_changed',401);
-          const config=await dependencies.configuration(fresh.actor);
+        async function revalidate(){
+          // Configuration stays private and scoped to the initial admission. Read
+          // authority last so changes during this await cannot authorize a commit.
+          const config=await dependencies.configuration(trusted.actor);
           if(canonicalErpJson(config)!==canonicalErpJson(trusted.config))throw new ErpError('configuration_changed',409);
+          const fresh=await dependencies.authority(request,organizationId);
+          confirmErpReadAdmission(trusted,fresh);
+          if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);
           return fresh.actor;
-        }},input);
+        }
+        const result=await executeErp({store:await dependencies.store(),configuration:trusted.config,actor:trusted.actor,taxProvider:config=>dependencies.taxProvider(config),...(dependencies.seller?{seller:()=>dependencies.seller!(trusted.actor)}:{}),...(dependencies.projectExists?{projectExists:(_organizationId:string,projectId:string)=>dependencies.projectExists!(trusted.actor,projectId)}:{}),revalidate},input);
+        // A completed transaction remains committed if admission changes while
+        // storage is pending. Withhold its receipt; an exact retry can recover it.
+        await revalidate();
         return json(result);
       }catch(error){return failure(error,'write',dependencies);}
     },
