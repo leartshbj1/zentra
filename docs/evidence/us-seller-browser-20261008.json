@@ -378,7 +378,10 @@
         "ERP denial purges seller draft and late seller GET",
         "member reads seller without owner form"
       ],
-      "vitestReport": "Final Vitest result observed from terminal; browser.json records the completed scenario. Available terminal transcripts are local QA artifacts."
+      "vitestReport": ".qa/us-seller-browser/browser-final.log",
+      "vitestTestFiles": 1,
+      "vitestPassedTests": 1,
+      "terminalProvenance": "captured_terminal_transcript"
     },
     "otherChecks": {
       "typecheck": {
@@ -523,6 +526,26 @@
       "path": ".qa/us-seller-browser/seller-fr-dark-1440.png",
       "sha256": "8d1bd6fe2b792f9393432eec0240676f220e2becca7bea26a925010319aafb25",
       "bytes": 31227
+    },
+    {
+      "path": ".qa/us-seller-browser/browser-initial-details-closed.log",
+      "sha256": "d21fc9fc050518fa55dc953f11e59af35259f136bd487df998ebc616f473bc47",
+      "bytes": 1730
+    },
+    {
+      "path": ".qa/us-seller-browser/browser-initial-customer-hidden.log",
+      "sha256": "455ab6b3129c05d8e126faa66310d60623363051cc45c55a6366a737196332cf",
+      "bytes": 1109
+    },
+    {
+      "path": ".qa/us-seller-browser/browser-final.log",
+      "sha256": "223a31a85d85f30f312a74e520a6709982a7dd473406c0d43f4e545ecb0e21e3",
+      "bytes": 792
+    },
+    {
+      "path": ".qa/us-seller-browser/browser-runs.json",
+      "sha256": "65624f3b1803ef3ebc228e9bcaca561ac855308a80c764b91ea4252ec8c78431",
+      "bytes": 1308
     }
   ],
   "visualReview": {
@@ -542,9 +565,37 @@
   },
   "initialBrowserFailures": {
     "count": 2,
-    "cause": "Harness closed an already open details disclosure before attempting to edit hidden controls.",
-    "fix": "Idempotent openSeller helper with existing assertions preserved.",
-    "provenance": "Second failure details retained in browser-failure.json. First failure file was overwritten during the second attempt. Available terminal transcriptions saved separately. Final complete scenario succeeded."
+    "cause": "First harness attempt closed already-open seller details; second inspected an inaccessible button in closed customer details after denial/reload.",
+    "fix": "Open disclosures explicitly and idempotently, and await the held read before the no-resurrection assertion; preserve business assertions.",
+    "provenance": "Second failure details retained in browser-failure.json. First failure file was overwritten during the second attempt. Available terminal transcriptions saved separately. Final complete scenario succeeded.",
+    "runs": [
+      {
+        "sessionId": 1626,
+        "exitCode": 1,
+        "startedAtLocal": "06:21:27",
+        "log": "browser-initial-details-closed.log",
+        "cause": "Harness toggled an already-open seller details element closed before filling its hidden input.",
+        "correction": "Open details idempotently before filling; retain assertions.",
+        "superseded": true
+      },
+      {
+        "sessionId": 55773,
+        "exitCode": 1,
+        "startedAtLocal": "06:25:39",
+        "log": "browser-initial-customer-hidden.log",
+        "cause": "Harness searched an accessible button inside a closed customer details element after denial/reload.",
+        "correction": "Open customer details before asserting the real disabled button; await held-read completion before checking no resurrection.",
+        "superseded": true
+      },
+      {
+        "sessionId": 36768,
+        "exitCode": 0,
+        "startedAtLocal": "06:28:16",
+        "log": "browser-final.log",
+        "browserEvidence": "browser.json",
+        "superseded": false
+      }
+    ]
   },
   "limitations": [
     "Synthetic Auth and in-memory ERP/seller RPC for browser interactions; local PostgreSQL tests are separate.",
