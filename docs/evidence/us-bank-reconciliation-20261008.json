@@ -1,0 +1,946 @@
+{
+  "phase": "US bank reconciliation pilot, additive private source and local validation",
+  "observedAt": "2026-10-08T19:39:59.595Z",
+  "baseWebCommit": "ce64382ff53600ed13a3d497e05f33f13703787a",
+  "webDirectory": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site",
+  "publishedMenu": {
+    "projectId": "appgprj_6a942972adf481918671ac74e99e1fa7",
+    "version": 355,
+    "url": "https://www.zentraapp.ch",
+    "deploymentId": "appgdep_6ac79b783e588191aef4577853622e7e",
+    "status": "succeeded",
+    "checkedOn": "2026-10-08",
+    "livePixelsRechecked": false
+  },
+  "tests": {
+    "international": {
+      "path": ".qa/us-bank/full-international-final.json",
+      "sha256": "e4a4fd3b4f713646ef31bdf4e5f5c1bf4675ee0d9d390ce138896eb5e2cb8923",
+      "passed": 4306,
+      "failed": 0,
+      "skipped": 10,
+      "total": 4316,
+      "success": true,
+      "files": [
+        {
+          "path": "lib/international/accounting-exports.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/accounting-runtime.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-accounting.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-accounting.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-actor-binding.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-bank-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-bank.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-erp-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-export-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-projects-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-projects.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-projects.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-purchasing.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-purchasing.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-sales.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-sales.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-seller-panel.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-seller-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-tax-profile-panel.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-tax-profile-postgres.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-tax-profile-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-tax-profile.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-us-device-approval.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-workbench.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-workbench.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/canonical-hash.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/core.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/documents.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/export-fonts.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/export-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/export-snapshot.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/exports.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/finance.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/integration.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/journal-periods.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/legacy-country-error.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/legacy-country-guard.migrations.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/legacy-country-guard.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/legacy-transport-routes.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/native-purchasing-exports.integration.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/new-us-workspace-admission.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/phone.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/private-json.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/projects-bindings.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/projects-export-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/projects-exports.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/projects-transport.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/projects.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/projects.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/public-projection.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/purchasing-bindings.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/purchasing-composition.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/purchasing-runtime.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/purchasing-transport.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/purchasing.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/purchasing.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-bindings.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-server-us-tax.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-store.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-sync.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime-tax-proof-postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/runtime.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/saas-authority.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/saas-authority.workerd.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/seller-profile-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/seller-profile.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/seller-profile.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/stripe-tax-calculation.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/stripe-tax-resolved-request.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/stripe-tax-sdk-body.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/stripe-tax-test-gateway.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/tax-request-history.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/tax-request-identity.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-bank-bindings.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-bank-csv.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-bank-reconciliation.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-bank-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-bank-store.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-bank.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-device-approval-page.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-device-approval.browser.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-device-bindings.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-device-capability-v4.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-device-d1.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-device-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-device-workerd.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-financial-context.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-invoice.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-invoice.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-operation-store.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-operations.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-profile-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-profile.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-profile.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-readiness-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-tax-readiness.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-creation-review.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-creation.integration.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-creation.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-server.native.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-server.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-service.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-service.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/accounting/reconciliation.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/accounting/us-journal.test.ts",
+          "status": "passed"
+        }
+      ]
+    },
+    "capacity": {
+      "path": ".qa/us-bank/capacity-final.json",
+      "sha256": "ee83aac8fd300a1b81b18e343748e7c6f263551ae83b46a9c56b4f108ed20e8d",
+      "passed": 62,
+      "failed": 0,
+      "skipped": 0,
+      "total": 62,
+      "success": true,
+      "files": [
+        {
+          "path": "lib/international/browser-bank-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/us-bank.postgres.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/workspace-creation.integration.test.ts",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser": {
+      "path": ".qa/us-bank/final-browser-transport-tests.json",
+      "sha256": "0d7376c01c116b1c6f90beee9c23f14d135800b40effafa0d1d45d67c6f90914",
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "total": 23,
+      "success": true,
+      "files": [
+        {
+          "path": "lib/international/browser-bank-session.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/international/browser-bank.browser.test.ts",
+          "status": "passed"
+        }
+      ]
+    },
+    "swissAuthBilling": {
+      "path": ".qa/us-bank/ch-auth-billing.json",
+      "sha256": "4a2bb8d04f1f906fd4025a382e2cb6494b1baa864b2bf1b1524485a381b4c58e",
+      "passed": 52,
+      "failed": 0,
+      "skipped": 0,
+      "total": 52,
+      "success": true,
+      "files": [
+        {
+          "path": "lib/stripe-checkout.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/stripe-contract.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/stripe-webhook-proof.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/stripe-webhook.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/supabase-auth-http.test.ts",
+          "status": "passed"
+        },
+        {
+          "path": "lib/supabase-auth.test.ts",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "quality": {
+    "scope": "Current US bank source; syntax lint is explicitly not typed tsgolint",
+    "results": [
+      {
+        "name": "typescript",
+        "exitCode": 0,
+        "error": null,
+        "durationMs": 6395,
+        "log": ".qa/us-bank/typescript.log"
+      },
+      {
+        "name": "syntax-lint",
+        "exitCode": 0,
+        "error": null,
+        "durationMs": 452,
+        "log": ".qa/us-bank/syntax-lint.log"
+      },
+      {
+        "name": "brand-assets",
+        "exitCode": 0,
+        "error": null,
+        "durationMs": 52,
+        "log": ".qa/us-bank/brand-assets.log"
+      },
+      {
+        "name": "production-build",
+        "exitCode": 0,
+        "error": null,
+        "durationMs": 20010,
+        "log": ".qa/us-bank/production-build.log"
+      },
+      {
+        "name": "diff-check",
+        "exitCode": 0,
+        "error": null,
+        "durationMs": 56,
+        "log": ".qa/us-bank/diff-check.log"
+      },
+      {
+        "name": "css-parse",
+        "exitCode": 0
+      }
+    ]
+  },
+  "visual": {
+    "scope": "Actual browser/HTTP/core/delta; fictitious admission and RAM stores; no bank, PG, hosted multi-device or production proof",
+    "checks": [
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 1200,
+        "largeText": false,
+        "overflow": [],
+        "fontLoaded": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 320,
+        "largeText": true,
+        "overflow": [],
+        "fontLoaded": true
+      }
+    ],
+    "errors": [],
+    "commits": 5,
+    "exactRetry": true,
+    "staleSelectionsPreserved": true,
+    "mismatchRejected": true,
+    "voidAuditPreserved": true,
+    "actorPurge": true,
+    "writes": 6,
+    "finalErpRevision": 4,
+    "finalLedgerRevision": 3
+  },
+  "workbench": {
+    "scope": "Real workbench/HTTP/ERP/bank transitions; synthetic Auth/RAM and explicit profile read fixtures; no production claim",
+    "bankEnabled": true,
+    "pendingLocks": [
+      "ERP",
+      "seller",
+      "tax"
+    ],
+    "ownRetryAccessible": true,
+    "exactRetry": true,
+    "commits": 1,
+    "errors": [],
+    "erpRevision": 1,
+    "ledgerRevision": 0
+  },
+  "newMigration": "supabase/migrations/20261008184605_international_us_bank_reconciliation.sql",
+  "protected": {
+    "historicalSqlAndSharedSwissSourceDiff": [],
+    "native": {
+      "directory": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "commit": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "clean": true
+    },
+    "publishedSite": {
+      "directory": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "commit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "clean": true
+    }
+  },
+  "runtime": {
+    "bookSchema": 4,
+    "bankRecordSchema": 1,
+    "bankGateDefaultClosed": true,
+    "taxProviderInstalled": false,
+    "issuerInstalled": false
+  },
+  "deployment": {
+    "usPush": false,
+    "hostedMigration": false,
+    "usDeploy": false,
+    "installer": false,
+    "actualBank": false,
+    "stripeOperation": false
+  },
+  "limits": [
+    "RAM PGlite, serial local connection, synthetic browser/device authority; not hosted multi-device/load/restart proof",
+    "Bank visual/browser tests use RAM stores, separate from real PostgreSQL tests",
+    "Typed lint Windows refusal retained; only syntax lint passes",
+    "No new Rust compilation or physical iPhone/Mac/Android test",
+    "Dedicated bank delta/realtime, multi-bank transfer matching, original file archive and closed-reconciliation amendments remain future scope",
+    "Prior temporary Stripe TEST key revocation remains unconfirmed; no key or claim URL included"
+  ],
+  "sourceFiles": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/bank-reconciliations/route.ts",
+      "bytes": 457,
+      "rawSha256": "c3a4008ec132b5f562fb616db42399c9da422098f159b3eee52753ae80c3ee0c",
+      "lfSha256": "c3a4008ec132b5f562fb616db42399c9da422098f159b3eee52753ae80c3ee0c"
+    },
+    {
+      "path": "components/account/us-erp-bank.css",
+      "bytes": 3065,
+      "rawSha256": "efacbdbd43f24505e7c488c0ea942f9bbc65d48ea79f04865f61acd55913ae01",
+      "lfSha256": "efacbdbd43f24505e7c488c0ea942f9bbc65d48ea79f04865f61acd55913ae01"
+    },
+    {
+      "path": "components/account/us-erp-bank.tsx",
+      "bytes": 22562,
+      "rawSha256": "439487ec313c7c55606613e074fe2371bcf44272e016e326e82a56f9cc2277d3",
+      "lfSha256": "439487ec313c7c55606613e074fe2371bcf44272e016e326e82a56f9cc2277d3"
+    },
+    {
+      "path": "docs/internationalization/US-BANK-RECONCILIATION-DELIVERY-20261008.md",
+      "bytes": 12581,
+      "rawSha256": "72bd982685a077fc7cc87676062ca9ddbf3841837eb4270d74aaf45eaf6ddf27",
+      "lfSha256": "72bd982685a077fc7cc87676062ca9ddbf3841837eb4270d74aaf45eaf6ddf27"
+    },
+    {
+      "path": "docs/internationalization/US-BANK-RECONCILIATION-PLAN-20261008.md",
+      "bytes": 2964,
+      "rawSha256": "bb84b88f16b729cd39be7d3376d481819ac28aeedf4012cc23aa56d666612c03",
+      "lfSha256": "bb84b88f16b729cd39be7d3376d481819ac28aeedf4012cc23aa56d666612c03"
+    },
+    {
+      "path": "lib/international/browser-bank-copy.ts",
+      "bytes": 16472,
+      "rawSha256": "086fa577c363e2cc7bfba5054a84aa22d63ab030caf1436ba3ffd0d3cc92b4b6",
+      "lfSha256": "086fa577c363e2cc7bfba5054a84aa22d63ab030caf1436ba3ffd0d3cc92b4b6"
+    },
+    {
+      "path": "lib/international/browser-bank-session.test.ts",
+      "bytes": 12915,
+      "rawSha256": "cbd175a5a004e42882b47f0229556cd1bf34b930861c44eee8c640411a3f611e",
+      "lfSha256": "cbd175a5a004e42882b47f0229556cd1bf34b930861c44eee8c640411a3f611e"
+    },
+    {
+      "path": "lib/international/browser-bank-session.ts",
+      "bytes": 12474,
+      "rawSha256": "8c3ed63b34df7b8c1aeaa2953ececfe6f7baf7f4209070438edd7a6d02287dbf",
+      "lfSha256": "8c3ed63b34df7b8c1aeaa2953ececfe6f7baf7f4209070438edd7a6d02287dbf"
+    },
+    {
+      "path": "lib/international/browser-bank.browser.test.ts",
+      "bytes": 30664,
+      "rawSha256": "87abc40d424a76a4620b02cdf7c40bb3dad253c9358f64ab7dee082168fa67fb",
+      "lfSha256": "87abc40d424a76a4620b02cdf7c40bb3dad253c9358f64ab7dee082168fa67fb"
+    },
+    {
+      "path": "lib/international/us-bank-bindings.test.ts",
+      "bytes": 2437,
+      "rawSha256": "a7589037144a50f6b83fae145ab73a641579d60a7676c228c9cf94b35589fb1e",
+      "lfSha256": "a7589037144a50f6b83fae145ab73a641579d60a7676c228c9cf94b35589fb1e"
+    },
+    {
+      "path": "lib/international/us-bank-bindings.ts",
+      "bytes": 1917,
+      "rawSha256": "af56ca68f90514723f59d41b616d49eb8b6cabce9fee9b16ff9ca2905b40247e",
+      "lfSha256": "af56ca68f90514723f59d41b616d49eb8b6cabce9fee9b16ff9ca2905b40247e"
+    },
+    {
+      "path": "lib/international/us-bank-contract.ts",
+      "bytes": 2587,
+      "rawSha256": "e23c410e599579855258bb48c962add24f63194013751772418581a81990e18e",
+      "lfSha256": "e23c410e599579855258bb48c962add24f63194013751772418581a81990e18e"
+    },
+    {
+      "path": "lib/international/us-bank-csv.test.ts",
+      "bytes": 5172,
+      "rawSha256": "07d41da9f197a12f5735f9daeb22d915f447a2e33f3779795b6033a5f9604887",
+      "lfSha256": "07d41da9f197a12f5735f9daeb22d915f447a2e33f3779795b6033a5f9604887"
+    },
+    {
+      "path": "lib/international/us-bank-csv.ts",
+      "bytes": 4318,
+      "rawSha256": "615f8fbea16d03c46cc92dd31bb9e988660b91d48e8acd6b0a999a9e0a6f9de2",
+      "lfSha256": "615f8fbea16d03c46cc92dd31bb9e988660b91d48e8acd6b0a999a9e0a6f9de2"
+    },
+    {
+      "path": "lib/international/us-bank-reconciliation.test.ts",
+      "bytes": 25890,
+      "rawSha256": "68612ff434bc9e067579e0bb661424e060c23a966009e8068fdff35cece8572e",
+      "lfSha256": "68612ff434bc9e067579e0bb661424e060c23a966009e8068fdff35cece8572e"
+    },
+    {
+      "path": "lib/international/us-bank-reconciliation.ts",
+      "bytes": 18050,
+      "rawSha256": "31a94ce4ffd6bffb8cc284a204044c897ea341cd13668cb4f2e641d3fa0a5d2c",
+      "lfSha256": "31a94ce4ffd6bffb8cc284a204044c897ea341cd13668cb4f2e641d3fa0a5d2c"
+    },
+    {
+      "path": "lib/international/us-bank-server.test.ts",
+      "bytes": 29214,
+      "rawSha256": "1f8de2d803373f2a9102e5bc8896fc5cb6890e44e4c636b7336809640df3f174",
+      "lfSha256": "1f8de2d803373f2a9102e5bc8896fc5cb6890e44e4c636b7336809640df3f174"
+    },
+    {
+      "path": "lib/international/us-bank-server.ts",
+      "bytes": 13564,
+      "rawSha256": "66f979151257774a411afd4f24ee03920bdc2ccea90061e324d249451d94a63b",
+      "lfSha256": "66f979151257774a411afd4f24ee03920bdc2ccea90061e324d249451d94a63b"
+    },
+    {
+      "path": "lib/international/us-bank-store.test.ts",
+      "bytes": 30372,
+      "rawSha256": "ff4e44f499fc2391b531c56bd400192f38b21b4363c33942cb659178e6bec522",
+      "lfSha256": "ff4e44f499fc2391b531c56bd400192f38b21b4363c33942cb659178e6bec522"
+    },
+    {
+      "path": "lib/international/us-bank-store.ts",
+      "bytes": 8666,
+      "rawSha256": "244e6d2a419a3fa95ab2ab1ec94f5281d45c7e42e19538bad7401b3114db8064",
+      "lfSha256": "244e6d2a419a3fa95ab2ab1ec94f5281d45c7e42e19538bad7401b3114db8064"
+    },
+    {
+      "path": "lib/international/us-bank.postgres.test.ts",
+      "bytes": 31363,
+      "rawSha256": "219f3a4ca07c70ebea77d1564903ae428d6e8a47909f20a2d0c5622aef24bccc",
+      "lfSha256": "219f3a4ca07c70ebea77d1564903ae428d6e8a47909f20a2d0c5622aef24bccc"
+    },
+    {
+      "path": "supabase/migrations/20261008184605_international_us_bank_reconciliation.sql",
+      "bytes": 42226,
+      "rawSha256": "0f43af57a0d9552d572ca353991f10fc214e710279e68defca44c844ba87d298",
+      "lfSha256": "1a559b88961dc66ad18a42d84827da0d8ed4668f6b67be3cbe8d2cb82ae34b72"
+    },
+    {
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "bytes": 5174,
+      "rawSha256": "416f72557f16c4fed7ce1f9816877d9834f4dad5351588bd13f50b4466056cdb",
+      "lfSha256": "5fa1557fbc6100c3f911cd86bf24c1ec1f487230160f07d0a9955541ba1248a3"
+    },
+    {
+      "path": "components/account/us-erp-accounting.tsx",
+      "bytes": 14478,
+      "rawSha256": "ba5d8ea78a67919a10aad5cd58a92c19420098c933b123767b85aae82aa885fa",
+      "lfSha256": "ba5d8ea78a67919a10aad5cd58a92c19420098c933b123767b85aae82aa885fa"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "bytes": 62515,
+      "rawSha256": "a8de48566db02631e64c5caa6272f98c3d845cdd062dd33138314c0c97a27f92",
+      "lfSha256": "a8de48566db02631e64c5caa6272f98c3d845cdd062dd33138314c0c97a27f92"
+    },
+    {
+      "path": "lib/international/workspace-creation.integration.test.ts",
+      "bytes": 19967,
+      "rawSha256": "95262c57bb03ba467b89a701ad810827ee113e5032858e74434a1457f69ec078",
+      "lfSha256": "95262c57bb03ba467b89a701ad810827ee113e5032858e74434a1457f69ec078"
+    }
+  ]
+}

@@ -205,6 +205,7 @@ describe.runIf(enabled)('US creation service → full SQLite D1 schema → real 
       '20261008105120_international_us_projects_v3.sql',
       '20261008161118_international_us_journal_periods_v4.sql',
       '20261008172520_international_us_tax_invoice_capability_v2.sql',
+      '20261008184605_international_us_bank_reconciliation.sql',
     ]);
     for (const name of internationalMigrations) {
       await postgres.exec(await readFile(new URL('../../supabase/migrations/' + name, import.meta.url), 'utf8'));

@@ -1,0 +1,33 @@
+.us-bank{min-width:0;margin-top:1.5rem}
+.us-bank h3,.us-bank h4{overflow-wrap:anywhere;text-wrap:balance}
+.us-bank h4{margin:1.5rem 0 .65rem;font-size:1.05rem}
+.us-bank p{max-width:70ch}
+.us-bank output{display:block;margin:.75rem 0;max-width:70ch}
+.us-bank .us-erp-confirm>button{display:block;margin-top:1rem}
+.us-bank-statements,.us-bank-movements,.us-bank-preview{list-style:none;padding:0;margin:1rem 0}
+.us-bank-statements>li,.us-bank-movements>li,.us-bank-preview>li{border-bottom:1px solid var(--account-border,#d7ded9)}
+.us-bank-statement{width:100%;background:transparent;color:inherit;border:0;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem .5rem;min-height:2.75rem;cursor:pointer;font:inherit}
+.us-bank-statement>span:first-child{display:grid;gap:.35rem;min-width:0}
+.us-bank-statement[aria-pressed=true]{background:var(--account-soft,#e9f2ec);border-radius:.75rem}
+.us-bank-statement:disabled{cursor:default;opacity:.65}
+.us-bank-detail{margin-top:2rem}
+.us-bank-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem}
+.us-bank-columns>section{min-width:0}
+.us-bank-movements label{display:grid;grid-template-columns:1.25rem minmax(0,1fr) auto;align-items:start;gap:.75rem;padding:1rem 0;min-height:2.75rem;cursor:pointer}
+.us-bank-movements input{width:1.15rem;height:1.15rem;margin:.15rem 0;accent-color:var(--account-accent,#216448)}
+.us-bank-movements label>span{display:grid;gap:.35rem;min-width:0}
+.us-bank-movements label>span>span{font-size:.9rem;color:var(--account-muted,#55645c)}
+.us-bank-amount{font-variant-numeric:tabular-nums;text-align:right}
+.us-bank-pages,.us-bank-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.65rem;margin:1rem 0}
+.us-bank-pages>span{font-variant-numeric:tabular-nums}
+.us-bank-preview>li{display:flex;justify-content:space-between;gap:1rem;padding:.75rem 0}
+.us-bank-preview strong{font-variant-numeric:tabular-nums}
+.us-bank-void{margin-top:1.5rem}
+.us-bank-void>label{display:grid;gap:.5rem;margin:.75rem 0}
+.us-bank-void textarea{font:inherit;resize:vertical;min-height:6rem;width:100%}
+.us-bank input[type=file]{max-width:100%;width:100%}
+.us-bank :is(button,input,select,textarea,summary):focus-visible{outline:2px solid var(--account-accent,#216448);outline-offset:3px}
+.us-bank :is(strong,span,dd,output){overflow-wrap:anywhere;min-width:0}
+.account-experience[data-theme=dark] .us-bank{--account-border:#404a45;--account-soft:#263e31;--account-muted:#c1ccc4;--account-accent:#a7d4b6}
+@media(max-width:760px){.us-bank-columns{grid-template-columns:minmax(0,1fr);gap:.5rem}.us-bank-statement{align-items:flex-start;flex-direction:column;gap:.5rem}.us-bank-movements label{grid-template-columns:1.25rem minmax(0,1fr)}.us-bank-amount{grid-column:2;text-align:left}.us-bank-preview>li{flex-direction:column;gap:.35rem}.us-bank .us-erp-record-heading{align-items:flex-start;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.us-bank *{scroll-behavior:auto;transition:none!important;animation:none!important}}
