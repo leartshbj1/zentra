@@ -1,3 +1,5 @@
+import { database } from './runtime';
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import {
@@ -132,12 +134,14 @@ export async function businessTransactionDeliveryStatus(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   return response(await completedTransactionFingerprint(session, id));
 }
 export async function preparedBusinessTransactionDelivery(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await completedTransactionFingerprint(session, id);
   const bundle = descriptor(ctx, await parts(ctx));
   if (!(await current(ctx))) fail();
@@ -147,6 +151,7 @@ export async function prepareBusinessTransactionDelivery(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await completedTransactionFingerprint(session, id),
     existing = await parts(ctx),
     index = existing.length;
@@ -204,7 +209,7 @@ export async function prepareBusinessTransactionDelivery(
   });
   // R2 and D1 are separate stores. A lost write response is safe to retry; only
   // a verified immutable object can gain a guarded database receipt.
-  const stored = await storedBlobPart(objectKey, bytes.length);
+  const stored = await storedBlobPart(session.organizationId, objectKey, bytes.length);
   if (stored.length !== bytes.length || (await sha256Hex(stored)) !== hash)
     fail(
       'Les positions conservées ne correspondent pas à leur empreinte.',
@@ -233,6 +238,7 @@ export async function businessTransactionDeliveryResource(
   resource: unknown,
   rawIndex: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await completedTransactionFingerprint(session, id),
     rows = await parts(ctx);
   const manifest = descriptor(ctx, rows);
@@ -257,7 +263,7 @@ export async function businessTransactionDeliveryResource(
         index,
       );
     else {
-      bytes = await storedBlobPart(part.object_key, part.positions_bytes);
+      bytes = await storedBlobPart(session.organizationId, part.object_key, part.positions_bytes);
       if (
         bytes.length !== part.positions_bytes ||
         (await sha256Hex(bytes)) !== part.positions_sha256

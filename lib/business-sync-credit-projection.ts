@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import { AccountPublicError, sha256Hex } from './account-security';
 import {
   activeBootstrapSql,
@@ -278,10 +279,12 @@ function status(row: Receipt | null) {
   };
 }
 export async function creditProjectionStatus(ctx: Context) {
+  await requireLegacyCountryTransport(ctx.binding[1], ctx.db);
   return status(await read(ctx));
 }
 
 export async function validateCreditProjection(ctx: Context) {
+  await requireLegacyCountryTransport(ctx.binding[1], ctx.db);
   let old = await read(ctx);
   if (!old) {
     const state = initial();

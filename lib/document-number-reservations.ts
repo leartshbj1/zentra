@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import { type DeviceSessionContext } from '@/lib/account';
 import { AccountPublicError, isInstallationId } from '@/lib/account-security';
 import { database } from '@/lib/runtime';
@@ -56,6 +57,7 @@ export async function reserveDocumentNumbers(
   session: DeviceSessionContext,
   input: NumberReservationRequest,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const db = database();
   await db
     .prepare(`INSERT OR IGNORE INTO document_number_reservations(

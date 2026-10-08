@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import contract from '../desktop/src-tauri/src/business_sync_tables.json';
 import schema from '../desktop/src-tauri/src/business_sync_schema.json';
 import { AccountPublicError, sha256Hex } from './account-security';
@@ -80,6 +81,7 @@ export async function fingerprintStatePage(
   organization: string,
   old: StateCursor,
 ) {
+  await requireLegacyCountryTransport(organization, db);
   validStateCursor(old);
   const metadata = (
     await db

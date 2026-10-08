@@ -4,6 +4,7 @@ import { supabaseServiceRetryAfter } from './supabase-server';
 import { database } from '@/lib/runtime';
 import { requireMemberSeat } from '@/lib/team-seats';
 import { effectiveAccountUntil } from '@/lib/founder-access';
+import { LegacyCountryTransportError } from '@/lib/international/legacy-country-guard';
 import {
   AccountPublicError,
   bearerSessionToken,
@@ -68,6 +69,7 @@ export function accountJsonError(reason: unknown, diagnostic?: ServiceDiagnostic
       error: publicReason
         ? publicReason.message
         : 'Le service de compte Zentra est momentanément indisponible.',
+      ...(reason instanceof LegacyCountryTransportError ? { code: reason.code } : {}),
       ...(reference ? { reference } : {}),
     },
     {

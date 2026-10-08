@@ -11,11 +11,13 @@ import {
   businessFilesSession,
 } from '@/lib/business-sync-files-http';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const session = await businessFilesSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     return Response.json(
       await businessFilesStatus(
         session,
@@ -29,8 +31,9 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const session = await businessFilesSession(request),
-      input = await readJsonObjectWithinLimit(request, 256 * 1024);
+    const session = await businessFilesSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
+    const input = await readJsonObjectWithinLimit(request, 256 * 1024);
     if (input.action !== 'begin' && input.action !== 'complete')
       throw new AccountPublicError('Action de catalogue inconnue.');
     const result =
@@ -44,8 +47,9 @@ export async function POST(request: Request) {
 }
 export async function PUT(request: Request) {
   try {
-    const session = await businessFilesSession(request),
-      query = new URL(request.url).searchParams;
+    const session = await businessFilesSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
+    const query = new URL(request.url).searchParams;
     return Response.json(
       await uploadBusinessFilePage(
         session,

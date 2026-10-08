@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import { createHash } from 'node:crypto';
 import type { DeviceSessionContext } from './account';
 import {
@@ -234,7 +235,7 @@ async function rejectCancelled(
   }
 }
 
-export async function businessFilesStatus(
+async function readBusinessFilesStatus(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
@@ -285,11 +286,17 @@ export async function businessFilesStatus(
     replication_active: false,
   };
 }
+// The private body is only entered by this module's guarded exports.
+export async function businessFilesStatus(session: DeviceSessionContext, rawId: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readBusinessFilesStatus(session, rawId);
+}
 export async function beginBusinessFiles(
   session: DeviceSessionContext,
   rawId: unknown,
   value: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const id = transferId(rawId);
   await required(session, id);
   const manifest = businessFileManifest(value);
@@ -309,7 +316,7 @@ export async function beginBusinessFiles(
   const set = await requiredSet(id);
   if (set.manifest_sha256 !== sha || set.manifest_json !== text)
     invalid('Un autre catalogue est déjà lié à cette préparation.', 409);
-  return businessFilesStatus(session, id);
+  return readBusinessFilesStatus(session, id);
 }
 async function sealCatalog(session: DeviceSessionContext, id: string) {
   await database()
@@ -327,6 +334,7 @@ export async function uploadBusinessFilePage(
   rawIndex: unknown,
   request: Request,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const id = transferId(rawId),
     index = integer(
       rawIndex,
@@ -372,7 +380,7 @@ export async function uploadBusinessFilePage(
       invalid('Une confirmation de catalogue est contradictoire.', 409);
     await retainPage();
     await sealCatalog(session, id);
-    return businessFilesStatus(session, id);
+    return readBusinessFilesStatus(session, id);
   }
   if (set.state !== 'cataloguing') invalid('Le catalogue est déjà figé.', 409);
   let input: Record<string, unknown>;
@@ -502,7 +510,7 @@ export async function uploadBusinessFilePage(
   if (!(await receipt()))
     invalid('La préparation a changé pendant la réception du catalogue.', 409);
   await sealCatalog(session, id);
-  return businessFilesStatus(session, id);
+  return readBusinessFilesStatus(session, id);
 }
 
 async function requiredBlob(
@@ -523,7 +531,7 @@ async function requiredBlob(
   if (!blob) invalid('Ce fichier ne figure pas dans le catalogue.', 404);
   return { source, blob };
 }
-export async function businessFileStatus(
+async function readBusinessFileStatus(
   session: DeviceSessionContext,
   rawId: unknown,
   rawSha: unknown,
@@ -549,6 +557,11 @@ export async function businessFileStatus(
     replication_active: false,
   };
 }
+// The private body is only entered by this module's guarded exports.
+export async function businessFileStatus(session: DeviceSessionContext, rawId: unknown, rawSha: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readBusinessFileStatus(session, rawId, rawSha);
+}
 export async function uploadBusinessFilePart(
   session: DeviceSessionContext,
   rawId: unknown,
@@ -556,6 +569,7 @@ export async function uploadBusinessFilePart(
   rawIndex: unknown,
   request: Request,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const id = transferId(rawId),
     sha = businessFileHash(rawSha),
     index = integer(rawIndex, MAX_FILE_BYTES / BUSINESS_FILE_PART_BYTES - 1);
@@ -585,13 +599,13 @@ export async function uploadBusinessFilePart(
   if (previous) {
     if (!matches(previous))
       invalid('Ce fragment a déjà été reçu avec un autre contenu.', 409);
-    const retained = await storedBytes(key, expectedSize);
+    const retained = await storedBytes(session.organizationId, key, expectedSize);
     if (
       retained.length !== expectedSize ||
       (await sha256Hex(retained)) !== expectedSha
     )
       invalid('Le fragment conservé doit être réconcilié.', 409);
-    return businessFileStatus(session, id, sha);
+    return readBusinessFileStatus(session, id, sha);
   }
   if (blob.verified_at !== null) invalid('Ce fichier a déjà été vérifié.', 409);
   try {
@@ -602,7 +616,7 @@ export async function uploadBusinessFilePart(
       httpMetadata: { contentType: 'application/octet-stream' },
     });
     if (!created) {
-      const retained = await storedBytes(key, expectedSize);
+      const retained = await storedBytes(session.organizationId, key, expectedSize);
       if (
         retained.length !== expectedSize ||
         (await sha256Hex(retained)) !== expectedSha
@@ -633,7 +647,7 @@ export async function uploadBusinessFilePart(
         'La confirmation du fragment n’a pas été conservée. Reprenez le même envoi.',
         409,
       );
-    return await businessFileStatus(session, id, sha);
+    return await readBusinessFileStatus(session, id, sha);
   } finally {
     await rejectCancelled(session, id, key);
   }
@@ -643,10 +657,11 @@ export async function verifyBusinessFile(
   rawId: unknown,
   rawSha: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const id = transferId(rawId),
     sha = businessFileHash(rawSha),
     { blob } = await requiredBlob(session, id, sha);
-  if (blob.verified_at !== null) return businessFileStatus(session, id, sha);
+  if (blob.verified_at !== null) return readBusinessFileStatus(session, id, sha);
   const parts =
     (
       await database()
@@ -656,7 +671,7 @@ export async function verifyBusinessFile(
         .bind(id, sha)
         .all<FilePart>()
     ).results ?? [];
-  await verifyStoredBlob(parts, blob.size_bytes, sha, (index) =>
+  await verifyStoredBlob(session.organizationId, parts, blob.size_bytes, sha, (index) =>
     partKey(session.organizationId, id, sha, index),
   );
   await database()
@@ -664,12 +679,13 @@ export async function verifyBusinessFile(
     AND ${ACTIVE} AND EXISTS(SELECT 1 FROM business_sync_file_sets WHERE transfer_id=? AND state='uploading')`)
     .bind(new Date().toISOString(), id, sha, ...activeValues(session, id), id)
     .run();
-  return businessFileStatus(session, id, sha);
+  return readBusinessFileStatus(session, id, sha);
 }
 export async function completeBusinessFiles(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const id = transferId(rawId);
   await required(session, id);
   await sealCatalog(session, id);
@@ -681,7 +697,7 @@ export async function completeBusinessFiles(
     AND NOT EXISTS(SELECT 1 FROM business_sync_file_blobs WHERE transfer_id=? AND verified_at IS NULL)`)
     .bind(id, ...activeValues(session, id), id)
     .run();
-  const result = await businessFilesStatus(session, id);
+  const result = await readBusinessFilesStatus(session, id);
   if (result.state !== 'uploaded')
     invalid(
       'Des fichiers attendent encore leur envoi ou leur vérification.',
@@ -691,6 +707,7 @@ export async function completeBusinessFiles(
 }
 
 export async function cleanupBootstrapFiles(organization: string, id: string) {
+  await requireLegacyCountryTransport(organization, database());
   const cancelled = await database()
     .prepare(
       "SELECT 1 FROM business_sync_transfers WHERE transfer_id=? AND organization_id=? AND state IN ('abandoning','abandoned')",

@@ -247,9 +247,11 @@ it('does not revive a deleted dependency or accept a missing earlier projection'
 });
 
 function digestRuntime(db: DatabaseSync) {
+  db.exec('CREATE TABLE IF NOT EXISTS international_workspace_creation_intents(organization_id TEXT PRIMARY KEY,country_code TEXT)');
   vi.mocked(database).mockReturnValue({
     prepare: (sql: string) => ({
       bind: (...values: (string | number | null)[]) => ({
+        first: async () => db.prepare(sql).get(...values) ?? null,
         all: async () => ({ results: db.prepare(sql).all(...values) }),
       }),
     }),

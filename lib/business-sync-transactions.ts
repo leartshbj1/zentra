@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { businessSyncTransferId } from './business-sync-bootstrap';
@@ -39,7 +40,7 @@ type Part = {
 const active = `EXISTS(SELECT 1 FROM business_sync_transfers t JOIN business_sync_spaces s ON s.organization_id=t.organization_id AND s.generation=t.generation
  WHERE t.transfer_id=? AND t.organization_id=? AND t.installation_id=? AND t.generation=? AND t.manifest_sha256=?
  AND t.kind='transaction' AND t.state='receiving' AND s.state='ready' AND s.head_revision>=t.base_revision)`;
-async function required(session: DeviceSessionContext, rawId: unknown) {
+async function readRequired(session: DeviceSessionContext, rawId: unknown) {
   writer(session);
   const id = businessSyncTransferId(rawId);
   const row = await database()
@@ -82,6 +83,11 @@ async function required(session: DeviceSessionContext, rawId: unknown) {
       row.manifest_sha256,
     ],
   };
+}
+// The private body is only entered by this module's guarded exports.
+async function required(session: DeviceSessionContext, rawId: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readRequired(session, rawId);
 }
 export { required as requireBusinessTransaction };
 type Context = Awaited<ReturnType<typeof required>>;
@@ -168,6 +174,7 @@ export async function beginBusinessTransaction(
   session: DeviceSessionContext,
   raw: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   writer(session);
   const manifest = await transactionManifest(raw);
   if (
@@ -210,7 +217,7 @@ export async function beginBusinessTransaction(
       manifest.base_revision,
     )
     .run();
-  const ctx = await required(session, manifest.transaction_id);
+  const ctx = await readRequired(session, manifest.transaction_id);
   if (ctx.row.manifest_sha256 !== hash || ctx.row.manifest_json !== raw)
     fail('Cette opération a déjà été préparée avec un autre contenu.');
   return response(session, ctx);
@@ -219,7 +226,8 @@ export async function businessTransactionStatus(
   session: DeviceSessionContext,
   id: unknown,
 ) {
-  return response(session, await required(session, id));
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return response(session, await readRequired(session, id));
 }
 
 // This seals transport metadata only. Canonical commitment has its own guarded
@@ -247,7 +255,7 @@ async function sealRows(session: DeviceSessionContext, ctx: Context) {
       m.chunks.length,
     )
     .run();
-  return response(session, await required(session, ctx.id));
+  return response(session, await readRequired(session, ctx.id));
 }
 export async function uploadBusinessTransactionChunk(
   session: DeviceSessionContext,
@@ -255,7 +263,8 @@ export async function uploadBusinessTransactionChunk(
   index: number,
   request: Request,
 ) {
-  const ctx = await required(session, rawId);
+  await requireLegacyCountryTransport(session.organizationId, database());
+  const ctx = await readRequired(session, rawId);
   if (
     !Number.isSafeInteger(index) ||
     index < 0 ||

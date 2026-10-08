@@ -1,4 +1,5 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
+vi.mock('./international/legacy-country-guard',()=>({requireLegacyCountryTransport:vi.fn(async()=>undefined)}));
 const mock=vi.hoisted(()=>({session:vi.fn(),limit:vi.fn(),head:vi.fn(),download:vi.fn(),prepare:vi.fn(),commit:vi.fn(),receive:vi.fn(),watch:vi.fn()}));
 vi.mock('./account',()=>({
  requireDeviceSession:mock.session,enforceSyncRateLimit:mock.limit,

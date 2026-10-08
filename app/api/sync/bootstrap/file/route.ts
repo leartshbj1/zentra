@@ -9,12 +9,14 @@ import {
   businessFilesSession,
 } from '@/lib/business-sync-files-http';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
-    const session = await businessFilesSession(request),
-      query = new URL(request.url).searchParams;
+    const session = await businessFilesSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
+    const query = new URL(request.url).searchParams;
     return Response.json(
       await businessFileStatus(
         session,
@@ -29,8 +31,9 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const session = await businessFilesSession(request),
-      input = await readJsonObjectWithinLimit(request, 2048);
+    const session = await businessFilesSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
+    const input = await readJsonObjectWithinLimit(request, 2048);
     return Response.json(
       await verifyBusinessFile(session, input.transfer_id, input.sha256),
       { headers: accountNoStoreHeaders() },
@@ -41,8 +44,9 @@ export async function POST(request: Request) {
 }
 export async function PUT(request: Request) {
   try {
-    const session = await businessFilesSession(request),
-      query = new URL(request.url).searchParams;
+    const session = await businessFilesSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
+    const query = new URL(request.url).searchParams;
     return Response.json(
       await uploadBusinessFilePart(
         session,

@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import { AccountPublicError, sha256Hex } from './account-security';
 import type { TransactionChange } from './business-sync-transaction-format';
 import { database } from './runtime';
@@ -12,6 +13,7 @@ export async function nativeGuardDigests(
   source: string,
   changes: readonly TransactionChange[],
 ): Promise<(string | null)[]> {
+  await requireLegacyCountryTransport(organization, database());
   const images = changes.map((c) =>
     c.after_json === null
       ? null

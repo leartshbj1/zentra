@@ -11,9 +11,11 @@ import {
   businessTransactionReviewStatus,
   reviewBusinessTransaction,
 } from '@/lib/business-sync-transaction-review';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic = 'force-dynamic';
 async function context(request: Request) {
   const session = await requireDeviceSession(request);
+  await requireLegacyCountryTransport(session.organizationId);
   await enforceAccountRateLimit(
     request,
     'business-transaction-review',

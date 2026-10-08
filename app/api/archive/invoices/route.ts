@@ -15,6 +15,7 @@ import {
 } from '@/lib/invoice-archive';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { database, fileArchive } from '@/lib/runtime';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,6 +120,7 @@ async function archiveRevision(
 export async function GET(request: Request) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     const url = new URL(request.url);
     const sourceInvoiceId = url.searchParams.get('sourceInvoiceId')?.trim();
     if (sourceInvoiceId && sourceInvoiceId.length > 160) {
@@ -160,6 +162,7 @@ export async function POST(request: Request) {
         403,
       );
     }
+    await requireLegacyCountryTransport(session.organizationId);
     await enforceAccountRateLimit(
       request,
       'invoice-archive',

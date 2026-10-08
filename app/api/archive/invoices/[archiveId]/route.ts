@@ -6,6 +6,7 @@ import {
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { safeInvoiceFilename } from '@/lib/invoice-archive';
 import { database, fileArchive } from '@/lib/runtime';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export async function GET(
 ) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     const { archiveId: rawArchiveId } = await params;
     const archiveId = rawArchiveId.trim();
     if (!/^arc_[0-9a-f-]{36}$/i.test(archiveId)) {

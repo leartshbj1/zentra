@@ -16,11 +16,13 @@ import {
   type ProjectDocumentEvent,
 } from '@/lib/project-sync';
 import { database } from '@/lib/runtime';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     const after = Number(new URL(request.url).searchParams.get('after') || 0);
     if (!Number.isSafeInteger(after) || after < 0)
       throw new AccountPublicError('Curseur de synchronisation invalide.');
@@ -49,6 +51,7 @@ async function writer(request: Request) {
       'Votre accès est limité à la consultation.',
       403,
     );
+  await requireLegacyCountryTransport(session.organizationId);
   await enforceAccountRateLimit(
     request,
     'project-documents',

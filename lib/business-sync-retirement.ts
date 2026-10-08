@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { businessSyncTransferId } from './business-sync-bootstrap';
@@ -115,6 +116,7 @@ export async function businessRetirement(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const row = await read(session, businessSyncTransferId(id));
   if (!row) fail('Ce rapprochement est introuvable sur cet appareil.', 404);
   return report(row);
@@ -124,6 +126,7 @@ export async function retireBusinessTransactions(
   session: DeviceSessionContext,
   raw: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   if (!['owner', 'admin', 'member', 'accountant'].includes(session.role))
     fail('Votre accès ne permet pas de résoudre ces modifications.', 403);
   const value = parse(raw),
@@ -193,6 +196,7 @@ async function cancellationReport(row: Stored) {
 }
 
 export async function businessRetirementCancellation(session: DeviceSessionContext, id: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const key = businessSyncTransferId(id);
   const retired = await read(session, key);
   if (retired) return report(retired);
@@ -202,6 +206,7 @@ export async function businessRetirementCancellation(session: DeviceSessionConte
 }
 
 export async function cancelBusinessRetirement(session: DeviceSessionContext, raw: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   if (!['owner', 'admin', 'member', 'accountant'].includes(session.role))
     fail('Votre accès ne permet pas d’annuler cette résolution.', 403);
   const value = parse(raw), binding = JSON.stringify(value), hash = await sha256Hex(binding);
@@ -240,6 +245,7 @@ export async function requireUnretiredTransaction(
     last_sequence: string;
   },
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const found = await database()
     .prepare(`SELECT 1 FROM business_sync_retirements r WHERE r.organization_id=?1 AND r.installation_id=?2 AND r.generation=?3 AND r.capture_generation=?4
     AND CAST(r.first_sequence AS INTEGER)<=CAST(?6 AS INTEGER) AND CAST(r.last_sequence AS INTEGER)>=CAST(?5 AS INTEGER) LIMIT 1`)

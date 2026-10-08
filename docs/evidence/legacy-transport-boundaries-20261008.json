@@ -1,0 +1,1821 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-08T01:38:12.410Z",
+  "sourceRoot": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+  "baseCommit": "534d61da0a85a9c335f04f5035aea63d3a52ff29",
+  "headCommit": "534d61da0a85a9c335f04f5035aea63d3a52ff29",
+  "scope": "Local legacy transport boundary phase on the US feature branch; not an operational US ERP or production attestation.",
+  "goalStatus": "active",
+  "actions": {
+    "production": false,
+    "deployment": false,
+    "push": false,
+    "commit": false,
+    "migrationsApplied": false,
+    "readyAdmission": false,
+    "newUsdPrice": false,
+    "nativeRelease": false
+  },
+  "finalTests": {
+    "success": true,
+    "files": 71,
+    "total": 1939,
+    "passed": 1876,
+    "failed": 0,
+    "skipped": 63,
+    "report": {
+      "path": ".qa/legacy-transport-boundaries/final-tests-v2.json",
+      "sha256": "0293e91026822405f4215717fa79455bddaffa35b8614caea2ee5fccbeef06c7"
+    },
+    "exitCode": 0,
+    "log": {
+      "path": ".qa/legacy-transport-boundaries/final-tests-v2.log",
+      "sha256": "aece50326d4110c7884afaccb1c2f4e102aec4f9e51bc8fc1c727fa8c3e77bdd"
+    },
+    "sameFileSelectionAsInitial": true,
+    "environment": {
+      "PGLITE_MODULE_DIR": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+      "ZENTRA_V4_RUNTIME_PROOF": "1"
+    },
+    "maxWorkers": 2,
+    "limits": [
+      "Selected 71-file regression set, not every repository test.",
+      "63 skipped assertions are optional native fixtures; PGlite and mixed V4 proof were enabled.",
+      "The final 1876 count includes the subsets below; do not add their counts."
+    ],
+    "fileResults": [
+      {
+        "path": "lib/account-security.test.ts",
+        "passed": 5,
+        "skipped": 0
+      },
+      {
+        "path": "lib/account-session-performance.test.ts",
+        "passed": 8,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-accounting-transitions.test.ts",
+        "passed": 60,
+        "skipped": 1
+      },
+      {
+        "path": "lib/business-sync-accounting.test.ts",
+        "passed": 5,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-bootstrap.test.ts",
+        "passed": 27,
+        "skipped": 1
+      },
+      {
+        "path": "lib/business-sync-cash-vat.test.ts",
+        "passed": 9,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-country-guard.test.ts",
+        "passed": 306,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-credit-projection.test.ts",
+        "passed": 17,
+        "skipped": 1
+      },
+      {
+        "path": "lib/business-sync-credit-recovery.test.ts",
+        "passed": 19,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-credit-settlements.test.ts",
+        "passed": 23,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-d1.test.ts",
+        "passed": 9,
+        "skipped": 4
+      },
+      {
+        "path": "lib/business-sync-file-links.test.ts",
+        "passed": 1,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-files.test.ts",
+        "passed": 35,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-financial.test.ts",
+        "passed": 12,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-integrity.test.ts",
+        "passed": 17,
+        "skipped": 3
+      },
+      {
+        "path": "lib/business-sync-money.test.ts",
+        "passed": 5,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-native-after.test.ts",
+        "passed": 9,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-native-effects.test.ts",
+        "passed": 19,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-native-guards.test.ts",
+        "passed": 10,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-numbering.test.ts",
+        "passed": 2,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-order.test.ts",
+        "passed": 2,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-postings.test.ts",
+        "passed": 15,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-publication.test.ts",
+        "passed": 158,
+        "skipped": 50
+      },
+      {
+        "path": "lib/business-sync-row-constraints.test.ts",
+        "passed": 12,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-sql-balance.test.ts",
+        "passed": 10,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-state-fingerprint.test.ts",
+        "passed": 15,
+        "skipped": 1
+      },
+      {
+        "path": "lib/business-sync-structure.test.ts",
+        "passed": 9,
+        "skipped": 1
+      },
+      {
+        "path": "lib/business-sync-supplier.test.ts",
+        "passed": 28,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-transaction-closure.test.ts",
+        "passed": 13,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-transaction-format.test.ts",
+        "passed": 6,
+        "skipped": 1
+      },
+      {
+        "path": "lib/business-sync-transaction-immutability.test.ts",
+        "passed": 2,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-transaction-transitions.test.ts",
+        "passed": 14,
+        "skipped": 0
+      },
+      {
+        "path": "lib/business-sync-validation.test.ts",
+        "passed": 13,
+        "skipped": 0
+      },
+      {
+        "path": "lib/company-collaboration-route.test.ts",
+        "passed": 8,
+        "skipped": 0
+      },
+      {
+        "path": "lib/company-collaboration.test.ts",
+        "passed": 12,
+        "skipped": 0
+      },
+      {
+        "path": "lib/company-content.test.ts",
+        "passed": 6,
+        "skipped": 0
+      },
+      {
+        "path": "lib/company-copy.test.ts",
+        "passed": 6,
+        "skipped": 0
+      },
+      {
+        "path": "lib/company-realtime.test.ts",
+        "passed": 17,
+        "skipped": 0
+      },
+      {
+        "path": "lib/device-team.test.ts",
+        "passed": 13,
+        "skipped": 0
+      },
+      {
+        "path": "lib/document-number-reservations.test.ts",
+        "passed": 15,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/accounting/reconciliation.test.ts",
+        "passed": 11,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/core.test.ts",
+        "passed": 82,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/documents.test.ts",
+        "passed": 36,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/finance.test.ts",
+        "passed": 78,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/integration.test.ts",
+        "passed": 68,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/legacy-country-error.test.ts",
+        "passed": 6,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/legacy-country-guard.migrations.test.ts",
+        "passed": 12,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/legacy-country-guard.test.ts",
+        "passed": 5,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/legacy-transport-routes.test.ts",
+        "passed": 170,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/new-us-workspace-admission.postgres.test.ts",
+        "passed": 18,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/phone.test.ts",
+        "passed": 14,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/public-projection.test.ts",
+        "passed": 6,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/runtime-bindings.test.ts",
+        "passed": 9,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/runtime-postgres.test.ts",
+        "passed": 19,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/runtime-server.test.ts",
+        "passed": 18,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/runtime-sync.test.ts",
+        "passed": 27,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/runtime-tax-proof-postgres.test.ts",
+        "passed": 9,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/runtime.test.ts",
+        "passed": 31,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-creation-d1.test.ts",
+        "passed": 26,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-creation-review.test.ts",
+        "passed": 33,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-creation.integration.test.ts",
+        "passed": 6,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-creation.test.ts",
+        "passed": 48,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-server.bindings.test.ts",
+        "passed": 18,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-server.native.test.ts",
+        "passed": 43,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-server.test.ts",
+        "passed": 18,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-service.postgres.test.ts",
+        "passed": 10,
+        "skipped": 0
+      },
+      {
+        "path": "lib/international/workspace-service.test.ts",
+        "passed": 36,
+        "skipped": 0
+      },
+      {
+        "path": "lib/invoice-archive.test.ts",
+        "passed": 3,
+        "skipped": 0
+      },
+      {
+        "path": "lib/legacy-cloud-transport.test.ts",
+        "passed": 13,
+        "skipped": 0
+      },
+      {
+        "path": "lib/project-sync.test.ts",
+        "passed": 9,
+        "skipped": 0
+      },
+      {
+        "path": "lib/workspace-backup.test.ts",
+        "passed": 22,
+        "skipped": 0
+      }
+    ]
+  },
+  "supersededInitialRun": {
+    "success": false,
+    "files": 71,
+    "total": 1939,
+    "passed": 1874,
+    "failed": 2,
+    "skipped": 63,
+    "report": {
+      "path": ".qa/legacy-transport-boundaries/final-tests.json",
+      "sha256": "55a9020b8024a023a7d32089df2bd361b1146597794d3b57e9c2015d619fa379"
+    },
+    "exitCode": 1,
+    "log": {
+      "path": ".qa/legacy-transport-boundaries/final-tests.log",
+      "sha256": "4dc848317416bb57105db7ef9eec63be77c9ef9c1ba075c62238bf6cfb92b3b4"
+    },
+    "failedTitles": [
+      "resumes within large fragments and records the original change offset on a later conflict",
+      "cannot finish a candidate with a missing canonical event position"
+    ],
+    "supersededBy": ".qa/legacy-transport-boundaries/final-tests-v2.json",
+    "reason": "Two publication fixtures assumed runtime pages of 12. Only their resume/checkpoint expectations were adapted to execution bound 8; V4 ceiling 12 and functional sources remain unchanged by this correction."
+  },
+  "targetedCorrection": {
+    "success": true,
+    "files": 1,
+    "total": 208,
+    "passed": 2,
+    "failed": 0,
+    "skipped": 206,
+    "report": {
+      "path": ".qa/legacy-transport-boundaries/publication-expectations-v2.json",
+      "sha256": "f16f751490fb23bb84dd7230da1141458a6f9b84c10016752b8d617700142ee1"
+    },
+    "exitCode": 0,
+    "changedFile": "lib/business-sync-publication.test.ts",
+    "scenarioTitles": [
+      "resumes within large fragments and records the original change offset on a later conflict",
+      "cannot finish a candidate with a missing canonical event position"
+    ],
+    "limits": [
+      "Two passed and 206 skipped due to title filtering; this is not the final full-file result.",
+      "Conflict remains before_mismatch at original change_index 40; missing canonical position still yields candidate:canonical-order and leaves head_revision 1."
+    ]
+  },
+  "coverage": {
+    "d1Libraries": {
+      "exportsActuallyCalled": 76,
+      "libraries": 25,
+      "boundaryTests": 306,
+      "inventory": {
+        "path": ".qa/us-workspace-admission/legacy-library-guard-inventory.json",
+        "sha256": "6be825ee20ec88890395740860c824ab548e43372f51beaabee74275aa958ee4"
+      },
+      "libraryHashesMatchCurrent": true,
+      "limits": [
+        "Reduced predicate fixture; synthetic ready does not prove migration 0085 admits ready.",
+        "Raw blob reader is private and guarded entry checks the organization namespace before storage."
+      ]
+    },
+    "httpRoutes": {
+      "routeFiles": 26,
+      "methods": 53,
+      "boundaryTests": 170,
+      "separateReportPassed": 219,
+      "existingRegressionTestsIncluded": 49,
+      "evidence": {
+        "path": "D:/Codex-Zentra-Temporary/2026-10-08/us-legacy-http-evidence/routes-validation.json",
+        "sha256": "e390234cd17ddac1cb6ade41ca9b781c0e9d752ee35838672eb96f298e5da7a0"
+      },
+      "vitestReport": {
+        "path": "D:/Codex-Zentra-Temporary/2026-10-08/us-legacy-http-evidence/routes-vitest.json",
+        "sha256": "89a971ebaf82e3bd29e55877d032a6dbcba2fc4fa97b9354f87ae4c73a414185"
+      },
+      "all27SourceHashesMatchCurrent": true,
+      "limits": [
+        "Controlled HTTP boundary spies, not live PG/R2/network proof.",
+        "Guard table absence is injected here; real guard/table contract belongs to separate tests.",
+        "No production migration, deployment, push or commit."
+      ]
+    },
+    "projectsContentArchives": {
+      "ioExportsActuallyCalled": 19,
+      "httpMethodsActuallyCalled": 8,
+      "aggregatedTests": 13,
+      "file": "lib/legacy-cloud-transport.test.ts",
+      "d1MigrationsLoaded": 87,
+      "database": "Node SQLite, all D1 migrations 0000..0086",
+      "mockedPorts": [
+        "Auth",
+        "device session",
+        "PG",
+        "R2"
+      ],
+      "limits": [
+        "All 19 I/O exports and 8 HTTP methods are actually invoked, not wiring-only assertions.",
+        "An already-authorized US archive identity is injected defensively; no real admitted US organization is claimed.",
+        "Account archive recovery preserves expired-entitlement CH access and revalidates same organization and membership."
+      ]
+    },
+    "admissionE2E": {
+      "file": "lib/international/workspace-creation.integration.test.ts",
+      "passed": 6,
+      "d1": "Node SQLite 0000..0086",
+      "pg": "Actual PGlite RPC with collaboration/content and all six international migrations, role service_role",
+      "limits": [
+        "Single PGlite WASM instance; two-connection staging concurrency remains required and is not claimed here.",
+        "No D1 organization or membership is created; actual ready admission remains refused."
+      ]
+    },
+    "admissionPg": {
+      "file": "lib/international/new-us-workspace-admission.postgres.test.ts",
+      "passed": 18,
+      "limits": [
+        "Local PGlite, not hosted PostgreSQL/staging or native-client validation."
+      ]
+    }
+  },
+  "checks": {
+    "typecheck": {
+      "exitCode": 0,
+      "command": "node node_modules/typescript/bin/tsc --noEmit --incremental false --pretty false",
+      "log": {
+        "path": ".qa/legacy-transport-boundaries/typecheck-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "changedLint": {
+      "exitCode": 0,
+      "files": 73,
+      "diagnostics": 0,
+      "report": {
+        "path": ".qa/legacy-transport-boundaries/changed-lint-v2.json",
+        "sha256": "90f604472d02581e819d24114314a96bceceeec394ddfb0f2bba4c4eaf1bdc34"
+      }
+    },
+    "globalLint": {
+      "success": false,
+      "errors": 116,
+      "filesWithErrors": 35,
+      "filesScanned": 718,
+      "report": {
+        "path": ".qa/legacy-transport-boundaries/global-lint.json",
+        "sha256": "8fcf88fcb4b7c445b336db0ba31546266528214ccc0b34524e2daf2fa999b9bc"
+      },
+      "allErrorFilesUnchangedFromBase": true,
+      "comparison": "Current git hash-object equals baseCommit:path blob for every diagnostic file; a base lint rerun is not claimed.",
+      "files": [
+        {
+          "path": "app/api/supplier-inbox/route.ts",
+          "sha256": "514c0ecf1ab4eaa19d58ed5c09e3cef4fb77764836a6c12b47683b2767bfd9ef",
+          "gitBlob": "2bd97e8d5850d1fc6d95160338ea9136db327633",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "app/compte/[section]/page.tsx",
+          "sha256": "fc5825d08d7433ec7bfb90d91dba19e7215d8f03b41aadf2cf5204987109a8cf",
+          "gitBlob": "2bc2d5b26d40798835dd5eb43b62ccc2eb49515f",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "app/compte/loading.tsx",
+          "sha256": "da676fb80a39e9eb55ea1d883c0463ed804b07d5d95784e8ab6203e1d7256ada",
+          "gitBlob": "8a83729d873d52919c21a5c686919477392a6226",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "components/invitation-accept.tsx",
+          "sha256": "63c124083f4dc21e5da8d350162b39738b45ff500b27dd61c4aa2716b2e8d23c",
+          "gitBlob": "b25009156b1fd26af71bbdf43d5a4cd4f0ddb37f",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/account-preferences.ts",
+          "sha256": "3fc54126d2b669a68584928ceccb74cc71b23631fc0366261b35ffa14746afef",
+          "gitBlob": "b40e411f2d648e726ebbb890475dfa5c1688396c",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/automation/workflows.test.ts",
+          "sha256": "778abf1cdd0cd7b29801d4a33c43289905418707b60402413dbea4dc95236998",
+          "gitBlob": "2d3ce8e895ef89ab37651900ab16ecc74278f30f",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/automation/workflows.ts",
+          "sha256": "75ecacce7db8842b4d460bc3db4ca13afd74a451d9367c3ff4b5623d91a361da",
+          "gitBlob": "0aeb0266d86802d108b8358adc6ad58dfbb4f2db",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/complete/trial-sqlite-route.test.ts",
+          "sha256": "d9f49f78355f9dd7dc19afe2df4bae647418fc82fd7e0b3cd8ec8142e57ba2c9",
+          "gitBlob": "c2266dbc9c04251b3c3db4eb06809c83c42cb777",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/device-team.test.ts",
+          "sha256": "5a10f81afacd466d2c661c46b53a4d05f5bf4ac454310ec844eaca934220bfcd",
+          "gitBlob": "395b3a4413b542966b29bf5780925860bf670b8a",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/license-token.test.ts",
+          "sha256": "3ceed5aed2995cdf48da7bf2625caa4c923a91f7d5fb772fe0947768777a8676",
+          "gitBlob": "5d8cb634d68c68625c738b37891c42bf4c024563",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/password-session-admission.test.ts",
+          "sha256": "fe3375e3157e71cdc31d523267639a489291ba4f2e41e2b2e61b879170df0a1c",
+          "gitBlob": "6e4282aaa3c754256b44cc813712a5ce58bf1ac5",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/phase2-admin.ts",
+          "sha256": "b2085f5be76b10291b092f877319bc50091ab477363b74c571fb0b4866e0fe26",
+          "gitBlob": "dc96884bbd5b929998d774d513deb9cef820d9be",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/site-language-server.ts",
+          "sha256": "ee54e9641ddbf2415829172b13508440cc4d1cbbaeca4063a93f364ce1034343",
+          "gitBlob": "9e0b523025e209744e1ac422f9c5f88108286eca",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/site-number-format.ts",
+          "sha256": "97a25e796105ae712c65dfb4746f268e2592a436086646bd427662e24f07bda2",
+          "gitBlob": "9f16f99da655808fc15395ba59835820cb6b4a97",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/stripe-readiness.test.ts",
+          "sha256": "9567d09f6e24142223c9512a29dda46e4fae1fa3c211dd72b1cdf7298c782cf1",
+          "gitBlob": "2809abe7c84141b19690083aaa05d1a81880a601",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/supabase-auth.test.ts",
+          "sha256": "ba9eb5ea5268162fb0b6a5aa0e92ab41371d09e8458a5c93f5004a5b270d8e3a",
+          "gitBlob": "c5560425cc07e88616d32cad6137bd70f56807c1",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/supabase-server.test.ts",
+          "sha256": "1dc3d11d5bf195acebba7b60b28c2ec26c9a06597e5b347194958f9eab2d5a61",
+          "gitBlob": "7405fdba78ce4260a9bc11b5d9c3877e19e6506a",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/supplier-inbox/capture-concurrency.test.ts",
+          "sha256": "153060077b912cccdf12be435acb344fd259192abd2b3e96e20ead458ad8c036",
+          "gitBlob": "832cfa634584504d734cecc33085555d91eb0d75",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/supplier-inbox/extraction.test.ts",
+          "sha256": "87aedbc87b44d5939e2fd0b10c48a70ee6487cdcd3e5be22b3466ae6916067cd",
+          "gitBlob": "a32b9c88d2c2ad3e855bccd3fd25541f99d7d50f",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/supplier-inbox/service.test.ts",
+          "sha256": "8380ce1ef9d87f47ca7981caa215c57f87b6392704bdb26bdbc517b553718c19",
+          "gitBlob": "fe9c95419937140b3d0c8a70ec927b81687abc6c",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/batch.ts",
+          "sha256": "955b8d17e11f718f90ea0c9400bd01da598149d29a304aae4ca68a27cb03e1c3",
+          "gitBlob": "0c130e1cd82ec1c9bb842239ece472f52417f07a",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/connectors.ts",
+          "sha256": "4b69be29b969561f96e137fbc438e61753d9d851d4c4b64bc2c91251aa0e4b79",
+          "gitBlob": "a75cba0684ff2e2504e815b6e6b13bd0c60facf0",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/infomaniak-imap.test.ts",
+          "sha256": "d702b2e172914b0e01977d590f6ca496e3752b3984d708278d6e42818c1b9f9f",
+          "gitBlob": "df9a70664580f042b27b1857fecab9fa339deca8",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/infomaniak-imap.ts",
+          "sha256": "70bbd80df02d4a7ce984ae77f5a4d6e2d1a6dc260b6bb93922b4f340e70e2726",
+          "gitBlob": "c2aeadd01a2a7e213b8909b76097d586ed648217",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/infomaniak.test.ts",
+          "sha256": "1b0c93cc39f8a1683aa56e81fa432156efe9cd4de108e90de747faa697c15143",
+          "gitBlob": "eb3c35f25a83037cfddcbb921ab42c9e01418ff8",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/infomaniak.ts",
+          "sha256": "526be9fecdc6c4f66e3a874338ad9e8b918a053ee90ecd39534d11a62ea7dfdd",
+          "gitBlob": "f93f84100dbf78c8fb61c08224de70884161aece",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/mail-claim.test.ts",
+          "sha256": "58437982406cd1df67c638546c0b975b3162859399651d4141a2b0c9063c323b",
+          "gitBlob": "fa90e314685fd122fe3a559c3f96562d352044b0",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/mail-sync.ts",
+          "sha256": "b68b2f2bd3972ee773dfb521a12e5e325a503f9371267a54b9bb165f86a14fc2",
+          "gitBlob": "7883d4b108a68486a639f7b08ad1c85d1d0c2257",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/service.ts",
+          "sha256": "2d823246be463c488aeaf910f440a665a7ea7fefbfe6348887244c4907a9228b",
+          "gitBlob": "25afbc76c69ab7a842303230e709e5cd0b9b1a0d",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/solicitation-service.test.ts",
+          "sha256": "a5dbc83e0ea8586803d80b344838592ce7498a7f82451b5927c3b0e4353400eb",
+          "gitBlob": "3c6081b37998a70718bf66aac9a4a8aac2555608",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/solicitation-service.ts",
+          "sha256": "e333d92f588661bc526d6f00bb7595d0823a65db9bd0e72577f1993bc0d8a514",
+          "gitBlob": "c032991890bbea2184d1828e863bdfec50a3f7bb",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/solicitation.ts",
+          "sha256": "483704fac06891e21275f78ddc67713317da07eb624abc5f5a1bed732c0a1732",
+          "gitBlob": "4b1a2f633aafe8e89e59896619bbaa6471193264",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/support.test.ts",
+          "sha256": "1018186bc1ab09b918e2b4ef0ae070915dd7555026541ddb529f214635dbf3e5",
+          "gitBlob": "41cc517481fa063c0fe41c02c5fdebf2bd674790",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/types.ts",
+          "sha256": "d3f1602bb0c815665e575e1666a6d275550253b4f738ce0d8168ee50f7038936",
+          "gitBlob": "e91ca25be4246d5efbd668913a5a0c2503aa315a",
+          "unchangedFromBase": true
+        },
+        {
+          "path": "lib/support/workspace-state-admission.test.ts",
+          "sha256": "a946349750ce0e5d81a92552180a79703cce7e2e941d5f792261f942359b40f1",
+          "gitBlob": "34f220bb3235427c46d94435608556b2e4300dd8",
+          "unchangedFromBase": true
+        }
+      ]
+    },
+    "prebuild": {
+      "exitCode": 0,
+      "evidenceOrigin": "Parent completed command and reported exit 0; retained log is empty.",
+      "log": {
+        "path": ".qa/legacy-transport-boundaries/brand-assets.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "vinextBuild": {
+      "exitCode": 0,
+      "evidenceOrigin": "Parent completed command and reported exit 0; retained log ends Build complete.",
+      "log": {
+        "path": ".qa/legacy-transport-boundaries/build.log",
+        "sha256": "3c5f5c6b5ddad63031e1c42dba7f18ea5044a5235f0a23e412c90d569ceda0aa"
+      },
+      "limits": [
+        "Local build preceded the two test-only fixture corrections. No deployment result."
+      ]
+    },
+    "guardAst": {
+      "parser": "TypeScript AST; direct identifier calls to requireLegacyCountryTransport in all 73 changed code/proof files",
+      "functionalCallSites": 140,
+      "testCallSites": 7,
+      "totalCallSites": 147,
+      "insideLoops": 0,
+      "countsByFunctionalFile": {
+        "app/api/account/collaboration/route.ts": 4,
+        "app/api/account/company-copy/route.ts": 1,
+        "app/api/account/team/route.ts": 2,
+        "app/api/archive/account/[archiveId]/route.ts": 1,
+        "app/api/archive/invoices/[archiveId]/route.ts": 1,
+        "app/api/archive/invoices/route.ts": 2,
+        "app/api/backups/account/file/route.ts": 1,
+        "app/api/backups/account/route.ts": 1,
+        "app/api/backups/chunk/route.ts": 2,
+        "app/api/backups/item/route.ts": 3,
+        "app/api/backups/route.ts": 2,
+        "app/api/projects/sync/file/route.ts": 1,
+        "app/api/projects/sync/route.ts": 2,
+        "app/api/sync/bootstrap/file/route.ts": 3,
+        "app/api/sync/bootstrap/files/route.ts": 3,
+        "app/api/sync/bootstrap/integrity/route.ts": 1,
+        "app/api/sync/bootstrap/publish/route.ts": 1,
+        "app/api/sync/bootstrap/route.ts": 1,
+        "app/api/sync/bootstrap/structure/route.ts": 1,
+        "app/api/sync/history/file/route.ts": 1,
+        "app/api/sync/history/route.ts": 1,
+        "app/api/sync/numbers/route.ts": 1,
+        "app/api/sync/transactions/commit/route.ts": 1,
+        "app/api/sync/transactions/delivery/route.ts": 1,
+        "app/api/sync/transactions/file/route.ts": 1,
+        "app/api/sync/transactions/fingerprint/route.ts": 1,
+        "app/api/sync/transactions/retirement/cancel/route.ts": 1,
+        "app/api/sync/transactions/retirement/route.ts": 1,
+        "app/api/sync/transactions/review/route.ts": 1,
+        "app/api/sync/transactions/route.ts": 1,
+        "app/api/sync/transactions/validate/route.ts": 1,
+        "lib/business-sync-blob-store.ts": 2,
+        "lib/business-sync-bootstrap.ts": 4,
+        "lib/business-sync-committed-files.ts": 1,
+        "lib/business-sync-credit-projection.ts": 2,
+        "lib/business-sync-files-http.ts": 1,
+        "lib/business-sync-files.ts": 8,
+        "lib/business-sync-history.ts": 4,
+        "lib/business-sync-integrity.ts": 2,
+        "lib/business-sync-native-guard-digests.ts": 1,
+        "lib/business-sync-publication.ts": 2,
+        "lib/business-sync-retirement.ts": 5,
+        "lib/business-sync-state-fingerprint.ts": 1,
+        "lib/business-sync-transaction-chunk.ts": 2,
+        "lib/business-sync-transaction-commit.ts": 4,
+        "lib/business-sync-transaction-delivery.ts": 4,
+        "lib/business-sync-transaction-files.ts": 3,
+        "lib/business-sync-transaction-fingerprint.ts": 3,
+        "lib/business-sync-transaction-review.ts": 4,
+        "lib/business-sync-transaction-transitions.ts": 1,
+        "lib/business-sync-transaction-validation.ts": 3,
+        "lib/business-sync-transactions.ts": 4,
+        "lib/business-sync-validation.ts": 4,
+        "lib/company-collaboration.ts": 9,
+        "lib/company-content.ts": 6,
+        "lib/company-copy.ts": 3,
+        "lib/document-number-reservations.ts": 1,
+        "lib/project-sync.ts": 4,
+        "lib/workspace-backup.ts": 7
+      },
+      "upstreamReportedSites": 124,
+      "limits": [
+        "The upstream inventory reports 124 sites under its own review scope/counting; it is not used as this full-source AST total.",
+        "Sites, exports and runtime SQL queries are different units; no per-fragment guard loop is introduced."
+      ]
+    }
+  },
+  "canonicalReview": {
+    "version": 4,
+    "contractualCeiling": 12,
+    "executionBound": 8,
+    "contractHash": "3d794fad489b1c249bd9d8fecd2c67ac0a7d9ab73dd6bab6aa5c61f5ce0fa822",
+    "mixedProofPassed": true,
+    "sourceManifest": {
+      "path": ".qa/us-workspace-admission/review-v4-runtime/source-manifest.json",
+      "sha256": "2b8b2ce8120f14073f02fa218a08697278c7a011eee345f168a4a1c1de7df2b8"
+    },
+    "fixtureGenerator": "scripts/qa-review-v4-runtime-fixtures.mjs",
+    "measuredRealAuth": [
+      {
+        "events": 65,
+        "peakQueries": 74,
+        "peakCountryQueries": 8,
+        "authKind": "stripe",
+        "peakAuthQueries": 3,
+        "peakRateQueries": 3,
+        "coldTimestamp": true,
+        "transport": "HTTP",
+        "upgradeReplayed": true,
+        "headRevision": 1,
+        "report": {
+          "path": ".qa/us-workspace-admission/legacy-library-budget-stripe.json",
+          "sha256": "e4ea717c690ab22209a5aada2993a2734d42c8d4d6536c4842f82504640493ea"
+        }
+      },
+      {
+        "events": 65,
+        "peakQueries": 80,
+        "peakCountryQueries": 8,
+        "authKind": "prepaid",
+        "peakAuthQueries": 9,
+        "peakRateQueries": 3,
+        "coldTimestamp": true,
+        "transport": "HTTP",
+        "upgradeReplayed": true,
+        "headRevision": 1,
+        "report": {
+          "path": ".qa/us-workspace-admission/legacy-library-budget-prepaid.json",
+          "sha256": "baea1ea5b14407540b30b60be492e51a46466d114da905e182e2309ccfd220e1"
+        }
+      },
+      {
+        "events": 65,
+        "peakQueries": 79,
+        "peakCountryQueries": 8,
+        "authKind": "manual",
+        "peakAuthQueries": 8,
+        "peakRateQueries": 3,
+        "coldTimestamp": true,
+        "transport": "HTTP",
+        "upgradeReplayed": true,
+        "headRevision": 1,
+        "report": {
+          "path": ".qa/us-workspace-admission/legacy-library-budget-manual.json",
+          "sha256": "7e0c73ecf8fa4e36e0ae160edd3c16f0af931c9c251b44eb9e062c3b20274574"
+        }
+      }
+    ],
+    "analyticalUpperBound": {
+      "transport": 68,
+      "maxAuthAndRate": 15,
+      "total": 83,
+      "evidence": "Source review for other auth paths; Stripe/prepaid/manual measured separately."
+    },
+    "limits": [
+      "Measured fixtures contain 65 events, a cold timestamp and real workerd/D1 auth/rate functions.",
+      "Counts include first/all/run and explicit batch statements, not internal trigger SQL or CPU.",
+      "200000 changes/1024 chunks and all endpoint budgets are not exercised end-to-end.",
+      "Mixed old12/runtime8 concurrency is within the local fixture harness, not two hosted PostgreSQL connections.",
+      "Only the SITE desktop prototype 1.46.1 contract is inspected; no validation of published/protected native 1.90.15 or physical devices."
+    ]
+  },
+  "inventory": {
+    "modifiedTrackedCodeFiles": 68,
+    "createdCodeOrProofFiles": 5,
+    "codeOrProofFiles": 73,
+    "phaseFilesIncludingDocumentation": 75,
+    "sourceFiles": [
+      {
+        "path": "app/api/account/collaboration/route.ts",
+        "status": "modified",
+        "sha256": "631597ae013a77fa0af301afecda1e7537741de40430f17371c9425f79b9dc99"
+      },
+      {
+        "path": "app/api/account/company-copy/route.ts",
+        "status": "modified",
+        "sha256": "1cfb2bd8fa33cdce507a94ea0cf297cd6ee921467612ddf2667d26383f57939d"
+      },
+      {
+        "path": "app/api/account/team/route.ts",
+        "status": "modified",
+        "sha256": "8ef3ce4dad0659a4071a63aad8d532d845a98ca837f6823d7357f72e6b20d206"
+      },
+      {
+        "path": "app/api/archive/account/[archiveId]/route.ts",
+        "status": "modified",
+        "sha256": "719a9c1a69e5d3d4c216ec84eb016082680266939d0ba883a2e01d5c65307ee5"
+      },
+      {
+        "path": "app/api/archive/invoices/[archiveId]/route.ts",
+        "status": "modified",
+        "sha256": "062b68f62b71bf60f64ffb0d094579a0b84dd30171cd187bcb49f1cd0d34c212"
+      },
+      {
+        "path": "app/api/archive/invoices/route.ts",
+        "status": "modified",
+        "sha256": "85212f435c4bf4ea928212b393ae8d18d10e918f87d7825b3b735b7d4c043313"
+      },
+      {
+        "path": "app/api/backups/account/file/route.ts",
+        "status": "modified",
+        "sha256": "428c1ab352d7dab8bee6257a833545d79c8378dc16e0b6252523ef583d28de62"
+      },
+      {
+        "path": "app/api/backups/account/route.ts",
+        "status": "modified",
+        "sha256": "3ac60100ab8f87a8b84d874bb373ec05118f73f25b185dd40d20b5242a963fef"
+      },
+      {
+        "path": "app/api/backups/chunk/route.ts",
+        "status": "modified",
+        "sha256": "09ab3bb2414804b1ac0fb9f7630c28a25518bb42c8496e7c4b859b094325190d"
+      },
+      {
+        "path": "app/api/backups/item/route.ts",
+        "status": "modified",
+        "sha256": "98c35e713632e2e472339492975fc6c369cea6982b931f2531e1763bb67c672e"
+      },
+      {
+        "path": "app/api/backups/route.ts",
+        "status": "modified",
+        "sha256": "33b81ebc820b0f220c018ffde501134940ececba93511a2e4ade87688589d5a9"
+      },
+      {
+        "path": "app/api/projects/sync/file/route.ts",
+        "status": "modified",
+        "sha256": "a948c9ba37cb4fed9ffc82a41145531f0263bf9a28c9ebcdbd357915ddd12163"
+      },
+      {
+        "path": "app/api/projects/sync/route.ts",
+        "status": "modified",
+        "sha256": "3ebf018c1a518e42ea29b9e22bb8f4ed19fbf171bcc9cd98a7883e46f32a1b7b"
+      },
+      {
+        "path": "app/api/sync/bootstrap/file/route.ts",
+        "status": "modified",
+        "sha256": "bc7987aeee734a85d81c91b3b62ffa38094a733d5be1497533827ba616492fd6"
+      },
+      {
+        "path": "app/api/sync/bootstrap/files/route.ts",
+        "status": "modified",
+        "sha256": "b09bd095670e2f5be695c960ec2df37738dfab41dae0fd2d97a157aabf48e5ce"
+      },
+      {
+        "path": "app/api/sync/bootstrap/integrity/route.ts",
+        "status": "modified",
+        "sha256": "c0f6e5f1454eef6e8061fb595fb1df2bd625f60c6e42243e6b5593a2475865f4"
+      },
+      {
+        "path": "app/api/sync/bootstrap/publish/route.ts",
+        "status": "modified",
+        "sha256": "e1dfd3fd24a4feb96b88b23fb6f120f65bb0fd1b604024d80b66f64535df9d91"
+      },
+      {
+        "path": "app/api/sync/bootstrap/route.ts",
+        "status": "modified",
+        "sha256": "2404f135e090450f678d737fdd1f5852e1bc8304538e44f96192ebf7b0ec4489"
+      },
+      {
+        "path": "app/api/sync/bootstrap/structure/route.ts",
+        "status": "modified",
+        "sha256": "5698130a07fb36b1645f2e8f79565ddf976183210b7fd4e227f975836d17b685"
+      },
+      {
+        "path": "app/api/sync/history/file/route.ts",
+        "status": "modified",
+        "sha256": "182e452badddcf02b5a4c98f5102c46e50c27393bd679c83d138660c08841014"
+      },
+      {
+        "path": "app/api/sync/history/route.ts",
+        "status": "modified",
+        "sha256": "b01eba0af4cc61f3724953a6a574bda1c09ff02b64d40bf4e529015973a6220d"
+      },
+      {
+        "path": "app/api/sync/numbers/route.ts",
+        "status": "modified",
+        "sha256": "68e7eba1ad3e9f46d8ebe5c33925fb151095ce488b419faceb4c7b1c6c090df7"
+      },
+      {
+        "path": "app/api/sync/transactions/commit/route.ts",
+        "status": "modified",
+        "sha256": "6bb902009f349ab946386f8ec128dbce4197b9482abde958a47a805a75e9712e"
+      },
+      {
+        "path": "app/api/sync/transactions/delivery/route.ts",
+        "status": "modified",
+        "sha256": "54b05f2eae3798842f5625647c0a400f11e6b20ddf17208642d486e0b1c0a23c"
+      },
+      {
+        "path": "app/api/sync/transactions/file/route.ts",
+        "status": "modified",
+        "sha256": "13a4ccafb61a570d826476c6ffed35e4a3acd21aecc9e55571a6a6b8860a07fd"
+      },
+      {
+        "path": "app/api/sync/transactions/fingerprint/route.ts",
+        "status": "modified",
+        "sha256": "a8d839ccd3fafb07873bfc39d3649d4245621cb443bbd107c3bb744046887e41"
+      },
+      {
+        "path": "app/api/sync/transactions/retirement/cancel/route.ts",
+        "status": "modified",
+        "sha256": "e0257b75bd2e96bdb984ea296c1e528affe4bf9f398986d05c2e75accbe38eb5"
+      },
+      {
+        "path": "app/api/sync/transactions/retirement/route.ts",
+        "status": "modified",
+        "sha256": "4f4816518d519b85a96d11d5e5871049d84ca45832179d02cf7afa72bab4b13c"
+      },
+      {
+        "path": "app/api/sync/transactions/review/route.ts",
+        "status": "modified",
+        "sha256": "52cf31c600d70446fe9a8b39b297d734d3ae786cecfee325c46399254f3cf021"
+      },
+      {
+        "path": "app/api/sync/transactions/route.ts",
+        "status": "modified",
+        "sha256": "c83a6298d031ae9547454b16fa39527f668d59ebac11d49c53dd1c5fa9ff1cfe"
+      },
+      {
+        "path": "app/api/sync/transactions/validate/route.ts",
+        "status": "modified",
+        "sha256": "67fed417859d5c80834b22e3e3d0062a0e377dcc12dc8e98723bd35007255556"
+      },
+      {
+        "path": "lib/account.ts",
+        "status": "modified",
+        "sha256": "68b7be298f2e82afbea34539907acb1cff36696317c36b87b3b9706feede1c2d"
+      },
+      {
+        "path": "lib/business-sync-blob-store.ts",
+        "status": "modified",
+        "sha256": "70deaa8022db915f74142c92917dba2cc0eeedeb116221c67c263626970daa7a"
+      },
+      {
+        "path": "lib/business-sync-bootstrap.ts",
+        "status": "modified",
+        "sha256": "b3f0b5d67d3c8e026d4651f93785045e46f1fcbee87889508c49bf382f0c57cf"
+      },
+      {
+        "path": "lib/business-sync-committed-files.ts",
+        "status": "modified",
+        "sha256": "2c72b0f0e5576bced5a71b5366f55c796219fa31255f8de79bf469f52cc3ce63"
+      },
+      {
+        "path": "lib/business-sync-country-guard.test.ts",
+        "status": "created",
+        "sha256": "f97293034eaf612f95fe1415f66b3edd4229fdfa9df827e38cad62249dbb3a9b"
+      },
+      {
+        "path": "lib/business-sync-credit-projection.ts",
+        "status": "modified",
+        "sha256": "d23e6954a126130706ade09a0ab1cef76ee4336670d74154a126be0ac593024c"
+      },
+      {
+        "path": "lib/business-sync-files-http.ts",
+        "status": "modified",
+        "sha256": "802742d65de0bcec9a1b56934230d33f3af971cad89fe859e6ea7cd4e9501640"
+      },
+      {
+        "path": "lib/business-sync-files.ts",
+        "status": "modified",
+        "sha256": "0dc258247bbc6ba157371a46995755ac3fa19cb3a4baf12967cad529147e7129"
+      },
+      {
+        "path": "lib/business-sync-history.ts",
+        "status": "modified",
+        "sha256": "e74d73fb6ac2cf2f4430430f386c64756db7241ec1b844ad069b55e1b2e781e5"
+      },
+      {
+        "path": "lib/business-sync-integrity.ts",
+        "status": "modified",
+        "sha256": "f8506e85c49176068f91f2793d45e6cea85dcc0c8fd799c9bb101664f6c89fd9"
+      },
+      {
+        "path": "lib/business-sync-native-guard-digests.ts",
+        "status": "modified",
+        "sha256": "7a4b62eb42670d402d38ac3bd0957e9011a91bb874d0c0f477dd725ebf5cf778"
+      },
+      {
+        "path": "lib/business-sync-native-guards.test.ts",
+        "status": "modified",
+        "sha256": "86e1ff0ee1e8a2dd99eba3e7d5b51579da6d6aa88dd497ed6ef45bc1eccedb60"
+      },
+      {
+        "path": "lib/business-sync-publication.test.ts",
+        "status": "modified",
+        "sha256": "4c2061ecbb711df88c2442f0dfab9f3d42413b797c2250bd5fb5616684a41009"
+      },
+      {
+        "path": "lib/business-sync-publication.ts",
+        "status": "modified",
+        "sha256": "2a382a6b9a4a8b51c4a6d49716be2fd9f86beed89d77664e8fec2862436041cc"
+      },
+      {
+        "path": "lib/business-sync-retirement.ts",
+        "status": "modified",
+        "sha256": "d3eef6c81227b10cb871c943abd11727443c49e47bd1e817467d3b71b0d276d9"
+      },
+      {
+        "path": "lib/business-sync-state-fingerprint.test.ts",
+        "status": "modified",
+        "sha256": "ef5f88d53fdca2fe74b4b411821281c17683a07b9b9eb1d25ecc3547901d4143"
+      },
+      {
+        "path": "lib/business-sync-state-fingerprint.ts",
+        "status": "modified",
+        "sha256": "5050ffe174f787649c1fa26fe6a6324f74a786c59bca4d5e04d1c61abcf79280"
+      },
+      {
+        "path": "lib/business-sync-transaction-chunk.ts",
+        "status": "modified",
+        "sha256": "83f6bcc5295bcd0260ca1cfac9c4d8b9c5640f134f98ae890112e8da50887813"
+      },
+      {
+        "path": "lib/business-sync-transaction-commit.ts",
+        "status": "modified",
+        "sha256": "43fad0ca59de03f6151b38574ef9d16df5788e05dae1351779471f5ea7e1ee11"
+      },
+      {
+        "path": "lib/business-sync-transaction-delivery.ts",
+        "status": "modified",
+        "sha256": "aa4956c3df981e4b3e674132f32a478b44a624eab3cef855c6d613c48d9e8ce3"
+      },
+      {
+        "path": "lib/business-sync-transaction-files.ts",
+        "status": "modified",
+        "sha256": "7ec2969e6e6930213fd0cd662dbe32aaa131df20a8fb643f96fd38c1e12378aa"
+      },
+      {
+        "path": "lib/business-sync-transaction-fingerprint.ts",
+        "status": "modified",
+        "sha256": "beebfd5908a5b2abd7acb1cd634288644fffb6c955ed35c9f1d631e1855c2870"
+      },
+      {
+        "path": "lib/business-sync-transaction-review.ts",
+        "status": "modified",
+        "sha256": "1d665a8d00448a5ce96093689da2b14097775bb4260d6d2b5380eee93a5829bf"
+      },
+      {
+        "path": "lib/business-sync-transaction-transitions.ts",
+        "status": "modified",
+        "sha256": "82c879a542dfe8c681d0045532ba1c3c59f7f7c257edba3134b90659aaecc9fe"
+      },
+      {
+        "path": "lib/business-sync-transaction-validation.ts",
+        "status": "modified",
+        "sha256": "1eb10f3d82a511c82dac7b4be1832b02b0a062318f6de8aac5a0e97b4ef1d1a9"
+      },
+      {
+        "path": "lib/business-sync-transactions.ts",
+        "status": "modified",
+        "sha256": "d55ef1531666c2bd7cdfea1986b13edd87909b94c00f35398195f6d1a530167f"
+      },
+      {
+        "path": "lib/business-sync-validation.ts",
+        "status": "modified",
+        "sha256": "de46aee7b777e969389d7a08e2432b84859853f08700446c6894cf8f2cb10657"
+      },
+      {
+        "path": "lib/company-collaboration-route.test.ts",
+        "status": "modified",
+        "sha256": "a8f7eafc1a0c9d44a605aa56fd930b78ceaeed9a97d28c6db1d93d51dc608c81"
+      },
+      {
+        "path": "lib/company-collaboration.test.ts",
+        "status": "modified",
+        "sha256": "b0d7553ceaa1b419158c8be23a0b244036440aa3ddb6d452b333deaefbf80601"
+      },
+      {
+        "path": "lib/company-collaboration.ts",
+        "status": "modified",
+        "sha256": "dc806d6a79092999df24fc713aeb413f5118acc87dc6250df67cbd3e429211f0"
+      },
+      {
+        "path": "lib/company-content.test.ts",
+        "status": "modified",
+        "sha256": "43769b5e711fc4c762135fdada15b040c00e740865897420171d7f2078f0854e"
+      },
+      {
+        "path": "lib/company-content.ts",
+        "status": "modified",
+        "sha256": "75308255f58ddb19260407079259df7a83b35a6ac56456f2d40cf323ffb9823e"
+      },
+      {
+        "path": "lib/company-copy.test.ts",
+        "status": "modified",
+        "sha256": "0243f27032b7751bbab798a6ce9a7a743c663b83a17203ef74702916b151097b"
+      },
+      {
+        "path": "lib/company-copy.ts",
+        "status": "modified",
+        "sha256": "61d47694e1d714f97f2dcf664e8af7fe9a7aa40869191ea6867093a115c0e130"
+      },
+      {
+        "path": "lib/document-number-reservations.ts",
+        "status": "modified",
+        "sha256": "34c0b89c1d440238de8e92f39429f406d4d8c0d38a3ecdd308747ab3d4380a92"
+      },
+      {
+        "path": "lib/international/legacy-country-error.test.ts",
+        "status": "created",
+        "sha256": "895e75f1908ba1f51218942e04b1f9e2137e46055c11b74d15a1155e5b81bb80"
+      },
+      {
+        "path": "lib/international/legacy-country-guard.test.ts",
+        "status": "modified",
+        "sha256": "0426695378c87ae6bebda985daca299a88fb4ff60a3fcf507709dfd840d27a81"
+      },
+      {
+        "path": "lib/international/legacy-transport-routes.test.ts",
+        "status": "created",
+        "sha256": "f9cc68299b867f89387c8067072bf9de8e5bda85f6b58f7b4ab3e2b378160130"
+      },
+      {
+        "path": "lib/legacy-cloud-transport.test.ts",
+        "status": "created",
+        "sha256": "5e00d24a46df65be7edd70821fd667a008595efda40897897dfd6e1334f53cde"
+      },
+      {
+        "path": "lib/project-sync.ts",
+        "status": "modified",
+        "sha256": "eade281666345837609f202eb1a45cb6e5ecf9e0919a9ada9812c01477e13138"
+      },
+      {
+        "path": "lib/workspace-backup.ts",
+        "status": "modified",
+        "sha256": "232a30cbeb7b4e70a3653da74ec0268a8bdf35103624603280232fe582c1261a"
+      },
+      {
+        "path": "scripts/qa-review-v4-runtime-fixtures.mjs",
+        "status": "created",
+        "sha256": "a212875a9e63dbbcd73a969a9fa43d9b566c606b7ccfac12bd3db32a8a9eb25f"
+      }
+    ],
+    "documentation": {
+      "path": "docs/internationalization/LEGACY-TRANSPORT-BOUNDARIES-20261008.md",
+      "sha256": "2f470166474bfb5870e530c9b437084f0e80cab666e3579383b86736b5c5b0e0",
+      "status": "created"
+    },
+    "self": {
+      "path": "docs/evidence/legacy-transport-boundaries-20261008.json",
+      "status": "created",
+      "sha256RecordedSeparately": true
+    },
+    "historicalProofNotes": [
+      {
+        "path": "lib/business-sync-publication.test.ts",
+        "recordedSha256": "1b76801de779a83337901d6d1a85b9796676885268690376021763a14f23593b",
+        "currentSha256": "4c2061ecbb711df88c2442f0dfab9f3d42413b797c2250bd5fb5616684a41009",
+        "matches": false,
+        "reason": "Two authorized runtime8 test corrections after the upstream inventory. Upstream report is retained unchanged; current file hash is authoritative."
+      }
+    ]
+  },
+  "dependencies": {
+    "d1Count": 87,
+    "pgCount": 8,
+    "allUnchangedFromBase": true,
+    "migrationsApplied": false,
+    "d1": [
+      {
+        "path": "drizzle/0000_sweet_owl.sql",
+        "sha256": "79486f53ee2dd779f457aaf5b6c202cd7d6802405bc67740adb4ff14e8697f28",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0001_brief_mephisto.sql",
+        "sha256": "42a1bc536b8e439f3ccabfa7b906f17fae7595f307b380d5f12db3d006a55bd5",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0002_wonderful_sheva_callister.sql",
+        "sha256": "27201e2cd0673d398358859bb48b7f2fe22487430bcb10fc1470d85971182adc",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0003_thin_the_santerians.sql",
+        "sha256": "921534de651d208a25adee37523ccf0a5b04c1bdc5f8d42d052f03bb96d856bd",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0004_zippy_harry_osborn.sql",
+        "sha256": "abd94ea95d932e0ece9dcb1ea27e8163005371f4c4528b443e96195c275905cb",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0005_dashing_union_jack.sql",
+        "sha256": "eb75f00eb846a05b19ef710feab7edb14c65590ac41561eb92def7df107792ea",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0006_account_guards.sql",
+        "sha256": "e64dd53aa1803190c3de943c5f16114efb86d7e7df3b02b062b1545dff061a2b",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0007_device_activation_revocation.sql",
+        "sha256": "a89db35246b16fa11e542f817ac79d9526771298181e7d376c3490525d703f15",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0008_unlimited_collaborators.sql",
+        "sha256": "b9939d4ec73a16e5da0cadf77739c48945cbbc33dd66067a3f442582799d15c0",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0009_nosy_madame_web.sql",
+        "sha256": "f28f1494ba4a9e434fd58a465594bd3ed7236ab5ecec35653ecf9c9d9db9bd8e",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0010_even_fenris.sql",
+        "sha256": "7d37b447b068b32163e5027de5e257906111008b6c4e3cc917756fc71e821e5a",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0011_burly_thing.sql",
+        "sha256": "de4070d5cbc43c42d2359f6bdde51facbfa7aab9d65aeab3277821a7731e5ffe",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0012_odd_mongu.sql",
+        "sha256": "97d83cd074b8b272a848abb2bd4078c64d6cc368aa0348e3db20a4efe2d0437e",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0013_concerned_goliath.sql",
+        "sha256": "2ddd25beca90f12cacf03ee03e0b0cdcedc7764ac34503013b1c74f03d2efb55",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0014_brainy_slayback.sql",
+        "sha256": "12d1ef0b67f5c7080e2be65caefb0b728c7b66599764aa3fd7d2cea17e6fd1b5",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0015_business_sync_structural_checks.sql",
+        "sha256": "a7c19fde73322bdcb5312df2f3b8896b6c52d2e09030e93c50aa9f546b183b03",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0016_business_sync_integrity.sql",
+        "sha256": "46dd27420d53e816e9aa292e302bdfc31b5383a8a36292222f2414af1d722948",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0017_business_sync_financial_progress.sql",
+        "sha256": "38c0956e8cfa5bfb561a56c568ec8f90eb56f256be2574712b38166f319bb9ef",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0018_jazzy_captain_stacy.sql",
+        "sha256": "b3b7c0d59ed3436a71395f7aa5c8a24672d4b3eae55819062359f42de89082db",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0019_young_richard_fisk.sql",
+        "sha256": "e9bc262f636c18233c7eee2d4b9bdf3bb971585ff51e6e2297835e2dcdcd872b",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0020_cute_thor.sql",
+        "sha256": "8fbc59e4732bfd136852fd8bcb808b5e411fa71ccabb9b4172d69d6656e9a26c",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0021_glorious_kingpin.sql",
+        "sha256": "228251cc60b09f4704285dff1ae4630927aaca6907b16969df0a109bca5b0560",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0022_messy_random.sql",
+        "sha256": "e05cfdfbc364ab271e59f337d5a545fe912d85f04c74478b1f150bcc1aaed999",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0023_sharp_justice.sql",
+        "sha256": "30196bb1e7de865a47d0868a54ff9382729625a8a0756d8e0a6721eef8ee2d84",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0024_remarkable_praxagora.sql",
+        "sha256": "676443ac05c84b933b805e03f45da051432083a533b3f77ad8126324f7679af3",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0025_mature_logan.sql",
+        "sha256": "b7ba502b8b8d126cfc7031e497e3b2eea20654e3573c22371da49b2dad2130f8",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0026_dark_wasp.sql",
+        "sha256": "6bc7eb9fc2c85e922390e8233f8dca7664c9ac0217e111db26572d75d6db9e3d",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0027_gifted_leper_queen.sql",
+        "sha256": "1a52687e5c9cb4c05fd4397dd06a3814badba3482e27bd91b010c8b718681242",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0028_previous_wilson_fisk.sql",
+        "sha256": "8cc19693642ac262507d2bbd81ce5381d2fe75e7042cd127403bbbb08d7931c4",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0029_marvelous_reavers.sql",
+        "sha256": "01571c8eeaa3deeb1313fd1cbcd5cbcb49f2e097d4f2252c561c52f15bcaeb75",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0030_charming_vivisector.sql",
+        "sha256": "d33d4f63a5605bb385b58691931c0442fe080df03a89a22c39c3fc1ab0d10336",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0031_acoustic_microbe.sql",
+        "sha256": "e914179e5b85632b0b09fbe2e71eddd49d2c20d1bfcbe167e806987d584d32dd",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0032_previous_tusk.sql",
+        "sha256": "534be303098a2d8176c35b91f63f1168c7e17cd9ac67c79c505f331b90d608fd",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0033_young_emma_frost.sql",
+        "sha256": "e5f60e36fe36a7de87bc006a522b607e82bb598a469e6149f066186fc44bafcb",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0034_ancient_ricochet.sql",
+        "sha256": "f46cec75d3d6e6c9ee2f4601a36ec393702b0f3d60d72f5fd775e112173f223b",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0035_spicy_gorilla_man.sql",
+        "sha256": "e1b2ccbcf85b96e43d004f27faf9da01b77f06099f05cc4fb7d4485f4443c04d",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0036_cooing_old_lace.sql",
+        "sha256": "05dd30a65b02a7d0440fee0f1c6ccf21e527ffe1deff225ecad5cdca6e3d5560",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0037_sloppy_lockjaw.sql",
+        "sha256": "427d8effafd8f547db225d749b973115561e12d6d8b392efbe2a0c89c0f226f0",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0038_military_silver_surfer.sql",
+        "sha256": "e38fe557e8e0cf1c19ce5f48e9d1d2272bac6d037f9fa4e293a3f86123430fe6",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0039_account_checkout_activation.sql",
+        "sha256": "abbc08d0200d1c6e82b9e52dbb1bbb8f953a57e750e02355c4f6c477e5a874e7",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0040_founder_email_access.sql",
+        "sha256": "b7e89b6fc6d54adc95afc6676743dd4eb257504af4197e21396f125f1b8b46db",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0041_mysterious_brother_voodoo.sql",
+        "sha256": "534ff1a2d797d04cc8bdf7fc9fa7e0e341c22ed0de9b805867d4e380d80bfbef",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0042_support_triage_context.sql",
+        "sha256": "ee9802ab77bc5eac540df33d876f7cb8bc6e061067ab72cd39bb0bfb5ba63db5",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0043_support_billing.sql",
+        "sha256": "97aa65dbeb72391f9d6ee3744a07dc3101cfa049f4e58ccbdf05aa7d09d6e944",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0044_support_onboarding.sql",
+        "sha256": "7be44ed4b5540473883e8ee34271de9488a1016e4522c36c8ab20e2749f18002",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0045_support_oauth_rotation.sql",
+        "sha256": "c1611575e7f00d8ec66b94c0a90737bcc3068698dfd3fb3a7f66cd4a1b6916e1",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0046_founder_support_access.sql",
+        "sha256": "01544af67714689401b3b90acd733608cb9dff1222e0386bcaffd97b832b8648",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0047_zentra_automation.sql",
+        "sha256": "461d09d83710a8457e018397503bc9e25c6816b37677cc1a354cd522af77cd2f",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0048_automation_checkout_guard.sql",
+        "sha256": "b4b3c41983421a409e85995a82f5723a26fc712243102a758785fa2ff86254b5",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0049_referral_reward_invoice.sql",
+        "sha256": "38f7f2b7ea2ac2e5c0f15862ee02a1c374fec8f6a367f190728c00a01534debe",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0050_automation_checkout_retry.sql",
+        "sha256": "dfa71ed884624c6306a7f16b67b561f5518de716aaf23ebdcc0939f4567f3ce9",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0051_founder_automation_access.sql",
+        "sha256": "2e681ad83715f1bf98d9fcacedf13372ffc878dc9be4dd4c00574b8496161afc",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0052_support_mailboxes.sql",
+        "sha256": "43ea4a839d165cc3b56b25fb5f7d13da70c36c78547a2a913cfb0ce17682314c",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0053_founder_platform_keys.sql",
+        "sha256": "f4d0d626e69575c5b30926f8b404392f58ccbaf5fb289d774441431f88f4e571",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0054_automation_company_activity.sql",
+        "sha256": "577b2dce2f096df1176db966e9d0c77c6c83e716f962d9b5769a6134cbfb4eb2",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0055_supplier_inbox.sql",
+        "sha256": "6873fcbb8c5d0834690f1db8418085f3ec53569b23524fa2576946c0b37f7f10",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0056_account_phase2.sql",
+        "sha256": "5fe70a81b4f68a43937a333f8454fe8a59695efe529d890990aa715ee8e60443",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0057_absent_energizer.sql",
+        "sha256": "bebc54b7929626709dde9fd42744d3831d1fec0d87b2c46ce62cfd2208ceb90a",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0058_automation_refund_evidence.sql",
+        "sha256": "17ae92d730f842c6478a9f44202fa14c7a41c85c57e8fc49201c9a8a924bd544",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0059_careless_proteus.sql",
+        "sha256": "c6ced0624b1bbf2ae4a463cf999c0a335aac78ccd1571af8fcd4028f67a9f039",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0060_bent_triton.sql",
+        "sha256": "4ad471f029fc6be49e71885c16b9109dc5289704f38dd513c8c81fc6df6937df",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0061_complete_journey.sql",
+        "sha256": "ca352da2dd5f2546df8f7543a09290135ce87b3e21cd33d92ccbb436ba36d08f",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0062_scheduler_health.sql",
+        "sha256": "72529b28b4c2aaff5e0bae4d25cd09cde5d027c406fe85b6d78971987a9fd684",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0063_company_mail.sql",
+        "sha256": "733ab7f3dd09b5d486cb058c6620468eae397bf56415de413fb53030e5293a04",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0064_company_mail_identity.sql",
+        "sha256": "8823cb005c605ca2abdb5499b504804f4d86e6438c0b19e7f7e31ba62539d7a9",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0065_scheduler_run_identity.sql",
+        "sha256": "1f69558af3759bf314c909f116bf94ad06b6b6f8493421e1b36108a8d7303849",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0066_operations_queue_index.sql",
+        "sha256": "2ddafb78922898e345200ac09d876165c3483f33567038bce516d97217327c9e",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0067_quiet_expediter.sql",
+        "sha256": "12fe86beffe800762d7aaf4f43e46f4493f6595d81a185aa2f6dcae0afded459",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0068_burly_silverclaw.sql",
+        "sha256": "13c7636604c856f1966198a2e0a56f297b7c3b5faf3dd57741f43bcac1a232bd",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0069_supplier_capture_analysis.sql",
+        "sha256": "6bc62f13bf07284c2466706b200e1baae8dd3a90be06d358429c1675c5c233d5",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0070_supplier_capture_quota_requirement.sql",
+        "sha256": "b780a7d25d5cc8f105bde7e798bcc45a398c8edecd04a45044e893820a73715b",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0071_mail_scan_resume.sql",
+        "sha256": "972229c416d88244890a31176623ae07d5a748ab432dfe86f98f9bb753a818a8",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0072_melodic_tinkerer.sql",
+        "sha256": "fca5bc27f35a095428b51ed3d88ef69753d14c07154449212ba6e3ad100f85b8",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0073_complex_molly_hayes.sql",
+        "sha256": "235b6d2cf190356b86091abbedc099d7e520f63e7ecd3fc83f74e7376abdf7ee",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0074_prepaid_rights_guards.sql",
+        "sha256": "a618e3fa067236a16687a65b95f9426f2b8f22f452a4a5b2e411112444123740",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0075_prepaid_reconciliation_fences.sql",
+        "sha256": "d85013cdea04c4ebe35c3d4a3b0b6b918cc5437a9f550bb6f4d8ac3dde1982e8",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0076_purchase_intent_reservations.sql",
+        "sha256": "75d6cf1185fcae0778c0a0064104c879e2c6aab07993697235981e8027ee09ad",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0077_gestion_purchase_target.sql",
+        "sha256": "aa8f54dad18369e4a203fbc77d26f8f0548828c0d4c52c221d78231c4c3f62dc",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0078_prepaid_subscription_lifecycle.sql",
+        "sha256": "3a3d7189baeeeac743142f6c09370e22b8cefb278a0328ccaadb3e51ef4cb729",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0079_stripe_product_handoffs.sql",
+        "sha256": "417dc3177483584165dd6268b1a87e462117eb7a221d9e03952a8c3572c95d87",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0080_standalone_support_plan_change.sql",
+        "sha256": "7f7bb83d9078302f017c13c80e4a3a17cc7da9ed8c9f1c232137fe176311f06b",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0081_prepaid_create_recovery.sql",
+        "sha256": "a49e2a8c235df360e0156fb880aa17ea1a35d758cb026224b25e88e0244ea70b",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0082_prepaid_renewal_admissions.sql",
+        "sha256": "83a77689558f748c7873be3567024b8b2023df6bbd9f9fc5efa35a8c16e74616",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0083_postfinance_observation_outbox.sql",
+        "sha256": "a1c7865f7e2f8dd3007a038b8274ae0a681320288b0f19b19255ee082e7e777f",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0084_prepaid_renewal_create_recovery.sql",
+        "sha256": "346b517fd288abe741887e6743d3c4d8627b7ffbb1b8876b4469cde0ced07415",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0085_international_workspace_creation_intents.sql",
+        "sha256": "3b998382a90451c4f6d9794a1386aca7c3a5315112a236128472e5e703453f4d",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "drizzle/0086_international_legacy_country_guards.sql",
+        "sha256": "57931b86cae5f7f22e3c973d6d5b5d88f2e563ccf0969d57705128da8fcfea44",
+        "unchangedFromBase": true
+      }
+    ],
+    "pg": [
+      {
+        "path": "supabase/migrations/202609140200_company_collaboration.sql",
+        "sha256": "2e73dffe285e9ca9a78026995647f45d86bbc6f3f0731bb217e8c60b9048479c",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "supabase/migrations/202609200300_company_content.sql",
+        "sha256": "51c6789548433f0dd4bc6470246b73823008805b6484969232640f91317910f5",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "supabase/migrations/20261007194528_international_workspace_country_config.sql",
+        "sha256": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "supabase/migrations/20261007222349_international_us_erp_persistence.sql",
+        "sha256": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "supabase/migrations/20261007224820_international_us_erp_delta_stream.sql",
+        "sha256": "3df54310c2da0012d9065886df86a6524963ab594a1f314d10d45fac551af345",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "supabase/migrations/20261007225725_international_us_erp_seller_snapshot.sql",
+        "sha256": "119e0c850c04c6772c0b002384c2cf86c8ab3427ec24586eb77f73a2a314f4f9",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "supabase/migrations/20261008001726_new_us_workspace_admission.sql",
+        "sha256": "435f87289682dbed3b372bd6790d0f213a5a5e7a4c5aee32f70323798e87edcc",
+        "unchangedFromBase": true
+      },
+      {
+        "path": "supabase/migrations/20261008013200_international_tax_proof_allowlist.sql",
+        "sha256": "7f2d18ba19defb35dc3352624b18f951a26f806b86eb19d2c10c0c2bf4f977d8",
+        "unchangedFromBase": true
+      }
+    ],
+    "limits": [
+      "These are source dependencies, not production installation evidence. Reconciliation and approved installation are required before deploying these sources."
+    ]
+  },
+  "limits": [
+    "No production, publication, push, commit, flags, new prices, installer or release action belongs to this phase.",
+    "Unavailable/missing guard tables fail closed even for legacy CH; do not deploy sources ahead of approved dependencies.",
+    "Absence of a US creation intent preserves legacy behavior but is not CH country attestation.",
+    "D1/PG triggers retain atomic mutation authority; application preflight does not serialize D1, PG and R2.",
+    "Controlled port-spy absence does not prove a real race sends zero external bytes.",
+    "No US subscription finalizer, functional US workspace, fiscal certification, multi-client load, offline/physical-device or two-connection hosted PG proof is claimed.",
+    "Historical foundation evidence is unchanged and its earlier 679 count is not added to this phase."
+  ]
+}

@@ -6,10 +6,12 @@ import {
 } from '@/lib/account';
 import { AccountPublicError } from '@/lib/account-security';
 import { historyFilePart } from '@/lib/business-sync-history';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     await enforceAccountRateLimit(
       request,
       'business-sync-history-files',

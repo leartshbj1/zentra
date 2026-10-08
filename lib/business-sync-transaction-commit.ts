@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { businessSyncTransferId } from './business-sync-bootstrap';
@@ -95,7 +96,7 @@ function storedObject(raw: string) {
   }
 }
 /** Readers pin this committed receipt, even after another revision becomes head. */
-export async function committedBusinessTransaction(
+async function readCommittedBusinessTransaction(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
@@ -211,6 +212,11 @@ export async function committedBusinessTransaction(
     manifest,
   };
 }
+// The private body is only entered by this module's guarded exports.
+export async function committedBusinessTransaction(session: DeviceSessionContext, rawId: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readCommittedBusinessTransaction(session, rawId);
+}
 
 export async function committedBusinessTransactionResource(
   session: DeviceSessionContext,
@@ -218,7 +224,8 @@ export async function committedBusinessTransactionResource(
   resource: unknown,
   rawIndex: unknown,
 ) {
-  const saved = await committedBusinessTransaction(session, id);
+  await requireLegacyCountryTransport(session.organizationId, database());
+  const saved = await readCommittedBusinessTransaction(session, id);
   if (!saved) fail('Cette révision enregistrée est introuvable.', 404);
   let bytes: Uint8Array;
   if (resource === 'receipt')
@@ -253,7 +260,7 @@ export async function committedBusinessTransactionResource(
       )
         fail('La référence du fragment est altérée.', 503);
       const key = `business-sync/${saved.receipt.organization_id}/canonical/${saved.receipt.generation}/${saved.receipt.transaction_id}/${bundle.review_attempt}/positions/${index}-${part.positions_sha256}.json`;
-      bytes = await storedBlobPart(key, part.positions_bytes);
+      bytes = await storedBlobPart(session.organizationId, key, part.positions_bytes);
       if (
         bytes.length !== part.positions_bytes ||
         (await sha256Hex(bytes)) !== part.positions_sha256
@@ -284,6 +291,7 @@ export async function committedBusinessTransactionsSince(
   rawGeneration: unknown,
   rawAfter: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const generation = businessSyncTransferId(rawGeneration);
   if (
     typeof rawAfter !== 'string' ||
@@ -341,6 +349,7 @@ export async function commitBusinessTransaction(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   if (!['owner', 'admin', 'member', 'accountant'].includes(session.role))
     fail('Ce compte ne peut pas enregistrer de modifications métier.', 403);
   const id = businessSyncTransferId(rawId);
@@ -354,7 +363,7 @@ export async function commitBusinessTransaction(
     return saved.receipt;
   };
   try {
-    const existing = await committedBusinessTransaction(session, id);
+    const existing = await readCommittedBusinessTransaction(session, id);
     if (existing) return owned(existing);
     const { ctx, bundle, bundleSha256 } =
       await preparedBusinessTransactionDelivery(session, id);
@@ -422,13 +431,13 @@ export async function commitBusinessTransaction(
       AND t.state='committed' AND t.revision=c.revision AND t.committed_at=c.committed_at)`)
         .bind(...args.slice(0, 23)),
     ]);
-    const saved = await committedBusinessTransaction(session, id);
+    const saved = await readCommittedBusinessTransaction(session, id);
     if (!saved) fail();
     return owned(saved);
   } catch (error) {
     // A concurrent identical call, or a lost batch response, returns the exact
     // durable receipt. Never create a second revision to repair an observation.
-    const saved = await committedBusinessTransaction(session, id);
+    const saved = await readCommittedBusinessTransaction(session, id);
     if (saved) return owned(saved);
     throw error;
   }

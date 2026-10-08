@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { businessSyncContractHash } from './business-sync-bootstrap';
@@ -10,6 +11,10 @@ import contract from '../desktop/src-tauri/src/business_sync_tables.json';
 import { database } from './runtime';
 import { sharedRowid, sourceRowid } from './business-sync-order';
 
+// V4 still attests the ceiling of 12 below. A smaller execution page only
+// schedules the same CAS-protected changes and leaves room for fresh auth/rate
+// reads; old 12-change deployments can continue the same stored offsets.
+const EXECUTION_APPLY_CHANGES = 8;
 const PAGE_ROWS = 200,
   PAGE_BYTES = 4 * 1024 * 1024,
   APPLY_CHANGES = 12;
@@ -88,7 +93,7 @@ export function transactionReviewValidatorHash() {
 function fail(message: string, status = 409): never {
   throw new AccountPublicError(message, status);
 }
-export async function transactionReviewContext(
+async function readReviewContext(
   session: DeviceSessionContext,
   id: unknown,
 ) {
@@ -163,7 +168,12 @@ export async function transactionReviewContext(
     ],
   };
 }
-const context = transactionReviewContext;
+export async function transactionReviewContext(session: DeviceSessionContext, id: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readReviewContext(session, id);
+}
+// Private implementation is only entered by this module's guarded exports.
+const context = readReviewContext;
 type Context = Awaited<ReturnType<typeof context>>;
 async function response(ctx: Context) {
   const head = await database()
@@ -209,12 +219,14 @@ export async function businessTransactionReviewStatus(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   return response(await context(session, id));
 }
 export async function beginBusinessTransactionReview(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const tx = await requireBusinessTransaction(session, id);
   if (tx.row.state !== 'received')
     fail(
@@ -248,7 +260,7 @@ export async function beginBusinessTransactionReview(
   );
   if (!base) fail('L’historique de référence n’est plus disponible.');
   if (existing?.algorithm_version === TRANSACTION_REVIEW_VERSION && existing.source_revision === base.head_revision)
-    return businessTransactionReviewStatus(session, tx.id);
+    return response(await context(session, tx.id));
   if (existing && existing.source_revision > base.head_revision)
     fail('La préparation du dossier se réfère à une révision future.', 503);
   const source = await database()
@@ -394,7 +406,7 @@ export async function beginBusinessTransactionReview(
           JSON.stringify(Object.keys(contract.tables)),
         ),
     ]);
-    return businessTransactionReviewStatus(session, tx.id);
+    return response(await context(session, tx.id));
   }
   await database().batch([
     database()
@@ -419,7 +431,7 @@ export async function beginBusinessTransactionReview(
         JSON.stringify(Object.keys(contract.tables)),
       ),
   ]);
-  return businessTransactionReviewStatus(session, tx.id);
+  return response(await context(session, tx.id));
 }
 const sourceWhere = `v.transfer_id=?15 AND v.organization_id=?2 AND (v.table_name>?10 OR (v.table_name=?10 AND v.row_key_json>?11))`;
 async function copySource(ctx: Context) {
@@ -526,7 +538,7 @@ async function applyChunk(ctx: Context) {
   // Resume a bounded SQL page inside the original immutable fragment.
   const changes = allChanges.slice(
     ctx.changeOffset,
-    ctx.changeOffset + APPLY_CHANGES,
+    ctx.changeOffset + Math.min(APPLY_CHANGES, EXECUTION_APPLY_CHANGES),
   );
   const finishedChunk = ctx.changeOffset + changes.length === allChanges.length;
   let audit = r.last_audit_hash,
@@ -680,10 +692,11 @@ export async function reviewBusinessTransaction(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await context(session, id);
   const status = await response(ctx);
   if (status.state === 'stale') return status;
   if (ctx.review.state === 'copying') await copySource(ctx);
   else if (ctx.review.state === 'applying') await applyChunk(ctx);
-  return businessTransactionReviewStatus(session, ctx.id);
+  return response(await context(session, ctx.id));
 }

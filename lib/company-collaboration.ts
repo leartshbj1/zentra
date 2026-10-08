@@ -4,6 +4,7 @@ import { backupId, backupManifest, type BackupManifest } from './workspace-backu
 import { supabaseServerClient, supabaseRealtimeConfiguration } from './supabase-server-runtime';
 import { announceCompanyRevision } from './company-realtime';
 import { legacyContentChunk, pruneCompanyContent } from './company-content';
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 
 type Head = {organization_id:string;revision:number;snapshot_id:string|null;updated_at:string;updated_by:string};
 type Snapshot = {id:string;organization_id:string;installation_id:string;created_by:string;base_revision:number;revision:number|null;manifest:BackupManifest;size_bytes:number;content_version?:number};
@@ -13,6 +14,7 @@ export function collaborationRevision(value: unknown): number {
   return Number(value);
 }
 export async function collaborationHead(actor: DeviceSessionContext, knownRevision?: number) {
+  await requireLegacyCountryTransport(actor.organizationId);
   const db=supabaseServerClient();
   const heads=await db.select<Head>('zentra_workspaces',{organization_id:`eq.${actor.organizationId}`,limit:1});
   const head=heads[0];
@@ -22,12 +24,14 @@ export async function collaborationHead(actor: DeviceSessionContext, knownRevisi
     revision:head?.revision ?? 0,snapshotId:head?.snapshot_id ?? null,updatedAt:head?.updated_at ?? null,manifest:snapshot?.manifest ?? null,contentTransfer:1,contentVersion:snapshot?.content_version??0};
 }
 export async function collaborationRevisionHead(actor: DeviceSessionContext) {
+  await requireLegacyCountryTransport(actor.organizationId);
   const rows = await supabaseServerClient().select<Head>('zentra_workspaces', {
     organization_id: `eq.${actor.organizationId}`, select: 'revision', limit: 1,
   });
   return { organizationId: actor.organizationId, revision: rows[0]?.revision ?? 0, enabled: Boolean(rows[0]) };
 }
 export async function collaborationBase(actor: DeviceSessionContext, value: unknown) {
+  await requireLegacyCountryTransport(actor.organizationId);
   const revision = collaborationRevision(value);
   if (revision < 1) throw new AccountPublicError('La version de référence est invalide.');
   const rows = await supabaseServerClient().select<Snapshot>('zentra_workspace_snapshots', {
@@ -40,6 +44,7 @@ export async function collaborationBase(actor: DeviceSessionContext, value: unkn
     snapshotId: row.id, manifest: backupManifest(row.manifest), contentTransfer:1, contentVersion:row.content_version??0 };
 }
 export async function collaborationSnapshot(actor: DeviceSessionContext,id:unknown): Promise<Snapshot> {
+  await requireLegacyCountryTransport(actor.organizationId);
   const rows=await supabaseServerClient().select<Snapshot>('zentra_workspace_snapshots',{
     organization_id:`eq.${actor.organizationId}`,id:`eq.${backupId(id)}`,limit:1,
   });
@@ -50,6 +55,7 @@ export async function collaborationSnapshot(actor: DeviceSessionContext,id:unkno
 }
 export async function prepareCollaboration(actor: DeviceSessionContext,input:Record<string,unknown>) {
   if (!roleCanWriteInvoices(actor.role)) throw noWrite();
+  await requireLegacyCountryTransport(actor.organizationId);
   const id=backupId(input.id),manifest=backupManifest(input.manifest),base=collaborationRevision(input.baseRevision);
   const db=supabaseServerClient();
   let heads=await db.select<Head>('zentra_workspaces',{organization_id:`eq.${actor.organizationId}`,limit:1});
@@ -92,6 +98,7 @@ function chunkIndex(snapshot:Snapshot,value:string|null) {
 }
 export async function receiveCollaborationChunk(actor:DeviceSessionContext,id:unknown,index:string|null,bytes:Uint8Array) {
   if(!roleCanWriteInvoices(actor.role))throw noWrite();
+  await requireLegacyCountryTransport(actor.organizationId);
   const snapshot=await collaborationSnapshot(actor,id),n=chunkIndex(snapshot,index),part=snapshot.manifest.chunks[n];
   if(snapshot.installation_id!==actor.installationId||snapshot.created_by!==actor.userId)throw noWrite();
   if(bytes.byteLength!==part.size_bytes||await sha256Hex(bytes)!==part.sha256)throw new AccountPublicError('Le document envoyé est incomplet. L’envoi sera repris.');
@@ -108,6 +115,7 @@ export async function receiveCollaborationChunk(actor:DeviceSessionContext,id:un
   return {received:true};
 }
 export async function downloadCollaborationChunk(actor:DeviceSessionContext,id:unknown,index:string|null) {
+  await requireLegacyCountryTransport(actor.organizationId);
   const snapshot=await collaborationSnapshot(actor,id),n=chunkIndex(snapshot,index),part=snapshot.manifest.chunks[n];
   if(snapshot.content_version===1)return legacyContentChunk(actor,snapshot.id,snapshot.manifest,n);
   const bytes=await supabaseServerClient().companyChunk('GET',await chunkPath(actor.organizationId,snapshot.id,n));
@@ -116,6 +124,7 @@ export async function downloadCollaborationChunk(actor:DeviceSessionContext,id:u
 }
 export async function commitCollaboration(actor:DeviceSessionContext,id:unknown) {
   if(!roleCanWriteInvoices(actor.role))throw noWrite();
+  await requireLegacyCountryTransport(actor.organizationId);
   const result=await supabaseServerClient().rpc<{committed:boolean;revision:number;snapshotId:string;conflict?:boolean}>('zentra_commit_workspace',{
     p_organization:actor.organizationId,p_snapshot:backupId(id),p_installation:actor.installationId,p_actor:actor.userId,
   });
@@ -132,6 +141,7 @@ export async function commitCollaboration(actor:DeviceSessionContext,id:unknown)
 }
 
 export async function pruneCollaborationHistory(organization:string) {
+  await requireLegacyCountryTransport(organization);
   const db=supabaseServerClient();
   const heads=await db.select<Head>('zentra_workspaces',{organization_id:`eq.${organization}`,limit:1});
   const head=heads[0];if(!head)return;

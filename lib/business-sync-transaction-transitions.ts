@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { readBusinessTransactionChunk } from './business-sync-transaction-chunk';
 import type { TransactionManifest } from './business-sync-transaction-format';
@@ -174,6 +175,7 @@ type Context = {
   queries: ReturnType<typeof transactionTransitionQueries>;
 };
 export async function validateTransactionTransitions(ctx: Context) {
+  await requireLegacyCountryTransport(ctx.manifest.organization_id, database());
   const offset = transactionTransitionOffset(
     ctx.manifest,
     ctx.checked,

@@ -1,3 +1,5 @@
+import { database } from './runtime';
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import {
@@ -387,6 +389,7 @@ export async function bootstrapIntegrityStatus(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await context(session, id);
   return response(ctx, await progress(ctx));
 }
@@ -394,6 +397,7 @@ export async function validateBootstrapIntegrity(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await context(session, id);
   await ctx.db
     .prepare(`INSERT OR IGNORE INTO business_sync_integrity_checks(transfer_id,validator_sha256,manifest_sha256,generation,state,updated_at)

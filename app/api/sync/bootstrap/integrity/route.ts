@@ -9,10 +9,12 @@ import {
   validateBootstrapIntegrity,
 } from '@/lib/business-sync-integrity';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 async function sessionFor(request: Request) {
   const session = await requireDeviceSession(request);
+  await requireLegacyCountryTransport(session.organizationId);
   await enforceAccountRateLimit(
     request,
     'business-sync-integrity',

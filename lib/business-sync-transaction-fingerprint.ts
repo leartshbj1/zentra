@@ -1,3 +1,5 @@
+import { database } from './runtime';
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { businessSyncContractHash } from './business-sync-bootstrap';
@@ -61,6 +63,7 @@ export async function completedTransactionFingerprint(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await validatedTransactionContext(session, id),
     contractHash = await stateFingerprintContractHash();
   const fingerprint = await progress(ctx, contractHash);
@@ -163,6 +166,7 @@ export async function businessTransactionFingerprintStatus(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   return response(
     await validatedTransactionContext(session, id),
     await stateFingerprintContractHash(),
@@ -172,6 +176,7 @@ export async function fingerprintBusinessTransaction(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await validatedTransactionContext(session, id);
   const contractHash = await stateFingerprintContractHash(),
     seed = await initialStateHash();

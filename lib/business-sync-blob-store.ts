@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { readBytesBodyWithinLimit } from './request-body';
-import { fileArchive } from './runtime';
+import { database, fileArchive } from './runtime';
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 
 export const SYNC_BLOB_PART_BYTES = 4 * 1024 * 1024;
 export type StoredBlobPart = {
@@ -10,7 +11,12 @@ export type StoredBlobPart = {
   size_bytes: number;
   object_key: string;
 };
-export async function storedBlobPart(key: string, expected: number) {
+function requireBlobOrganization(organizationId: string, key: string) {
+  if (!organizationId || !key.startsWith(`business-sync/${organizationId}/`))
+    throw new AccountPublicError('Ce fragment ne correspond pas à son entreprise.', 409);
+}
+// Private reader: only the guarded exports below may enter the storage loop.
+async function readStoredBlobPart(key: string, expected: number) {
   const blob = await fileArchive().get(key);
   if (
     !blob ||
@@ -31,12 +37,19 @@ export async function storedBlobPart(key: string, expected: number) {
     expected,
   );
 }
+export async function storedBlobPart(organizationId: string, key: string, expected: number) {
+  await requireLegacyCountryTransport(organizationId, database());
+  requireBlobOrganization(organizationId, key);
+  return readStoredBlobPart(key, expected);
+}
 export async function verifyStoredBlob(
+  organizationId: string,
   parts: StoredBlobPart[],
   size: number,
   sha: string,
   key: (index: number) => string,
 ) {
+  await requireLegacyCountryTransport(organizationId, database());
   if (parts.length !== Math.ceil(size / SYNC_BLOB_PART_BYTES))
     throw new AccountPublicError(
       'Des fragments du fichier manquent encore.',
@@ -55,7 +68,8 @@ export async function verifyStoredBlob(
         'Les fragments conservés sont incohérents.',
         409,
       );
-    const bytes = await storedBlobPart(part.object_key, expected);
+    requireBlobOrganization(organizationId, part.object_key);
+    const bytes = await readStoredBlobPart(part.object_key, expected);
     if (bytes.length !== expected || (await sha256Hex(bytes)) !== part.sha256)
       throw new AccountPublicError('Un fragment conservé est altéré.', 409);
     received += bytes.length;

@@ -1,6 +1,7 @@
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { readBytesBodyWithinLimit } from '@/lib/request-body';
 import { database, fileArchive } from '@/lib/runtime';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const MAX_PROJECT_FILE_BYTES = 25 * 1024 * 1024;
 export type ProjectDocumentEvent = {
@@ -109,6 +110,7 @@ export function publicDocument(row: ProjectDocumentEvent) {
   return metadata;
 }
 export async function storedDocument(org: string, id: string) {
+  await requireLegacyCountryTransport(org);
   return database()
     .prepare(
       "SELECT * FROM project_document_events WHERE organization_id=? AND document_id=? AND action='stored'",
@@ -127,6 +129,7 @@ async function isDeleted(org: string, id: string) {
   );
 }
 export async function storeDocument(request: Request, org: string) {
+  await requireLegacyCountryTransport(org);
   const url = new URL(request.url);
   const id = documentId(url.searchParams.get('id'));
   const project = documentId(url.searchParams.get('projectId'));
@@ -207,6 +210,7 @@ export async function storeDocument(request: Request, org: string) {
   return { document: publicDocument(saved), alreadyStored: false };
 }
 export async function deleteDocument(org: string, id: string, project: string) {
+  await requireLegacyCountryTransport(org);
   const previous = await storedDocument(org, id);
   if (previous && previous.project_id !== project)
     throw new AccountPublicError('Document introuvable.', 404);
@@ -229,6 +233,7 @@ export async function deleteDocument(org: string, id: string, project: string) {
   if (previous) await fileArchive().delete(previous.object_key);
 }
 export async function downloadDocument(org: string, id: string) {
+  await requireLegacyCountryTransport(org);
   if (await isDeleted(org, id))
     throw new AccountPublicError('Ce document a été supprimé.', 410);
   const row = await storedDocument(org, id);

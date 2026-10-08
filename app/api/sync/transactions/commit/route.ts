@@ -10,10 +10,12 @@ import {
   committedBusinessTransactionsSince,
 } from '@/lib/business-sync-transaction-commit';
 import { committedBusinessTransactionFile } from '@/lib/business-sync-committed-files';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic = 'force-dynamic';
 async function respond(request: Request, write: boolean) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     await enforceAccountRateLimit(
       request,
       'business-transaction-commit',

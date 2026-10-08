@@ -3,7 +3,7 @@ import type {DeviceSessionContext} from './account';
 const stubs=vi.hoisted(()=>({client:vi.fn()}));
 vi.mock('./supabase-server-runtime',()=>({supabaseServerClient:stubs.client}));
 vi.mock('./company-realtime',()=>({announceCompanyRevision:vi.fn(async()=>undefined)}));
-vi.mock('./runtime',()=>({database:vi.fn(),fileArchive:vi.fn()}));
+vi.mock('./runtime',()=>({database:()=>({prepare:()=>({bind:()=>({first:async()=>null})})}),fileArchive:vi.fn()}));
 import {collaborationBase,collaborationHead,collaborationSnapshot,prepareCollaboration,receiveCollaborationChunk,downloadCollaborationChunk,commitCollaboration,pruneCollaborationHistory} from './company-collaboration';
 import {sha256Hex} from './account-security';
 const a={organizationId:'org_a',installationId:'device-a',userId:'alice',role:'owner'} as DeviceSessionContext;

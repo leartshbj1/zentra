@@ -55,6 +55,7 @@ beforeEach(() => {
   queries = 0;
   metadataPlan = [];
   db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE international_workspace_creation_intents(organization_id TEXT PRIMARY KEY,country_code TEXT)');
   db.exec(`CREATE TABLE business_sync_versions(transfer_id TEXT,organization_id TEXT,table_name TEXT,row_key_json TEXT,row_json TEXT,row_sha256 TEXT,PRIMARY KEY(transfer_id,table_name,row_key_json));
 CREATE TABLE business_sync_row_order(transfer_id TEXT,table_name TEXT,row_key_json TEXT,source_rowid TEXT,PRIMARY KEY(transfer_id,table_name,row_key_json));`);
 });
@@ -163,7 +164,8 @@ it('is independent of retries, page boundaries and insertion order, including SQ
     queries = 0;
     const old = { ...cursor };
     const page = await fingerprintStatePage(d1, 'source', 'company', cursor);
-    expect(queries).toBeLessThanOrEqual(STATE_PAGE_ROWS + 1);
+    // One country preflight, one metadata query, then at most one read per row.
+    expect(queries).toBeLessThanOrEqual(STATE_PAGE_ROWS + 2);
     expect(page.processed).toBeLessThanOrEqual(64);
     expect(await fingerprintStatePage(d1, 'source', 'company', old)).toEqual(
       page,

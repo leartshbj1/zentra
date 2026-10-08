@@ -1,15 +1,16 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {DeviceSessionContext} from './account';
+import type {BackupManifest} from './workspace-backup';
 import {sha256Hex} from './account-security';
 const mocks=vi.hoisted(()=>({db:vi.fn(),archive:vi.fn()}));
 vi.mock('./supabase-server-runtime',()=>({supabaseServerClient:mocks.db}));
-vi.mock('./runtime',()=>({fileArchive:mocks.archive}));
+vi.mock('./runtime',()=>({database:()=>({prepare:()=>({bind:()=>({first:async()=>null})})}),fileArchive:mocks.archive}));
 import {contentParts,prepareCompanyContent,receiveCompanyContent,readCompanyContent,companyContentManifest,legacyContentChunk,pruneCompanyContent} from './company-content';
 const actor={organizationId:'org-a',userId:'alice',installationId:'pc',role:'owner'} as DeviceSessionContext;
 const id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',generation='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const bytes=new TextEncoder().encode('invoice and logo');
 let db:{select:ReturnType<typeof vi.fn>;rpc:ReturnType<typeof vi.fn>;update:ReturnType<typeof vi.fn>;delete:ReturnType<typeof vi.fn>};
-let archive:{put:ReturnType<typeof vi.fn>;get:ReturnType<typeof vi.fn>;delete:ReturnType<typeof vi.fn>};let part:{sha256:string;size_bytes:number};let manifest:any;
+let archive:{put:ReturnType<typeof vi.fn>;get:ReturnType<typeof vi.fn>;delete:ReturnType<typeof vi.fn>};let part:{sha256:string;size_bytes:number};let manifest:BackupManifest;
 beforeEach(async()=>{
  part={sha256:await sha256Hex(bytes),size_bytes:bytes.length};manifest={format:'zentra-cloud-backup',version:1,app_version:'1.75.0',...part,chunks:[part]};
  db={select:vi.fn(),rpc:vi.fn().mockResolvedValue({ready:false,storageKey:generation}),update:vi.fn(),delete:vi.fn()};

@@ -43,4 +43,21 @@ describe('legacy transport country preflight', () => {
     await expect(requireLegacyCountryTransport('company-ch', fixture.db)).rejects.toBe(error);
     expect(fixture.first).toHaveBeenCalledOnce();
   });
+
+  it('rechecks a previously accepted identity after a durable admission appears', async () => {
+    const fixture = database(null);
+    await expect(requireLegacyCountryTransport('company-changing', fixture.db)).resolves.toBeUndefined();
+    fixture.first.mockResolvedValue({ blocked: 1 });
+    await expect(requireLegacyCountryTransport('company-changing', fixture.db)).rejects.toBeInstanceOf(LegacyCountryTransportError);
+    expect(fixture.first).toHaveBeenCalledTimes(2);
+    expect(fixture.bind.mock.calls).toEqual([['company-changing'], ['company-changing']]);
+  });
+
+  it('does not reuse a country decision between organizations', async () => {
+    const fixture = database({ blocked: 1 });
+    await expect(requireLegacyCountryTransport('company-us', fixture.db)).rejects.toBeInstanceOf(LegacyCountryTransportError);
+    fixture.first.mockResolvedValue(null);
+    await expect(requireLegacyCountryTransport('company-ch', fixture.db)).resolves.toBeUndefined();
+    expect(fixture.bind.mock.calls).toEqual([['company-us'], ['company-ch']]);
+  });
 });

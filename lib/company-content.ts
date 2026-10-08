@@ -3,6 +3,7 @@ import { AccountPublicError, roleCanWriteInvoices, sha256Hex } from './account-s
 import { backupId, backupManifest, type BackupManifest } from './workspace-backup';
 import { supabaseServerClient } from './supabase-server-runtime';
 import { fileArchive } from './runtime';
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 
 export const CONTENT_PART_BYTES = 1024 * 1024;
 export type ContentPart = { sha256: string; size_bytes: number };
@@ -32,6 +33,7 @@ function numbers(value: unknown) {
 }
 export async function prepareCompanyContent(actor: DeviceSessionContext, input: Record<string, unknown>) {
   if (!roleCanWriteInvoices(actor.role)) throw new AccountPublicError('Votre accès permet de consulter l’entreprise.',403);
+  await requireLegacyCountryTransport(actor.organizationId);
   if (!Number.isSafeInteger(input.baseRevision) || Number(input.baseRevision)<0) throw new AccountPublicError('Version de référence invalide.');
   const manifest=backupManifest(input.manifest), entries=contentParts(input.entries,manifest);
   return supabaseServerClient().rpc('zentra_prepare_content',{
@@ -41,6 +43,7 @@ export async function prepareCompanyContent(actor: DeviceSessionContext, input: 
   });
 }
 export async function companyContentManifest(actor: DeviceSessionContext, id: string, manifest: BackupManifest) {
+  await requireLegacyCountryTransport(actor.organizationId);
   const db=supabaseServerClient();const rows:ContentPart[]=[];
   // PostgREST enforces its own page cap; never assume an 8192 limit returns all rows.
   for(let offset=0;offset<8192;offset+=500){
@@ -52,6 +55,7 @@ export async function companyContentManifest(actor: DeviceSessionContext, id: st
 async function path(org:string,hash:string,generation:string){return `company-content/v1/${await sha256Hex(org)}/${contentHash(hash)}/${backupId(generation)}`;}
 export async function receiveCompanyContent(actor:DeviceSessionContext,id:unknown,hash:unknown,bytes:Uint8Array){
   if(!roleCanWriteInvoices(actor.role))throw new AccountPublicError('Votre accès permet de consulter l’entreprise.',403);
+  await requireLegacyCountryTransport(actor.organizationId);
   const digest=contentHash(hash),snapshot=backupId(id);
   if(!bytes.length||bytes.length>CONTENT_PART_BYTES||await sha256Hex(bytes)!==digest)throw new AccountPublicError('Le changement reçu est incomplet. Son envoi reprendra automatiquement.');
   const db=supabaseServerClient(),reservation=await db.rpc<{ready:boolean;storageKey:string}>('zentra_reserve_content_blob',{p_organization:actor.organizationId,p_snapshot:snapshot,p_installation:actor.installationId,p_actor:actor.userId,p_hash:digest,p_size:bytes.length});
@@ -62,6 +66,7 @@ export async function receiveCompanyContent(actor:DeviceSessionContext,id:unknow
   return {received:true};
 }
 export async function readCompanyContent(actor:DeviceSessionContext,id:string,hash:unknown){
+  await requireLegacyCountryTransport(actor.organizationId);
   const digest=contentHash(hash),db=supabaseServerClient();
   const rows=await db.select<ContentPart>('zentra_workspace_content_parts',{organization_id:`eq.${actor.organizationId}`,snapshot_id:`eq.${backupId(id)}`,sha256:`eq.${digest}`,select:'sha256,size_bytes',limit:1});
   if(!rows[0])throw new AccountPublicError('Ce changement ne fait pas partie de cette entreprise.',404);
@@ -79,6 +84,7 @@ async function contentBytes(org:string,part:ContentPart){
 /** Old clients still request the original 8 MiB archive chunks. Reconstruct
  * just that range, so both protocol generations share one authoritative head. */
 export async function legacyContentChunk(actor:DeviceSessionContext,id:string,manifest:BackupManifest,index:number){
+  await requireLegacyCountryTransport(actor.organizationId);
   const entries=await companyContentManifest(actor,id,manifest),start=index*8*1024*1024,end=start+manifest.chunks[index].size_bytes;
   const output=new Uint8Array(end-start);let offset=0;
   for(const entry of entries){const next=offset+entry.size_bytes;if(next>start&&offset<end){const bytes=await contentBytes(actor.organizationId,entry);const a=Math.max(start,offset),b=Math.min(end,next);output.set(bytes.subarray(a-offset,b-offset),a-start);}offset=next;if(offset>=end)break;}
@@ -86,6 +92,7 @@ export async function legacyContentChunk(actor:DeviceSessionContext,id:string,ma
   return output;
 }
 export async function pruneCompanyContent(org:string){
+  await requireLegacyCountryTransport(org);
   const db=supabaseServerClient();const hashes=await db.rpc<{sha256:string;storage_key:string}[]>('zentra_claim_content_cleanup',{p_organization:org});
   // A storage generation prevents a delayed/retried cleanup from deleting a
   // newer upload of the same hash after another worker completed the cleanup.

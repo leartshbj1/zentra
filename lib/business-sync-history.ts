@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import {
@@ -41,6 +42,7 @@ async function verifiedBytes(
   return { bytes, sha256: sha };
 }
 export async function historyHead(session: DeviceSessionContext) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const h = await publishedHistory(session);
   return h
     ? {
@@ -58,6 +60,7 @@ export async function historyChunk(
   id: unknown,
   rawIndex: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const h = await required(session, id),
     part = index(rawIndex, 1023);
   const row = await database()
@@ -84,6 +87,7 @@ export async function historyFilePage(
   id: unknown,
   rawIndex: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const h = await required(session, id),
     part = index(rawIndex, 249);
   const row = await database()
@@ -119,6 +123,7 @@ export async function historyFilePart(
   rawSha: unknown,
   rawPart: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const h = await required(session, id),
     sha = businessFileHash(rawSha),
     part = index(rawPart, 127);

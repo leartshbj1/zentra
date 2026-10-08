@@ -3,6 +3,7 @@ import { accountJsonError, accountNoStoreHeaders } from '@/lib/account';
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { safeInvoiceFilename } from '@/lib/invoice-archive';
 import { database, fileArchive } from '@/lib/runtime';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,25 @@ export async function GET(
     if (!/^arc_[0-9a-f-]{36}$/i.test(archiveId)) {
       throw new AccountPublicError('La référence d’archive est invalide.');
     }
+    // Recovery remains membership-based, including after subscription expiry.
+    // Resolve only the authorized organization before country admission; the
+    // metadata read below independently rechecks membership after that await.
+    const authorized = await database()
+      .prepare(
+        `SELECT archive.organization_id
+           FROM invoice_archives archive
+           JOIN organization_members member
+             ON member.organization_id=archive.organization_id
+            AND member.user_id=? AND member.revoked_at IS NULL
+          WHERE archive.archive_id=? AND archive.storage_status='stored'
+          LIMIT 1`,
+      )
+      .bind(user.userId, archiveId)
+      .first<{ organization_id: string }>();
+    if (!authorized) {
+      throw new AccountPublicError('Cette archive est introuvable.', 404);
+    }
+    await requireLegacyCountryTransport(authorized.organization_id);
     const row = await database()
       .prepare(
         `SELECT archive.organization_id,archive.object_key,
@@ -32,10 +52,11 @@ export async function GET(
            JOIN organization_members member
              ON member.organization_id=archive.organization_id
             AND member.user_id=? AND member.revoked_at IS NULL
-          WHERE archive.archive_id=? AND archive.storage_status='stored'
+          WHERE archive.archive_id=? AND archive.organization_id=?
+            AND archive.storage_status='stored'
           LIMIT 1`,
       )
-      .bind(user.userId, archiveId)
+      .bind(user.userId, archiveId, authorized.organization_id)
       .first<{
         organization_id: string;
         object_key: string;

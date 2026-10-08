@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import {
   AccountPublicError,
@@ -53,7 +54,7 @@ function invalid(message: string, status = 409): never {
   throw new AccountPublicError(message, status);
 }
 
-export async function bootstrapValidationContext(
+async function readBootstrapValidationContext(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
@@ -94,6 +95,11 @@ export async function bootstrapValidationContext(
   const manifest = await bootstrapManifest(JSON.parse(transfer.manifest_json));
   const validator = await structuralValidatorHash();
   return { db, id, transfer, binding, manifest, validator };
+}
+// The private body is only entered by this module's guarded exports.
+export async function bootstrapValidationContext(session: DeviceSessionContext, rawId: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readBootstrapValidationContext(session, rawId);
 }
 export type BootstrapValidationContext = Awaited<
   ReturnType<typeof bootstrapValidationContext>
@@ -140,6 +146,7 @@ function response(ctx: Context, row: Progress | null) {
 }
 
 export async function requireStructuralValidation(ctx: Context) {
+  await requireLegacyCountryTransport(ctx.binding[1], ctx.db);
   if ((await progress(ctx))?.state !== 'valid')
     invalid(
       'Le contrôle de structure doit être terminé avant de vérifier la comptabilité et l’audit.',
@@ -150,7 +157,8 @@ export async function structuralValidationStatus(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
-  const ctx = await bootstrapValidationContext(session, rawId);
+  await requireLegacyCountryTransport(session.organizationId, database());
+  const ctx = await readBootstrapValidationContext(session, rawId);
   return response(ctx, await progress(ctx));
 }
 
@@ -158,7 +166,8 @@ export async function validateBootstrapStructure(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
-  const ctx = await bootstrapValidationContext(session, rawId);
+  await requireLegacyCountryTransport(session.organizationId, database());
+  const ctx = await readBootstrapValidationContext(session, rawId);
   await ctx.db
     .prepare(`INSERT OR IGNORE INTO business_sync_structural_checks
     (transfer_id,validator_sha256,manifest_sha256,generation,next_rule,state,updated_at)

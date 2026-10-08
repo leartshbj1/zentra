@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { structuralRules, structuralSchema } from './business-sync-structure';
@@ -154,6 +155,7 @@ export async function validatedTransactionContext(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await context(session, id);
   const row = await progress(ctx);
   if (
@@ -299,6 +301,7 @@ export async function businessTransactionValidationStatus(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await context(session, id);
   return response(ctx, await progress(ctx));
 }
@@ -331,6 +334,7 @@ export async function validateBusinessTransaction(
   session: DeviceSessionContext,
   id: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await context(session, id);
   const old = await ctx.db
     .prepare(

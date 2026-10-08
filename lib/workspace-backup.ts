@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import { type DeviceSessionContext } from '@/lib/account';
 import { AccountPublicError, sha256Hex } from '@/lib/account-security';
 import { readBytesBodyWithinLimit } from '@/lib/request-body';
@@ -147,6 +148,7 @@ async function resumableBackup(row: BackupRow) {
   return { ...publicBackup(row), received_chunks: receipts.results };
 }
 export async function listBackups(org: string) {
+  await requireLegacyCountryTransport(org, database());
   const rows = await database()
     .prepare(
       "SELECT * FROM workspace_backups WHERE organization_id=? AND state<>'deleted' ORDER BY created_at DESC,backup_id DESC LIMIT 50",
@@ -164,6 +166,7 @@ export async function beginBackup(
   id: string,
   manifest: BackupManifest,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const json = JSON.stringify(manifest);
   const prior = await stored(session.organizationId, id);
   if (prior) {
@@ -237,6 +240,7 @@ export async function uploadBackupChunk(
   id: string,
   index: number,
 ) {
+  await requireLegacyCountryTransport(org, database());
   const row = await required(org, id);
   const { part, key } = chunk(row, index);
   const bytes = await readBytesBodyWithinLimit(request, part.size_bytes);
@@ -278,6 +282,7 @@ export async function uploadBackupChunk(
   return { stored: true };
 }
 export async function completeBackup(org: string, id: string) {
+  await requireLegacyCountryTransport(org, database());
   const row = await required(org, id);
   const manifest = backupManifest(JSON.parse(row.manifest_json));
   await database()
@@ -304,6 +309,7 @@ export async function completeBackup(org: string, id: string) {
   return publicBackup(saved);
 }
 export async function getBackup(org: string, id: string) {
+  await requireLegacyCountryTransport(org, database());
   const row = await required(org, id);
   if (row.state !== 'complete')
     throw new AccountPublicError(
@@ -320,6 +326,7 @@ export async function downloadBackupChunk(
   id: string,
   index: number,
 ) {
+  await requireLegacyCountryTransport(org, database());
   const row = await required(org, id);
   if (row.state !== 'complete')
     throw new AccountPublicError(
@@ -336,6 +343,7 @@ export async function downloadBackupChunk(
   return { part, object };
 }
 export async function deleteBackup(org: string, id: string) {
+  await requireLegacyCountryTransport(org, database());
   const row = await stored(org, id);
   if (!row) throw new AccountPublicError('Sauvegarde introuvable.', 404);
   // Keep the tombstone to reject a late upload or a lost-acknowledgement replay.

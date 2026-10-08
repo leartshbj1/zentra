@@ -4,10 +4,12 @@ import {
   requireDeviceSession,
 } from '@/lib/account';
 import { documentId, downloadDocument } from '@/lib/project-sync';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     const { row, file } = await downloadDocument(
       session.organizationId,
       documentId(new URL(request.url).searchParams.get('id')),

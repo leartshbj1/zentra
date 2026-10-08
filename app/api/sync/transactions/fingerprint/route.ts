@@ -8,10 +8,12 @@ import {
   businessTransactionFingerprintStatus,
   fingerprintBusinessTransaction,
 } from '@/lib/business-sync-transaction-fingerprint';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic = 'force-dynamic';
 async function respond(request: Request, advance: boolean) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     await enforceAccountRateLimit(
       request,
       'business-transaction-fingerprint',

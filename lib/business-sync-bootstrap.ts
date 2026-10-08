@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import contract from '../desktop/src-tauri/src/business_sync_tables.json';
 import type { DeviceSessionContext } from './account';
 import {
@@ -212,7 +213,7 @@ async function required(
   return row;
 }
 
-export async function bootstrapStatus(
+async function readBootstrapStatus(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
@@ -236,12 +237,18 @@ export async function bootstrapStatus(
     replication_active: false,
   };
 }
+// The private body is only entered by this module's guarded exports.
+export async function bootstrapStatus(session: DeviceSessionContext, rawId: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readBootstrapStatus(session, rawId);
+}
 
 export async function beginBootstrap(
   session: DeviceSessionContext,
   rawId: unknown,
   value: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   requireInitializer(session);
   const id = businessSyncTransferId(rawId);
   const manifest = await bootstrapManifest(value);
@@ -307,7 +314,7 @@ export async function beginBootstrap(
       'Cette demande contient déjà un autre historique. Reprenez sa préparation initiale.',
       409,
     );
-  return bootstrapStatus(session, id);
+  return readBootstrapStatus(session, id);
 }
 
 // Both the initial snapshot and later transactions preserve these exact JSON
@@ -448,6 +455,7 @@ export async function uploadBootstrapChunk(
   rawIndex: unknown,
   request: Request,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   requireInitializer(session);
   const id = businessSyncTransferId(rawId);
   const index = integer(rawIndex, 0, MAX_CHUNKS - 1);
@@ -478,7 +486,7 @@ export async function uploadBootstrapChunk(
     if (!matches(existing))
       invalid('L’accusé de réception ne correspond pas au manifeste.', 409);
     await sealUploadIfComplete(id);
-    return bootstrapStatus(session, id);
+    return readBootstrapStatus(session, id);
   }
   if (transfer.state !== 'uploading')
     invalid('Cette préparation n’accepte plus de nouveaux fragments.', 409);
@@ -583,7 +591,7 @@ export async function uploadBootstrapChunk(
     );
   }
   await sealUploadIfComplete(id);
-  return bootstrapStatus(session, id);
+  return readBootstrapStatus(session, id);
 }
 
 async function rejectCancelledUpload(
@@ -605,6 +613,7 @@ export async function abandonBootstrap(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   requireInitializer(session);
   const id = businessSyncTransferId(rawId);
   // An administrator may recover preparation when its original PC is lost.

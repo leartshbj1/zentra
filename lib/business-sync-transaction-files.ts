@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { businessFileHash } from './business-sync-files';
@@ -56,7 +57,7 @@ async function parts(ctx: Context) {
       .all<StoredBlobPart>()
   ).results;
 }
-export async function businessTransactionFileStatus(
+async function readBusinessTransactionFileStatus(
   session: DeviceSessionContext,
   id: unknown,
   sha: unknown,
@@ -102,6 +103,11 @@ export async function businessTransactionFileStatus(
     replication_active: false,
   };
 }
+// The private body is only entered by this module's guarded exports.
+export async function businessTransactionFileStatus(session: DeviceSessionContext, id: unknown, sha: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readBusinessTransactionFileStatus(session, id, sha);
+}
 function registerBlob(ctx: Context) {
   return database()
     .prepare(
@@ -116,6 +122,7 @@ export async function uploadBusinessTransactionFilePart(
   index: number,
   request: Request,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await required(session, id, sha);
   if (
     !Number.isSafeInteger(index) ||
@@ -153,7 +160,7 @@ export async function uploadBusinessTransactionFilePart(
       httpMetadata: { contentType: 'application/octet-stream' },
     });
     if (!created) {
-      const retained = await storedBlobPart(objectKey, size);
+      const retained = await storedBlobPart(session.organizationId, objectKey, size);
       if (retained.length !== size || (await sha256Hex(retained)) !== hash)
         fail('Un autre contenu occupe déjà ce fragment.');
     }
@@ -181,20 +188,21 @@ export async function uploadBusinessTransactionFilePart(
         'Le document a changé pendant l’envoi. Reprenez depuis la transaction d’origine.',
       );
   } else {
-    const retained = await storedBlobPart(objectKey, size);
+    const retained = await storedBlobPart(session.organizationId, objectKey, size);
     if (retained.length !== size || (await sha256Hex(retained)) !== hash)
       fail('Le fragment conservé est altéré.');
   }
-  return businessTransactionFileStatus(session, ctx.id, ctx.sha);
+  return readBusinessTransactionFileStatus(session, ctx.id, ctx.sha);
 }
 export async function verifyBusinessTransactionFile(
   session: DeviceSessionContext,
   id: unknown,
   sha: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const ctx = await required(session, id, sha);
   // Recheck the original bytes even on a repeated verification request.
-  await verifyStoredBlob(await parts(ctx), ctx.size, ctx.sha, (index) =>
+  await verifyStoredBlob(session.organizationId, await parts(ctx), ctx.size, ctx.sha, (index) =>
     key(ctx, index),
   );
   await database().batch([
@@ -211,7 +219,7 @@ export async function verifyBusinessTransactionFile(
         ...ctx.binding,
       ),
   ]);
-  const result = await businessTransactionFileStatus(session, ctx.id, ctx.sha);
+  const result = await readBusinessTransactionFileStatus(session, ctx.id, ctx.sha);
   if (!result.verified) fail('La vérification du document doit être reprise.');
   return result;
 }

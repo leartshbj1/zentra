@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import {
   AccountPublicError,
@@ -83,7 +84,7 @@ export type PublicationReceipt = {
 };
 // All readers pin an immutable initial revision. Future transaction replication
 // is separate from this first publication and must retain that initial source.
-export async function publishedHistory(
+async function readPublishedHistory(
   session: DeviceSessionContext,
   rawId?: unknown,
 ) {
@@ -149,11 +150,17 @@ export async function publishedHistory(
     installation_id: row.installation_id,
   };
 }
+// The private body is only entered by this module's guarded exports.
+export async function publishedHistory(session: DeviceSessionContext, rawId?: unknown) {
+  await requireLegacyCountryTransport(session.organizationId, database());
+  return readPublishedHistory(session, rawId);
+}
 
 export async function publishBootstrap(
   session: DeviceSessionContext,
   rawId: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   if (!roleCanManageMembers(session.role))
     fail(
       'Seuls le titulaire et les administrateurs peuvent publier la base de référence.',
@@ -161,7 +168,7 @@ export async function publishBootstrap(
     );
   const id = businessSyncTransferId(rawId),
     db = database();
-  const existing = await publishedHistory(session, id);
+  const existing = await readPublishedHistory(session, id);
   if (existing) {
     if (existing.installation_id !== session.installationId)
       fail('Cette préparation appartient à un autre appareil.');
@@ -259,7 +266,7 @@ export async function publishBootstrap(
       AND EXISTS(${ours.replace("t.state='uploaded'", "t.state='committed' AND t.revision=1")})`)
       .bind(...args),
   ]);
-  const result = await publishedHistory(session, id);
+  const result = await readPublishedHistory(session, id);
   if (!result)
     fail(
       'La préparation a changé ou un document référencé manque. La publication n’a pas été effectuée.',

@@ -27,7 +27,8 @@ vi.mock('@/lib/account', async (original) => ({
   requireDeviceSession: mocks.session,
   enforceAccountRateLimit: mocks.rate,
 }));
-import { AccountPublicError, sha256Hex } from './account-security';
+import { AccountPublicError, hashOpaqueToken, sha256Hex } from './account-security';
+import { D1PrepaidPeriods } from './payments/prepaid-periods';
 import {
   beginBootstrap,
   uploadBootstrapChunk,
@@ -233,6 +234,54 @@ beforeEach(() => {
   mocks.session.mockResolvedValue(owner);
 });
 afterEach(() => db.close());
+// Recreate the pinned source fixtures with scripts/qa-review-v4-runtime-fixtures.mjs.
+it.skipIf(!process.env.ZENTRA_V4_RUNTIME_PROOF)('keeps the V4 hash and exact canonical positions while old12 and runtime8 deployments alternate', async () => {
+  const folder = new URL('../.qa/us-workspace-admission/review-v4-runtime/', import.meta.url);
+  const oldPath = new URL('head12.ts', folder).href;
+  const boundedPath = new URL('runtime8.ts', folder).href;
+  const old = await import(/* @vite-ignore */ oldPath) as typeof import('./business-sync-transaction-review');
+  const bounded = await import(/* @vite-ignore */ boundedPath) as typeof import('./business-sync-transaction-review');
+  expect(old.TRANSACTION_REVIEW_VERSION).toBe(4);
+  expect(bounded.TRANSACTION_REVIEW_VERSION).toBe(4);
+  // Pin the baseline hash too: dependency drift must not make both variants
+  // agree on a different contract while pretending to prove old V4 resumes.
+  expect(await old.transactionReviewValidatorHash()).toBe('3d794fad489b1c249bd9d8fecd2c67ac0a7d9ab73dd6bab6aa5c61f5ce0fa822');
+  expect(await bounded.transactionReviewValidatorHash()).toBe(await old.transactionReviewValidatorHash());
+  const f = await receiveTransaction(await transactionFixture([
+    Array.from({ length: 65 }, (_, i) => transactionInsert(String(i + 1), `mixed-${i}`)),
+  ]));
+  const id = f.manifest.transaction_id;
+  let status = await old.beginBusinessTransactionReview(f.actor, id);
+  while (status.state === 'copying') status = await old.reviewBusinessTransaction(f.actor, id);
+  status = await old.reviewBusinessTransaction(f.actor, id);
+  expect(status.applied_changes).toBe(12);
+  const raced = await Promise.all([
+    old.reviewBusinessTransaction(f.actor, id),
+    bounded.reviewBusinessTransaction(f.actor, id),
+  ]);
+  expect(raced[0].applied_changes).toBe(raced[1].applied_changes);
+  expect([8, 12]).toContain(raced[0].applied_changes - 12);
+  status = raced[0];
+  let useBounded = true;
+  const deltas: number[] = [];
+  while (status.state === 'applying') {
+    const before = status.applied_changes;
+    status = await (useBounded ? bounded : old).reviewBusinessTransaction(f.actor, id);
+    const delta = status.applied_changes - before;
+    expect(delta).toBeGreaterThan(0);
+    expect(delta).toBeLessThanOrEqual(useBounded ? 8 : 12);
+    deltas.push(delta);
+    useBounded = !useBounded;
+  }
+  expect(status.state).toBe('projected');
+  const order = db.prepare('SELECT change_index,canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=? ORDER BY part_index,change_index').all(id);
+  expect(order).toEqual(Array.from({ length: 65 }, (_, i) => ({ change_index: i, canonical_rowid: String(i + 1) })));
+  // Both old and bounded deployments replay the projected result unchanged.
+  expect((await old.beginBusinessTransactionReview(f.actor, id)).applied_changes).toBe(65);
+  expect((await bounded.beginBusinessTransactionReview(f.actor, id)).applied_changes).toBe(65);
+  expect(db.prepare('SELECT change_index,canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=? ORDER BY part_index,change_index').all(id)).toEqual(order);
+  console.info('QA_V4_MIXED_RUNTIME', JSON.stringify({ version: 4, hash: await bounded.transactionReviewValidatorHash(), firstLegacyDelta: 12, racedDelta: raced[0].applied_changes - 12, alternatingDeltas: deltas, exactPositions: 65, replayStable: true }));
+});
 const encode = (value: unknown) =>
   new TextEncoder().encode(JSON.stringify(value));
 const request = (bytes: Uint8Array, sha?: string) =>
@@ -3912,16 +3961,17 @@ it('resumes within large fragments and records the original change offset on a l
   beforeBatch = async (sql) => {
     expect(sql.length).toBeLessThanOrEqual(100);
   };
-  expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
+  let review = await reviewBusinessTransaction(f.actor, id);
+  expect(review).toMatchObject({
     state: 'applying',
-    applied_changes: 12,
+    applied_changes: 8,
     next_chunk: 0,
   });
-  for (let pass = 0; pass < 2; pass++)
-    await reviewBusinessTransaction(f.actor, id);
-  expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
+  for (let pass = 0; pass < 10 && review.state === 'applying'; pass++)
+    review = await reviewBusinessTransaction(f.actor, id);
+  expect(review).toMatchObject({
     state: 'conflict',
-    applied_changes: 36,
+    applied_changes: 40,
     next_chunk: 0,
     conflicts: [{ part_index: 0, change_index: 40, reason: 'before_mismatch' }],
   });
@@ -4140,7 +4190,7 @@ it('cannot finish a candidate with a missing canonical event position', async ()
   await reviewBusinessTransaction(f.actor, id);
   await reviewBusinessTransaction(f.actor, id);
   expect((await reviewBusinessTransaction(f.actor, id)).applied_changes).toBe(
-    12,
+    8,
   );
   db.prepare(
     'DELETE FROM business_sync_transaction_canonical_order WHERE transfer_id=? AND change_index=0',
@@ -4148,7 +4198,7 @@ it('cannot finish a candidate with a missing canonical event position', async ()
   expect(await reviewBusinessTransaction(f.actor, id)).toMatchObject({
     state: 'invalid',
     failed_rule: 'candidate:canonical-order',
-    applied_changes: 12,
+    applied_changes: 8,
   });
   expect((await historyHead(f.actor)).head_revision).toBe(1);
 });
@@ -5542,19 +5592,58 @@ it.skipIf(!process.env.ZENTRA_REPLACEMENT_EXPORT)(
     } finally { await runtime.dispose(); }
   }, 120000,
 );
-it('prepares canonical event positions and upgrades reviews within 100 D1 queries per request', async () => {
+async function canonicalAuthFixture(d1: D1Database, actor: DeviceSessionContext, kind: 'stripe' | 'prepaid' | 'manual') {
+  const now = Math.floor(Date.now() / 1000);
+  const token = 'zds_' + 'A'.repeat(43);
+  const subscription = kind === 'prepaid' ? 'pfp_11111111-1111-4111-8111-111111111111' : kind === 'manual' ? 'manual_canonical_fixture' : 'sub';
+  if (kind !== 'stripe') await d1.prepare(`INSERT INTO subscriptions(subscription_id,customer_id,price_id,status,current_period_end,entitlement_valid_until,seat_limit,livemode,updated_at)
+    VALUES(?,?,?,'active',?,0,1,1,?)`).bind(subscription, subscription, 'fixture-projection', now + 86400, now).run();
+  else await d1.prepare('UPDATE subscriptions SET entitlement_valid_until=?,seat_limit=1 WHERE subscription_id=?').bind(now + 86400, subscription).run();
+  await d1.prepare('UPDATE organizations SET subscription_id=? WHERE organization_id=?').bind(subscription, actor.organizationId).run();
+  await d1.prepare(`INSERT INTO organization_members(membership_id,organization_id,user_id,email,role,joined_at)
+    VALUES('canonical-auth-owner',?,?,'fixture@example.invalid','owner',?)`).bind(actor.organizationId, actor.userId, now).run();
+  if (kind === 'prepaid') {
+    const store = new D1PrepaidPeriods(d1, () => now);
+    const input = { contractId: subscription, ownerId: actor.userId, organizationId: actor.organizationId, workspaceId: null,
+      apiOrigin: 'https://checkout.postfinance.ch', spaceId: 405, environment: 'PRODUCTION' as const, productKey: 'gestion:solo' };
+    await store.createContract(input);
+    const period = await store.reservePeriod(subscription, 0);
+    await store.bindTransaction(period.periodId, 123);
+    await store.recordReconciledSettlement({ periodId: period.periodId, transactionId: 123, invoiceId: 456,
+      apiOrigin: input.apiOrigin, spaceId: input.spaceId, environment: input.environment, ownerId: actor.userId,
+      organizationId: actor.organizationId, workspaceId: null, startsAt: period.startsAt, endsAt: period.endsAt,
+      currency: 'CHF', priceChfMinor: period.priceChfMinor, catalogVersion: period.catalogVersion, evidenceFingerprint: 'a'.repeat(64) });
+  }
+  if (kind === 'manual') await d1.prepare(`INSERT INTO founder_access_grants(email,grant_id,user_id,organization_id,valid_until,revision,created_at,updated_at,last_operation_id)
+    VALUES('fixture@example.invalid','canonical-grant',?,?,?,1,?,?,'canonical-operation')`).bind(actor.userId, actor.organizationId, now + 86400, now, now).run();
+  if (kind !== 'stripe') await d1.prepare('UPDATE subscriptions SET seat_limit=0 WHERE subscription_id=?').bind(subscription).run();
+  await d1.prepare(`INSERT INTO license_activations(license_id,subscription_id,installation_id,activated_at,last_issued_at)
+    VALUES('canonical-license',?,?,?,?)`).bind(subscription, actor.installationId, now, now).run();
+  await d1.prepare(`INSERT INTO device_sessions(session_id,token_hash,organization_id,user_id,installation_id,created_at,last_seen_at,expires_at)
+    VALUES('canonical-device-session',?,?,?,?,?,0,?)`).bind(await hashOpaqueToken('device-session', token), actor.organizationId, actor.userId, actor.installationId, now, now + 86400).run();
+  return token;
+}
+it.each(['stripe', 'prepaid', 'manual'] as const)('prepares canonical event positions and upgrades reviews through real %s HTTP auth within 100 D1 queries per request', async kind => {
   const { runtime, d1 } = await realD1Fixture();
   try {
-    const f = await receiveTransaction(
-      await transactionFixture([
+    const candidate = await transactionFixture([
         Array.from({ length: 65 }, (_, i) =>
           transactionInsert(String(i + 1), `bounded-${i}`),
         ),
-      ]),
-    );
+      ]);
+    candidate.actor = { ...candidate.actor, userId: owner.userId, role: owner.role };
+    const f = await receiveTransaction(candidate);
     const id = f.manifest.transaction_id;
+    const token = await canonicalAuthFixture(d1, f.actor, kind);
+    const actualAccount = await vi.importActual<typeof import('./account')>('./account');
     let queries = 0,
-      peak = 0;
+      peak = 0,
+      countryQueries = 0,
+      peakCountryQueries = 0,
+      authQueries = 0,
+      peakAuthQueries = 0,
+      rateQueries = 0,
+      peakRateQueries = 0;
     const wrap = (native: D1PreparedStatement) => ({
       native,
       bind(...values: Scalar[]) {
@@ -5574,7 +5663,10 @@ it('prepares canonical event positions and upgrades reviews within 100 D1 querie
       },
     });
     mocks.db.mockReturnValue({
-      prepare: (sql: string) => wrap(d1.prepare(sql)),
+      prepare: (sql: string) => {
+        if (sql.includes('SELECT 1 AS blocked FROM international_workspace_creation_intents')) countryQueries++;
+        return wrap(d1.prepare(sql));
+      },
       batch: async (statements: ReturnType<typeof wrap>[]) => {
         queries += statements.length;
         return d1.batch(statements.map((s) => s.native));
@@ -5582,22 +5674,51 @@ it('prepares canonical event positions and upgrades reviews within 100 D1 querie
     });
     const requestPass = async <T>(action: () => Promise<T>) => {
       queries = 0;
+      countryQueries = 0;
+      authQueries = 0;
+      rateQueries = 0;
       const result = await action();
       peak = Math.max(peak, queries);
+      peakCountryQueries = Math.max(peakCountryQueries, countryQueries);
+      peakAuthQueries = Math.max(peakAuthQueries, authQueries);
+      peakRateQueries = Math.max(peakRateQueries, rateQueries);
       expect(queries).toBeLessThanOrEqual(100);
+      expect(countryQueries).toBeLessThanOrEqual(12);
       return result;
     };
-    let status = await requestPass(() =>
-      beginBusinessTransactionReview(f.actor, id),
-    );
+    mocks.session.mockImplementation(async (request: Request) => {
+      const before = queries;
+      const session = await actualAccount.requireDeviceSession(request);
+      authQueries += queries - before;
+      return session;
+    });
+    mocks.rate.mockImplementation(async (...args: Parameters<typeof actualAccount.enforceAccountRateLimit>) => {
+      const before = queries;
+      await actualAccount.enforceAccountRateLimit(...args);
+      rateQueries += queries - before;
+    });
+    const reviewPass = async (action: 'prepare' | 'advance') => {
+      // Arrange a cold timestamp outside the request counter on every pass.
+      await d1.prepare("UPDATE device_sessions SET last_seen_at=0 WHERE session_id='canonical-device-session'").run();
+      return requestPass(async () => {
+      const response = await reviewHttp.POST(new Request(`https://zentra.test/api/sync/transactions/review?transaction_id=${id}`, {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ action }),
+      }));
+      expect(response.status).toBe(200);
+      return response.json() as Promise<Awaited<ReturnType<typeof beginBusinessTransactionReview>>>;
+      });
+    };
+    let status = await reviewPass('prepare');
     while (['copying', 'applying'].includes(status.state))
-      status = await requestPass(() => reviewBusinessTransaction(f.actor, id));
+      status = await reviewPass('advance');
     expect(status).toMatchObject({
       state: 'projected',
       applied_changes: 65,
       algorithm_version: TRANSACTION_REVIEW_VERSION,
     });
-    expect(peak).toBeGreaterThan(70);
+    expect(peak).toBeGreaterThan(60);
+    expect(peakAuthQueries).toBe(kind === 'stripe' ? 3 : kind === 'prepaid' ? 9 : 8);
+    expect(peakRateQueries).toBe(3);
     const before = await d1
       .prepare(
         'SELECT change_index,canonical_rowid FROM business_sync_transaction_canonical_order WHERE transfer_id=? ORDER BY part_index,change_index',
@@ -5616,12 +5737,10 @@ it('prepares canonical event positions and upgrades reviews within 100 D1 querie
       )
       .bind('a'.repeat(64), id)
       .run();
-    status = await requestPass(() =>
-      beginBusinessTransactionReview(f.actor, id),
-    );
+    status = await reviewPass('prepare');
     expect(status).toMatchObject({ state: 'copying', applied_changes: 0 });
     while (['copying', 'applying'].includes(status.state))
-      status = await requestPass(() => reviewBusinessTransaction(f.actor, id));
+      status = await reviewPass('advance');
     expect(status.state).toBe('projected');
     expect(
       (
@@ -5634,15 +5753,22 @@ it('prepares canonical event positions and upgrades reviews within 100 D1 querie
       ).results,
     ).toEqual(before.results);
     expect((await historyHead(f.actor)).head_revision).toBe(1);
-    console.info(
-      'QA_CANONICAL_ORDER',
-      JSON.stringify({
+    const budgetProof = {
         events: 65,
         peakQueries: peak,
+        peakCountryQueries,
+        authKind: kind,
+        peakAuthQueries,
+        peakRateQueries,
+        coldTimestamp: true,
+        transport: 'HTTP',
         upgradeReplayed: true,
         headRevision: 1,
-      }),
-    );
+      };
+    const budgetDirectory = new URL('../.qa/us-workspace-admission/', import.meta.url);
+    mkdirSync(budgetDirectory, { recursive: true });
+    writeFileSync(new URL(`legacy-library-budget-${kind}.json`, budgetDirectory), JSON.stringify(budgetProof, null, 2));
+    console.info('QA_CANONICAL_ORDER', JSON.stringify(budgetProof));
   } finally {
     await runtime.dispose();
   }

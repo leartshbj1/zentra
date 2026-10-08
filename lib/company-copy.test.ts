@@ -13,6 +13,7 @@ const owner={organizationId:'org_a',userId:'owner',role:'owner'} as DeviceSessio
 const bytes = new TextEncoder().encode('company contents');
 beforeEach(async()=>{
   vi.clearAllMocks();db=new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE international_workspace_creation_intents(organization_id TEXT PRIMARY KEY,country_code TEXT)');
   db.exec('CREATE TABLE workspace_backups(backup_id TEXT PRIMARY KEY,organization_id TEXT,installation_id TEXT,created_by TEXT,manifest_json TEXT,size_bytes INTEGER,state TEXT,created_at TEXT,completed_at TEXT); CREATE TABLE company_copies(organization_id TEXT PRIMARY KEY,backup_id TEXT,published_by TEXT,published_at TEXT)');
   stubs.database.mockReturnValue({prepare:(sql:string)=>{const stmt=db.prepare(sql);let args: (string|number|null)[]=[];const query={bind:(...v:typeof args)=>{args=v;return query;},first:async()=>stmt.get(...args)??null,run:async()=>({meta:{changes:Number(stmt.run(...args).changes)}})};return query;}});
   const sha256=await sha256Hex(bytes);

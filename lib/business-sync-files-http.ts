@@ -1,8 +1,11 @@
 import { enforceAccountRateLimit, requireDeviceSession } from './account';
 import { AccountPublicError } from './account-security';
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
+import { database } from './runtime';
 
 export async function businessFilesSession(request: Request) {
   const session = await requireDeviceSession(request);
+  await requireLegacyCountryTransport(session.organizationId, database());
   await enforceAccountRateLimit(
     request,
     'business-sync-files',

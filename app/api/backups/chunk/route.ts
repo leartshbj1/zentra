@@ -6,10 +6,12 @@ import {
   backupSession,
 } from '@/lib/workspace-backup-http';
 import { downloadBackupChunk, uploadBackupChunk } from '@/lib/workspace-backup';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic = 'force-dynamic';
 export async function PUT(request: Request) {
   try {
     const s = await backupSession(request, true);
+    await requireLegacyCountryTransport(s.organizationId);
     const q = backupQuery(request);
     return backupJson(
       await uploadBackupChunk(request, s.organizationId, q.id, q.index),
@@ -21,6 +23,7 @@ export async function PUT(request: Request) {
 export async function GET(request: Request) {
   try {
     const s = await backupSession(request);
+    await requireLegacyCountryTransport(s.organizationId);
     const q = backupQuery(request);
     const { part, object } = await downloadBackupChunk(
       s.organizationId,

@@ -5,11 +5,13 @@ import { companyContentManifest, prepareCompanyContent, readCompanyContent, rece
 import { watchCompanyRevision } from '@/lib/company-realtime';
 import { supabaseRealtimeConfiguration } from '@/lib/supabase-server-runtime';
 import { readBytesBodyWithinLimit,readJsonObjectWithinLimit } from '@/lib/request-body';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic='force-dynamic';
 export async function GET(request:Request) {
   const diagnostic={request,operation:new URL(request.url).searchParams.has('watch')?'company.watch':'company.read',startedAt:Date.now()};
   try {
     const actor=await requireDeviceSession(request),query=new URL(request.url).searchParams;
+    await requireLegacyCountryTransport(actor.organizationId);
     if(query.has('watch')) {
       const raw=query.get('watch')!;
       if(!/^(0|[1-9][0-9]{0,15})$/.test(raw)||query.has('index'))throw new AccountPublicError('La version de l’entreprise est invalide.');
@@ -18,8 +20,12 @@ export async function GET(request:Request) {
       const head=await watchCompanyRevision(actor.organizationId,after,request.signal,{
         configuration:supabaseRealtimeConfiguration(),fetch:(...args)=>fetch(...args),head:()=>collaborationRevisionHead(actor),
       });
-      // Membership may have been revoked during the long poll.
-      await requireDeviceSession(request);
+      // Recheck membership and bind the result to the same device identity.
+      const freshActor = await requireDeviceSession(request);
+      if (freshActor.organizationId !== actor.organizationId || freshActor.userId !== actor.userId ||
+        freshActor.installationId !== actor.installationId || freshActor.sessionId !== actor.sessionId)
+        throw new AccountPublicError('Cet accès a changé pendant l’attente. Relancez la synchronisation.',403);
+      await requireLegacyCountryTransport(actor.organizationId);
       return Response.json(head,{headers:accountNoStoreHeaders()});
     }
     await enforceSyncRateLimit(request,query.has('blob')?'collaboration-content-read':'collaboration-read',`${actor.organizationId}:${actor.installationId}`,query.has('blob')?20000:3000);
@@ -56,6 +62,7 @@ export async function POST(request:Request) {
   const diagnostic={request,operation:'company.write',startedAt:Date.now()};
   try {
     const actor=await requireDeviceSession(request);
+    await requireLegacyCountryTransport(actor.organizationId);
     await enforceSyncRateLimit(request,'collaboration-write',`${actor.organizationId}:${actor.installationId}`,500);
     const body=await readJsonObjectWithinLimit(request,1024*1024);
     if(body.action==='commit')return Response.json(await commitCollaboration(actor,body.id),{headers:accountNoStoreHeaders()});
@@ -68,6 +75,7 @@ export async function PUT(request:Request) {
   const diagnostic={request,operation:'company.upload',startedAt:Date.now()};
   try {
     const actor=await requireDeviceSession(request),query=new URL(request.url).searchParams;
+    await requireLegacyCountryTransport(actor.organizationId);
     await enforceSyncRateLimit(request,query.has('blob')?'collaboration-content-write':'collaboration-files',`${actor.organizationId}:${actor.installationId}`,query.has('blob')?20000:2000);
     const bytes=await readBytesBodyWithinLimit(request,(query.has('blob')?1:8)*1024*1024);
     if(query.has('blob'))return Response.json(await receiveCompanyContent(actor,query.get('id'),query.get('blob'),bytes),{headers:accountNoStoreHeaders()});

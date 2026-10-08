@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { storedBlobPart } from './business-sync-blob-store';
 import {
@@ -6,7 +7,7 @@ import {
 } from './business-sync-transaction-format';
 import { database } from './runtime';
 
-export async function readBusinessTransactionChunkBytes(
+async function readChunkBytes(
   id: string,
   manifest: TransactionManifest,
   index: number,
@@ -40,7 +41,7 @@ export async function readBusinessTransactionChunkBytes(
       'Un fragment de la transaction est absent ou incohérent.',
       503,
     );
-  const bytes = await storedBlobPart(expectedKey, part.size_bytes);
+  const bytes = await storedBlobPart(manifest.organization_id, expectedKey, part.size_bytes);
   if (
     bytes.length !== part.size_bytes ||
     (await sha256Hex(bytes)) !== part.sha256
@@ -51,13 +52,22 @@ export async function readBusinessTransactionChunkBytes(
     );
   return bytes;
 }
+export async function readBusinessTransactionChunkBytes(
+  id: string,
+  manifest: TransactionManifest,
+  index: number,
+) {
+  await requireLegacyCountryTransport(manifest.organization_id, database());
+  return readChunkBytes(id, manifest, index);
+}
 export async function readBusinessTransactionChunk(
   id: string,
   manifest: TransactionManifest,
   index: number,
 ) {
+  await requireLegacyCountryTransport(manifest.organization_id, database());
   return transactionChanges(
-    await readBusinessTransactionChunkBytes(id, manifest, index),
+    await readChunkBytes(id, manifest, index),
     manifest,
     index,
   );

@@ -6,10 +6,12 @@ import {
 } from '@/lib/account';
 import { publishBootstrap } from '@/lib/business-sync-publication';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const session = await requireDeviceSession(request);
+    await requireLegacyCountryTransport(session.organizationId);
     await enforceAccountRateLimit(
       request,
       'business-sync-publication',

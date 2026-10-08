@@ -1,3 +1,4 @@
+import { requireLegacyCountryTransport } from './international/legacy-country-guard';
 import type { DeviceSessionContext } from './account';
 import { AccountPublicError, sha256Hex } from './account-security';
 import { businessFileHash } from './business-sync-files';
@@ -19,6 +20,7 @@ export async function committedBusinessTransactionFile(
   rawSha: unknown,
   rawPart: unknown,
 ) {
+  await requireLegacyCountryTransport(session.organizationId, database());
   const sha = businessFileHash(rawSha);
   const saved = await committedBusinessTransaction(session, id);
   if (!saved) fail('Cette révision enregistrée est introuvable.', 404);
@@ -83,7 +85,7 @@ export async function committedBusinessTransactionFile(
       fail('Le fragment demandé est invalide.', 400);
     const part = parts[Number(rawPart)];
     if (!part) fail('Ce fragment ne figure pas dans le document.', 404);
-    bytes = await storedBlobPart(part.object_key, part.size_bytes);
+    bytes = await storedBlobPart(session.organizationId, part.object_key, part.size_bytes);
     if (
       bytes.length !== part.size_bytes ||
       (await sha256Hex(bytes)) !== part.sha256

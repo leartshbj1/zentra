@@ -14,6 +14,7 @@ import {
 } from '@/lib/document-number-reservations';
 import { readJsonObjectWithinLimit } from '@/lib/request-body';
 import { supabaseServerClient } from '@/lib/supabase-server-runtime';
+import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
 
 export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
         'Votre accès est limité à la consultation.',
         403,
       );
+    await requireLegacyCountryTransport(session.organizationId);
     await enforceAccountRateLimit(
       request,
       'document-number-reservations',
