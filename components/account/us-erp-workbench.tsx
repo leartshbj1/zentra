@@ -9,15 +9,18 @@ import { minorInteger } from '@/lib/international/accounting/ledger';
 import { browserSellerCopy, browserWorkbenchCopy } from '@/lib/international/browser-workbench-copy';
 import { BrowserErpError, createBrowserErpSession, type BrowserErpRead, type BrowserErpSession } from '@/lib/international/browser-erp-session';
 import { browserPurchasingCopy } from '@/lib/international/browser-purchasing-copy';
+import { browserSalesCopy, browserExportErrorCopy } from '@/lib/international/browser-sales-copy';
+import { buildBrowserInvoiceCommand, buildBrowserCustomerPaymentCommand, canUseBrowserSales, emptyBrowserInvoice, emptyBrowserCustomerPayment, type BrowserInvoiceDraft, type BrowserCustomerPaymentDraft } from '@/lib/international/browser-sales';
 import { browserPurchaseTotal, buildBrowserVendorBillCommand, buildBrowserVendorCommand, buildBrowserVendorPaymentCommand, emptyBrowserVendor, emptyBrowserVendorBill, emptyBrowserVendorPayment, type BrowserVendorDraft, type BrowserVendorBillDraft, type BrowserVendorPaymentDraft } from '@/lib/international/browser-purchasing';
 import { validateErpRequest } from '@/lib/international/erp-request';
-import { estimateTotals, lineTotals, type SalesLine } from '@/lib/international/invoicing';
+import { estimateTotals, invoiceBalance, lineTotals, type SalesLine } from '@/lib/international/invoicing';
 import { formatDateOnly } from '@/lib/international/localization';
 import { addMoney, decimalToMoney, formatMoney, money } from '@/lib/international/money';
 import type { ErpCommand, ErpState } from '@/lib/international/runtime-types';
 import { vendorBillBalance } from '@/lib/international/purchasing';
 import { UsSellerProfilePanel } from './us-seller-profile-panel';
 import { UsTaxProfilePanel } from './us-tax-profile-panel';
+import { UsDocumentExports, UsErpReports } from './us-erp-reports';
 import './us-erp-workbench.css';
 
 export interface BrowserCustomerDraft {
@@ -67,7 +70,7 @@ export function buildBrowserInitializeCommand(organizationId: string, start: str
 const locales: Record<SiteLanguage, string> = { fr: 'fr-US', de: 'de-US', it: 'it-US', en: 'en-US' };
 
 /** Only persisted records are displayed here; form drafts never become optimistic ERP records. */
-export function UsErpRecords({ state, language, canWrite, disabled, onAccept }: { state: ErpState; language: SiteLanguage; canWrite: boolean; disabled: boolean; onAccept: (id: string) => void }) {
+export function UsErpRecords({ state, language, canWrite, disabled, onAccept, exportAccess }: { state: ErpState; language: SiteLanguage; canWrite: boolean; disabled: boolean; onAccept: (id: string) => void; exportAccess?: Omit<Parameters<typeof UsDocumentExports>[0], 'selector' | 'revision'> }) {
   const c = browserWorkbenchCopy[language];
   return <>
     <section className="us-erp-section" aria-label={c.customers}><h2>{c.customers}</h2>
@@ -81,6 +84,7 @@ export function UsErpRecords({ state, language, canWrite, disabled, onAccept }: 
         <p className="us-erp-subtotal">{c.subtotal} <strong>{formatMoney(estimateTotals(estimate).net, locales[language])}</strong></p><p className="us-erp-muted">{c.taxPending}</p>
         {estimate.notes && <p className="us-erp-notes">{estimate.notes}</p>}
         {canWrite && estimate.status === 'draft' && <button type="button" className="account-button secondary" disabled={disabled} onClick={() => onAccept(estimate.id)}>{c.accept}</button>}
+        {exportAccess && <UsDocumentExports {...exportAccess} selector={{ kind: 'document', documentType: 'estimate', id: estimate.id }} revision={state.revision} />}
       </article>)}</div>}
     </section>
   </>;
@@ -90,7 +94,7 @@ export function UsErpRecords({ state, language, canWrite, disabled, onAccept }: 
 export function canUseBrowserPurchasing(role: AccountRole, supportedSchemaVersion: 1 | 2): boolean {
   return supportedSchemaVersion === 2 && ['owner', 'admin', 'accountant'].includes(role);
 }
-export function UsPurchasingRecords({ state, language }: { state: ErpState; language: SiteLanguage }) {
+export function UsPurchasingRecords({ state, language, exportAccess }: { state: ErpState; language: SiteLanguage; exportAccess?: Omit<Parameters<typeof UsDocumentExports>[0], 'selector' | 'revision'> }) {
   const p = browserPurchasingCopy[language], bills = state.vendorBills ?? [], payments = state.vendorPayments ?? [];
   return <>
     <section className="us-erp-section" aria-label={p.vendors}><h3>{p.vendors}</h3>{!(state.vendors ?? []).length ? <p className="us-erp-muted">{p.emptyVendors}</p> : <ul className="us-erp-records">{state.vendors?.map(vendor => <li key={vendor.id}><strong>{vendor.name}</strong><p>{vendor.billingAddress.line1}{vendor.billingAddress.line2 ? `, ${vendor.billingAddress.line2}` : ''}<br />{vendor.billingAddress.city}, {vendor.billingAddress.subdivision} {vendor.billingAddress.postalCode} · {vendor.billingAddress.country}</p></li>)}</ul>}</section>
@@ -98,16 +102,72 @@ export function UsPurchasingRecords({ state, language }: { state: ErpState; lang
       <div className="us-erp-record-heading"><h4>{bill.reference}</h4><span>{p.approved}</span></div><p>{bill.vendorSnapshot.name}</p>
       <dl className="us-erp-facts"><div><dt>{p.date}</dt><dd><time dateTime={bill.date}>{formatDateOnly(bill.date, locales[language])}</time></dd></div><div><dt>{p.accountingDate}</dt><dd>{formatDateOnly(bill.accountingDate, locales[language])}</dd></div><div><dt>{p.dueDate}</dt><dd>{formatDateOnly(bill.dueDate, locales[language])}</dd></div><div><dt>{p.source}</dt><dd>{bill.sourceReference}</dd></div>
         <div><dt>{p.net}</dt><dd>{formatMoney(bill.net, locales[language])}</dd></div><div><dt>{p.tax}</dt><dd>{formatMoney(bill.tax, locales[language])}</dd></div><div><dt>{p.total}</dt><dd>{formatMoney(bill.total, locales[language])}</dd></div><div><dt>{p.balance}</dt><dd>{formatMoney(vendorBillBalance(bill, payments.filter(payment => payment.billId === bill.id)), locales[language])}</dd></div></dl>
+      {exportAccess && <UsDocumentExports {...exportAccess} selector={{ kind: 'document', documentType: 'vendor_bill', id: bill.id }} revision={state.revision} />}
     </article>)}</section>
     <section className="us-erp-section" aria-label={p.payments}><h3>{p.payments}</h3>{!payments.length ? <p className="us-erp-muted">{p.emptyPayments}</p> : <ul className="us-erp-records">{payments.map(payment => <li key={payment.id}><div className="us-erp-record-heading"><strong>{payment.reference}</strong><span>{formatMoney(payment.amount, locales[language])}</span></div><p>{bills.find(bill => bill.id === payment.billId)?.reference}</p><dl className="us-erp-facts"><div><dt>{p.paymentDate}</dt><dd>{formatDateOnly(payment.paymentDate, locales[language])}</dd></div><div><dt>{p.accountingDate}</dt><dd>{formatDateOnly(payment.accountingDate, locales[language])}</dd></div></dl></li>)}</ul>}</section>
   </>;
 }
 
-export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion?: 1 | 2 }
-export function UsErpWorkbench(props: UsErpWorkbenchProps) {
-  return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}:${props.role}:${props.supportedSchemaVersion ?? 1}`} {...props} />;
+export function UsSalesRecords({ state, language, exportAccess }: { state: ErpState; language: SiteLanguage; exportAccess?: Omit<Parameters<typeof UsDocumentExports>[0], 'selector' | 'revision'> }) {
+  const s = browserSalesCopy[language], c = browserWorkbenchCopy[language];
+  const invoices = state.invoices.slice().sort((a, b) => b.date.localeCompare(a.date) || b.issuedAt.localeCompare(a.issuedAt));
+  return <section className="us-erp-section us-erp-sales" aria-label={s.invoices}><h2>{s.invoices}</h2>
+    {!invoices.length ? <p className="us-erp-muted">{s.emptyInvoices}</p> : invoices.map(invoice => {
+      const balance = invoiceBalance(invoice), status = balance.minorUnits === '0' ? 'paid' : balance.minorUnits === invoice.total.minorUnits ? 'outstanding' : 'partial';
+      return <article key={invoice.id} className="us-erp-estimate us-sales-invoice"><div className="us-erp-record-heading"><h3>{invoice.number}</h3><span>{s[status]}</span></div><p>{invoice.customer.name}</p>
+        <dl className="us-erp-facts"><div><dt>{s.invoiceDate}</dt><dd>{formatDateOnly(invoice.date, locales[language])}</dd></div><div><dt>{s.accountingDate}</dt><dd>{formatDateOnly(invoice.accountingDate, locales[language])}</dd></div><div><dt>{s.dueDate}</dt><dd>{formatDateOnly(invoice.dueDate, locales[language])}</dd></div><div><dt>{s.source}</dt><dd>{state.estimates.find(item => item.id === invoice.sourceEstimateId)?.number ?? invoice.sourceEstimateId}</dd></div><div><dt>{s.tax}</dt><dd>{formatMoney(invoice.tax, locales[language])}</dd></div><div><dt>{s.total}</dt><dd>{formatMoney(invoice.total, locales[language])}</dd></div></dl>
+        <p className="us-erp-subtotal">{s.balance}<strong>{formatMoney(balance, locales[language])}</strong></p>
+        {!!invoice.payments.length && <details className="us-sales-payment-history"><summary>{s.payments} ({invoice.payments.length})</summary><ul className="us-erp-records">{invoice.payments.slice().sort((a, b) => b.paymentDate.localeCompare(a.paymentDate)).map(payment => <li key={payment.id}><div className="us-erp-record-heading"><strong>{payment.reference}</strong><span>{formatMoney(payment.amount, locales[language])}</span></div><dl className="us-erp-facts"><div><dt>{s.paymentDate}</dt><dd>{formatDateOnly(payment.paymentDate, locales[language])}</dd></div><div><dt>{s.accountingDate}</dt><dd>{formatDateOnly(payment.accountingDate, locales[language])}</dd></div></dl></li>)}</ul></details>}
+        {invoice.notes && <p className="us-erp-notes">{invoice.notes}</p>}
+        {exportAccess && <UsDocumentExports {...exportAccess} selector={{ kind: 'document', documentType: 'invoice', id: invoice.id }} revision={state.revision} />}
+        <p className="us-erp-muted">{c.revision} {state.revision} · USD</p>
+      </article>;
+    })}
+  </section>;
 }
-function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, supportedSchemaVersion = 1 }: UsErpWorkbenchProps) {
+
+function UsSalesPanel({ state, language, role, disabled, invoiceIssuanceAvailable, taxSettingsId, exportAccess, onWrite, onInvalid }: { state: ErpState; language: SiteLanguage; role: AccountRole; disabled: boolean; invoiceIssuanceAvailable: boolean; taxSettingsId: string; exportAccess: Omit<Parameters<typeof UsDocumentExports>[0], 'selector' | 'revision'>; onWrite: (command: ErpCommand) => void; onInvalid: () => void }) {
+  const s = browserSalesCopy[language], c = browserWorkbenchCopy[language], prefix = useId(), financial = canUseBrowserSales(role);
+  const [invoiceDraft, setInvoice] = useState(emptyBrowserInvoice), [paymentDraft, setPayment] = useState(emptyBrowserCustomerPayment);
+  const [review, setReview] = useState<{ command: Extract<ErpCommand, { type: 'issue_invoice' | 'record_payment' }>; revision: number } | null>(null);
+  const [submittedInvoiceId, setSubmittedInvoiceId] = useState<string | null>(null), [submittedPaymentId, setSubmittedPaymentId] = useState<string | null>(null);
+  const invoiceCommitted = submittedInvoiceId !== null && state.invoices.some(item => item.id === submittedInvoiceId);
+  const paymentCommitted = submittedPaymentId !== null && state.invoices.some(item => item.payments.some(entry => entry.id === submittedPaymentId));
+  const invoice = invoiceCommitted ? emptyBrowserInvoice() : invoiceDraft, payment = paymentCommitted ? emptyBrowserCustomerPayment() : paymentDraft;
+  const activeReview = review?.revision === state.revision ? review : null;
+  const periods = state.ledger.periods.filter(period => period.status === 'open'), estimates = state.estimates.filter(estimate => estimate.status === 'accepted' && !state.invoices.some(item => item.sourceEstimateId === estimate.id));
+  function updateInvoice(fields: Partial<BrowserInvoiceDraft>) { setReview(null); setInvoice(previous => ({ ...(invoiceCommitted ? emptyBrowserInvoice() : previous), ...fields })); if (invoiceCommitted) setSubmittedInvoiceId(null); }
+  function updatePayment(fields: Partial<BrowserCustomerPaymentDraft>) { setReview(null); setPayment(previous => ({ ...(paymentCommitted ? emptyBrowserCustomerPayment() : previous), ...fields })); if (paymentCommitted) setSubmittedPaymentId(null); }
+  function prepare(event: SubmitEvent<HTMLFormElement>, type: 'invoice' | 'payment') {
+    event.preventDefault(); if (disabled || !financial) return;
+    try { setReview({ command: type === 'invoice' ? buildBrowserInvoiceCommand(state.configuration.organizationId, state, invoice, crypto.randomUUID(), invoiceIssuanceAvailable) : buildBrowserCustomerPaymentCommand(state.configuration.organizationId, state, payment, crypto.randomUUID()), revision: state.revision }); }
+    catch { setReview(null); onInvalid(); }
+  }
+  function confirm() {
+    if (disabled || !financial || !activeReview) return;
+    if (activeReview.command.type === 'issue_invoice' && !invoiceIssuanceAvailable) { setReview(null); onInvalid(); return; }
+    if (activeReview.command.type === 'issue_invoice') setSubmittedInvoiceId(activeReview.command.id); else setSubmittedPaymentId(activeReview.command.id);
+    onWrite(activeReview.command); setReview(null);
+  }
+  const field = (label: string, value: string, change: (value: string) => void, type = 'date', id?: string) => <label>{label}<input id={id} type={type} inputMode={type === 'text' ? 'decimal' : undefined} required maxLength={type === 'text' ? 39 : undefined} value={value} onChange={event => change(event.target.value)} /></label>;
+  const period = (value: string, change: (value: string) => void, id: string) => <div className="us-erp-select-field"><label htmlFor={id}>{s.period}</label><select id={id} value={value} required onChange={event => change(event.target.value)}><option value="">{c.choose}</option>{periods.map(item => <option key={item.id} value={item.id}>{formatDateOnly(item.start, locales[language])} – {formatDateOnly(item.end, locales[language])}</option>)}</select></div>;
+  const selectedInvoice = state.invoices.find(item => item.id === payment.invoiceId);
+  const reviewCommand = activeReview?.command;
+  return <>
+    <UsSalesRecords state={state} language={language} exportAccess={exportAccess} />
+    {financial && <div className="us-sales-editors">
+      <details className="us-erp-editor"><summary>{s.newInvoice}</summary>{!invoiceIssuanceAvailable ? <div className="us-sales-unavailable"><p>{s.issuanceUnavailable}</p><a className="us-sales-setting-link" href={`#${taxSettingsId}`} onClick={() => document.getElementById(taxSettingsId)?.focus()}>{s.taxSettings}</a></div> : !estimates.length ? <p>{s.noEstimate}</p> : !periods.length ? <p>{s.noPeriod}</p> : <form onSubmit={event => prepare(event, 'invoice')}><fieldset disabled={disabled} className="us-erp-form"><div className="us-erp-select-field"><label htmlFor={`${prefix}-estimate`}>{s.chooseEstimate}</label><select id={`${prefix}-estimate`} required value={invoice.estimateId} onChange={event => updateInvoice({ estimateId: event.target.value })}><option value="">{c.choose}</option>{estimates.map(item => <option key={item.id} value={item.id}>{item.number} · {item.customer.name}</option>)}</select></div><div className="us-erp-grid">{field(s.invoiceDate, invoice.date, value => updateInvoice({ date: value }))}{field(s.accountingDate, invoice.accountingDate, value => updateInvoice({ accountingDate: value }))}{field(s.dueDate, invoice.dueDate, value => updateInvoice({ dueDate: value }))}{period(invoice.periodId, value => updateInvoice({ periodId: value }), `${prefix}-invoice-period`)}</div><button type="submit" className="account-button">{s.reviewInvoice}</button></fieldset></form>}</details>
+      <details className="us-erp-editor"><summary>{s.newPayment}</summary>{!state.invoices.length ? <p>{s.noInvoice}</p> : !periods.length ? <p>{s.noPeriod}</p> : <form onSubmit={event => prepare(event, 'payment')}><fieldset disabled={disabled} className="us-erp-form"><p>{s.paymentHelp}</p><div className="us-erp-select-field"><label htmlFor={`${prefix}-invoice`}>{s.invoice}</label><select id={`${prefix}-invoice`} required value={payment.invoiceId} onChange={event => updatePayment({ invoiceId: event.target.value })}><option value="">{c.choose}</option>{state.invoices.map(item => <option key={item.id} value={item.id}>{item.number} · {item.customer.name}</option>)}</select></div>{selectedInvoice ? <p className="us-erp-subtotal">{s.balance}<strong>{formatMoney(invoiceBalance(selectedInvoice), locales[language])}</strong></p> : <p className="us-erp-muted">{s.chooseInvoice}</p>}{field(s.amount, payment.amount, value => updatePayment({ amount: value }), 'text')}<div className="us-erp-grid">{field(s.paymentDate, payment.paymentDate, value => updatePayment({ paymentDate: value }))}{field(s.accountingDate, payment.accountingDate, value => updatePayment({ accountingDate: value }))}{period(payment.periodId, value => updatePayment({ periodId: value }), `${prefix}-receipt-period`)}</div><label>{s.reference}<input required maxLength={500} value={payment.reference} onChange={event => updatePayment({ reference: event.target.value })} /></label><button type="submit" className="account-button">{s.recordPayment}</button></fieldset></form>}</details>
+      {reviewCommand && <section className="us-erp-confirm us-sales-confirm" aria-label={reviewCommand.type === 'issue_invoice' ? s.invoiceReview : s.paymentReview}><h3>{reviewCommand.type === 'issue_invoice' ? s.invoiceReview : s.paymentReview}</h3><p>{reviewCommand.type === 'issue_invoice' ? s.invoiceReviewHelp : s.paymentReviewHelp}</p><dl className="us-erp-facts"><div><dt>{reviewCommand.type === 'issue_invoice' ? s.chooseEstimate : s.invoice}</dt><dd>{reviewCommand.type === 'issue_invoice' ? state.estimates.find(item => item.id === reviewCommand.estimateId)?.number : state.invoices.find(item => item.id === reviewCommand.invoiceId)?.number}</dd></div><div><dt>{s.accountingDate}</dt><dd>{formatDateOnly(reviewCommand.accountingDate, locales[language])}</dd></div>{reviewCommand.type === 'issue_invoice' ? <><div><dt>{s.invoiceDate}</dt><dd>{formatDateOnly(reviewCommand.date, locales[language])}</dd></div><div><dt>{s.dueDate}</dt><dd>{formatDateOnly(reviewCommand.dueDate, locales[language])}</dd></div></> : <><div><dt>{s.paymentDate}</dt><dd>{formatDateOnly(reviewCommand.paymentDate, locales[language])}</dd></div><div><dt>{s.amount}</dt><dd>{formatMoney(money('USD', reviewCommand.amountMinor), locales[language])}</dd></div><div><dt>{s.reference}</dt><dd>{reviewCommand.reference}</dd></div></>}</dl><div className="us-erp-actions"><button type="button" className="account-button" disabled={disabled} onClick={confirm}>{reviewCommand.type === 'issue_invoice' ? s.confirmInvoice : s.confirmPayment}</button><button type="button" className="account-button secondary" disabled={disabled} onClick={() => setReview(null)}>{s.cancel}</button></div></section>}
+    </div>}
+  </>;
+}
+
+export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion?: 1 | 2; salesEnabled?: boolean; invoiceIssuanceAvailable?: boolean }
+export function UsErpWorkbench(props: UsErpWorkbenchProps) {
+  return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}:${props.role}:${props.supportedSchemaVersion ?? 1}:${props.salesEnabled === true}:${props.invoiceIssuanceAvailable === true}`} {...props} />;
+}
+function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, supportedSchemaVersion = 1, salesEnabled = false, invoiceIssuanceAvailable = false }: UsErpWorkbenchProps) {
   const c = browserWorkbenchCopy[language], p = browserPurchasingCopy[language], prefix = useId(), purchasingEnabled = supportedSchemaVersion === 2;
   const session = useRef<BrowserErpSession | null>(null), generation = useRef(0), privacyEpoch = useRef(0), busyRef = useRef(true), pendingType = useRef<ErpCommand['type'] | null>(null), noticeRef = useRef<HTMLDivElement>(null), nextLine = useRef(2);
   const sellerBusyRef = useRef(true), sellerPendingRef = useRef(false);
@@ -116,7 +176,8 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
   const [readEpoch, setReadEpoch] = useState(0);
   const [sellerBusy, setSellerBusy] = useState(true), [sellerPending, setSellerPending] = useState(false), [accessEpoch, setAccessEpoch] = useState(0), [writeLocked, setWriteLocked] = useState(false);
   const [taxBusy, setTaxBusy] = useState(false), [taxPending, setTaxPending] = useState(false), [taxAdmitted, setTaxAdmitted] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'error' | 'success'; key: 'invalid' | 'unavailable' | 'denied' | 'conflict' | 'uncertain' | 'saved' | 'savedReload' | 'purchasingUnavailable' } | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'error' | 'success'; key: 'invalid' | 'unavailable' | 'denied' | 'conflict' | 'uncertain' | 'saved' | 'savedReload' | 'purchasingUnavailable' | 'salesInvalid' | 'taxRequired' | 'salesRateLimited' } | null>(null);
+  const [salesResetEpoch, setSalesResetEpoch] = useState(0);
   const [customer, setCustomer] = useState(emptyCustomer), [estimate, setEstimate] = useState(emptyEstimate), [start, setStart] = useState(''), [end, setEnd] = useState(''), [acceptId, setAcceptId] = useState<string | null>(null);
   const [vendor, setVendor] = useState(emptyBrowserVendor), [bill, setBill] = useState(emptyBrowserVendorBill), [payment, setPayment] = useState(emptyBrowserVendorPayment);
   const [billConfirmation, setBillConfirmation] = useState<{ command: Extract<ErpCommand, { type: 'record_vendor_bill' }>; revision: number } | null>(null);
@@ -128,6 +189,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
     setTaxAdmitted(false);
     setRead(null); setFresh(false); setAcceptId(null); setCustomer(emptyCustomer()); setEstimate(emptyEstimate()); setStart(''); setEnd(''); setNotice({ kind: 'error', key: 'denied' });
     setVendor(emptyBrowserVendor()); setBill(emptyBrowserVendorBill()); setPayment(emptyBrowserVendorPayment()); setBillConfirmation(null);
+    setSalesResetEpoch(value => value + 1);
   }, []);
   const currentAccessEpoch = useCallback(() => privacyEpoch.current, []), otherBusy = useCallback(() => busyRef.current || taxBusyRef.current, []), otherPending = useCallback(() => (session.current?.hasPending() ?? false) || taxPendingRef.current, []);
   const taxOtherBusy = useCallback(() => busyRef.current || sellerBusyRef.current, []), taxOtherPending = useCallback(() => (session.current?.hasPending() ?? false) || sellerPendingRef.current, []);
@@ -136,12 +198,15 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
   const onSellerBusy = useCallback((value: boolean) => { sellerBusyRef.current = value; setSellerBusy(value); if (!value && erpAdmittedRef.current && privacyEpoch.current === 0) setTaxAdmitted(true); }, []), onSellerPending = useCallback((value: boolean) => { sellerPendingRef.current = value; setSellerPending(value); }, []);
   const admitPrivate = useCallback(() => { erpAdmittedRef.current = true; if (!sellerBusyRef.current && privacyEpoch.current === 0) setTaxAdmitted(true); }, []);
   const errorNotice = useCallback((error: unknown) => {
+    if (error instanceof BrowserErpError && error.code === 'rate_limited') return 'salesRateLimited' as const;
     if (error instanceof BrowserErpError && (error.outcome === 'unauthorized' || [401, 402, 403].includes(error.status))) {
       invalidateAccess();
       return 'denied' as const;
     }
     if (error instanceof BrowserErpError && ['feature_unavailable', 'edition_unavailable', 'configuration_changed', 'country_configuration_required'].includes(error.code)) setRead(null);
-    if (error instanceof BrowserErpError && ['revision_conflict', 'estimate_revision_conflict', 'idempotency_conflict', 'read_required'].includes(error.code)) { setAcceptId(null); setBillConfirmation(null); return 'conflict' as const; }
+    if (error instanceof BrowserErpError && ['revision_conflict', 'estimate_revision_conflict', 'idempotency_conflict', 'read_required'].includes(error.code)) { setAcceptId(null); setBillConfirmation(null); setSalesResetEpoch(value => value + 1); return 'conflict' as const; }
+    if (error instanceof BrowserErpError && ['tax_configuration_required', 'tax_assessment_expired', 'stale_tax_assessment'].includes(error.code)) return 'taxRequired' as const;
+    if (error instanceof BrowserErpError && ['payment_exceeds_balance', 'invoice_not_found', 'invoice_already_issued'].includes(error.code)) return 'salesInvalid' as const;
     if (error instanceof BrowserErpError && ['client_upgrade_required', 'purchasing_unavailable'].includes(error.code)) return 'purchasingUnavailable' as const;
     return error instanceof BrowserErpError && error.outcome === 'uncertain' ? 'uncertain' as const : 'unavailable' as const;
   }, [invalidateAccess]);
@@ -231,26 +296,29 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
   let preview: string | null = null;
   try { preview = formatMoney(estimate.lines.reduce((total, line) => addMoney(total, lineTotals(browserSalesLine(line), 'USD').net), money('USD', '0')), locales[language]); } catch { /* Partial drafts have no authoritative or invented amount. */ }
   const acceptedEstimate = read?.status === 'ready' ? read.state.estimates.find(item => item.id === acceptId && item.status === 'draft') : undefined;
+  const exportAccess = { organizationId, expectedUserId, supportedSchemaVersion, language, accessEpoch, currentAccessEpoch, disabled: blocked, onAccessDenied: invalidateAccess, sellerSettingsId: `${prefix}-seller-settings` };
+  const s = browserSalesCopy[language];
   return <div className="us-erp-workbench" lang={language}>
-    <header className="us-erp-heading"><h1>{c.title}</h1><p>{purchasingEnabled ? p.introduction : c.introduction}</p><p className="us-erp-limitation">{purchasingEnabled ? p.limitation : c.limitation}</p></header>
+    <header className="us-erp-heading"><h1>{c.title}</h1><p>{salesEnabled ? s.introduction : purchasingEnabled ? p.introduction : c.introduction}</p><p className="us-erp-limitation">{salesEnabled ? s.limitation : purchasingEnabled ? p.limitation : c.limitation}</p></header>
     <div className="us-erp-toolbar"><button type="button" className="account-button secondary" disabled={busy || sellerBusy || taxBusy} onClick={() => void reload()}>{busy ? c.reloading : c.reload}</button>{read?.status === 'ready' && <span>{c.revision} {read.state.revision}</span>}</div>
     <p className="us-erp-muted">{c.draftKept}</p>
-    {notice && <div className={`us-erp-notice ${notice.kind}`} ref={noticeRef} tabIndex={-1} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.key === 'purchasingUnavailable' ? p.unavailable : c[notice.key]}</div>}
+    {notice && <div className={`us-erp-notice ${notice.kind}`} ref={noticeRef} tabIndex={-1} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.key === 'purchasingUnavailable' ? p.unavailable : notice.key === 'salesInvalid' ? s.invalid : notice.key === 'taxRequired' ? s.taxRequired : notice.key === 'salesRateLimited' ? browserExportErrorCopy[language].rateLimited : c[notice.key]}</div>}
     {pending && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><p>{c.pendingMemory}</p><button type="button" className="account-button" disabled={busy || sellerBusy || taxBusy} onClick={() => void write()}>{busy ? c.busy : c.retry}</button></aside>}
     {!read && !notice && <output>{c.loading}</output>}
     {writeLocked && <p className="us-erp-muted">{browserSellerCopy[language].writeLocked}</p>}
-    <UsSellerProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} blocked={busy || pending || taxBusy || taxPending} writeLocked={writeLocked} accessEpoch={accessEpoch}
+    <div id={`${prefix}-seller-settings`} tabIndex={-1}><UsSellerProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} blocked={busy || pending || taxBusy || taxPending} writeLocked={writeLocked} accessEpoch={accessEpoch}
       currentAccessEpoch={currentAccessEpoch} otherBusy={otherBusy} otherPending={otherPending}
-      onBusyChange={onSellerBusy} onPendingChange={onSellerPending} onAccessDenied={invalidateAccess} />
-    <UsTaxProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} admitted={taxAdmitted} blocked={busy || pending || sellerBusy || sellerPending} writeLocked={writeLocked} accessEpoch={accessEpoch}
+      onBusyChange={onSellerBusy} onPendingChange={onSellerPending} onAccessDenied={invalidateAccess} /></div>
+    <div id={`${prefix}-tax-settings`} tabIndex={-1}><UsTaxProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} admitted={taxAdmitted} blocked={busy || pending || sellerBusy || sellerPending} writeLocked={writeLocked} accessEpoch={accessEpoch}
       currentAccessEpoch={currentAccessEpoch} otherBusy={taxOtherBusy} otherPending={taxOtherPending}
-      onBusyChange={onTaxBusy} onPendingChange={onTaxPending} onAccessDenied={invalidateAccess} registerInvalidation={registerTaxInvalidation} />
+      onBusyChange={onTaxBusy} onPendingChange={onTaxPending} onAccessDenied={invalidateAccess} registerInvalidation={registerTaxInvalidation} /></div>
     {!canWrite && <p className="us-erp-muted">{c.readOnly}</p>}
     {read?.status === 'uninitialized' && <section className="us-erp-section"><h2>{c.initializeTitle}</h2><p>{c.initializeHelp}</p>{role === 'owner' ? <form onSubmit={event => submit(event, () => buildBrowserInitializeCommand(organizationId, start, end, crypto.randomUUID()))}>
       <fieldset disabled={blocked} className="us-erp-form"><div className="us-erp-grid">{field(c.periodStart, start, setStart, { type: 'date', required: true })}{field(c.periodEnd, end, setEnd, { type: 'date', required: true })}</div><button type="submit" className="account-button">{c.initialize}</button></fieldset>
     </form> : <p>{c.ownerRequired}</p>}</section>}
     {read?.status === 'ready' && <>
-      <UsErpRecords state={read.state} language={language} canWrite={canWrite} disabled={blocked} onAccept={setAcceptId} />
+      <UsErpRecords state={read.state} language={language} canWrite={canWrite} disabled={blocked} onAccept={setAcceptId} {...(salesEnabled ? { exportAccess } : {})} />
+      {salesEnabled && <UsSalesPanel key={`${accessEpoch}:${salesResetEpoch}`} state={read.state} language={language} role={role} disabled={blocked} invoiceIssuanceAvailable={invoiceIssuanceAvailable} taxSettingsId={`${prefix}-tax-settings`} exportAccess={exportAccess} onWrite={command => void write(command)} onInvalid={() => setNotice({ kind: 'error', key: 'salesInvalid' })} />}
       {acceptedEstimate && canWrite && <section className="us-erp-confirm" aria-label={c.confirmAcceptance}><h2>{acceptedEstimate.number}</h2><p>{c.acceptanceHelp}</p><div className="us-erp-actions"><button type="button" className="account-button" disabled={blocked} onClick={() => void write({ type: 'accept_estimate', estimateId: acceptedEstimate.id, expectedEstimateRevision: acceptedEstimate.revision })}>{c.confirmAcceptance}</button><button type="button" className="account-button secondary" disabled={busy} onClick={() => setAcceptId(null)}>{c.cancel}</button></div></section>}
       {canWrite && <>
         <details className="us-erp-editor"><summary>{c.newCustomer}</summary><form onSubmit={event => submit(event, () => buildBrowserCustomerCommand(organizationId, customer, crypto.randomUUID()))}><fieldset disabled={blocked} className="us-erp-form">
@@ -271,7 +339,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
         </fieldset></form>}</details>
       </>}
       {purchasingEnabled && <section className="us-erp-section us-erp-purchasing" aria-label={p.title}><h2>{p.title}</h2><p className="us-erp-muted">{p.help}</p>
-        <UsPurchasingRecords state={read.state} language={language} />
+        <UsPurchasingRecords state={read.state} language={language} {...(salesEnabled ? { exportAccess } : {})} />
         {!canPurchase ? <p className="us-erp-muted">{p.readOnly}</p> : <>
           <details className="us-erp-editor"><summary>{p.newVendor}</summary><form onSubmit={event => submitPurchase(event, () => buildBrowserVendorCommand(organizationId, vendor, crypto.randomUUID()))}><fieldset disabled={blocked} className="us-erp-form">
             <div className="us-erp-select-field"><label htmlFor={`${prefix}-vendor-kind`}>{p.vendorKind}</label><select id={`${prefix}-vendor-kind`} value={vendor.kind} onChange={event => setVendor(previous => ({ ...previous, kind: event.target.value as BrowserVendorDraft['kind'] }))}><option value="business">{c.business}</option><option value="individual">{c.individual}</option></select></div>
@@ -292,6 +360,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
           </fieldset></form>}</details>
         </>}
       </section>}
+      {salesEnabled && <UsErpReports {...exportAccess} state={read.state} />}
     </>}
   </div>;
 }

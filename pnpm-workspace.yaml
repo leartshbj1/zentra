@@ -21,6 +21,12 @@ auditConfig:
 overrides:
   "exceljs@4.4.0>uuid": 11.1.1
   sharp: 0.35.4
+  # Security patches within the existing major versions; no application API change.
+  "fast-uri@3.1.6": 3.1.8
+  "ip-address@10.7.0": 10.7.1
+  "brace-expansion@1.1.18": 1.1.21
+  "brace-expansion@2.1.4": 2.1.7
+  "source-map-js@1.2.1": 1.2.2
 
 patchedDependencies:
   '@wllama/wllama@3.6.1': patches/@wllama__wllama@3.6.1.patch

@@ -43,6 +43,7 @@ function server(){
   return {store,deps,handlers:createErpSyncHandlers(deps),request:(query='')=>new Request(`https://zentraapp.ch/erp/changes${query}`)};
 }
 describe('delayed US sync admission',()=>{
+  it.each(['revision','changes'] as const)('preserves %s throttling without opening the financial stream or changing Auth',async operation=>{const t=server();t.deps.rateLimit=async()=>{throw new AccountPublicError('private quota',429);};const response=await t.handlers[operation](t.request(operation==='changes'?'?after=6':''),org);expect(response.status).toBe(429);expect(await response.json()).toEqual({error:'rate_limited'});expect(t.deps.syncStore).not.toHaveBeenCalled();expect(t.deps.diagnostic).toHaveBeenCalledWith({operation:'read',code:'rate_limited',status:429});});
   it.each(['revision','changes'] as const)('withholds %s after membership revocation during the store read',async operation=>{
     const t=server();let readComplete=false;
     t.deps.authority=async()=>{if(readComplete)throw new AccountPublicError('private revoked identity',403);return {mode:'device',actor};};

@@ -47,7 +47,7 @@ export function createErpSyncHandlers(deps:ErpSyncServerDependencies){
     }catch(error){
       let code='service_unavailable',status=503;
       if(error instanceof ErpError){code=error.code;status=error.status;}
-      else if(error instanceof AccountPublicError){status=error.status;code=status===401?'unauthorized':status===402?'management_entitlement_required':'forbidden';}
+      else if(error instanceof AccountPublicError){status=error.status;code=status===401?'unauthorized':status===402?'management_entitlement_required':status===429?'rate_limited':'forbidden';}
       try{deps.diagnostic({operation:'read',code,status});}catch{/* Diagnostics never reveal private financial payloads. */}
       return json({error:code},status);
     }

@@ -1,0 +1,23 @@
+{
+  "sourceRepository": "https://github.com/notofonts/noto-fonts",
+  "sourceCommit": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+  "license": "SIL Open Font License 1.1",
+  "licenseFile": "OFL.txt",
+  "sourcePaths": [
+    "hinted/ttf/NotoSans/NotoSans-Regular.ttf",
+    "hinted/ttf/NotoSans/NotoSans-Bold.ttf"
+  ],
+  "licenseSha256": "0dab92d0544f7b233403f14b84a663bdbfa746982eda629e7f4f9ffe1b036feb",
+  "fonts": [
+    {
+      "file": "NotoSans-Regular.ttf",
+      "size": 569208,
+      "sha256": "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5"
+    },
+    {
+      "file": "NotoSans-Bold.ttf",
+      "size": 575740,
+      "sha256": "c976e4b1b99edc88775377fcc21692ca4bfa46b6d6ca6522bfda505b28ff9d6a"
+    }
+  ]
+}

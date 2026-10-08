@@ -1,0 +1,1204 @@
+{
+  "date": "2026-10-08",
+  "baseCommit": "7ae938d526cf09110967fabfd0d67154c5d0728f",
+  "completedAt": "2026-10-08T10:34:00.0320086Z",
+  "scope": "US persisted sales, recorded customer payments, five accounting reports and authorized portable exports. Local experimental shared ERP only; no production or native release.",
+  "results": {
+    "functionalSuccess": true,
+    "files": 85,
+    "passedTests": 3350,
+    "failedTests": 0,
+    "pendingTests": 0,
+    "typescriptExit": 0,
+    "typeAwareLintExit": 0,
+    "productionBuildExit": 0,
+    "diffCheckExit": 0,
+    "sourcesUnchangedThroughTestsAndBuild": true,
+    "newTestFileCounts": {
+      "browser-export-session.test.ts": 31,
+      "browser-sales.browser.test.ts": 1,
+      "browser-sales.test.ts": 39,
+      "export-fonts.test.ts": 2,
+      "export-server.test.ts": 72,
+      "export-snapshot.test.ts": 41,
+      "exports.postgres.test.ts": 19
+    },
+    "browserViews": 32,
+    "browserFocusChecks": 48,
+    "browserErrors": 0,
+    "browserCommits": 3,
+    "pdfCount": 6,
+    "pdfPages": 11.0,
+    "pdfProof": {
+      "scope": "Fictitious real engine/RAM CAS sources; genuine vector/text PDFs parsed independently with pypdf and pdfplumber, including individual glyph bounds. No hosted persistence, tax provider, original supplier invoice, retention or production evidence.",
+      "limits": {
+        "rows": 1000,
+        "serializedCharacters": 500000,
+        "pdfPages": 200
+      },
+      "evidence": [
+        {
+          "filename": "invoice-fr.pdf",
+          "pages": 1,
+          "outside": [],
+          "sizes": [
+            [
+              612,
+              792
+            ]
+          ]
+        },
+        {
+          "filename": "invoice-de.pdf",
+          "pages": 1,
+          "outside": [],
+          "sizes": [
+            [
+              612,
+              792
+            ]
+          ]
+        },
+        {
+          "filename": "invoice-it.pdf",
+          "pages": 1,
+          "outside": [],
+          "sizes": [
+            [
+              612,
+              792
+            ]
+          ]
+        },
+        {
+          "filename": "invoice-en.pdf",
+          "pages": 1,
+          "outside": [],
+          "sizes": [
+            [
+              612,
+              792
+            ]
+          ]
+        },
+        {
+          "filename": "estimate-long-en.pdf",
+          "pages": 6,
+          "outside": []
+        },
+        {
+          "filename": "vendor-entry-fr.pdf",
+          "pages": 1,
+          "outside": []
+        }
+      ]
+    }
+  },
+  "sourceSha256": {
+    "app/api/international/workspaces/[organizationId]/exports/documents/[kind]/[documentId]/route.ts": "aa32370895f23e14e566dcae8a3afe8558b7830d7785c9beea1891dbb6e8f49a",
+    "app/api/international/workspaces/[organizationId]/exports/reports/[kind]/route.ts": "e46e72ea099a3f14f4b0152fc57893ac5fb6a65b5ef5d46f9d067bfe9433849e",
+    "app/compte/espaces/us/[organizationId]/page.tsx": "08bca8dc09afc621844fedee5a30e859da3e3e88fe67bc6a52e3dc42f8b6cf1d",
+    "components/account/us-erp-reports.css": "7e701df75009b8d0315f9461227286590b7129973b523bd4d66a20e4a03a76ef",
+    "components/account/us-erp-reports.tsx": "bc9fe32be59fbaa715705d52164927cdad82f14058b3114bd5b2a8ebe502b5f8",
+    "components/account/us-erp-workbench.css": "18a18e4f105a46ac29398d85e7d197aa9c82e7ba8a00da190fbd91c90a7fcd16",
+    "components/account/us-erp-workbench.tsx": "0276cd7e867d2eefc47900459953face21e0c4eea99e9430b2cdff8ff8884355",
+    "lib/account-workspace-pages.test.ts": "ec267c688ee1e17e8bf23c1527eb56f0701d28c3b3e570d46940fd988cfdb610",
+    "lib/international/browser-erp-session.ts": "fc023056865542aeb5dac1cec08188a0881824cc578fc8a2587d1375baa664f2",
+    "lib/international/browser-export-session.test.ts": "f8e70345172451eae52219dcb2950abac08e736afcc4730e2c7df725af24e65c",
+    "lib/international/browser-export-session.ts": "2871fef525c1d51cf81db146095c0d44e2461bd32f78cd360d8fea0f126e6eda",
+    "lib/international/browser-sales-copy.ts": "fe5c0bf913fbd90cc3d8fac975e335bc5d13393301c5dde0d986c1bff0eff8f6",
+    "lib/international/browser-sales-test-fixture.ts": "4965586d5a7dd9b8e55d063af36b7239b516fded6b06c3fee9437efbf3686119",
+    "lib/international/browser-sales.browser.test.ts": "0206e8c5cedb82eb745685e043130b9127b51200496452b225fbc5efb5169490",
+    "lib/international/browser-sales.test.ts": "0705e8cd2285f5e015297d7d80f10f8b7bd79e62e2aefbf85f349b4663dc2e8a",
+    "lib/international/browser-sales.ts": "c799224d9baf7fd63477925e5e88ddf51d142b5874bc7ad93344457e6d4853ef",
+    "lib/international/export-bindings.ts": "875d36b3c84ee10c034939b7a1c534d4a70c6919da3185b2a333e68b48c54598",
+    "lib/international/export-copy.ts": "d597dc91562915732c1e04aa21e9849a0685bb229bda3a692f641be8ad7d223c",
+    "lib/international/export-font-data.ts": "50e3f6a41c755f5030d37a95dae0cc5c413c2f68fee6ca58ddab7b19f974c194",
+    "lib/international/export-fonts.test.ts": "52fda51ebfb1972a6e9f8cf1ddcd14f291c08ff88d848240b30fa01cf99bef39",
+    "lib/international/export-fonts.ts": "51f4946ba0f1f908183f8925e371bd17f15292ff7fa8415c56bca77f206b8429",
+    "lib/international/export-renderer.ts": "a369ec2ac1faafd8b305b7e05e2d82446261c9ca8757d83cabf1749c7de0dabc",
+    "lib/international/export-server.test.ts": "2ff4c61b981a91ced56e8244e78d0c4385db4d6ca74eef3e7303b5be6c469903",
+    "lib/international/export-server.ts": "6da2eebe1327b91df80b2e0064792edf54e53d077c42a87778e9ee1c5c553146",
+    "lib/international/export-snapshot.test.ts": "53aebb9ac7ff562a4f2a17002106234ef9f5f30e35395b91abdce78133e5111a",
+    "lib/international/export-snapshot.ts": "7b44d1cfbc25c2ef00a328bd8f1afc3d1cf46a39cfcafc5f4a42f7f2ace6e4cc",
+    "lib/international/export-test-fixture.ts": "90e3b21540da0a1fa86692a063964bf9dafcc690556dd3a24ac5132625b28d01",
+    "lib/international/exports.postgres.test.ts": "d83b9f4eded6a47e8c664ba061810d06e9572dc0cd0da59a7e89b3b4d27fff2c",
+    "lib/international/runtime-server.test.ts": "86b01eba335d037ac751c5f0f4a4f0ae6355e9c0511cb19de7c0ab5e7b312a31",
+    "lib/international/runtime-server.ts": "334eed3c57e4069a83b31216e3590a73e7d088a180fddf9c9437d41d2f1b3657",
+    "lib/international/runtime-sync-server.ts": "af355e5cf1e92a3d5cf04200daa70ea6a8dd4816f7f680e510febc7bbb4539e8",
+    "lib/international/runtime-sync.test.ts": "59e76f1ea31c303d469083776faa35dd716535a9fc50fc1086f6c82959c3c18b",
+    "package.json": "55863ebf38ebf2c6d46b8c01b83ccb6e4ca79ef458d29cf5ffe7c32c974382b6",
+    "pnpm-lock.yaml": "359e2e974f4db07a6ae2e483107be74e04429e6ad93ff796f04627989430bf35",
+    "pnpm-workspace.yaml": "96be59fae67db47396bd217b1d29e953df76286e9d06160257af2cd36060896a",
+    "public/fonts/us-exports/NotoSans-Bold.ttf": "c976e4b1b99edc88775377fcc21692ca4bfa46b6d6ca6522bfda505b28ff9d6a",
+    "public/fonts/us-exports/NotoSans-Regular.ttf": "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5",
+    "public/fonts/us-exports/provenance.json": "53fbb4fbe5756d97b02b5e3ca3929a6565c859d6706633f5bab9c408ec21ac12"
+  },
+  "selectedTestFiles": [
+    "lib/account-security.test.ts",
+    "lib/account-workspace-pages.test.ts",
+    "lib/business-sync-cash-vat.test.ts",
+    "lib/document-number-reservations.test.ts",
+    "lib/international/accounting/reconciliation.test.ts",
+    "lib/international/browser-actor-binding.test.ts",
+    "lib/international/browser-erp-session.test.ts",
+    "lib/international/browser-export-session.test.ts",
+    "lib/international/browser-purchasing.browser.test.ts",
+    "lib/international/browser-purchasing.test.ts",
+    "lib/international/browser-sales.browser.test.ts",
+    "lib/international/browser-sales.test.ts",
+    "lib/international/browser-seller-panel.test.ts",
+    "lib/international/browser-seller-session.test.ts",
+    "lib/international/browser-tax-profile-panel.test.ts",
+    "lib/international/browser-tax-profile-postgres.browser.test.ts",
+    "lib/international/browser-tax-profile-session.test.ts",
+    "lib/international/browser-tax-profile.browser.test.ts",
+    "lib/international/browser-workbench.browser.test.ts",
+    "lib/international/browser-workbench.test.ts",
+    "lib/international/core.test.ts",
+    "lib/international/documents.test.ts",
+    "lib/international/export-fonts.test.ts",
+    "lib/international/export-server.test.ts",
+    "lib/international/export-snapshot.test.ts",
+    "lib/international/exports.postgres.test.ts",
+    "lib/international/finance.test.ts",
+    "lib/international/integration.test.ts",
+    "lib/international/legacy-country-error.test.ts",
+    "lib/international/legacy-country-guard.migrations.test.ts",
+    "lib/international/legacy-country-guard.test.ts",
+    "lib/international/legacy-transport-routes.test.ts",
+    "lib/international/new-us-workspace-admission.postgres.test.ts",
+    "lib/international/phone.test.ts",
+    "lib/international/private-json.test.ts",
+    "lib/international/public-projection.test.ts",
+    "lib/international/purchasing-bindings.test.ts",
+    "lib/international/purchasing-composition.test.ts",
+    "lib/international/purchasing-runtime.test.ts",
+    "lib/international/purchasing-transport.test.ts",
+    "lib/international/purchasing.postgres.test.ts",
+    "lib/international/purchasing.test.ts",
+    "lib/international/runtime-bindings.test.ts",
+    "lib/international/runtime-postgres.test.ts",
+    "lib/international/runtime-response-guards.test.ts",
+    "lib/international/runtime-server-us-tax.test.ts",
+    "lib/international/runtime-server.test.ts",
+    "lib/international/runtime-store.test.ts",
+    "lib/international/runtime-sync.test.ts",
+    "lib/international/runtime-tax-proof-postgres.test.ts",
+    "lib/international/runtime.test.ts",
+    "lib/international/saas-authorities.migrations.test.ts",
+    "lib/international/saas-authority.test.ts",
+    "lib/international/saas-authority.workerd.test.ts",
+    "lib/international/seller-profile-server.test.ts",
+    "lib/international/seller-profile.postgres.test.ts",
+    "lib/international/seller-profile.test.ts",
+    "lib/international/stripe-tax-calculation.test.ts",
+    "lib/international/stripe-tax-resolved-request.test.ts",
+    "lib/international/stripe-tax-sdk-body.test.ts",
+    "lib/international/tax-request-history.test.ts",
+    "lib/international/tax-request-identity.test.ts",
+    "lib/international/us-tax-financial-context.test.ts",
+    "lib/international/us-tax-invoice.postgres.test.ts",
+    "lib/international/us-tax-invoice.test.ts",
+    "lib/international/us-tax-operation-store.test.ts",
+    "lib/international/us-tax-operations.postgres.test.ts",
+    "lib/international/us-tax-profile-server.test.ts",
+    "lib/international/us-tax-profile.postgres.test.ts",
+    "lib/international/us-tax-profile.test.ts",
+    "lib/international/workspace-creation-d1.test.ts",
+    "lib/international/workspace-creation-review.test.ts",
+    "lib/international/workspace-creation.integration.test.ts",
+    "lib/international/workspace-creation.test.ts",
+    "lib/international/workspace-server.bindings.test.ts",
+    "lib/international/workspace-server.native.test.ts",
+    "lib/international/workspace-server.test.ts",
+    "lib/international/workspace-service.postgres.test.ts",
+    "lib/international/workspace-service.test.ts",
+    "lib/license-token.test.ts",
+    "lib/stripe-contract.test.ts",
+    "lib/stripe-event.test.ts",
+    "lib/stripe-plans.test.ts",
+    "lib/stripe-webhook-proof.test.ts",
+    "lib/stripe-webhook.test.ts"
+  ],
+  "lintTypeScriptFiles": [
+    "app/api/international/workspaces/[organizationId]/exports/documents/[kind]/[documentId]/route.ts",
+    "app/api/international/workspaces/[organizationId]/exports/reports/[kind]/route.ts",
+    "app/compte/espaces/us/[organizationId]/page.tsx",
+    "components/account/us-erp-reports.tsx",
+    "components/account/us-erp-workbench.tsx",
+    "lib/account-workspace-pages.test.ts",
+    "lib/international/browser-erp-session.ts",
+    "lib/international/browser-export-session.test.ts",
+    "lib/international/browser-export-session.ts",
+    "lib/international/browser-sales-copy.ts",
+    "lib/international/browser-sales-test-fixture.ts",
+    "lib/international/browser-sales.browser.test.ts",
+    "lib/international/browser-sales.test.ts",
+    "lib/international/browser-sales.ts",
+    "lib/international/export-bindings.ts",
+    "lib/international/export-copy.ts",
+    "lib/international/export-font-data.ts",
+    "lib/international/export-fonts.test.ts",
+    "lib/international/export-fonts.ts",
+    "lib/international/export-renderer.ts",
+    "lib/international/export-server.test.ts",
+    "lib/international/export-server.ts",
+    "lib/international/export-snapshot.test.ts",
+    "lib/international/export-snapshot.ts",
+    "lib/international/export-test-fixture.ts",
+    "lib/international/exports.postgres.test.ts",
+    "lib/international/runtime-server.test.ts",
+    "lib/international/runtime-server.ts",
+    "lib/international/runtime-sync-server.ts",
+    "lib/international/runtime-sync.test.ts"
+  ],
+  "createdFiles": [
+    "app/api/international/workspaces/[organizationId]/exports/documents/[kind]/[documentId]/route.ts",
+    "app/api/international/workspaces/[organizationId]/exports/reports/[kind]/route.ts",
+    "components/account/us-erp-reports.css",
+    "components/account/us-erp-reports.tsx",
+    "docs/evidence/us-sales-exports-runtime-20261008.json",
+    "docs/internationalization/US-SALES-EXPORTS-PLAN-20261008.md",
+    "docs/internationalization/US-SALES-EXPORTS-RUNTIME-20261008.md",
+    "lib/international/browser-export-session.test.ts",
+    "lib/international/browser-export-session.ts",
+    "lib/international/browser-sales-copy.ts",
+    "lib/international/browser-sales-test-fixture.ts",
+    "lib/international/browser-sales.browser.test.ts",
+    "lib/international/browser-sales.test.ts",
+    "lib/international/browser-sales.ts",
+    "lib/international/export-bindings.ts",
+    "lib/international/export-copy.ts",
+    "lib/international/export-font-data.ts",
+    "lib/international/export-fonts.test.ts",
+    "lib/international/export-fonts.ts",
+    "lib/international/export-renderer.ts",
+    "lib/international/export-server.test.ts",
+    "lib/international/export-server.ts",
+    "lib/international/export-snapshot.test.ts",
+    "lib/international/export-snapshot.ts",
+    "lib/international/export-test-fixture.ts",
+    "lib/international/exports.postgres.test.ts",
+    "public/fonts/us-exports/NotoSans-Bold.ttf",
+    "public/fonts/us-exports/NotoSans-Regular.ttf",
+    "public/fonts/us-exports/OFL.txt",
+    "public/fonts/us-exports/provenance.json"
+  ],
+  "modifiedFiles": [
+    "app/compte/espaces/us/[organizationId]/page.tsx",
+    "components/account/us-erp-workbench.css",
+    "components/account/us-erp-workbench.tsx",
+    "lib/account-workspace-pages.test.ts",
+    "lib/international/browser-erp-session.ts",
+    "lib/international/runtime-server.test.ts",
+    "lib/international/runtime-server.ts",
+    "lib/international/runtime-sync-server.ts",
+    "lib/international/runtime-sync.test.ts",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml"
+  ],
+  "migrationCompatibility": {
+    "base": "7ae938d526cf09110967fabfd0d67154c5d0728f",
+    "sqlCount": 134,
+    "supabaseMigrationCount": 23,
+    "drizzleMigrationCount": 88,
+    "unchanged": true,
+    "mismatches": []
+  },
+  "migrationsAdded": 0,
+  "browserProof": {
+    "scope": "Actual React/HTTP/ERP/delta/report/PDF exports; synthetic Auth and RAM CAS, explicit fictitious TEST tax only. No hosted/staging/native/bank/provider proof.",
+    "operations": [
+      "configured profile does not enable issuance by itself",
+      "tax settings link focuses existing panel",
+      "accepted estimate review edit cancels old approval",
+      "real TEST issuance produces next invoice number",
+      "payment review edit cancels old approval",
+      "recorded partial payment followed by HTTP503 and byte-exact retry with no duplicate",
+      "overpayment refuses before POST",
+      "second partial payment settles actual invoice and ledger",
+      "all 5 report read endpoints",
+      "real keyboard horizontal scroll of tablet ledger table",
+      "actual browser PDF download",
+      "R10/EN report cancelled before late body after parent adopts R11/FR",
+      "3 financial roles, member/read_only only see records",
+      "32 viewport/theme/language/text views and 48 real Tab focus checks",
+      "Auth denial purges forms and records",
+      "late report body withheld after Auth event"
+    ],
+    "views": [
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 320,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 320,
+        "text": "200%",
+        "overflow": false
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 390,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 1280,
+        "text": "100%",
+        "overflow": false,
+        "controls": 13
+      }
+    ],
+    "focus": [
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 320,
+        "label": "Facturer un devis accepté",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 320,
+        "label": "Enregistrer un encaissement",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 390,
+        "label": "Facturer un devis accepté",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 390,
+        "label": "Enregistrer un encaissement",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 1280,
+        "label": "Facturer un devis accepté",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "light",
+        "width": 1280,
+        "label": "Enregistrer un encaissement",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 320,
+        "label": "Facturer un devis accepté",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 320,
+        "label": "Enregistrer un encaissement",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 390,
+        "label": "Facturer un devis accepté",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 390,
+        "label": "Enregistrer un encaissement",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Facturer un devis accepté",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "fr",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Enregistrer un encaissement",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 320,
+        "label": "Angenommenes Angebot fakturieren",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 320,
+        "label": "Zahlungseingang erfassen",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 390,
+        "label": "Angenommenes Angebot fakturieren",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 390,
+        "label": "Zahlungseingang erfassen",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 1280,
+        "label": "Angenommenes Angebot fakturieren",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "light",
+        "width": 1280,
+        "label": "Zahlungseingang erfassen",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 320,
+        "label": "Angenommenes Angebot fakturieren",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 320,
+        "label": "Zahlungseingang erfassen",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 390,
+        "label": "Angenommenes Angebot fakturieren",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 390,
+        "label": "Zahlungseingang erfassen",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Angenommenes Angebot fakturieren",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "de",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Zahlungseingang erfassen",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 320,
+        "label": "Fatturare un preventivo accettato",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 320,
+        "label": "Registrare un incasso",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 390,
+        "label": "Fatturare un preventivo accettato",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 390,
+        "label": "Registrare un incasso",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 1280,
+        "label": "Fatturare un preventivo accettato",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "light",
+        "width": 1280,
+        "label": "Registrare un incasso",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 320,
+        "label": "Fatturare un preventivo accettato",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 320,
+        "label": "Registrare un incasso",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 390,
+        "label": "Fatturare un preventivo accettato",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 390,
+        "label": "Registrare un incasso",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Fatturare un preventivo accettato",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "it",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Registrare un incasso",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 320,
+        "label": "Invoice an accepted estimate",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 320,
+        "label": "Record a received payment",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 390,
+        "label": "Invoice an accepted estimate",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 390,
+        "label": "Record a received payment",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 1280,
+        "label": "Invoice an accepted estimate",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "light",
+        "width": 1280,
+        "label": "Record a received payment",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 320,
+        "label": "Invoice an accepted estimate",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 320,
+        "label": "Record a received payment",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 390,
+        "label": "Invoice an accepted estimate",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 390,
+        "label": "Record a received payment",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Invoice an accepted estimate",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      },
+      {
+        "language": "en",
+        "theme": "dark",
+        "width": 1280,
+        "label": "Record a received payment",
+        "focusVisible": true,
+        "outlineWidth": 3,
+        "offset": -5,
+        "contained": true
+      }
+    ],
+    "path": ".qa/us-sales-browser/browser.json",
+    "sha256": "3d538788a9a92aa5d3276976e2a932116f5c1378ac0687779c4ac566745ec307"
+  },
+  "dependencyAudit": {
+    "clean": false,
+    "exitCode": 1,
+    "residualAdvisory": "GHSA-vfj7-8cjw-p6xm",
+    "module": "braces@3.0.3",
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 3,
+        "critical": 0
+      },
+      "dependencies": 364,
+      "devDependencies": 0,
+      "optionalDependencies": 85,
+      "totalDependencies": 449
+    },
+    "path": ".>vinext>vite-plugin-commonjs>vite-plugin-dynamic-import>fast-glob>micromatch>braces",
+    "existingAllowlist": [
+      "GHSA-w3rx-r6r6-pgpr",
+      "GHSA-5p2g-fcmc-qvqq"
+    ],
+    "patches": [
+      "fast-uri 3.1.6 -> 3.1.8",
+      "ip-address 10.7.0 -> 10.7.1",
+      "brace-expansion 1.1.18 -> 1.1.21",
+      "brace-expansion 2.1.4 -> 2.1.7",
+      "source-map-js 1.2.1 -> 1.2.2"
+    ],
+    "limitation": "npm metadata names >=3.0.4, but that version was unavailable in the registry and the primary GitHub advisory listed no patch during verification. No exhaustive exploitability proof or security certification."
+  },
+  "fontProvenance": {
+    "sourceRepository": "https://github.com/notofonts/noto-fonts",
+    "sourceCommit": "ffebf8c1ee449e544955a7e813c54f9b73848eac",
+    "license": "SIL Open Font License 1.1",
+    "licenseFile": "OFL.txt",
+    "sourcePaths": [
+      "hinted/ttf/NotoSans/NotoSans-Regular.ttf",
+      "hinted/ttf/NotoSans/NotoSans-Bold.ttf"
+    ],
+    "licenseSha256": "0dab92d0544f7b233403f14b84a663bdbfa746982eda629e7f4f9ffe1b036feb",
+    "fonts": [
+      {
+        "file": "NotoSans-Regular.ttf",
+        "size": 569208,
+        "sha256": "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5"
+      },
+      {
+        "file": "NotoSans-Bold.ttf",
+        "size": 575740,
+        "sha256": "c976e4b1b99edc88775377fcc21692ca4bfa46b6d6ca6522bfda505b28ff9d6a"
+      }
+    ]
+  },
+  "bundleProof": {
+    "scope": "Static inspection of the local successful Vinext production build; no hosted Worker CPU, memory, latency or execution proof",
+    "fixedFontDataInClientJavaScript": [],
+    "fixedFontDataInServerJavaScript": [
+      {
+        "path": "dist/server/_next/static/export-fonts-DTBcMu7b.js",
+        "size": 1526800,
+        "gzipBytes": 720070
+      }
+    ],
+    "fontDataIsServerOnly": true
+  },
+  "designDetectorReview": {
+    "findings": 23,
+    "warnings": 1,
+    "advisories": 22,
+    "interpretation": "The warning is the unchanged neutral limitation border from the baseline. Palette findings are ac token fallbacks; actual light/dark values come from app/apple-account.css. Metadata type sizes and table radius are intentional Operate interface choices. No automated clean-design claim; bounded manual browser review completed."
+  },
+  "environment": {
+    "node": "v24.19.0",
+    "vitest": "4.0.18",
+    "postgres": "PGlite RAM, one serialized connection and actual 13-migration chain/RPC",
+    "flags": [
+      "ZENTRA_BROWSER_WORKBENCH_QA=1",
+      "ZENTRA_BROWSER_TAX_PROFILE_QA=1",
+      "ZENTRA_BROWSER_TAX_PROFILE_POSTGRES_QA=1",
+      "ZENTRA_BROWSER_PURCHASING_QA=1",
+      "ZENTRA_BROWSER_SALES_QA=1"
+    ]
+  },
+  "buildWarnings": [
+    "Existing middleware convention deprecation",
+    "Build plugin timing diagnostic",
+    "Vinext cannot statically classify every route",
+    "Local browser harness chunks exceed the 500 kB advisory threshold"
+  ],
+  "deployment": {
+    "productionDeployment": false,
+    "productionMigration": false,
+    "realTaxProvider": false,
+    "realStripeCall": false,
+    "nativeBuildOrDistribution": false,
+    "invoiceIssuanceEnabled": false,
+    "commercialSite": "Separate published Site354 preserved"
+  },
+  "defectsCorrected": [
+    "Export digest port could mutate the eventual response buffer",
+    "Purchasing schema ceiling could close during PDF generation without stopping head2 export",
+    "HTTP quotas were misreported as forbidden/service unavailable",
+    "A pending report could briefly appear under a later revision or language",
+    "Mobile report columns hid monetary values horizontally",
+    "Accounting company identity was labeled Seller",
+    "Report account types were not localized consistently",
+    "Ignored fetch/body abort could leave cancelled browser exports waiting",
+    "Blob downloads lacked ownership and URL lifecycle fencing"
+  ],
+  "limitations": [
+    "Synthetic Auth and RAM CAS for browser scenarios; no hosted Auth, D1, Supabase/PostgREST or production proof",
+    "PGlite uses one serialized RAM connection; no crash durability, independent concurrent sessions, load or physical-device certification",
+    "Real invoice issuance remains closed until a trusted tax provider exists; TEST issuer is only fictitious validation",
+    "Recorded payments do not execute card, ACH, Stripe or bank transfers",
+    "A durable point-in-time export is not immutable legal archival or a document retention system",
+    "Vendor export is an internal entry sheet, not the original supplier invoice",
+    "Source names/notes entered by users are intentionally not translated; fixed glyph coverage rejects unsupported characters explicitly",
+    "Native country alignment, Support/Automation US, real USD offers and hosted staging remain subsequent milestones",
+    "Selected CH regression tests and unchanged SQL do not certify all native Swiss QR/UI/payroll/payment behavior",
+    "One residual dependency advisory and existing audit exceptions prevent a clean security claim",
+    "Experimental US edition behind server flags; no US GAAP or legal compliance certification"
+  ],
+  "artifacts": [
+    "selection.json",
+    "results.json",
+    "tests.log",
+    "run-state.json",
+    "types-state.json",
+    "lint-state.json",
+    "build-state.json",
+    "sql-equality.json",
+    "detector.json",
+    "bundle-proof.json",
+    ".qa/us-sales-browser/browser.json",
+    ".qa/us-exports/renderer-proof.json"
+  ]
+}

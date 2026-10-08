@@ -38,7 +38,7 @@ const financialCodes:Record<string,number>={TENANT_MISMATCH:403,MANAGEMENT_ENTIT
 function failure(error:unknown,operation:'read'|'write',dependencies:ErpServerDependencies):Response{
   let code='service_unavailable',status=503;
   if(error instanceof ErpError){code=error.code;status=error.status;}
-  else if(error instanceof AccountPublicError){status=error.status;code=status===401?'unauthorized':status===402?'management_entitlement_required':'forbidden';}
+  else if(error instanceof AccountPublicError){status=error.status;code=status===401?'unauthorized':status===402?'management_entitlement_required':status===429?'rate_limited':'forbidden';}
   else if(error instanceof RequestBodyError){status=error.status;code='invalid_request';}
   else if(error instanceof LedgerError){code=error.message.toLowerCase();status=financialCodes[error.message]??422;}
   else if(error instanceof TypeError||error instanceof RangeError){status=422;code='invalid_request';}
