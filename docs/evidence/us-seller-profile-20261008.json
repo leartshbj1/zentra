@@ -1,0 +1,1165 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-08",
+  "baseline": "50d125b4dc7650153c9e7caa4ef112840efefdc6",
+  "scope": "Dedicated US seller profile service, PostgreSQL history, HTTP boundary and ERP seller binding. Local isolated development; no production migration or deployment.",
+  "createdFiles": [
+    "lib/international/seller-profile.ts",
+    "lib/international/seller-profile.test.ts",
+    "lib/international/seller-profile.postgres.test.ts",
+    "lib/international/seller-profile-server.ts",
+    "lib/international/seller-profile-server.test.ts",
+    "app/api/international/workspaces/[organizationId]/seller/route.ts",
+    "supabase/migrations/20261008034422_international_us_seller_profile.sql",
+    "scripts/qa-us-seller-regression.mjs",
+    "docs/internationalization/US-TAX-PROVIDER-CONTRACT-20261008.md",
+    "docs/internationalization/US-SELLER-PROFILE-20261008.md",
+    "docs/evidence/us-seller-profile-20261008.json"
+  ],
+  "modifiedFiles": [
+    "lib/international/runtime-bindings.ts",
+    "lib/international/runtime-bindings.test.ts",
+    "lib/international/workspace-creation.integration.test.ts"
+  ],
+  "regression": {
+    "scope": "Selected CH account/billing/transport compatibility plus US authority/workspace/runtime/browser and seller profile tests; not entire repository.",
+    "selectedFileCount": 87,
+    "initial": {
+      "artifact": ".qa/us-seller-profile/regression.json",
+      "exitCode": 1,
+      "passed": 2401,
+      "failedAssertions": 0,
+      "skipped": 70,
+      "failedFile": "lib/international/workspace-creation.integration.test.ts",
+      "reason": "beforeAll expected migration allowlist lacked the new additive seller migration; six tests did not run."
+    },
+    "repair": "Updated only the expected migration list; no test or authorization rule disabled.",
+    "targetedRerun": {
+      "artifact": ".qa/us-seller-profile/integration-final.json",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "finalCumulative": {
+      "passed": 2407,
+      "failed": 0,
+      "skipped": 64,
+      "failedFiles": 0,
+      "provenance": "Original batch plus targeted rerun on the same production-source state, not a single all-green batch.",
+      "fileResults": [
+        {
+          "path": "lib/account-security.test.ts",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/account-session-performance.test.ts",
+          "status": "passed",
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/account-workspace-entry.test.ts",
+          "status": "passed",
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/account-workspace-navigation.test.ts",
+          "status": "passed",
+          "passed": 14,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/account-workspace-pages.test.ts",
+          "status": "passed",
+          "passed": 35,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/account-workspaces-route.test.ts",
+          "status": "passed",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/account-workspaces.test.ts",
+          "status": "passed",
+          "passed": 19,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-accounting-transitions.test.ts",
+          "status": "passed",
+          "passed": 60,
+          "failed": 0,
+          "skipped": 1,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-accounting.test.ts",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-bootstrap.test.ts",
+          "status": "passed",
+          "passed": 27,
+          "failed": 0,
+          "skipped": 1,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-cash-vat.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-country-guard.test.ts",
+          "status": "passed",
+          "passed": 306,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-credit-projection.test.ts",
+          "status": "passed",
+          "passed": 17,
+          "failed": 0,
+          "skipped": 1,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-credit-recovery.test.ts",
+          "status": "passed",
+          "passed": 19,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-credit-settlements.test.ts",
+          "status": "passed",
+          "passed": 23,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-d1.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 4,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-file-links.test.ts",
+          "status": "passed",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-files.test.ts",
+          "status": "passed",
+          "passed": 35,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-financial.test.ts",
+          "status": "passed",
+          "passed": 12,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-integrity.test.ts",
+          "status": "passed",
+          "passed": 17,
+          "failed": 0,
+          "skipped": 3,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-money.test.ts",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-native-after.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-native-effects.test.ts",
+          "status": "passed",
+          "passed": 19,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-native-guards.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-numbering.test.ts",
+          "status": "passed",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-order.test.ts",
+          "status": "passed",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-postings.test.ts",
+          "status": "passed",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-publication.test.ts",
+          "status": "passed",
+          "passed": 158,
+          "failed": 0,
+          "skipped": 50,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-row-constraints.test.ts",
+          "status": "passed",
+          "passed": 12,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-sql-balance.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-state-fingerprint.test.ts",
+          "status": "passed",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 1,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-structure.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 1,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-supplier.test.ts",
+          "status": "passed",
+          "passed": 28,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-transaction-closure.test.ts",
+          "status": "passed",
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-transaction-format.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 1,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-transaction-immutability.test.ts",
+          "status": "passed",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-transaction-transitions.test.ts",
+          "status": "passed",
+          "passed": 14,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/business-sync-validation.test.ts",
+          "status": "passed",
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/company-collaboration-route.test.ts",
+          "status": "passed",
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/company-collaboration.test.ts",
+          "status": "passed",
+          "passed": 12,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/company-content.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/company-copy.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/company-realtime.test.ts",
+          "status": "passed",
+          "passed": 17,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/device-team.test.ts",
+          "status": "passed",
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/document-number-reservations.test.ts",
+          "status": "passed",
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/accounting/reconciliation.test.ts",
+          "status": "passed",
+          "passed": 11,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/browser-actor-binding.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/browser-erp-session.test.ts",
+          "status": "passed",
+          "passed": 54,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/browser-workbench.browser.test.ts",
+          "status": "passed",
+          "passed": 0,
+          "failed": 0,
+          "skipped": 1,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/browser-workbench.test.ts",
+          "status": "passed",
+          "passed": 42,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/core.test.ts",
+          "status": "passed",
+          "passed": 82,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/documents.test.ts",
+          "status": "passed",
+          "passed": 36,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/finance.test.ts",
+          "status": "passed",
+          "passed": 78,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/integration.test.ts",
+          "status": "passed",
+          "passed": 68,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/legacy-country-error.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/legacy-country-guard.migrations.test.ts",
+          "status": "passed",
+          "passed": 12,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/legacy-country-guard.test.ts",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/legacy-transport-routes.test.ts",
+          "status": "passed",
+          "passed": 170,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/new-us-workspace-admission.postgres.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/phone.test.ts",
+          "status": "passed",
+          "passed": 14,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/public-projection.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "passed": 17,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/runtime-postgres.test.ts",
+          "status": "passed",
+          "passed": 19,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed",
+          "passed": 23,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/runtime-server.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/runtime-sync.test.ts",
+          "status": "passed",
+          "passed": 27,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/runtime-tax-proof-postgres.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/runtime.test.ts",
+          "status": "passed",
+          "passed": 36,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed",
+          "passed": 101,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "passed": 37,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/saas-authority.workerd.test.ts",
+          "status": "passed",
+          "passed": 4,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/seller-profile-server.test.ts",
+          "status": "passed",
+          "passed": 52,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/seller-profile.postgres.test.ts",
+          "status": "passed",
+          "passed": 34,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/seller-profile.test.ts",
+          "status": "passed",
+          "passed": 66,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "passed": 26,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-creation-review.test.ts",
+          "status": "passed",
+          "passed": 33,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-creation.integration.test.ts",
+          "status": "passed",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-creation.test.ts",
+          "status": "passed",
+          "passed": 48,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed",
+          "passed": 22,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-server.native.test.ts",
+          "status": "passed",
+          "passed": 43,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-server.test.ts",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-service.postgres.test.ts",
+          "status": "passed",
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/international/workspace-service.test.ts",
+          "status": "passed",
+          "passed": 36,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/invoice-archive.test.ts",
+          "status": "passed",
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/legacy-cloud-transport.test.ts",
+          "status": "passed",
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/project-sync.test.ts",
+          "status": "passed",
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        },
+        {
+          "path": "lib/workspace-backup.test.ts",
+          "status": "passed",
+          "passed": 22,
+          "failed": 0,
+          "skipped": 0,
+          "pending": 0,
+          "todo": 0
+        }
+      ],
+      "skippedTests": [
+        {
+          "file": "lib/business-sync-accounting-transitions.test.ts",
+          "test": "matches unconditional guards from the current migrated native schema"
+        },
+        {
+          "file": "lib/business-sync-bootstrap.test.ts",
+          "test": "accepts the actual native frozen bootstrap and preserves every original row byte for byte"
+        },
+        {
+          "file": "lib/business-sync-credit-projection.test.ts",
+          "test": "replays the frozen native credit/payment/refund/reversal fixture in D1"
+        },
+        {
+          "file": "lib/business-sync-d1.test.ts",
+          "test": "validates every financial rule against native ZENTRA_RECOVERY_QA rows inside D1"
+        },
+        {
+          "file": "lib/business-sync-d1.test.ts",
+          "test": "validates every financial rule against native ZENTRA_SUPPLIER_QA rows inside D1"
+        },
+        {
+          "file": "lib/business-sync-d1.test.ts",
+          "test": "accepts the native credit application, reversal, refund and replay history and protects its proof"
+        },
+        {
+          "file": "lib/business-sync-d1.test.ts",
+          "test": "accepts native cash-VAT rows in D1 and detects a balanced but incorrect release"
+        },
+        {
+          "file": "lib/business-sync-integrity.test.ts",
+          "test": "requires exact credit projection before accepting the complete native history"
+        },
+        {
+          "file": "lib/business-sync-integrity.test.ts",
+          "test": "accepts native ZENTRA_RECOVERY_QA through HTTP with real rate limits, then throttles without changing its receipt"
+        },
+        {
+          "file": "lib/business-sync-integrity.test.ts",
+          "test": "accepts native ZENTRA_SUPPLIER_QA through HTTP with real rate limits, then throttles without changing its receipt"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "exports a server canonical delivery that uses a different i64 rowid from the real native sender (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "exports a server canonical delivery that uses a different i64 rowid from the real native sender (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "commits both real native offline audit branches on D1 for sequential native reception"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native invoices operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native quotes operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native invoices operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native quotes operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native expense operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll-post operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll-adult-post operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll-adult-validate operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-validate operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-payment operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-credit operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native expense operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll-post operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll-adult-post operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native payroll-adult-validate operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-validate operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-payment operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-credit operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native expense-refund operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native expense-refund-reversal operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-refund operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-refund-reversal operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native expense-refund operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native expense-refund-reversal operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-refund operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-refund-reversal operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native stock-entry operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native stock-entry operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native stock-exit operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native stock-exit operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native stock-correction operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native stock-correction operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-receipt operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-receipt operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-receipt-reversal operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native supplier-receipt-reversal operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native delivery operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native delivery operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native delivery-reversal operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native delivery-reversal operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native quote-delete operations including intermediate accounting states (D1=false)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "validates actual native quote-delete operations including intermediate accounting states (D1=true)"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "retires original native conflicts and commits their exact replacement on real D1"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "fingerprints real D1 pages below the request budget and agrees with the native SQLite export"
+        },
+        {
+          "file": "lib/business-sync-publication.test.ts",
+          "test": "publishes the real native supplier/accounting history and delivers all exact chunks, documents and exports to a second account"
+        },
+        {
+          "file": "lib/business-sync-state-fingerprint.test.ts",
+          "test": "matches the actual native SQLite export across all shared tables"
+        },
+        {
+          "file": "lib/business-sync-structure.test.ts",
+          "test": "validates the actual native invoice and payment fixture without changing stored row bytes"
+        },
+        {
+          "file": "lib/business-sync-transaction-format.test.ts",
+          "test": "decodes the exact transaction created on a second native profile after importing real server history"
+        },
+        {
+          "file": "lib/international/browser-workbench.browser.test.ts",
+          "test": "exercises the real US client and ERP engine in a local browser"
+        }
+      ]
+    }
+  },
+  "targetedSellerAndBindings": {
+    "passed": 169,
+    "failed": 0,
+    "files": [
+      "lib/international/seller-profile.test.ts",
+      "lib/international/seller-profile.postgres.test.ts",
+      "lib/international/seller-profile-server.test.ts",
+      "lib/international/runtime-bindings.test.ts"
+    ],
+    "provenance": "Included in the 87-file regression."
+  },
+  "checks": {
+    "typescript": {
+      "command": "tsc --noEmit --incremental false",
+      "exitCode": 0,
+      "artifact": ".qa/us-seller-profile/typecheck-complete.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "artifact": ".qa/us-seller-profile/build-final.log",
+      "notes": "Known existing Vinext static route classification warnings; build completed."
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "historicalSql": {
+      "changed": [],
+      "historicalSqlCount": 107
+    },
+    "lint": {
+      "exitCode": 0,
+      "artifact": ".qa/us-seller-profile/lint-final.log",
+      "additionalFixtureLint": ".qa/us-seller-profile/lint-fixture.log",
+      "tool": "Oxlint 1.76.0"
+    }
+  },
+  "migration": {
+    "path": "supabase/migrations/20261008034422_international_us_seller_profile.sql",
+    "createdWith": "Supabase CLI 2.120.0 migration new",
+    "additive": true,
+    "localApplied": true,
+    "engine": "PGlite 0.5.8 / PostgreSQL WASM 18.3",
+    "productionApplied": false,
+    "twoConnectionTest": false
+  },
+  "security": {
+    "serverOwnerPermission": true,
+    "freshUSManagementAuthority": true,
+    "privateEINExcluded": true,
+    "historyImmutable": true,
+    "exactRetryReceipts": true,
+    "crossTenantAccessDeniedInLocalTests": true,
+    "authPostgresDistributedAtomicity": false
+  },
+  "notValidated": [
+    "Real Supabase/PostgREST Auth + D1 + PostgreSQL staging",
+    "Two concurrent independent PostgreSQL connections",
+    "Current native Windows/macOS/iOS/Android builds",
+    "Commercial load or physical multi-device realtime",
+    "Real USD Stripe subscription admission",
+    "Stripe Tax sandbox/provider and statutory compliance"
+  ],
+  "unfinished": [
+    "Browser seller UI",
+    "Private tax profile and connected-account authority",
+    "Tax provider, durable tax transactions/reversals and approval",
+    "Production source alignment and approved migrations"
+  ],
+  "productionFlagsDefaultClosed": true,
+  "taxProvider": null
+}

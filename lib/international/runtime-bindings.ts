@@ -9,6 +9,8 @@ import type { FinancialAuthority } from './accounting/ledger';
 import { AccountPublicError } from '../account-security';
 import { requireUsWorkspaceAccess } from './saas-authority-d1';
 import { UsAuthorityError } from './saas-authority';
+import { getUsSellerProfile } from './seller-profile';
+import { createUsSellerProfileHandlers } from './seller-profile-server';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -53,16 +55,18 @@ export const erpServerDependencies:ErpServerDependencies={
   async taxProvider(){return null;},
   async seller(actor){
     const client=(await import('../supabase-server-runtime')).supabaseServerClient();
-    const rows=await client.select<{organization_id:string;profile:Record<string,unknown>}>('zentra_company_profiles',{organization_id:`eq.${actor.organizationId}`,select:'organization_id,profile',limit:1});
-    if(rows.length!==1||rows[0].organization_id!==actor.organizationId||typeof rows[0].profile?.company_name!=='string'||!rows[0].profile.company_name.trim())return null;
-    const profile=rows[0].profile;
-    // A live URL/device file path is never a historical logo. Add only archived, verified assets later.
-    return validatePublicSellerSnapshot({organizationId:actor.organizationId,displayName:profile.company_name,...(typeof profile.email==='string'&&profile.email.trim()?{contactEmail:profile.email}:{}),...(typeof profile.phone==='string'&&profile.phone.trim()?{contactPhone:profile.phone}:{})},actor.organizationId);
+    const state=await getUsSellerProfile(client,actor);
+    if(state.status!=='configured')return null;
+    // Dedicated US public identity; neither a Swiss profile nor a mutable logo URL.
+    return validatePublicSellerSnapshot({organizationId:actor.organizationId,...state.profile},actor.organizationId);
   },
   async rateLimit(request,actor,operation){await(await import('../account')).enforceAccountRateLimit(request,`international-erp-${operation}`,`${actor.organizationId}:${actor.userId}`,operation==='read'?3600:600);},
   diagnostic(event){console.warn('zentra.international.erp',event);},
 };
 export const erpHandlers=createErpHandlers(erpServerDependencies);
+export const usSellerProfileHandlers=createUsSellerProfileHandlers({...erpServerDependencies,
+  async store(){return (await import('../supabase-server-runtime')).supabaseServerClient();},
+});
 export const erpSyncHandlers=createErpSyncHandlers({...erpServerDependencies,
   async syncStore(){return createSupabaseErpSyncStore((await import('../supabase-server-runtime')).supabaseServerClient());},
 });
