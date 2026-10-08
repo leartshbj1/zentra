@@ -1,8 +1,9 @@
 import { type AccountRole } from '../account-security';
 import { canonicalCreationJson, creationUuid, type WorkspaceCreationIntent } from './workspace-creation';
 import { d1WorkspaceCreationStore } from './workspace-creation-d1';
-import { assertUsAuthorityAdmission, parseUsSubscriptionAuthority, usWorkspaceAccess, UsAuthorityError, type UsAuthorityAdmission, type UsAuthorityRecord, type UsMembership, type UsSaasPolicy } from './saas-authority';
+import { assertUsAuthorityAdmission, parseUsSubscriptionAuthority, usWorkspaceAccess, usWorkspaceAutomationAuthority, UsAuthorityError, type UsAuthorityAdmission, type UsAuthorityRecord, type UsMembership, type UsSaasPolicy, type UsWorkspaceAutomationAuthority } from './saas-authority';
 import { validateSubscriptionOffer, type SaasModule, type SaasSubscriptionOffer, type SubscriptionEnvironment } from './subscriptions';
+import { snapshotPrivateJson } from './private-json';
 
 type AuthorityDatabase = Pick<D1Database, 'prepare' | 'batch'>;
 interface AuthorityRow {
@@ -34,6 +35,9 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
     return current;
   }
   return {
+    automationAuthority(organizationId: string, userId: string, policy: UsSaasPolicy): Promise<UsWorkspaceAutomationAuthority> {
+      return d1UsWorkspaceAutomationAuthority(database, organizationId, userId, policy);
+    },
     /** Only server-created branded admission DTOs can reach this internal sink. */
     async admit(intent: WorkspaceCreationIntent, candidate: UsAuthorityAdmission, revalidate: () => Promise<void>): Promise<WorkspaceCreationIntent> {
       assertUsAuthorityAdmission(candidate);
@@ -96,6 +100,32 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
   };
 }
 
+/** Scope before reading private provenance, then re-read the EXISTING US rights
+ * after that provenance was constructed. No CH tables, grant cache or writes. */
+export async function d1UsWorkspaceAutomationAuthority(database: AuthorityDatabase, organizationId: string, userId: string, policy: UsSaasPolicy): Promise<UsWorkspaceAutomationAuthority> {
+  try {
+    policy = snapshotPrivateJson(policy) as UsSaasPolicy;
+    const source = await database.prepare(`SELECT a.*,m.membership_id,m.user_id,m.role,m.joined_at,m.revoked_at AS member_revoked_at,i.request_id,unixepoch() AS checked_at
+      FROM international_workspace_members m JOIN international_saas_authorities a ON a.organization_id=m.organization_id
+      JOIN international_workspace_creation_intents i ON i.creation_id=a.creation_id AND i.organization_id=a.organization_id
+      JOIN international_workspace_members owner ON owner.organization_id=a.organization_id AND owner.user_id=a.owner_user_id AND owner.role='owner' AND owner.revoked_at IS NULL
+      WHERE m.organization_id=? AND m.user_id=? AND m.revoked_at IS NULL AND i.state='ready' LIMIT 1`).bind(organizationId,userId).first<AuthorityRow & {membership_id:string;user_id:string;role:AccountRole;joined_at:number;member_revoked_at:number|null;request_id:string;checked_at:number}>();
+    if (!source) throw new UsAuthorityError('forbidden', 403);
+    const row = snapshotPrivateJson(source) as typeof source;
+    if (!Number.isSafeInteger(row.checked_at) || !Number.isSafeInteger(policy.now)) throw new UsAuthorityError('service_unavailable', 503);
+    const record = fromRow(row), intent = await d1WorkspaceCreationStore(database).find(row.owner_user_id,row.request_id);
+    if (!intent || row.organization_id !== organizationId || row.user_id !== userId) throw new UsAuthorityError('service_unavailable', 503);
+    const currentPolicy = { ...policy, now: Math.max(policy.now, row.checked_at) };
+    const value = usWorkspaceAutomationAuthority(intent, record, { membershipId:row.membership_id, organizationId:row.organization_id, userId:row.user_id, role:row.role, joinedAt:row.joined_at, revokedAt:row.member_revoked_at }, currentPolicy);
+    const fresh = await d1UsAuthorityStore(database).access(organizationId,userId,currentPolicy,'automation');
+    if (fresh.organizationId !== value.organizationId || fresh.userId !== value.userId || fresh.role !== value.role || fresh.subscriptionId !== value.subscriptionId) throw new UsAuthorityError('forbidden', 403);
+    return value;
+  } catch (error) {
+    if (error instanceof UsAuthorityError) throw error;
+    throw new UsAuthorityError('service_unavailable', 503);
+  }
+}
+
 export function parseUsSaasPolicy(bindings: { INTERNATIONAL_US_SAAS_CATALOG_JSON?: string; INTERNATIONAL_US_BILLING_ENVIRONMENT?: string }, now: number): UsSaasPolicy {
   const environment = bindings.INTERNATIONAL_US_BILLING_ENVIRONMENT;
   if (!['TEST','PRODUCTION'].includes(String(environment))) throw new UsAuthorityError('service_unavailable', 503);
@@ -118,6 +148,12 @@ export async function requireUsWorkspaceAccess(organizationId: string, userId: s
   const policy = parseUsSaasPolicy(env as unknown as Parameters<typeof parseUsSaasPolicy>[0], Math.floor(Date.now()/1000));
   const database = (await import('../runtime')).database();
   return d1UsAuthorityStore(database).access(organizationId,userId,policy,module);
+}
+
+export async function requireUsWorkspaceAutomationAuthority(organizationId: string, userId: string): Promise<UsWorkspaceAutomationAuthority> {
+  const { env } = await import('cloudflare:workers');
+  const policy = parseUsSaasPolicy(env as unknown as Parameters<typeof parseUsSaasPolicy>[0], Math.floor(Date.now()/1000));
+  return d1UsWorkspaceAutomationAuthority((await import('../runtime')).database(), organizationId, userId, policy);
 }
 
 /** Marker lookup only, after account authentication. A missing schema must not

@@ -22,8 +22,11 @@ export interface BrowserUsSupplierSession {
   dispose(): void;
 }
 const certainConflicts = new Set(['supplier_revision_conflict', 'supplier_erp_revision_conflict', 'supplier_idempotency_conflict', 'revision_conflict', 'idempotency_conflict', 'accounting_period_not_open', 'vendor_bill_already_recorded', 'supplier_limit_reached']);
-const certainValidation = new Set(['invalid_request', 'invalid_supplier_proposal', 'supplier_review_required', 'supplier_currency_unsupported', 'vendor_required', 'invalid_vendor_bill', 'invalid_date', 'invalid_amount', 'purchase_account_required']);
-const knownErrors = new Set([...certainConflicts, ...certainValidation, 'unauthorized', 'forbidden', 'management_entitlement_required', 'automation_entitlement_required', 'supplier_permission_required', 'financial_permission_required', 'tenant_mismatch', 'session_changed', 'feature_unavailable', 'edition_unavailable', 'client_upgrade_required', 'supplier_upgrade_required', 'configuration_changed', 'rate_limited', 'supplier_analysis_unavailable', 'supplier_analysis_failed', 'supplier_source_conflict', 'supplier_not_found', 'service_unavailable']);
+const certainValidation = new Set(['invalid_request', 'invalid_supplier_proposal', 'supplier_review_required', 'supplier_currency_unsupported', 'supplier_source_unreadable', 'vendor_required', 'invalid_vendor_bill', 'invalid_date', 'invalid_amount', 'purchase_account_required']);
+// These are definitive no-new-dispatch outcomes of the durable analysis port.
+// They do not discard an uncertain financial approval or revoke company access.
+const certainAnalysis = new Set(['automation_consent_required','automation_quota_exceeded','automation_grant_expired','automation_limit_reached','automation_busy','automation_dispatch_uncertain']);
+const knownErrors = new Set([...certainConflicts, ...certainValidation, ...certainAnalysis, 'unauthorized', 'forbidden', 'management_entitlement_required', 'automation_entitlement_required', 'supplier_permission_required', 'automation_permission_required', 'financial_permission_required', 'tenant_mismatch', 'session_changed', 'feature_unavailable', 'edition_unavailable', 'client_upgrade_required', 'supplier_upgrade_required', 'automation_upgrade_required', 'configuration_changed', 'rate_limited', 'supplier_analysis_unavailable', 'supplier_analysis_failed', 'supplier_source_conflict', 'supplier_not_found', 'service_unavailable']);
 const maximumBytes = 2_621_440;
 const control = (value: string, allowLines = false, c1 = false) => Array.from(value).some(character => { const code = character.charCodeAt(0); return code < 32 && !(allowLines && [9, 10, 13].includes(code)) || code === 127 || c1 && code >= 128 && code <= 159; });
 function exact(input: unknown, keys: readonly string[]): Record<string, unknown> {
@@ -82,6 +85,8 @@ export function createBrowserUsSupplierSession(options: { organizationId: string
       if (!res.ok) { let code = 'service_unavailable'; try { const error = exact(input, ['error']); if (typeof error.error === 'string' && knownErrors.has(error.error)) code = error.error; } catch { /* Private or unknown error text never reaches the UI. */ }
         if (res.status === 404 && code === 'feature_unavailable' || res.status === 409 && code === 'edition_unavailable') { dispose(); throw new BrowserUsSupplierError(code, res.status, 'unauthorized'); }
         if (write && pending?.action === 'approve' && (res.status === 409 && certainConflicts.has(code) || res.status === 422 && certainValidation.has(code))) { pending = null; readRequired = true; throw new BrowserUsSupplierError(code, res.status, 'rejected'); }
+        if (write && pending?.action === 'prepare' && res.status===409 && certainAnalysis.has(code)) {pending=null;readRequired=true;throw new BrowserUsSupplierError(code,res.status,'rejected');}
+        if(write && pending?.action==='prepare' && res.status===422 && code==='supplier_source_unreadable'){pending=null;readRequired=true;throw new BrowserUsSupplierError(code,res.status,'rejected');}
         throw new BrowserUsSupplierError(code, res.status, write ? 'uncertain' : 'rejected'); }
       return input;
     } catch (error) { if (error instanceof BrowserUsSupplierError) throw error; alive(started); throw new BrowserUsSupplierError('service_unavailable', 0, write ? 'uncertain' : 'rejected'); }

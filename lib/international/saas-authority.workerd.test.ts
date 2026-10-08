@@ -7,6 +7,7 @@ import { d1WorkspaceCreationStore } from './workspace-creation-d1';
 import { prepareUsAuthorityAdmission,type UsSaasPolicy } from './saas-authority';
 import { d1UsAuthorityStore } from './saas-authority-d1';
 import type { SaasSubscriptionAuthority,SaasSubscriptionOffer,ServerStripePrice } from './subscriptions';
+import { createUsAutomationGrant, parseUsAutomationBudgetPolicy } from './us-automation-policy';
 
 const require=createRequire(import.meta.url);
 const {Miniflare}=createRequire(require.resolve('wrangler'))('miniflare');
@@ -46,4 +47,14 @@ describe('actual local workerd D1 batching and US registry (synthetic PG/payment
   });
   it('coalesces concurrent identical requests against workerd D1 without duplicating owner or proof',async()=>{const f=await fixture(3),store=d1UsAuthorityStore(database);const results=await Promise.all([store.admit(f.intent,f.candidate,async()=>{}),store.admit(f.intent,f.candidate,async()=>{})]);expect(results[0]).toEqual(results[1]);expect(await database.prepare('SELECT count(*) total FROM international_workspace_members WHERE organization_id=?').bind(f.intent.organizationId).first()).toEqual({total:1});});
   it('revokes current US rights irreversibly while keeping the original proof and setup receipt',async()=>{const f=await fixture(4),store=d1UsAuthorityStore(database);const ready:WorkspaceCreationIntent=await store.admit(f.intent,f.candidate,async()=>{});await database.prepare('UPDATE international_saas_authorities SET revoked_at=unixepoch() WHERE organization_id=?').bind(f.intent.organizationId).run();await expect(store.access(f.intent.organizationId,actor,f.policy)).rejects.toMatchObject({code:'subscription_required',status:402});const row=await database.prepare('SELECT authority_json FROM international_saas_authorities WHERE organization_id=?').bind(f.intent.organizationId).first<{authority_json:string}>();expect(row?.authority_json).toBe(canonicalCreationJson(f.authority));expect((await d1WorkspaceCreationStore(database).find(actor,f.intent.requestId))?.receipt).toEqual(ready.receipt);await expect(database.prepare('UPDATE international_saas_authorities SET revoked_at=NULL WHERE organization_id=?').bind(f.intent.organizationId).run()).rejects.toThrow();});
+  it('reads additive Automation provenance against workerd D1 without changing the existing access DTO or enabling inference',async()=>{
+    const f=await fixture(5),complete={...offer,module:'complet' as const},policy={...f.policy,catalog:[{offer:complete,seatLimit:3}]},authority={...f.authority,offer:complete},store=d1UsAuthorityStore(database);
+    const candidate=prepareUsAuthorityAdmission(f.intent,{authority,seatLimit:3},policy,price);await store.admit(f.intent,candidate,async()=>{});
+    const value=await store.automationAuthority(f.intent.organizationId,actor,policy);
+    expect(value).toMatchObject({organizationId:f.intent.organizationId,userId:actor,environment:'TEST',role:'owner',subscriptionId:authority.subscriptionId,authorityReference:authority.evidence!.referenceId,catalogVersion:offer.catalogVersion,priceId:offer.priceId});
+    const grant=createUsAutomationGrant(value,parseUsAutomationBudgetPolicy({schemaVersion:1,cadence:'utc_calendar_month',budgetPolicyVersion:'fixture-budget',processingPolicyVersion:'fixture-processing',entries:[{catalogVersion:offer.catalogVersion,priceId:offer.priceId,limit:7}]}));
+    expect(grant).toMatchObject({limit:7,bucket:'supplier_invoice_extract',environment:'TEST'});expect(grant.checkedAt).toBeGreaterThanOrEqual(f.policy.now);
+    expect(await store.access(f.intent.organizationId,actor,policy)).toEqual({organizationId:f.intent.organizationId,userId:actor,role:'owner',subscriptionId:authority.subscriptionId,seatLimit:3});
+    await database.prepare('UPDATE international_workspace_members SET revoked_at=unixepoch() WHERE organization_id=? AND user_id=?').bind(f.intent.organizationId,actor).run();await expect(store.automationAuthority(f.intent.organizationId,actor,policy)).rejects.toMatchObject({code:'forbidden',status:403});
+  });
 });

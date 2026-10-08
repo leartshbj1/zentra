@@ -68,3 +68,36 @@ describe('US catalogue runtime configuration',()=>{
   it('keeps a valid empty catalogue closed and never guesses an environment',()=>{expect(parseUsSaasPolicy({INTERNATIONAL_US_BILLING_ENVIRONMENT:'TEST'},1).catalog).toEqual([]);expect(()=>parseUsSaasPolicy({},1)).toThrow();});
   it('parses only a matching US/USD/environment catalogue and approved seats',()=>{const bindings={INTERNATIONAL_US_BILLING_ENVIRONMENT:'TEST',INTERNATIONAL_US_SAAS_CATALOG_JSON:canonicalCreationJson([{offer,seatLimit:3}])};expect(parseUsSaasPolicy(bindings,now)).toEqual(policy);for(const data of [[{offer,seatLimit:0}],[{offer:{...offer,country:'CH',currency:'CHF'},seatLimit:3}],[{offer:{...offer,environment:'PRODUCTION'},seatLimit:3}],[{offer,seatLimit:3,secret:'no'}]])expect(()=>parseUsSaasPolicy({...bindings,INTERNATIONAL_US_SAAS_CATALOG_JSON:JSON.stringify(data)},now)).toThrow();});
 });
+
+describe('additive private US Automation provenance on real local SQLite',()=>{
+  async function completeAdmission(){const complete={...offer,module:'complet' as const};policy={...policy,catalog:[{offer:complete,seatLimit:3}]};authority={...authority,offer:complete};return admit();}
+  it('returns only exact fresh provenance while retaining existing access DTOs and CH rows',async()=>{
+    const baseline=chSnapshot();await completeAdmission(); const store=d1UsAuthorityStore(adapter),value=await store.automationAuthority(org,actor,policy);
+    expect(value).toEqual({organizationId:org,userId:actor,role:'owner',environment:'TEST',subscriptionId:authority.subscriptionId,authorityReference:authority.evidence!.referenceId,catalogVersion:offer.catalogVersion,priceId:offer.priceId,checkedAt:value.checkedAt});expect(value.checkedAt).toBeGreaterThanOrEqual(now);expect(value.checkedAt).toBeLessThanOrEqual(db.prepare('SELECT unixepoch() AS n').get()!.n as number);
+    expect(await store.access(org,actor,policy)).toEqual({organizationId:org,userId:actor,role:'owner',subscriptionId:authority.subscriptionId,seatLimit:3}); expect(chSnapshot()).toEqual(baseline);
+  });
+  it('never interprets a Gestion-only or legacy CH subscription as Automation',async()=>{
+    await admit(); const store=d1UsAuthorityStore(adapter);await expect(store.automationAuthority(org,actor,policy)).rejects.toMatchObject({code:'subscription_required',status:402});await expect(store.automationAuthority('existing_CH',actor,policy)).rejects.toMatchObject({code:'forbidden',status:403});
+  });
+  it.each(['authority','caller','owner','expiry'] as const)('rechecks rights after obtaining provenance when %s changes',async change=>{
+    await completeAdmission();const collaborator='55555555-5555-4555-8555-555555555555';db.prepare("INSERT INTO international_workspace_members(membership_id,organization_id,user_id,role,joined_at)VALUES(?,?,?,'accountant',?)").run('member-US-2',org,collaborator,now);
+    const base=databaseAdapter(db);let changed=false;
+    const moving={...base,prepare(sql:string){const statement=base.prepare(sql);if(sql.startsWith('SELECT a.*,m.membership_id'))return {bind(...args:unknown[]){const bound=statement.bind(...args);return {async first(){const row=await bound.first();if(!changed){changed=true;if(change==='expiry')db.function('unixepoch',()=>now+86400);else if(change==='authority')db.prepare('UPDATE international_saas_authorities SET revoked_at=? WHERE organization_id=?').run(now,org);else db.prepare('UPDATE international_workspace_members SET revoked_at=? WHERE organization_id=? AND user_id=?').run(now,org,change==='owner'?actor:collaborator);}return row;}};}};return statement;}} as unknown as typeof adapter;
+    await expect(d1UsAuthorityStore(moving).automationAuthority(org,collaborator,policy)).rejects.toMatchObject({status:change==='authority'||change==='expiry'?402:403});expect(changed).toBe(true);
+  });
+  it('does not let the caller mutate the approved catalogue while the database is awaited',async()=>{
+    await completeAdmission(); const baseline=structuredClone(policy),base=databaseAdapter(db);let changed=false;
+    const moving={...base,prepare(sql:string){const statement=base.prepare(sql);if(sql.startsWith('SELECT a.*,m.membership_id'))return {bind(...args:unknown[]){const bound=statement.bind(...args);return {async first(){const row=await bound.first();policy={...policy,catalog:[]};changed=true;return row;}};}};return statement;}} as unknown as typeof adapter;
+    const captured=policy; const promise=d1UsAuthorityStore(moving).automationAuthority(org,actor,captured);(captured.catalog as {offer:SaasSubscriptionOffer;seatLimit:number}[]).splice(0);await expect(promise).resolves.toMatchObject({catalogVersion:baseline.catalog[0].offer.catalogVersion});expect(changed).toBe(true);
+  });
+  it('does not expose provenance for a foreign actor, missing schema or financial-read-only role',async()=>{
+    await completeAdmission();const store=d1UsAuthorityStore(adapter);await expect(store.automationAuthority(org,'foreign',policy)).rejects.toMatchObject({code:'forbidden',status:403});
+    db.prepare("INSERT INTO international_workspace_members(membership_id,organization_id,user_id,role,joined_at)VALUES(?,?,?,'read_only',?)").run('member-US-2',org,'55555555-5555-4555-8555-555555555555',now);await expect(store.automationAuthority(org,'55555555-5555-4555-8555-555555555555',policy)).rejects.toMatchObject({code:'forbidden',status:403});
+    const empty=new DatabaseSync(':memory:');try{await expect(d1UsAuthorityStore(databaseAdapter(empty)).automationAuthority(org,actor,policy)).rejects.toMatchObject({code:'service_unavailable',status:503});}finally{empty.close();}
+  });
+  it('rejects an accessor in an injected database projection without invoking it',async()=>{
+    await completeAdmission();const base=databaseAdapter(db);let calls=0;
+    const malformed={...base,prepare(sql:string){const statement=base.prepare(sql);if(sql.startsWith('SELECT a.*,m.membership_id'))return {bind(...args:unknown[]){const bound=statement.bind(...args);return {async first(){const row=await bound.first();Object.defineProperty(row,'authority_json',{get(){calls++;throw new Error('private raw data');},enumerable:true});return row;}};}};return statement;}} as unknown as typeof adapter;
+    await expect(d1UsAuthorityStore(malformed).automationAuthority(org,actor,policy)).rejects.toMatchObject({code:'service_unavailable',status:503});expect(calls).toBe(0);
+  });
+});

@@ -1,4 +1,5 @@
 import type { SiteLanguage } from '../site-language';
+import { browserUsAnalysisCopy } from './browser-us-analysis-copy';
 
 const en = {
   title: 'Received invoices', intro: 'Check the source, then record the purchase.', import: 'Analyze a document', close: 'Close', refresh: 'Refresh', loading: 'Opening received invoices…', empty: 'No received invoices yet.', emptyHelp: 'An analyzed document appears here before anything is recorded.', unavailable: 'Document analysis is not enabled for this workspace. Existing proposals can still be reviewed.', access: 'An active US workspace and financial permissions are required.', upgrade: 'This workspace needs accounting version 4.',
@@ -28,6 +29,12 @@ const it: Copy = {
 export const browserUsSupplierCopy: Record<SiteLanguage, Copy> = { fr, de, it, en };
 export function browserUsSupplierError(language: SiteLanguage, code: string): string {
   const c = browserUsSupplierCopy[language];
+  const analysis = browserUsAnalysisCopy[language];
+  if(code==='automation_quota_exceeded')return analysis.quotaEmpty;
+  if(code==='automation_consent_required')return analysis.consentRequired;
+  if(code==='automation_grant_expired')return analysis.stale;
+  if(code==='supplier_source_unreadable')return {fr:'Ajoutez le texte complet de la facture avant de l’analyser.',de:'Fügen Sie vor der Analyse den vollständigen Rechnungstext hinzu.',it:'Aggiungi il testo completo della fattura prima di analizzarla.',en:'Add the complete invoice text before analyzing it.'}[language];
+  if(['automation_dispatch_uncertain','automation_busy','automation_limit_reached'].includes(code))return c.failedAnalysis;
   if (['unauthorized', 'forbidden', 'supplier_permission_required', 'financial_permission_required', 'tenant_mismatch', 'session_changed', 'feature_unavailable', 'edition_unavailable'].includes(code)) return c.revoked;
   if (['management_entitlement_required', 'automation_entitlement_required'].includes(code)) return c.entitlement;
   if (['supplier_analysis_unavailable', 'supplier_analysis_failed', 'analysis_unavailable'].includes(code)) return c.failedAnalysis;

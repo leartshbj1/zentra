@@ -22,6 +22,7 @@ export const US_SUPPLIER_ISSUE_CODES = Object.freeze([
   'due_date_before_invoice', 'amounts_inconsistent', 'non_positive_amount', 'low_confidence', 'missing_evidence', ...Object.values(missing),
 ] as const);
 const SOURCE_LIMIT = 40_000, SOURCE_BYTES = 80_000, EVIDENCE_BUDGET = 16_000, CANDIDATE_LIMIT = 10;
+export const US_SUPPLIER_MIN_SOURCE_CHARACTERS = 40;
 const requiredTop = ['schemaVersion', 'kind', 'confidence', 'fields', 'evidence', 'fieldConfidence', 'issues'];
 function fail(code: 'invalid_request' | 'invalid_response' = 'invalid_response'): never { throw new DecisionFailure(code); }
 function object(input: unknown): Record<string, unknown> {
@@ -204,7 +205,7 @@ export async function extractUsSupplierInvoice(source: string, recipient: string
   try {
     snapshotPrivateJson([source, recipient]);
     if (typeof source !== 'string' || source.length > SOURCE_LIMIT || new TextEncoder().encode(source).length > SOURCE_BYTES || controls(source, true) || typeof recipient !== 'string' || !recipient.trim() || recipient.length > 256 || controls(recipient)) return fail('invalid_request');
-    if (source.trim().length < 40) return validateUsSupplierExtraction({ schemaVersion: 1, kind: 'unknown', confidence: 0, fields: {}, evidence: {}, fieldConfidence: {}, issues: ['unreadable_source'] });
+    if (source.trim().length < US_SUPPLIER_MIN_SOURCE_CHARACTERS) return validateUsSupplierExtraction({ schemaVersion: 1, kind: 'unknown', confidence: 0, fields: {}, evidence: {}, fieldConfidence: {}, issues: ['unreadable_source'] });
     ({ input, candidates, excluded } = prepare(source, recipient.trim()));
   } catch { return fail('invalid_request'); }
   let result: unknown;

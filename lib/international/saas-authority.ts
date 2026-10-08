@@ -1,6 +1,7 @@
 import { isAccountRole, type AccountRole } from '../account-security';
 import { canonicalCreationJson, creationUuid, validateCreationReceipt, type WorkspaceCreationIntent } from './workspace-creation';
 import { resolveSubscriptionOffer, subscriptionRights, validateSubscriptionOffer, verifyServerStripePrice, type SaasModule, type SaasSubscriptionAuthority, type SaasSubscriptionOffer, type ServerStripePrice, type SubscriptionEnvironment } from './subscriptions';
+import { snapshotPrivateJson } from './private-json';
 
 export class UsAuthorityError extends Error {
   constructor(readonly code: 'invalid_authority' | 'subscription_required' | 'forbidden' | 'admission_conflict' | 'service_unavailable', readonly status: number) { super(code); }
@@ -81,4 +82,40 @@ export function usWorkspaceAccess(intent: WorkspaceCreationIntent, record: UsAut
   if (membership.organizationId !== intent.organizationId || !isAccountRole(membership.role) || !instant(membership.joinedAt) || membership.revokedAt !== null || !key(membership.userId) || !key(membership.membershipId)) throw new UsAuthorityError('forbidden', 403);
   if (subscriptionRights(intent.configuration, authority, { module, environment: policy.environment, now: policy.now }).access !== 'read_write') throw new UsAuthorityError('subscription_required', 402);
   return Object.freeze({ organizationId: intent.organizationId, userId: membership.userId, role: membership.role, subscriptionId: authority.subscriptionId, seatLimit: record.seatLimit });
+}
+
+/** Private provenance for the supplier-analysis bucket. It is produced only
+ * after the existing US catalogue, receipt, membership and module checks.
+ * It neither verifies a payment provider nor enables settings or inference. */
+export interface UsWorkspaceAutomationAuthority {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly role: AccountRole;
+  readonly environment: SubscriptionEnvironment;
+  readonly subscriptionId: string;
+  readonly authorityReference: string;
+  readonly catalogVersion: string;
+  readonly priceId: string;
+  readonly checkedAt: number;
+}
+const automationAuthorities = new WeakSet<object>();
+export function assertUsWorkspaceAutomationAuthority(value: UsWorkspaceAutomationAuthority): void {
+  if (!value || typeof value !== 'object' || !automationAuthorities.has(value)) throw new UsAuthorityError('invalid_authority', 422);
+}
+export function usWorkspaceAutomationAuthority(intent: WorkspaceCreationIntent, record: UsAuthorityRecord, membership: UsMembership, policy: UsSaasPolicy): UsWorkspaceAutomationAuthority {
+  let captured: [WorkspaceCreationIntent, UsAuthorityRecord, UsMembership, UsSaasPolicy];
+  try { captured = snapshotPrivateJson([intent, record, membership, policy]) as typeof captured; }
+  catch { throw new UsAuthorityError('invalid_authority', 422); }
+  const [saved, authorityRecord, member, currentPolicy] = captured;
+  const access = usWorkspaceAccess(saved, authorityRecord, member, currentPolicy, 'automation');
+  usWorkspaceAccess(saved, authorityRecord, member, currentPolicy, 'gestion');
+  if (!['owner', 'admin', 'accountant'].includes(access.role)) throw new UsAuthorityError('forbidden', 403);
+  const authority = approvedAuthority(saved, authorityRecord, currentPolicy);
+  if (!authority.evidence || !instant(currentPolicy.now)) throw new UsAuthorityError('invalid_authority', 422);
+  if (authority.evidence.kind !== 'verified_payment') throw new UsAuthorityError('subscription_required', 402);
+  const value = Object.freeze({ organizationId: access.organizationId, userId: access.userId, role: access.role,
+    environment: authority.offer.environment, subscriptionId: access.subscriptionId, authorityReference: authority.evidence.referenceId,
+    catalogVersion: authority.offer.catalogVersion, priceId: authority.offer.priceId, checkedAt: currentPolicy.now });
+  automationAuthorities.add(value);
+  return value;
 }

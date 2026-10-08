@@ -85,6 +85,7 @@ export class JevDecisionProvider implements DecisionProvider {
     private readonly timeoutMs = 6000,
     private readonly sleep = (ms: number) =>
       new Promise<void>((r) => setTimeout(r, ms)),
+    private readonly transportOptions: Readonly<{ retry?: boolean; expectedModel?: string }> = {},
   ) {}
   async decide(input: DecisionInput): Promise<ProviderResult> {
     if (!this.apiKey) throw new DecisionFailure('configuration');
@@ -126,7 +127,7 @@ export class JevDecisionProvider implements DecisionProvider {
       const response = await jevRequest(this.apiKey, body, {
         fetcher: this.fetcher,
         timeoutMs: this.timeoutMs,
-        retry: true,
+        retry: this.transportOptions.retry !== false,
         sleep: this.sleep,
       });
       if (!response.ok) {
@@ -157,6 +158,7 @@ export class JevDecisionProvider implements DecisionProvider {
       } catch {
         throw new DecisionFailure('invalid_response');
       }
+      if (this.transportOptions.expectedModel !== undefined && (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || (parsed as Record<string, unknown>).model !== this.transportOptions.expectedModel)) throw new DecisionFailure('invalid_response');
       return parseProviderResult(parsed, input, Date.now() - started);
     } catch (error) {
       if (error instanceof DecisionFailure) throw error;

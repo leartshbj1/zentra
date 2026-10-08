@@ -1,0 +1,425 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T22:35:08.126Z",
+  "base": "fe742ce7f5ab90e237d04e8c6acf46df835d8d17",
+  "branch": "codex/international-runtime",
+  "scope": "US per-workspace analysis admission and dormant supplier orchestration",
+  "created": [
+    "app/api/international/workspaces/[organizationId]/supplier-analysis-settings/route.ts",
+    "components/account/us-supplier-analysis-panel.css",
+    "components/account/us-supplier-analysis-panel.tsx",
+    "docs/evidence/us-automation-admission-20261009.json",
+    "docs/internationalization/STATUS-20261009.md",
+    "docs/internationalization/US-AUTOMATION-ADMISSION-DELIVERY-20261009.md",
+    "docs/internationalization/US-AUTOMATION-ADMISSION-PLAN-20261008.md",
+    "lib/international/browser-us-analysis-copy.ts",
+    "lib/international/browser-us-analysis-session.test.ts",
+    "lib/international/browser-us-analysis-session.ts",
+    "lib/international/browser-us-analysis.workbench.browser.test.ts",
+    "lib/international/us-analysis-provider.test.ts",
+    "lib/international/us-analysis-provider.ts",
+    "lib/international/us-automation-contract.ts",
+    "lib/international/us-automation-policy.test.ts",
+    "lib/international/us-automation-policy.ts",
+    "lib/international/us-automation-store.test.ts",
+    "lib/international/us-automation-store.ts",
+    "lib/international/us-automation-validation.test.ts",
+    "lib/international/us-automation-validation.ts",
+    "lib/international/us-automation.postgres.test.ts",
+    "lib/international/us-supplier-analysis-bindings.ts",
+    "lib/international/us-supplier-analysis-server.test.ts",
+    "lib/international/us-supplier-analysis-server.ts",
+    "lib/international/us-supplier-analysis.test.ts",
+    "lib/international/us-supplier-analysis.ts",
+    "supabase/migrations/20261008210008_international_us_automation_analysis.sql"
+  ],
+  "modified": [
+    "components/account/us-erp-workbench.tsx",
+    "lib/automation/provider.ts",
+    "lib/international/browser-us-supplier-copy.ts",
+    "lib/international/browser-us-supplier-session.ts",
+    "lib/international/saas-authority-d1.ts",
+    "lib/international/saas-authority.test.ts",
+    "lib/international/saas-authority.ts",
+    "lib/international/saas-authority.workerd.test.ts",
+    "lib/international/us-supplier-bindings.ts",
+    "lib/international/us-supplier-extraction.ts",
+    "lib/international/us-supplier-server.ts",
+    "lib/international/workspace-creation.integration.test.ts"
+  ],
+  "sources": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/supplier-analysis-settings/route.ts",
+      "bytes": 484,
+      "lfSha256": "68fa83783ef4a237998a6aacfd25452d57b0ad8c35828d0ae0c4e2427a2fd907"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "bytes": 68296,
+      "lfSha256": "d45e64b9c547a36f35c7dbdddc48fe16b8568026b181cbf4fc337f29c0f8d825"
+    },
+    {
+      "path": "components/account/us-supplier-analysis-panel.css",
+      "bytes": 3395,
+      "lfSha256": "ed4c14d1fb67846b33d1b7df33e6fc3772d6fe040ef3a6074cef09b930e00a33"
+    },
+    {
+      "path": "components/account/us-supplier-analysis-panel.tsx",
+      "bytes": 12205,
+      "lfSha256": "7ed2dd090ece106bc0f006174649f249261648526ecbe167a233b793c318e9e1"
+    },
+    {
+      "path": "docs/internationalization/STATUS-20261009.md",
+      "bytes": 6328,
+      "lfSha256": "2ef975581bb4afd7cc765178d066e695c0ad48833f9b08314c2f73c505cd702f"
+    },
+    {
+      "path": "docs/internationalization/US-AUTOMATION-ADMISSION-DELIVERY-20261009.md",
+      "bytes": 10414,
+      "lfSha256": "5425741f1a88256f4ddd4d9c305b1436945b8532aa3f4a93e7ce1d2add67319d"
+    },
+    {
+      "path": "docs/internationalization/US-AUTOMATION-ADMISSION-PLAN-20261008.md",
+      "bytes": 4253,
+      "lfSha256": "91b2122c6dff8ce610f3ddcb0453defa73924d951a3dd962fff96e5d74bd75a0"
+    },
+    {
+      "path": "lib/automation/provider.ts",
+      "bytes": 6052,
+      "lfSha256": "db13c883e8dee0c1f3378b0e618bb4ad9dc3924d39a8b3d63889a9818c158999"
+    },
+    {
+      "path": "lib/international/browser-us-analysis-copy.ts",
+      "bytes": 8399,
+      "lfSha256": "eac4891e61b78b5b25ec3eb5beba69c09c42246dd058a469185f19b2cfb53f85"
+    },
+    {
+      "path": "lib/international/browser-us-analysis-session.test.ts",
+      "bytes": 30944,
+      "lfSha256": "238f68c38ebc969d4e609cf5a83193be3861dfdc32a13a5519e3ee50af5dc002"
+    },
+    {
+      "path": "lib/international/browser-us-analysis-session.ts",
+      "bytes": 16572,
+      "lfSha256": "a2e6b70425e9017f8c0954355dd81eb0d5ac9c632b99dfbb5e4f10648812215b"
+    },
+    {
+      "path": "lib/international/browser-us-analysis.workbench.browser.test.ts",
+      "bytes": 38444,
+      "lfSha256": "69898220a156c5fe424543216867b6825e41ac32fb57db55ed3626b3f0f6d595"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-copy.ts",
+      "bytes": 18926,
+      "lfSha256": "dc47c6e618d88049eab6ef4a3ece417f0311ec106373efd3bd42529f3f7da200"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-session.ts",
+      "bytes": 17360,
+      "lfSha256": "148c4b6c996d35526fc47bdef44dade0947f99fa4fd6e309418688b4613c7471"
+    },
+    {
+      "path": "lib/international/saas-authority-d1.ts",
+      "bytes": 16231,
+      "lfSha256": "6ef65192b2e96501e8cf15165dd382c493e7b315db07467ba2f291582fd5af61"
+    },
+    {
+      "path": "lib/international/saas-authority.test.ts",
+      "bytes": 22982,
+      "lfSha256": "2ab1da1a8010653747e81da0517115aa7765a5230a3f3a19009a897ac4bfd803"
+    },
+    {
+      "path": "lib/international/saas-authority.ts",
+      "bytes": 10353,
+      "lfSha256": "d6a974d1d74f71d4e1bd935a4001409e9566703960b99446fef03608146b44a2"
+    },
+    {
+      "path": "lib/international/saas-authority.workerd.test.ts",
+      "bytes": 9826,
+      "lfSha256": "429d7adfa80e789889ebbe5c255394e8efcb520033057cd5a2a99477fad65e93"
+    },
+    {
+      "path": "lib/international/us-analysis-provider.test.ts",
+      "bytes": 6875,
+      "lfSha256": "6c12c335d8efe912ec8f6cace1432e5194a60065ad2f6a8127157efa3948dd31"
+    },
+    {
+      "path": "lib/international/us-analysis-provider.ts",
+      "bytes": 2559,
+      "lfSha256": "060ca07d7713f1a5b796111c46e07080460e17de5b1546c40746ff8c3093e03f"
+    },
+    {
+      "path": "lib/international/us-automation-contract.ts",
+      "bytes": 4710,
+      "lfSha256": "7afbcbe0a1200bffbb2e9525bbf7f7b05f965607bd5a5b9b5bfe289dec476965"
+    },
+    {
+      "path": "lib/international/us-automation-policy.test.ts",
+      "bytes": 13487,
+      "lfSha256": "575804ea60e9115aada36ba1de4c5bde76330131e7b592889b88c0596751787a"
+    },
+    {
+      "path": "lib/international/us-automation-policy.ts",
+      "bytes": 4956,
+      "lfSha256": "65f0cec6a95e83e1df20cc785275a2c5e02b02293293feef8d70238407812b8e"
+    },
+    {
+      "path": "lib/international/us-automation-store.test.ts",
+      "bytes": 13581,
+      "lfSha256": "a0388602cba3b9afe0d6df0049bd4335b6fd9623110efeabba7a9c5e031cee96"
+    },
+    {
+      "path": "lib/international/us-automation-store.ts",
+      "bytes": 11271,
+      "lfSha256": "4acfe63d97e61c23afe5b211dec31aef3f62236c5d465c26dae107279dd434ea"
+    },
+    {
+      "path": "lib/international/us-automation-validation.test.ts",
+      "bytes": 8672,
+      "lfSha256": "ffc0c7d8f941f62d061ee286cfbff9ad9dd195142a36dca934488fd0117b8918"
+    },
+    {
+      "path": "lib/international/us-automation-validation.ts",
+      "bytes": 9521,
+      "lfSha256": "407cc02bf7f62292845921873d92b58ef599e7b03057b95f169d3ecf792a8cca"
+    },
+    {
+      "path": "lib/international/us-automation.postgres.test.ts",
+      "bytes": 38473,
+      "lfSha256": "4f42b87b96e9bbb019290d6ec1169958d9f092dd14d2419ee9fd66937514cbaa"
+    },
+    {
+      "path": "lib/international/us-supplier-analysis-bindings.ts",
+      "bytes": 4195,
+      "lfSha256": "9ce30b216c5987c754bb4445a4966e6afec96b64812a4dfef6059e765864d0cc"
+    },
+    {
+      "path": "lib/international/us-supplier-analysis-server.test.ts",
+      "bytes": 21153,
+      "lfSha256": "3fce6207cf832ed2e75b651baa6b1f3403d53fe61f2e752a59f349998744067e"
+    },
+    {
+      "path": "lib/international/us-supplier-analysis-server.ts",
+      "bytes": 12334,
+      "lfSha256": "d231b624a8279510022f8de5b571c3e60efa874bab47a6b287b3265e58edd4ac"
+    },
+    {
+      "path": "lib/international/us-supplier-analysis.test.ts",
+      "bytes": 20386,
+      "lfSha256": "604434b0ab0f453262642f1cd9163e3179f578c9d45613f1fe09b820af13fc87"
+    },
+    {
+      "path": "lib/international/us-supplier-analysis.ts",
+      "bytes": 8270,
+      "lfSha256": "545c805d2e1013a640729a9c0ee677f44ecd81cb57c5f6591ed33c60fde36142"
+    },
+    {
+      "path": "lib/international/us-supplier-bindings.ts",
+      "bytes": 2970,
+      "lfSha256": "464e2f594517ca3753725557979936c9354ed1358563c21307befba01d4e4c41"
+    },
+    {
+      "path": "lib/international/us-supplier-extraction.ts",
+      "bytes": 19911,
+      "lfSha256": "bfe1dd957a4f306712a4e3644d04625065df80b45fe5d88011b74e1bb7d70ac4"
+    },
+    {
+      "path": "lib/international/us-supplier-server.ts",
+      "bytes": 19714,
+      "lfSha256": "5577efa43597dcfd2442d8e10214c34ea623111194f874ae45a9392da1a1aab3"
+    },
+    {
+      "path": "lib/international/workspace-creation.integration.test.ts",
+      "bytes": 20096,
+      "lfSha256": "e055cb8f265862c95b32020f455192420606dc69f682a25fc8adb85ffd46d3d0"
+    },
+    {
+      "path": "supabase/migrations/20261008210008_international_us_automation_analysis.sql",
+      "bytes": 42635,
+      "lfSha256": "108a06f656ac7cba4a55ff60db0cde14bfca5e64b8bdf167ce2039cdf3fa7d6a"
+    }
+  ],
+  "commands": {
+    "global": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts lib/international --maxWorkers=1 --no-file-parallelism --reporter=json --outputFile=.qa/us-analysis/international-final-v3.json",
+    "workerdRetry": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts lib/international/legacy-country-guard.migrations.test.ts lib/international/saas-authority.workerd.test.ts lib/international/us-device-workerd.test.ts --maxWorkers=1 --no-file-parallelism --reporter=json --outputFile=.qa/us-analysis/workerd-retry-v4.json",
+    "workbench": "ZENTRA_BROWSER_US_ANALYSIS_WORKBENCH_QA=1 ZENTRA_BROWSER_US_ANALYSIS_CONFIGURATION_CHANGE=1 node node_modules/vitest/vitest.mjs run --config vitest.config.ts lib/international/browser-us-analysis.workbench.browser.test.ts --reporter=json --outputFile=.qa/us-analysis/configuration-change-after-v3.json",
+    "types": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+    "lint": "node node_modules/oxlint/bin/oxlint --config .qa/us-analysis/quality-oxlint-syntax.json --format json <33 changed TypeScript files>",
+    "brand": "node scripts/check-brand-assets.mjs",
+    "build": "NODE_OPTIONS=--max-old-space-size=1024 node node_modules/vinext/dist/cli.js build",
+    "diff": "git diff --check",
+    "postgresRuntime": "PGLITE_MODULE_DIR points to the existing pinned local WASM dependency; no hosted database"
+  },
+  "checks": {
+    "international": {
+      "singleFullRunPassed": false,
+      "fullRun": {
+        "path": ".qa/us-analysis/international-final-v3.json",
+        "sha256": "3f891a2db78dcd6372776c27171335e11a4ac43d224e8a4fb48bd3ee83919ded",
+        "passed": 5044,
+        "failed": 2,
+        "skipped": 24,
+        "files": 129,
+        "success": false
+      },
+      "isolatedWorkerdRetry": {
+        "path": ".qa/us-analysis/workerd-retry-v4.json",
+        "sha256": "2bc034cf7994d6d17e1cee90819bbd084ad1e6e8cdd9004d23b921e0540bd1e6",
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "files": 3,
+        "success": true
+      },
+      "unchangedSuiteIdentitiesVerified": true,
+      "nonCumulative": true,
+      "latestExecutedCasesPassed": 5056,
+      "optInCasesNotExecutedInGlobalRun": 14,
+      "files": 129
+    },
+    "chAndSharedProvider": {
+      "path": ".qa/us-analysis/ch-final.json",
+      "sha256": "2ccb61494c611d0b2dcb55642b7c7bda4a69b86e864d3374dafcfbf6478ad3ce",
+      "passed": 87,
+      "failed": 0,
+      "skipped": 0,
+      "files": 7,
+      "success": true
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "path": ".qa/us-analysis/typecheck-final-v2.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "syntaxLint": {
+      "diagnostics": 0,
+      "files": 33,
+      "path": ".qa/us-analysis/syntax-lint-final-v3.json",
+      "sha256": "8fb2bf7eae7ce0cb15f4e88d75f5a1fb4fc152eade017078a9a3bba4f5ee4d99"
+    },
+    "brand": {
+      "exitCode": 0,
+      "path": ".qa/us-analysis/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build": {
+      "exitCode": 0,
+      "nodeOptions": "--max-old-space-size=1024",
+      "path": ".qa/us-analysis/build-final.log",
+      "sha256": "da095dbb2747d836b461df1868bb761207e7e38f510e11bf70ecd108e9f91024",
+      "exitEvidence": {
+        "path": ".qa/us-analysis/build-final-exit.json",
+        "sha256": "61510c9689b79e3c02d840ac0062e830841b763d9cdb7700029198be9287b1ff"
+      }
+    },
+    "diff": {
+      "exitCode": 0,
+      "path": ".qa/us-analysis/diff-check-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "uiPanel": {
+      "report": {
+        "path": ".qa/us-analysis/confirmation-final.json",
+        "sha256": "5bc22fc1e350684ef5b1501637c6c712e1f99e3d6e092d43169706174373b179",
+        "passed": 44,
+        "failed": 0,
+        "skipped": 0,
+        "files": 1,
+        "success": true
+      },
+      "variants": 16,
+      "widths": [
+        1200,
+        320
+      ],
+      "textPercentMobile": 200,
+      "languages": [
+        "fr",
+        "de",
+        "it",
+        "en"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "sourceFreeze": {
+        "path": ".qa/us-analysis/ui-source-freeze.json",
+        "sha256": "47c7f058915586174b49a27b6d9e973dcfbb0567aa3a05dc4c9d14c380d19274"
+      }
+    },
+    "workbench": {
+      "report": {
+        "path": ".qa/us-analysis/configuration-change-after-v3.json",
+        "sha256": "4659bca624eef8292a44a6e827028908d0fb977da8d4ff03d29b7916a0bf6c2f",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "files": 1,
+        "success": true
+      },
+      "configurationChangedAfterCommit": true,
+      "sourceFreeze": {
+        "path": ".qa/us-analysis/workbench-latest-freeze.json",
+        "sha256": "40ee35e4654b74d57e5714cdbc9ba913071e134c09066d5b31799ba48d029a29"
+      }
+    },
+    "targetedProviderAndHttp": {
+      "path": ".qa/us-analysis/root-tests-final-after-correction.json",
+      "sha256": "7dc79807e519c3907d409d6ee6c85d30b14bafb6cdb1f94f3d1364f6cae282c3",
+      "passed": 112,
+      "failed": 0,
+      "skipped": 0,
+      "files": 3,
+      "success": true
+    },
+    "persistence": {
+      "path": ".qa/us-analysis/persistence-final.json",
+      "sha256": "ac7a87e0f508445f9930c5444e5852a8b1f0d6aa0549980ad2716a6d5bda2a27",
+      "passed": 112,
+      "failed": 0,
+      "skipped": 0,
+      "files": 3,
+      "success": true
+    }
+  },
+  "nonCumulativeResults": true,
+  "limits": {
+    "actualProviderCalled": false,
+    "paidApi": false,
+    "realMailbox": false,
+    "hostedMigration": false,
+    "hostedAuth": false,
+    "productionStripe": false,
+    "load150Companies": false,
+    "physicalDevice": false,
+    "nativeBuild": false,
+    "sourceFormat": "literal text, max 16384 UTF8 bytes",
+    "pilotSourcesPerCompany": 50,
+    "pilotAggregateBytes": 2097152,
+    "analysisDefaultsOff": true,
+    "productionQuotaConfigured": false,
+    "typedLint": "Windows spawnSync tsgolint.exe UNKNOWN/-4094; syntax and tsc separate",
+    "postgresConcurrency": "single serialized WASM instance, not hosted multi-connection"
+  },
+  "preserved": {
+    "native": {
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "workingTreeClean": true
+    },
+    "publicSite": {
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "workingTreeClean": true
+    },
+    "swissProductionMutations": false
+  },
+  "failuresPreserved": [
+    "international-final-v1: native out-of-memory, partial report not success",
+    "international-final-v2: completion time compared with reservation time, fixed",
+    "international-final-v3: workerd spawn failed before D1; only these suites retried, full run stays failed",
+    "root-tests-review: eleven reproduced defects, fixed",
+    "workbench-configuration-change-failure: sibling drafts unmounted, fixed",
+    "syntax-lint-final: render-time Date.now, moved to callback"
+  ],
+  "goalCompleted": false
+}

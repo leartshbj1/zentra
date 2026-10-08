@@ -14,7 +14,7 @@ import type { CompanyConfiguration } from './types';
 import { creationUuid } from './workspace-creation';
 import { validateUsSupplierExtraction, type UsSupplierExtraction } from './us-supplier-extraction';
 import { supplierErpRequest, validateUsSupplierApprovalRequest, validateUsSupplierProposal, validateUsSupplierRecording } from './us-supplier-proposal';
-import type { UsSupplierApproveResponse, UsSupplierPrepareResponse, UsSupplierProposal, UsSupplierReadResponse, UsSupplierStore } from './us-supplier-contract';
+import type { UsSupplierApproveResponse, UsSupplierPrepareResponse, UsSupplierProposal, UsSupplierReadResponse, UsSupplierStore, UsSupplierSource } from './us-supplier-contract';
 
 export type UsSupplierServerDependencies = Pick<ErpServerDependencies, 'enabled' | 'authority' | 'configuration' | 'store' | 'freshSupportedSchemaVersion'> & {
   supplierStore(capability: ErpSchemaVersion): Promise<UsSupplierStore> | UsSupplierStore;
@@ -22,7 +22,10 @@ export type UsSupplierServerDependencies = Pick<ErpServerDependencies, 'enabled'
   automationAccess(actor: FinancialAuthority): Promise<void>;
   /** Trusted, consent- and quota-metered analysis ONLY. No runtime provider is
    * installed until that admission exists. An extracted value never approves a bill. */
-  analyzer(actor: FinancialAuthority): Promise<null | ((text: string, revalidate: () => Promise<FinancialAuthority>) => Promise<UsSupplierExtraction>)>;
+  analyzer?: (actor: FinancialAuthority) => Promise<null | ((text: string, revalidate: () => Promise<FinancialAuthority>) => Promise<UsSupplierExtraction>)>;
+  /** Durable analysis port atomically preserves canonical result + proposal.
+   * Binding uses this path; pure injected analyzer remains a domain-test port. */
+  prepareAnalysis?: (input: Readonly<{ actor: FinancialAuthority; source: UsSupplierSource; revalidate: () => Promise<FinancialAuthority> }>) => Promise<UsSupplierPrepareResponse>;
   newId(): string;
   rateLimit?: ErpServerDependencies['rateLimit'];
   diagnostic?: ErpServerDependencies['diagnostic'];
@@ -36,6 +39,11 @@ const errors: Readonly<Record<string, number>> = {
   supplier_not_found: 404, invalid_supplier_record: 503, supplier_analysis_unavailable: 503,
   supplier_analysis_failed: 503, supplier_source_conflict: 409,
   supplier_currency_unsupported: 422,
+  supplier_source_unreadable:422,
+  automation_revision_conflict: 409, automation_idempotency_conflict: 409, automation_consent_required: 409,
+  automation_busy: 409, automation_dispatch_uncertain: 409, automation_quota_exceeded: 402,
+  automation_grant_expired: 402, automation_limit_reached: 409, automation_permission_required: 403,
+  automation_upgrade_required: 409, invalid_automation_request: 422, invalid_automation_record: 503,
   tenant_mismatch: 403, session_changed: 401, unauthorized: 401, forbidden: 403,
   management_entitlement_required: 402, automation_entitlement_required: 402,
   financial_permission_required: 403, edition_unavailable: 409, configuration_changed: 409,
@@ -84,6 +92,9 @@ export function createUsSupplierHandlers(dependencies: UsSupplierServerDependenc
     } else if (error instanceof RequestBodyError) { code = 'invalid_supplier_proposal'; status = error.status; }
     else if (error instanceof DecisionFailure) { code = 'supplier_analysis_failed'; }
     else if (error instanceof LedgerError && errors[error.message.toLowerCase()] !== undefined) { code = error.message.toLowerCase(); status = errors[code]; }
+    // A spent analysis quota is not loss of Gestion/session rights. Keep
+    // existing proposals and financial drafts available to the caller.
+    if (['automation_quota_exceeded','automation_grant_expired'].includes(code)) status=409;
     try { dependencies.diagnostic?.({ operation, code, status }); } catch { /* Only non-sensitive codes are observable. */ }
     return json({ error: code }, status);
   }
@@ -149,7 +160,16 @@ export function createUsSupplierHandlers(dependencies: UsSupplierServerDependenc
           if (proposal.source.sha256 !== sourceHash || proposal.source.documentText !== source.documentText || proposal.source.mediaType !== 'text/plain') throw new ErpError('supplier_source_conflict', 409);
           await revalidate(); return json({ proposal, replayed: true } satisfies UsSupplierPrepareResponse);
         }
-        const analyzer = await dependencies.analyzer(trusted.actor);
+        if (dependencies.prepareAnalysis) {
+          const actor = await revalidate();
+          const result = await dependencies.prepareAnalysis({ actor, revalidate, source: {
+            kind: 'document_import', sha256: sourceHash, fileName: source.fileName, mediaType: 'text/plain', workspaceId: null, connectionId: null, messageId: null, receivedAt: actor.timestamp, documentText: source.documentText,
+          } });
+          const saved = privateProposal(result.proposal, organizationId);
+          if (typeof result.replayed !== 'boolean' || saved.source.sha256 !== sourceHash || saved.source.documentText !== source.documentText || saved.source.mediaType !== 'text/plain') throw new ErpError('invalid_supplier_record', 503);
+          await revalidate(); return json({ proposal: saved, replayed: result.replayed } satisfies UsSupplierPrepareResponse);
+        }
+        const analyzer = await dependencies.analyzer?.(trusted.actor);
         if (!analyzer) throw new ErpError('supplier_analysis_unavailable', 503);
         await revalidate();
         const extraction = validateUsSupplierExtraction(await analyzer(source.documentText, revalidate));

@@ -4,6 +4,7 @@ import { createSupabaseUsSupplierStore } from './us-supplier-store';
 import { requireUsWorkspaceAccess } from './saas-authority-d1';
 import { UsAuthorityError } from './saas-authority';
 import { ErpError } from './erp-contract';
+import { prepareUsSupplierAnalysis } from './us-supplier-analysis-bindings';
 
 async function enabled(): Promise<boolean> {
   if (!await erpServerDependencies.enabled()) return false;
@@ -35,10 +36,10 @@ export const usSupplierHandlers = createUsSupplierHandlers({
       throw error;
     }
   },
-  // Intentionally absent: legacy CHF quota/consent cannot admit US inference.
-  // Installing the real analyzer requires separately tested per-US-workspace
-  // budget, processing consent, leases and retries. No API call or cost today.
-  analyzer: async () => null,
+  // The bound provider remains dormant without explicit US budget, company
+  // consent and private first-dispatch reservation. Legacy CH grants cannot
+  // authorize it; results are proposals, never financial approval.
+  prepareAnalysis: prepareUsSupplierAnalysis,
   newId: () => crypto.randomUUID(),
   async rateLimit(request, actor, operation) {
     await (await import('../account')).enforceAccountRateLimit(request, `international-us-supplier-${operation}`, `${actor.organizationId}:${actor.userId}`, operation === 'read' ? 600 : 60);
