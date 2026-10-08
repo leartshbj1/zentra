@@ -36,6 +36,8 @@ const legacyPgTables = [
 const usBusinessTables = [
   'zentra_us_erp_heads', 'zentra_us_erp_records', 'zentra_us_erp_receipts', 'zentra_us_erp_ledger_audit',
   'zentra_us_erp_streams', 'zentra_us_erp_events',
+  'zentra_us_tax_provider_bindings', 'zentra_us_tax_provider_binding_changes',
+  'zentra_us_tax_operations', 'zentra_us_tax_invoice_links',
 ];
 let chPgBefore: Record<string, unknown[]>;
 let d1MigrationSources: { name: string; sql: string }[];
@@ -198,6 +200,7 @@ describe.runIf(enabled)('US creation service → full SQLite D1 schema → real 
       '20261008013200_international_tax_proof_allowlist.sql',
       '20261008034422_international_us_seller_profile.sql',
       '20261008044402_international_us_tax_profile.sql',
+      '20261008060826_international_us_tax_operations.sql',
     ]);
     for (const name of internationalMigrations) {
       await postgres.exec(await readFile(new URL('../../supabase/migrations/' + name, import.meta.url), 'utf8'));
