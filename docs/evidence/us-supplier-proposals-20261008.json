@@ -1,0 +1,512 @@
+{
+  "schemaVersion": 1,
+  "phase": "US supplier document proposals and explicit atomic vendor-bill approval",
+  "date": "2026-10-08",
+  "recordedAt": "2026-10-08T20:42:54.924Z",
+  "baseCommit": "1e100d26f17594c5bfa62d24c151b60372856d38",
+  "branch": "codex/international-runtime",
+  "sourceScope": "Isolated web source; no hosted migration, mail, TypeSafe call, native binary, Stripe operation or US deployment.",
+  "sources": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/supplier-proposals/route.ts",
+      "bytes": 473,
+      "sha256": "fad638eb0a56292fec53a57ba270215263e06f94e3bd016d7a322c3bb531eb4d",
+      "lfSha256": "fad638eb0a56292fec53a57ba270215263e06f94e3bd016d7a322c3bb531eb4d"
+    },
+    {
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "bytes": 5806,
+      "sha256": "1913bb4a85e3b088d5135ce7d22b222e306850733e0b10aaafa7144b2c9479bc",
+      "lfSha256": "a33c32b7ee514d52e8359fa0f8cf22ae08a9ff16a3fd2adf208e74b599982215"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "bytes": 65353,
+      "sha256": "df662b399e51cc5f3008d5ae7bf93c7a3f8385520533811d036d8d93e20de815",
+      "lfSha256": "07f81357931842fd3d502af3d03c00ba614c7320cc73ab6f9b091d46b3549ba1"
+    },
+    {
+      "path": "components/account/us-supplier-proposals.css",
+      "bytes": 5076,
+      "sha256": "f6f8ba2b37f74827245acd20850f300b98db882b0c70a57288be0962f46b73a7",
+      "lfSha256": "f6f8ba2b37f74827245acd20850f300b98db882b0c70a57288be0962f46b73a7"
+    },
+    {
+      "path": "components/account/us-supplier-proposals.tsx",
+      "bytes": 25148,
+      "sha256": "b757ce85c5a1ff4dabfd4d349918f19b0e2d60f961cd0b957bc5c3d6d1944df8",
+      "lfSha256": "b757ce85c5a1ff4dabfd4d349918f19b0e2d60f961cd0b957bc5c3d6d1944df8"
+    },
+    {
+      "path": "docs/internationalization/US-SUPPLIER-MAIL-DELIVERY-20261008.md",
+      "bytes": 11804,
+      "sha256": "8e2ec0b3b347d406bcdeab18c7c1de15e0d5572b7df5864cd12ece27e03f0968",
+      "lfSha256": "8e2ec0b3b347d406bcdeab18c7c1de15e0d5572b7df5864cd12ece27e03f0968"
+    },
+    {
+      "path": "docs/internationalization/US-SUPPLIER-MAIL-PLAN-20261008.md",
+      "bytes": 2190,
+      "sha256": "e388b9ea451750986f7ad30fd4845cca33092601fe631d504ece478c77cb40ae",
+      "lfSha256": "e388b9ea451750986f7ad30fd4845cca33092601fe631d504ece478c77cb40ae"
+    },
+    {
+      "path": "docs/internationalization/US-SUPPORT-AUTOMATION-RESEARCH-20261008.md",
+      "bytes": 19438,
+      "sha256": "f346adb1e07ad4c8ce8052af81d756723c28aac12b55e7d20c1a3ccc9a5c6be9",
+      "lfSha256": "f346adb1e07ad4c8ce8052af81d756723c28aac12b55e7d20c1a3ccc9a5c6be9"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-copy.ts",
+      "bytes": 18153,
+      "sha256": "fba3d8504d3b346163ada02245a9b70f72cb83f605fa496486f2ad49fafd3c38",
+      "lfSha256": "e9bf5277e7f8e7090c1f1f0f0e2af8d8519131963e43755a517a853bb2015a52"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-session.test.ts",
+      "bytes": 22453,
+      "sha256": "61a0dc8812c0b6edc23ecb21f2d68ee7aae53612d4d156fc93822111b73f87e0",
+      "lfSha256": "61a0dc8812c0b6edc23ecb21f2d68ee7aae53612d4d156fc93822111b73f87e0"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-session.ts",
+      "bytes": 16489,
+      "sha256": "140e7b55ad930e45cc839a5ec4111e8c587407bdf6feed966bcb2b6b87a9ac35",
+      "lfSha256": "140e7b55ad930e45cc839a5ec4111e8c587407bdf6feed966bcb2b6b87a9ac35"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-workbench.browser.test.ts",
+      "bytes": 19574,
+      "sha256": "cf1c366172e2457a9a3ebb064f567025df3a37f44f9d50b9170f5f29bdd20118",
+      "lfSha256": "cf1c366172e2457a9a3ebb064f567025df3a37f44f9d50b9170f5f29bdd20118"
+    },
+    {
+      "path": "lib/international/browser-us-supplier.browser.test.ts",
+      "bytes": 24273,
+      "sha256": "516b3fceb626f1099467bd209438fbb97478160f703f243699b0161e7f433103",
+      "lfSha256": "28036cccde89036f05ff6ae4174cef1ed7aeef839a595bb502b1d1c02e92be2b"
+    },
+    {
+      "path": "lib/international/erp-receipt.ts",
+      "bytes": 2478,
+      "sha256": "eeb2cfb21f5e6b79ae2387778d894b1af6b14316be6dc5d2f1d3cfb676158e97",
+      "lfSha256": "c9aeaa06cbe94b379f2602111ca157b70799ac0d9d562bdd665f5ec310f020fc"
+    },
+    {
+      "path": "lib/international/runtime-store.ts",
+      "bytes": 3953,
+      "sha256": "3579dca00e2415757f8b42a5397c661376a4c814e38124c34271552d3a3c55c1",
+      "lfSha256": "23b69c2784efcefa34fde4c81350595c81c032ee13d00aa1fc6779945d084695"
+    },
+    {
+      "path": "lib/international/us-supplier-bindings.test.ts",
+      "bytes": 1917,
+      "sha256": "3b34306152d792596962801b125834063b1321d7b6b46b30a8633df7bb1bb7a1",
+      "lfSha256": "3b34306152d792596962801b125834063b1321d7b6b46b30a8633df7bb1bb7a1"
+    },
+    {
+      "path": "lib/international/us-supplier-bindings.ts",
+      "bytes": 2893,
+      "sha256": "8b50ff59fef9a036bfc668c1f8d6cec963a2aa7c94176fc49b55056376fdcd80",
+      "lfSha256": "8b50ff59fef9a036bfc668c1f8d6cec963a2aa7c94176fc49b55056376fdcd80"
+    },
+    {
+      "path": "lib/international/us-supplier-contract.ts",
+      "bytes": 3213,
+      "sha256": "050f740a5dcc0ef6ac78357cc717ea98f1bd1c49f3d7fe0e284d5f2d4a8f2b4c",
+      "lfSha256": "050f740a5dcc0ef6ac78357cc717ea98f1bd1c49f3d7fe0e284d5f2d4a8f2b4c"
+    },
+    {
+      "path": "lib/international/us-supplier-extraction.test.ts",
+      "bytes": 21897,
+      "sha256": "a103afa4951079351da781698122e7a4c7d7d5f40296ec1bc9317ca0455b60d3",
+      "lfSha256": "a103afa4951079351da781698122e7a4c7d7d5f40296ec1bc9317ca0455b60d3"
+    },
+    {
+      "path": "lib/international/us-supplier-extraction.ts",
+      "bytes": 19827,
+      "sha256": "2ccfc73e0cb08dee22e25c66cc72c1389b511a3601a27d3bf0cf4cd6a4207b4e",
+      "lfSha256": "2ccfc73e0cb08dee22e25c66cc72c1389b511a3601a27d3bf0cf4cd6a4207b4e"
+    },
+    {
+      "path": "lib/international/us-supplier-proposal.test.ts",
+      "bytes": 22980,
+      "sha256": "87314786ece9147250565a96927d85af4680d3bb7110c0a9390c67840bb5f0f3",
+      "lfSha256": "87314786ece9147250565a96927d85af4680d3bb7110c0a9390c67840bb5f0f3"
+    },
+    {
+      "path": "lib/international/us-supplier-proposal.ts",
+      "bytes": 8424,
+      "sha256": "754b560a5b4cf2f58e34b643f4165a8bcaa2395be9d5888c124123ade3d2672a",
+      "lfSha256": "276c81f55e21092f45b8850545ac8e42acaa3aa0ba193ec8d22a26e98bfa424e"
+    },
+    {
+      "path": "lib/international/us-supplier-server.test.ts",
+      "bytes": 17330,
+      "sha256": "5315c5b86dda18856b2e49154c51b228f9585b99286266b7bc59879e1125bfd3",
+      "lfSha256": "5315c5b86dda18856b2e49154c51b228f9585b99286266b7bc59879e1125bfd3"
+    },
+    {
+      "path": "lib/international/us-supplier-server.ts",
+      "bytes": 17798,
+      "sha256": "b27081356307506213f91192ce01300cedcd064a486162574a0ac19571321943",
+      "lfSha256": "b27081356307506213f91192ce01300cedcd064a486162574a0ac19571321943"
+    },
+    {
+      "path": "lib/international/us-supplier-store.test.ts",
+      "bytes": 15294,
+      "sha256": "cff1c2eead3272b9b802bad1673478838c9f4d71d219ef59fd6eeb82e4389bb8",
+      "lfSha256": "cff1c2eead3272b9b802bad1673478838c9f4d71d219ef59fd6eeb82e4389bb8"
+    },
+    {
+      "path": "lib/international/us-supplier-store.ts",
+      "bytes": 9831,
+      "sha256": "9a4e22d6de6006ed351e97fad16121b8ad00d8570c18e0dca5b407dd61786cd6",
+      "lfSha256": "9a4e22d6de6006ed351e97fad16121b8ad00d8570c18e0dca5b407dd61786cd6"
+    },
+    {
+      "path": "lib/international/us-supplier.postgres.test.ts",
+      "bytes": 33265,
+      "sha256": "3267b61f3710289e0f42d42b31225a8659b706a160e254795259627a54ffb120",
+      "lfSha256": "3267b61f3710289e0f42d42b31225a8659b706a160e254795259627a54ffb120"
+    },
+    {
+      "path": "lib/international/workspace-creation.integration.test.ts",
+      "bytes": 20031,
+      "sha256": "9e9b7fcc3f2f07be9ccbc9fb2e84d7daf77597546c7ae7bef78578fbc53f741a",
+      "lfSha256": "9e9b7fcc3f2f07be9ccbc9fb2e84d7daf77597546c7ae7bef78578fbc53f741a"
+    },
+    {
+      "path": "supabase/migrations/20261008194930_international_us_supplier_proposals.sql",
+      "bytes": 38496,
+      "sha256": "61d2e26795d86daeba2d0b02792b28a5c9d9b4c33c7ff402f158e48f4dd4d6fd",
+      "lfSha256": "61d2e26795d86daeba2d0b02792b28a5c9d9b4c33c7ff402f158e48f4dd4d6fd"
+    }
+  ],
+  "created": [
+    "app/api/international/workspaces/[organizationId]/supplier-proposals/route.ts",
+    "components/account/us-supplier-proposals.css",
+    "components/account/us-supplier-proposals.tsx",
+    "docs/internationalization/US-SUPPLIER-MAIL-DELIVERY-20261008.md",
+    "docs/internationalization/US-SUPPLIER-MAIL-PLAN-20261008.md",
+    "docs/internationalization/US-SUPPORT-AUTOMATION-RESEARCH-20261008.md",
+    "lib/international/browser-us-supplier-copy.ts",
+    "lib/international/browser-us-supplier-session.test.ts",
+    "lib/international/browser-us-supplier-session.ts",
+    "lib/international/browser-us-supplier-workbench.browser.test.ts",
+    "lib/international/browser-us-supplier.browser.test.ts",
+    "lib/international/erp-receipt.ts",
+    "lib/international/us-supplier-bindings.test.ts",
+    "lib/international/us-supplier-bindings.ts",
+    "lib/international/us-supplier-contract.ts",
+    "lib/international/us-supplier-extraction.test.ts",
+    "lib/international/us-supplier-extraction.ts",
+    "lib/international/us-supplier-proposal.test.ts",
+    "lib/international/us-supplier-proposal.ts",
+    "lib/international/us-supplier-server.test.ts",
+    "lib/international/us-supplier-server.ts",
+    "lib/international/us-supplier-store.test.ts",
+    "lib/international/us-supplier-store.ts",
+    "lib/international/us-supplier.postgres.test.ts",
+    "supabase/migrations/20261008194930_international_us_supplier_proposals.sql"
+  ],
+  "modified": [
+    "app/compte/espaces/us/[organizationId]/page.tsx",
+    "components/account/us-erp-workbench.tsx",
+    "lib/international/runtime-store.ts",
+    "lib/international/workspace-creation.integration.test.ts"
+  ],
+  "preserved": [
+    {
+      "kind": "native",
+      "directory": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "expected": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "clean": true
+    },
+    {
+      "kind": "public-site",
+      "directory": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "expected": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "clean": true
+    }
+  ],
+  "tests": [
+    {
+      "path": ".qa/us-mail/international-final-v2.json",
+      "bytes": 1900118,
+      "sha256": "5ae7f435c5905b2c189e5decb730a4ce7d76f3f2b1df6f65d9df1eecbb00543f",
+      "lfSha256": "5ae7f435c5905b2c189e5decb730a4ce7d76f3f2b1df6f65d9df1eecbb00543f",
+      "scope": "Complete international source/HTTP/SQL suite; optional browser tests excluded here",
+      "testFiles": 120,
+      "total": 4722,
+      "passed": 4710,
+      "failed": 0,
+      "skipped": 12
+    },
+    {
+      "path": ".qa/us-mail/ch-final.json",
+      "bytes": 17102,
+      "sha256": "5d48ff66f498626c4081287b919c4086aefbd8f42433211eaf3e58cf0e4352a6",
+      "lfSha256": "5d48ff66f498626c4081287b919c4086aefbd8f42433211eaf3e58cf0e4352a6",
+      "scope": "52 Swiss Auth, Stripe Checkout/contract/webhook tests",
+      "testFiles": 6,
+      "total": 52,
+      "passed": 52,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": ".qa/us-mail/functional-final.json",
+      "bytes": 13011,
+      "sha256": "b046037ee1f0696c05f05c583c8364f173e73d8732b08eb34c34d173197133ee",
+      "lfSha256": "b046037ee1f0696c05f05c583c8364f173e73d8732b08eb34c34d173197133ee",
+      "scope": "30 session/review tests and one actual browser component/HTTP/domain journey; fictitious Auth/analyzer/RAM",
+      "testFiles": 2,
+      "total": 31,
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": ".qa/us-mail/workbench-after-fix.json",
+      "bytes": 1000,
+      "sha256": "e90831a5f0564d05869c014aafefe86091b64c2b46087e655ca030fa6e722dc0",
+      "lfSha256": "e90831a5f0564d05869c014aafefe86091b64c2b46087e655ca030fa6e722dc0",
+      "scope": "Actual workbench cross-channel supplier/bank replay locks; fictitious Auth/analyzer/RAM",
+      "testFiles": 1,
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "migration": {
+    "path": "supabase/migrations/20261008194930_international_us_supplier_proposals.sql",
+    "generatedWith": "Supabase CLI 2.120.0",
+    "additive": true,
+    "hostedApplied": false,
+    "tests": "48 real disposable PostgreSQL/WASM tests, full migration chain; serial instance, not hosted multi-connection/load"
+  },
+  "bindings": {
+    "requiredSchema": 4,
+    "supplierFlag": "INTERNATIONAL_US_SUPPLIER_MAIL_ENABLED",
+    "defaultClosed": true,
+    "analyzer": null,
+    "analysisAvailable": false,
+    "actualUsMailDelegation": false,
+    "actualOriginalArchive": false,
+    "salesTaxProvider": null
+  },
+  "visual": {
+    "variants": 16,
+    "languages": [
+      "fr",
+      "de",
+      "it",
+      "en"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "widths": [
+      1200,
+      320
+    ],
+    "mobileTextPercent": 200,
+    "observedOverflow": 0,
+    "additionalWidth": 390,
+    "physicalDevice": false,
+    "note": "Actual React and self-hosted Geist; confirmation captures preceded two currency fixture corrections and an import-file-loading guard. Final functional tests pass without another visual batch."
+  },
+  "baseline": [
+    {
+      "path": ".qa/us-mail/supplier-currency-baseline.json",
+      "bytes": 19778,
+      "sha256": "94d7e47c223c99ab6e24532fb40d592d4133b4702b7f35ffaef60216f6b2f772",
+      "lfSha256": "94d7e47c223c99ab6e24532fb40d592d4133b4702b7f35ffaef60216f6b2f772"
+    },
+    {
+      "path": ".qa/us-mail/workbench-before-fix.json",
+      "bytes": 2272,
+      "sha256": "21ace55384d96bb74e9c4030f3d3b3a426e48e0f0fc428246d37cdf08957f8e2",
+      "lfSha256": "21ace55384d96bb74e9c4030f3d3b3a426e48e0f0fc428246d37cdf08957f8e2"
+    }
+  ],
+  "quality": {
+    "typecheck": {
+      "exitCode": 0,
+      "log": ".qa/us-mail/typecheck-final-v2.log"
+    },
+    "syntaxLint": {
+      "exitCode": 0,
+      "log": ".qa/us-mail/syntax-lint-final-v2.log"
+    },
+    "typedLint": {
+      "executed": false,
+      "reason": "Windows tsgolint launch UNKNOWN/-4094; no claim of typed lint passing"
+    },
+    "productionBuild": {
+      "exitCode": 0,
+      "log": ".qa/us-mail/build-final-v3.log",
+      "priorAttempts": [
+        {
+          "log": ".qa/us-mail/build-final.log",
+          "exitCode": 0,
+          "beforeCallbackFix": true
+        },
+        {
+          "log": ".qa/us-mail/build-final-v2.log",
+          "exitCode": -1073740791,
+          "terminatedDuringTransform": true,
+          "provenCause": null
+        }
+      ]
+    },
+    "brandAssets": {
+      "exitCode": 0,
+      "log": ".qa/us-mail/brand-final.log"
+    },
+    "whitespace": {
+      "exitCode": 0,
+      "log": ".qa/us-mail/diff-final.log"
+    }
+  },
+  "publicMenu": {
+    "publishedVersion": 355,
+    "sourceCommit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "deployment": "appgdep_6ac79b783e588191aef4577853622e7e",
+    "verifiedStatus": "succeeded",
+    "sourceCases": 24,
+    "currentLivePixelReview": false,
+    "independentOfUsSource": true
+  },
+  "logs": [
+    {
+      "path": ".qa/us-mail/international-final.log",
+      "bytes": 117,
+      "sha256": "0930977121934c5d8c8450ed4bfc73d65141663767f39abb9856c2fae8358115",
+      "lfSha256": "92695fa16dc5f3e0440e0896607612b0185d6902163094f21be224adf9dcf362"
+    },
+    {
+      "path": ".qa/us-mail/international-final-v2.log",
+      "bytes": 120,
+      "sha256": "edf39e206bd094e014cdb7f426628f25bb77fc956c6085ac6cf5b3f70e4a2221",
+      "lfSha256": "6e7a1024b5d03da7b6e0b8d43a39d910f897b75e2b31c70b4dca37c85b7403f2"
+    },
+    {
+      "path": ".qa/us-mail/ch-final.log",
+      "bytes": 106,
+      "sha256": "16c802a94b32e4831e01355033ca8c5c7b7319cb33e1e6676ec90b92da3e4835",
+      "lfSha256": "63a6d9ba6c1fcfc565e6853329f80e763fd0b26effe4021705bd978f86772bb7"
+    },
+    {
+      "path": ".qa/us-mail/functional-final.log",
+      "bytes": 6607,
+      "sha256": "8504fdf56420ac9e69ca6dbeaca79c0ea03678fecea870bf40ea03676681d899",
+      "lfSha256": "850195895be738d333a483f6830823193597fee1ad926f02442afe9a7c690071"
+    },
+    {
+      "path": ".qa/us-mail/workbench-before-fix.log",
+      "bytes": 2954,
+      "sha256": "76d41212e1acb5fae6ae01d43d063ad1a53c8d7ef22421cf8f4bbb4dee9281e4",
+      "lfSha256": "4e24e59a0a84a2ecce3977b0de6304b4f8e641873f7500b312ab9710d6bc85bd"
+    },
+    {
+      "path": ".qa/us-mail/workbench-after-fix.log",
+      "bytes": 1054,
+      "sha256": "64a3315eab46ac3d65aad78b4f463fa8e06e27ac17462cdfcbb6b08426b4dda4",
+      "lfSha256": "27dcd57ee96e9b436411dc5a151d84adb1806fb82fc4fc4c0669933cbadc65cd"
+    },
+    {
+      "path": ".qa/us-mail/typecheck-final-v2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lfSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-mail/syntax-lint-final-v2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lfSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-mail/build-final.log",
+      "bytes": 17390,
+      "sha256": "2508bfb12e3b8b5dfd1bbd7227b3b208ca516778e25a3073007f6307a093492c",
+      "lfSha256": "f92b7bc4dbc530ca418341accafbcc06a63b709b5c5537fe6aadd015d4967350"
+    },
+    {
+      "path": ".qa/us-mail/build-final-v2.log",
+      "bytes": 327,
+      "sha256": "40d0c547aeaf3875aeab18a5c37c2dd207cf5d3a01c6dbac064b02b5fdc21011",
+      "lfSha256": "33bc5657e19cfe6e545859b611d40dabf34214cf1a2ed02538f9a8a521277329"
+    },
+    {
+      "path": ".qa/us-mail/build-final-v3.log",
+      "bytes": 17390,
+      "sha256": "418071b26e3a21d41d25644cb3fbe2438ff0b40ae98884915973b47a9015b156",
+      "lfSha256": "1501224310b422893c905ea92baf3066ffa7aa5ea49a80a0868d112b2fc17d66"
+    },
+    {
+      "path": ".qa/us-mail/brand-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lfSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-mail/diff-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lfSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "supportingEvidence": [
+    {
+      "path": ".qa/us-mail/extraction-evidence.json",
+      "bytes": 4965,
+      "sha256": "c1b689ae2a9c6c2a66c28b9d3ffbe5bdb79d1f91df602cc6ee615dc73e20d74f",
+      "lfSha256": "1f71c683a884682b5a36698e33279b7ac03af1b725ec4c8fbfe1c4baf0ce7812"
+    },
+    {
+      "path": ".qa/us-mail/proposal-evidence.json",
+      "bytes": 5398,
+      "sha256": "d9ac3660318f6b0da806f44efb660e0baed2fa803cff3344d35e4a47b06ee5a3",
+      "lfSha256": "d856480c1c209b7d089c318c3aa29c435c43daec991cf3205807fafa61065392"
+    },
+    {
+      "path": ".qa/us-mail/supplier-persistence-evidence-v2.json",
+      "bytes": 4504,
+      "sha256": "e83b0bf79fda4807935f0d970da5ed57fe90d4be3eb7ba22046a79779528a766",
+      "lfSha256": "e83b0bf79fda4807935f0d970da5ed57fe90d4be3eb7ba22046a79779528a766"
+    },
+    {
+      "path": ".qa/us-mail/ui-source-freeze.json",
+      "bytes": 9513,
+      "sha256": "fb1c9b6f12ebb36c55911a792de02e4482665bff944bb3bd23a583038ae479e7",
+      "lfSha256": "ae7279120bbcd00274d46a718f6a782c9a0770a64574baad66cae74d0ac14c86"
+    },
+    {
+      "path": ".qa/us-mail/workbench-source-freeze.json",
+      "bytes": 4367,
+      "sha256": "454b41f50a4c5060680c2306051d4150f55ebc554effb840256a558699bc7b2e",
+      "lfSha256": "5f21f78bdeb6e3890b3c9b94c6966c456689029e1a4901b343d512df28ff85f9"
+    },
+    {
+      "path": ".qa/us-mail/workbench/evidence.json",
+      "bytes": 523,
+      "sha256": "8ef90ebbb7fff0ef77df3972afbbc2b059f1a43cfac9807455659f9ed6d730df",
+      "lfSha256": "8ef90ebbb7fff0ef77df3972afbbc2b059f1a43cfac9807455659f9ed6d730df"
+    }
+  ],
+  "limits": [
+    "No production service or regulatory certification",
+    "No actual Jev accuracy/quota/provider measurement",
+    "No real mail, original PDF archive or OCR",
+    "No multi-device or 150-tenant load proof",
+    "No native release",
+    "Financial review still explicit; no tax rate/FX/automatic payment",
+    "Source proposal propagation between browser sessions remains separate work"
+  ]
+}
