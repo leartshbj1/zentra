@@ -55,7 +55,9 @@ export interface WorkspaceCreationIntent {
   readonly companyName: string;
   readonly fingerprint: string;
   readonly configuration: CompanyConfiguration;
-  readonly state: 'reserved' | 'postgres_confirmed';
+  readonly state: 'reserved' | 'postgres_confirmed' | 'ready';
+  /** Set only by the separate atomic, server-verified subscription admission. */
+  readonly ownSubscriptionId?: string;
   readonly receipt: WorkspaceCreationReceipt | null;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -88,7 +90,8 @@ export function validateCreationReceipt(value: unknown, intent: WorkspaceCreatio
     return { creationId: intent.creationId, organizationId: intent.organizationId, actorUserId: intent.actorUserId, requestId: intent.requestId, configurationFingerprint: intent.fingerprint, configuration, revision: 1, updatedBy: intent.actorUserId, updatedAt: fields.updatedAt, replayed: fields.replayed };
   } catch { throw new WorkspaceCreationError('service_unavailable', 503); }
 }
-/** No organization, owner membership, subscription or business entitlement is fabricated here. */
+/** This creator never fabricates an entitlement. A ready replay must come from
+ * the separate durable admission, not a submitted subscription or country. */
 export async function createOrResumeUsWorkspace(actorUserId: string, request: WorkspaceCreationRequest, ports: WorkspaceCreationPorts): Promise<WorkspaceCreationIntent> {
   creationUuid(actorUserId);
   request = validateWorkspaceCreationRequest(request);
@@ -116,5 +119,5 @@ export async function createOrResumeUsWorkspace(actorUserId: string, request: Wo
   return intent;
 }
 export function publicWorkspaceCreation(intent: WorkspaceCreationIntent) {
-  return { creationId: intent.creationId, organizationId: intent.organizationId, requestId: intent.requestId, companyName: intent.companyName, country: 'US', currency: 'USD', state: intent.state, configuration: publicCompanyConfiguration(intent.configuration), setupStatus: intent.state === 'reserved' ? 'confirmation_pending' : 'us_subscription_required', createdAt: intent.createdAt, updatedAt: intent.updatedAt };
+  return { creationId: intent.creationId, organizationId: intent.organizationId, requestId: intent.requestId, companyName: intent.companyName, country: 'US', currency: 'USD', state: intent.state, configuration: publicCompanyConfiguration(intent.configuration), setupStatus: intent.state === 'reserved' ? 'confirmation_pending' : intent.state === 'ready' ? 'ready' : 'us_subscription_required', createdAt: intent.createdAt, updatedAt: intent.updatedAt };
 }

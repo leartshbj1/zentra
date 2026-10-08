@@ -2,13 +2,13 @@ import { canonicalCreationJson, creationUuid, validateCreationReceipt, Workspace
 import { validateCompanyConfiguration } from './country-config';
 
 type CreationDatabase = Pick<D1Database, 'prepare'>;
-interface Row { creation_id: string; organization_id: string; actor_user_id: string; request_id: string; confirmation_version: number; company_name: string; configuration_fingerprint: string; configuration_json: string; state: string; pg_receipt_json: string | null; own_subscription_id: string | null; created_at: string; updated_at: string }
-function fromRow(row: Row): WorkspaceCreationIntent {
+export interface WorkspaceCreationRow { creation_id: string; organization_id: string; actor_user_id: string; request_id: string; confirmation_version: number; company_name: string; configuration_fingerprint: string; configuration_json: string; state: string; pg_receipt_json: string | null; own_subscription_id: string | null; created_at: string; updated_at: string }
+export function workspaceCreationIntentFromRow(row: WorkspaceCreationRow): WorkspaceCreationIntent {
   try {
     const configuration = validateCompanyConfiguration(JSON.parse(row.configuration_json));
     for (const id of [row.creation_id, row.organization_id, row.actor_user_id, row.request_id]) creationUuid(id);
-    if (configuration.organizationId !== row.organization_id || configuration.country !== 'US' || configuration.currency !== 'USD' || configuration.taxConfiguration.status !== 'unconfigured' || row.confirmation_version !== 1 || !/^[0-9a-f]{64}$/.test(row.configuration_fingerprint) || typeof row.company_name !== 'string' || !row.company_name || row.company_name.length > 160 || !Number.isFinite(Date.parse(row.created_at)) || !Number.isFinite(Date.parse(row.updated_at)) || !['reserved','postgres_confirmed'].includes(row.state) || row.own_subscription_id !== null) throw new Error('Invalid intent');
-    const intent: WorkspaceCreationIntent = { creationId: row.creation_id, organizationId: row.organization_id, actorUserId: row.actor_user_id, requestId: row.request_id, confirmationVersion: 1, companyName: row.company_name, fingerprint: row.configuration_fingerprint, configuration, state: row.state as WorkspaceCreationIntent['state'], receipt: null, createdAt: row.created_at, updatedAt: row.updated_at };
+    if (configuration.organizationId !== row.organization_id || configuration.country !== 'US' || configuration.currency !== 'USD' || configuration.taxConfiguration.status !== 'unconfigured' || row.confirmation_version !== 1 || !/^[0-9a-f]{64}$/.test(row.configuration_fingerprint) || typeof row.company_name !== 'string' || !row.company_name || row.company_name.length > 160 || !Number.isFinite(Date.parse(row.created_at)) || !Number.isFinite(Date.parse(row.updated_at)) || !['reserved','postgres_confirmed','ready'].includes(row.state) || (row.state === 'ready' ? typeof row.own_subscription_id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(row.own_subscription_id) : row.own_subscription_id !== null)) throw new Error('Invalid intent');
+    const intent: WorkspaceCreationIntent = { creationId: row.creation_id, organizationId: row.organization_id, actorUserId: row.actor_user_id, requestId: row.request_id, confirmationVersion: 1, companyName: row.company_name, fingerprint: row.configuration_fingerprint, configuration, state: row.state as WorkspaceCreationIntent['state'], ...(row.state === 'ready' ? { ownSubscriptionId: row.own_subscription_id! } : {}), receipt: null, createdAt: row.created_at, updatedAt: row.updated_at };
     const receipt = row.pg_receipt_json === null ? null : validateCreationReceipt(JSON.parse(row.pg_receipt_json), intent);
     if ((intent.state === 'reserved') !== (receipt === null)) throw new Error('Invalid intent state');
     return { ...intent, receipt };
@@ -22,8 +22,8 @@ function dbFailure(error: unknown): WorkspaceCreationError {
 export function d1WorkspaceCreationStore(database: CreationDatabase): WorkspaceCreationStore {
   const find = async (actorUserId: string, requestId: string) => {
     try {
-      const row = await database.prepare('SELECT * FROM international_workspace_creation_intents WHERE actor_user_id=? AND request_id=?').bind(actorUserId, requestId).first<Row>();
-      return row ? fromRow(row) : null;
+      const row = await database.prepare('SELECT * FROM international_workspace_creation_intents WHERE actor_user_id=? AND request_id=?').bind(actorUserId, requestId).first<WorkspaceCreationRow>();
+      return row ? workspaceCreationIntentFromRow(row) : null;
     } catch (error) { throw dbFailure(error); }
   };
   return {
@@ -44,7 +44,7 @@ export function d1WorkspaceCreationStore(database: CreationDatabase): WorkspaceC
         await database.prepare(`UPDATE international_workspace_creation_intents SET state='postgres_confirmed',pg_receipt_json=?,updated_at=?
           WHERE creation_id=? AND organization_id=? AND actor_user_id=? AND request_id=? AND configuration_fingerprint=? AND state='reserved'`).bind(canonicalCreationJson(receipt), timestamp, intent.creationId, intent.organizationId, intent.actorUserId, intent.requestId, intent.fingerprint).run();
         const saved = await find(intent.actorUserId, intent.requestId);
-        if (!saved || saved.creationId !== intent.creationId || saved.organizationId !== intent.organizationId || saved.fingerprint !== intent.fingerprint || saved.state !== 'postgres_confirmed' || !saved.receipt || canonicalCreationJson({ ...saved.receipt, replayed: false }) !== canonicalCreationJson({ ...receipt, replayed: false })) throw new WorkspaceCreationError('service_unavailable', 503);
+        if (!saved || saved.creationId !== intent.creationId || saved.organizationId !== intent.organizationId || saved.fingerprint !== intent.fingerprint || !['postgres_confirmed','ready'].includes(saved.state) || !saved.receipt || canonicalCreationJson({ ...saved.receipt, replayed: false }) !== canonicalCreationJson({ ...receipt, replayed: false })) throw new WorkspaceCreationError('service_unavailable', 503);
         return saved;
       } catch (error) { throw dbFailure(error); }
     },

@@ -41,7 +41,8 @@ describe('native country transport and fresh authorization', () => {
     const s = setup(); const response = await s.handlers.GET(request(), org);
     expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ organizationId: org, revision: 4, configuration: { country: 'US', currency: 'USD' } });
     expect(s.deviceSession).toHaveBeenCalledTimes(2); expect(s.user).not.toHaveBeenCalled(); expect(s.membership).not.toHaveBeenCalled();
-    expect(s.management).toHaveBeenNthCalledWith(1, org); expect(s.management).toHaveBeenNthCalledWith(2, org);
+    const scopedActor = { organizationId:org, userId:device.userId, role:'owner' };
+    expect(s.management).toHaveBeenNthCalledWith(1, org, scopedActor); expect(s.management).toHaveBeenNthCalledWith(2, org, scopedActor);
     expect(s.rateLimit).toHaveBeenCalledWith(expect.any(Request), { organizationId: org, userId: device.userId, role: 'owner' }, 'read');
     expect(response.headers.get('Cache-Control')).toContain('no-store'); expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');
   });

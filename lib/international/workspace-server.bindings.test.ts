@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountPublicError } from '../account-security';
-const f = vi.hoisted(() => ({ device: vi.fn(), membership: vi.fn(), user: vi.fn(), seats: vi.fn(), rate: vi.fn(), select: vi.fn(), rpc: vi.fn(), client: vi.fn() }));
+import { UsAuthorityError } from './saas-authority';
+const f = vi.hoisted(() => ({ device: vi.fn(), membership: vi.fn(), user: vi.fn(), seats: vi.fn(), rate: vi.fn(), select: vi.fn(), rpc: vi.fn(), client: vi.fn(), usMarker:vi.fn(), usAccess:vi.fn() }));
 vi.mock('../account', () => ({ requireDeviceSession: f.device, requireBrowserMembership: f.membership, enforceAccountRateLimit: f.rate }));
 vi.mock('../../app/zentra-auth', () => ({ getZentraUser: f.user }));
 vi.mock('../team-seats', () => ({ teamSeats: f.seats }));
 vi.mock('../supabase-server-runtime', () => ({ supabaseServerClient: f.client }));
+vi.mock('./saas-authority-d1', () => ({ isUsWorkspaceAdmission:f.usMarker, requireUsWorkspaceAccess:f.usAccess }));
 import { createWorkspaceCountryHandlers, workspaceCountryDependencies as binding } from './workspace-server';
 import type { CompanyConfiguration } from './types';
 
@@ -26,12 +28,17 @@ beforeEach(() => {
   vi.resetAllMocks();
   f.device.mockResolvedValue(session); f.membership.mockResolvedValue({ organizationId: org, role: 'owner' }); f.user.mockResolvedValue({ userId: actor.userId });
   f.seats.mockResolvedValue({ subscriptionActive: true }); f.rate.mockResolvedValue(undefined);
+  f.usMarker.mockResolvedValue(false);f.usAccess.mockResolvedValue({organizationId:org,userId:actor.userId,role:'owner'});
   f.select.mockImplementation(async (table: string) => table === 'zentra_workspaces' ? [{ organization_id: org }] : [{ organization_id: org, schema_version: 1, config: configuration, country: 'US', currency: 'USD', revision: 1, updated_by: actor.userId, updated_at: '2026-10-08T12:00:00Z' }]);
   f.rpc.mockResolvedValue({ organizationId: org, revision: 2, configuration, updatedBy: actor.userId, updatedAt: '2026-10-08T12:00:00Z', replayed: false });
   f.client.mockReturnValue({ select: f.select, rpc: f.rpc });
 });
 
 describe('actual country admission bindings', () => {
+  it('dispatches a new US browser membership to its own USD authority without a CHF fallback',async()=>{f.usMarker.mockResolvedValue(true);expect(await binding.membership(actor.userId,org,['owner'])).toEqual({organizationId:org,role:'owner'});expect(await binding.management(org,actor)).toBe(true);expect(f.usAccess).toHaveBeenCalledTimes(2);expect(f.membership).not.toHaveBeenCalled();expect(f.seats).not.toHaveBeenCalled();});
+  it('does not fall back to a paid CH plan for an expired new US workspace',async()=>{f.usMarker.mockResolvedValue(true);f.usAccess.mockRejectedValue(new UsAuthorityError('subscription_required',402));expect((await handlers().GET(request('GET',false),org)).status).toBe(402);expect(f.seats).not.toHaveBeenCalled();expect(f.client).not.toHaveBeenCalled();});
+  it('denies a US owner operation when the current role is a member',async()=>{f.usMarker.mockResolvedValue(true);f.usAccess.mockResolvedValue({organizationId:org,userId:actor.userId,role:'member'});expect((await handlers().PUT(request('PUT',false),org)).status).toBe(403);expect(f.rpc).not.toHaveBeenCalled();});
+  it('fails closed if US marker lookup fails, rather than selecting a Swiss fallback',async()=>{f.usMarker.mockRejectedValue(new UsAuthorityError('service_unavailable',503));expect((await handlers().GET(request('GET',false),org)).status).toBe(503);expect(f.seats).not.toHaveBeenCalled();expect(f.client).not.toHaveBeenCalled();});
   it('uses read-only browser identity checks without automatically claiming offered grants', async () => {
     await binding.user(); expect(f.user).toHaveBeenCalledWith({ offerAccess: false });
   });

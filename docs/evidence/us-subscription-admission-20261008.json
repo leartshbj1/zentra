@@ -1,0 +1,95 @@
+{
+  "phase": "US subscription admission",
+  "date": "2026-10-08",
+  "baseline": "c14aacc74ffd4d752cdbf22597a0e5f20f0f6df5",
+  "scope": "isolated local feature branch; not deployed",
+  "tests": {
+    "files": 74,
+    "passed": 2025,
+    "failed": 0,
+    "skipped": 63,
+    "total": 2088,
+    "runtime": "SQLite + local Miniflare/workerd D1 + PostgreSQL WASM",
+    "fullRepositorySuite": false,
+    "verifiedLiveStripePayment": false,
+    "hostedPostgresOrPhysicalDeviceProof": false
+  },
+  "checks": {
+    "typecheck": {
+      "exitCode": 0,
+      "log": ".qa/us-subscription-admission/typecheck.log"
+    },
+    "changedFilesLint": {
+      "exitCode": 0,
+      "log": ".qa/us-subscription-admission/lint.log",
+      "globalLintRun": false
+    },
+    "productionBuild": {
+      "exitCode": 0,
+      "log": ".qa/us-subscription-admission/build.log"
+    },
+    "historicalMigrations": {
+      "count": 106,
+      "unchangedCanonicalGitBlobs": true,
+      "comparison": "Canonical Git clean-filter blobs; raw worktree hashes are retained separately for Windows CRLF."
+    }
+  },
+  "createdFiles": [
+    ".env.international.example",
+    "drizzle/0087_international_saas_authorities.sql",
+    "lib/international/saas-authorities.migrations.test.ts",
+    "lib/international/saas-authority.ts",
+    "lib/international/saas-authority-d1.ts",
+    "lib/international/saas-authority.test.ts",
+    "lib/international/saas-authority.workerd.test.ts",
+    "scripts/qa-us-subscription-admission.mjs",
+    "docs/internationalization/US-SUBSCRIPTION-ADMISSION-20261008.md",
+    "docs/evidence/us-subscription-admission-20261008.json"
+  ],
+  "modifiedFiles": [
+    "drizzle/meta/_journal.json",
+    "lib/international/runtime-bindings.test.ts",
+    "lib/international/runtime-bindings.ts",
+    "lib/international/subscriptions.ts",
+    "lib/international/workspace-creation-d1.ts",
+    "lib/international/workspace-creation.ts",
+    "lib/international/workspace-server.bindings.test.ts",
+    "lib/international/workspace-server.native.test.ts",
+    "lib/international/workspace-server.ts"
+  ],
+  "sha256": {
+    ".env.international.example": "ad0a366d3e9388e54d6c009165349c86af40127edef472beff540a9297361a10",
+    "drizzle/0087_international_saas_authorities.sql": "1cc92fc0f30ca3fd5cc147e6c707f77fbaf915d2cd1e3d65f7d6d1499e11e200",
+    "lib/international/saas-authorities.migrations.test.ts": "2920e68cdb3ca80789a3b47a3bcc5431ed61e0b563a398d2f4508d9dfd9e9fa9",
+    "lib/international/saas-authority.ts": "7c5d132cdc681d5f95b42e9e43178c9fac78ba689e9fa91c5c2c10043e3cdbe7",
+    "lib/international/saas-authority-d1.ts": "ba03140257fabdbc420a9bf921639e2ace4a7c99c8f655bee37003983ac15c55",
+    "lib/international/saas-authority.test.ts": "dc6ae3a2f1ebcf6b852e9e9f804309c8df4cffbe03d3170d77d8f5a8b9602352",
+    "lib/international/saas-authority.workerd.test.ts": "677a82346789cb1207f6cc953ce165bedc9ae67d5888cd8bb095f4746aa042ef",
+    "scripts/qa-us-subscription-admission.mjs": "38b33bdc9cd48c39abf1275ebd37c06f4ae7eeabdc60645e8d0834a3edf943d0",
+    "drizzle/meta/_journal.json": "32ba1bb87bb46deeef46ab11f154f2db6eeeec7868822e825443606b60a8b41d",
+    "lib/international/runtime-bindings.test.ts": "3723e6d803edb525a9f1b0ca81858d62e1f1cd58ee366abb4e4f2f23bf1d6b2a",
+    "lib/international/runtime-bindings.ts": "5ee8563baed578b656c58e2e469d852b0dae3edfef33c15f10c896749ab84aae",
+    "lib/international/subscriptions.ts": "6effb147692f50f8a6bb696c503d6375c6aeddafea3f10a93a90b97dd5642b3d",
+    "lib/international/workspace-creation-d1.ts": "d245a0ad543b41b8e33735cad0b7ea93d08a3ade350078c9f37e4d4803d08ee6",
+    "lib/international/workspace-creation.ts": "5abdd847a6ecc37bb4e6f3d65164949b8c8d45fe86a7b1f26e12418bbb254074",
+    "lib/international/workspace-server.bindings.test.ts": "8b82a7ae72d046afd75359ddc6e505f32da082424de8fac7b4e50163ef721e53",
+    "lib/international/workspace-server.native.test.ts": "270b84f965b0e9113060e606ff20aa09c34160230c70784b01c9d4b96b89d3eb",
+    "lib/international/workspace-server.ts": "452e1ffaa529dad5944b31fbe227dcffb0823b91676fcea04bac11b7600edda5"
+  },
+  "logSha256": {
+    "tests.json": "4726b0ffdcc81f86127427d44923923cd0972f1d935fbb9e04d664ddd9866b0e",
+    "tests.log": "b25e011d24fda2f2beb5db033ed6977dd368dc04563e819369d2e89bda95cad1",
+    "selection.json": "560af12b4ab2c0861efb74e748939af7aed87b2dfedfeb39debcdc1dc1009b8c",
+    "migration-preservation.json": "b4e0ae4ae95eff5bb9a92184c941a1fc7c1dcb1effacff27e293ee61afea7937",
+    "typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lint.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build.log": "7249c121a7e8ac3f88079fbd48e8d7be101230dbde1120790fd2b66c8ca757c7"
+  },
+  "production": {
+    "migrationsApplied": false,
+    "usdPricesCreated": false,
+    "nativeRelease": false,
+    "checkoutOrWebhookChanged": false
+  },
+  "nextPhase": "metadata-only account workspace discovery, dedicated experimental US destination and fresh authorization"
+}

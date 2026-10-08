@@ -101,6 +101,12 @@ function assertOffer(offer: SaasSubscriptionOffer): void {
   }
 }
 
+/** Shared server validation; it does not create or approve a catalogue entry. */
+export function validateSubscriptionOffer(offer: SaasSubscriptionOffer): SaasSubscriptionOffer {
+  assertOffer(offer);
+  return Object.freeze({ ...offer });
+}
+
 export function resolveSubscriptionOffer(
   company: CompanyConfiguration,
   selection: {

@@ -4,6 +4,8 @@ import { readJsonObjectWithinLimit, RequestBodyError } from '@/lib/request-body'
 import { getWorkspaceCountry, putWorkspaceCountry, validateWorkspaceCountryWrite, WorkspaceCountryError, type WorkspaceCountryActor, type WorkspaceCountryState, type WorkspaceCountryStore } from './workspace-service';
 import type { CompanyConfiguration } from './types';
 import { publicCompanyConfiguration } from './public-projection';
+import { isUsWorkspaceAdmission, requireUsWorkspaceAccess } from './saas-authority-d1';
+import { UsAuthorityError } from './saas-authority';
 
 export interface WorkspaceCountryDeviceSession {
   readonly userId: string;
@@ -20,7 +22,7 @@ export interface WorkspaceCountryDependencies {
   membership(userId: string, organizationId: string, roles?: readonly AccountRole[]): Promise<{ organizationId: string; role: AccountRole }>;
   deviceSession(request: Request, roles?: readonly AccountRole[]): Promise<WorkspaceCountryDeviceSession>;
   /** Effective Gestion access; membership/seat alone is insufficient. */
-  management(organizationId: string): Promise<boolean>;
+  management(organizationId: string, actor?: WorkspaceCountryActor): Promise<boolean>;
   rateLimit(request: Request, actor: WorkspaceCountryActor, operation: 'read' | 'write'): Promise<void>;
   /** Server attestation only, never a submitted boolean or a missing country row.
    * Must remain closed until explicit US creation and a shared legacy-write lock exist. */
@@ -40,6 +42,7 @@ const json = (value: unknown, status = 200) => Response.json(value, { status, he
 function failure(error: unknown): Response {
   if (error instanceof CountryBoundaryError) return json({ error: error.code }, error.status);
   if (error instanceof WorkspaceCountryError) return json({ error: error.code }, error.status);
+  if (error instanceof UsAuthorityError) return json({ error: error.code === 'subscription_required' ? 'management_entitlement_required' : error.status === 403 ? 'forbidden' : 'service_unavailable' }, error.status === 422 ? 503 : error.status);
   if (error instanceof AccountPublicError) return json({ error: error.status === 401 ? 'unauthorized' : error.status === 402 ? 'management_entitlement_required' : error.status === 429 ? 'rate_limited' : 'forbidden' }, error.status);
   if (error instanceof RequestBodyError) return json({ error: 'invalid_request' }, error.status);
   return json({ error: 'service_unavailable' }, 503);
@@ -64,7 +67,7 @@ export function createWorkspaceCountryHandlers(dependencies: WorkspaceCountryDep
       if (membership.organizationId !== organizationId || !isAccountRole(membership.role) || (owner && membership.role !== 'owner')) throw new WorkspaceCountryError('forbidden', 403);
       result = { mode: 'browser', actor: { organizationId, userId: user.userId, role: membership.role } };
     }
-    if (!(await dependencies.management(organizationId))) throw new CountryBoundaryError('management_entitlement_required', 402);
+    if (!(await dependencies.management(organizationId, result.actor))) throw new CountryBoundaryError('management_entitlement_required', 402);
     return result;
   }
   async function revalidate(request: Request, organizationId: string, owner: boolean, trusted: CountryAuthority): Promise<WorkspaceCountryActor> {
@@ -123,9 +126,23 @@ export async function internationalCoreEnabled(): Promise<boolean> {
 export const workspaceCountryDependencies: WorkspaceCountryDependencies = {
   enabled: internationalCoreEnabled,
   async user() { return (await import('@/app/zentra-auth')).getZentraUser({ offerAccess: false }); },
-  async membership(userId, organizationId, roles) { return (await import('@/lib/account')).requireBrowserMembership(userId, organizationId, roles); },
+  async membership(userId, organizationId, roles) {
+    if (await isUsWorkspaceAdmission(organizationId)) {
+      const access = await requireUsWorkspaceAccess(organizationId, userId);
+      if (roles && !roles.includes(access.role)) throw new AccountPublicError('Forbidden', 403);
+      return { organizationId:access.organizationId, role:access.role };
+    }
+    return (await import('@/lib/account')).requireBrowserMembership(userId, organizationId, roles);
+  },
   async deviceSession(request, roles) { return (await import('@/lib/account')).requireDeviceSession(request, roles); },
-  async management(organizationId) { return (await (await import('@/lib/team-seats')).teamSeats(organizationId)).subscriptionActive === true; },
+  async management(organizationId, actor) {
+    if (await isUsWorkspaceAdmission(organizationId)) {
+      if (!actor || actor.organizationId !== organizationId) return false;
+      await requireUsWorkspaceAccess(organizationId, actor.userId);
+      return true;
+    }
+    return (await (await import('@/lib/team-seats')).teamSeats(organizationId)).subscriptionActive === true;
+  },
   async rateLimit(request, actor, operation) { await (await import('@/lib/account')).enforceAccountRateLimit(request, 'international-country-' + operation, actor.organizationId + ':' + actor.userId, operation === 'read' ? 3600 : 120); },
   async requireInitialUsAdmission() { throw new CountryBoundaryError('legacy_review_required', 409); },
   async store() { return (await import('@/lib/supabase-server-runtime')).supabaseServerClient(); },

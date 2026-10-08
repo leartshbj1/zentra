@@ -7,6 +7,8 @@ import { ErpError } from './runtime';
 import { validatePublicSellerSnapshot } from './invoicing';
 import type { FinancialAuthority } from './accounting/ledger';
 import { AccountPublicError } from '../account-security';
+import { requireUsWorkspaceAccess } from './saas-authority-d1';
+import { UsAuthorityError } from './saas-authority';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -14,23 +16,28 @@ async function enabled(){
   catch{return false;}
 }
 async function authority(request:Request,organizationId:string):Promise<{mode:'browser'|'device';actor:FinancialAuthority}>{
-  const {requireBrowserMembership,requireDeviceSession}=await import('../account');
-  let userId:string,role:FinancialAuthority['role'],mode:'browser'|'device';
+  const {requireDeviceSession}=await import('../account');
+  let userId:string,deviceRole:FinancialAuthority['role']|undefined,mode:'browser'|'device';
   if(request.headers.has('Authorization')){
     const session=await requireDeviceSession(request);
     if(session.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
-    userId=session.userId;role=session.role;mode='device';
+    userId=session.userId;deviceRole=session.role;mode='device';
   }else{
     const user=await(await import('../../app/zentra-auth')).getZentraUser({offerAccess:false});
     if(!user)throw new AccountPublicError('Session required',401);
-    const membership=await requireBrowserMembership(user.userId,organizationId);
-    if(membership.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
-    userId=user.userId;role=membership.role;mode='browser';
+    userId=user.userId;mode='browser';
   }
-  // Existing management/bundle/seat reader stays authoritative. This does not create a US price.
-  const seats=await(await import('../team-seats')).teamSeats(organizationId);
-  if(!seats.subscriptionActive)throw new ErpError('management_entitlement_required',402);
-  return {mode,actor:{organizationId,userId,role,managementEntitled:true,timestamp:new Date().toISOString()}};
+  // The US ERP cannot inherit a CHF licence, seat reader or account-wide trial.
+  // Native enrollment still requires its own US session issuer in a later phase.
+  try {
+    const access=await requireUsWorkspaceAccess(organizationId,userId);
+    if(access.organizationId!==organizationId||access.userId!==userId)throw new ErpError('tenant_mismatch',403);
+    if(deviceRole!==undefined&&deviceRole!==access.role)throw new ErpError('financial_permission_required',403);
+    return {mode,actor:{organizationId,userId,role:access.role,managementEntitled:true,timestamp:new Date().toISOString()}};
+  } catch(error) {
+    if(error instanceof UsAuthorityError)throw new ErpError(error.code==='subscription_required'?'management_entitlement_required':error.status===403?'financial_permission_required':'service_unavailable',error.status===422?503:error.status);
+    throw error;
+  }
 }
 export const erpServerDependencies:ErpServerDependencies={
   enabled,authority,
