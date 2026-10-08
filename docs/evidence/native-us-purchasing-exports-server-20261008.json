@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "3a0ca29844650578b311ebbdcd1c508c0288ddb5",
+  "scope": "Local TEST actual US bearer D1/SQLite0000..0088 plus14 relevant PostgreSQL migrations, service_role RPC, HTTP/executor/PDF/CSV; synthetic browser Auth/payment and D1 creation PG receipt; serialized RAM PGlite",
+  "productionChanged": false,
+  "functionalSourceChanged": false,
+  "tests": {
+    "passed": 329,
+    "files": 7,
+    "exitCode": 0,
+    "newTests": 17,
+    "failed": 0,
+    "skipped": 0,
+    "sourceUnchanged": true
+  },
+  "checks": {
+    "targetedTypeAwareLintExitCode": 0,
+    "globalTypecheck": "not rerun in this slice",
+    "nativeExecution": "not proved",
+    "diffCheckExitCode": 0
+  },
+  "logs": {
+    "supersededPowerShellHarness": ".qa/us-purchases-exports/server-harness-initial-stderr-failure.log",
+    "lint": ".qa/us-purchases-exports/server-integration-lint-final.log",
+    "state": ".qa/us-purchases-exports/server-tests-final-state.json",
+    "selection": ".qa/us-purchases-exports/server-selection.json",
+    "final": ".qa/us-purchases-exports/server-tests-final.log",
+    "json": ".qa/us-purchases-exports/server-tests-final.json"
+  },
+  "crossClientVectors": {
+    "kinds": [
+      "vendor_bill",
+      "estimate",
+      "project",
+      "trial_balance"
+    ],
+    "languages": [
+      "fr",
+      "en",
+      "de",
+      "it"
+    ],
+    "path": ".qa/us-purchases-exports/us-export-vectors.json",
+    "sha256": "45bf6812a7516f591b357ac0fb98c67ed3dcf9f0459c64685c7c0f659079e4c7",
+    "count": 8,
+    "formats": [
+      "pdf",
+      "csv"
+    ],
+    "bytes": 127322,
+    "invoiceGrant": false
+  },
+  "sourceSha256": {
+    "lib/international/native-purchasing-exports.integration.test.ts": "2ed495d9347fbb41d1070f6bdb60dac4d45815c2352b58805fc466fef359c27e",
+    "lib/international/runtime-bindings.ts": "d90916941e5cafb07b623fd7b1cf5d62452a4ec3a7dea238a4b0968744b835ad",
+    "lib/international/runtime-server.ts": "c8ecfed33c1751a796954416ab11c0f96f6aaecd1cb40f6f69108dfbfbc47c6e",
+    "lib/international/runtime.ts": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b",
+    "lib/international/export-server.ts": "f3ae0b8ba88f001104aa9bc7f3995ffcab831037f4954e5fa4d3cc87171bbc76",
+    "lib/international/export-bindings.ts": "cd4e8cb9ca1867957c820adfef4c82ce2d261e086a86bf5d6b5190c9726c5e61",
+    "lib/international/export-snapshot.ts": "3cfc5e3719cdcb08f7217c8b1ab98344e6bdad50a6d6692c57e5587d1a2c6b43",
+    "lib/international/export-renderer.ts": "0ba521e4697cc6ef72406d42faaf79481f87172ba291c0c88498cbeb6ec6e523",
+    "lib/international/us-device-bindings.ts": "e90a7caa2568bb9b694654b99198d1e9effff022866a007e9165ae04c9827b84",
+    "lib/international/us-device-server.ts": "1069af0fbefd19c0a827b9fc39059fd5c0b9ce9568e1d2bd6def9ed2c534556c",
+    "lib/international/saas-authority-d1.ts": "ba03140257fabdbc420a9bf921639e2ace4a7c99c8f655bee37003983ac15c55",
+    "lib/international/purchasing.ts": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d",
+    "lib/international/runtime-store.ts": "2cbf40bc5638078adc15fa09b502cffdd39b94378163990b57359cf6be38b82b",
+    "lib/international/us-device-test-fixture.ts": "11e2d9e35ce0f44c4adf3d61f2ad5c7822898978c718019d074551baf06f2620",
+    "drizzle/0088_international_us_device_admission.sql": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8",
+    "supabase/migrations/20261008081825_international_us_purchasing_v2.sql": "1c0008e766a358166f0eccc25b68c60ee4dcd0f68d9b3220e946df213980013b",
+    "supabase/migrations/20261008105120_international_us_projects_v3.sql": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d"
+  },
+  "limits": [
+    "No hosted Auth/D1/PostgreSQL",
+    "No real Stripe/payment/provider observation",
+    "No native executable/save/share proof",
+    "No two-connection race or restart/crash durability proof",
+    "No production activation or prices changed"
+  ]
+}

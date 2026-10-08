@@ -1,0 +1,590 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-08",
+  "scope": "Incremental shared US ERP native purchases/seller/exports/draft recovery; local implementation only",
+  "objectiveCompleted": false,
+  "productionChanges": {
+    "usFeatureFlags": false,
+    "migrations": false,
+    "nativeRelease": false,
+    "pricesOrPayments": false,
+    "customerData": false
+  },
+  "publishedWebsite": {
+    "version": 355,
+    "commit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "status": "succeeded",
+    "url": "https://www.zentraapp.ch",
+    "usCodePublished": false,
+    "evidenceSha256": "b2cabafc2d1f54426ce6ddedc823611af01407bc1795a5697710f04c8860b79f"
+  },
+  "server": {
+    "schemaVersion": 1,
+    "baseCommit": "3a0ca29844650578b311ebbdcd1c508c0288ddb5",
+    "scope": "Local TEST actual US bearer D1/SQLite0000..0088 plus14 relevant PostgreSQL migrations, service_role RPC, HTTP/executor/PDF/CSV; synthetic browser Auth/payment and D1 creation PG receipt; serialized RAM PGlite",
+    "productionChanged": false,
+    "functionalSourceChanged": false,
+    "tests": {
+      "passed": 329,
+      "files": 7,
+      "exitCode": 0,
+      "newTests": 17,
+      "failed": 0,
+      "skipped": 0,
+      "sourceUnchanged": true
+    },
+    "checks": {
+      "targetedTypeAwareLintExitCode": 0,
+      "globalTypecheck": {
+        "executed": true,
+        "exitCode": 0,
+        "command": "pnpm exec tsc --noEmit --incremental false",
+        "evidence": "root execution session 44865 completed exit0; no diagnostics"
+      },
+      "nativeExecution": "not proved",
+      "diffCheckExitCode": 0
+    },
+    "logs": {
+      "supersededPowerShellHarness": ".qa/us-purchases-exports/server-harness-initial-stderr-failure.log",
+      "lint": ".qa/us-purchases-exports/server-integration-lint-final.log",
+      "state": ".qa/us-purchases-exports/server-tests-final-state.json",
+      "selection": ".qa/us-purchases-exports/server-selection.json",
+      "final": ".qa/us-purchases-exports/server-tests-final.log",
+      "json": ".qa/us-purchases-exports/server-tests-final.json"
+    },
+    "crossClientVectors": {
+      "kinds": [
+        "vendor_bill",
+        "estimate",
+        "project",
+        "trial_balance"
+      ],
+      "languages": [
+        "fr",
+        "en",
+        "de",
+        "it"
+      ],
+      "path": ".qa/us-purchases-exports/us-export-vectors.json",
+      "sha256": "45bf6812a7516f591b357ac0fb98c67ed3dcf9f0459c64685c7c0f659079e4c7",
+      "count": 8,
+      "formats": [
+        "pdf",
+        "csv"
+      ],
+      "bytes": 127322,
+      "invoiceGrant": false
+    },
+    "sourceSha256": {
+      "lib/international/native-purchasing-exports.integration.test.ts": "2ed495d9347fbb41d1070f6bdb60dac4d45815c2352b58805fc466fef359c27e",
+      "lib/international/runtime-bindings.ts": "d90916941e5cafb07b623fd7b1cf5d62452a4ec3a7dea238a4b0968744b835ad",
+      "lib/international/runtime-server.ts": "c8ecfed33c1751a796954416ab11c0f96f6aaecd1cb40f6f69108dfbfbc47c6e",
+      "lib/international/runtime.ts": "d026f7dff599cc92b3e501a07265a16560b2eb72a3c0fc6276fabcb1cbe7bb6b",
+      "lib/international/export-server.ts": "f3ae0b8ba88f001104aa9bc7f3995ffcab831037f4954e5fa4d3cc87171bbc76",
+      "lib/international/export-bindings.ts": "cd4e8cb9ca1867957c820adfef4c82ce2d261e086a86bf5d6b5190c9726c5e61",
+      "lib/international/export-snapshot.ts": "3cfc5e3719cdcb08f7217c8b1ab98344e6bdad50a6d6692c57e5587d1a2c6b43",
+      "lib/international/export-renderer.ts": "0ba521e4697cc6ef72406d42faaf79481f87172ba291c0c88498cbeb6ec6e523",
+      "lib/international/us-device-bindings.ts": "e90a7caa2568bb9b694654b99198d1e9effff022866a007e9165ae04c9827b84",
+      "lib/international/us-device-server.ts": "1069af0fbefd19c0a827b9fc39059fd5c0b9ce9568e1d2bd6def9ed2c534556c",
+      "lib/international/saas-authority-d1.ts": "ba03140257fabdbc420a9bf921639e2ace4a7c99c8f655bee37003983ac15c55",
+      "lib/international/purchasing.ts": "cdcd94d3ba1c01ab74676643ddbdc91110cf5a3f5b2e585faa0e0928363e993d",
+      "lib/international/runtime-store.ts": "2cbf40bc5638078adc15fa09b502cffdd39b94378163990b57359cf6be38b82b",
+      "lib/international/us-device-test-fixture.ts": "11e2d9e35ce0f44c4adf3d61f2ad5c7822898978c718019d074551baf06f2620",
+      "drizzle/0088_international_us_device_admission.sql": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8",
+      "supabase/migrations/20261008081825_international_us_purchasing_v2.sql": "1c0008e766a358166f0eccc25b68c60ee4dcd0f68d9b3220e946df213980013b",
+      "supabase/migrations/20261008105120_international_us_projects_v3.sql": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d"
+    },
+    "limits": [
+      "No hosted Auth/D1/PostgreSQL",
+      "No real Stripe/payment/provider observation",
+      "No native executable/save/share proof",
+      "No two-connection race or restart/crash durability proof",
+      "No production activation or prices changed"
+    ]
+  },
+  "nativeFrontend": {
+    "baseCommit": "0ae57a5c0c2846e2245c943e0b6b059d47454392",
+    "freezeSha256": "49236dec5eaec382e80e07450033c66893e5b7781d9509ecaae0d32efb90cd3e",
+    "sources": [
+      {
+        "path": "desktop/src/InternationalErpPilot.tsx",
+        "sha256": "dac509db380bf149cc4819217421d12230ddad1032672049045a2abe63541670"
+      },
+      {
+        "path": "desktop/src/NativeUsProjects.tsx",
+        "sha256": "b715ccda223d912080554fe44c92fe067bfe55802108365988bbd2e7b5271f8a"
+      },
+      {
+        "path": "desktop/src/NativeUsReports.tsx",
+        "sha256": "98a237a405dd25f9c3602920e157dc66a490bc80de16320aa713841960db88ba"
+      },
+      {
+        "path": "desktop/src/NativeUsWorkspace.tsx",
+        "sha256": "bef6a5fd2650e2bae68d0b4ce61af67769dfba444378e21202d8ebff7b708e46"
+      },
+      {
+        "path": "desktop/src/native-us-shell.css",
+        "sha256": "76250b47198cd863a45900b21f0e3edb91a6827289a5b3eb559d2c3dcfdca9d6"
+      },
+      {
+        "path": "desktop/src/nativeUsCopy.test.ts",
+        "sha256": "476a88ffd9eaa088a8a446da852a30dda384b4f0de4d29fa1e2700ef413e564b"
+      },
+      {
+        "path": "desktop/src/translationsNativeUs.ts",
+        "sha256": "2b38aaa9e26e49ed289f73c9014b36379bebb47c9de6cff156659c60ed96ecd2"
+      },
+      {
+        "path": "desktop/tests/native-us-admission-preview.tsx",
+        "sha256": "7d31e6050eeefb9a99464c7d1b92d73da5faaeda86472182aba142c42c1634b3"
+      },
+      {
+        "path": "desktop/tests/native-us-admission-review.mjs",
+        "sha256": "46fb95710e11147f2c4f3890a5eb3cf93a492dddcaeb4dc80fb9f33d180c0417"
+      },
+      {
+        "path": "desktop/src/NativeUsDocumentStatus.tsx",
+        "sha256": "24becacefbca4cdb323df0800f5e263bdef74250c2bb5190cb1940e3e409a256"
+      },
+      {
+        "path": "desktop/src/NativeUsExportActions.tsx",
+        "sha256": "2086f2ca159142ac8944d7d800ff39dbb74d9aaa8f4774d22b9e16b85a5151ec"
+      },
+      {
+        "path": "desktop/src/NativeUsPurchases.test.tsx",
+        "sha256": "c8651c388306a1413a4fc187a29394e63c8804591f73913d83d5d3cff3e233c6"
+      },
+      {
+        "path": "desktop/src/NativeUsPurchases.tsx",
+        "sha256": "c365b73880d0ceb9bf46fdf86cf33a6078f6e9893d6c72b3db9dafd3ed8ad908"
+      },
+      {
+        "path": "desktop/src/NativeUsSeller.test.tsx",
+        "sha256": "9e332c536c01395b3a5393648e943b72110b39efa15d570fb4cb5504aa07209e"
+      },
+      {
+        "path": "desktop/src/NativeUsSeller.tsx",
+        "sha256": "dc686b565683ae97fdfd064b968da92e560466ea38f5e681c65e11919613eb9d"
+      },
+      {
+        "path": "desktop/src/nativeUsDocuments.test.ts",
+        "sha256": "ef56ccafbf18bf043aa5bcfde1c864ae56a5f09a337ff1b59be4a7006905dd12"
+      },
+      {
+        "path": "desktop/src/nativeUsDocuments.ts",
+        "sha256": "136781da362dd1af9e26c162c8fe0cda8ad52a558c827cfd9ce1f622a51025c1"
+      },
+      {
+        "path": "desktop/src/nativeUsPurchasesSession.test.ts",
+        "sha256": "1d21be86b6b3a6eecf25fc138f32bcc1d8254e30e86a93955fe437d016943c8a"
+      },
+      {
+        "path": "desktop/src/nativeUsPurchasingForms.test.ts",
+        "sha256": "0ed7067c20335a2cbd01fd9317ac29258ff5db890654495234992ecabdf872c2"
+      },
+      {
+        "path": "desktop/src/nativeUsPurchasingForms.ts",
+        "sha256": "8b43ceb021f5a88e18ad3a7289dd33759ab9f9eeb1f1030ae55bf9bd6979bee0"
+      },
+      {
+        "path": "desktop/src/translationsNativeUsOperations.ts",
+        "sha256": "59f6c494722952c704e296a8149445ab18486f54efd1a053973cc68cb45ab4fe"
+      },
+      {
+        "path": "desktop/tests/native-us-purchases-review.mjs",
+        "sha256": "16c4c0ead1b9cc115e99581d0e0849a7a4dd7d8af73376ab4422b63e43c65bb7"
+      },
+      {
+        "path": "desktop/src/nativeUsSalesForms.ts",
+        "sha256": "2cae2fdfab6cd066c39dbf9aba986c947ac233f5a0ba92d80012967cb8bd9db3"
+      },
+      {
+        "path": "desktop/src/NativeUsProjects.test.tsx",
+        "sha256": "7bc2129c2ff98e22f48dca62ce3302369e2e081f80b653368f5b74f9494e9cde"
+      },
+      {
+        "path": "desktop/src/NativeUsSalesDrafts.test.tsx",
+        "sha256": "fe127f27134ffbdc91eafef489c32373b45689c1f8c8ae72523cd3d42afd4ac0"
+      }
+    ],
+    "checksAndLimits": {
+      "typecheck": "passed again on final draft-preservation sources",
+      "lint": "oxlint --deny-warnings passed for 9 affected TS/TSX files after semantic output notice change; existing wider scoped lint retained",
+      "tests": "Historical phase: 15 files / 137 passed before receipt and draft fixes; receipt fix: 5 files / 33 passed; final draft fix: 6 impacted files / 40 passed, including real commit/replay and actor purge regressions. No final global suite claim.",
+      "visualInitial": "54 captures, one close-button defect corrected",
+      "visualConfirmation": "9 checks passed, no overflow / JS errors / alerts",
+      "journey": "real executeErp RAM fictitious vendor/bill/partial payment exact replay/project plus 10 mocked native export calls",
+      "build": "passed Vite-only again after draft-preservation fix; CH palette generator never invoked",
+      "draftConfirmation": "single targeted DE dark320 200%text current-project-version + preserved-input confirmation: overflow0, no control overflow, no JS errors, one root/session surface; mocked native ports and real synthetic RAM executor"
+    },
+    "preservation": {
+      "chDarkCssSha256": "424c7ee66d05af6c43ecd169f3ea2bdd4d0b8e9250a83462b73f330ebd41197f",
+      "pureManifestSha256": "a0c1b6974509c3361a1b9d7226bf0037e69da8db88a31c418e800c32ac58a043",
+      "pureBusinessSources": "unchanged",
+      "chBusinessSources": "unchanged"
+    },
+    "finalTests": {
+      "passed": 151,
+      "failed": 0,
+      "skipped": 0,
+      "files": 17,
+      "exitCode": 0,
+      "sourceUnchanged": true,
+      "resultSha256": "7057a3f60f66ccde50ec2a6ed0b6ba9df0e4b64b3e638e5d6edfa6fc380dde89",
+      "stateSha256": "79dd359cbc489e25f2ac4a6b519dbea76c0cdc1a5317246e5ae22f38f3bf4c8d",
+      "command": [
+        "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+        "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pnpm/bin/pnpm.mjs",
+        "exec",
+        "vitest",
+        "run",
+        "src/NativeUsProjects.test.tsx",
+        "src/NativeUsPurchases.test.tsx",
+        "src/NativeUsSalesDrafts.test.tsx",
+        "src/NativeUsSeller.test.tsx",
+        "src/internationalErp.test.ts",
+        "src/internationalErpPrivacy.test.ts",
+        "src/internationalErpSession.test.ts",
+        "src/internationalErpSync.test.ts",
+        "src/nativeAdmission.test.ts",
+        "src/nativeChPreservation.test.ts",
+        "src/nativeSharedDomain.test.ts",
+        "src/nativeUsCopy.test.ts",
+        "src/nativeUsDocuments.test.ts",
+        "src/nativeUsForms.test.ts",
+        "src/nativeUsPurchasesSession.test.ts",
+        "src/nativeUsPurchasingForms.test.ts",
+        "src/nativeUsShell.test.tsx",
+        "--maxWorkers=1",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile=D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission/.qa/us-purchases-exports/native-tests-final.json"
+      ],
+      "selection": [
+        "src/NativeUsProjects.test.tsx",
+        "src/NativeUsPurchases.test.tsx",
+        "src/NativeUsSalesDrafts.test.tsx",
+        "src/NativeUsSeller.test.tsx",
+        "src/internationalErp.test.ts",
+        "src/internationalErpPrivacy.test.ts",
+        "src/internationalErpSession.test.ts",
+        "src/internationalErpSync.test.ts",
+        "src/nativeAdmission.test.ts",
+        "src/nativeChPreservation.test.ts",
+        "src/nativeSharedDomain.test.ts",
+        "src/nativeUsCopy.test.ts",
+        "src/nativeUsDocuments.test.ts",
+        "src/nativeUsForms.test.ts",
+        "src/nativeUsPurchasesSession.test.ts",
+        "src/nativeUsPurchasingForms.test.ts",
+        "src/nativeUsShell.test.tsx"
+      ],
+      "logs": [
+        ".qa/us-purchases-exports/native-tests-final.log",
+        ".qa/us-purchases-exports/native-tests-final.json",
+        ".qa/us-purchases-exports/native-tests-final-state.json"
+      ]
+    },
+    "visualRootInspection": {
+      "representativeExistingCapturesViewed": 3,
+      "draftNoticeCaptureViewed": 1,
+      "newRootCaptures": 0,
+      "nativePortsFictional": true
+    }
+  },
+  "rust": {
+    "schemaVersion": 1,
+    "timestampUtc": "2026-10-08T14:30:33.9672214Z",
+    "baseCommit": "0ae57a5c0c2846e2245c943e0b6b059d47454392",
+    "scope": "Isolated native US purchasing/export Rust slice only; no production, migration, provider, payment or release activation",
+    "sourceHashes": {
+      "desktop/src-tauri/src/us_exports.rs": "de3ed4c500e6a73d4b9904810ec11b5473ea6e9e3f353150254960d0722b12bd",
+      "desktop/src-tauri/src/us_exports_tests.rs": "cec1074a7ca6904bd3165a92858b2cb3a934d8f481c817d33dc5bdb5e4b44670",
+      "desktop/src-tauri/src/us_admission.rs": "5c245c7bbaddd397537782070c13dff9df7ae2b9241238690ce1699e25a0ff65",
+      "desktop/src-tauri/src/lib.rs": "a367a69ab6c58af031be589420193b1a37cfd391d3f2cb4819db6a89ab240ff6",
+      "desktop/src-tauri/src/account_cloud.rs": "d1aa9fff04f4bc9bdb3dea329ed519ee733383493ae30b26371b4890838297b0",
+      "desktop/src-tauri/tests/fixtures/us-export-vectors.json": "45bf6812a7516f591b357ac0fb98c67ed3dcf9f0459c64685c7c0f659079e4c7",
+      "desktop/src-tauri/tests/fixtures/us-export-vectors.manifest.json": "130c124fce77bdd4a21a15a8eea5fd8492cdce9a320c6e02d9a56ef0ba2b0462"
+    },
+    "checks": {
+      "rustfmt": "executed: exit 0",
+      "rustfmtCheck": "executed: exit 0",
+      "diffCheck": "executed: exit 0",
+      "rustfmtLog": ".qa/us-purchases-exports/rustfmt-final.log",
+      "diffLog": ".qa/us-purchases-exports/diff-check-final.log",
+      "cargoRetriedThisSlice": false
+    },
+    "tests": {
+      "declared": 36,
+      "windowsEligible": 35,
+      "unixOnlySymlinkTest": 1,
+      "compiled": 0,
+      "executed": 0,
+      "passed": null,
+      "reason": "Prior Cargo check blocked before this crate by Windows Application Control os error 4551. No retry or bypass attempted."
+    },
+    "compatibility": {
+      "libRegistrationOnly": 3,
+      "usAdmissionChildModuleOnly": 3,
+      "existingCHFunctionBodiesChanged": false,
+      "cargoDependenciesChanged": false,
+      "schemaPureModulesChangedByThisAgent": false
+    },
+    "limitations": [
+      "Rust typecheck and tests not executed",
+      "Actual Tauri save dialog not exercised",
+      "Actual iOS/Android sharing not exercised",
+      "Windows reparse path inspected, not runtime tested",
+      "Real timeout/stall deadline not exercised; bounded stream and postflight tests are written",
+      "Local path checks do not claim protection against arbitrary concurrent malicious operating-system processes",
+      "No hosted or two-installation native validation"
+    ],
+    "exportReceiptFileName": "Exact selected UTF8 leaf name max220 UTF16; no path. Desktop deliberate rename retained; mobile retains safe server filename."
+  },
+  "protectedCheckouts": {
+    "international-native": {
+      "head": "0f53e632982fdc9cdc43d5e5a322aa33cb565571",
+      "workingTreeClean": true
+    },
+    "app-current-corrections": {
+      "head": "56daec734529c06bae6dd73729c74b3a655edb86",
+      "workingTreeClean": true
+    }
+  },
+  "nextPhases": {
+    "journalAndPeriods": "audited plan only; schema/capability4 not implemented",
+    "taxIssuance": "audited real-provider TEST/readiness plan only; not activated"
+  },
+  "limits": [
+    "No Rust compilation/test or runnable native install",
+    "No actual save/share dialog or physical mobile device",
+    "No hosted Auth/D1/PostgREST/provider/payment validation",
+    "No two-connection race, restart/crash durability or production capacity proof",
+    "No US tax/accounting/privacy certification",
+    "Not the complete international ERP delivery"
+  ],
+  "sourceInventory": {
+    "site": {
+      "baseCommit": "3a0ca29844650578b311ebbdcd1c508c0288ddb5",
+      "files": [
+        {
+          "path": "docs/evidence/native-us-purchasing-exports-server-20261008.json",
+          "change": "created",
+          "sha256": "21f0c3e54128bef2ec434f1969dca282d6c4f108b197ebea58e7b1120d34e8ec"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-US-PURCHASING-EXPORT-DELIVERY-20261008.md",
+          "change": "created",
+          "sha256": "74096032eecde72589658dfdf5dfc3b7b820608a205c1b7581db7958c89d8d9b"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-US-PURCHASING-EXPORT-SERVER-20261008.md",
+          "change": "created",
+          "sha256": "ba2116e2ed617da206e75445ac7b320d90c65317c73a1fcfaa83bd037c6892cd"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-US-TAX-ISSUANCE-PLAN-20261008.md",
+          "change": "created",
+          "sha256": "3a34dc57b5eb34cc603e516ee3f450e24063a90e5dd3724909473a9a60a52d20"
+        },
+        {
+          "path": "docs/internationalization/US-JOURNAL-PERIODS-RUNTIME-PLAN-20261008.md",
+          "change": "created",
+          "sha256": "b4fb7c56d8c6a658389172324a71d53f8894e2aaa6040678f620a74b38a4c056"
+        },
+        {
+          "path": "lib/international/native-purchasing-exports.integration.test.ts",
+          "change": "created",
+          "sha256": "2ed495d9347fbb41d1070f6bdb60dac4d45815c2352b58805fc466fef359c27e"
+        }
+      ]
+    },
+    "native": {
+      "baseCommit": "0ae57a5c0c2846e2245c943e0b6b059d47454392",
+      "files": [
+        {
+          "path": ".gitattributes",
+          "change": "modified",
+          "sha256": "3c23db6a9a2b138e986af0d5d5d5100bbc97732c5961575353ac9f46e758a716"
+        },
+        {
+          "path": "desktop/src-tauri/src/lib.rs",
+          "change": "modified",
+          "sha256": "a367a69ab6c58af031be589420193b1a37cfd391d3f2cb4819db6a89ab240ff6"
+        },
+        {
+          "path": "desktop/src-tauri/src/us_admission.rs",
+          "change": "modified",
+          "sha256": "5c245c7bbaddd397537782070c13dff9df7ae2b9241238690ce1699e25a0ff65"
+        },
+        {
+          "path": "desktop/src/InternationalErpPilot.tsx",
+          "change": "modified",
+          "sha256": "dac509db380bf149cc4819217421d12230ddad1032672049045a2abe63541670"
+        },
+        {
+          "path": "desktop/src/NativeUsProjects.tsx",
+          "change": "modified",
+          "sha256": "b715ccda223d912080554fe44c92fe067bfe55802108365988bbd2e7b5271f8a"
+        },
+        {
+          "path": "desktop/src/NativeUsReports.tsx",
+          "change": "modified",
+          "sha256": "98a237a405dd25f9c3602920e157dc66a490bc80de16320aa713841960db88ba"
+        },
+        {
+          "path": "desktop/src/NativeUsWorkspace.tsx",
+          "change": "modified",
+          "sha256": "bef6a5fd2650e2bae68d0b4ce61af67769dfba444378e21202d8ebff7b708e46"
+        },
+        {
+          "path": "desktop/src/native-us-shell.css",
+          "change": "modified",
+          "sha256": "76250b47198cd863a45900b21f0e3edb91a6827289a5b3eb559d2c3dcfdca9d6"
+        },
+        {
+          "path": "desktop/src/nativeUsCopy.test.ts",
+          "change": "modified",
+          "sha256": "476a88ffd9eaa088a8a446da852a30dda384b4f0de4d29fa1e2700ef413e564b"
+        },
+        {
+          "path": "desktop/src/translationsNativeUs.ts",
+          "change": "modified",
+          "sha256": "2b38aaa9e26e49ed289f73c9014b36379bebb47c9de6cff156659c60ed96ecd2"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-preview.tsx",
+          "change": "modified",
+          "sha256": "7d31e6050eeefb9a99464c7d1b92d73da5faaeda86472182aba142c42c1634b3"
+        },
+        {
+          "path": "desktop/tests/native-us-admission-review.mjs",
+          "change": "modified",
+          "sha256": "46fb95710e11147f2c4f3890a5eb3cf93a492dddcaeb4dc80fb9f33d180c0417"
+        },
+        {
+          "path": "desktop/src-tauri/src/us_exports.rs",
+          "change": "created",
+          "sha256": "de3ed4c500e6a73d4b9904810ec11b5473ea6e9e3f353150254960d0722b12bd"
+        },
+        {
+          "path": "desktop/src-tauri/src/us_exports_tests.rs",
+          "change": "created",
+          "sha256": "cec1074a7ca6904bd3165a92858b2cb3a934d8f481c817d33dc5bdb5e4b44670"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-export-vectors.json",
+          "change": "created",
+          "sha256": "45bf6812a7516f591b357ac0fb98c67ed3dcf9f0459c64685c7c0f659079e4c7"
+        },
+        {
+          "path": "desktop/src-tauri/tests/fixtures/us-export-vectors.manifest.json",
+          "change": "created",
+          "sha256": "130c124fce77bdd4a21a15a8eea5fd8492cdce9a320c6e02d9a56ef0ba2b0462"
+        },
+        {
+          "path": "desktop/src/NativeUsDocumentStatus.tsx",
+          "change": "created",
+          "sha256": "24becacefbca4cdb323df0800f5e263bdef74250c2bb5190cb1940e3e409a256"
+        },
+        {
+          "path": "desktop/src/NativeUsExportActions.tsx",
+          "change": "created",
+          "sha256": "2086f2ca159142ac8944d7d800ff39dbb74d9aaa8f4774d22b9e16b85a5151ec"
+        },
+        {
+          "path": "desktop/src/NativeUsProjects.test.tsx",
+          "change": "created",
+          "sha256": "7bc2129c2ff98e22f48dca62ce3302369e2e081f80b653368f5b74f9494e9cde"
+        },
+        {
+          "path": "desktop/src/NativeUsPurchases.test.tsx",
+          "change": "created",
+          "sha256": "c8651c388306a1413a4fc187a29394e63c8804591f73913d83d5d3cff3e233c6"
+        },
+        {
+          "path": "desktop/src/NativeUsPurchases.tsx",
+          "change": "created",
+          "sha256": "c365b73880d0ceb9bf46fdf86cf33a6078f6e9893d6c72b3db9dafd3ed8ad908"
+        },
+        {
+          "path": "desktop/src/NativeUsSalesDrafts.test.tsx",
+          "change": "created",
+          "sha256": "fe127f27134ffbdc91eafef489c32373b45689c1f8c8ae72523cd3d42afd4ac0"
+        },
+        {
+          "path": "desktop/src/NativeUsSeller.test.tsx",
+          "change": "created",
+          "sha256": "9e332c536c01395b3a5393648e943b72110b39efa15d570fb4cb5504aa07209e"
+        },
+        {
+          "path": "desktop/src/NativeUsSeller.tsx",
+          "change": "created",
+          "sha256": "dc686b565683ae97fdfd064b968da92e560466ea38f5e681c65e11919613eb9d"
+        },
+        {
+          "path": "desktop/src/nativeUsDocuments.test.ts",
+          "change": "created",
+          "sha256": "ef56ccafbf18bf043aa5bcfde1c864ae56a5f09a337ff1b59be4a7006905dd12"
+        },
+        {
+          "path": "desktop/src/nativeUsDocuments.ts",
+          "change": "created",
+          "sha256": "136781da362dd1af9e26c162c8fe0cda8ad52a558c827cfd9ce1f622a51025c1"
+        },
+        {
+          "path": "desktop/src/nativeUsPurchasesSession.test.ts",
+          "change": "created",
+          "sha256": "1d21be86b6b3a6eecf25fc138f32bcc1d8254e30e86a93955fe437d016943c8a"
+        },
+        {
+          "path": "desktop/src/nativeUsPurchasingForms.test.ts",
+          "change": "created",
+          "sha256": "0ed7067c20335a2cbd01fd9317ac29258ff5db890654495234992ecabdf872c2"
+        },
+        {
+          "path": "desktop/src/nativeUsPurchasingForms.ts",
+          "change": "created",
+          "sha256": "8b43ceb021f5a88e18ad3a7289dd33759ab9f9eeb1f1030ae55bf9bd6979bee0"
+        },
+        {
+          "path": "desktop/src/nativeUsSalesForms.ts",
+          "change": "created",
+          "sha256": "2cae2fdfab6cd066c39dbf9aba986c947ac233f5a0ba92d80012967cb8bd9db3"
+        },
+        {
+          "path": "desktop/src/translationsNativeUsOperations.ts",
+          "change": "created",
+          "sha256": "59f6c494722952c704e296a8149445ab18486f54efd1a053973cc68cb45ab4fe"
+        },
+        {
+          "path": "desktop/tests/native-us-purchases-review.mjs",
+          "change": "created",
+          "sha256": "16c4c0ead1b9cc115e99581d0e0849a7a4dd7d8af73376ab4422b63e43c65bb7"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-US-PURCHASING-EXPORT-DELIVERY-20261008.md",
+          "change": "created",
+          "sha256": "74096032eecde72589658dfdf5dfc3b7b820608a205c1b7581db7958c89d8d9b"
+        },
+        {
+          "path": "docs/internationalization/NATIVE-US-TAX-ISSUANCE-PLAN-20261008.md",
+          "change": "created",
+          "sha256": "3a34dc57b5eb34cc603e516ee3f450e24063a90e5dd3724909473a9a60a52d20"
+        },
+        {
+          "path": "docs/internationalization/US-JOURNAL-PERIODS-RUNTIME-PLAN-20261008.md",
+          "change": "created",
+          "sha256": "b4fb7c56d8c6a658389172324a71d53f8894e2aaa6040678f620a74b38a4c056"
+        }
+      ]
+    }
+  },
+  "companionArtifacts": [
+    {
+      "path": "docs/evidence/native-us-purchasing-exports-20261008.json",
+      "change": "created",
+      "sha256": "self-excluded to avoid recursive digest"
+    }
+  ]
+}
