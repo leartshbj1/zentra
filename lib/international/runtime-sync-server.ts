@@ -4,7 +4,8 @@ import type { ErpServerDependencies } from './runtime-server';
 import type { ErpSyncStore } from './runtime-sync';
 import { publicErpDelta } from './public-projection';
 import { confirmErpReadAdmission, confirmErpExpectedUser } from './read-admission';
-export type ErpSyncServerDependencies=Pick<ErpServerDependencies,'enabled'|'authority'|'configuration'|'rateLimit'|'diagnostic'>&{syncStore:()=>ErpSyncStore|Promise<ErpSyncStore>};
+import { erpClientSchemaVersion, requireErpClientSchema } from './erp-schema-capability';
+export type ErpSyncServerDependencies=Pick<ErpServerDependencies,'enabled'|'authority'|'configuration'|'rateLimit'|'diagnostic'>&{syncStore:(clientSchemaVersion?:1|2)=>ErpSyncStore|Promise<ErpSyncStore>};
 const headers={'Cache-Control':'no-store, max-age=0','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers});
 function cursor(request:Request){
@@ -28,17 +29,20 @@ export function createErpSyncHandlers(deps:ErpSyncServerDependencies){
       if(config.organizationId!==organizationId)throw new ErpError('tenant_mismatch',403);
       if(config.country!=='US')throw new ErpError('edition_unavailable',409);
       await deps.rateLimit(request,trusted.actor,'read');
+      const clientSchemaVersion=erpClientSchemaVersion(request);
       const options=operation==='changes'?cursor(request):null;
-      const store=await deps.syncStore();
+      const store=await deps.syncStore(clientSchemaVersion);
       if(options){
         const delta=await store.changes(organizationId,options.after,options.limit);
         confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
         if(!await deps.enabled())throw new ErpError('feature_unavailable',404);
+        if(delta)requireErpClientSchema(delta.schemaVersion,clientSchemaVersion);
         return json(delta?publicErpDelta(delta):null);
       }
       const head=await store.revision(organizationId);
       confirmErpReadAdmission(trusted,await deps.authority(request,organizationId));
       if(!await deps.enabled())throw new ErpError('feature_unavailable',404);
+      if(head)requireErpClientSchema(head.schemaVersion,clientSchemaVersion);
       return json(head);
     }catch(error){
       let code='service_unavailable',status=503;

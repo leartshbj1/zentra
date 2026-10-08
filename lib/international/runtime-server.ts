@@ -11,13 +11,16 @@ import type { CompanyConfiguration } from './types';
 import type { TaxCalculationProvider,PublicSellerSnapshot } from './invoicing';
 import { publicCompanyConfiguration, publicErpState } from './public-projection';
 import { confirmErpReadAdmission, confirmErpExpectedUser } from './read-admission';
+import { erpClientSchemaVersion, requireErpClientSchema } from './erp-schema-capability';
 
 export interface ErpServerDependencies {
   enabled:()=>Promise<boolean> | boolean;
   /** Exact workspace membership/seat/session and product access, not body claims. */
   authority:(request:Request,organizationId:string)=>Promise<{mode:'browser'|'device';actor:FinancialAuthority}>;
   configuration:(actor:FinancialAuthority)=>Promise<CompanyConfiguration>;
-  store:()=>Promise<ErpStore> | ErpStore;
+  /** Must cap the returned port to BOTH the client request and trusted server
+   * configuration. A request header cannot enable a server feature. */
+  store:(clientSchemaVersion?:1|2)=>Promise<ErpStore> | ErpStore;
   taxProvider:(config:CompanyConfiguration)=>Promise<TaxCalculationProvider|null>;
   projectExists?:(actor:FinancialAuthority,projectId:string)=>Promise<boolean>;
   seller?:(actor:FinancialAuthority)=>Promise<PublicSellerSnapshot|null>;
@@ -63,9 +66,11 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
       try{
         if(!await dependencies.enabled())return json({error:'feature_unavailable'},404);
         const trusted=await context(request,organizationId,'read');
-        const state=await(await dependencies.store()).read(organizationId);
+        const clientSchemaVersion=erpClientSchemaVersion(request);
+        const state=await(await dependencies.store(clientSchemaVersion)).read(organizationId);
         confirmErpReadAdmission(trusted,await dependencies.authority(request,organizationId));
         if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);
+        if(state)requireErpClientSchema(state.schemaVersion,clientSchemaVersion);
         return json(state?{status:'ready',state:publicErpState(state)}:{status:'uninitialized',configuration:publicCompanyConfiguration(trusted.config)});
       }catch(error){return failure(error,'read',dependencies);}
     },
@@ -73,6 +78,7 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
       try{
         if(!await dependencies.enabled())return json({error:'feature_unavailable'},404);
         const trusted=await context(request,organizationId,'write');
+        const clientSchemaVersion=erpClientSchemaVersion(request);
         const input=await readJsonObjectWithinLimit(request,262144);
         async function revalidate(){
           // Configuration stays private and scoped to the initial admission. Read
@@ -85,8 +91,13 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
           return fresh.actor;
         }
         const requestInput=validateErpRequest(input,organizationId);
+        if(['save_vendor','record_vendor_bill','record_vendor_payment'].includes(requestInput.command.type))requireErpClientSchema(2,clientSchemaVersion);
         if(requestInput.command.type==='issue_invoice'&&!['owner','admin','accountant'].includes(trusted.actor.role))throw new ErpError('financial_permission_required',403);
-        const execution={store:await dependencies.store(),configuration:trusted.config,actor:trusted.actor,revalidate};
+        const store=await dependencies.store(clientSchemaVersion);
+        // Enforce the trusted factory contract even for an incorrectly wired
+        // injected port. Legacy receipt lookup must use the guarded legacy RPC.
+        requireErpClientSchema(store.supportedSchemaVersion??1,clientSchemaVersion);
+        const execution={store,configuration:trusted.config,actor:trusted.actor,revalidate};
         const result=requestInput.command.type==='issue_invoice'&&dependencies.issueInvoiceTest
           ?await dependencies.issueInvoiceTest(execution,requestInput)
           :await executeErp({...execution,taxProvider:config=>dependencies.taxProvider(config),...(dependencies.seller?{seller:()=>dependencies.seller!(trusted.actor)}:{}),...(dependencies.projectExists?{projectExists:(_organizationId:string,projectId:string)=>dependencies.projectExists!(trusted.actor,projectId)}:{})},requestInput);

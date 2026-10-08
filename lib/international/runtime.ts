@@ -2,7 +2,8 @@ import { sha256Hex } from '../account-security';
 import { validateCompanyConfiguration } from './country-config';
 import { nationalAdapter } from './countries/adapters';
 import { createLedger, closePeriod, LedgerError, minorInteger, type FinancialAuthority } from './accounting/ledger';
-import { postCustomerInvoice, postCustomerPayment } from './accounting/postings';
+import { postCustomerInvoice, postCustomerPayment, postVendorBill, postVendorPayment } from './accounting/postings';
+import { recordVendorBill, recordVendorPayment, vendorBillBalance } from './purchasing';
 import { validateEstimate, estimateTotals, buildTaxRequest, invoiceFromEstimate, recordCustomerPayment, lineTotals, validatePublicSellerSnapshot, type PublicSellerSnapshot, type InvoicingAuthority, type TaxCalculationProvider } from './invoicing';
 import { money } from './money';
 import { parseInstant } from './localization';
@@ -21,7 +22,7 @@ function authorize(config: CompanyConfiguration, actor: FinancialAuthority, comm
   if (!['owner','admin','accountant','member','read_only'].includes(actor.role)) throw new ErpError('forbidden',403);
   if (!command) return;
   if (['initialize','refresh_configuration'].includes(command.type) && actor.role !== 'owner') throw new ErpError('owner_required',403);
-  const financial = ['issue_invoice','record_payment','close_period'].includes(command.type);
+  const financial = ['issue_invoice','record_payment','close_period','save_vendor','record_vendor_bill','record_vendor_payment'].includes(command.type);
   if (actor.role === 'read_only' || (financial && !['owner','admin','accountant'].includes(actor.role))) throw new ErpError('financial_permission_required',403);
 }
 const canonical = canonicalErpJson;
@@ -33,11 +34,11 @@ function periodOpen(state: ErpState, periodId: string, accountingDate: string): 
 }
 export function erpHeader(state: ErpState): ErpHeader {
   const { entries: _entries, audit: _audit, ...ledger } = state.ledger;
-  return {schemaVersion:1,revision:state.revision,configuration:state.configuration,counters:state.counters,ledger};
+  return {schemaVersion:state.schemaVersion,revision:state.revision,configuration:state.configuration,counters:state.counters,ledger};
 }
 export function erpCommit(before: ErpState | null, after: ErpState, receipt: ErpReceipt, actor: FinancialAuthority): ErpCommit {
   const changes: ErpCommit['changes'][number][] = [];
-  const groups = [['customer',before?.customers,after.customers],['estimate',before?.estimates,after.estimates],['invoice',before?.invoices,after.invoices],['journal',before?.ledger.entries,after.ledger.entries]] as const;
+  const groups = [['customer',before?.customers,after.customers],['estimate',before?.estimates,after.estimates],['invoice',before?.invoices,after.invoices],['vendor',before?.vendors,after.vendors??[]],['vendor_bill',before?.vendorBills,after.vendorBills??[]],['vendor_payment',before?.vendorPayments,after.vendorPayments??[]],['journal',before?.ledger.entries,after.ledger.entries]] as const;
   for (const [kind,oldRows,rows] of groups) for (const row of rows) {
     const old = oldRows?.find(old=>old.id===row.id);
     if (!old || canonical(old)!==canonical(row)) changes.push({kind,id:row.id,payload:row});
@@ -63,6 +64,8 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
   const request = validateErpRequest(input,config.organizationId);
   const command = request.command;
   authorize(config,dependencies.actor,command);
+  const purchasing = ['save_vendor','record_vendor_bill','record_vendor_payment'].includes(command.type);
+  if (purchasing && dependencies.store.supportedSchemaVersion !== 2) throw new ErpError('purchasing_unavailable',409);
   const hash = await sha256Hex(canonical([config.organizationId,dependencies.actor.userId,request]));
   const existing = await dependencies.store.receipt(config.organizationId,request.idempotencyKey);
   if (existing) {
@@ -73,9 +76,11 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
     return {receipt:existing,replayed:true};
   }
   const before = await dependencies.store.read(config.organizationId);
+  if (before?.schemaVersion === 2 && dependencies.store.supportedSchemaVersion !== 2) throw new ErpError('client_upgrade_required',409);
   if ((before?.revision??0)!==request.expectedRevision) throw new ErpError('revision_conflict',409);
   if (before && canonical(before.configuration)!==canonical(config) && command.type !== 'refresh_configuration') throw new ErpError('configuration_changed',409);
   let state: ErpState; let entityId: string;
+  let finalizePurchase: ((actor:FinancialAuthority)=>void)|null=null;
   if (command.type === 'initialize') {
     if (before) throw new ErpError('already_initialized',409);
     state = {schemaVersion:1,revision:1,configuration:config,counters:{estimate:0,invoice:0},ledger:createLedger({organizationId:config.organizationId,currency:config.currency,basis:config.accountingBasis,accounts:nationalAdapter(config.country).starterChart,periods:command.periods}),customers:[],estimates:[],invoices:[]};
@@ -83,6 +88,7 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
   } else {
     if (!before) throw new ErpError('workspace_not_initialized',409);
     state = {...before,revision:nextCounter(before.revision)};
+    if (purchasing && state.schemaVersion === 1) state = {...state,schemaVersion:2,vendors:[],vendorBills:[],vendorPayments:[]};
     switch (command.type) {
       case 'refresh_configuration': {
         const immutable = (c:CompanyConfiguration)=>[c.schemaVersion,c.organizationId,c.country,c.currency,c.accountingBasis];
@@ -90,6 +96,33 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
         state={...state,configuration:config}; entityId=config.organizationId; break;
       }
       case 'save_customer': state = {...state,customers:replace(state.customers,command.customer)}; entityId=command.customer.id; break;
+      case 'save_vendor': state = {...state,vendors:replace(state.vendors??[],command.vendor)}; entityId=command.vendor.id; break;
+      case 'record_vendor_bill': {
+        const vendor = state.vendors?.find(v=>v.id===command.vendorId); if (!vendor) throw new ErpError('vendor_required',422);
+        if (state.vendorBills?.some(b=>b.id===command.id || (b.vendorId===command.vendorId && b.reference===command.reference && b.date===command.date))) throw new ErpError('vendor_bill_already_recorded',409);
+        periodOpen(state,command.periodId,command.accountingDate);
+        const approving = await dependencies.revalidate(); authorize(config,approving,command);
+        if (approving.userId!==dependencies.actor.userId) throw new ErpError('session_changed',401);
+        const {type:_type,...billInput} = command;
+        recordVendorBill(config,vendor,billInput,approving,state.revision);
+        // Compose the durable row and journal with the final admitted server
+        // instant. Slow Auth must not create a mismatching approval/commit stamp.
+        finalizePurchase=actor=>{const bill=recordVendorBill(config,vendor,billInput,actor,state.revision);state={...state,vendorBills:[...(state.vendorBills??[]),bill],ledger:postVendorBill(config,state.ledger,bill,command.periodId,actor)};};
+        entityId=command.id; break;
+      }
+      case 'record_vendor_payment': {
+        const bill = state.vendorBills?.find(b=>b.id===command.billId); if (!bill) throw new ErpError('vendor_bill_not_found',404);
+        if (state.vendorPayments?.some(p=>p.id===command.id || p.idempotencyKey===request.idempotencyKey)) throw new ErpError('vendor_payment_already_recorded',409);
+        periodOpen(state,command.periodId,command.accountingDate);
+        const recording = await dependencies.revalidate(); authorize(config,recording,command);
+        if (recording.userId!==dependencies.actor.userId) throw new ErpError('session_changed',401);
+        const existingPayments = (state.vendorPayments??[]).filter(p=>p.billId===bill.id);
+        const paidBefore = money(config.currency,(BigInt(bill.total.minorUnits)-BigInt(vendorBillBalance(bill,existingPayments).minorUnits)).toString());
+        const {type:_type,...paymentInput} = command;
+        recordVendorPayment(config,bill,existingPayments,paymentInput,recording,state.revision,request.idempotencyKey);
+        finalizePurchase=actor=>{const payment=recordVendorPayment(config,bill,existingPayments,paymentInput,actor,state.revision,request.idempotencyKey);state={...state,vendorPayments:[...(state.vendorPayments??[]),payment],ledger:postVendorPayment(config,state.ledger,bill,{id:payment.id,idempotencyKey:payment.idempotencyKey,paymentDate:payment.paymentDate,accountingDate:payment.accountingDate,periodId:payment.periodId,amount:payment.amount,paidBefore,cashFlowCategory:'operating'},actor)};};
+        entityId=command.id; break;
+      }
       case 'save_estimate': {
         const previous = state.estimates.find(q=>q.id===command.id);
         if ((previous?.revision??0)!==command.expectedEstimateRevision) throw new ErpError('estimate_revision_conflict',409);
@@ -140,6 +173,7 @@ export async function executeErp(dependencies: ErpExecutionDependencies, input: 
   }
   const fresh = await dependencies.revalidate(); authorize(config,fresh,command);
   if (fresh.userId!==dependencies.actor.userId) throw new ErpError('session_changed',401);
+  if(finalizePurchase)finalizePurchase(fresh);
   const receipt: ErpReceipt = {idempotencyKey:request.idempotencyKey,commandHash:hash,revision:state.revision,entityId,action:command.type};
   // Transport uncertainty is surfaced; caller retries the SAME request/key, never a new mutation.
   return {receipt:await dependencies.store.commit(erpCommit(before,state,receipt,fresh)),replayed:false};

@@ -56,6 +56,7 @@ const publicErpFailures: Readonly<Record<string, number>> = Object.freeze({
   invalid_tax_calculation: 409, tax_calculation_expired: 409, tax_binding_changed: 409,
   unsupported_tax_calculation: 409, unsupported_tax_request: 422,
   invoice_permission_required: 403, tax_assessment_expired: 409, stale_tax_assessment: 409,
+  client_upgrade_required: 409,
 });
 function invalid(): never { throw new ErpError('invalid_stored_tax_operation', 503); }
 function actor(input: unknown, organizationId: string): FinancialAuthority {
@@ -179,6 +180,9 @@ export async function executeUsTaxInvoiceTest(dependencies: UsTaxInvoiceTestDepe
   try {
     const result = await executeErp({
       store: {
+        // This private wrapper adds guarded observations, not a different book
+        // protocol. Preserve the trusted purchasing port's exact capability.
+        supportedSchemaVersion: dependencies.erp.store.supportedSchemaVersion,
         async receipt(organizationId, key) {
           const saved = await guarded(() => dependencies.erp.store.receipt(organizationId, key));
           return saved === null ? null : receipt(saved);

@@ -8,11 +8,14 @@ import { countrySubdivisions } from '@/lib/international/addresses';
 import { minorInteger } from '@/lib/international/accounting/ledger';
 import { browserSellerCopy, browserWorkbenchCopy } from '@/lib/international/browser-workbench-copy';
 import { BrowserErpError, createBrowserErpSession, type BrowserErpRead, type BrowserErpSession } from '@/lib/international/browser-erp-session';
+import { browserPurchasingCopy } from '@/lib/international/browser-purchasing-copy';
+import { browserPurchaseTotal, buildBrowserVendorBillCommand, buildBrowserVendorCommand, buildBrowserVendorPaymentCommand, emptyBrowserVendor, emptyBrowserVendorBill, emptyBrowserVendorPayment, type BrowserVendorDraft, type BrowserVendorBillDraft, type BrowserVendorPaymentDraft } from '@/lib/international/browser-purchasing';
 import { validateErpRequest } from '@/lib/international/erp-request';
 import { estimateTotals, lineTotals, type SalesLine } from '@/lib/international/invoicing';
 import { formatDateOnly } from '@/lib/international/localization';
 import { addMoney, decimalToMoney, formatMoney, money } from '@/lib/international/money';
 import type { ErpCommand, ErpState } from '@/lib/international/runtime-types';
+import { vendorBillBalance } from '@/lib/international/purchasing';
 import { UsSellerProfilePanel } from './us-seller-profile-panel';
 import { UsTaxProfilePanel } from './us-tax-profile-panel';
 import './us-erp-workbench.css';
@@ -83,12 +86,29 @@ export function UsErpRecords({ state, language, canWrite, disabled, onAccept }: 
   </>;
 }
 
-export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage }
-export function UsErpWorkbench(props: UsErpWorkbenchProps) {
-  return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}:${props.role}`} {...props} />;
+/** Display eligibility only. Fresh server authority admits every financial write. */
+export function canUseBrowserPurchasing(role: AccountRole, supportedSchemaVersion: 1 | 2): boolean {
+  return supportedSchemaVersion === 2 && ['owner', 'admin', 'accountant'].includes(role);
 }
-function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }: UsErpWorkbenchProps) {
-  const c = browserWorkbenchCopy[language], prefix = useId();
+export function UsPurchasingRecords({ state, language }: { state: ErpState; language: SiteLanguage }) {
+  const p = browserPurchasingCopy[language], bills = state.vendorBills ?? [], payments = state.vendorPayments ?? [];
+  return <>
+    <section className="us-erp-section" aria-label={p.vendors}><h3>{p.vendors}</h3>{!(state.vendors ?? []).length ? <p className="us-erp-muted">{p.emptyVendors}</p> : <ul className="us-erp-records">{state.vendors?.map(vendor => <li key={vendor.id}><strong>{vendor.name}</strong><p>{vendor.billingAddress.line1}{vendor.billingAddress.line2 ? `, ${vendor.billingAddress.line2}` : ''}<br />{vendor.billingAddress.city}, {vendor.billingAddress.subdivision} {vendor.billingAddress.postalCode} · {vendor.billingAddress.country}</p></li>)}</ul>}</section>
+    <section className="us-erp-section" aria-label={p.bills}><h3>{p.bills}</h3>{!bills.length ? <p className="us-erp-muted">{p.emptyBills}</p> : bills.map(bill => <article className="us-erp-estimate us-purchase-bill" key={bill.id}>
+      <div className="us-erp-record-heading"><h4>{bill.reference}</h4><span>{p.approved}</span></div><p>{bill.vendorSnapshot.name}</p>
+      <dl className="us-erp-facts"><div><dt>{p.date}</dt><dd><time dateTime={bill.date}>{formatDateOnly(bill.date, locales[language])}</time></dd></div><div><dt>{p.accountingDate}</dt><dd>{formatDateOnly(bill.accountingDate, locales[language])}</dd></div><div><dt>{p.dueDate}</dt><dd>{formatDateOnly(bill.dueDate, locales[language])}</dd></div><div><dt>{p.source}</dt><dd>{bill.sourceReference}</dd></div>
+        <div><dt>{p.net}</dt><dd>{formatMoney(bill.net, locales[language])}</dd></div><div><dt>{p.tax}</dt><dd>{formatMoney(bill.tax, locales[language])}</dd></div><div><dt>{p.total}</dt><dd>{formatMoney(bill.total, locales[language])}</dd></div><div><dt>{p.balance}</dt><dd>{formatMoney(vendorBillBalance(bill, payments.filter(payment => payment.billId === bill.id)), locales[language])}</dd></div></dl>
+    </article>)}</section>
+    <section className="us-erp-section" aria-label={p.payments}><h3>{p.payments}</h3>{!payments.length ? <p className="us-erp-muted">{p.emptyPayments}</p> : <ul className="us-erp-records">{payments.map(payment => <li key={payment.id}><div className="us-erp-record-heading"><strong>{payment.reference}</strong><span>{formatMoney(payment.amount, locales[language])}</span></div><p>{bills.find(bill => bill.id === payment.billId)?.reference}</p><dl className="us-erp-facts"><div><dt>{p.paymentDate}</dt><dd>{formatDateOnly(payment.paymentDate, locales[language])}</dd></div><div><dt>{p.accountingDate}</dt><dd>{formatDateOnly(payment.accountingDate, locales[language])}</dd></div></dl></li>)}</ul>}</section>
+  </>;
+}
+
+export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion?: 1 | 2 }
+export function UsErpWorkbench(props: UsErpWorkbenchProps) {
+  return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}:${props.role}:${props.supportedSchemaVersion ?? 1}`} {...props} />;
+}
+function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, supportedSchemaVersion = 1 }: UsErpWorkbenchProps) {
+  const c = browserWorkbenchCopy[language], p = browserPurchasingCopy[language], prefix = useId(), purchasingEnabled = supportedSchemaVersion === 2;
   const session = useRef<BrowserErpSession | null>(null), generation = useRef(0), privacyEpoch = useRef(0), busyRef = useRef(true), pendingType = useRef<ErpCommand['type'] | null>(null), noticeRef = useRef<HTMLDivElement>(null), nextLine = useRef(2);
   const sellerBusyRef = useRef(true), sellerPendingRef = useRef(false);
   const taxBusyRef = useRef(false), taxPendingRef = useRef(false), taxInvalidation = useRef<(() => void) | null>(null), erpAdmittedRef = useRef(false);
@@ -96,15 +116,18 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
   const [readEpoch, setReadEpoch] = useState(0);
   const [sellerBusy, setSellerBusy] = useState(true), [sellerPending, setSellerPending] = useState(false), [accessEpoch, setAccessEpoch] = useState(0), [writeLocked, setWriteLocked] = useState(false);
   const [taxBusy, setTaxBusy] = useState(false), [taxPending, setTaxPending] = useState(false), [taxAdmitted, setTaxAdmitted] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'error' | 'success'; key: 'invalid' | 'unavailable' | 'denied' | 'conflict' | 'uncertain' | 'saved' | 'savedReload' } | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'error' | 'success'; key: 'invalid' | 'unavailable' | 'denied' | 'conflict' | 'uncertain' | 'saved' | 'savedReload' | 'purchasingUnavailable' } | null>(null);
   const [customer, setCustomer] = useState(emptyCustomer), [estimate, setEstimate] = useState(emptyEstimate), [start, setStart] = useState(''), [end, setEnd] = useState(''), [acceptId, setAcceptId] = useState<string | null>(null);
-  const canWrite = role !== 'read_only', blocked = busy || pending || sellerBusy || sellerPending || taxBusy || taxPending || !fresh || writeLocked;
+  const [vendor, setVendor] = useState(emptyBrowserVendor), [bill, setBill] = useState(emptyBrowserVendorBill), [payment, setPayment] = useState(emptyBrowserVendorPayment);
+  const [billConfirmation, setBillConfirmation] = useState<{ command: Extract<ErpCommand, { type: 'record_vendor_bill' }>; revision: number } | null>(null);
+  const canWrite = role !== 'read_only', canPurchase = canUseBrowserPurchasing(role, supportedSchemaVersion), blocked = busy || pending || sellerBusy || sellerPending || taxBusy || taxPending || !fresh || writeLocked;
   const invalidateAccess = useCallback(() => {
     const epoch = ++privacyEpoch.current; setAccessEpoch(epoch); setWriteLocked(true);
     taxInvalidation.current?.();
     erpAdmittedRef.current = false;
     setTaxAdmitted(false);
     setRead(null); setFresh(false); setAcceptId(null); setCustomer(emptyCustomer()); setEstimate(emptyEstimate()); setStart(''); setEnd(''); setNotice({ kind: 'error', key: 'denied' });
+    setVendor(emptyBrowserVendor()); setBill(emptyBrowserVendorBill()); setPayment(emptyBrowserVendorPayment()); setBillConfirmation(null);
   }, []);
   const currentAccessEpoch = useCallback(() => privacyEpoch.current, []), otherBusy = useCallback(() => busyRef.current || taxBusyRef.current, []), otherPending = useCallback(() => (session.current?.hasPending() ?? false) || taxPendingRef.current, []);
   const taxOtherBusy = useCallback(() => busyRef.current || sellerBusyRef.current, []), taxOtherPending = useCallback(() => (session.current?.hasPending() ?? false) || sellerPendingRef.current, []);
@@ -118,17 +141,18 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
       return 'denied' as const;
     }
     if (error instanceof BrowserErpError && ['feature_unavailable', 'edition_unavailable', 'configuration_changed', 'country_configuration_required'].includes(error.code)) setRead(null);
-    if (error instanceof BrowserErpError && ['revision_conflict', 'estimate_revision_conflict', 'idempotency_conflict', 'read_required'].includes(error.code)) { setAcceptId(null); return 'conflict' as const; }
+    if (error instanceof BrowserErpError && ['revision_conflict', 'estimate_revision_conflict', 'idempotency_conflict', 'read_required'].includes(error.code)) { setAcceptId(null); setBillConfirmation(null); return 'conflict' as const; }
+    if (error instanceof BrowserErpError && ['client_upgrade_required', 'purchasing_unavailable'].includes(error.code)) return 'purchasingUnavailable' as const;
     return error instanceof BrowserErpError && error.outcome === 'uncertain' ? 'uncertain' as const : 'unavailable' as const;
   }, [invalidateAccess]);
   useEffect(() => {
     const current = ++generation.current, privacy = privacyEpoch.current;
-    const instance = createBrowserErpSession({ organizationId, expectedUserId }); session.current = instance;
+    const instance = createBrowserErpSession({ organizationId, expectedUserId, supportedSchemaVersion }); session.current = instance;
     void instance.load().then(value => { if (generation.current === current && privacyEpoch.current === privacy) { setRead(value); setReadEpoch(privacy); setFresh(true); admitPrivate(); } }).catch(error => {
       if (generation.current === current && privacyEpoch.current === privacy) setNotice({ kind: 'error', key: errorNotice(error) });
     }).finally(() => { if (generation.current === current) { busyRef.current = false; setBusy(false); } });
     return () => { generation.current = current + 1; instance.dispose(); session.current = null; };
-  }, [organizationId, expectedUserId, errorNotice, admitPrivate]);
+  }, [organizationId, expectedUserId, supportedSchemaVersion, errorNotice, admitPrivate]);
   useEffect(() => {
     const changed = (event: Event) => {
       if (event instanceof StorageEvent && event.key !== AUTH_CHANGED_EVENT) return;
@@ -142,7 +166,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
   async function reload() {
     const instance = session.current, current = generation.current, privacy = privacyEpoch.current;
     if (!instance || busyRef.current || sellerBusyRef.current || taxBusyRef.current) return;
-    busyRef.current = true; setBusy(true); setFresh(false); setAcceptId(null); setNotice(null);
+    busyRef.current = true; setBusy(true); setFresh(false); setAcceptId(null); setBillConfirmation(null); setNotice(null);
     try { const value = await instance.load(); if (generation.current === current && privacyEpoch.current === privacy) { setRead(value); setReadEpoch(privacy); setFresh(true); admitPrivate(); } }
     catch (error) { if (generation.current === current && privacyEpoch.current === privacy) setNotice({ kind: 'error', key: errorNotice(error) }); }
     finally { if (generation.current === current) { setPending(instance.hasPending()); busyRef.current = false; setBusy(false); } }
@@ -150,7 +174,8 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
   async function write(command?: ErpCommand) {
     const instance = session.current, current = generation.current, privacy = privacyEpoch.current;
     if (!instance || busyRef.current || sellerBusyRef.current || taxBusyRef.current || command && (blocked || !canWrite || !read || privacy !== readEpoch || sellerPendingRef.current || taxPendingRef.current)) return;
-    busyRef.current = true; setBusy(true); setFresh(false); setNotice(null); setAcceptId(null);
+    if (command && ['save_vendor', 'record_vendor_bill', 'record_vendor_payment'].includes(command.type) && !canPurchase) return;
+    busyRef.current = true; setBusy(true); setFresh(false); setNotice(null); setAcceptId(null); setBillConfirmation(null);
     let confirmed = false;
     if (command) pendingType.current = command.type;
     try {
@@ -160,6 +185,9 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
       // A confirmed creation clears its form, while manual reloads and rejected/uncertain writes preserve drafts.
       if (pendingType.current === 'save_customer') setCustomer(emptyCustomer());
       if (pendingType.current === 'save_estimate') { setEstimate(emptyEstimate()); nextLine.current = 2; }
+      if (pendingType.current === 'save_vendor') setVendor(emptyBrowserVendor());
+      if (pendingType.current === 'record_vendor_bill') setBill(emptyBrowserVendorBill());
+      if (pendingType.current === 'record_vendor_payment') setPayment(emptyBrowserVendorPayment());
       pendingType.current = null;
       const value = await instance.load();
       if (generation.current === current && privacyEpoch.current === privacy) { setRead(value); setReadEpoch(privacy); setFresh(true); setNotice({ kind: 'success', key: 'saved' }); }
@@ -174,18 +202,40 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
     event.preventDefault(); if (blocked || !canWrite) return;
     try { const command = build(); void write(command); } catch { setNotice({ kind: 'error', key: 'invalid' }); }
   }
+  function submitPurchase(event: SubmitEvent<HTMLFormElement>, build: () => ErpCommand, review = false) {
+    event.preventDefault(); if (blocked || !canPurchase || read?.status !== 'ready') return;
+    try {
+      const command = build();
+      if (review && command.type === 'record_vendor_bill') { setBillConfirmation({ command, revision: read.state.revision }); setNotice(null); }
+      else void write(command);
+    } catch { setBillConfirmation(null); setNotice({ kind: 'error', key: 'invalid' }); }
+  }
+  function confirmBill() {
+    if (blocked || !canPurchase || !billConfirmation || read?.status !== 'ready') return;
+    if (billConfirmation.revision !== read.state.revision) { setBillConfirmation(null); setNotice({ kind: 'error', key: 'conflict' }); return; }
+    void write(billConfirmation.command);
+  }
   function field(label: string, value: string, onChange: (value: string) => void, options: { type?: string; required?: boolean; maxLength?: number; inputMode?: 'decimal' | 'numeric'; autoComplete?: string; id?: string } = {}) {
     return <label>{label}<input {...options} value={value} onChange={event => onChange(event.target.value)} /></label>;
   }
   const customerField = (key: Exclude<keyof BrowserCustomerDraft, 'kind'>, label: string, required = true, options: Parameters<typeof field>[3] = {}) => field(label, customer[key], value => setCustomer(previous => ({ ...previous, [key]: value })), { required, maxLength: 160, ...options });
+  const vendorField = (key: Exclude<keyof BrowserVendorDraft, 'kind' | 'country'>, label: string, required = true, options: Parameters<typeof field>[3] = {}) => field(label, vendor[key], value => setVendor(previous => ({ ...previous, [key]: value })), { required, maxLength: 160, ...options });
+  const updateBill = (fields: Partial<BrowserVendorBillDraft>) => { setBillConfirmation(null); setBill(previous => ({ ...previous, ...fields })); };
+  const billField = (key: keyof BrowserVendorBillDraft, label: string, options: Parameters<typeof field>[3] = {}) => field(label, bill[key], value => updateBill({ [key]: value }), { required: true, maxLength: 500, ...options });
+  const paymentField = (key: keyof BrowserVendorPaymentDraft, label: string, options: Parameters<typeof field>[3] = {}) => field(label, payment[key], value => setPayment(previous => ({ ...previous, [key]: value })), { required: true, maxLength: 500, ...options });
+  const openPeriods = read?.status === 'ready' ? read.state.ledger.periods.filter(item => item.status === 'open') : [];
+  const periodField = (value: string, onChange: (value: string) => void, id: string) => <div className="us-erp-select-field"><label htmlFor={id}>{p.period}</label><select id={id} required value={value} onChange={event => onChange(event.target.value)}><option value="">{c.choose}</option>{openPeriods.map(item => <option key={item.id} value={item.id}>{formatDateOnly(item.start, locales[language])} – {formatDateOnly(item.end, locales[language])}</option>)}</select></div>;
+  const selectedBill = read?.status === 'ready' ? read.state.vendorBills?.find(item => item.id === payment.billId) : undefined;
+  let purchasePreview: string | null = null;
+  try { purchasePreview = formatMoney(browserPurchaseTotal(bill), locales[language]); } catch { /* A partial draft has no recorded total. */ }
   let preview: string | null = null;
   try { preview = formatMoney(estimate.lines.reduce((total, line) => addMoney(total, lineTotals(browserSalesLine(line), 'USD').net), money('USD', '0')), locales[language]); } catch { /* Partial drafts have no authoritative or invented amount. */ }
   const acceptedEstimate = read?.status === 'ready' ? read.state.estimates.find(item => item.id === acceptId && item.status === 'draft') : undefined;
   return <div className="us-erp-workbench" lang={language}>
-    <header className="us-erp-heading"><h1>{c.title}</h1><p>{c.introduction}</p><p className="us-erp-limitation">{c.limitation}</p></header>
+    <header className="us-erp-heading"><h1>{c.title}</h1><p>{purchasingEnabled ? p.introduction : c.introduction}</p><p className="us-erp-limitation">{purchasingEnabled ? p.limitation : c.limitation}</p></header>
     <div className="us-erp-toolbar"><button type="button" className="account-button secondary" disabled={busy || sellerBusy || taxBusy} onClick={() => void reload()}>{busy ? c.reloading : c.reload}</button>{read?.status === 'ready' && <span>{c.revision} {read.state.revision}</span>}</div>
     <p className="us-erp-muted">{c.draftKept}</p>
-    {notice && <div className={`us-erp-notice ${notice.kind}`} ref={noticeRef} tabIndex={-1} role={notice.kind === 'error' ? 'alert' : 'status'}>{c[notice.key]}</div>}
+    {notice && <div className={`us-erp-notice ${notice.kind}`} ref={noticeRef} tabIndex={-1} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.key === 'purchasingUnavailable' ? p.unavailable : c[notice.key]}</div>}
     {pending && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><p>{c.pendingMemory}</p><button type="button" className="account-button" disabled={busy || sellerBusy || taxBusy} onClick={() => void write()}>{busy ? c.busy : c.retry}</button></aside>}
     {!read && !notice && <output>{c.loading}</output>}
     {writeLocked && <p className="us-erp-muted">{browserSellerCopy[language].writeLocked}</p>}
@@ -220,6 +270,28 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language }:
           {preview && <p className="us-erp-subtotal">{c.subtotal} <strong>{preview}</strong></p>}<p className="us-erp-muted">{c.taxPending}</p><button type="submit" className="account-button">{c.saveEstimate}</button>
         </fieldset></form>}</details>
       </>}
+      {purchasingEnabled && <section className="us-erp-section us-erp-purchasing" aria-label={p.title}><h2>{p.title}</h2><p className="us-erp-muted">{p.help}</p>
+        <UsPurchasingRecords state={read.state} language={language} />
+        {!canPurchase ? <p className="us-erp-muted">{p.readOnly}</p> : <>
+          <details className="us-erp-editor"><summary>{p.newVendor}</summary><form onSubmit={event => submitPurchase(event, () => buildBrowserVendorCommand(organizationId, vendor, crypto.randomUUID()))}><fieldset disabled={blocked} className="us-erp-form">
+            <div className="us-erp-select-field"><label htmlFor={`${prefix}-vendor-kind`}>{p.vendorKind}</label><select id={`${prefix}-vendor-kind`} value={vendor.kind} onChange={event => setVendor(previous => ({ ...previous, kind: event.target.value as BrowserVendorDraft['kind'] }))}><option value="business">{c.business}</option><option value="individual">{c.individual}</option></select></div>
+            {vendorField('name', p.vendorName)}<div className="us-erp-select-field"><label htmlFor={`${prefix}-vendor-country`}>{p.country}</label><select id={`${prefix}-vendor-country`} value={vendor.country} onChange={event => setVendor(previous => ({ ...previous, country: event.target.value as BrowserVendorDraft['country'], subdivision: '', postalCode: '' }))}><option value="US">{p.us}</option><option value="CH">{p.ch}</option></select></div>
+            {vendorField('line1', p.address, true, { maxLength: 200 })}{vendorField('line2', p.address2, false, { maxLength: 200 })}<div className="us-erp-grid">{vendorField('city', p.city, true, { maxLength: 120 })}<div className="us-erp-select-field"><label htmlFor={`${prefix}-vendor-subdivision`}>{p.subdivision}</label><select id={`${prefix}-vendor-subdivision`} required value={vendor.subdivision} onChange={event => setVendor(previous => ({ ...previous, subdivision: event.target.value }))}><option value="">{c.choose}</option>{countrySubdivisions[vendor.country].map(item => <option key={item} value={item}>{item}</option>)}</select></div>{vendorField('postalCode', p.postalCode, true, { maxLength: 10 })}</div>
+            <div className="us-erp-grid">{vendorField('email', p.email, false, { type: 'email', maxLength: 254 })}{vendorField('phone', p.phone, false, { type: 'tel', maxLength: 80 })}</div>{vendorField('contactName', p.contactName, false)}{vendorField('paymentTermsDays', p.terms, true, { inputMode: 'numeric', maxLength: 3 })}<button type="submit" className="account-button">{p.saveVendor}</button>
+          </fieldset></form></details>
+          <details className="us-erp-editor"><summary>{p.newBill}</summary>{!(read.state.vendors ?? []).length ? <p>{p.noVendor}</p> : !openPeriods.length ? <p>{p.noPeriod}</p> : <form onSubmit={event => submitPurchase(event, () => buildBrowserVendorBillCommand(organizationId, read.state, bill, crypto.randomUUID()), true)}><fieldset disabled={blocked} className="us-erp-form">
+            <div className="us-erp-select-field"><label htmlFor={`${prefix}-bill-vendor`}>{p.vendor}</label><select id={`${prefix}-bill-vendor`} required value={bill.vendorId} onChange={event => updateBill({ vendorId: event.target.value })}><option value="">{c.choose}</option>{read.state.vendors?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+            {billField('reference', p.reference)}{billField('sourceReference', p.sourceReference)}<div className="us-erp-grid">{billField('date', p.date, { type: 'date' })}{billField('dueDate', p.dueDate, { type: 'date' })}{billField('accountingDate', p.accountingDate, { type: 'date' })}{periodField(bill.periodId, value => updateBill({ periodId: value }), `${prefix}-bill-period`)}</div>
+            <p id={`${prefix}-purchase-decimals`} className="us-erp-muted">{p.decimalHelp}</p><div className="us-erp-grid" aria-describedby={`${prefix}-purchase-decimals`}>{billField('net', p.net, { inputMode: 'decimal', maxLength: 39 })}{billField('purchaseTax', p.tax, { inputMode: 'decimal', maxLength: 39 })}</div>{purchasePreview && <p className="us-erp-subtotal">{p.total}<strong>{purchasePreview}</strong></p>}<button type="submit" className="account-button">{p.reviewBill}</button>
+          </fieldset></form>}</details>
+          {billConfirmation && <section className="us-erp-confirm us-purchase-confirm" aria-label={p.approvalTitle}><h3>{p.approvalTitle}</h3><p>{p.approvalHelp}</p><p><strong>{read.state.vendors?.find(item => item.id === billConfirmation.command.vendorId)?.name}</strong> · {billConfirmation.command.reference}</p><dl className="us-erp-facts"><div><dt>{p.source}</dt><dd>{billConfirmation.command.sourceReference}</dd></div><div><dt>{p.date}</dt><dd>{formatDateOnly(billConfirmation.command.date, locales[language])}</dd></div><div><dt>{p.accountingDate}</dt><dd>{formatDateOnly(billConfirmation.command.accountingDate, locales[language])}</dd></div><div><dt>{p.dueDate}</dt><dd>{formatDateOnly(billConfirmation.command.dueDate, locales[language])}</dd></div><div><dt>{p.net}</dt><dd>{formatMoney(money('USD', billConfirmation.command.netMinor), locales[language])}</dd></div><div><dt>{p.tax}</dt><dd>{formatMoney(money('USD', billConfirmation.command.purchaseTaxMinor), locales[language])}</dd></div><div><dt>{p.total}</dt><dd>{formatMoney(addMoney(money('USD', billConfirmation.command.netMinor), money('USD', billConfirmation.command.purchaseTaxMinor)), locales[language])}</dd></div></dl><div className="us-erp-actions"><button type="button" className="account-button" disabled={blocked} onClick={confirmBill}>{p.approveBill}</button><button type="button" className="account-button secondary" disabled={busy} onClick={() => setBillConfirmation(null)}>{c.cancel}</button></div></section>}
+          <details className="us-erp-editor"><summary>{p.newPayment}</summary>{!(read.state.vendorBills ?? []).length ? <p>{p.noBill}</p> : !openPeriods.length ? <p>{p.noPeriod}</p> : <form onSubmit={event => submitPurchase(event, () => buildBrowserVendorPaymentCommand(organizationId, read.state, payment, crypto.randomUUID()))}><fieldset disabled={blocked} className="us-erp-form">
+            <p>{p.paymentHelp}</p><div className="us-erp-select-field"><label htmlFor={`${prefix}-payment-bill`}>{p.bill}</label><select id={`${prefix}-payment-bill`} required value={payment.billId} onChange={event => setPayment(previous => ({ ...previous, billId: event.target.value }))}><option value="">{c.choose}</option>{read.state.vendorBills?.map(item => <option key={item.id} value={item.id}>{item.vendorSnapshot.name} · {item.reference}</option>)}</select></div>
+            {selectedBill ? <p className="us-erp-subtotal">{p.balance}<strong>{formatMoney(vendorBillBalance(selectedBill, (read.state.vendorPayments ?? []).filter(item => item.billId === selectedBill.id)), locales[language])}</strong></p> : <p className="us-erp-muted">{p.chooseBill}</p>}
+            {paymentField('amount', p.amount, { inputMode: 'decimal', maxLength: 39 })}<div className="us-erp-grid">{paymentField('paymentDate', p.paymentDate, { type: 'date' })}{paymentField('accountingDate', p.accountingDate, { type: 'date' })}{periodField(payment.periodId, value => setPayment(previous => ({ ...previous, periodId: value })), `${prefix}-payment-period`)}</div>{paymentField('reference', p.paymentReference)}<button type="submit" className="account-button">{p.recordPayment}</button>
+          </fieldset></form>}</details>
+        </>}
+      </section>}
     </>}
   </div>;
 }

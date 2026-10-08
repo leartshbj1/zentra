@@ -9,6 +9,7 @@ import { accountWorkspaceCopy, accountWorkspaceRole } from '@/lib/account-worksp
 import { ProfileForms, SecurityForms, AppearanceForm } from '@/components/account/account-forms';
 import { accountUsNavigation } from '@/lib/account-workspace-navigation';
 import { accountPreferences, type AccountPreferences } from '@/lib/account-preferences';
+import { usPurchasingSchemaVersion } from '@/lib/international/runtime-bindings';
 export const dynamic='force-dynamic';
 export const metadata={robots:{index:false,follow:false}};
 export default async function UsWorkspacePage({params,searchParams}:{params:Promise<{organizationId:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
@@ -37,7 +38,7 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
   if(!data)return unavailable();
   const {workspace,preferences}=data;
   const settings=<nav className="account-space-settings" aria-label={c.global}>{[{id:'',label:c.overview},{id:'gestion',label:c.management},{id:'profil',label:c.profile},{id:'securite',label:c.security},{id:'apparence',label:c.appearance}].map(item=><a key={item.id} href={`${path}${item.id?`?reglage=${item.id}`:''}`} aria-current={setting===item.id?'page':undefined}>{item.label}</a>)}</nav>;
-  if(setting==='gestion')return <>{settings}<UsErpWorkbench organizationId={organizationId} role={workspace.role} language={language} expectedUserId={user.userId}/></>;
+  if(setting==='gestion')return <>{settings}<UsErpWorkbench organizationId={organizationId} role={workspace.role} language={language} expectedUserId={user.userId} supportedSchemaVersion={await usPurchasingSchemaVersion(2)}/></>;
   if(setting==='profil')return <>{settings}<h1>{c.profile}</h1><p className="account-lead">{c.settingsDetail}</p><ProfileForms userId={user.userId} name={user.displayName} email={user.email}/></>;
   if(setting==='securite')return <>{settings}<h1>{c.security}</h1><p className="account-lead">{c.settingsDetail}</p><SecurityForms userId={user.userId}/></>;
   if(setting==='apparence'&&preferences)return <>{settings}<h1>{c.appearance}</h1><p className="account-lead">{c.settingsDetail}</p><AppearanceForm preferences={preferences}/></>;

@@ -6,7 +6,7 @@ import type { ErpCommit,ErpReceipt,ErpStore } from './runtime-types';
 const same=(a:unknown,b:unknown)=>canonicalErpJson(a)===canonicalErpJson(b);
 function unavailable():never{throw new ErpError('invalid_stored_state',503);}
 const receiptFields = ['idempotencyKey','commandHash','revision','entityId','action'] as const;
-const receiptActions = ['initialize','refresh_configuration','save_customer','save_estimate','accept_estimate','issue_invoice','record_payment','close_period'];
+const receiptActions = ['initialize','refresh_configuration','save_customer','save_estimate','accept_estimate','issue_invoice','record_payment','close_period','save_vendor','record_vendor_bill','record_vendor_payment'];
 /** Privileged RPC results are unknown. Copy only own JSON data; never invoke getters or return the source object. */
 export function validateErpReceipt(input: unknown, organizationId: string): ErpReceipt {
   try {
@@ -33,24 +33,27 @@ export function validateErpReceipt(input: unknown, organizationId: string): ErpR
 function storageError(error:unknown): ErpError {
   if (error instanceof ErpError) return error;
   if (error instanceof SupabaseServerError) {
-    const codes:Record<string,[string,number]>={PU001:['revision_conflict',409],PU002:['idempotency_conflict',409],PU003:['immutable_record',409],PU004:['invalid_state',422],PU005:['workspace_unavailable',409],PU006:['configuration_changed',409],PU007:['event_too_large',413]};
+    const codes:Record<string,[string,number]>={PU001:['revision_conflict',409],PU002:['idempotency_conflict',409],PU003:['immutable_record',409],PU004:['invalid_state',422],PU005:['workspace_unavailable',409],PU006:['configuration_changed',409],PU007:['event_too_large',413],PU008:['client_upgrade_required',409]};
     if (codes[error.code]) return new ErpError(...codes[error.code]);
   }
   return new ErpError('service_unavailable',503);
 }
 /** No direct writes: the PostgreSQL RPC owns the transaction and journal immutability. */
-export function createSupabaseErpStore(client:Pick<SupabaseServerClient,'rpc'>):ErpStore {
+export function createSupabaseErpStore(client:Pick<SupabaseServerClient,'rpc'>,options:Readonly<{supportedSchemaVersion?:1|2}>={}):ErpStore {
+  const supportedSchemaVersion=options.supportedSchemaVersion??1;
+  if(supportedSchemaVersion!==1&&supportedSchemaVersion!==2)throw new ErpError('invalid_request');
   return {
+    supportedSchemaVersion,
     async read(organizationId) {
-      try { const state=await client.rpc<unknown>('zentra_read_us_erp',{p_organization:organizationId}); return state===null?null:validateStoredErp(state,organizationId); }
+      try { const state=await client.rpc<unknown>(supportedSchemaVersion===2?'zentra_read_us_erp_v2':'zentra_read_us_erp',{p_organization:organizationId}); if(state===null)return null;const parsed=validateStoredErp(state,organizationId);if(parsed.schemaVersion>supportedSchemaVersion)throw new ErpError('client_upgrade_required',409);return parsed; }
       catch(error) {throw storageError(error);}
     },
     async receipt(organizationId,idempotencyKey) {
-      try {const result=await client.rpc<unknown>('zentra_us_erp_receipt',{p_organization:organizationId,p_idempotency_key:idempotencyKey});if(result===null)return null;const r=validateErpReceipt(result,organizationId);if(r.idempotencyKey!==idempotencyKey)return unavailable();return r;}
+      try {const result=await client.rpc<unknown>(supportedSchemaVersion===2?'zentra_us_erp_receipt_v2':'zentra_us_erp_receipt',{p_organization:organizationId,p_idempotency_key:idempotencyKey});if(result===null)return null;const r=validateErpReceipt(result,organizationId);if(r.idempotencyKey!==idempotencyKey)return unavailable();return r;}
       catch(error) {throw storageError(error);}
     },
     async commit(input:ErpCommit) {
-      try { const expected=validateErpReceipt(input.receipt,input.organizationId);const result=await client.rpc<unknown>('zentra_commit_us_erp',{p_organization:input.organizationId,p_expected_revision:input.expectedRevision,p_header:input.header,p_changes:input.changes,p_ledger_audit:input.ledgerAudit,p_receipt:expected,p_actor:input.actor}); const r=validateErpReceipt(result,input.organizationId); if (!same(r,expected)) return unavailable(); return r; }
+      try {if(input.header.schemaVersion>supportedSchemaVersion)throw new ErpError('client_upgrade_required',409); const expected=validateErpReceipt(input.receipt,input.organizationId);const result=await client.rpc<unknown>('zentra_commit_us_erp',{p_organization:input.organizationId,p_expected_revision:input.expectedRevision,p_header:input.header,p_changes:input.changes,p_ledger_audit:input.ledgerAudit,p_receipt:expected,p_actor:input.actor}); const r=validateErpReceipt(result,input.organizationId); if (!same(r,expected)) return unavailable(); return r; }
       catch(error) {throw storageError(error);}
     },
   };

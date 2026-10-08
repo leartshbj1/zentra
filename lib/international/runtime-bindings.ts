@@ -18,6 +18,13 @@ async function enabled(){
   try {const {env}=await import('cloudflare:workers');const flags=env as unknown as {INTERNATIONAL_CORE_ENABLED?:string;INTERNATIONAL_US_ERP_ENABLED?:string};return flags.INTERNATIONAL_CORE_ENABLED==='true'&&flags.INTERNATIONAL_US_ERP_ENABLED==='true';}
   catch{return false;}
 }
+/** Additive purchasing schema is staged separately. Never inferred from a
+ * client's header, country, language, subscription or existing CHF licence. */
+export async function usPurchasingSchemaVersion(clientSchemaVersion:1|2=1):Promise<1|2>{
+  if(clientSchemaVersion!==2)return 1;
+  try {const {env}=await import('cloudflare:workers');return (env as unknown as {INTERNATIONAL_US_PURCHASING_V2_ENABLED?:string}).INTERNATIONAL_US_PURCHASING_V2_ENABLED==='true'?2:1;}
+  catch{return 1;}
+}
 async function authority(request:Request,organizationId:string):Promise<{mode:'browser'|'device';actor:FinancialAuthority}>{
   const {requireDeviceSession}=await import('../account');
   let userId:string,deviceRole:FinancialAuthority['role']|undefined,mode:'browser'|'device';
@@ -50,7 +57,7 @@ export const erpServerDependencies:ErpServerDependencies={
     if(state.status!=='configured')throw new ErpError('country_configuration_required',409);
     return state.configuration;
   },
-  async store(){return createSupabaseErpStore((await import('../supabase-server-runtime')).supabaseServerClient());},
+  async store(clientSchemaVersion){return createSupabaseErpStore((await import('../supabase-server-runtime')).supabaseServerClient(),{supportedSchemaVersion:await usPurchasingSchemaVersion(clientSchemaVersion)});},
   // A provider will be installed only with verified registrations and sandbox results.
   // Neither an owner-set status nor a country/language silently invents a tax determination.
   async taxProvider(){return null;},
@@ -74,5 +81,5 @@ export const usTaxProfileHandlers=createUsTaxProfileHandlers({...erpServerDepend
   diagnostic(event){console.warn('zentra.international.us-tax-profile',event);},
 });
 export const erpSyncHandlers=createErpSyncHandlers({...erpServerDependencies,
-  async syncStore(){return createSupabaseErpSyncStore((await import('../supabase-server-runtime')).supabaseServerClient());},
+  async syncStore(clientSchemaVersion){return createSupabaseErpSyncStore((await import('../supabase-server-runtime')).supabaseServerClient(),{supportedSchemaVersion:await usPurchasingSchemaVersion(clientSchemaVersion)});},
 });
