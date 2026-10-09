@@ -9,30 +9,45 @@ import { usTeamCanManageRole } from '../../lib/international/us-team-validation'
 import { BrowserUsTeamError, createBrowserUsTeamSession, type BrowserUsTeamDraft, type BrowserUsTeamSession } from '../../lib/international/browser-us-team-session';
 import { browserUsTeamCopy, browserUsTeamError } from '../../lib/international/browser-us-team-copy';
 import './us-team-panel.css';
+import { useUsBackgroundChannel, type UsBackgroundRegistration } from './us-background-channel';
 
 type TeamRemoval = { action: 'revoke_invitation'; invitationId: string } | { action: 'revoke_member'; membershipId: string };
-export interface UsTeamPanelProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; disabled?: boolean; admitted?: boolean; accessEpoch?: () => number; onInvalidated?: () => void }
-export function UsTeamPanel({ organizationId, expectedUserId, role, language, disabled = false, admitted = true, accessEpoch, onInvalidated }: UsTeamPanelProps) {
+export interface UsTeamPanelProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; disabled?: boolean; admitted?: boolean; accessEpoch?: () => number; onInvalidated?: () => void; registerBackground?: UsBackgroundRegistration }
+export function UsTeamPanel({ organizationId, expectedUserId, role, language, disabled = false, admitted = true, accessEpoch, onInvalidated, registerBackground }: UsTeamPanelProps) {
   const c = browserUsTeamCopy[language], id = useId(), identity = `${organizationId}:${expectedUserId}:${role}:${accessEpoch?.() ?? 0}`;
   const refs = useRef({ identity, disabled, onInvalidated });
   const update = useEffectEvent(() => { refs.current = { identity, disabled, onInvalidated }; }); useLayoutEffect(() => { update(); });
-  const session = useRef<BrowserUsTeamSession | null>(null), generation = useRef(0), readSequence = useRef(0), linkRef = useRef<HTMLInputElement>(null);
+  const session = useRef<BrowserUsTeamSession | null>(null), generation = useRef(0), readSequence = useRef(0), linkRef = useRef<HTMLInputElement>(null), mutation = useRef(0), quietRead = useRef<Promise<boolean> | null>(null), loadingRef = useRef(false), readRef = useRef<UsTeamProjection | null>(null);
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [head, setHead] = useState<UsTeamProjection | null>(null), [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [pending, setPending] = useState(false), [open, setOpen] = useState(false), [email, setEmail] = useState(''), [inviteRole, setInviteRole] = useState<UsTeamInviteRole | ''>(''), [confirmation, setConfirmation] = useState<TeamRemoval | null>(null), [link, setLink] = useState<string | null>(null), [lostLink, setLostLink] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('');
   const owned = admitted && ownedIdentity === identity, read = owned ? head : null, managers = role === 'owner' || role === 'admin', blocked = disabled || busy || loading || pending || !read;
   const current = (started: number, actor: string) => generation.current === started && refs.current.identity === actor;
   function fail(reason: unknown) { if (reason instanceof BrowserUsTeamError && reason.outcome === 'unauthorized') { session.current?.dispose(); generation.current++; setHead(null); setEmail(''); setInviteRole(''); setOpen(false); setConfirmation(null); setLink(null); setLostLink(false); setPending(false); setBusy(false); setLoading(false); refs.current.onInvalidated?.(); } else if (reason instanceof BrowserUsTeamError && ['team_revision_conflict', 'team_idempotency_conflict', 'read_required'].includes(reason.code)) { setHead(null); setConfirmation(null); } setError(browserUsTeamError(language, reason instanceof BrowserUsTeamError ? reason.code : 'service_unavailable')); }
-  async function load() { const transport = session.current, started = generation.current, actor = refs.current.identity, sequence = ++readSequence.current; if (!transport) return; setLoading(true); setConfirmation(null);
-    try { const value = await transport.load(); if (!current(started, actor) || sequence !== readSequence.current) return; setHead(value); setError(''); }
-    catch (reason) { if (current(started, actor) && sequence === readSequence.current) { setHead(null); fail(reason); } }
-    finally { if (current(started, actor) && sequence === readSequence.current) setLoading(false); }
+  async function load(background = false): Promise<boolean> {
+    const transport = session.current, started = generation.current, actor = refs.current.identity, version = mutation.current;
+    if (!transport || loadingRef.current || quietRead.current || background && (refs.current.disabled || busy || transport.hasPending())) return false;
+    loadingRef.current = true; if (!background) setLoading(true);
+    const operation = (async () => {
+      try { const value = await transport.load(); if (!current(started, actor) || version !== mutation.current || background && transport.hasPending()) return false;
+        const previous = readRef.current;
+        if (!previous || JSON.stringify({ ...value, checkedAt: 0 }) !== JSON.stringify({ ...previous, checkedAt: 0 })) { readSequence.current++; setConfirmation(null); }
+        readRef.current = value; setHead(value);
+        if (!background) setError(''); return true;
+      } catch (reason) { if (!current(started, actor)) return false; if (background && !(reason instanceof BrowserUsTeamError && reason.outcome === 'unauthorized')) throw reason; if (!background) setHead(null); fail(reason); return false; }
+      finally { if (current(started, actor)) { loadingRef.current = false; if (!background) setLoading(false); } }
+    })();
+    if (background) quietRead.current = operation;
+    try { return await operation; } finally { if (quietRead.current === operation) quietRead.current = null; }
   }
-  const reset = useEffectEvent(() => { setOwnedIdentity(identity); setHead(null); setLoading(false); setBusy(false); setPending(false); setEmail(''); setInviteRole(''); setOpen(false); setConfirmation(null); setLink(null); setLostLink(false); setNotice(''); setError(''); });
+  useUsBackgroundChannel(registerBackground, () => load(true));
+  const reset = useEffectEvent(() => { loadingRef.current = false; quietRead.current = null; readRef.current = null; readRef.current = null; setOwnedIdentity(identity); setHead(null); setLoading(false); setBusy(false); setPending(false); setEmail(''); setInviteRole(''); setOpen(false); setConfirmation(null); setLink(null); setLostLink(false); setNotice(''); setError(''); });
   const loadEffect = useEffectEvent(() => { void load(); }); const failEffect = useEffectEvent((reason: unknown) => { fail(reason); });
   const release = useEffectEvent((transport: BrowserUsTeamSession | null) => { generation.current++; transport?.dispose(); if (session.current === transport) session.current = null; });
   useEffect(() => { const started = ++generation.current; let transport: BrowserUsTeamSession | null = null; queueMicrotask(() => { if (generation.current !== started) return; reset(); if (!admitted) return; try { transport = createBrowserUsTeamSession({ organizationId, expectedUserId, role }); session.current = transport; loadEffect(); } catch (reason) { failEffect(reason); } }); return () => release(transport); }, [identity, organizationId, expectedUserId, role, admitted]);
   const revoke = useEffectEvent(() => { fail(new BrowserUsTeamError('session_changed', 0, 'unauthorized')); });
   useEffect(() => { const changed = (event: Event) => { if (event instanceof StorageEvent && event.key !== AUTH_CHANGED_EVENT && !event.key?.startsWith('sb-') && event.key !== null) return; revoke(); }; window.addEventListener(AUTH_CHANGED_EVENT, changed); window.addEventListener('storage', changed); return () => { window.removeEventListener(AUTH_CHANGED_EVENT, changed); window.removeEventListener('storage', changed); }; }, []);
-  async function operate(draft: BrowserUsTeamDraft | 'retry') { const transport = session.current, actor = refs.current.identity, started = generation.current; if (!transport || refs.current.disabled || busy || draft !== 'retry' && (loading || pending || !read)) return; setBusy(true); setError(''); setNotice(''); setLink(null); setLostLink(false);
+  async function operate(draft: BrowserUsTeamDraft | 'retry') {
+    if (quietRead.current) { const reviewed = readSequence.current; try { if (!await quietRead.current || reviewed !== readSequence.current) return; } catch { return; } }
+    const transport = session.current, actor = refs.current.identity, started = generation.current; if (!transport || refs.current.disabled || busy || draft !== 'retry' && (loading || pending || !read)) return; mutation.current++; setBusy(true); setError(''); setNotice(''); setLink(null); setLostLink(false);
     try { const value = draft === 'retry' ? await transport.retry() : await transport.change(draft); if (!current(started, actor)) return;
       // This receipt can be historical. Only a subsequent GET becomes head.
       setNotice(value.replayed ? c.replayed : c.saved); setConfirmation(null); setOpen(false); setEmail(''); setInviteRole(''); setLink(value.invitationLink ? new URL(value.invitationLink, window.location.origin).href : null); setLostLink(['create_invitation', 'regenerate_invitation'].includes(value.receipt.action) && !value.invitationLink); await load(); }

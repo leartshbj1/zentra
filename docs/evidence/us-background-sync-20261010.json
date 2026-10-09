@@ -1,0 +1,412 @@
+{
+  "milestone": "US background collaborative sync",
+  "base": "5ff83ece891f2456b38b45295136694f50ddf69f",
+  "recordedAt": "2026-10-09T22:15:10.142Z",
+  "deployment": {
+    "published": false,
+    "remoteMigrations": false,
+    "nativeBuilds": false,
+    "gateDefaultClosed": true
+  },
+  "sources": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/sync-heads/route.ts",
+      "lfSha256": "d26645a3d90213d09f000e8aed01b14cd569867bae0ea8d1fc2e311a3babfc8b",
+      "rawSha256": "d26645a3d90213d09f000e8aed01b14cd569867bae0ea8d1fc2e311a3babfc8b"
+    },
+    {
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "lfSha256": "a2c55939da52cfc83811317d3bca3906fd5ae735f4132fd2a5fd55a29d411b88",
+      "rawSha256": "0d2d1b2958082f6c6df7e822f73a1a82204621226fd53890aed828d5b0c8492e"
+    },
+    {
+      "path": "components/account/us-background-channel.ts",
+      "lfSha256": "7b79bc939f76456716fc0ca29d19361281f9d058e0005ac06b5aed3e607b964f",
+      "rawSha256": "7b79bc939f76456716fc0ca29d19361281f9d058e0005ac06b5aed3e607b964f"
+    },
+    {
+      "path": "components/account/us-erp-bank.tsx",
+      "lfSha256": "6b9485a3ffea13da473220a1234e5319ccd389f4199d603f4842d824edda4347",
+      "rawSha256": "6b9485a3ffea13da473220a1234e5319ccd389f4199d603f4842d824edda4347"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "lfSha256": "d589db2431e2666f318909f1d29dfd1a24ebb5ac05e9882704d5a98e063619eb",
+      "rawSha256": "6f5fa4fa94042e38ee7f5a24690568e29a54e01d85a4dbd85ad695713ecf0b4f"
+    },
+    {
+      "path": "components/account/us-seller-profile-panel.tsx",
+      "lfSha256": "60d756ba7c343174a750fbaea01ccc7682a45d3111d5618bf020c01da5422161",
+      "rawSha256": "60d756ba7c343174a750fbaea01ccc7682a45d3111d5618bf020c01da5422161"
+    },
+    {
+      "path": "components/account/us-supplier-analysis-panel.tsx",
+      "lfSha256": "707ceddb782cf3dc2e8a2978bea435006649cc1c165c9af9345689813b2a1f19",
+      "rawSha256": "707ceddb782cf3dc2e8a2978bea435006649cc1c165c9af9345689813b2a1f19"
+    },
+    {
+      "path": "components/account/us-supplier-proposals.tsx",
+      "lfSha256": "8e6a90edd47bb5105f43e85fa614928d16d718a514b0566ab3a268bad1c09a5a",
+      "rawSha256": "8e6a90edd47bb5105f43e85fa614928d16d718a514b0566ab3a268bad1c09a5a"
+    },
+    {
+      "path": "components/account/us-tax-profile-panel.tsx",
+      "lfSha256": "d826f90ffe68cc8402a5a460759e8fbab23adebbcf3e36666a60e735224ee792",
+      "rawSha256": "d826f90ffe68cc8402a5a460759e8fbab23adebbcf3e36666a60e735224ee792"
+    },
+    {
+      "path": "components/account/us-team-panel.tsx",
+      "lfSha256": "45ed419993c7c18aae95c6e878997cdca4f5d3cc7459a03c9b9f0734d1dc920f",
+      "rawSha256": "45ed419993c7c18aae95c6e878997cdca4f5d3cc7459a03c9b9f0734d1dc920f"
+    },
+    {
+      "path": "lib/international/browser-erp-session.ts",
+      "lfSha256": "1f46be56820445f9c762102d7aff68736b1606e051de64bcc56d5b97776391cb",
+      "rawSha256": "1f46be56820445f9c762102d7aff68736b1606e051de64bcc56d5b97776391cb"
+    },
+    {
+      "path": "lib/international/browser-erp-sync.test.ts",
+      "lfSha256": "dfb8b9f972d11d3160810ad87a3db3cd7976cf3b369f4af4de1a680dd1868655",
+      "rawSha256": "dfb8b9f972d11d3160810ad87a3db3cd7976cf3b369f4af4de1a680dd1868655"
+    },
+    {
+      "path": "lib/international/browser-us-background-sync.test.ts",
+      "lfSha256": "b1e4785fd245f55f6ccffbc0d9f4f679c9b0b073a46cf070b16aad6e913d8be6",
+      "rawSha256": "b1e4785fd245f55f6ccffbc0d9f4f679c9b0b073a46cf070b16aad6e913d8be6"
+    },
+    {
+      "path": "lib/international/browser-us-background-sync.ts",
+      "lfSha256": "5e9db79c7920a6fd1f17eef018895318704b12c75de1c3337f2f174704126047",
+      "rawSha256": "5e9db79c7920a6fd1f17eef018895318704b12c75de1c3337f2f174704126047"
+    },
+    {
+      "path": "lib/international/browser-us-background-workbench.browser.test.ts",
+      "lfSha256": "e00910de1ec33d7c8148d75782b544793aba46292fb5aabd6167418a8175bad7",
+      "rawSha256": "e00910de1ec33d7c8148d75782b544793aba46292fb5aabd6167418a8175bad7"
+    },
+    {
+      "path": "lib/international/browser-us-workspace-sync-session.test.ts",
+      "lfSha256": "43508b8e7ab38bb8368fa2d3fdfa54d5d3f48537e024664c3a5cbbf54e2e77d2",
+      "rawSha256": "43508b8e7ab38bb8368fa2d3fdfa54d5d3f48537e024664c3a5cbbf54e2e77d2"
+    },
+    {
+      "path": "lib/international/browser-us-workspace-sync-session.ts",
+      "lfSha256": "560ab48960e7aff429da1e5d67ef5ccdf46f53390ac0cc7ab1d256473c265aaa",
+      "rawSha256": "560ab48960e7aff429da1e5d67ef5ccdf46f53390ac0cc7ab1d256473c265aaa"
+    },
+    {
+      "path": "lib/international/us-workspace-sync-heads-bindings.test.ts",
+      "lfSha256": "f02aff6ca9947becea2fce4df4247f1dac066e7e685b19ad9bb093ce539bf301",
+      "rawSha256": "f02aff6ca9947becea2fce4df4247f1dac066e7e685b19ad9bb093ce539bf301"
+    },
+    {
+      "path": "lib/international/us-workspace-sync-heads-bindings.ts",
+      "lfSha256": "ef191e78761a2320ada28c3b1bf93675cdc167627359bec386a9f2a9dc479d58",
+      "rawSha256": "ef191e78761a2320ada28c3b1bf93675cdc167627359bec386a9f2a9dc479d58"
+    },
+    {
+      "path": "lib/international/us-workspace-sync-heads-server.ts",
+      "lfSha256": "d5d4ff1e8a6dfd102d99e5a985ba467932f2fb4c24e343e2c5bd85801540ecef",
+      "rawSha256": "d5d4ff1e8a6dfd102d99e5a985ba467932f2fb4c24e343e2c5bd85801540ecef"
+    },
+    {
+      "path": "lib/international/us-workspace-sync-heads-store.ts",
+      "lfSha256": "d1a7a2dcc60296cffcb410954fc7e246e9c9a4345df106447d4702adf7223c8a",
+      "rawSha256": "d1a7a2dcc60296cffcb410954fc7e246e9c9a4345df106447d4702adf7223c8a"
+    },
+    {
+      "path": "lib/international/us-workspace-sync-heads.postgres.test.ts",
+      "lfSha256": "b49ea7fed6461c1c3ffea9c7563da890187d00ad8ba353e88316544fca37a8fe",
+      "rawSha256": "b49ea7fed6461c1c3ffea9c7563da890187d00ad8ba353e88316544fca37a8fe"
+    },
+    {
+      "path": "lib/international/us-workspace-sync-heads.test.ts",
+      "lfSha256": "f6bd2fc63b52d5bd888a1f436a1143f142c4c53ece1ccb880cabe18437fff0bf",
+      "rawSha256": "f6bd2fc63b52d5bd888a1f436a1143f142c4c53ece1ccb880cabe18437fff0bf"
+    },
+    {
+      "path": "lib/international/us-workspace-sync-heads.ts",
+      "lfSha256": "bc801ac4ec112aa572f193a529e9846b6e05e435b6ae30cb487796d3ad7d4cc8",
+      "rawSha256": "bc801ac4ec112aa572f193a529e9846b6e05e435b6ae30cb487796d3ad7d4cc8"
+    },
+    {
+      "path": "supabase/migrations/20261009215104_international_us_workspace_sync_heads.sql",
+      "lfSha256": "c47f739c2c6d3526df5a7999463ccc2cd717efa310ab319720939f9406cfa6ad",
+      "rawSha256": "c47f739c2c6d3526df5a7999463ccc2cd717efa310ab319720939f9406cfa6ad"
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/internationalization/US-BACKGROUND-SYNC-PLAN-20261009.md",
+      "lfSha256": "481b0c8260ab78be15e86523027c24dc8c5841e5b018b860ce306c6a1f1bb694"
+    },
+    {
+      "path": "docs/internationalization/US-BACKGROUND-SYNC-DELIVERY-20261010.md",
+      "lfSha256": "8da429872039c7778ad8357ba7219b59814105d5ac1d3395e30ee167132b346f"
+    },
+    {
+      "path": "docs/internationalization/STATUS-20261009.md",
+      "lfSha256": "ccdd770ecb237bbeeeffebc0c2525a325ef7d780aafc7ad0361516565bfe2c05"
+    }
+  ],
+  "quality": [
+    {
+      "name": "typecheck-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "startedAt": "2026-10-09T22:13:02.275Z",
+      "endedAt": "2026-10-09T22:13:10.326Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-sync/typecheck-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "syntax-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "args": [
+        "node_modules/oxlint/bin/oxlint",
+        "--config",
+        ".qa/us-team/oxlint-syntax.json",
+        "--format",
+        "json",
+        "app/api/international/workspaces/[organizationId]/sync-heads/route.ts",
+        "app/compte/espaces/us/[organizationId]/page.tsx",
+        "components/account/us-background-channel.ts",
+        "components/account/us-erp-bank.tsx",
+        "components/account/us-erp-workbench.tsx",
+        "components/account/us-seller-profile-panel.tsx",
+        "components/account/us-supplier-analysis-panel.tsx",
+        "components/account/us-supplier-proposals.tsx",
+        "components/account/us-tax-profile-panel.tsx",
+        "components/account/us-team-panel.tsx",
+        "lib/international/browser-erp-session.ts",
+        "lib/international/browser-erp-sync.test.ts",
+        "lib/international/browser-us-background-sync.test.ts",
+        "lib/international/browser-us-background-sync.ts",
+        "lib/international/browser-us-background-workbench.browser.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.ts",
+        "lib/international/us-workspace-sync-heads-server.ts",
+        "lib/international/us-workspace-sync-heads-store.ts",
+        "lib/international/us-workspace-sync-heads.postgres.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/us-workspace-sync-heads.ts"
+      ],
+      "startedAt": "2026-10-09T22:13:10.328Z",
+      "endedAt": "2026-10-09T22:13:10.761Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-sync/syntax-final.log",
+      "logSha256": "0c4e11bfe4e9c73efaf4b4c48f78d27efe6645d1f9e185a3e55b2f366c65aab6"
+    },
+    {
+      "name": "brand-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "args": [
+        "scripts/check-brand-assets.mjs"
+      ],
+      "startedAt": "2026-10-09T22:13:10.761Z",
+      "endedAt": "2026-10-09T22:13:10.820Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-sync/brand-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "build-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "args": [
+        "node_modules/vinext/dist/cli.js",
+        "build"
+      ],
+      "startedAt": "2026-10-09T22:13:10.821Z",
+      "endedAt": "2026-10-09T22:13:31.637Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-sync/build-final.log",
+      "logSha256": "03ab7fdae78905672e3a152e5f2fb2c190fc1c71620884670e67799039c1ff5f"
+    },
+    {
+      "name": "diff-final-retry",
+      "executable": "git",
+      "args": [
+        "diff",
+        "--check"
+      ],
+      "startedAt": "2026-10-09T22:14:36.275Z",
+      "endedAt": "2026-10-09T22:14:36.334Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-sync/diff-final-retry.log",
+      "logSha256": "b027b88b6e6fb43b79c45f2c470135c409510b74ff3d8a30bb8de74e69411433",
+      "note": "Initial harness forced core.autocrlf=false against Windows CRLF working files; the repository configured Git normalization is used in this retry. Source content is unchanged."
+    }
+  ],
+  "tests": {
+    "reports": [
+      {
+        "path": ".qa/us-sync/targeted-final.json",
+        "sha256": "c3b5abb53185ca5354641a3f40dd2a06fe37c5cee6e19f84063f447dd28f2e18",
+        "startTime": 1791583780305,
+        "passed": 243,
+        "failed": 0,
+        "skipped": 0,
+        "files": 13
+      },
+      {
+        "path": ".qa/us-sync/backend-postgres-20261009.json",
+        "sha256": "daeb37ce1fba6eb690e4c83833cea28e31a63023f67c4f75dcdbc94a6532cc1a",
+        "startTime": 1791583205930,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "files": 1
+      },
+      {
+        "path": ".qa/us-sync/workbench-browser.json",
+        "sha256": "ae84e4e8925ffd98a735f6b8875b065cbe2f03f01e051397e4625f010420ba01",
+        "startTime": 1791583868181,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "files": 1
+      }
+    ],
+    "latestUnique": {
+      "passed": 253,
+      "failed": 0,
+      "skipped": 0
+    },
+    "deduplication": "file + fullName + occurrence ordinal; reports ordered by actual startTime. Only the listed final selected runs are aggregated."
+  },
+  "browser": {
+    "detailPath": ".qa/us-background-sync/browser/evidence.json",
+    "detailSha256": "e093adf459499a9884367a83d6f3e670ab715b7622c350827bd6494ddbaf8e5d",
+    "scope": "Two actual mounted React workbenches; real ERP handlers, commands and deltas; synthetic Auth/tax proof/heads and sidecar RAM. Not hosted nor native devices.",
+    "screenshots": [
+      {
+        "path": ".qa/us-background-sync/browser/fr-light-mobile.png",
+        "sha256": "04772ffb69aca17f603597c0590d2ed7a1831a3e9d7c711c8f908c163c911dbb",
+        "language": "fr",
+        "theme": "light",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      },
+      {
+        "path": ".qa/us-background-sync/browser/fr-dark-mobile.png",
+        "sha256": "117a83936bc60e35e9696f0990d60e712cfe42e7dadc99639fb9f927121fdd61",
+        "language": "fr",
+        "theme": "dark",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      },
+      {
+        "path": ".qa/us-background-sync/browser/de-light-mobile.png",
+        "sha256": "1fec368dcc31b2cfc2f06bac6542dd945b50ff3c57542a84d499302ba63c8573",
+        "language": "de",
+        "theme": "light",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      },
+      {
+        "path": ".qa/us-background-sync/browser/de-dark-mobile.png",
+        "sha256": "a31c0c17b426e58aaa775d3496980ca01f8af7285e81d44f6ea12db642789c92",
+        "language": "de",
+        "theme": "dark",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      },
+      {
+        "path": ".qa/us-background-sync/browser/it-light-mobile.png",
+        "sha256": "b2cda14ed4202c71492180bd257bde5967833062426afd21db9e71cda45b3852",
+        "language": "it",
+        "theme": "light",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      },
+      {
+        "path": ".qa/us-background-sync/browser/it-dark-mobile.png",
+        "sha256": "4acc61fcca2d99552ea8c117091956dd3bf40a0373a62c8ce4b8f88913e8a486",
+        "language": "it",
+        "theme": "dark",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      },
+      {
+        "path": ".qa/us-background-sync/browser/en-light-mobile.png",
+        "sha256": "de6eb6cd0e898c9fd4a556cbe35c3e5b03e3b7de0f1c2963a71e70a3a6255ca4",
+        "language": "en",
+        "theme": "light",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      },
+      {
+        "path": ".qa/us-background-sync/browser/en-dark-mobile.png",
+        "sha256": "95a583b332ecc6f9f34af1d2cbc8311440dbba53f99847349b05262f384094b1",
+        "language": "en",
+        "theme": "dark",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+      }
+    ]
+  },
+  "postgres": {
+    "engine": "PGlite/WASM local migration chain",
+    "migration": "supabase/migrations/20261009215104_international_us_workspace_sync_heads.sql",
+    "remoteApplied": false
+  },
+  "limits": [
+    "US tax provider remains null and actual invoice issuance page disabled",
+    "US gate remains closed pending approved staging and hosted two-identity testing",
+    "Earlier global international suite remains a separate failed historical run; not rerun or relabeled by these targeted passes",
+    "Syntax lint is not global typed lint",
+    "No native QR/VAT, live Stripe payment, real provider or 150-business load certification",
+    "First browser failure report overwritten before archival; retained later attempts are not a reconstruction",
+    "Standalone Team settings outside workbench still manually loaded",
+    "Rate limiter and possible duplicate bank/supplier refreshes require later measured performance work"
+  ],
+  "preserved": [
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "clean": true
+    },
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "clean": true
+    }
+  ]
+}

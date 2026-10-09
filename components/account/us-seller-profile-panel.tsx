@@ -6,6 +6,7 @@ import type { SiteLanguage } from '@/lib/site-language';
 import { browserSellerCopy } from '@/lib/international/browser-workbench-copy';
 import { BrowserSellerError, createBrowserSellerSession, type BrowserSellerSession } from '@/lib/international/browser-seller-session';
 import type { UsSellerProfile, UsSellerProfileState } from '@/lib/international/seller-profile';
+import { useUsBackgroundChannel, usBackgroundDraftCopy, type UsBackgroundRegistration } from './us-background-channel';
 export { browserSellerCopy } from '@/lib/international/browser-workbench-copy';
 
 export interface BrowserSellerDraft { displayName: string; contactEmail: string; contactPhone: string }
@@ -31,17 +32,23 @@ export interface UsSellerProfilePanelProps {
   blocked: boolean; writeLocked: boolean; accessEpoch: number;
   currentAccessEpoch(this: void): number; otherBusy(this: void): boolean; otherPending(this: void): boolean;
   onBusyChange(this: void, busy: boolean): void; onPendingChange(this: void, pending: boolean): void; onAccessDenied(this: void, status: number): void;
+  registerBackground?: UsBackgroundRegistration;
 }
 type Notice = 'invalid' | 'unavailable' | 'denied' | 'conflict' | 'uncertain' | 'saved' | 'savedReload';
-/** This instance survives revocation so its private exact retry remains in RAM. */
+/** Transient failures retain exact retry in RAM; access loss destroys it. */
 export function UsSellerProfilePanel(props: UsSellerProfilePanelProps) {
   const { organizationId, expectedUserId, role, language, blocked, writeLocked, accessEpoch, currentAccessEpoch, onBusyChange, onPendingChange, onAccessDenied } = props;
-  const c = browserSellerCopy[language], prefix = useId(), session = useRef<BrowserSellerSession | null>(null), generation = useRef(0), lastAccessEpoch = useRef(accessEpoch), busyRef = useRef(true), dirtyRef = useRef(false), noticeRef = useRef<HTMLDivElement>(null);
+  const c = browserSellerCopy[language], prefix = useId(), session = useRef<BrowserSellerSession | null>(null), generation = useRef(0), lastAccessEpoch = useRef(accessEpoch), busyRef = useRef(true), dirtyRef = useRef(false), draftBase = useRef(0), latestRevision = useRef(0), quietRead = useRef<Promise<boolean> | null>(null), noticeRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<UsSellerProfileState | null>(null), [draft, setDraft] = useState(emptyDraft), [fresh, setFresh] = useState(false), [busy, setBusy] = useState(true), [pending, setPending] = useState(false), [notice, setNotice] = useState<Notice | null>(null);
   const [dataEpoch, setDataEpoch] = useState(accessEpoch);
+  const [remoteChanged, setRemoteChanged] = useState(false), remoteCopy = usBackgroundDraftCopy[language];
   const shownState = dataEpoch === accessEpoch ? state : null, shownNotice = dataEpoch === accessEpoch ? notice : 'denied';
   const editable = role === 'owner', disabled = blocked || busy || pending || !fresh || writeLocked;
   const occupy = useCallback((value: boolean) => { busyRef.current = value; setBusy(value); onBusyChange(value); }, [onBusyChange]);
+  const purge = useCallback(() => {
+    generation.current++; session.current?.dispose(); session.current = null; quietRead.current = null;
+    setState(null); setDraft(emptyDraft()); dirtyRef.current = false; draftBase.current = 0; setRemoteChanged(false); setFresh(false); setPending(false); onPendingChange(false); setNotice('denied'); occupy(false);
+  }, [occupy, onPendingChange]);
   function confirmPending(instance: BrowserSellerSession) { const value = instance.hasPending(); setPending(value); props.onPendingChange(value); }
   const failure = useCallback((error: unknown): Notice => {
     if (error instanceof BrowserSellerError && (error.outcome === 'unauthorized' || [401, 402, 403].includes(error.status))) { onAccessDenied(error.status); return 'denied'; }
@@ -50,44 +57,61 @@ export function UsSellerProfilePanel(props: UsSellerProfilePanelProps) {
   }, [onAccessDenied]);
   useEffect(() => {
     const current = ++generation.current, privacy = currentAccessEpoch(), instance = createBrowserSellerSession({ organizationId, expectedUserId }); session.current = instance; onBusyChange(true);
-    void instance.load().then(value => { if (generation.current === current && currentAccessEpoch() === privacy) { setState(value); setDataEpoch(privacy); setDraft(draftFrom(value)); setFresh(true); } }).catch(error => { if (generation.current === current && currentAccessEpoch() === privacy) setNotice(failure(error)); }).finally(() => { if (generation.current === current) occupy(false); });
+    void instance.load().then(value => { if (generation.current === current && currentAccessEpoch() === privacy) { latestRevision.current = value.revision; draftBase.current = value.revision; setState(value); setDataEpoch(privacy); setDraft(draftFrom(value)); setFresh(true); } }).catch(error => { if (generation.current === current && currentAccessEpoch() === privacy) setNotice(failure(error)); }).finally(() => { if (generation.current === current) occupy(false); });
     return () => { generation.current = current + 1; instance.dispose(); session.current = null; onBusyChange(false); onPendingChange(false); };
   }, [organizationId, expectedUserId, currentAccessEpoch, onBusyChange, onPendingChange, occupy, failure]);
   useEffect(() => {
     if (lastAccessEpoch.current === accessEpoch) return;
-    lastAccessEpoch.current = accessEpoch; setState(null); setDataEpoch(accessEpoch); setDraft(emptyDraft()); dirtyRef.current = false; setFresh(false); setNotice('denied');
-  }, [accessEpoch]);
+    lastAccessEpoch.current = accessEpoch; setDataEpoch(accessEpoch); purge();
+  }, [accessEpoch, purge]);
   useEffect(() => { if (notice && notice !== 'saved') noticeRef.current?.focus(); }, [notice]);
-  async function reload() {
+  async function reload(background = false): Promise<boolean> {
     const instance = session.current, current = generation.current, privacy = props.currentAccessEpoch();
-    if (!instance || busyRef.current || props.otherBusy()) return;
-    occupy(true); setFresh(false); setNotice(null);
-    try { const value = await instance.load(); if (generation.current === current && props.currentAccessEpoch() === privacy) { setState(value); setDataEpoch(privacy); if (!dirtyRef.current) setDraft(draftFrom(value)); setFresh(true); } }
-    catch (error) { if (generation.current === current && props.currentAccessEpoch() === privacy) setNotice(failure(error)); }
-    finally { if (generation.current === current) { confirmPending(instance); occupy(false); } }
+    if (!instance || writeLocked || busyRef.current || props.otherBusy() || quietRead.current || background && (instance.hasPending() || props.otherPending())) return false;
+    if (!background) { occupy(true); setFresh(false); setNotice(null); }
+    const operation = (async () => {
+      try {
+        const value = await instance.load();
+        if (generation.current !== current || props.currentAccessEpoch() !== privacy || background && (busyRef.current || instance.hasPending() || props.otherBusy() || props.otherPending())) return false;
+        latestRevision.current = value.revision; setState(value); setDataEpoch(privacy);
+        if (!dirtyRef.current) { setDraft(draftFrom(value)); draftBase.current = value.revision; setRemoteChanged(false); }
+        else if (value.revision !== draftBase.current) setRemoteChanged(true);
+        setFresh(true); return true;
+      } catch (error) {
+        if (generation.current !== current || props.currentAccessEpoch() !== privacy) return false;
+        if (background && !(error instanceof BrowserSellerError && error.outcome === 'unauthorized')) throw error;
+        setNotice(failure(error)); return false;
+      } finally { if (!background && generation.current === current) { confirmPending(instance); occupy(false); } }
+    })();
+    if (background) quietRead.current = operation;
+    try { return await operation; } finally { if (quietRead.current === operation) quietRead.current = null; }
   }
+  useUsBackgroundChannel(props.registerBackground, () => reload(true), undefined, purge);
   async function write(profile?: UsSellerProfile) {
+    if (quietRead.current) { try { if (!await quietRead.current) return; } catch { setNotice('unavailable'); return; } }
+    if (profile && latestRevision.current !== draftBase.current) { setRemoteChanged(true); return; }
     const instance = session.current, current = generation.current, privacy = props.currentAccessEpoch();
-    if (!instance || busyRef.current || props.otherBusy() || profile && (disabled || !editable || !state || privacy !== dataEpoch || props.otherPending())) return;
+    if (!instance || writeLocked || privacy !== dataEpoch || busyRef.current || props.otherBusy() || profile && (remoteChanged || disabled || !editable || !state || props.otherPending())) return;
     occupy(true); setFresh(false); setNotice(null); let confirmed = false;
     try {
-      if (profile) await instance.submit(profile, state?.revision ?? 0); else await instance.retry();
+      if (profile) await instance.submit(profile, draftBase.current); else await instance.retry();
       confirmed = true;
       if (generation.current !== current || props.currentAccessEpoch() !== privacy) return;
       // A replay can describe an older revision. Always read the current head.
       const value = await instance.load();
-      if (generation.current === current && props.currentAccessEpoch() === privacy) { setState(value); setDataEpoch(privacy); setDraft(draftFrom(value)); dirtyRef.current = false; setFresh(true); setNotice('saved'); }
+      if (generation.current === current && props.currentAccessEpoch() === privacy) { latestRevision.current = value.revision; setState(value); setDataEpoch(privacy); setDraft(draftFrom(value)); dirtyRef.current = false; draftBase.current = value.revision; setRemoteChanged(false); setFresh(true); setNotice('saved'); }
     } catch (error) { if (generation.current === current && props.currentAccessEpoch() === privacy) { const key = failure(error); setNotice(key === 'denied' ? key : confirmed ? 'savedReload' : key); } }
     finally { if (generation.current === current) { confirmPending(instance); occupy(false); } }
   }
-  function submit(event: SubmitEvent<HTMLFormElement>) { event.preventDefault(); if (disabled || !editable) return; try { void write(buildBrowserSellerProfile(draft)); } catch { setNotice('invalid'); } }
+  function submit(event: SubmitEvent<HTMLFormElement>) { event.preventDefault(); if (disabled || remoteChanged || !editable) return; try { void write(buildBrowserSellerProfile(draft)); } catch { setNotice('invalid'); } }
   const field = (key: keyof BrowserSellerDraft, label: string, maximum: number, type = 'text', required = false) => <label htmlFor={`${prefix}-${key}`}>{label}<input id={`${prefix}-${key}`} name={key} type={type} required={required} maxLength={maximum} value={draft[key]} onChange={event => { dirtyRef.current = true; setDraft(previous => ({ ...previous, [key]: event.target.value })); }} /></label>;
-  const form = <form onSubmit={submit}><fieldset className="us-erp-form" disabled={disabled}>{field('displayName', c.displayName, 256, 'text', true)}<div className="us-erp-grid">{field('contactEmail', c.contactEmail, 254, 'email')}{field('contactPhone', c.contactPhone, 80, 'tel')}</div><p className="us-erp-muted">{c.draftKept}</p><button type="submit" className="account-button">{c.save}</button></fieldset></form>;
+  const form = <form onSubmit={submit}><fieldset className="us-erp-form" disabled={disabled}>{field('displayName', c.displayName, 256, 'text', true)}<div className="us-erp-grid">{field('contactEmail', c.contactEmail, 254, 'email')}{field('contactPhone', c.contactPhone, 80, 'tel')}</div><p className="us-erp-muted">{c.draftKept}</p><button type="submit" className="account-button" disabled={remoteChanged}>{c.save}</button></fieldset></form>;
   return <section className="us-erp-section us-seller-profile" aria-labelledby={`${prefix}-title`}>
     <div className="us-erp-record-heading"><h2 id={`${prefix}-title`}>{c.sellerTitle}</h2><button type="button" className="account-button secondary" disabled={busy || props.otherBusy()} onClick={() => void reload()}>{c.reload}</button></div><p>{c.sellerHelp}</p><p className="us-erp-muted">{c.nonVerified}</p>
     {shownNotice && <div className={`us-erp-notice ${shownNotice === 'saved' ? 'success' : 'error'}`} ref={noticeRef} tabIndex={-1} role={shownNotice === 'saved' ? 'status' : 'alert'}>{c[shownNotice]}</div>}
-    {pending && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><p>{c.pendingMemory}</p><button type="button" className="account-button" disabled={busy || blocked && props.otherBusy()} onClick={() => void write()}>{busy ? c.busy : c.retry}</button></aside>}
+    {pending && !writeLocked && dataEpoch === accessEpoch && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><p>{c.pendingMemory}</p><button type="button" className="account-button" disabled={busy || blocked && props.otherBusy()} onClick={() => void write()}>{busy ? c.busy : c.retry}</button></aside>}
     {shownState ? <UsSellerProfileDetails state={shownState} language={language} /> : !shownNotice && <output>{c.loading}</output>}
+    {editable && shownState && remoteChanged && <section className="us-erp-notice" aria-live="polite"><p>{remoteCopy.changed}</p><button type="button" className="account-button secondary" disabled={busy || pending || props.otherBusy()} onClick={() => { draftBase.current = shownState.revision; setRemoteChanged(false); }}>{remoteCopy.review}</button></section>}
     {!editable && <p className="us-erp-muted">{c.ownerOnly}</p>}{writeLocked && <p className="us-erp-muted">{c.writeLocked}</p>}
     {editable && shownState && (shownState.status === 'unconfigured' ? form : <details className="us-erp-editor"><summary>{c.edit}</summary>{form}</details>)}
   </section>;

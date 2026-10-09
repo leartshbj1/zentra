@@ -7,6 +7,7 @@ import type { ErpState } from '../../lib/international/runtime-types';
 import { BrowserUsAnalysisError, createBrowserUsAnalysisSession, type BrowserUsAnalysisReadiness, type BrowserUsAnalysisSession } from '../../lib/international/browser-us-analysis-session';
 import { browserUsAnalysisCopy, browserUsAnalysisError } from '../../lib/international/browser-us-analysis-copy';
 import './us-supplier-analysis-panel.css';
+import { useUsBackgroundChannel, type UsBackgroundRegistration } from './us-background-channel';
 
 export interface UsSupplierAnalysisBinding {
   expectedUserId: string;
@@ -17,6 +18,7 @@ export interface UsSupplierAnalysisBinding {
   onPending(value: boolean): void;
   onReadiness(value: BrowserUsAnalysisReadiness | null): void;
   onInvalidated(): void;
+  registerBackground?: UsBackgroundRegistration;
 }
 export interface UsSupplierAnalysisPanelProps {
   state: ErpState;
@@ -38,7 +40,7 @@ export function UsSupplierAnalysisPanel({ state, organizationId, role, supported
   const refs = useRef({ identity, binding, disabled, enabled, organizationId, role, supportedSchemaVersion });
   const updateRefs = useEffectEvent(() => { refs.current = { identity, binding, disabled, enabled, organizationId, role, supportedSchemaVersion }; });
   useLayoutEffect(() => { updateRefs(); });
-  const session = useRef<BrowserUsAnalysisSession | null>(null), generation = useRef(0), readSequence = useRef(0), lastPolicy = useRef<string | null>(null), previousRefresh = useRef(refreshToken);
+  const session = useRef<BrowserUsAnalysisSession | null>(null), generation = useRef(0), readSequence = useRef(0), lastPolicy = useRef<string | null>(null), previousRefresh = useRef(refreshToken), mutation = useRef(0), quietRead = useRef<Promise<boolean> | null>(null), loadingRef = useRef(false), readRef = useRef<BrowserUsAnalysisReadiness | null>(null);
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [read, setRead] = useState<BrowserUsAnalysisReadiness | null>(null), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [pending, setPending] = useState(false), [expired, setExpired] = useState(false), [open, setOpen] = useState(false), [consent, setConsent] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const owned = enabled && ownedIdentity === identity;
   const projection = owned ? read : null, fresh = !!projection && !expired;
@@ -53,17 +55,26 @@ export function UsSupplierAnalysisPanel({ state, organizationId, role, supported
     }
     setError(browserUsAnalysisError(language, code));
   }
-  async function load() {
-    const transport = session.current, started = generation.current, actor = refs.current.identity, number = ++readSequence.current;
-    if (!transport) return;
-    setLoading(true); refs.current.binding.onReadiness(null);
-    try {
-      const result = await transport.load(); if (!current(started, actor) || number !== readSequence.current) return;
-      if (lastPolicy.current !== result.policyVersion) setConsent(false); lastPolicy.current = result.policyVersion; setRead(result); setExpired(false); setError(''); refs.current.binding.onReadiness(result);
-    } catch (reason) { if (current(started, actor) && number === readSequence.current) { setRead(null); refs.current.binding.onReadiness(null); fail(reason); } }
-    finally { if (current(started, actor) && number === readSequence.current) setLoading(false); }
+  async function load(background = false): Promise<boolean> {
+    const transport = session.current, started = generation.current, actor = refs.current.identity, version = mutation.current;
+    if (!transport || loadingRef.current || quietRead.current || background && (busy || transport.hasPending() || refs.current.binding.otherBusy() || refs.current.binding.otherPending())) return false;
+    const number = ++readSequence.current; loadingRef.current = true;
+    if (!background) { setLoading(true); refs.current.binding.onReadiness(null); }
+    const operation = (async () => {
+      try {
+        const result = await transport.load(); if (!current(started, actor) || number !== readSequence.current || version !== mutation.current || background && (transport.hasPending() || refs.current.binding.otherBusy() || refs.current.binding.otherPending())) return false;
+        if (lastPolicy.current !== result.policyVersion) setConsent(false); lastPolicy.current = result.policyVersion; readRef.current = result; setRead(result); setExpired(false); if (!background) setError(''); refs.current.binding.onReadiness(result); return true;
+      } catch (reason) {
+        if (!current(started, actor) || number !== readSequence.current) return false;
+        if (background && !(reason instanceof BrowserUsAnalysisError && reason.outcome === 'unauthorized')) throw reason;
+        if (!background) { setRead(null); refs.current.binding.onReadiness(null); } fail(reason); return false;
+      } finally { if (current(started, actor) && number === readSequence.current) { loadingRef.current = false; if (!background) setLoading(false); } }
+    })();
+    if (background) quietRead.current = operation;
+    try { return await operation; } finally { if (quietRead.current === operation) quietRead.current = null; }
   }
-  const reset = useEffectEvent(() => { lastPolicy.current = null; setOwnedIdentity(identity); setRead(null); setBusy(false); setLoading(false); setPending(false); setExpired(false); setOpen(false); setConsent(false); setError(''); setNotice(''); });
+  useUsBackgroundChannel(binding.registerBackground, () => load(true), () => expired || !!read && read.expiresAt * 1000 <= Date.now());
+  const reset = useEffectEvent(() => { loadingRef.current = false; quietRead.current = null; readRef.current = null; lastPolicy.current = null; setOwnedIdentity(identity); setRead(null); setBusy(false); setLoading(false); setPending(false); setExpired(false); setOpen(false); setConsent(false); setError(''); setNotice(''); });
   const loadForEffect = useEffectEvent(() => { void load(); });
   const failForEffect = useEffectEvent((reason: unknown) => { fail(reason); });
   const release = useEffectEvent((transport: BrowserUsAnalysisSession | null, callbacks: UsSupplierAnalysisBinding) => { generation.current++; transport?.dispose(); if (session.current === transport) session.current = null; callbacks.onReadiness(null); callbacks.onBusy(false); callbacks.onPending(false); });
@@ -85,9 +96,10 @@ export function UsSupplierAnalysisPanel({ state, organizationId, role, supported
     return () => clearTimeout(timer);
   }, [projection]);
   async function operate(action: 'active' | 'paused' | 'retry') {
+    if (quietRead.current) { const policy = lastPolicy.current, previous = JSON.stringify(readRef.current); try { if (!await quietRead.current || policy !== lastPolicy.current || previous !== JSON.stringify(readRef.current)) return; } catch { return; } }
     const transport = session.current, callbacks = refs.current.binding, started = generation.current, actor = refs.current.identity;
     if (!transport || refs.current.disabled || busy || callbacks.otherBusy() || callbacks.otherPending() || action !== 'retry' && (pending || loading || !fresh) || action === 'active' && (!canActivate || !consent) || action === 'paused' && !canPause) return;
-    setBusy(true); callbacks.onBusy(true); callbacks.onReadiness(null); setError(''); setNotice('');
+    mutation.current++; setBusy(true); callbacks.onBusy(true); callbacks.onReadiness(null); setError(''); setNotice('');
     try { const result = action === 'retry' ? await transport.retry() : await transport.change(action, action === 'active'); if (!current(started, actor)) return; setNotice(result.replayed ? c.replayed : c.saved); setOpen(false); setConsent(false); await load(); }
     catch (reason) { if (current(started, actor)) fail(reason); }
     finally { if (current(started, actor)) { const unresolved = transport.hasPending(); setPending(unresolved); callbacks.onPending(unresolved); setBusy(false); callbacks.onBusy(false); } }

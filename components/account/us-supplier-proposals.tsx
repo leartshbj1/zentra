@@ -13,6 +13,7 @@ import { browserUsSupplierCopy, browserUsSupplierError } from '@/lib/internation
 import { formatDateOnly } from '@/lib/international/localization';
 import { formatMoney, money } from '@/lib/international/money';
 import './us-supplier-proposals.css';
+import { useUsBackgroundChannel, type UsBackgroundRegistration } from './us-background-channel';
 
 export interface UsSupplierProposalsBinding {
   expectedUserId: string;
@@ -23,6 +24,7 @@ export interface UsSupplierProposalsBinding {
   onPending: (pending: boolean) => void;
   onCommitted: () => void;
   onInvalidated: () => void;
+  registerBackground?: UsBackgroundRegistration;
 }
 export interface UsSupplierProposalsProps {
   state: ErpState;
@@ -60,7 +62,7 @@ export function UsSupplierProposals({ state, organizationId, role, language, sup
   const refs = useRef({ binding, identity, state, organizationId, role, supportedSchemaVersion });
   const updateRefs = useEffectEvent(() => { refs.current = { binding, identity, state, organizationId, role, supportedSchemaVersion }; });
   useLayoutEffect(() => { updateRefs(); });
-  const transport = useRef<BrowserUsSupplierSession | null>(null), generation = useRef(0), readSequence = useRef(0), fileSequence = useRef(0), lastHead = useRef(state.revision);
+  const transport = useRef<BrowserUsSupplierSession | null>(null), generation = useRef(0), readSequence = useRef(0), fileSequence = useRef(0), lastHead = useRef(state.revision), mutation = useRef(0), quietRead = useRef<Promise<boolean> | null>(null), loadingRef = useRef(false), readRef = useRef<BrowserUsSupplierRead | null>(null);
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [read, setRead] = useState<BrowserUsSupplierRead | null>(null), [sequence, setSequence] = useState(0), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [pending, setPending] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null), [draft, setDraft] = useState<Draft | null>(null), [review, setReview] = useState<Review | null>(null), [importDraft, setImportDraft] = useState<ImportDraft | null>(null), [page, setPage] = useState(0);
   const enabled = supportedSchemaVersion === 4 && state.schemaVersion === 4 && state.configuration.organizationId === organizationId && state.configuration.country === 'US' && state.configuration.currency === 'USD' && state.ledger.organizationId === organizationId && ['owner', 'admin', 'accountant'].includes(role);
@@ -73,20 +75,28 @@ export function UsSupplierProposals({ state, organizationId, role, language, sup
   const printedAmount = (proposal: UsSupplierProposal, value: string) => proposal.extraction.fields.currency === 'USD' ? usd(value) : `${decimal(value)}${proposal.extraction.fields.currency === null ? '' : ` ${proposal.extraction.fields.currency}`}`;
   const currentIdentity = () => { const r = refs.current; return `${r.organizationId}:${r.binding.expectedUserId}:${r.role}:${r.supportedSchemaVersion}:${r.binding.accessEpoch()}`; };
   const current = (started: number, actor: string) => generation.current === started && actor === currentIdentity();
-  function purge() { setRead(null); setSelectedId(null); setDraft(null); setReview(null); setImportDraft(null); fileSequence.current++; }
+  function purge() { readRef.current = null; setRead(null); setSelectedId(null); setDraft(null); setReview(null); setImportDraft(null); fileSequence.current++; }
   function failure(reason: unknown) {
     const code = reason instanceof BrowserUsSupplierError || reason instanceof Error && 'code' in reason && typeof reason.code === 'string' ? String(reason.code) : reason instanceof TypeError ? 'invalid_request' : 'service_unavailable';
     if (reason instanceof BrowserUsSupplierError && reason.outcome === 'unauthorized') { transport.current?.dispose(); generation.current++; purge(); setBusy(false); setPending(false); refs.current.binding.onBusy(false); refs.current.binding.onPending(false); refs.current.binding.onInvalidated(); }
     setError(browserUsSupplierError(language, code));
   }
-  async function load() {
-    const session = transport.current, started = generation.current, actor = currentIdentity();
-    if (!session) return; setLoading(true);
-    try { const result = await session.load(); if (!current(started, actor)) return; readSequence.current++; setSequence(readSequence.current); setRead(result); setError(''); }
-    catch (reason) { if (current(started, actor)) failure(reason); }
-    finally { if (current(started, actor)) setLoading(false); }
+  async function load(background = false): Promise<boolean> {
+    const session = transport.current, started = generation.current, actor = currentIdentity(), version = mutation.current;
+    if (!session || loadingRef.current || quietRead.current || background && (busy || session.hasPending() || refs.current.binding.otherBusy() || refs.current.binding.otherPending())) return false;
+    loadingRef.current = true; if (!background) setLoading(true);
+    const operation = (async () => {
+      try { const result = await session.load(); if (!current(started, actor) || version !== mutation.current || background && (session.hasPending() || refs.current.binding.otherBusy() || refs.current.binding.otherPending())) return false;
+        if (JSON.stringify(result) !== JSON.stringify(readRef.current)) { readRef.current = result; readSequence.current++; setSequence(readSequence.current); setRead(result); setReview(null); }
+        if (!background) setError(''); return true;
+      } catch (reason) { if (!current(started, actor)) return false; if (background && !(reason instanceof BrowserUsSupplierError && reason.outcome === 'unauthorized')) throw reason; failure(reason); return false; }
+      finally { if (current(started, actor)) { loadingRef.current = false; if (!background) setLoading(false); } }
+    })();
+    if (background) quietRead.current = operation;
+    try { return await operation; } finally { if (quietRead.current === operation) quietRead.current = null; }
   }
-  const resetForEffect = useEffectEvent(() => { setOwnedIdentity(identity); purge(); setError(''); setNotice(''); setBusy(false); setPending(false); setLoading(false); setPage(0); });
+  useUsBackgroundChannel(binding.registerBackground, () => load(true));
+  const resetForEffect = useEffectEvent(() => { loadingRef.current = false; quietRead.current = null; setOwnedIdentity(identity); purge(); setError(''); setNotice(''); setBusy(false); setPending(false); setLoading(false); setPage(0); });
   const loadForEffect = useEffectEvent(() => { void load(); });
   const releaseForEffect = useEffectEvent((session: BrowserUsSupplierSession | null, callbacks: UsSupplierProposalsBinding) => { generation.current++; session?.dispose(); if (transport.current === session) transport.current = null; callbacks.onBusy(false); callbacks.onPending(false); });
   useEffect(() => {
@@ -94,11 +104,13 @@ export function UsSupplierProposals({ state, organizationId, role, language, sup
     queueMicrotask(() => { if (started !== generation.current) return; resetForEffect(); if (!enabled) return; session = createBrowserUsSupplierSession({ organizationId: refs.current.organizationId, expectedUserId: callbacks.expectedUserId, role: refs.current.role, supportedSchemaVersion: refs.current.supportedSchemaVersion }); transport.current = session; lastHead.current = refs.current.state.revision; loadForEffect(); });
     return () => { releaseForEffect(session, callbacks); };
   }, [identity, enabled]);
-  useEffect(() => { const started = generation.current; if (state.revision !== lastHead.current) { lastHead.current = state.revision; queueMicrotask(() => { if (started === generation.current) loadForEffect(); }); } }, [state.revision]);
+  const loadForHeadEffect = useEffectEvent(() => { void load(true).catch(() => { /* A later head tick retries this quiet read. */ }); });
+  useEffect(() => { const started = generation.current; if (state.revision !== lastHead.current) { lastHead.current = state.revision; queueMicrotask(() => { if (started === generation.current) loadForHeadEffect(); }); } }, [state.revision]);
   async function operate(operation: (session: BrowserUsSupplierSession) => Promise<BrowserUsSupplierResult>) {
+    if (quietRead.current) { const reviewed = readSequence.current; try { if (!await quietRead.current || reviewed !== readSequence.current) return; } catch { return; } }
     const session = transport.current, started = generation.current, actor = currentIdentity(), callbacks = refs.current.binding;
     if (!session || disabled || busy || callbacks.otherBusy() || callbacks.otherPending()) return;
-    setBusy(true); callbacks.onBusy(true); setError(''); setNotice('');
+    mutation.current++; setBusy(true); callbacks.onBusy(true); setError(''); setNotice('');
     try {
       const result = await operation(session); if (!current(started, actor)) return;
       if (result.action === 'prepare') { setImportDraft(null); setSelectedId(result.proposal.id); setDraft(result.proposal.state === 'review' ? initialDraft(result.proposal, refs.current.state.revision) : null); setNotice(c.prepared); }

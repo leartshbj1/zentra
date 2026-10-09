@@ -14,6 +14,7 @@ import { browserBankCopy, browserBankError } from '@/lib/international/browser-b
 import { formatDateOnly } from '@/lib/international/localization';
 import { formatMoney, money } from '@/lib/international/money';
 import './us-erp-bank.css';
+import { useUsBackgroundChannel, type UsBackgroundRegistration } from './us-background-channel';
 
 export interface UsErpBankBinding {
   expectedUserId: string;
@@ -24,6 +25,7 @@ export interface UsErpBankBinding {
   onPending: (pending: boolean) => void;
   onUnauthorized: () => void;
   onCommitted: () => void;
+  registerBackground?: UsBackgroundRegistration;
 }
 type Draft = { key: string; id: string; connectionId: string; openedRevision: number; text: string; fileBusy: boolean };
 type Review = { command: UsBankCommand; id: string; recordRevision: number | null; erpRevision: number; ledgerRevision: number; readSequence: number };
@@ -35,7 +37,7 @@ export function UsErpBank({ organizationId, role, language, ledger, erpRevision,
   const refs = useRef({ binding, identity, ledger, erpRevision, options: { organizationId, expectedUserId: binding.expectedUserId, role, supportedSchemaVersion } });
   const updateRefs = useEffectEvent(() => { refs.current = { binding, identity, ledger, erpRevision, options: { organizationId, expectedUserId: binding.expectedUserId, role, supportedSchemaVersion } }; });
   useLayoutEffect(() => { updateRefs(); });
-  const session = useRef<BrowserBankSession | null>(null), generation = useRef(0), sequence = useRef(0), fileSequence = useRef(0), lastHead = useRef(`${erpRevision}:${ledger.revision}`);
+  const session = useRef<BrowserBankSession | null>(null), generation = useRef(0), sequence = useRef(0), fileSequence = useRef(0), lastHead = useRef(`${erpRevision}:${ledger.revision}`), mutation = useRef(0), quietRead = useRef<Promise<boolean> | null>(null), loadingRef = useRef(false), readRef = useRef<UsBankReadResponse | null>(null);
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [read, setRead] = useState<UsBankReadResponse | null>(null), [readSequence, setReadSequence] = useState(0), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [pending, setPending] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null), [selectedId, setSelectedId] = useState<string | null>(null), [bankIds, setBankIds] = useState<string[]>([]), [entryIds, setEntryIds] = useState<string[]>([]), [review, setReview] = useState<Review | null>(null), [voidReason, setVoidReason] = useState(''), [bankPage, setBankPage] = useState(0), [entryPage, setEntryPage] = useState(0), [previewPage, setPreviewPage] = useState(0);
   const financial = ['owner', 'admin', 'accountant'].includes(role), enabled = supportedSchemaVersion === 4 && ledger.currency === 'USD' && ledger.organizationId === organizationId && financial;
@@ -44,20 +46,28 @@ export function UsErpBank({ organizationId, role, language, ledger, erpRevision,
   const selected = owned ? read?.records.find(record => record.reconciliation.statement.id === selectedId) : undefined;
   const currentReview = owned && fresh && review?.erpRevision === erpRevision && review.ledgerRevision === ledger.revision && review.readSequence === readSequence ? review : null;
   const usd = (units: string) => formatMoney(money('USD', units), locale), day = (date: string) => formatDateOnly(date, locale);
-  function purge() { setRead(null); setDraft(null); setReview(null); setSelectedId(null); setBankIds([]); setEntryIds([]); setVoidReason(''); fileSequence.current++; }
+  function purge() { readRef.current = null; setRead(null); setDraft(null); setReview(null); setSelectedId(null); setBankIds([]); setEntryIds([]); setVoidReason(''); fileSequence.current++; }
   function failure(reason: unknown) {
     const code = reason instanceof BrowserBankError || reason instanceof LedgerError || reason instanceof Error && 'code' in reason && typeof reason.code === 'string' ? String(reason.code) : 'service_unavailable';
     if (reason instanceof BrowserBankError && reason.outcome === 'unauthorized') { session.current?.dispose(); generation.current++; purge(); refs.current.binding.onUnauthorized(); }
     setError(browserBankError(language, code));
   }
-  async function load() {
-    const transport = session.current, started = generation.current, actor = refs.current.identity;
-    if (!transport) return; setLoading(true);
-    try { const result = await transport.load(); if (started !== generation.current || actor !== refs.current.identity) return; sequence.current++; setReadSequence(sequence.current); setRead(result); setError(''); }
-    catch (reason) { if (started === generation.current && actor === refs.current.identity) failure(reason); }
-    finally { if (started === generation.current && actor === refs.current.identity) setLoading(false); }
+  async function load(background = false): Promise<boolean> {
+    const transport = session.current, started = generation.current, actor = refs.current.identity, version = mutation.current;
+    if (!transport || loadingRef.current || quietRead.current || background && (busy || transport.hasPending() || refs.current.binding.otherBusy() || refs.current.binding.otherPending())) return false;
+    loadingRef.current = true; if (!background) setLoading(true);
+    const operation = (async () => {
+      try { const result = await transport.load(); if (started !== generation.current || actor !== refs.current.identity || version !== mutation.current || background && (transport.hasPending() || refs.current.binding.otherBusy() || refs.current.binding.otherPending())) return false;
+        if (JSON.stringify(result) !== JSON.stringify(readRef.current)) { readRef.current = result; sequence.current++; setReadSequence(sequence.current); setRead(result); setReview(null); }
+        if (!background) setError(''); return true;
+      } catch (reason) { if (started !== generation.current || actor !== refs.current.identity) return false; if (background && !(reason instanceof BrowserBankError && reason.outcome === 'unauthorized')) throw reason; failure(reason); return false; }
+      finally { if (started === generation.current && actor === refs.current.identity) { loadingRef.current = false; if (!background) setLoading(false); } }
+    })();
+    if (background) quietRead.current = operation;
+    try { return await operation; } finally { if (quietRead.current === operation) quietRead.current = null; }
   }
-  const resetForEffect = useEffectEvent(() => { setOwnedIdentity(identity); purge(); setError(''); setNotice(''); setBusy(false); setPending(false); setLoading(false); });
+  useUsBackgroundChannel(binding.registerBackground, () => load(true));
+  const resetForEffect = useEffectEvent(() => { loadingRef.current = false; quietRead.current = null; setOwnedIdentity(identity); purge(); setError(''); setNotice(''); setBusy(false); setPending(false); setLoading(false); });
   const loadForEffect = useEffectEvent(() => { void load(); });
   const releaseForEffect = useEffectEvent((current: BrowserBankSession | null, callbacks: UsErpBankBinding) => { generation.current++; current?.dispose(); if (session.current === current) session.current = null; callbacks.onBusy(false); callbacks.onPending(false); });
   useEffect(() => {
@@ -65,7 +75,8 @@ export function UsErpBank({ organizationId, role, language, ledger, erpRevision,
     queueMicrotask(() => { if (started !== generation.current) return; resetForEffect(); if (!enabled) return; current = createBrowserBankSession(refs.current.options); session.current = current; lastHead.current = `${refs.current.erpRevision}:${refs.current.ledger.revision}`; loadForEffect(); });
     return () => { releaseForEffect(current, callbacks); };
   }, [identity, enabled]);
-  useEffect(() => { const head = `${erpRevision}:${ledger.revision}`, started = generation.current; if (head !== lastHead.current) { lastHead.current = head; queueMicrotask(() => { if (started === generation.current) loadForEffect(); }); } }, [erpRevision, ledger.revision]);
+  const loadForHeadEffect = useEffectEvent(() => { void load(true).catch(() => { /* A later head tick retries this quiet read. */ }); });
+  useEffect(() => { const head = `${erpRevision}:${ledger.revision}`, started = generation.current; if (head !== lastHead.current) { lastHead.current = head; queueMicrotask(() => { if (started === generation.current) loadForHeadEffect(); }); } }, [erpRevision, ledger.revision]);
   function clearChoice() { setReview(null); setBankIds([]); setEntryIds([]); setVoidReason(''); setBankPage(0); setEntryPage(0); }
   function startDraft() { if (blocked) return; clearChoice(); setSelectedId(null); setDraft({ key: crypto.randomUUID(), id: crypto.randomUUID(), connectionId: crypto.randomUUID(), openedRevision: erpRevision, text: '', fileBusy: false }); setNotice(''); setError(''); setPreviewPage(0); }
   function preview(command: UsBankCommand, id: string, record: UsBankRecord | null) {
@@ -88,9 +99,11 @@ export function UsErpBank({ organizationId, role, language, ledger, erpRevision,
     catch (reason) { if (number === fileSequence.current && actor === refs.current.identity) { setDraft(current => current?.key === key ? { ...current, fileBusy: false } : current); failure(reason); } }
   }
   async function commit(retry = false) {
+    if (quietRead.current) { const reviewed = sequence.current; try { if (!await quietRead.current || reviewed !== sequence.current) return; } catch { return; } }
     const transport = session.current, candidate = currentReview, started = generation.current, actor = identity;
+    if (!retry && candidate && (candidate.readSequence !== sequence.current || candidate.erpRevision !== refs.current.erpRevision || candidate.ledgerRevision !== refs.current.ledger.revision)) return;
     if (!transport || busy || loading || otherBlocked || !owned || (!retry && (!candidate || blocked))) return;
-    setBusy(true); binding.onBusy(true); setError(''); setNotice('');
+    mutation.current++; setBusy(true); binding.onBusy(true); setError(''); setNotice('');
     try {
       if (retry) await transport.retry(); else if (candidate) await transport.submit(candidate.command, candidate.id, candidate.erpRevision, candidate.recordRevision);
       if (started !== generation.current || actor !== refs.current.identity) return;
