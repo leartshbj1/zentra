@@ -1,6 +1,10 @@
 -- Proposed read-only staging/production preflight. NOT executed on a hosted DB.
 -- Run only after explicit deployment approval, with authorized private access.
 -- No customer document, identity, credential, address or account ID is projected.
+-- PREREQUISITE: run US-STAGING-STRUCTURE-PREFLIGHT.sql first and verify that
+-- zentra_us_tax_operations and its reviewed dependency chain actually exist.
+-- The subsequent structural audit found them absent on the current hosted DB;
+-- this operation-count proposal has NOT been run there and is not a bootstrap.
 begin read only;
 
 -- Newly protected mutations require durable reviewed-input links. A pre-existing

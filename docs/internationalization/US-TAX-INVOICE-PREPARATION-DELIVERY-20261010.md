@@ -40,7 +40,7 @@ CH business paths, Stripe SaaS products/prices/subscriptions and earlier migrati
 
 `supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql` was created with the Supabase CLI and is additive: immutable private preparations, immutable operation links, integrity/transition guards and protected RPCs, RLS and server-only grants. No hosted apply is performed.
 
-Before an explicitly approved staging/production apply, run `US-TAX-INVOICE-PREPARATION-PREFLIGHT.sql` and reconcile any older uncommitted observed operations. Never fabricate their missing human review. Historical committed receipts remain readable. Preserve the deployed dependency chain and take the deployment's verified recovery snapshot.
+Before an explicitly approved staging/production apply, first run `US-STAGING-STRUCTURE-PREFLIGHT.sql` and reconcile actual baseline/dependency objects. The later read-only audit confirmed that the fiscal-operation table is absent on the current hosted project; `US-TAX-INVOICE-PREPARATION-PREFLIGHT.sql` requires that dependency and must only run once it exists. Then reconcile any older uncommitted observed operations. Never fabricate their missing human review. Historical committed receipts remain readable. Preserve the deployed dependency chain and take the deployment's verified recovery snapshot. See `US-STAGING-READINESS-20261010.md` for this subsequent audit; it does not change the execution history of the invoice milestone above.
 
 Rollback begins by disabling new TEST issuance. Do not delete preparations, operations, invoices or journals. Keep compatible receipt reads and audit history. Removing stored evidence or changing existing migrations is not an automatic rollback and would require separate review/approval.
 
