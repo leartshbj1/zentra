@@ -27,8 +27,9 @@ export interface ErpServerDependencies {
   projectExists?:(actor:FinancialAuthority,projectId:string)=>Promise<boolean>;
   seller?:(actor:FinancialAuthority)=>Promise<PublicSellerSnapshot|null>;
   /** Optional private TEST issuer, supplied only by trusted server wiring.
-   * No runtime binding installs it by default. Only issue_invoice dispatches
-   * here; other ERP commands retain the existing engine and its atomic store. */
+   * New work remains opt-in; a lazy binding may recover committed historical
+   * receipts while that opt-in is closed. Only issue_invoice dispatches here;
+   * other commands retain the existing engine and its atomic store. */
   issueInvoiceTest?:(execution:Pick<ErpExecutionDependencies,'store'|'configuration'|'actor'|'revalidate'>,input:ErpRequest)=>Promise<Readonly<{receipt:unknown;replayed:boolean}>>;
   rateLimit:(request:Request,actor:FinancialAuthority,operation:'read'|'write')=>Promise<void>;
   /** No document text, addresses, secrets, token, tax raw response or payment details. */
@@ -37,6 +38,10 @@ export interface ErpServerDependencies {
 const headers={'Cache-Control':'no-store, max-age=0','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
 function json(value:unknown,status=200){return Response.json(value,{status,headers});}
 const financialCodes:Record<string,number>={TENANT_MISMATCH:403,MANAGEMENT_ENTITLEMENT_REQUIRED:402,FINANCIAL_PERMISSION_REQUIRED:403,INVOICE_PERMISSION_REQUIRED:403,REVISION_CONFLICT:409,IDEMPOTENCY_CONFLICT:409,PAYMENT_EXCEEDS_BALANCE:422,TAX_CONFIGURATION_REQUIRED:409,TAX_ASSESSMENT_EXPIRED:409,STALE_TAX_ASSESSMENT:409,PERIOD_CLOSED:409,ACCOUNTING_PERIOD_CLOSED:409,INVALID_REVERSAL:409};
+function accessLost(error:unknown):boolean{
+  const status=error instanceof ErpError||error instanceof AccountPublicError?error.status:error instanceof LedgerError?financialCodes[error.message]:undefined;
+  return status===401||status===402||status===403;
+}
 function failure(error:unknown,operation:'read'|'write',dependencies:ErpServerDependencies):Response{
   let code='service_unavailable',status=503;
   if(error instanceof ErpError){code=error.code;status=error.status;}
@@ -86,14 +91,30 @@ export function createErpHandlers(dependencies:ErpServerDependencies){
         let capturedCapability:ErpSchemaVersion=1;
         async function revalidate(){
           // Configuration stays private and scoped to the initial admission. Read
-          // authority last so changes during this await cannot authorize a commit.
-          const config=await dependencies.configuration(trusted.actor);
-          if(canonicalErpJson(config)!==canonicalErpJson(trusted.config))throw new ErpError('configuration_changed',409);
-          if(dependencies.freshSupportedSchemaVersion)requireErpClientSchema(capturedCapability,await dependencies.freshSupportedSchemaVersion(clientSchemaVersion));
-          const fresh=await dependencies.authority(request,organizationId);
-          confirmErpReadAdmission(trusted,fresh);
-          if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);
-          return fresh.actor;
+          // authority even after a failed private check: access loss takes priority.
+          let failure:unknown,failed=false;
+          const remember=(error:unknown)=>{if(!failed){failure=error;failed=true;}};
+          async function freshAuthority(){
+            const fresh=await dependencies.authority(request,organizationId);
+            confirmErpReadAdmission(trusted,fresh);
+            return fresh.actor;
+          }
+          try{
+            const config=await dependencies.configuration(trusted.actor);
+            if(canonicalErpJson(config)!==canonicalErpJson(trusted.config))throw new ErpError('configuration_changed',409);
+            if(dependencies.freshSupportedSchemaVersion)requireErpClientSchema(capturedCapability,await dependencies.freshSupportedSchemaVersion(clientSchemaVersion));
+          }catch(error){remember(error);}
+          let fresh:FinancialAuthority|undefined;
+          try{fresh=await freshAuthority();}catch(error){if(accessLost(error))throw error;remember(error);}
+          try{if(!await dependencies.enabled())throw new ErpError('feature_unavailable',404);}
+          catch(error){
+            remember(error);
+            // One bounded recheck also catches revocation during a failed flag
+            // await; successful admission retains its existing Auth read count.
+            try{fresh=await freshAuthority();}catch(authorityError){if(accessLost(authorityError))throw authorityError;remember(authorityError);}
+          }
+          if(failed)throw failure;
+          return fresh!;
         }
         const requestInput=validateErpRequest(input,organizationId);
         if(['save_vendor','record_vendor_bill','record_vendor_payment'].includes(requestInput.command.type))requireErpClientSchema(2,clientSchemaVersion);

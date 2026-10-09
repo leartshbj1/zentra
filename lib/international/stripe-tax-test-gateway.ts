@@ -24,7 +24,7 @@ export interface StripeTaxTestSdkClient {
     registrations: Pick<Stripe['tax']['registrations'], 'list'>;
     calculations: Pick<Stripe['tax']['calculations'], 'create'>;
   }>;
-  readonly taxCodes: Pick<Stripe['taxCodes'], 'retrieve'>;
+  readonly taxCodes: Pick<Stripe['taxCodes'], 'retrieve'> & Partial<Pick<Stripe['taxCodes'], 'list'>>;
 }
 export interface StripeTaxTestGatewayOptions {
   readonly client: StripeTaxTestSdkClient;
@@ -39,10 +39,16 @@ export interface StripeTaxCatalogCode {
   readonly name: string;
   readonly description: string;
 }
+export interface StripeTaxCatalogPage {
+  readonly taxCodes: readonly StripeTaxCatalogCode[];
+  readonly hasMore: boolean;
+  readonly nextCursor: string | null;
+}
 export interface StripeTaxTestGateway extends UsTaxInvoiceTestGateway {
   /** Technical catalogue existence only. The caller must separately confirm
    * the service classification and its legal applicability; no guessing. */
   readTaxCode(code: string): Promise<StripeTaxCatalogCode>;
+  listTaxCodes(after?: string): Promise<StripeTaxCatalogPage>;
 }
 export interface StripeTaxTestConfigurationOptions extends StripeTaxTestGatewayOptions {
   readonly taxOrigin: USAddress;
@@ -59,8 +65,8 @@ export interface StripeTaxTestConfigurationObservation {
   readonly observedAt: string;
   readonly taxOrigin: USAddress;
 }
-type Failure = 'service_unavailable' | 'binding_unavailable' | 'tax_binding_changed' | 'server_clock_unavailable' | 'financial_permission_required' | 'management_entitlement_required' | 'tenant_mismatch';
-const statuses: Readonly<Record<Failure, number>> = Object.freeze({ service_unavailable: 503, binding_unavailable: 409, tax_binding_changed: 409, server_clock_unavailable: 503, financial_permission_required: 403, management_entitlement_required: 402, tenant_mismatch: 403 });
+type Failure = 'service_unavailable' | 'binding_unavailable' | 'tax_binding_changed' | 'server_clock_unavailable' | 'financial_permission_required' | 'management_entitlement_required' | 'tenant_mismatch' | 'unsupported_tax_request';
+const statuses: Readonly<Record<Failure, number>> = Object.freeze({ service_unavailable: 503, binding_unavailable: 409, tax_binding_changed: 409, server_clock_unavailable: 503, financial_permission_required: 403, management_entitlement_required: 402, tenant_mismatch: 403, unsupported_tax_request: 422 });
 function fail(code: Failure = 'service_unavailable'): never { throw new ErpError(code, statuses[code]); }
 function safeError(error: unknown): ErpError {
   if (error instanceof ErpError && Object.hasOwn(statuses, error.code)) return new ErpError(error.code, statuses[error.code as Failure]);
@@ -76,6 +82,12 @@ function text(input: unknown, limit: number): string {
   return input;
 }
 function revision(input: unknown): void { if (!Number.isSafeInteger(input) || (input as number) < 1 || (input as number) >= Number.MAX_SAFE_INTEGER) return fail(); }
+function supportedCode(body: Record<string, unknown>): boolean {
+  if (body.requirements === undefined) return true;
+  const requirements = object(body.requirements);
+  if (Object.keys(requirements).length !== 1 || !Object.hasOwn(requirements, 'performance_location') || !['optional', 'required'].includes(requirements.performance_location as string)) return fail('unsupported_tax_request');
+  return requirements.performance_location === 'optional';
+}
 function instant(input: unknown): bigint {
   try {
     if (typeof input !== 'string' || !/^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})$/.test(input)) return fail('server_clock_unavailable');
@@ -209,6 +221,7 @@ export function createStripeTaxTestGateway(options: StripeTaxTestGatewayOptions)
     if (typeof code !== 'string' || code.length !== 13 || !/^txcd_[0-9]{8}$/.test(code)) return fail('binding_unavailable');
     const body = await observed(context, expectedEpoch, () => client.taxCodes.retrieve(code, {}, readOptions));
     if (body.object !== 'tax_code' || body.id !== code) return fail('tax_binding_changed');
+    if (!supportedCode(body)) return fail('unsupported_tax_request');
     return Object.freeze({ id: code, name: text(body.name, 2000), description: text(body.description, 16_000) });
   }
   return Object.freeze({
@@ -224,6 +237,28 @@ export function createStripeTaxTestGateway(options: StripeTaxTestGatewayOptions)
       try {
         const captured = verified; if (!captured) return fail('binding_unavailable');
         return await catalogue(code, captured.context, captured.epoch);
+      } catch (error) { throw safeError(error); }
+    },
+    async listTaxCodes(after?: string): Promise<StripeTaxCatalogPage> {
+      try {
+        const captured = verified;
+        if (!captured || !client.taxCodes.list) return fail('binding_unavailable');
+        if (after !== undefined && !/^txcd_[0-9]{8}$/.test(after)) return fail('binding_unavailable');
+        const body = await observed(captured.context, captured.epoch, () => client.taxCodes.list!({ limit: 20, ...(after ? { starting_after: after } : {}) }, readOptions));
+        if (body.object !== 'list' || body.url !== '/v1/tax_codes' || typeof body.has_more !== 'boolean' || !Array.isArray(body.data) || body.data.length > 20 || body.has_more && body.data.length === 0) return fail();
+        const ids = new Set<string>();
+        let rawCursor: string | null = null;
+        const taxCodes = body.data.flatMap(input => {
+          const code = object(input);
+          if (code.object !== 'tax_code' || typeof code.id !== 'string' || !/^txcd_[0-9]{8}$/.test(code.id) || code.id === after || ids.has(code.id)) return fail();
+          ids.add(code.id);
+          rawCursor = code.id;
+          if (!supportedCode(code)) return [];
+          return [Object.freeze({ id: code.id, name: text(code.name, 2000), description: text(code.description, 16_000) })];
+        });
+        const page = Object.freeze({ taxCodes: Object.freeze(taxCodes), hasMore: body.has_more, nextCursor: body.has_more ? rawCursor : null });
+        if (new TextEncoder().encode(JSON.stringify(page)).byteLength > 512 * 1024) return fail();
+        return page;
       } catch (error) { throw safeError(error); }
     },
     async calculate(input: ResolvedStripeTaxRequest): Promise<StripeTaxCalculationObservation> {

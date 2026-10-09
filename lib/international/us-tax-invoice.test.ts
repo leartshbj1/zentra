@@ -254,6 +254,15 @@ describe('private TEST issuer through the real ERP engine', () => {
 });
 
 describe('adversarial issuer admission and awaited private state', () => {
+  it.each([
+    ['tax_preparation_required',409],['tax_preparation_changed',409],
+    ['tax_preparation_expired',409],['invalid_tax_preparation',422],
+    ['invalid_stored_tax_preparation',503],
+  ] as const)('preserves the bounded preparation failure %s for safe recovery',async(code,status)=>{
+    const t=await fixture();t.once('classification',()=>{throw new ErpError(code,200);});
+    await failure(t.issue(),code,status);noInvoice(t);
+    expect(t.operations.reserve).not.toHaveBeenCalled();expect(t.dependencies.gateway.calculate).not.toHaveBeenCalled();
+  });
   const failures = { user: ['session_changed', 401], scope: ['session_changed', 401], role: ['financial_permission_required', 403], 'financial role': ['forbidden', 403], entitlement: ['management_entitlement_required', 402], flags: ['feature_unavailable', 404], revoked: ['unauthorized', 401] } as const;
   it.each(Object.keys(failures) as (keyof typeof failures)[])('withholds all invoice effects when injected %s admission changes during any precommit await', async kind => {
     for (const phase of ['receipt','erpRead','operationRead','context','classification','location','reserve','verify','calculate','record'] as const) {

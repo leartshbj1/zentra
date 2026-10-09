@@ -22,6 +22,10 @@ import { createSupabaseUsTaxMerchantStore } from './us-tax-merchant-store';
 import { resolveUsTaxTestMerchant } from './us-tax-merchant-resolver';
 import { createUsTaxMerchantReadinessEvaluator } from './us-tax-merchant-readiness';
 import { createUsTaxFinancialContextReader } from './us-tax-financial-context';
+import { createUsTaxInvoicePreparationHandlers } from './us-tax-invoice-preparation-server';
+import { createUsTaxInvoiceTestRuntime } from './us-tax-invoice-test-runtime';
+import { createSupabaseUsTaxInvoicePreparationStore } from './us-tax-invoice-preparation-store';
+import { createSupabasePreparedUsTaxOperationStore } from './us-tax-prepared-operation-store';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -74,9 +78,16 @@ export const erpServerDependencies:ErpServerDependencies={
     return state.configuration;
   },
   async store(clientSchemaVersion){return createSupabaseErpStore((await import('../supabase-server-runtime')).supabaseServerClient(),{supportedSchemaVersion:await usPurchasingSchemaVersion(clientSchemaVersion)});},
-  // A provider will be installed only with verified registrations and sandbox results.
-  // Neither an owner-set status nor a country/language silently invents a tax determination.
+  // Generic/live issuance remains closed. The separate private TEST path below
+  // requires durable human preparation and an observed dedicated merchant.
   async taxProvider(){return null;},
+  // The factory is lazy: committed historical receipts do not depend on today's
+  // merchant key, catalogue, binding expiry or the new-operation TEST flag.
+  issueInvoiceTest:createUsTaxInvoiceTestRuntime({
+    enabled:usTaxInvoiceTestEnabled,merchant:taxMerchant,merchantStore:taxMerchantStore,
+    contexts:taxInvoiceContexts,preparations:taxInvoicePreparations,operations:taxInvoiceOperations,
+    now:()=>new Date().toISOString(),operationId:()=>crypto.randomUUID(),
+  }),
   async seller(actor){
     const client=(await import('../supabase-server-runtime')).supabaseServerClient();
     const state=await getUsSellerProfile(client,actor);
@@ -104,12 +115,33 @@ async function taxMerchant(organizationId:string){
   });
 }
 async function taxMerchantStore(){return createSupabaseUsTaxMerchantStore((await import('../supabase-server-runtime')).supabaseServerClient());}
+/** Private TEST capability, never inferred from client locale or subscription. */
+export async function usTaxInvoiceTestEnabled():Promise<boolean>{
+  if(!await taxMerchantEnabled())return false;
+  try{const {env}=await import('cloudflare:workers');return (env as unknown as {INTERNATIONAL_US_TAX_TEST_INVOICE_ENABLED?:string}).INTERNATIONAL_US_TAX_TEST_INVOICE_ENABLED==='true';}
+  catch{return false;}
+}
+async function taxInvoiceContexts(revalidate:()=>Promise<FinancialAuthority>){
+  return createUsTaxFinancialContextReader((await import('../supabase-server-runtime')).supabaseServerClient(),{revalidate,now:()=>new Date().toISOString()});
+}
+async function taxInvoicePreparations(supportedSchemaVersion:ErpSchemaVersion){
+  return createSupabaseUsTaxInvoicePreparationStore((await import('../supabase-server-runtime')).supabaseServerClient(),{supportedSchemaVersion});
+}
+async function taxInvoiceOperations(supportedSchemaVersion:ErpSchemaVersion){
+  return createSupabasePreparedUsTaxOperationStore((await import('../supabase-server-runtime')).supabaseServerClient(),{supportedSchemaVersion});
+}
+export const usTaxInvoicePreparationHandlers=createUsTaxInvoicePreparationHandlers({
+  ...erpServerDependencies,enabled:usTaxInvoiceTestEnabled,merchant:taxMerchant,merchantStore:taxMerchantStore,
+  contexts:taxInvoiceContexts,preparations:taxInvoicePreparations,erpStore:erpServerDependencies.store,now:()=>new Date().toISOString(),
+  async rateLimit(request,actor,operation){await(await import('../account')).enforceAccountRateLimit(request,`international-us-tax-invoice-${operation}`,`${actor.organizationId}:${actor.userId}`,operation==='read'?120:24);},
+  diagnostic(event){console.warn('zentra.international.us-tax-invoice',event);},
+});
 export const usTaxMerchantHandlers=createUsTaxMerchantHandlers({
   ...erpServerDependencies,enabled:taxMerchantEnabled,store:taxMerchantStore,merchant:taxMerchant,now:()=>new Date().toISOString(),
   async rateLimit(request,actor,operation){await(await import('../account')).enforceAccountRateLimit(request,`international-us-tax-merchant-${operation}`,`${actor.organizationId}:${actor.userId}`,operation==='read'?120:12);},
   diagnostic(event){console.warn('zentra.international.us-tax-merchant',event);},
 });
-// Informative TEST projection only. Issuance remains closed. Missing merchant,
+// Informative TEST projection only. Missing merchant,
 // unadmitted credential, expiry or changed provider observation fails closed.
 export const usTaxReadinessHandlers=createUsTaxReadinessHandlers({
   ...erpServerDependencies, now:()=>Math.floor(Date.now()/1000),

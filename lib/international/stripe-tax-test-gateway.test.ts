@@ -85,6 +85,32 @@ async function denied(promise: Promise<unknown>, code = 'service_unavailable'): 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 afterEach(() => vi.restoreAllMocks());
 
+describe('bounded observed TEST catalogue (mock SDK only)', () => {
+  it('requires verification and an explicit installed list port', async () => {
+    const f = await fixture(); await denied(f.gateway.listTaxCodes(), 'binding_unavailable'); await f.gateway.verify(f.context); await denied(f.gateway.listTaxCodes(), 'binding_unavailable'); expect(f.createCalculation).not.toHaveBeenCalled();
+  });
+  it('reads a bounded page with exact options and an upstream continuation cursor', async () => {
+    const f = await fixture(), list = vi.fn(async () => sdkResponse({ object: 'list', url: '/v1/tax_codes', has_more: true, data: [{ id: 'txcd_99999999', object: 'tax_code', name: 'Fictitious code', description: 'Technical catalogue entry' }] }));
+    f.options.client.taxCodes.list = list as never; await f.gateway.verify(f.context);
+    expect(await f.gateway.listTaxCodes('txcd_11111111')).toEqual({ taxCodes: [{ id: 'txcd_99999999', name: 'Fictitious code', description: 'Technical catalogue entry' }], hasMore: true, nextCursor: 'txcd_99999999' });
+    expect(list).toHaveBeenCalledExactlyOnceWith({ limit: 20, starting_after: 'txcd_11111111' }, { apiVersion: STRIPE_TAX_API_VERSION, maxNetworkRetries: 0, timeout: 20_000 }); expect(f.createCalculation).not.toHaveBeenCalled();
+  });
+  it('filters required performance-location codes while advancing the raw cursor', async () => {
+    const f = await fixture(); f.options.client.taxCodes.list = vi.fn(async () => sdkResponse({ object: 'list', url: '/v1/tax_codes', has_more: true, data: [{ id: 'txcd_99999999', object: 'tax_code', name: 'Fictitious code', description: 'Technical catalogue entry', requirements: { performance_location: 'required' } }] })) as never;
+    await f.gateway.verify(f.context); expect(await f.gateway.listTaxCodes()).toEqual({ taxCodes: [], hasMore: true, nextCursor: 'txcd_99999999' });
+  });
+  it.each(['required', 'unknown', 'extra'] as const)('refuses %s performance-location requirements on retrieval before calculation', async kind => {
+    const f = await fixture(); await f.gateway.verify(f.context);
+    f.retrieveCode.mockResolvedValueOnce(sdkResponse({ id: 'txcd_99999999', object: 'tax_code', name: 'Fictitious code', description: 'Technical entry', requirements: kind === 'extra' ? { performance_location: 'optional', other: 'unknown' } : { performance_location: kind } }));
+    await denied(f.gateway.readTaxCode('txcd_99999999'), 'unsupported_tax_request'); expect(f.createCalculation).not.toHaveBeenCalled();
+  });
+  it.each(['duplicate', 'wrong-url', 'too-many', 'bad-metadata', 'unknown-requirement'] as const)('refuses a malformed %s catalogue page', async kind => {
+    const f = await fixture(), row = { id: 'txcd_99999999', object: 'tax_code', name: 'Fictitious code', description: 'Technical entry' };
+    f.options.client.taxCodes.list = vi.fn(async () => sdkResponse({ object: 'list', url: kind === 'wrong-url' ? '/foreign' : '/v1/tax_codes', has_more: false, data: kind === 'too-many' ? Array.from({ length: 21 }, (_, i) => ({ ...row, id: 'txcd_' + i.toString().padStart(8, '0') })) : kind === 'duplicate' ? [row, row] : [{ ...row, ...(kind === 'unknown-requirement' ? { requirements: { performance_location: 'unknown' } } : {}) }] }, kind === 'bad-metadata' ? { apiVersion: 'old' } : undefined)) as never;
+    await f.gateway.verify(f.context); await denied(f.gateway.listTaxCodes(), kind === 'bad-metadata' ? 'tax_binding_changed' : kind === 'unknown-requirement' ? 'unsupported_tax_request' : 'service_unavailable'); expect(f.createCalculation).not.toHaveBeenCalled();
+  });
+});
+
 describe('inactive, injected Stripe22.6 TEST gateway (mock SDK evidence only)', () => {
   it('accepts the installed SDK structure and exposes no credential or environment fallback', async () => {
     const sdkAssignable = (client: Stripe): StripeTaxTestSdkClient => client; expect(sdkAssignable).toBeTypeOf('function');

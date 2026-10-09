@@ -182,6 +182,7 @@ describe.runIf(enabled)('private TEST invoice issuer vertical path through real 
     // Run the established issuer against the new additive merchant migration.
     // Injected test_fixture gateway responses remain explicit QA only.
     await db.exec(await readFile(new URL('../../supabase/migrations/20261009222319_international_us_tax_test_merchant.sql',import.meta.url),'utf8'));
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql',import.meta.url),'utf8'));
   }, 20_000);
   afterAll(async () => { await db?.close(); });
 

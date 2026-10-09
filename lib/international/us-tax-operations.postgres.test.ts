@@ -121,6 +121,9 @@ describe.runIf(enabled)('durable TEST tax operations and atomic invoice proof on
     // The merchant admission must preserve historical operations/proofs and
     // existing fiscal guards, including legacy exact replay after promotion.
     await db.exec(await readFile(new URL('../../supabase/migrations/20261009222319_international_us_tax_test_merchant.sql',import.meta.url),'utf8'));
+    // Confirm the observed-operation preparation guards preserve explicit
+    // legacy QA fixtures and committed receipt history.
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql',import.meta.url),'utf8'));
   }, 20_000);
   afterAll(async () => { await db?.close(); });
   it('baseline regression: legacy private fiscal RPC must refuse an initial schema4 issuance',async()=>{

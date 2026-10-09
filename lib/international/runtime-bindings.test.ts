@@ -10,9 +10,11 @@ vi.mock('../../app/zentra-auth',()=>({getZentraUser:f.user}));
 vi.mock('../team-seats',()=>({teamSeats:f.seats}));
 vi.mock('../supabase-server-runtime',()=>({supabaseServerClient:()=>({select:f.select,rpc:f.rpc})}));
 vi.mock('./saas-authority-d1',()=>({requireUsWorkspaceAccess:f.usAccess}));
-import { erpServerDependencies as binding, usTaxMerchantHandlers } from './runtime-bindings';
+import { erpServerDependencies as binding, usTaxMerchantHandlers, usTaxInvoiceTestEnabled } from './runtime-bindings';
 import { GET as sellerGET, PUT as sellerPUT } from '../../app/api/international/workspaces/[organizationId]/seller/route';
 import { GET as taxGET, PUT as taxPUT } from '../../app/api/international/workspaces/[organizationId]/tax-profile/route';
+import { GET as catalogueGET } from '../../app/api/international/workspaces/[organizationId]/tax-catalogue/route';
+import { POST as preparationPOST } from '../../app/api/international/workspaces/[organizationId]/tax-invoice-preparation/route';
 const org='fictitious-us-binding';
 const request=(bearer=false)=>new Request('https://zentraapp.ch/erp',{headers:bearer?{Authorization:'Bearer fictitious-session'}:{}});
 beforeEach(()=>{
@@ -27,7 +29,16 @@ describe('actual ERP authority bindings',()=>{
     expect((await usTaxMerchantHandlers.GET(request(),org)).status).toBe(404);
     expect((await usTaxMerchantHandlers.POST(new Request('https://zentraapp.ch/erp',{method:'POST'}),org)).status).toBe(404);
     expect(f.user).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled();expect(f.select).not.toHaveBeenCalled();
-    expect(binding.issueInvoiceTest).toBeUndefined();
+    // The lazy hook is installed for historical replay, but new TEST issuance
+    // has a separate closed flag. No merchant/provider work happens on import.
+    expect(binding.issueInvoiceTest).toBeTypeOf('function');
+  });
+  it('keeps actual TEST preparation and catalogue routes closed before Auth or storage',async()=>{
+    expect(await usTaxInvoiceTestEnabled()).toBe(false);
+    const context={params:Promise.resolve({organizationId:org})};
+    expect((await catalogueGET(new Request(`https://zentraapp.ch/api/international/workspaces/${org}/tax-catalogue`),context)).status).toBe(404);
+    expect((await preparationPOST(new Request(`https://zentraapp.ch/api/international/workspaces/${org}/tax-invoice-preparation`,{method:'POST'}),context)).status).toBe(404);
+    expect(f.user).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled();expect(f.select).not.toHaveBeenCalled();
   });
   it('refuses a v4 header on an immutable v3 credential before reading US rights',async()=>{
     const req=new Request('https://zentraapp.ch/erp',{headers:{Authorization:'Bearer fictitious-session','X-Zentra-Erp-Schema-Version':'4'}});

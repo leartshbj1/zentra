@@ -57,6 +57,9 @@ const publicErpFailures: Readonly<Record<string, number>> = Object.freeze({
   unsupported_tax_calculation: 409, unsupported_tax_request: 422,
   invoice_permission_required: 403, tax_assessment_expired: 409, stale_tax_assessment: 409,
   client_upgrade_required: 409, accounting_period_closed: 409,
+  tax_preparation_required: 409, tax_preparation_changed: 409,
+  tax_preparation_expired: 409, invalid_tax_preparation: 422,
+  invalid_stored_tax_preparation: 503,
 });
 function invalid(): never { throw new ErpError('invalid_stored_tax_operation', 503); }
 function actor(input: unknown, organizationId: string): FinancialAuthority {
@@ -93,8 +96,9 @@ class CommittedReplay extends Error {
   constructor(readonly receipt: ErpReceipt) { super('committed_replay'); }
 }
 
-/** Private TEST issuer using the established document/accounting engine. No
- * runtime binding, route, credential, config activation or CH path is installed.
+/** Private TEST issuer using the established document/accounting engine. The
+ * scoped runtime composition owns preparation/merchant admission; no CH path,
+ * live provider or SaaS billing credential is admitted by this engine.
  * Pending evidence is fresh; a committed receipt is historical. No auto retry.
  * Composed reads are not an atomic pre-provider fence: SQL owns final admission. */
 export async function executeUsTaxInvoiceTest(dependencies: UsTaxInvoiceTestDependencies, input: unknown): Promise<Readonly<{ receipt: ErpReceipt; replayed: boolean }>> {

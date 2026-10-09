@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { sha256Hex } from '../account-security';
 import { canonicalErpJson, ErpError } from './erp-contract';
 import { STRIPE_TAX_API_VERSION } from './stripe-tax-resolved-request';
-import { createStripeTaxTestGateway, observeStripeTaxTestConfiguration, type StripeTaxTestConfigurationObservation, type StripeTaxTestSdkClient } from './stripe-tax-test-gateway';
+import { createStripeTaxTestGateway, observeStripeTaxTestConfiguration, type StripeTaxTestConfigurationObservation, type StripeTaxTestSdkClient, type StripeTaxTestGateway } from './stripe-tax-test-gateway';
 import type { UsTaxInvoiceTestGateway } from './us-tax-invoice';
 import type { USAddress } from './types';
 
@@ -17,6 +17,7 @@ export interface ResolvedUsTaxTestMerchant {
   readonly configurationFingerprint: string;
   observe(this: void, taxOrigin: USAddress): Promise<StripeTaxTestConfigurationObservation>;
   readonly gateway: UsTaxInvoiceTestGateway;
+  readonly catalogue?: Pick<StripeTaxTestGateway, 'readTaxCode' | 'listTaxCodes'>;
 }
 export interface UsTaxTestMerchantResolverOptions {
   readonly organizationId: string;
@@ -129,7 +130,7 @@ export async function resolveUsTaxTestMerchant(options: UsTaxTestMerchantResolve
     const gatewayOptions = Object.freeze({ client, organizationId, accountId: credential.accountId, now, allowTestFixtures: false as const });
     const gateway = createStripeTaxTestGateway(gatewayOptions);
     return Object.freeze({
-      credential, configurationFingerprint, gateway,
+      credential, configurationFingerprint, gateway, catalogue: gateway,
       observe: (taxOrigin: USAddress) => observeStripeTaxTestConfiguration({ ...gatewayOptions, taxOrigin }),
     });
   } catch (error) {

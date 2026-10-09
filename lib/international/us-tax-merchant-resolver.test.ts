@@ -43,7 +43,8 @@ describe('private workspace TEST merchant resolver (mock SDK only)', () => {
     expect(result?.credential).toEqual({ reference: 'merchant-alpha', revision: 1, accountId });
     expect(result?.configurationFingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(Object.isFrozen(result)).toBe(true); expect(Object.isFrozen(result?.credential)).toBe(true);
-    expect(Object.keys(result!)).toEqual(['credential', 'configurationFingerprint', 'gateway', 'observe']);
+    expect(Object.keys(result!)).toEqual(['credential', 'configurationFingerprint', 'gateway', 'catalogue', 'observe']);
+    expect(result?.catalogue).toBe(result?.gateway);
     expect(JSON.stringify(result)).not.toContain(key); expect(f.createClient).toHaveBeenCalledExactlyOnceWith(key);
     expect(f.retrieveCurrent).not.toHaveBeenCalled(); expect(f.createCalculation).not.toHaveBeenCalled();
   });
