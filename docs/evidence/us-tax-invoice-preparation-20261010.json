@@ -1,0 +1,852 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-09T23:18:13.773Z",
+  "timezone": "Europe/Zurich",
+  "baseCommit": "9b0d4b66f446eef12377748ca1e5af136cd6b95e",
+  "sourceCommit": "f5f8ac83b9bfc2404b0e5c4125b5a5cf7ef12392",
+  "branch": "codex/international-runtime",
+  "scope": "Local opt-in US TEST invoice preparation, actual lazy runtime hook and browser confirmation; no hosted deployment",
+  "files": [
+    {
+      "status": "M",
+      "file": ".env.supabase.example",
+      "sha256": "6ecd42da0f4584bb7c22842e778abc3f411e93765c2f7c7732e6c2b7d288a5e0"
+    },
+    {
+      "status": "A",
+      "file": "app/api/international/workspaces/[organizationId]/tax-catalogue/route.ts",
+      "sha256": "0a2b815a8d9c56fff34d4f7ed011c0790816e0bb4b8fb3cd039da90de1e0fd58"
+    },
+    {
+      "status": "A",
+      "file": "app/api/international/workspaces/[organizationId]/tax-invoice-preparation/route.ts",
+      "sha256": "946144f2ccc9c441142a049e6299fd6b774c291934798ad9fb330d5042c5c61b"
+    },
+    {
+      "status": "M",
+      "file": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "sha256": "2123425c0591502dad7b0ce22d854f2625fb7fa814e3f213af2fe71b7cff8d35"
+    },
+    {
+      "status": "M",
+      "file": "components/account/us-erp-workbench.tsx",
+      "sha256": "8cb2adcde31a5e978b19979b193803bdb4d32fbe666ba956b9ed923cc956141e"
+    },
+    {
+      "status": "A",
+      "file": "components/account/us-tax-invoice-panel.css",
+      "sha256": "f51e03e6821c82c5a86b70b63d5aeb98691201748e84d90da2ee50cde749253c"
+    },
+    {
+      "status": "A",
+      "file": "components/account/us-tax-invoice-panel.tsx",
+      "sha256": "18e22278a966b7b1ce318e61d5d5522f2cfbbba6733d932c5ccb7c005ae65a2f"
+    },
+    {
+      "status": "M",
+      "file": "docs/internationalization/STATUS-20261009.md",
+      "sha256": "5b95b5631bbda92d503a56a6bda17e8e25acd1f6d90b6a09939cff12c7da91ea"
+    },
+    {
+      "status": "A",
+      "file": "docs/internationalization/US-TAX-INVOICE-PREPARATION-DELIVERY-20261010.md",
+      "sha256": "db115dad9f21a7208133357055417fc4531a9d89899d1dc54e79966dcdac16f5"
+    },
+    {
+      "status": "A",
+      "file": "docs/internationalization/US-TAX-INVOICE-PREPARATION-PLAN-20261010.md",
+      "sha256": "185650fc56971e975ffd886d3704d9e7478de3df2cdd832af575ebe7d2c75685"
+    },
+    {
+      "status": "A",
+      "file": "docs/internationalization/US-TAX-INVOICE-PREPARATION-PREFLIGHT.sql",
+      "sha256": "27723aec900916f44e9b14ce0cfde6a89fe3d2d50059eb5c38cc96320dfff4a5"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/browser-us-tax-invoice-copy.ts",
+      "sha256": "782f262b9410866819c930400c0091330645b9fe47b2df4e67f07c1c49ed63fc"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/browser-us-tax-invoice-session.test.ts",
+      "sha256": "9c436e6d0446e284a8e2ecbe4b332d99c65837fffa2fe5814db50388a38fcc5b"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/browser-us-tax-invoice-session.ts",
+      "sha256": "1e75263b08d4508c9306f76ec6a1aa5f4fd3f7f4f8000e8d8df12129b3f13eea"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/browser-us-tax-invoice.browser.test.ts",
+      "sha256": "b1e2c82eab905b021425e925ca7d5a2de0dfdbe414696498a364817c2fc45a46"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/browser-us-tax-invoice.test.ts",
+      "sha256": "9478317db5e3ce5ed842fb3ca97445b0a7f2810e46a5e1d7b74f13a899b58ef0"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/browser-us-tax-invoice.ts",
+      "sha256": "7308051115c10f512ddd8c08b787266ff212901c2fb75891c2f65238dc70aa6b"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/runtime-bindings.test.ts",
+      "sha256": "798b5f7c9423044c082f6d022ff409b69a260f2b02f7c212adb5fd3cdfd58966"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/runtime-bindings.ts",
+      "sha256": "198a3d89d0f36751754d363b42b07dfae0e3a3e7a94d69c490b50adb1e180f02"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/runtime-server-revalidation.test.ts",
+      "sha256": "1e7d2dec3e9800a366e36df944f4bffd728f8b3b366647a41877250224738d82"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/runtime-server.ts",
+      "sha256": "a5a73d75690d5884b3353e7aafdf6372c859875929bd15c7f321a96bcae97290"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/stripe-tax-test-gateway.test.ts",
+      "sha256": "9bf559afd1e90d372d79dcef26df4cf3f4eeb2ce23408d5160dfc1148f61c7a3"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/stripe-tax-test-gateway.ts",
+      "sha256": "eb977a9460b713fad2fd6d79c06ac383253f49dfa03774cbc55ca2d82120298c"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-preparation-server.test.ts",
+      "sha256": "72c2fa3f1cda93967e1889d8d6e80352e3adc523c7c945794c9fada2050e9bec"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-preparation-server.ts",
+      "sha256": "10500e179c10624ea85cab925a2d85b38664b84dddd13b52d762af86531f0f67"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-preparation-store.test.ts",
+      "sha256": "015c162bdbc5a4a766772092918873168bf3126962a4fef4c3a1653192faf909"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-preparation-store.ts",
+      "sha256": "4592c5e2aecb8899e5a87d087c6bbf656c64034b37cf30b273a46405c57749a8"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-preparation.postgres.test.ts",
+      "sha256": "12236e0db92a24e1979a338604c767aaeb12050d1bb68734e272039b9cd260db"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-preparation.test-fixtures.ts",
+      "sha256": "f468e803beea902c72e7f236f011e8675caf6f7f4e16e1eff691acc1a3260e82"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-test-runtime.test.ts",
+      "sha256": "c9ae5b53ae9dfbee565d39c33d4c2504245110ffccfd3e1501972d271cc598b9"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-test-runtime.ts",
+      "sha256": "233053bb45f09f9eeda759605c17d06bb4369292e8a0aa8c715bd391d45f34c5"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-time.test.ts",
+      "sha256": "422fa46423fd7fe91236014e9bb18ddb8969d67e8b30cab13c3c6d00e0704b4f"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-invoice-time.ts",
+      "sha256": "8649924879c652c416e28c2ae3184cecd27490e3f9f3bdc8fb4ac0856e53166a"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/us-tax-invoice.postgres.test.ts",
+      "sha256": "6058bcf0b21ae19ec02439f2d5220e71a10717617add81d0e9b2c74b1f892e2c"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/us-tax-invoice.test.ts",
+      "sha256": "00f7e2024b08f8f69d61a60ac948308af405860f95c66aa3c66e4432a8fcc848"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/us-tax-invoice.ts",
+      "sha256": "b061dea1400f3d2e76eec59117b1ce387cae1826359c785f6d4685a6a3ac3493"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/us-tax-merchant-resolver.test.ts",
+      "sha256": "21e6a922eeb5f677b76b5a13480f96371569987cbcc6118dcf63fa5b4a26d1ed"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/us-tax-merchant-resolver.ts",
+      "sha256": "fb16e7e71c841d2e2b2f56eac38410ee71a54d2613973ae1ad5ae087d1c3536d"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/us-tax-merchant.postgres.test.ts",
+      "sha256": "099449085146dcffcdac72a273a218d7c1d59fcc51a138ef2149e91e23539036"
+    },
+    {
+      "status": "M",
+      "file": "lib/international/us-tax-operations.postgres.test.ts",
+      "sha256": "c979629cda376ade0a3ee5d8b0407a18dcd00a5c8de9cac1200be10da17d745c"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/us-tax-prepared-operation-store.ts",
+      "sha256": "daa20811a65ca2a7765456d20d5d1ad6e9074177454b03d75178393c5cf5b8a9"
+    },
+    {
+      "status": "A",
+      "file": "supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql",
+      "sha256": "c3df657f26321ea618b16af340b3f6c9735ef08cee851f1510631fe6f29dc484"
+    }
+  ],
+  "migration": {
+    "file": "supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql",
+    "creator": "Supabase CLI 2.120.0 migration new",
+    "applied": "RAM PGlite only including legacy regression chain",
+    "hostedApplied": false,
+    "destructive": false
+  },
+  "tests": {
+    "total": 2152,
+    "distinctFiles": 47,
+    "reports": [
+      {
+        "file": ".qa/us-tax-invoice-preparation/targeted-final.json",
+        "sha256": "d81d46358644ff695ca5c486f48cb9239f972da9fef18ecf3321c1c7b179e472",
+        "tests": 1981,
+        "passed": 1981,
+        "failed": 0,
+        "skipped": 0,
+        "failedSuites": 0,
+        "files": [
+          {
+            "file": "lib/business-sync-cash-vat.test.ts",
+            "tests": 9,
+            "passed": 9
+          },
+          {
+            "file": "lib/business-sync-money.test.ts",
+            "tests": 5,
+            "passed": 5
+          },
+          {
+            "file": "lib/stripe-checkout.test.ts",
+            "tests": 9,
+            "passed": 9
+          },
+          {
+            "file": "lib/stripe-contract.test.ts",
+            "tests": 6,
+            "passed": 6
+          },
+          {
+            "file": "lib/stripe-webhook-proof.test.ts",
+            "tests": 2,
+            "passed": 2
+          },
+          {
+            "file": "lib/stripe-webhook.test.ts",
+            "tests": 5,
+            "passed": 5
+          },
+          {
+            "file": "lib/supabase-auth-http.test.ts",
+            "tests": 14,
+            "passed": 14
+          },
+          {
+            "file": "lib/supabase-auth.test.ts",
+            "tests": 16,
+            "passed": 16
+          },
+          {
+            "file": "lib/automation/entitlement-flow.test.ts",
+            "tests": 19,
+            "passed": 19
+          },
+          {
+            "file": "lib/automation/provider.test.ts",
+            "tests": 35,
+            "passed": 35
+          },
+          {
+            "file": "lib/automation/workflows.test.ts",
+            "tests": 28,
+            "passed": 28
+          },
+          {
+            "file": "lib/international/browser-erp-session.test.ts",
+            "tests": 57,
+            "passed": 57
+          },
+          {
+            "file": "lib/international/browser-sales.test.ts",
+            "tests": 39,
+            "passed": 39
+          },
+          {
+            "file": "lib/international/browser-us-tax-invoice-session.test.ts",
+            "tests": 51,
+            "passed": 51
+          },
+          {
+            "file": "lib/international/browser-us-tax-invoice.test.ts",
+            "tests": 33,
+            "passed": 33
+          },
+          {
+            "file": "lib/international/core.test.ts",
+            "tests": 82,
+            "passed": 82
+          },
+          {
+            "file": "lib/international/documents.test.ts",
+            "tests": 36,
+            "passed": 36
+          },
+          {
+            "file": "lib/international/finance.test.ts",
+            "tests": 78,
+            "passed": 78
+          },
+          {
+            "file": "lib/international/runtime-bindings.test.ts",
+            "tests": 24,
+            "passed": 24
+          },
+          {
+            "file": "lib/international/runtime-server-revalidation.test.ts",
+            "tests": 96,
+            "passed": 96
+          },
+          {
+            "file": "lib/international/runtime-server-us-tax.test.ts",
+            "tests": 44,
+            "passed": 44
+          },
+          {
+            "file": "lib/international/runtime-server.test.ts",
+            "tests": 22,
+            "passed": 22
+          },
+          {
+            "file": "lib/international/stripe-tax-calculation.test.ts",
+            "tests": 74,
+            "passed": 74
+          },
+          {
+            "file": "lib/international/stripe-tax-resolved-request.test.ts",
+            "tests": 56,
+            "passed": 56
+          },
+          {
+            "file": "lib/international/stripe-tax-sdk-body.test.ts",
+            "tests": 24,
+            "passed": 24
+          },
+          {
+            "file": "lib/international/stripe-tax-test-gateway.test.ts",
+            "tests": 93,
+            "passed": 93
+          },
+          {
+            "file": "lib/international/us-tax-financial-context.test.ts",
+            "tests": 98,
+            "passed": 98
+          },
+          {
+            "file": "lib/international/us-tax-invoice-preparation-server.test.ts",
+            "tests": 29,
+            "passed": 29
+          },
+          {
+            "file": "lib/international/us-tax-invoice-preparation-store.test.ts",
+            "tests": 7,
+            "passed": 7
+          },
+          {
+            "file": "lib/international/us-tax-invoice-test-runtime.test.ts",
+            "tests": 13,
+            "passed": 13
+          },
+          {
+            "file": "lib/international/us-tax-invoice-time.test.ts",
+            "tests": 14,
+            "passed": 14
+          },
+          {
+            "file": "lib/international/us-tax-invoice.test.ts",
+            "tests": 119,
+            "passed": 119
+          },
+          {
+            "file": "lib/international/us-tax-merchant-readiness.test.ts",
+            "tests": 28,
+            "passed": 28
+          },
+          {
+            "file": "lib/international/us-tax-merchant-resolver.test.ts",
+            "tests": 57,
+            "passed": 57
+          },
+          {
+            "file": "lib/international/us-tax-merchant-server.test.ts",
+            "tests": 105,
+            "passed": 105
+          },
+          {
+            "file": "lib/international/us-tax-merchant-store.test.ts",
+            "tests": 7,
+            "passed": 7
+          },
+          {
+            "file": "lib/international/us-tax-operation-store.test.ts",
+            "tests": 154,
+            "passed": 154
+          },
+          {
+            "file": "lib/international/us-tax-profile-server.test.ts",
+            "tests": 61,
+            "passed": 61
+          },
+          {
+            "file": "lib/international/us-tax-profile.test.ts",
+            "tests": 173,
+            "passed": 173
+          },
+          {
+            "file": "lib/international/us-tax-readiness-server.test.ts",
+            "tests": 34,
+            "passed": 34
+          },
+          {
+            "file": "lib/international/us-tax-readiness.test.ts",
+            "tests": 44,
+            "passed": 44
+          },
+          {
+            "file": "lib/support/support.test.ts",
+            "tests": 81,
+            "passed": 81
+          }
+        ]
+      },
+      {
+        "file": ".qa/us-tax-invoice-preparation/postgres-regression-final.json",
+        "sha256": "311ec2040734779af2b9d90c2ab72c651596bc869cc1538d236c7b27df62ca67",
+        "tests": 170,
+        "passed": 170,
+        "failed": 0,
+        "skipped": 0,
+        "failedSuites": 0,
+        "files": [
+          {
+            "file": "lib/international/us-tax-invoice-preparation.postgres.test.ts",
+            "tests": 16,
+            "passed": 16
+          },
+          {
+            "file": "lib/international/us-tax-invoice.postgres.test.ts",
+            "tests": 20,
+            "passed": 20
+          },
+          {
+            "file": "lib/international/us-tax-merchant.postgres.test.ts",
+            "tests": 12,
+            "passed": 12
+          },
+          {
+            "file": "lib/international/us-tax-operations.postgres.test.ts",
+            "tests": 122,
+            "passed": 122
+          }
+        ]
+      },
+      {
+        "file": ".qa/us-tax-invoice/ui-browser-final.json",
+        "sha256": "185de7312514712f169e0b48274a4a09980dd5a923d27402e7d6df05aef0dc13",
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "failedSuites": 0,
+        "files": [
+          {
+            "file": "lib/international/browser-us-tax-invoice.browser.test.ts",
+            "tests": 1,
+            "passed": 1
+          }
+        ]
+      }
+    ],
+    "fullRepositorySuiteRun": false
+  },
+  "quality": [
+    {
+      "name": "typecheck-final",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "startedAt": "2026-10-09T23:16:11.410Z",
+      "endedAt": "2026-10-09T23:16:16.453Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-invoice-preparation/typecheck-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "syntax-final",
+      "args": [
+        "node_modules/oxlint/bin/oxlint",
+        "--config",
+        ".qa/us-team/oxlint-syntax.json",
+        "--format",
+        "json",
+        "app/compte/espaces/us/[organizationId]/page.tsx",
+        "components/account/us-erp-workbench.tsx",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-bindings.ts",
+        "lib/international/runtime-server.ts",
+        "lib/international/stripe-tax-test-gateway.test.ts",
+        "lib/international/stripe-tax-test-gateway.ts",
+        "lib/international/us-tax-invoice.postgres.test.ts",
+        "lib/international/us-tax-invoice.test.ts",
+        "lib/international/us-tax-invoice.ts",
+        "lib/international/us-tax-merchant-resolver.test.ts",
+        "lib/international/us-tax-merchant-resolver.ts",
+        "lib/international/us-tax-merchant.postgres.test.ts",
+        "lib/international/us-tax-operations.postgres.test.ts",
+        "app/api/international/workspaces/[organizationId]/tax-catalogue/route.ts",
+        "app/api/international/workspaces/[organizationId]/tax-invoice-preparation/route.ts",
+        "components/account/us-tax-invoice-panel.tsx",
+        "lib/international/browser-us-tax-invoice-copy.ts",
+        "lib/international/browser-us-tax-invoice-session.test.ts",
+        "lib/international/browser-us-tax-invoice-session.ts",
+        "lib/international/browser-us-tax-invoice.browser.test.ts",
+        "lib/international/browser-us-tax-invoice.test.ts",
+        "lib/international/browser-us-tax-invoice.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/us-tax-invoice-preparation-server.test.ts",
+        "lib/international/us-tax-invoice-preparation-server.ts",
+        "lib/international/us-tax-invoice-preparation-store.test.ts",
+        "lib/international/us-tax-invoice-preparation-store.ts",
+        "lib/international/us-tax-invoice-preparation.postgres.test.ts",
+        "lib/international/us-tax-invoice-preparation.test-fixtures.ts",
+        "lib/international/us-tax-invoice-test-runtime.test.ts",
+        "lib/international/us-tax-invoice-test-runtime.ts",
+        "lib/international/us-tax-invoice-time.test.ts",
+        "lib/international/us-tax-invoice-time.ts",
+        "lib/international/us-tax-prepared-operation-store.ts"
+      ],
+      "startedAt": "2026-10-09T23:16:16.454Z",
+      "endedAt": "2026-10-09T23:16:16.778Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-invoice-preparation/syntax-final.log",
+      "logSha256": "a2116494e16931553a358a13e151e4d3a122106ff1fdd9dee01d3d589df0cb2e"
+    },
+    {
+      "name": "brand-final",
+      "args": [
+        "scripts/check-brand-assets.mjs"
+      ],
+      "startedAt": "2026-10-09T23:16:16.779Z",
+      "endedAt": "2026-10-09T23:16:16.839Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-invoice-preparation/brand-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "production-build-final",
+      "args": [
+        "node_modules/vinext/dist/cli.js",
+        "build"
+      ],
+      "startedAt": "2026-10-09T23:16:16.839Z",
+      "endedAt": "2026-10-09T23:16:33.967Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-invoice-preparation/production-build-final.log",
+      "logSha256": "0cf212c2cb9886d5411aef2877a6ac2a16f73723d6f54da4bbd84ca919c24933"
+    }
+  ],
+  "clientBundle": {
+    "scannedFiles": 101,
+    "privateMarkerMatches": 0
+  },
+  "screenshots": [
+    {
+      "file": ".qa/us-tax-invoice/browser/de-dark-mobile-review.png",
+      "sha256": "3dde2e1ed99b9e1dc11ae6cc2da2cf9228281a6ae308269bb6fa5de7cbd34094"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/de-light-mobile-review.png",
+      "sha256": "7340e6c1504da55afa110ccb911dad1c4dc24a45164187b32642a6e90e957bc2"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/en-dark-mobile-review.png",
+      "sha256": "fd47dffb11d4b04c66e96dda0070cbbfc87786dfe3052f6e495397f9b08772b5"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/en-light-desktop-final-review.png",
+      "sha256": "45e270a51a32f9b1e70daafb80616ddf6c366297230ff2d2df9521afbe016b99"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/en-light-desktop-review.png",
+      "sha256": "d7e845efd479d75158badecf964d9d2a184584629d1a435c22e807ab01e38f43"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/en-light-mobile-review.png",
+      "sha256": "83c73c15febdbffd61acb5a28418132aa3c4eb653b142741f99ebf2bc83dbeae"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/fr-dark-mobile-review.png",
+      "sha256": "68b03871c46e397992baadb13c75722c02a87a45dc76b128b08036fbf9d51833"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/fr-light-mobile-review.png",
+      "sha256": "dfc41afd9d2163ca92a5871cce12a17c0be815754b9afec83b0252ca894b33d3"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/it-dark-mobile-review.png",
+      "sha256": "ceaf5c240ef8fd61f445d1fea7f3f1768177a0b939c079cc508c9ce21fda664d"
+    },
+    {
+      "file": ".qa/us-tax-invoice/browser/it-light-mobile-review.png",
+      "sha256": "8140dfb8b8e20a1cc4647f5dbf0c7e26e0d8c520d37d1817f7f082189e4222a7"
+    }
+  ],
+  "browserWorkflow": {
+    "file": ".qa/us-tax-invoice/browser/evidence.json",
+    "sha256": "73a4fc29d977a6c0e6092e37ad63620af523294c9f0eb7d0aadaa9a92da6323d",
+    "commits": 3,
+    "syntheticCalculations": 3,
+    "reviewAndBackFocus": true,
+    "exactErpFirstReplay": true,
+    "automaticVisibility": true,
+    "pendingAccessPurge": true,
+    "viewportOverflow": false
+  },
+  "designContext": [
+    {
+      "file": "PRODUCT.md",
+      "sha256": "053e755ebe26e6adf9df5ca69e7a4cdb847d607e2839cde1e1394226c1ad09ec"
+    },
+    {
+      "file": "DESIGN.md",
+      "sha256": "bbd2f2fb9d1397e66791046257a20d3cb614b33236a9e5ffc0f9cf51372a3a8b"
+    }
+  ],
+  "retainedReports": [
+    {
+      "file": ".qa/us-tax-invoice-preparation/issuer-first.json",
+      "sha256": "42f1b52676418d3a7ef3ab44ecf252561bb5dc50613bd1411ab72c916ed4ae7a",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/postgres-final.json",
+      "sha256": "b09b3eed30a038b429f063d9a2c2ec7394e9acd81aad0bd9fe41a93ac23ae6e9",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/postgres-final2.json",
+      "sha256": "44ca841f0188ed64aa5f8d3b80654d613c3b734e2565ab38a6f9d4ea1e799e63",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/postgres-final3.json",
+      "sha256": "b376f38ab268c261873ac1826b3b81d2b6dd29b037042f818d79aef96a0c63af",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/postgres-initial.json",
+      "sha256": "23e5981d69f9793eceb6877791136697ee56137be73379c4dbc91b19573fa612",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/postgres-repair1.json",
+      "sha256": "f6e364a645e2955755bf5597726baceab2f81227df085922401d47e45d005c57",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/postgres-repair2.json",
+      "sha256": "bdb403ff5d9eb3fb4ff03b93efa2e85da6ddc2f0a38c498a9eb5e4c020819e2a",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/prepared-command-guards-postgres.json",
+      "sha256": "5e5d9261904c76e515cbeedfaa5bb988c1803bcfea9ea953d267f701befc564c",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/quality-first-failed.json",
+      "sha256": "054337d9eef41d1a2762e8d1649bd5c787c3afb56195efcbf26af8bb83e01c6b",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/quality-results.json",
+      "sha256": "1b05d816a6ef49bfd1dadc3589a19f798731d55a21ddc0831f17d1657e48d082",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/quality-second-failed.json",
+      "sha256": "e8a85700831b0ceffaa63aa6833afefe3bb0216e385bd59f41257709f86ee767",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/runtime-revalidation-unit.json",
+      "sha256": "a5a0a2426152a03e0dc4dada30ff6f78f997ba7d117436f4b07f0790c7b124ba",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/runtime-wiring-first.json",
+      "sha256": "924f9cb523abda2063152207b99e4b43c28b610dcd4540f2f7a58523ad0af23d",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/server-lint-fix.json",
+      "sha256": "eab5414d5894cb05715a7186c75b344bbda515cfbe7d7ae54d1e706ef82e420d",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/server-type-fix.json",
+      "sha256": "eec560b0224400309a036e02264c4ddde247fec187cdce52266b630edcafccc5",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/service-runtime-catalogue.json",
+      "sha256": "c56a8678e3f80affb20fd36ee87bc95fb524c5ef785871934895723b99a63c96",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/store-unit.json",
+      "sha256": "edf41bd5ca89670f7c527e255b0f15e0e2ff6ffbe96f0661b41347467f454fb3",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/targeted-before-lint-fix.json",
+      "sha256": "db86794bd953fd1c3ac3eba68eac5b121a195fcb2b8687394ca2f5993d6b60f8",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/targeted-before-test-type-fix.json",
+      "sha256": "baaf14336d02ab6b4847a96c0db427834fa02d1fe632958c856f15abe16b89a0",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/targeted-files.json",
+      "sha256": "f4b5d5a3bbaa2dcddc8aa81d048c179794bcd7ee427c8cca5811c4c3df971f49",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice-preparation/targeted-run.json",
+      "sha256": "7ffc712ce0915ad01c31ad9ddee4eca35fbfcd27317631ac900f40f9bd156ac9",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-before-focus.json",
+      "sha256": "6299f8f1780ff4d5d74571a34f1f5a4e5c1e08555c45256d5dfee9dc09fcf6f7",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-fifth.json",
+      "sha256": "44d3f8d7f05a8ce8d38996538ffcd08637f8293c998d1cc3ef9a4c8317ba10a6",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-first.json",
+      "sha256": "479780cc93fe84b1ea71e890ca9c32f0e10b4ff05d5919d6e2eaf0e7811d6975",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-focus-final.json",
+      "sha256": "185de7312514712f169e0b48274a4a09980dd5a923d27402e7d6df05aef0dc13",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-fourth.json",
+      "sha256": "a71aaca3d9c77c1b9d8e3ce657e49af572333efccf2f4db0b81815dda011a7c4",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-second.json",
+      "sha256": "c1488392838b88e638cf0964514e7c97ed54ca61a0bd706c50c93cf408a37f0c",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-sixth.json",
+      "sha256": "6299f8f1780ff4d5d74571a34f1f5a4e5c1e08555c45256d5dfee9dc09fcf6f7",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-browser-third.json",
+      "sha256": "ceb2894dfc01cd36b744691a97d31e58eb39ae0636d57285b728bd06ff8118cf",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-unit-final.json",
+      "sha256": "2a9bf7d7c81f6e41b00d51fa20abb9e3631e6962f4f52565ac243382d9cf0a65",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-unit-first.json",
+      "sha256": "551cdb04b21afa84053e5b64b42ed1922ab07af220c4a4c87cc518ecef93de65",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-unit-focus-final.json",
+      "sha256": "2a9bf7d7c81f6e41b00d51fa20abb9e3631e6962f4f52565ac243382d9cf0a65",
+      "finalCounted": false
+    },
+    {
+      "file": ".qa/us-tax-invoice/ui-unit-second.json",
+      "sha256": "3da1d087605bfd7d14c5690dcca8b47574084c08af5a7bb014807907ed17b726",
+      "finalCounted": false
+    }
+  ],
+  "preserved": [
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "clean": true
+    },
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "clean": true
+    }
+  ],
+  "limitations": [
+    "Auth/D1/provider/catalogue responses are synthetic local ports. PostgreSQL assertions execute real migrations in local RAM PGlite, not hosted Supabase.",
+    "Browser proof uses actual React/preparation/ERP/deltas and a synthetic generic tax port; private issuer integration is proven separately by runtime/service/PG tests. Browser emulation is not a native iPhone/Mac proof.",
+    "All new issuance gates default false; generic/live taxProvider remains null. No real Stripe account call, rate/legal determination, hosted migration, publication or native build/release.",
+    "TEST scope is USD exclusive taxable services, integral positive quantities and US destinations. Catalogue existence does not prove legal applicability; performance-location requirements are excluded.",
+    "Exact uncertain requests remain pending; a 409 cannot prove non-commit. No arbitrary abandon/new key is offered without authoritative outcome reconciliation.",
+    "Admission TTL remains at most120s, independent of the provider idempotency ceiling; stale uncommitted merchant contexts cannot be silently renewed.",
+    "CH web cash-VAT/money/Stripe/Auth/Support/Automation regressions are included, but full native QR/archives/production multi-device and professional fiscal/accounting review remain future validation.",
+    "Earlier full Team suite workerd Windows failures remain failures; targeted evidence does not relabel them or prove 150-company capacity."
+  ]
+}
