@@ -118,6 +118,9 @@ describe.runIf(enabled)('durable TEST tax operations and atomic invoice proof on
     for(const name of ['20261008081825_international_us_purchasing_v2','20261008105120_international_us_projects_v3','20261008161118_international_us_journal_periods_v4'])await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`,import.meta.url),'utf8'));
     historicalTax=await fixture();await historicalTax.reserve();await historicalTax.record();await historicalTax.write();historicalTaxRows=await snapshotTax(historicalTax.org);
     await db.exec(await readFile(new URL('../../supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql',import.meta.url),'utf8'));
+    // The merchant admission must preserve historical operations/proofs and
+    // existing fiscal guards, including legacy exact replay after promotion.
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261009222319_international_us_tax_test_merchant.sql',import.meta.url),'utf8'));
   }, 20_000);
   afterAll(async () => { await db?.close(); });
   it('baseline regression: legacy private fiscal RPC must refuse an initial schema4 issuance',async()=>{

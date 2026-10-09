@@ -17,6 +17,11 @@ import { requireUsDeviceSession } from './us-device-bindings';
 import { UsDeviceError } from './us-device-contract';
 import { erpClientSchemaVersion } from './erp-schema-capability';
 import { createUsTaxReadinessHandlers } from './us-tax-readiness-server';
+import { createUsTaxMerchantHandlers } from './us-tax-merchant-server';
+import { createSupabaseUsTaxMerchantStore } from './us-tax-merchant-store';
+import { resolveUsTaxTestMerchant } from './us-tax-merchant-resolver';
+import { createUsTaxMerchantReadinessEvaluator } from './us-tax-merchant-readiness';
+import { createUsTaxFinancialContextReader } from './us-tax-financial-context';
 
 /** New US path, separate from CH snapshots and their revision. Both flags default to false. */
 async function enabled(){
@@ -83,11 +88,34 @@ export const erpServerDependencies:ErpServerDependencies={
   diagnostic(event){console.warn('zentra.international.erp',event);},
 };
 export const erpHandlers=createErpHandlers(erpServerDependencies);
-// Informative projection only. No gateway/evaluator is installed until an
-// independently observed TEST merchant binding has been validated. Default
-// refusal preserves CH and cannot upgrade a credential or authorize issuance.
+async function taxMerchantEnabled():Promise<boolean>{
+  if(!await enabled())return false;
+  try{const {env}=await import('cloudflare:workers');return (env as unknown as {INTERNATIONAL_US_TAX_TEST_MERCHANT_ENABLED?:string}).INTERNATIONAL_US_TAX_TEST_MERCHANT_ENABLED==='true';}
+  catch{return false;}
+}
+async function taxMerchant(organizationId:string){
+  if(!await taxMerchantEnabled())return null;
+  const {env}=await import('cloudflare:workers');
+  const bindings=env as unknown as {INTERNATIONAL_US_TAX_TEST_MERCHANTS_JSON?:string;INTERNATIONAL_US_TAX_TEST_CREDENTIALS_JSON?:string;STRIPE_SECRET_KEY?:string};
+  return resolveUsTaxTestMerchant({organizationId,
+    configurationJson:bindings.INTERNATIONAL_US_TAX_TEST_MERCHANTS_JSON??'',
+    credentialsJson:bindings.INTERNATIONAL_US_TAX_TEST_CREDENTIALS_JSON??'',
+    forbiddenSaasKeys:[bindings.STRIPE_SECRET_KEY??'',process.env.STRIPE_SECRET_KEY??''],now:()=>new Date().toISOString(),
+  });
+}
+async function taxMerchantStore(){return createSupabaseUsTaxMerchantStore((await import('../supabase-server-runtime')).supabaseServerClient());}
+export const usTaxMerchantHandlers=createUsTaxMerchantHandlers({
+  ...erpServerDependencies,enabled:taxMerchantEnabled,store:taxMerchantStore,merchant:taxMerchant,now:()=>new Date().toISOString(),
+  async rateLimit(request,actor,operation){await(await import('../account')).enforceAccountRateLimit(request,`international-us-tax-merchant-${operation}`,`${actor.organizationId}:${actor.userId}`,operation==='read'?120:12);},
+  diagnostic(event){console.warn('zentra.international.us-tax-merchant',event);},
+});
+// Informative TEST projection only. Issuance remains closed. Missing merchant,
+// unadmitted credential, expiry or changed provider observation fails closed.
 export const usTaxReadinessHandlers=createUsTaxReadinessHandlers({
   ...erpServerDependencies, now:()=>Math.floor(Date.now()/1000),
+  evaluate:createUsTaxMerchantReadinessEvaluator({enabled:taxMerchantEnabled,merchant:taxMerchant,store:taxMerchantStore,now:()=>new Date().toISOString(),
+    async contexts(revalidate){return createUsTaxFinancialContextReader((await import('../supabase-server-runtime')).supabaseServerClient(),{revalidate,now:()=>new Date().toISOString()});},
+  }),
 });
 export const usSellerProfileHandlers=createUsSellerProfileHandlers({...erpServerDependencies,
   async store(){return (await import('../supabase-server-runtime')).supabaseServerClient();},

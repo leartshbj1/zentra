@@ -10,7 +10,7 @@ vi.mock('../../app/zentra-auth',()=>({getZentraUser:f.user}));
 vi.mock('../team-seats',()=>({teamSeats:f.seats}));
 vi.mock('../supabase-server-runtime',()=>({supabaseServerClient:()=>({select:f.select,rpc:f.rpc})}));
 vi.mock('./saas-authority-d1',()=>({requireUsWorkspaceAccess:f.usAccess}));
-import { erpServerDependencies as binding } from './runtime-bindings';
+import { erpServerDependencies as binding, usTaxMerchantHandlers } from './runtime-bindings';
 import { GET as sellerGET, PUT as sellerPUT } from '../../app/api/international/workspaces/[organizationId]/seller/route';
 import { GET as taxGET, PUT as taxPUT } from '../../app/api/international/workspaces/[organizationId]/tax-profile/route';
 const org='fictitious-us-binding';
@@ -23,6 +23,12 @@ beforeEach(()=>{
   f.usAccess.mockImplementation(async (_org:string,userId:string)=>({organizationId:org,userId,role:userId==='device-user'?'accountant':'member',subscriptionId:'sub_US',seatLimit:3}));
 });
 describe('actual ERP authority bindings',()=>{
+  it('keeps TEST merchant admission closed by default before Auth, storage or Stripe',async()=>{
+    expect((await usTaxMerchantHandlers.GET(request(),org)).status).toBe(404);
+    expect((await usTaxMerchantHandlers.POST(new Request('https://zentraapp.ch/erp',{method:'POST'}),org)).status).toBe(404);
+    expect(f.user).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled();expect(f.select).not.toHaveBeenCalled();
+    expect(binding.issueInvoiceTest).toBeUndefined();
+  });
   it('refuses a v4 header on an immutable v3 credential before reading US rights',async()=>{
     const req=new Request('https://zentraapp.ch/erp',{headers:{Authorization:'Bearer fictitious-session','X-Zentra-Erp-Schema-Version':'4'}});
     await expect(binding.authority(req,org)).rejects.toMatchObject({code:'client_upgrade_required',status:409});expect(f.usAccess).not.toHaveBeenCalled();expect(f.select).not.toHaveBeenCalled();expect(f.user).not.toHaveBeenCalled();

@@ -179,6 +179,9 @@ describe.runIf(enabled)('private TEST invoice issuer vertical path through real 
     // Run the historical cap1 issuer through the entire additive chain. Its
     // store ceiling stays captured at1; later migrations must not promote it.
     for (const name of ['202609140100_company_profiles', '202609140200_company_collaboration', '202609200300_company_content', '20261007194528_international_workspace_country_config', '20261007222349_international_us_erp_persistence', '20261007224820_international_us_erp_delta_stream', '20261007225725_international_us_erp_seller_snapshot', '20261008001726_new_us_workspace_admission', '20261008013200_international_tax_proof_allowlist', '20261008034422_international_us_seller_profile', '20261008044402_international_us_tax_profile', '20261008060826_international_us_tax_operations', '20261008081825_international_us_purchasing_v2', '20261008105120_international_us_projects_v3', '20261008161118_international_us_journal_periods_v4', '20261008172520_international_us_tax_invoice_capability_v2']) await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`, import.meta.url), 'utf8'));
+    // Run the established issuer against the new additive merchant migration.
+    // Injected test_fixture gateway responses remain explicit QA only.
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261009222319_international_us_tax_test_merchant.sql',import.meta.url),'utf8'));
   }, 20_000);
   afterAll(async () => { await db?.close(); });
 
