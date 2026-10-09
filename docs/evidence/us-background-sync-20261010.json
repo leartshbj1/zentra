@@ -1,7 +1,7 @@
 {
   "milestone": "US background collaborative sync",
   "base": "5ff83ece891f2456b38b45295136694f50ddf69f",
-  "recordedAt": "2026-10-09T22:15:10.142Z",
+  "recordedAt": "2026-10-09T22:17:35.457Z",
   "deployment": {
     "published": false,
     "remoteMigrations": false,
@@ -142,7 +142,7 @@
     },
     {
       "path": "docs/internationalization/US-BACKGROUND-SYNC-DELIVERY-20261010.md",
-      "lfSha256": "8da429872039c7778ad8357ba7219b59814105d5ac1d3395e30ee167132b346f"
+      "lfSha256": "f1506e02b6d1e317a4afda0f7a7446937186204a776c1723df34509563c5b8e9"
     },
     {
       "path": "docs/internationalization/STATUS-20261009.md",
@@ -301,7 +301,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:11:45.093Z"
       },
       {
         "path": ".qa/us-background-sync/browser/fr-dark-mobile.png",
@@ -312,7 +313,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:11:48.393Z"
       },
       {
         "path": ".qa/us-background-sync/browser/de-light-mobile.png",
@@ -323,7 +325,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:11:51.721Z"
       },
       {
         "path": ".qa/us-background-sync/browser/de-dark-mobile.png",
@@ -334,7 +337,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:11:55.054Z"
       },
       {
         "path": ".qa/us-background-sync/browser/it-light-mobile.png",
@@ -345,7 +349,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:11:58.354Z"
       },
       {
         "path": ".qa/us-background-sync/browser/it-dark-mobile.png",
@@ -356,7 +361,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:12:01.675Z"
       },
       {
         "path": ".qa/us-background-sync/browser/en-light-mobile.png",
@@ -367,7 +373,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:12:05.007Z"
       },
       {
         "path": ".qa/us-background-sync/browser/en-dark-mobile.png",
@@ -378,7 +385,8 @@
           "width": 390,
           "height": 844
         },
-        "scope": "Browser emulation; tax draft conflict. Captured before final access-purge patches; no style changes afterward."
+        "scope": "Browser emulation; tax draft conflict. Regenerated inside final selected browser run on final source. Prior visual spot-check used the same layout before access-purge patches; styles unchanged.",
+        "modifiedAt": "2026-10-09T22:12:08.308Z"
       }
     ]
   },
@@ -408,5 +416,6 @@
       "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
       "clean": true
     }
-  ]
+  ],
+  "sourceCommit": "05b0781fe722d46196df26bf27bd35d3f9242004"
 }
