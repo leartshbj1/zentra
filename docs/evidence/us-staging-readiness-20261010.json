@@ -1,0 +1,768 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-09T23:38:40.865Z",
+  "timezone": "Europe/Zurich",
+  "baseCommit": "24a8f6f8985d136d8c1820332ec531213e4d7993",
+  "sourceCommit": "94f6f70ad124e708dc1a80992065ea2fbf3f4eac",
+  "branch": "codex/international-runtime",
+  "scope": "Read-only hosted structural audit and complete local international PostgreSQL migration-chain rehearsal; no hosted deployment",
+  "files": [
+    {
+      "status": "M",
+      "file": "docs/internationalization/STATUS-20261009.md",
+      "sha256": "bf4c33f22eb485987fb9b98cc0246aa49a2ec8e3b3e930eb157b073b3499b43f"
+    },
+    {
+      "status": "A",
+      "file": "docs/internationalization/US-STAGING-DELIVERY-20261010.md",
+      "sha256": "f2c1ec0c55ab69ddb4ccad5d6ed65246b2145f58af2dc421c66e767ef57a6172"
+    },
+    {
+      "status": "A",
+      "file": "docs/internationalization/US-STAGING-READINESS-20261010.md",
+      "sha256": "0d7a5b37025682b62b8221b779e4ba0e5a0a63e3655ce3cdbdc1b0026a4f847f"
+    },
+    {
+      "status": "A",
+      "file": "docs/internationalization/US-STAGING-STRUCTURE-PREFLIGHT.sql",
+      "sha256": "7033ab4de3ec5ae6745c396b5144905e710b6bab73d177883f8972bb760674bc"
+    },
+    {
+      "status": "M",
+      "file": "docs/internationalization/US-TAX-INVOICE-PREPARATION-DELIVERY-20261010.md",
+      "sha256": "5f3b7b08e08dd1c534bb3fd06b949ab849ee49b1ca8849c65eaf9fc729c410ec"
+    },
+    {
+      "status": "M",
+      "file": "docs/internationalization/US-TAX-INVOICE-PREPARATION-PREFLIGHT.sql",
+      "sha256": "52f2fc46a50a6a7d08084c1f00e03573714d333663fd328fa43ad18d5b31f159"
+    },
+    {
+      "status": "A",
+      "file": "lib/international/international-staging-chain.postgres.test.ts",
+      "sha256": "9eeb8e0f359d67174173b8c20f15fb37e69ba45bf855ff12f062c545bdcb72d4"
+    }
+  ],
+  "proposedSupabaseMigrations": [
+    {
+      "file": "supabase/migrations/20261007194528_international_workspace_country_config.sql",
+      "sha256": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9"
+    },
+    {
+      "file": "supabase/migrations/20261007222349_international_us_erp_persistence.sql",
+      "sha256": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c"
+    },
+    {
+      "file": "supabase/migrations/20261007224820_international_us_erp_delta_stream.sql",
+      "sha256": "3df54310c2da0012d9065886df86a6524963ab594a1f314d10d45fac551af345"
+    },
+    {
+      "file": "supabase/migrations/20261007225725_international_us_erp_seller_snapshot.sql",
+      "sha256": "119e0c850c04c6772c0b002384c2cf86c8ab3427ec24586eb77f73a2a314f4f9"
+    },
+    {
+      "file": "supabase/migrations/20261008001726_new_us_workspace_admission.sql",
+      "sha256": "435f87289682dbed3b372bd6790d0f213a5a5e7a4c5aee32f70323798e87edcc"
+    },
+    {
+      "file": "supabase/migrations/20261008013200_international_tax_proof_allowlist.sql",
+      "sha256": "7f2d18ba19defb35dc3352624b18f951a26f806b86eb19d2c10c0c2bf4f977d8"
+    },
+    {
+      "file": "supabase/migrations/20261008034422_international_us_seller_profile.sql",
+      "sha256": "a97274cb5e8f4d1153e5e0c98749a1d3c89a5d41debd721a3f7e7c1c9e56546b"
+    },
+    {
+      "file": "supabase/migrations/20261008044402_international_us_tax_profile.sql",
+      "sha256": "98d5b4dd7b9842def1a036d512876a40ebc7131a44954a1e4ef09dab793e5034"
+    },
+    {
+      "file": "supabase/migrations/20261008060826_international_us_tax_operations.sql",
+      "sha256": "a34d2fa9a78876a1c48910c004f25e795c73cfe35797824eb1ca5eaffb161330"
+    },
+    {
+      "file": "supabase/migrations/20261008081825_international_us_purchasing_v2.sql",
+      "sha256": "1c0008e766a358166f0eccc25b68c60ee4dcd0f68d9b3220e946df213980013b"
+    },
+    {
+      "file": "supabase/migrations/20261008105120_international_us_projects_v3.sql",
+      "sha256": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d"
+    },
+    {
+      "file": "supabase/migrations/20261008161118_international_us_journal_periods_v4.sql",
+      "sha256": "3d33a8ff4406a72c5a82a42bdc67bf6a02885b02745cc81fce8976bb10c2a31c"
+    },
+    {
+      "file": "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql",
+      "sha256": "f5beddce39dec119e1b606724be9c3ab6b7738260792cbd72d3a45f97993a718"
+    },
+    {
+      "file": "supabase/migrations/20261008184605_international_us_bank_reconciliation.sql",
+      "sha256": "0f43af57a0d9552d572ca353991f10fc214e710279e68defca44c844ba87d298"
+    },
+    {
+      "file": "supabase/migrations/20261008194930_international_us_supplier_proposals.sql",
+      "sha256": "61d2e26795d86daeba2d0b02792b28a5c9d9b4c33c7ff402f158e48f4dd4d6fd"
+    },
+    {
+      "file": "supabase/migrations/20261008210008_international_us_automation_analysis.sql",
+      "sha256": "108a06f656ac7cba4a55ff60db0cde14bfca5e64b8bdf167ce2039cdf3fa7d6a"
+    },
+    {
+      "file": "supabase/migrations/20261009215104_international_us_workspace_sync_heads.sql",
+      "sha256": "c47f739c2c6d3526df5a7999463ccc2cd717efa310ab319720939f9406cfa6ad"
+    },
+    {
+      "file": "supabase/migrations/20261009222319_international_us_tax_test_merchant.sql",
+      "sha256": "9e436a3c1179dc541b3365f923d3a5f29e78a85ba9f8a0d3da7a40cc8e6ed330"
+    },
+    {
+      "file": "supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql",
+      "sha256": "c3df657f26321ea618b16af340b3f6c9735ef08cee851f1510631fe6f29dc484"
+    }
+  ],
+  "prerequisiteD1Sources": [
+    {
+      "file": "drizzle/0085_international_workspace_creation_intents.sql",
+      "sha256": "3b998382a90451c4f6d9794a1386aca7c3a5315112a236128472e5e703453f4d"
+    },
+    {
+      "file": "drizzle/0086_international_legacy_country_guards.sql",
+      "sha256": "57931b86cae5f7f22e3c973d6d5b5d88f2e563ccf0969d57705128da8fcfea44"
+    },
+    {
+      "file": "drizzle/0087_international_saas_authorities.sql",
+      "sha256": "1cc92fc0f30ca3fd5cc147e6c707f77fbaf915d2cd1e3d65f7d6d1499e11e200"
+    },
+    {
+      "file": "drizzle/0088_international_us_device_admission.sql",
+      "sha256": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8"
+    },
+    {
+      "file": "drizzle/0089_international_us_device_capability_v4.sql",
+      "sha256": "18145da9ad4d057da39088daa8ec8cb53e4b1d9443158c3c5faf60bdfb78712a"
+    },
+    {
+      "file": "drizzle/0090_international_us_team_admission.sql",
+      "sha256": "2e575085308e9b0ecac92005089a2c8be57faa60ea8d42754efa5f9065cbff5d"
+    }
+  ],
+  "hostedMetadata": {
+    "observedAt": "2026-10-09 23:33:26 UTC",
+    "project": {
+      "id": "xvfohjdlhlirksrvkiqu",
+      "name": "Zentra Zurich",
+      "region": "eu-central-2",
+      "status": "ACTIVE_HEALTHY",
+      "databaseVersion": "17.6.1.166",
+      "engine": "17"
+    },
+    "recordedMigrations": [
+      {
+        "version": "20261004150344",
+        "name": "restrict_rls_auto_enable_client_execution"
+      },
+      {
+        "version": "20261004171300",
+        "name": "prepare_private_mail_scheduler_relay"
+      },
+      {
+        "version": "20261005002340",
+        "name": "proportional_mail_scheduler_dispatch"
+      },
+      {
+        "version": "20261006114402",
+        "name": "prepare_private_postfinance_scheduler"
+      },
+      {
+        "version": "20261006155425",
+        "name": "fair_postfinance_settlement_waiting"
+      },
+      {
+        "version": "20261007165615",
+        "name": "us_pilot_market_test"
+      },
+      {
+        "version": "20261007173315",
+        "name": "us_pilot_free_month_offer"
+      }
+    ],
+    "historyIsNotCompleteObjectCreationProof": true,
+    "expectedLegacyRelations": [
+      {
+        "name": "zentra_company_profiles",
+        "rls": true,
+        "forceRls": false,
+        "owner": "postgres",
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "columnCount": 4,
+        "constraintCount": 3
+      },
+      {
+        "name": "zentra_workspace_chunks",
+        "rls": true,
+        "forceRls": false,
+        "owner": "postgres",
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "columnCount": 5,
+        "constraintCount": 5
+      },
+      {
+        "name": "zentra_workspace_content_blobs",
+        "rls": true,
+        "forceRls": false,
+        "owner": "postgres",
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "columnCount": 6,
+        "constraintCount": 5
+      },
+      {
+        "name": "zentra_workspace_content_parts",
+        "rls": true,
+        "forceRls": false,
+        "owner": "postgres",
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "columnCount": 5,
+        "constraintCount": 5
+      },
+      {
+        "name": "zentra_workspace_number_reservations",
+        "rls": true,
+        "forceRls": false,
+        "owner": "postgres",
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arDxtm/postgres}",
+        "columnCount": 9,
+        "constraintCount": 2
+      },
+      {
+        "name": "zentra_workspace_snapshots",
+        "rls": true,
+        "forceRls": false,
+        "owner": "postgres",
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "columnCount": 11,
+        "constraintCount": 7
+      },
+      {
+        "name": "zentra_workspaces",
+        "rls": true,
+        "forceRls": false,
+        "owner": "postgres",
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "columnCount": 6,
+        "constraintCount": 2
+      }
+    ],
+    "expectedInternationalRelationsAbsent": [
+      "zentra_us_analysis_audit",
+      "zentra_us_analysis_jobs",
+      "zentra_us_analysis_periods",
+      "zentra_us_automation_settings",
+      "zentra_us_automation_settings_changes",
+      "zentra_us_bank_audit",
+      "zentra_us_bank_entry_claims",
+      "zentra_us_bank_receipts",
+      "zentra_us_bank_reconciliations",
+      "zentra_us_erp_events",
+      "zentra_us_erp_heads",
+      "zentra_us_erp_ledger_audit",
+      "zentra_us_erp_receipts",
+      "zentra_us_erp_records",
+      "zentra_us_erp_streams",
+      "zentra_us_erp_wakeups",
+      "zentra_us_seller_profile_changes",
+      "zentra_us_seller_profiles",
+      "zentra_us_supplier_audit",
+      "zentra_us_supplier_proposals",
+      "zentra_us_tax_invoice_links",
+      "zentra_us_tax_invoice_preparations",
+      "zentra_us_tax_merchant_admissions",
+      "zentra_us_tax_operations",
+      "zentra_us_tax_prepared_operation_links",
+      "zentra_us_tax_profile_changes",
+      "zentra_us_tax_profiles",
+      "zentra_us_tax_provider_binding_changes",
+      "zentra_us_tax_provider_bindings",
+      "zentra_us_workspace_change_heads",
+      "zentra_workspace_country_config_changes",
+      "zentra_workspace_country_configs",
+      "zentra_workspace_us_admissions"
+    ],
+    "functions": [
+      {
+        "acl": "{postgres=X/postgres}",
+        "name": "rls_auto_enable",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog"
+        ],
+        "result": "event_trigger",
+        "schema": "public",
+        "bodyMd5": "99be20677b456ea8d3be47bdd44fb369",
+        "definitionMd5": "6998ea6b4c2480f5d2e34b5dcf3f8d36",
+        "securityDefiner": true,
+        "identityArguments": ""
+      },
+      {
+        "acl": "{postgres=X/postgres,service_role=X/postgres}",
+        "name": "zentra_claim_content_cleanup",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "bodyMd5": "b8d88ab0ff4bcced96347bdf055de93f",
+        "definitionMd5": "19d5aa568f57d9575d2ee57e07ce9030",
+        "securityDefiner": true,
+        "identityArguments": "p_organization text"
+      },
+      {
+        "acl": "{postgres=X/postgres,service_role=X/postgres}",
+        "name": "zentra_commit_workspace",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "bodyMd5": "cd437e4e023b4d8a257fd96873b35aab",
+        "definitionMd5": "d51cdd76c26a5a1552cda9ae11763e36",
+        "securityDefiner": true,
+        "identityArguments": "p_organization text, p_snapshot uuid, p_installation text, p_actor text"
+      },
+      {
+        "acl": "{postgres=X/postgres,service_role=X/postgres}",
+        "name": "zentra_prepare_content",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "bodyMd5": "ef6ea581bf091c1619863aa0219e3ac8",
+        "definitionMd5": "81cb28443864b3e17258499eaaa88140",
+        "securityDefiner": true,
+        "identityArguments": "p_organization text, p_snapshot uuid, p_installation text, p_actor text, p_base bigint, p_manifest jsonb, p_entries jsonb, p_digest text, p_activate boolean, p_numbers jsonb"
+      },
+      {
+        "acl": "{postgres=X/postgres,service_role=X/postgres}",
+        "name": "zentra_reserve_content_blob",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "bodyMd5": "c3aeb694b44f306f4c08903512912c4a",
+        "definitionMd5": "bbc80478de8dd6af68df5260aa53f61e",
+        "securityDefiner": true,
+        "identityArguments": "p_organization text, p_snapshot uuid, p_installation text, p_actor text, p_hash text, p_size integer"
+      },
+      {
+        "acl": "{postgres=X/postgres,service_role=X/postgres}",
+        "name": "zentra_reserve_workspace_numbers",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "jsonb",
+        "schema": "public",
+        "bodyMd5": "105a9b5d8c96d27bffaf461dbcd2dc90",
+        "definitionMd5": "720cfcb1a65683f3cbc0c5f196bdd143",
+        "securityDefiner": true,
+        "identityArguments": "p_organization text, p_installation text, p_request uuid, p_prefix text, p_year integer, p_minimum bigint, p_count integer"
+      }
+    ],
+    "legacyBodySnapshot": [
+      {
+        "name": "zentra_claim_content_cleanup",
+        "bodyMd5": "b8d88ab0ff4bcced96347bdf055de93f",
+        "carriageReturns": 9,
+        "lineFeeds": 9
+      },
+      {
+        "name": "zentra_commit_workspace",
+        "bodyMd5": "cd437e4e023b4d8a257fd96873b35aab",
+        "carriageReturns": 21,
+        "lineFeeds": 21
+      },
+      {
+        "name": "zentra_prepare_content",
+        "bodyMd5": "ef6ea581bf091c1619863aa0219e3ac8",
+        "carriageReturns": 28,
+        "lineFeeds": 28
+      },
+      {
+        "name": "zentra_reserve_content_blob",
+        "bodyMd5": "c3aeb694b44f306f4c08903512912c4a",
+        "carriageReturns": 16,
+        "lineFeeds": 16
+      },
+      {
+        "name": "zentra_reserve_workspace_numbers",
+        "bodyMd5": "105a9b5d8c96d27bffaf461dbcd2dc90",
+        "carriageReturns": 16,
+        "lineFeeds": 16
+      }
+    ],
+    "schemas": [
+      {
+        "acl": "{pg_database_owner=UC/pg_database_owner,=U/pg_database_owner,postgres=U/pg_database_owner,anon=U/pg_database_owner,authenticated=U/pg_database_owner,service_role=U/pg_database_owner}",
+        "name": "public",
+        "owner": "pg_database_owner"
+      }
+    ],
+    "privateAdmissionSchemaExists": false,
+    "privateAdmissionRole": null,
+    "eventTriggers": [
+      {
+        "name": "ensure_rls",
+        "event": "ddl_command_end",
+        "enabled": "O",
+        "function": "rls_auto_enable()"
+      },
+      {
+        "name": "issue_graphql_placeholder",
+        "event": "sql_drop",
+        "enabled": "O",
+        "function": "set_graphql_placeholder()"
+      },
+      {
+        "name": "issue_pg_cron_access",
+        "event": "ddl_command_end",
+        "enabled": "O",
+        "function": "grant_pg_cron_access()"
+      },
+      {
+        "name": "issue_pg_graphql_access",
+        "event": "ddl_command_end",
+        "enabled": "O",
+        "function": "grant_pg_graphql_access()"
+      },
+      {
+        "name": "issue_pg_net_access",
+        "event": "ddl_command_end",
+        "enabled": "O",
+        "function": "grant_pg_net_access()"
+      },
+      {
+        "name": "pgrst_ddl_watch",
+        "event": "ddl_command_end",
+        "enabled": "O",
+        "function": "pgrst_ddl_watch()"
+      },
+      {
+        "name": "pgrst_drop_watch",
+        "event": "sql_drop",
+        "enabled": "O",
+        "function": "pgrst_drop_watch()"
+      }
+    ],
+    "publications": [
+      {
+        "allTables": false,
+        "publication": "supabase_realtime"
+      },
+      {
+        "allTables": false,
+        "publication": "supabase_realtime_messages_publication"
+      }
+    ],
+    "publishedExpectedTables": [],
+    "noBusinessRowCountsRead": true,
+    "noSecretsRead": true,
+    "hostedD1Inspected": false,
+    "workerFlagStateInspected": false,
+    "r2Inspected": false,
+    "stripeSandboxObjectsInspected": false,
+    "preflight": {
+      "file": "docs/internationalization/US-STAGING-STRUCTURE-PREFLIGHT.sql",
+      "sha256": "7033ab4de3ec5ae6745c396b5144905e710b6bab73d177883f8972bb760674bc"
+    },
+    "operationCountPreflightExecuted": false,
+    "advisors": {
+      "security": [
+        {
+          "name": "rls_enabled_no_policy",
+          "level": "INFO",
+          "count": 73,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+          "findingSchemas": {
+            "migration": 2,
+            "public": 15,
+            "zentra_internal": 4,
+            "zentra_phase2_recovery_20260921": 52
+          }
+        },
+        {
+          "name": "auth_leaked_password_protection",
+          "level": "WARN",
+          "count": 1,
+          "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection",
+          "findingSchemas": {
+            "not_table_metadata": 1
+          }
+        }
+      ],
+      "performance": [
+        {
+          "name": "unindexed_foreign_keys",
+          "level": "INFO",
+          "count": 12,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys",
+          "findingSchemas": {
+            "migration": 2,
+            "public": 10
+          }
+        },
+        {
+          "name": "no_primary_key",
+          "level": "INFO",
+          "count": 52,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0004_no_primary_key",
+          "findingSchemas": {
+            "zentra_phase2_recovery_20260921": 52
+          }
+        },
+        {
+          "name": "unused_index",
+          "level": "INFO",
+          "count": 15,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index",
+          "findingSchemas": {
+            "public": 14,
+            "zentra_internal": 1
+          }
+        },
+        {
+          "name": "auth_db_connections_absolute",
+          "level": "INFO",
+          "count": 1,
+          "remediation": "https://supabase.com/docs/guides/deployment/going-into-prod",
+          "findingSchemas": {
+            "not_table_metadata": 1
+          }
+        }
+      ]
+    },
+    "rawReports": [
+      {
+        "file": ".qa/us-deployment-readonly/advisors-performance.json",
+        "sha256": "330ea73dbcd9bf3707f267ebeb38dd6ead9d707a215728a764a579db7542ae94"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/advisors-security.json",
+        "sha256": "cb54b0c396ffc1f25e4c9a02701bdfc2b5720a74112ecb2684303c52ac8c5b08"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/legacy-bodies-response.json",
+        "sha256": "82542bacd08c04e5346954b25c2d59ea64cd4d61699cf954173919c031abe5e5"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/legacy-bodies.json",
+        "sha256": "23f90d1e050fcf5e440dfe29e202447ff50070d7fac4d0c47d681962ea9510f4"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/legacy-metadata.json",
+        "sha256": "d678e5de84af9ec50b4ebf20d7006fb879b4e7d0427f816ab14820d281bc2d0b"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/migrations.json",
+        "sha256": "d4e457b6dc6b0e29d303b4e8806744185512203d38be271977cc9b6535875694"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/project.json",
+        "sha256": "560f9f91da5fcdd80bf61d532b34e74064bdeaaf038480981379d1ad87a34baf"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/rls-trigger.json",
+        "sha256": "e50b55307dd25bc5524344d5c5428af7783e80c0390a7210fb818a529348dd32"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/schema-confirmed.json",
+        "sha256": "43f94449d34e5f58195ca5009c9257763b31b39aedf376ec7e0c99f6ea7512c3"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/schema-first.json",
+        "sha256": "b40f8d284c7cb9dd6a713672c7b990667af1a44827a32b633d7f3b07f574a923"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/structure-final-metadata.json",
+        "sha256": "5245cc7085f3facfef3dd9075a24b5395050c11089855160b0591bf0f3e02eda"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/structure-final-response.json",
+        "sha256": "d118d9387fdd365673894268918de54218db872a5fe007eb6408307127f79abc"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/structure-metadata.json",
+        "sha256": "5245cc7085f3facfef3dd9075a24b5395050c11089855160b0591bf0f3e02eda"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/structure-response.json",
+        "sha256": "52a5c293f463c34cdd008ec362e3e8da04308285a46e9594b9df011f9e1945f4"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/structure-reviewed-metadata.json",
+        "sha256": "5634500182620110ca9e9d7c94f0e6a56698a6eb79cefbdc8076b86b1f8c906a"
+      },
+      {
+        "file": ".qa/us-deployment-readonly/structure-reviewed-response.json",
+        "sha256": "919b3d4dadba686662d3e627f3f6308d785d455618b24eef09d9f36afad040f3"
+      }
+    ]
+  },
+  "localValidation": {
+    "final": {
+      "file": ".qa/us-staging-chain/postgres-final3.json",
+      "sha256": "b2fc9ed6b04cee38060eb77f971d97c1f5333822d2d38e17b571a599af650846",
+      "testFiles": 1,
+      "total": 13,
+      "passed": 13,
+      "failed": 0,
+      "failedSuites": 0,
+      "pending": 0,
+      "todo": 0
+    },
+    "testTitles": [
+      {
+        "title": "covers all 19 reviewed files and preserves populated CH rows after every migration",
+        "status": "passed"
+      },
+      {
+        "title": "installs 33 private tables without inventing country, US book, profile, provider, admission or review data",
+        "status": "passed"
+      },
+      {
+        "title": "runs the catalogue-only preflight before and after the chain, including absent-table/history reporting",
+        "status": "passed"
+      },
+      {
+        "title": "matches the dated read-only live legacy CRLF and ensure_rls LF body hashes",
+        "status": "passed"
+      },
+      {
+        "title": "preserves the observed enabled ensure_rls body, owner, search_path and restricted ACL",
+        "status": "passed"
+      },
+      {
+        "title": "retains exact legacy bodies, arguments, postgres ownership, definer mode and effective ACL after relocation",
+        "status": "passed"
+      },
+      {
+        "title": "keeps all new tables under RLS and denies client table/RPC privileges while admitting service reads",
+        "status": "passed"
+      },
+      {
+        "title": "keeps the dedicated admission owner unloginable, without RLS bypass or service-role membership",
+        "status": "passed"
+      },
+      {
+        "title": "executes all five real CH legacy RPCs under service_role, retaining v0/v1 content and exact numbering receipts",
+        "status": "passed"
+      },
+      {
+        "title": "admits and replays a new US parent while refusing adoption of the unchanged CH parent",
+        "status": "passed"
+      },
+      {
+        "title": "refuses all five legacy RPCs and direct legacy writes for admitted US without changing either tenant",
+        "status": "passed"
+      },
+      {
+        "title": "initializes and replays a real schema4 US book and contiguous delta without crossing into CH",
+        "status": "passed"
+      },
+      {
+        "title": "does not publish any private financial table through PostgreSQL publications",
+        "status": "passed"
+      }
+    ],
+    "quality": {
+      "file": ".qa/us-staging-chain/quality-results.json",
+      "sha256": "ff75826c03c025026aa94bb84edbd0ba4fbe057e4fa94a2acb62484236626d6f",
+      "schemaVersion": 1,
+      "checks": [
+        {
+          "name": "global TypeScript noEmit",
+          "command": [
+            "node",
+            "node_modules/typescript/bin/tsc",
+            "--noEmit"
+          ],
+          "exitCode": 0,
+          "output": ""
+        },
+        {
+          "name": "scoped non-type-aware Oxlint correctness",
+          "command": [
+            "node",
+            "node_modules/oxlint/bin/oxlint",
+            "--deny",
+            "correctness",
+            "lib/international/international-staging-chain.postgres.test.ts"
+          ],
+          "exitCode": 0,
+          "output": ""
+        }
+      ],
+      "productionBuildRerun": false,
+      "reason": "Only test, read-only SQL preflight and documentation changed; runtime build is separately evidenced at the invoice-preparation milestone."
+    },
+    "retainedEarlierReports": [
+      {
+        "file": ".qa/us-staging-chain/postgres-initial.json",
+        "sha256": "371bb184364ed53942d478e2bd081cb4ba3c3da6171edd7ed0e3b735f706391d",
+        "authoritativeFinal": false
+      },
+      {
+        "file": ".qa/us-staging-chain/postgres-final.json",
+        "sha256": "8955004629746ef30dd8f222e80b9349e75039027fc1449beb3f97cebcb93caf",
+        "authoritativeFinal": false
+      },
+      {
+        "file": ".qa/us-staging-chain/postgres-final2.json",
+        "sha256": "9a2ba997295e96451c493b946255328a2c5c2c34f03c33c8a32a3ed358a6be40",
+        "authoritativeFinal": false
+      }
+    ],
+    "earlierFailure": "The LF-only comparison assertion was wrong: read-only decoded metadata confirmed CRLF. Only checkout line endings were canonicalized to the observed encoding; live hashes and SQL migrations were not changed.",
+    "usesSyntheticData": true,
+    "ramOnly": true,
+    "sequential": true,
+    "actualHostedPg17Proven": false,
+    "actualAuthD1R2ProviderProven": false,
+    "hostedConcurrencyProven": false,
+    "reproducedPlatformTriggers": [
+      "ensure_rls"
+    ],
+    "sixOtherHostedPlatformTriggersReproduced": false
+  },
+  "preservedCheckouts": [
+    {
+      "kind": "native",
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "clean": true
+    },
+    {
+      "kind": "published public source",
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "clean": true
+    }
+  ],
+  "noActions": [
+    "hosted DDL or migration apply",
+    "business data mutation or deletion",
+    "flag activation",
+    "region or resource provisioning",
+    "price/subscription mutation",
+    "provider API call",
+    "publication",
+    "native build or release"
+  ],
+  "nextRuntimeGap": "No non-test caller binds verified SaaS USD payment evidence to prepareUsAuthorityAdmission and the D1 READY sink. Existing CH billing remains separate; no authority is created by a catalogue alone.",
+  "goalComplete": false
+}
