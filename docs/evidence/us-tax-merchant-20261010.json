@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-09T22:39:25.076Z",
+  "timezone": "Europe/Zurich",
+  "baseCommit": "beca906622dc76778f40cf1257531f05970810da",
+  "sourceCommit": "8adb1d3e373ba56b853083aa444fcb9ac3040721",
+  "branch": "codex/international-runtime",
+  "scope": "Local dedicated US TEST tax merchant admission and informative readiness; no issuance hook enabled",
+  "sources": [
+    {
+      "file": ".env.supabase.example",
+      "sha256": "f646f6b7e5074d954be122fdf42fee59439dbca6b75676105fef4f833d37a0b5"
+    },
+    {
+      "file": "app/api/international/workspaces/[organizationId]/tax-merchant/route.ts",
+      "sha256": "8abe472ac8e3cbd671c4e6e807c0e11691ee50de9b64f69f6e9b4104271e221b"
+    },
+    {
+      "file": "lib/international/runtime-bindings.test.ts",
+      "sha256": "4428af3b53e761bcc4ca4f2cb949c8eece9f7b6363fde478f37fc200a5b8cfec"
+    },
+    {
+      "file": "lib/international/runtime-bindings.ts",
+      "sha256": "5f0375767c5ff72debbd21c733f0af519718e782fa9f982dfc49ab855faebb3c"
+    },
+    {
+      "file": "lib/international/us-tax-invoice.postgres.test.ts",
+      "sha256": "6a37b9ae374272d89c002f7748b983cd736b67ce1f53ef8afe81e99c2d37474d"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-readiness.test.ts",
+      "sha256": "ca0500fe1fb17566895c2646c9fb502613262e8b8d727a44f68ddb811e2286a4"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-readiness.ts",
+      "sha256": "22a6f78db83de4f1ec591b8cf91cc2d665155bf153a2b4ea9f2f76496137f91f"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-resolver.test.ts",
+      "sha256": "78e2823fbd806583707d816dcf2c5c83cb3c7421fd94ba5af18d23b6c7b2d557"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-resolver.ts",
+      "sha256": "be85544f7cb3ea1e6d4723fb02f36fc21a71e40d40216297f2e8b96f334081f0"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-server.test.ts",
+      "sha256": "fe73220fb52cec316e3873ac13d466d92329b83464618ff5e7a784b832f7d27a"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-server.ts",
+      "sha256": "89b5baf9d43715a5f5aeb6a9b676428367a1a3e8b0f3bc559d850a8e55b54406"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-store.test.ts",
+      "sha256": "d2d82f11b29e0b245a8f338951dd8b11220fdeb636518ab7064df67ae1d6e213"
+    },
+    {
+      "file": "lib/international/us-tax-merchant-store.ts",
+      "sha256": "fbe58050cbb9dd75421c4507e1580a574906387826faf21a44f43a0b5223e650"
+    },
+    {
+      "file": "lib/international/us-tax-merchant.postgres.test.ts",
+      "sha256": "b11a14926e3a111d6114e98570450370876879d3c0c79b765e001d355d974653"
+    },
+    {
+      "file": "lib/international/us-tax-operations.postgres.test.ts",
+      "sha256": "7ea2667ce11ecdd81f154d0d7e9766617f87fb68fed05a31fa17251388622408"
+    },
+    {
+      "file": "supabase/migrations/20261009222319_international_us_tax_test_merchant.sql",
+      "sha256": "9e436a3c1179dc541b3365f923d3a5f29e78a85ba9f8a0d3da7a40cc8e6ed330"
+    }
+  ],
+  "documents": [
+    {
+      "file": "docs/internationalization/STATUS-20261009.md",
+      "sha256": "c37bde0cb35550d1249234fde40198b7334445f00f798455503ad15613e3a91d"
+    },
+    {
+      "file": "docs/internationalization/US-TAX-MERCHANT-DELIVERY-20261010.md",
+      "sha256": "a1f82f8d5cf5f90ebd62adaf88cdbc418205a769a5c8d4eeb698b2d706010af0"
+    },
+    {
+      "file": "docs/internationalization/US-TAX-MERCHANT-PLAN-20261010.md",
+      "sha256": "f5f0718cd0d6bec8341142eb8710e2106a549dce6b93d56be0a3dd32235123ec"
+    }
+  ],
+  "migration": {
+    "file": "supabase/migrations/20261009222319_international_us_tax_test_merchant.sql",
+    "creator": "Supabase CLI 2.120.0 migration new",
+    "applied": "RAM PGlite only",
+    "hostedApplied": false,
+    "destructive": false
+  },
+  "tests": {
+    "total": 833,
+    "reports": [
+      {
+        "file": ".qa/us-tax-merchant/targeted-final.json",
+        "sha256": "c883a642c349a5a2f7f471a6f5272929690b27fa2f30890d8b978c09d86968bb",
+        "tests": 679,
+        "passed": 679,
+        "failed": 0,
+        "skipped": 0,
+        "files": [
+          {
+            "file": "lib/stripe-checkout.test.ts",
+            "tests": 9,
+            "passed": 9
+          },
+          {
+            "file": "lib/stripe-contract.test.ts",
+            "tests": 6,
+            "passed": 6
+          },
+          {
+            "file": "lib/stripe-webhook-proof.test.ts",
+            "tests": 2,
+            "passed": 2
+          },
+          {
+            "file": "lib/stripe-webhook.test.ts",
+            "tests": 5,
+            "passed": 5
+          },
+          {
+            "file": "lib/supabase-auth-http.test.ts",
+            "tests": 14,
+            "passed": 14
+          },
+          {
+            "file": "lib/supabase-auth.test.ts",
+            "tests": 16,
+            "passed": 16
+          },
+          {
+            "file": "lib/automation/provider.test.ts",
+            "tests": 35,
+            "passed": 35
+          },
+          {
+            "file": "lib/international/runtime-bindings.test.ts",
+            "tests": 23,
+            "passed": 23
+          },
+          {
+            "file": "lib/international/stripe-tax-test-gateway.test.ts",
+            "tests": 82,
+            "passed": 82
+          },
+          {
+            "file": "lib/international/us-tax-financial-context.test.ts",
+            "tests": 98,
+            "passed": 98
+          },
+          {
+            "file": "lib/international/us-tax-invoice.test.ts",
+            "tests": 114,
+            "passed": 114
+          },
+          {
+            "file": "lib/international/us-tax-merchant-readiness.test.ts",
+            "tests": 28,
+            "passed": 28
+          },
+          {
+            "file": "lib/international/us-tax-merchant-resolver.test.ts",
+            "tests": 57,
+            "passed": 57
+          },
+          {
+            "file": "lib/international/us-tax-merchant-server.test.ts",
+            "tests": 105,
+            "passed": 105
+          },
+          {
+            "file": "lib/international/us-tax-merchant-store.test.ts",
+            "tests": 7,
+            "passed": 7
+          },
+          {
+            "file": "lib/international/us-tax-readiness-server.test.ts",
+            "tests": 34,
+            "passed": 34
+          },
+          {
+            "file": "lib/international/us-tax-readiness.test.ts",
+            "tests": 44,
+            "passed": 44
+          }
+        ]
+      },
+      {
+        "file": ".qa/us-tax-merchant/postgres-final.json",
+        "sha256": "d0794028f9e23b7c7f4fe0a2e87650c49db3f836d6a522afc6431f5d949cab24",
+        "tests": 154,
+        "passed": 154,
+        "failed": 0,
+        "skipped": 0,
+        "files": [
+          {
+            "file": "lib/international/us-tax-invoice.postgres.test.ts",
+            "tests": 20,
+            "passed": 20
+          },
+          {
+            "file": "lib/international/us-tax-merchant.postgres.test.ts",
+            "tests": 12,
+            "passed": 12
+          },
+          {
+            "file": "lib/international/us-tax-operations.postgres.test.ts",
+            "tests": 122,
+            "passed": 122
+          }
+        ]
+      }
+    ],
+    "distinctFiles": 20,
+    "fullRepositorySuiteRun": false
+  },
+  "quality": [
+    {
+      "name": "typecheck-final",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "startedAt": "2026-10-09T22:36:18.209Z",
+      "endedAt": "2026-10-09T22:36:41.340Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-merchant/typecheck-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "syntax-final",
+      "args": [
+        "node_modules/oxlint/bin/oxlint",
+        "--config",
+        ".qa/us-team/oxlint-syntax.json",
+        "--format",
+        "json",
+        "lib/international/runtime-bindings.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/us-tax-merchant-readiness.ts",
+        "lib/international/us-tax-merchant-readiness.test.ts",
+        "lib/international/us-tax-merchant-resolver.ts",
+        "lib/international/us-tax-merchant-resolver.test.ts",
+        "lib/international/us-tax-merchant-store.ts",
+        "lib/international/us-tax-merchant-store.test.ts",
+        "lib/international/us-tax-merchant-server.ts",
+        "lib/international/us-tax-merchant-server.test.ts",
+        "lib/international/us-tax-merchant.postgres.test.ts",
+        "lib/international/us-tax-operations.postgres.test.ts",
+        "lib/international/us-tax-invoice.postgres.test.ts",
+        "app/api/international/workspaces/[organizationId]/tax-merchant/route.ts"
+      ],
+      "startedAt": "2026-10-09T22:36:41.341Z",
+      "endedAt": "2026-10-09T22:36:41.565Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-merchant/syntax-final.log",
+      "logSha256": "6b16d9eedb67b1927798dabc37a0cddbd42718a920818ca4b03f4d417e37b3e7"
+    },
+    {
+      "name": "brand-final",
+      "args": [
+        "scripts/check-brand-assets.mjs"
+      ],
+      "startedAt": "2026-10-09T22:36:41.566Z",
+      "endedAt": "2026-10-09T22:36:41.621Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-merchant/brand-final.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "production-build-final",
+      "args": [
+        "node_modules/vinext/dist/cli.js",
+        "build"
+      ],
+      "startedAt": "2026-10-09T22:36:41.622Z",
+      "endedAt": "2026-10-09T22:36:58.716Z",
+      "exitCode": 0,
+      "signal": null,
+      "log": ".qa/us-tax-merchant/production-build-final.log",
+      "logSha256": "a65a9765bcff478d8bec2e8d24bb104826b91d95d238bf7255950a8d256ac40d"
+    }
+  ],
+  "clientBundle": {
+    "scannedFiles": 101,
+    "privateMerchantMarkerMatches": 0
+  },
+  "preserved": [
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "clean": true
+    },
+    {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "clean": true
+    }
+  ],
+  "limitations": [
+    "SDK/provider responses, Auth and D1 are injected in local tests. No actual merchant sandbox observation or network API call.",
+    "No hosted migration, deployment, payment, subscription mutation, data deletion, region move, native build or visual change.",
+    "Generic taxProvider remains null; issueInvoiceTest hook not installed; no general US fiscal compliance or US GAAP certification.",
+    "No 150-company load proof. Config maps are a bounded 128-merchant pilot, not a commercial secret vault.",
+    "Auth/D1, configuration, provider and PostgreSQL are separate systems; readiness is informative and cannot authorize a future financial commit.",
+    "Earlier Team global suite had Windows workerd spawn failures; this targeted passing evidence does not relabel it."
+  ]
+}
