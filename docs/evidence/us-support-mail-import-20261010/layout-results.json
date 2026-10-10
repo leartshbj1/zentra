@@ -1,0 +1,218 @@
+[
+  {
+    "lang": "fr",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "fr",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "fr",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 305,
+    "width": 320
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "confirmation": true,
+    "focus": "H3",
+    "overflow": [],
+    "scrollWidth": 1425,
+    "width": 1440
+  }
+]

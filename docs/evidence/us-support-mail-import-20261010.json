@@ -1,0 +1,995 @@
+{
+  "schemaVersion": 1,
+  "phase": "US Support H2b — explicit attachment retention in existing supplier originals",
+  "recordedAt": "2026-10-10T03:22:52.102Z",
+  "branch": "codex/international-runtime",
+  "baseCommit": "1c2ba369445cf5dd459c57bfefedb72f175fba35",
+  "implementationCommit": "b568830a3ccb441fc95cedd7f81e0894b33c2ad8",
+  "execution": {
+    "localOnly": true,
+    "hostedMigrationApplied": false,
+    "productionGateEnabled": false,
+    "externalProviderCalled": false,
+    "published": false,
+    "pushed": false,
+    "nativeBuilt": false,
+    "customerDataUsed": false
+  },
+  "scope": {
+    "country": "US",
+    "currency": "USD",
+    "schemaVersion": 4,
+    "roles": [
+      "owner",
+      "admin"
+    ],
+    "explicitConfirmation": true,
+    "targetedVaultRefresh": true,
+    "privateProvenance": true,
+    "exactRetryInTabMemory": true,
+    "automaticMailReception": false,
+    "analysis": false,
+    "supplierOrBillCreation": false,
+    "financialPosting": false,
+    "mailAcknowledgement": false,
+    "outboundMail": false,
+    "classification": false
+  },
+  "gate": {
+    "name": "INTERNATIONAL_US_SUPPORT_MAIL_IMPORT_ENABLED",
+    "default": false,
+    "alsoRequires": [
+      "H2a mailbox",
+      "H1 Support registry",
+      "International Core/ERP",
+      "Supplier Originals readiness",
+      "US/USD initialized ERP v4",
+      "fresh same-period US Gestion and Support admission"
+    ]
+  },
+  "migrations": [
+    {
+      "path": "drizzle/0095_international_us_support_mail_import.sql",
+      "sha256": "5d096ca94fbf75b6d80b5447cb54122522e45198e73fe9f74296dff791bf8f4e",
+      "additive": true,
+      "localChain": "0000–0095",
+      "engine": "Node SQLite through actual D1 interfaces",
+      "hostedVerified": false
+    },
+    {
+      "path": "supabase/migrations/20261010024618_international_us_supplier_original_hash_lookup.sql",
+      "sha256": "f8cd1050527c40d3241a01d1e31b5469772518ddd9c2aec3c072679faed5d57f",
+      "additive": true,
+      "localChain": "21 international migrations over fictitious legacy baselines",
+      "engine": "PGlite PostgreSQL RAM",
+      "invoker": true,
+      "serviceOnly": true,
+      "hostedVerified": false
+    }
+  ],
+  "tests": {
+    "command": "node node_modules/vitest/vitest.mjs run <selectedFiles> --maxWorkers=1 --reporter=json --outputFile=.qa/us-support-mail-import/regression-final.json",
+    "environment": {
+      "node": "24.19.0",
+      "PGLITE_MODULE_DIR": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite"
+    },
+    "selection": {
+      "path": ".qa/us-support-mail-import/selection-final.json",
+      "sha256": "320a39ccb5ac318a5555739e8a1c7aebf4d674eae31bc90596aa01c0bfe7783e",
+      "files": 99,
+      "selectedFiles": [
+        "lib/account-workspace-entry.test.ts",
+        "lib/account-workspace-navigation.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/account-workspaces.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/deployment-contract.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/browser-us-supplier-documents-session.test.ts",
+        "lib/international/browser-us-supplier-session.test.ts",
+        "lib/international/browser-us-team-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-store.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/us-automation-policy.test.ts",
+        "lib/international/us-automation-store.test.ts",
+        "lib/international/us-automation-validation.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-d1.test.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-saas-test-bindings.test.ts",
+        "lib/international/us-saas-test-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "lib/international/us-saas-test-server.test.ts",
+        "lib/international/us-saas-test-stripe.test.ts",
+        "lib/international/us-supplier-analysis-server.test.ts",
+        "lib/international/us-supplier-analysis.test.ts",
+        "lib/international/us-supplier-bindings.test.ts",
+        "lib/international/us-supplier-document-archive.test.ts",
+        "lib/international/us-supplier-document-bindings.test.ts",
+        "lib/international/us-supplier-document-bytes.test.ts",
+        "lib/international/us-supplier-document-contract.test.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-server.test.ts",
+        "lib/international/us-supplier-document-store.test.ts",
+        "lib/international/us-supplier-document-timeout.test.ts",
+        "lib/international/us-supplier-extraction.test.ts",
+        "lib/international/us-supplier-proposal.test.ts",
+        "lib/international/us-supplier-server.test.ts",
+        "lib/international/us-supplier-store.test.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.test.ts",
+        "lib/international/us-support-mailbox-contract.test.ts",
+        "lib/international/us-support-mailbox-d1.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-provider.test.ts",
+        "lib/international/us-support-mailbox-server.test.ts",
+        "lib/international/us-support-mailbox-ui.test.ts",
+        "lib/international/us-support-workspace-bindings.test.ts",
+        "lib/international/us-support-workspace-contract.test.ts",
+        "lib/international/us-support-workspace-d1.test.ts",
+        "lib/international/us-support-workspace-server.test.ts",
+        "lib/international/us-support-workspace-ui.test.ts",
+        "lib/international/us-team-bindings.test.ts",
+        "lib/international/us-team-contract.test.ts",
+        "lib/international/us-team-device-lifecycle.test.ts",
+        "lib/international/us-team-server.test.ts",
+        "lib/international/us-team-store.test.ts",
+        "lib/international/us-team-validation.test.ts",
+        "lib/international/us-team.migrations.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/site-language.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth-http.test.ts",
+        "lib/supabase-auth.test.ts",
+        "lib/support/application-effects.test.ts",
+        "lib/support/billing.test.ts",
+        "lib/support/mail-documents.test.ts",
+        "lib/support/mail-sync-admission.test.ts",
+        "lib/support/reply-transport.test.ts",
+        "lib/support/solicitation-service.test.ts",
+        "lib/support/support.test.ts",
+        "lib/support/workspace-access.test.ts",
+        "lib/support/workspace-selection.test.ts",
+        "lib/support/workspace-state-admission.test.ts"
+      ]
+    },
+    "result": {
+      "files": 99,
+      "total": 3195,
+      "passed": 3195,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    "reports": [
+      {
+        "path": ".qa/us-support-mail-import/regression-final.json",
+        "sha256": "32391053c9d96210346fe9e0e439353f1cdb2569f4bb5ba5c86ea104860e3ce9",
+        "files": 99,
+        "total": 3195,
+        "passed": 3195,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0
+      },
+      {
+        "path": ".qa/us-support-mail-import/backend-final.json",
+        "sha256": "b896ac3d1ebf2bc61ae78494c6d33afd83144c24b63372df3f1278ae81505b24",
+        "files": 2,
+        "total": 100,
+        "passed": 100,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0
+      },
+      {
+        "path": ".qa/us-support-mail-import/composition-final.json",
+        "sha256": "9776ab5bb264c95d6f3eda4e8a87d352e7404050f300941df767981c17a0acc5",
+        "files": 1,
+        "total": 8,
+        "passed": 8,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0
+      },
+      {
+        "path": ".qa/us-support-mail-import/lookup-final.json",
+        "sha256": "0e507bba99a0bbc2a4ac90ab607ac62d4fa152dfb76554884648cb207ab3ac11",
+        "files": 2,
+        "total": 48,
+        "passed": 48,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0
+      },
+      {
+        "path": ".qa/us-support-mail-import/root-first.json",
+        "sha256": "b922c0c45edc8f6083514935d0d5a14236bd6da7083c234f62cc7fe8a74b100b",
+        "files": 3,
+        "total": 71,
+        "passed": 71,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0
+      },
+      {
+        "path": ".qa/us-support-mail-import/ui-first.json",
+        "sha256": "8359f89631ee1c1f551b6caf723ea37d54d4f941d7fbdbeb5dc0c635a76480af",
+        "files": 3,
+        "total": 154,
+        "passed": 154,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0
+      },
+      {
+        "path": ".qa/us-support-mail-import/sql-format-followup.json",
+        "sha256": "518814006fc315fad1665fdda36a55bd426d8fecb8926f2de00564d7eba5e6a4",
+        "files": 2,
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0
+      }
+    ],
+    "overlap": "Targeted reports overlap the final 3195-test selection and must not be added.",
+    "postRegressionChange": "Only whitespace on two blank SQL lines was removed before the local implementation commit; actual D1 and HTTP composition rerun62/62 in sql-format-followup.json."
+  },
+  "quality": [
+    {
+      "name": "Global TypeScript",
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "exitCode": 0
+    },
+    {
+      "name": "Typed targeted lint",
+      "command": "node node_modules/oxlint/bin/oxlint --type-aware -- <26 changed TS/TSX files>",
+      "selection": [
+        "app/api/international/workspaces/[organizationId]/support-mailbox/import/route.ts",
+        "app/compte/espaces/us/[organizationId]/page.tsx",
+        "components/account/us-erp-workbench.tsx",
+        "components/account/us-supplier-documents.tsx",
+        "components/account/us-support-mail-import.tsx",
+        "components/account/us-support-mailbox-panel.tsx",
+        "components/account/us-support-workspace-panel.tsx",
+        "lib/international/browser-us-support-mail-import-session.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-lookup.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-contract.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-d1.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-provider.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-import-server.ts",
+        "lib/international/us-support-mailbox-import-test-fixture.ts",
+        "tests/us-supplier-documents-preview.tsx"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "Brand assets",
+      "command": "node scripts/check-brand-assets.mjs",
+      "exitCode": 0
+    },
+    {
+      "name": "Production build",
+      "command": "node node_modules/vinext/dist/cli.js build",
+      "exitCode": 0,
+      "warnings": "Existing middleware convention deprecation and unknown static route classifications; no production-server or hosted-runtime proof."
+    }
+  ],
+  "logs": [
+    {
+      "path": ".qa/us-support-mail-import/typecheck-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-support-mail-import/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-support-mail-import/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-support-mail-import/build-final.log",
+      "sha256": "0a2d70d7c4b8a8d2444817779cd78f6e2226e1ae7907933cfc242da637bddf0e"
+    },
+    {
+      "path": ".qa/us-support-mail-import/regression-final.log",
+      "sha256": "125d02a6082c0eafe86cdfca67403db4d5a0c4d009cc323b14030fd73f92ac2a"
+    },
+    {
+      "path": ".qa/us-support-mail-import/sql-format-followup.log",
+      "sha256": "eea8be6af65e28bb93f2322f0c41858e9746d9942e07e8ab5c3324297954bebc"
+    }
+  ],
+  "initialDiagnostics": [
+    {
+      "path": ".qa/us-support-mail-import/backend-first.json",
+      "sha256": "4b2605cb298b312c2d8fb1744a39141cbba96fa6bcbe8baaf5c288573d944958"
+    },
+    {
+      "path": ".qa/us-support-mail-import/composition-first.json",
+      "sha256": "7c1a7d8c8d8a6d860e4a22a4724ec9ea233e0b5a2e68063f14fc7b7316dd8863"
+    },
+    {
+      "path": ".qa/us-support-mail-import/lookup-first-failed.json",
+      "sha256": "fbe69c7c6303d90b82b81e0bca13f66543c43b220d321b039222faade7e646a7"
+    },
+    {
+      "path": ".qa/us-support-mail-import/typecheck-first.log",
+      "sha256": "a84e9d8ff6bdce43b63de5dd2bcbdfda0b08e6adcc1a0851182be2d7bac218ba"
+    },
+    {
+      "path": ".qa/us-support-mail-import/lint-first.log",
+      "sha256": "2f9dc0a39a17a4376b12d2977fdfd2e21a7416f7151c471c6cbc7b1045a5c4be"
+    }
+  ],
+  "browser": {
+    "method": "CUA in-app browser, DOM-grounded interactions; no external Playwright",
+    "actualComponents": [
+      "H1 registry",
+      "H2a mailbox",
+      "H2b import",
+      "US ERP workbench",
+      "supplier originals vault",
+      "browser transports"
+    ],
+    "syntheticBoundaries": [
+      "Auth and role",
+      "HTTP server",
+      "Infomaniak",
+      "D1/PG/R2 persistence"
+    ],
+    "layoutCases": [
+      {
+        "lang": "fr",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "fr",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "fr",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      },
+      {
+        "lang": "fr",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "fr",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "fr",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      },
+      {
+        "lang": "de",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "de",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "de",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      },
+      {
+        "lang": "de",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "de",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "de",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      },
+      {
+        "lang": "it",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "it",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "it",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      },
+      {
+        "lang": "it",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "it",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "it",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 305,
+        "width": 320
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "confirmation": true,
+        "focus": "H3",
+        "overflow": [],
+        "scrollWidth": 1425,
+        "width": 1440
+      }
+    ],
+    "interactions": {
+      "scope": "Real H1/H2a/H2b React and transports, synthetic HTTP/provider/stores",
+      "disconnectedPending": {
+        "noConnection": true,
+        "retryPresent": true,
+        "messagesPurged": true
+      },
+      "recovered": {
+        "posts": 2,
+        "imports": 2,
+        "confirmed": 1,
+        "mailReads": 1,
+        "metadataReads": 3,
+        "busy": false,
+        "pending": false,
+        "exactRetry": true
+      },
+      "purgeCases": [
+        {
+          "action": "Simulate sign-out",
+          "retryPurged": true,
+          "sourcePurged": true,
+          "report": {
+            "posts": 1,
+            "imports": 1,
+            "confirmed": 0,
+            "mailReads": 1,
+            "metadataReads": 2,
+            "busy": false,
+            "pending": false,
+            "exactRetry": true
+          }
+        },
+        {
+          "action": "Close import gate",
+          "retryPurged": true,
+          "sourcePurged": false,
+          "report": {
+            "posts": 1,
+            "imports": 1,
+            "confirmed": 0,
+            "mailReads": 1,
+            "metadataReads": 2,
+            "busy": false,
+            "pending": false,
+            "exactRetry": true
+          },
+          "note": "Only the import gate closes: import retry/choice is purged; separately authorized H2a message metadata remains readable."
+        },
+        {
+          "action": "Simulate access revocation",
+          "retryPurged": true,
+          "sourcePurged": true,
+          "report": {
+            "posts": 1,
+            "imports": 1,
+            "confirmed": 0,
+            "mailReads": 1,
+            "metadataReads": 2,
+            "busy": false,
+            "pending": false,
+            "exactRetry": true
+          }
+        }
+      ],
+      "accessCases": [
+        {
+          "role": "admin",
+          "noAutomaticMail": true,
+          "readControl": true,
+          "saveControl": true
+        },
+        {
+          "role": "member",
+          "noAutomaticMail": true,
+          "readControl": false,
+          "saveControl": false
+        }
+      ],
+      "consoleErrors": []
+    },
+    "workbench": {
+      "scope": "Real workbench, H1/H2a/H2b, supplier vault and browser transports; synthetic HTTP/provider/PG/R2",
+      "initialImportAbsent": true,
+      "importedOriginalAppears": true,
+      "noManualReloadClicked": true,
+      "noAnalysisClicked": true,
+      "invoiceOrPostingCreated": false,
+      "desktopFocus": "us-supplier-originals",
+      "mobile": {
+        "focus": "us-supplier-originals",
+        "originalVisible": true,
+        "overflow": [],
+        "scrollWidth": 375,
+        "width": 390
+      },
+      "authPurge": {
+        "originalRemoved": true,
+        "sourceRemoved": true,
+        "targetRemoved": true
+      },
+      "consoleErrors": []
+    },
+    "localFixtureFiles": [
+      {
+        "path": ".qa/us-support-mail-import/browser/entry.tsx",
+        "sha256": "2254ac75b097e41fcf3dd7c76f67aa9d30444579663332220922cc5bd108c9c9"
+      },
+      {
+        "path": ".qa/us-support-mail-import/browser/index.html",
+        "sha256": "0d54189fa388d8075d3fd5d3fd81dd21af56ee9e675ee74b8cf97cc839fd7dab"
+      },
+      {
+        "path": ".qa/us-support-mail-import/browser/vite.config.mjs",
+        "sha256": "8f9971d7d93cdbf358d79ccce6954595d74622a2f2e3d15f6c5900654351c1b5"
+      }
+    ],
+    "artifacts": [
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/auth-purged-fr-dark-390.png",
+        "sha256": "46df72ed12e4a3390ae9c75c013f7ddfd78e0447c6d98a63b6aa64a82bd48190"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-de-dark-1440.png",
+        "sha256": "e31b0b5f4af589c3d6d9c8c866f0050a22f8a8cccb947e5971b930da4da359fa"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-de-dark-320.png",
+        "sha256": "bd6d358c59a45ccf909a7c82a9355054d0299c4672ce934b826afedfd0a6f39c"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-de-light-320.png",
+        "sha256": "09c1fde17bac7f4c819df0521d61414e5fdc2984c75ca2dbeb9f77aa2c5e3dcb"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-en-dark-320.png",
+        "sha256": "ede771fe320dddaf68f8efa14ce0498b7662365eb111ad41d1575c082dd0dd32"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-en-light-1440.png",
+        "sha256": "9526d4554bc45e340fe7a5a686bdb8c72d4314684a396a19afe3d2489504b748"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-en-light-320.png",
+        "sha256": "d625fc50bbcc20c26830a2954280ef592d591d03d64d3273e035853ba9fbcc91"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-fr-dark-320.png",
+        "sha256": "5734af611663d3ea31c6360039010eefc2353014d6213451ad8f2dfe4f08e0f9"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-fr-light-320.png",
+        "sha256": "ef961d52589e8868bd44a1ae41289321db5bf3b41d7c4e05199c2cc6b98e8894"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-fr-light-390.png",
+        "sha256": "6c20df1a37740a128286d342dc97f2851127c254e16dee5e7c75a7208bfd97f8"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-it-dark-320.png",
+        "sha256": "ecf6515560297ca486d8f324c0b98c032861bdaa023ed9e61ffbc445a5722fe7"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/confirmation-it-light-320.png",
+        "sha256": "bab94dc2e49789e2fcadbea33341c270b8c73c1de1ec9431d1c2367b7a4e9f6f"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/interaction-results.json",
+        "sha256": "576423af697bae9b59ee4670305868417ce3b82657af22dcf36e9887d5f13823"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/layout-results.json",
+        "sha256": "665617decd4949fabb24c1e1267bb9bf0391be1b73872d03f106ea383f887229"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/pending-disconnected-fr-390.png",
+        "sha256": "df4ae61e9878c0105c6c760e7a8709287f8c116d803482206a8e71c0af199e01"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/success-fr-light-390.png",
+        "sha256": "865139f6df319a6bb8e383f52e726b586a7030e4f95e04d57b6b11a5a87d2c53"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/workbench-results.json",
+        "sha256": "0d38c728f29a8380d443dffd2dfe260a39f12277f71b81e7999ef530dbd71b70"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/workbench-vault-fr-dark-390.png",
+        "sha256": "eb9bbb5086c7e6feea299bcc5a4563880d62679ea99810663e8956fa267a5fb3"
+      },
+      {
+        "path": "docs/evidence/us-support-mail-import-20261010/workbench-vault-fr-light-1440.png",
+        "sha256": "865b621894842bbf47be5e22a6503ea12698ef83f1c158cae7c948f7df2638f4"
+      }
+    ],
+    "cleanup": {
+      "temporaryTabsClosed": true,
+      "viewportReset": true,
+      "localServersStopped": true
+    }
+  },
+  "limits": {
+    "maxAttachmentBytes": 6291456,
+    "maxSourcesPerOrganization": 500,
+    "maxRequestsPerOrganization": 2000,
+    "existingVaultDocuments": 50,
+    "existingVaultBytes": 104857600,
+    "atomicD1PgR2Transaction": false,
+    "providerAtomicSnapshot": false,
+    "UIDVALIDITYContractEstablished": false,
+    "ocr": false,
+    "garbageCollection": false,
+    "hostedConcurrencyVerified": false,
+    "physicalDevicesVerified": false,
+    "goalComplete": false
+  },
+  "rollback": "Close H2b and revert application code, retaining append-only history, PG reservations and R2 originals. No destructive cleanup or hosted change authorized/executed.",
+  "next": "Design country-independent scoped classification/delegation/quota before automatic intake; hosted sandbox/staging and native pilot require separate validation.",
+  "sources": [
+    {
+      "title": "Infomaniak official mail client",
+      "url": "https://github.com/Infomaniak/mcp-server-mail/blob/main/src/mail-client.ts"
+    },
+    {
+      "title": "Supabase PostgreSQL RLS",
+      "url": "https://supabase.com/docs/guides/database/postgres/row-level-security"
+    },
+    {
+      "title": "Supabase PostgreSQL breaking changes",
+      "url": "https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes"
+    }
+  ],
+  "files": [
+    {
+      "status": "A",
+      "path": "app/api/international/workspaces/[organizationId]/support-mailbox/import/route.ts",
+      "sha256": "54565beff5371632628cd9c5d60a59c518b32e36c562368f6073aea25b514ee2"
+    },
+    {
+      "status": "M",
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "sha256": "179bdab3956e1bcc3b7ca34d56227bd08d3a82fa57af2339615a8771156a1d98"
+    },
+    {
+      "status": "M",
+      "path": "components/account/us-erp-workbench.tsx",
+      "sha256": "2261d66abe2ba2453432dc485d150f534060d0880f205254d9a6e807f6b9a51c"
+    },
+    {
+      "status": "M",
+      "path": "components/account/us-supplier-documents.tsx",
+      "sha256": "8905d2c44633cc7525e29521c397fe1ff9fcb364966af27f94d6376d6b8387b2"
+    },
+    {
+      "status": "A",
+      "path": "components/account/us-support-mail-import.tsx",
+      "sha256": "d554302d1d2b6931c723e83773955c113f34d9207a9786126754bd3ce01c04e9"
+    },
+    {
+      "status": "M",
+      "path": "components/account/us-support-mailbox-panel.tsx",
+      "sha256": "ff7735fa74885288b0b99fc746b42e0234018c9101fa8fb1e26eefe57faa9273"
+    },
+    {
+      "status": "M",
+      "path": "components/account/us-support-workspace-panel.tsx",
+      "sha256": "4f7cf59ee6b370aba4fb8ea501be2559f0885b4f43c1533dc46b53469fed31f9"
+    },
+    {
+      "status": "A",
+      "path": "docs/internationalization/US-SUPPORT-MAIL-IMPORT-PLAN-20261010.md",
+      "sha256": "e1144aab816fb0d119430e910ce5b7a02812c1e6cac65bec10a07b0ec40de8d5"
+    },
+    {
+      "status": "A",
+      "path": "drizzle/0095_international_us_support_mail_import.sql",
+      "sha256": "5d096ca94fbf75b6d80b5447cb54122522e45198e73fe9f74296dff791bf8f4e"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/browser-us-support-mail-import-session.ts",
+      "sha256": "f18dfbae5acbcd340cbacf05b08e3a0b8b68525acc8bd41169a0114cca2e0139"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-supplier-document-lookup.postgres.test.ts",
+      "sha256": "00987190767370c021e82a4da2047dd0777f46596598316ff9ac57cc8eff495b"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-supplier-document-lookup.test.ts",
+      "sha256": "8a7541c8f590e034aed352155c7fde0cea5d034ae1785972c24d47feb8f5d798"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-supplier-document-lookup.ts",
+      "sha256": "1e468781be8a7ec01d754e555f1708ab974c636c47b7e5a414c2a7578f691b55"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mail-import-ui.test.ts",
+      "sha256": "e95be779820e10595a21f3ce2e72e8332097a4dc163f2750cf8023723aa09ec5"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-support-mailbox-bindings.ts",
+      "sha256": "d45fdbd4a74a7613bdcd7940b7b56116993b0ee0b8a0c8329ec6163960dc2d03"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-bindings.test.ts",
+      "sha256": "cb1d95cd0fa5be490995632b6a8aa860c8fb5fbab35af7b18150b35f61f78d21"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-bindings.ts",
+      "sha256": "c1e8cac7851ffaefd9d5f7314bcfd977f98fe1ac8c80dbb39f621dfffcad531e"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-composition.test.ts",
+      "sha256": "f8af5c53578dd7d92ec81b700796fcb255fbe541d1c18a619412f7be0ca160ec"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-contract.test.ts",
+      "sha256": "5cdfe5ed26942c2e1ebf351d298eabeb43b1c1ba22360015541ad757d3cf28a8"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-contract.ts",
+      "sha256": "4f10a78e7b7e2c806a9b1aedca806fccb3f6678796faaab6b367ca67951b1766"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-d1.test.ts",
+      "sha256": "e2cadae84e62e911d4e0b2530a04a59bb906037f4fc7da292151f4d0733bed07"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-d1.ts",
+      "sha256": "5e51fb880040af19dd627d493dfc3eda6b30967f2fbd5aa2bfb62e7eaa4b5b7e"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-provider.test.ts",
+      "sha256": "956a9f0b89e94b5852f1e051e87fe70fb4106a38418ed59c4590baee78f891e6"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-provider.ts",
+      "sha256": "6106aca2ed3746a3e1ecf9cdf312bbdc4449cc02650f4d63d5e4326059cd9221"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-server.test.ts",
+      "sha256": "b0b08843dcb54fe0b58a8fa1b8c4cc42afc83be7a14a8029a213a5beef4383fc"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-server.ts",
+      "sha256": "f61426fee027e1ce511740c880403b3ae6a91da4adb068a66f55d6e685a8ca23"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-import-test-fixture.ts",
+      "sha256": "e6154b1f405f04b75021e198e1c37606ca555b7945b041ae61703d58d304a9c1"
+    },
+    {
+      "status": "A",
+      "path": "supabase/migrations/20261010024618_international_us_supplier_original_hash_lookup.sql",
+      "sha256": "f8cd1050527c40d3241a01d1e31b5469772518ddd9c2aec3c072679faed5d57f"
+    },
+    {
+      "status": "M",
+      "path": "tests/us-supplier-documents-preview.tsx",
+      "sha256": "9ec413157d6bff7b472afb7c5b4efa54dbae5865f9b42f70fce89d6658369bf8"
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/internationalization/US-SUPPORT-MAIL-IMPORT-DELIVERY-20261010.md",
+      "sha256": "120630c2e2a70e152c9026c670fc54200a4b3bfd53d6b04d217acae6075a803a"
+    },
+    {
+      "path": "docs/internationalization/STATUS-20261009.md",
+      "sha256": "79390846fe01180410ea2d296f7c45afb7675614c3781a79aeb3489ef14adf06"
+    }
+  ]
+}

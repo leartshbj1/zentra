@@ -1,0 +1,81 @@
+{
+  "scope": "Real H1/H2a/H2b React and transports, synthetic HTTP/provider/stores",
+  "disconnectedPending": {
+    "noConnection": true,
+    "retryPresent": true,
+    "messagesPurged": true
+  },
+  "recovered": {
+    "posts": 2,
+    "imports": 2,
+    "confirmed": 1,
+    "mailReads": 1,
+    "metadataReads": 3,
+    "busy": false,
+    "pending": false,
+    "exactRetry": true
+  },
+  "purgeCases": [
+    {
+      "action": "Simulate sign-out",
+      "retryPurged": true,
+      "sourcePurged": true,
+      "report": {
+        "posts": 1,
+        "imports": 1,
+        "confirmed": 0,
+        "mailReads": 1,
+        "metadataReads": 2,
+        "busy": false,
+        "pending": false,
+        "exactRetry": true
+      }
+    },
+    {
+      "action": "Close import gate",
+      "retryPurged": true,
+      "sourcePurged": false,
+      "report": {
+        "posts": 1,
+        "imports": 1,
+        "confirmed": 0,
+        "mailReads": 1,
+        "metadataReads": 2,
+        "busy": false,
+        "pending": false,
+        "exactRetry": true
+      },
+      "note": "Only the import gate closes: import retry/choice is purged; separately authorized H2a message metadata remains readable."
+    },
+    {
+      "action": "Simulate access revocation",
+      "retryPurged": true,
+      "sourcePurged": true,
+      "report": {
+        "posts": 1,
+        "imports": 1,
+        "confirmed": 0,
+        "mailReads": 1,
+        "metadataReads": 2,
+        "busy": false,
+        "pending": false,
+        "exactRetry": true
+      }
+    }
+  ],
+  "accessCases": [
+    {
+      "role": "admin",
+      "noAutomaticMail": true,
+      "readControl": true,
+      "saveControl": true
+    },
+    {
+      "role": "member",
+      "noAutomaticMail": true,
+      "readControl": false,
+      "saveControl": false
+    }
+  ],
+  "consoleErrors": []
+}

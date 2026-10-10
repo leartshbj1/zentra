@@ -1,0 +1,22 @@
+{
+  "scope": "Real workbench, H1/H2a/H2b, supplier vault and browser transports; synthetic HTTP/provider/PG/R2",
+  "initialImportAbsent": true,
+  "importedOriginalAppears": true,
+  "noManualReloadClicked": true,
+  "noAnalysisClicked": true,
+  "invoiceOrPostingCreated": false,
+  "desktopFocus": "us-supplier-originals",
+  "mobile": {
+    "focus": "us-supplier-originals",
+    "originalVisible": true,
+    "overflow": [],
+    "scrollWidth": 375,
+    "width": 390
+  },
+  "authPurge": {
+    "originalRemoved": true,
+    "sourceRemoved": true,
+    "targetRemoved": true
+  },
+  "consoleErrors": []
+}
