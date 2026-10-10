@@ -21,5 +21,6 @@ export default async function WorkspacePage() {
     if(!(error instanceof AccountWorkspaceDiscoveryError)) throw error;
     unavailable=true;
   }
-  return <WorkspacePicker workspaces={workspaces} language={language} unavailable={unavailable}/>;
+  const usTestSetupAvailable=await(await import('@/lib/international/us-saas-test-bindings')).usTestBillingEnabled();
+  return <WorkspacePicker workspaces={workspaces} language={language} unavailable={unavailable} usTestSetupAvailable={usTestSetupAvailable}/>;
 }

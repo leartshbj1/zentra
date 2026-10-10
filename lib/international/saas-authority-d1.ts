@@ -4,6 +4,24 @@ import { d1WorkspaceCreationStore } from './workspace-creation-d1';
 import { assertUsAuthorityAdmission, parseUsSubscriptionAuthority, usWorkspaceAccess, usWorkspaceAutomationAuthority, UsAuthorityError, type UsAuthorityAdmission, type UsAuthorityRecord, type UsMembership, type UsSaasPolicy, type UsWorkspaceAutomationAuthority } from './saas-authority';
 import { validateSubscriptionOffer, type SaasModule, type SaasSubscriptionOffer, type SubscriptionEnvironment } from './subscriptions';
 import { snapshotPrivateJson } from './private-json';
+import { assertUsTestPaidProof, validateUsTestPurchase, type UsTestPaidProof, type UsTestPurchase, type UsTestSession } from './us-saas-test-contract';
+
+/** Private TEST gateway provenance, never a public request DTO. SQL additionally
+ * binds these snapshots to the durable purchase/session in the same batch. */
+export interface UsTestAdmissionBinding { readonly purchase: UsTestPurchase; readonly session: UsTestSession; readonly proof: UsTestPaidProof }
+function validateTestBinding(intent: WorkspaceCreationIntent, candidate: UsAuthorityAdmission, binding: UsTestAdmissionBinding): void {
+  assertUsTestPaidProof(binding.proof);
+  const purchase = validateUsTestPurchase(binding.purchase, intent), { session, proof } = binding;
+  if (session.purchaseId !== purchase.purchaseId || proof.purchaseId !== purchase.purchaseId || proof.sessionId !== session.sessionId || proof.providerAccountId !== purchase.providerAccountId || (session.customerId !== null && session.customerId !== proof.customerId) || (session.subscriptionId !== null && session.subscriptionId !== proof.subscriptionId) || session.expiresAt !== purchase.expiresAt || candidate.seatLimit !== purchase.seatLimit || canonicalCreationJson(candidate.authority) !== canonicalCreationJson(proof.authority) || canonicalCreationJson(candidate.authority.offer) !== canonicalCreationJson(purchase.offer)) throw new UsAuthorityError('invalid_authority', 422);
+}
+async function testBindingReplayed(database: AuthorityDatabase, candidate: UsAuthorityAdmission, binding: UsTestAdmissionBinding): Promise<boolean> {
+  const row = await database.prepare(`SELECT p.purchase_id,p.session_id,p.customer_id,p.subscription_id,p.invoice_id,p.provider_account_id,p.authority_json,p.seat_limit
+    FROM international_us_saas_test_paid_proofs p WHERE p.organization_id=?`).bind(candidate.organizationId).first<{purchase_id:string;session_id:string;customer_id:string;subscription_id:string;invoice_id:string;provider_account_id:string;authority_json:string;seat_limit:number}>();
+  if (!row) return false;
+  const { purchase, proof } = binding;
+  if (row.purchase_id !== purchase.purchaseId || row.session_id !== proof.sessionId || row.customer_id !== proof.customerId || row.subscription_id !== proof.subscriptionId || row.invoice_id !== proof.invoiceId || row.provider_account_id !== proof.providerAccountId || row.seat_limit !== candidate.seatLimit || canonicalCreationJson(JSON.parse(row.authority_json)) !== canonicalCreationJson(candidate.authority)) throw new UsAuthorityError('admission_conflict', 409);
+  return true;
+}
 
 type AuthorityDatabase = Pick<D1Database, 'prepare' | 'batch'>;
 interface AuthorityRow {
@@ -32,6 +50,7 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
     const record = await stored(candidate.organizationId);
     if (!current || current.state !== 'ready') return null;
     if (!record || current.ownSubscriptionId !== candidate.authority.subscriptionId || !sameAdmission(record, candidate)) throw new UsAuthorityError('admission_conflict', 409);
+    if (record.revokedAt !== null) throw new UsAuthorityError('subscription_required', 402);
     return current;
   }
   return {
@@ -39,19 +58,26 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
       return d1UsWorkspaceAutomationAuthority(database, organizationId, userId, policy);
     },
     /** Only server-created branded admission DTOs can reach this internal sink. */
-    async admit(intent: WorkspaceCreationIntent, candidate: UsAuthorityAdmission, revalidate: () => Promise<void>): Promise<WorkspaceCreationIntent> {
+    async admit(intent: WorkspaceCreationIntent, candidate: UsAuthorityAdmission, revalidate: () => Promise<void>, testBinding?: UsTestAdmissionBinding): Promise<WorkspaceCreationIntent> {
       assertUsAuthorityAdmission(candidate);
       if (candidate.organizationId !== intent.organizationId || candidate.creationId !== intent.creationId || candidate.ownerUserId !== intent.actorUserId || candidate.configurationFingerprint !== intent.fingerprint || !intent.receipt || intent.state === 'reserved') throw new UsAuthorityError('invalid_authority', 422);
+      if (testBinding) validateTestBinding(intent, candidate, testBinding);
       await revalidate();
       const durable = await creationStore.find(candidate.ownerUserId,intent.requestId);
       if (!durable || durable.creationId !== candidate.creationId || durable.organizationId !== candidate.organizationId || durable.fingerprint !== candidate.configurationFingerprint || durable.companyName !== intent.companyName || canonicalCreationJson(durable.configuration) !== canonicalCreationJson(intent.configuration) || canonicalCreationJson(durable.receipt) !== canonicalCreationJson(intent.receipt)) throw new UsAuthorityError('admission_conflict', 409);
       const existing = await replay(intent, candidate);
-      if (existing) { await revalidate(); return existing; }
+      if (existing) {
+        if (testBinding && !(await testBindingReplayed(database, candidate, testBinding))) throw new UsAuthorityError('admission_conflict', 409);
+        await revalidate(); return existing;
+      }
       const timestamp = new Date(candidate.updatedAt * 1000).toISOString();
       const membershipId = creationUuid(crypto.randomUUID());
       try {
         await revalidate();
+        const proofStatements = testBinding ? [database.prepare(`INSERT INTO international_us_saas_test_paid_proofs(purchase_id,session_id,organization_id,creation_id,actor_user_id,customer_id,subscription_id,invoice_id,event_id,provider_account_id,authority_json,seat_limit,verified_at)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(testBinding.purchase.purchaseId,testBinding.proof.sessionId,candidate.organizationId,candidate.creationId,candidate.ownerUserId,testBinding.proof.customerId,testBinding.proof.subscriptionId,testBinding.proof.invoiceId,testBinding.proof.eventId,testBinding.proof.providerAccountId,canonicalCreationJson(candidate.authority),candidate.seatLimit,testBinding.proof.verifiedAt)] : [];
         await database.batch([
+          ...proofStatements,
           database.prepare(`INSERT INTO international_saas_authorities(organization_id,creation_id,owner_user_id,subscription_id,environment,catalog_version,country,currency,offer_json,authority_json,seat_limit,revision,updated_at,revoked_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).bind(candidate.organizationId,candidate.creationId,candidate.ownerUserId,candidate.authority.subscriptionId,candidate.authority.offer.environment,candidate.authority.offer.catalogVersion,'US','USD',canonicalCreationJson(candidate.authority.offer),canonicalCreationJson(candidate.authority),candidate.seatLimit,1,candidate.updatedAt),
           database.prepare(`INSERT INTO international_workspace_members(membership_id,organization_id,user_id,role,display_name,joined_at,revoked_at) VALUES(?,?,?,'owner',NULL,?,NULL)`).bind(membershipId,candidate.organizationId,candidate.ownerUserId,candidate.updatedAt),
           database.prepare(`UPDATE international_workspace_creation_intents SET state='ready',own_subscription_id=?,updated_at=? WHERE creation_id=? AND organization_id=? AND actor_user_id=? AND request_id=? AND configuration_fingerprint=? AND state='postgres_confirmed'`).bind(candidate.authority.subscriptionId,timestamp,intent.creationId,intent.organizationId,intent.actorUserId,intent.requestId,intent.fingerprint),
@@ -61,12 +87,16 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
         // identical admission. A different contract is never accepted as replay.
         await revalidate();
         const completed = await replay(intent, candidate);
-        if (completed) return completed;
+        if (completed) {
+          if (testBinding && !(await testBindingReplayed(database, candidate, testBinding))) throw new UsAuthorityError('admission_conflict', 409);
+          return completed;
+        }
         throw new UsAuthorityError('service_unavailable', 503);
       }
       await revalidate();
       const completed = await replay(intent, candidate);
       if (!completed) throw new UsAuthorityError('service_unavailable', 503);
+      if (testBinding && !(await testBindingReplayed(database, candidate, testBinding))) throw new UsAuthorityError('admission_conflict', 409);
       return completed;
     },
     async access(organizationId: string, userId: string, policy: UsSaasPolicy, module: SaasModule = 'gestion') {

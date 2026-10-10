@@ -25,6 +25,8 @@ export function createWorkspaceCreationHandlers(dependencies: CreationDependenci
     const result = await dependencies.user();
     if (!result) throw new CreationBoundaryError('unauthorized', 401);
     try { creationUuid(result.userId); } catch { throw new CreationBoundaryError('unauthorized', 401); }
+    const expected = request.headers.get('X-Zentra-Expected-User');
+    if (expected !== null && expected !== result.userId) throw new CreationBoundaryError('session_changed', 401);
     return result;
   }
   async function revalidate(request: Request, actorUserId: string) {

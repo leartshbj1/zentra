@@ -98,6 +98,13 @@ describe('independent browser creation admission review', () => {
     expect(f.dependencies.user).not.toHaveBeenCalled(); expect(f.dependencies.store).not.toHaveBeenCalled();
   });
 
+  it('rejects a stale onboarding account before reserving an enterprise', async () => {
+    const f = fixture();
+    const response = await f.handlers.POST(post(input, { 'X-Zentra-Expected-User': actorB }));
+    expect(response.status).toBe(401); expect(await response.json()).toEqual({ error: 'session_changed' });
+    expect(f.reserve).not.toHaveBeenCalled(); expect(f.admit).not.toHaveBeenCalled();
+  });
+
   it('does not read the body, identity or state when disabled', async () => {
     const f = fixture(); vi.mocked(f.dependencies.enabled).mockReturnValue(false);
     expect((await f.handlers.POST(post())).status).toBe(404);
