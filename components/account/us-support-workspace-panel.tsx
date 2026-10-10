@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type SubmitEvent } from 'react';
+import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type SubmitEvent } from 'react';
 import { ACCOUNT_ROLES, type AccountRole } from '@/lib/account-security';
 import { AUTH_CHANGED_EVENT } from '@/lib/auth-browser-events';
 import type { SiteLanguage } from '@/lib/site-language';
 import { createUsBackgroundSync, type UsBackgroundSync } from '@/lib/international/browser-us-background-sync';
 import { validateUsSupportWorkspaceProjection, validateUsSupportWorkspaceReceipt, validateUsSupportWorkspaceRequest, type UsSupportWorkspaceProjection, type UsSupportWorkspaceRequest } from '@/lib/international/us-support-workspace-contract';
+import { UsSupportMailboxPanel } from './us-support-mailbox-panel';
 import './us-erp-workbench.css';
 
 export const usSupportWorkspaceCopy = {
@@ -13,6 +14,13 @@ export const usSupportWorkspaceCopy = {
   de: { title: 'Support-Arbeitsbereich', introduction: 'Bereiten Sie einen eigenen Support-Arbeitsbereich für dieses Unternehmen vor.', limitation: 'Postfachverbindung, Nachrichtenempfang und Sortierung sind in diesem Arbeitsbereich nicht verfügbar.', loading: 'Support-Arbeitsbereich wird geprüft…', refresh: 'Aktualisieren', empty: 'Der Support-Arbeitsbereich ist noch nicht vorbereitet.', name: 'Name des Arbeitsbereichs', nameHelp: '2 bis 100 Zeichen. Dieser Name wird mit dem Arbeitsbereich gespeichert.', prepare: 'Support-Arbeitsbereich vorbereiten', working: 'Wird vorbereitet…', prepared: 'Arbeitsbereich vorbereitet', saved: 'Der Support-Arbeitsbereich wurde vorbereitet.', member: 'Ein Inhaber oder Administrator mit Complet kann diesen Arbeitsbereich vorbereiten.', pending: 'Die Vorbereitung ist nicht bestätigt. Wiederholen Sie dieselbe Anfrage; es wird kein neuer Arbeitsbereich angefordert.', retry: 'Dieselbe Anfrage wiederholen', memory: 'Die Wiederholung bleibt in diesem Tab. Neuladen oder Schließen löscht sie aus dem Speicher.', invalid: 'Geben Sie einen Namen mit 2 bis 100 Zeichen ohne Steuerzeichen ein.', unavailable: 'Der Vorgang konnte nicht bestätigt werden. Versuchen Sie es gleich erneut.', denied: 'Der Zugriff hat sich geändert. Informationen und ausstehende Anfrage wurden aus diesem Tab gelöscht. Prüfen Sie Ihre Anmeldung und laden Sie die Seite neu.', conflict: 'Die Anfrage weicht von einem vorhandenen Eintrag ab. Aktualisieren Sie den Zustand des Arbeitsbereichs, bevor Sie fortfahren.' },
   it: { title: 'Spazio Support', introduction: 'Prepara uno spazio Support dedicato a questa azienda.', limitation: 'Il collegamento di una casella email, la ricezione e lo smistamento non sono disponibili in questo spazio.', loading: 'Verifica dello spazio Support…', refresh: 'Aggiorna', empty: 'Lo spazio Support non è ancora preparato.', name: 'Nome dello spazio', nameHelp: 'Da 2 a 100 caratteri. Il nome sarà conservato con lo spazio.', prepare: 'Prepara lo spazio Support', working: 'Preparazione…', prepared: 'Spazio preparato', saved: 'Lo spazio Support è stato preparato.', member: 'Un titolare o amministratore con Complet può preparare questo spazio.', pending: 'La preparazione non è confermata. Riprova la stessa richiesta; non verrà richiesto un nuovo spazio.', retry: 'Riprova la stessa richiesta', memory: 'Il tentativo resta in questa scheda. Ricaricare o chiudere la scheda lo elimina dalla memoria.', invalid: 'Inserisci un nome da 2 a 100 caratteri, senza caratteri di controllo.', unavailable: 'Impossibile confermare l’operazione. Riprova tra poco.', denied: 'L’accesso è cambiato. Le informazioni e la richiesta in attesa sono state eliminate da questa scheda. Verifica l’accesso e ricarica la pagina.', conflict: 'La richiesta differisce da un record esistente. Aggiorna lo stato dello spazio prima di continuare.' },
   en: { title: 'Support workspace', introduction: 'Prepare a separate Support workspace for this company.', limitation: 'Mailbox connection, mail reception and sorting are not available in this workspace.', loading: 'Checking Support workspace…', refresh: 'Refresh', empty: 'The Support workspace has not been prepared yet.', name: 'Workspace name', nameHelp: '2 to 100 characters. This name will be retained with the workspace.', prepare: 'Prepare Support workspace', working: 'Preparing…', prepared: 'Workspace prepared', saved: 'The Support workspace has been prepared.', member: 'An owner or administrator with Complet can prepare this workspace.', pending: 'Preparation is not confirmed. Retry the same request; no new workspace will be requested.', retry: 'Retry the same request', memory: 'This retry stays in this tab. Reloading or closing the tab clears it from memory.', invalid: 'Enter a name of 2 to 100 characters without control characters.', unavailable: 'The operation could not be confirmed. Try again in a moment.', denied: 'Access changed. Information and the pending request have been cleared from this tab. Check your sign-in and reload the page.', conflict: 'The request differs from an existing record. Refresh the workspace state before continuing.' },
+} as const;
+
+const mailboxLimitations = {
+  fr: 'La boîte se consulte uniquement à votre demande dans la section suivante. Aucun import ni tri n’est activé.',
+  de: 'Das Postfach wird im folgenden Abschnitt nur auf Ihre Anfrage gelesen. Import und Sortierung sind nicht aktiviert.',
+  it: 'La casella si consulta solo su tua richiesta nella sezione seguente. Importazione e smistamento non sono attivati.',
+  en: 'The mailbox is read only at your request in the next section. Import and sorting are not enabled.',
 } as const;
 
 export class BrowserUsSupportWorkspaceError extends Error {
@@ -100,14 +108,15 @@ export function createBrowserUsSupportWorkspaceSession(options: { organizationId
 
 interface SupportContentProps {
   language: SiteLanguage; projection: UsSupportWorkspaceProjection | null; name: string; busy: boolean; loading: boolean; pending: boolean; terminal: boolean; error: string; saved: boolean;
+  mailboxEnabled?: boolean;
   onName: (value: string) => void; onSubmit: (event: SubmitEvent<HTMLFormElement>) => void; onRetry: () => void; onRefresh: () => void;
 }
-export function UsSupportWorkspaceContent({ language, projection, name, busy, loading, pending, terminal, error, saved, onName, onSubmit, onRetry, onRefresh }: SupportContentProps) {
+export function UsSupportWorkspaceContent({ language, projection, name, busy, loading, pending, terminal, error, saved, mailboxEnabled = false, onName, onSubmit, onRetry, onRefresh }: SupportContentProps) {
   const c = usSupportWorkspaceCopy[language], id = useId(), blocked = busy || loading || pending || terminal;
   const message = error === 'invalid_support_request' ? c.invalid : error === 'access_lost' ? c.denied : ['support_workspace_conflict', 'support_idempotency_conflict'].includes(error) ? c.conflict : c.unavailable;
   return <section className="us-erp-workbench us-erp-section us-support-workspace" lang={language} aria-labelledby={`${id}-title`} aria-busy={busy || loading}>
     <div className="us-erp-record-heading"><h2 id={`${id}-title`}>{c.title}</h2><button className="account-button secondary" type="button" disabled={busy || loading || terminal} onClick={onRefresh}>{c.refresh}</button></div>
-    <p>{c.introduction}</p><p className="us-erp-muted">{c.limitation}</p>
+    <p>{c.introduction}</p><p className="us-erp-muted">{mailboxEnabled && projection?.workspace ? mailboxLimitations[language] : c.limitation}</p>
     {loading && !projection && <output>{c.loading}</output>}
     {projection?.workspace ? <dl className="us-erp-facts"><div><dt>{c.prepared}</dt><dd><strong>{projection.workspace.name}</strong></dd></div></dl> : projection && <p>{c.empty}</p>}
     {projection?.canCreate && <form className="us-erp-form" onSubmit={onSubmit}>
@@ -122,15 +131,18 @@ export function UsSupportWorkspaceContent({ language, projection, name, busy, lo
 
 export interface UsSupportWorkspacePanelProps {
   organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; admitted?: boolean; active?: boolean; accessEpoch?: number;
+  mailboxEnabled?: boolean;
   currentAccessEpoch?: () => number; registerInvalidation?: (invalidate: (() => void) | null) => void; onIdentityLost?: () => void;
 }
-export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, language, admitted = true, active = true, accessEpoch = 0, currentAccessEpoch, registerInvalidation, onIdentityLost }: UsSupportWorkspacePanelProps) {
+export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, language, admitted = true, active = true, accessEpoch = 0, mailboxEnabled = false, currentAccessEpoch, registerInvalidation, onIdentityLost }: UsSupportWorkspacePanelProps) {
   const identity = `${organizationId}:${expectedUserId}:${role}:${accessEpoch}`, usable = admitted && accessEpoch === 0;
   const refs = useRef({ identity, active, currentAccessEpoch, accessEpoch, onIdentityLost }), generation = useRef(0), mutation = useRef(0), busyRef = useRef(false), loadingRef = useRef(false), transport = useRef<BrowserUsSupportWorkspaceSession | null>(null), scheduler = useRef<UsBackgroundSync | null>(null), head = useRef<UsSupportWorkspaceProjection | null>(null);
+  const mailboxInvalidation = useRef<(() => void) | null>(null);
+  const registerMailboxInvalidation = useCallback((callback: (() => void) | null) => { mailboxInvalidation.current = callback; }, []);
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [read, setRead] = useState<UsSupportWorkspaceProjection | null>(null), [name, setName] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [pending, setPending] = useState(false), [terminal, setTerminal] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false);
   useLayoutEffect(() => { refs.current = { identity, active, currentAccessEpoch, accessEpoch, onIdentityLost }; });
   const current = (stamp: number, actor: string) => generation.current === stamp && refs.current.identity === actor && (refs.current.currentAccessEpoch?.() ?? refs.current.accessEpoch) === refs.current.accessEpoch;
-  function invalidate() { generation.current++; transport.current?.dispose(); transport.current = null; scheduler.current?.dispose(); scheduler.current = null; head.current = null; busyRef.current = false; loadingRef.current = false; setRead(null); setName(''); setPending(false); setBusy(false); setLoading(false); setSaved(false); setTerminal(true); setError('access_lost'); }
+  function invalidate() { mailboxInvalidation.current?.(); generation.current++; transport.current?.dispose(); transport.current = null; scheduler.current?.dispose(); scheduler.current = null; head.current = null; busyRef.current = false; loadingRef.current = false; setRead(null); setName(''); setPending(false); setBusy(false); setLoading(false); setSaved(false); setTerminal(true); setError('access_lost'); }
   function failure(reason: unknown) {
     if (reason instanceof BrowserUsSupportWorkspaceError && reason.denied) { invalidate(); if (reason.status === 401) refs.current.onIdentityLost?.(); }
     else setError(reason instanceof BrowserUsSupportWorkspaceError ? reason.code : 'service_unavailable');
@@ -160,5 +172,7 @@ export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, 
     finally { if (current(stamp, actor)) { setPending(session.hasPending()); busyRef.current = false; setBusy(false); } }
   }
   const owned = usable && ownedIdentity === identity;
-  return <UsSupportWorkspaceContent language={language} projection={owned ? read : null} name={owned ? name : ''} busy={owned && busy} loading={owned && loading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} onName={setName} onSubmit={event => { event.preventDefault(); void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} />;
+  return <><UsSupportWorkspaceContent language={language} projection={owned ? read : null} name={owned ? name : ''} busy={owned && busy} loading={owned && loading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} mailboxEnabled={mailboxEnabled} onName={setName} onSubmit={event => { event.preventDefault(); void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} />
+    {owned && !terminal && mailboxEnabled && read?.workspace && <UsSupportMailboxPanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={read.workspace.workspaceId} language={language} admitted={admitted} active={active} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} registerInvalidation={registerMailboxInvalidation} onIdentityLost={() => { invalidate(); refs.current.onIdentityLost?.(); }} />}
+  </>;
 }
