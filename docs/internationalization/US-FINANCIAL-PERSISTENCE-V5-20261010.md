@@ -1,0 +1,112 @@
+# Persistance financière US V5 — conception additive locale
+
+Date : 10 octobre 2026. Statut : **conception de persistance, non implémentée**. Le noyau financier et le pont ERP mixte sont implémentés et testés uniquement **en mémoire TEST** ; voir `US-FINANCIAL-ERP-COEXISTENCE-V5-20261010.md`. La promotion réelle, les invariants SQL et les admissions liées doivent être établis avant toute migration ou adapter durable. Ce document ne constitue ni une activation publique de V5, ni une validation fiscale, ni une preuve d'autorisation transactionnelle hébergée.
+
+## 1. Décision et limites
+
+La persistance est réalisable dans le PostgreSQL/Supabase existant, sans nouvelle base et sans seconde comptabilité indépendante. La proposition conserve une baseline ERP4 immuable et un journal ordonné d'événements V5 ; le registre courant, les créances et le grand livre sont **dérivés ensemble** par replay. Les anciennes tables ERP4 ne deviennent pas un cache modifiable de cette projection.
+
+Les clients, espaces CH, snapshots historiques, abonnements CHF et migrations déjà publiées restent inchangés. Les contrats publics `ErpSchemaVersion` 1–4 restent fermés à 5 tant que négociation, routes, synchronisation, exports et appareils ne sont pas prêts. Un adapter durable futur doit déclarer une capacité propre, pas se faire passer pour `memory-test-v5`.
+
+Le premier lot durable doit rester local et TEST, borné aux transitions effectivement prises en charge. Une table JSON qui conserve un livre fourni par le serveur ne suffit pas à prouver les invariants financiers : les gardiens SQL, l'autorité de commit et la cohérence des sources restent des conditions de livraison.
+
+## 2. Hooks existants vérifiés
+
+| Point du repository | Comportement réel et conséquence |
+| --- | --- |
+| `supabase/migrations/20261008161118_international_us_journal_periods_v4.sql`, `zentra_commit_us_erp`, lignes 335–468 | Dernière définition du commit ERP commun aux schémas 1–4. Vérifie l'acteur reçu, verrouille workspace → configuration nationale → head ERP, contrôle les replays, puis avance le head avant les records/audits/reçus. |
+| Même migration, `zentra_read_us_erp_v4`, ligne 845 | Reconstruit la vraie baseline depuis le head, les records triés, le journal et l'audit ; inclut fournisseurs/achats/projets selon le schéma. C'est cette projection qu'une promotion doit capturer, pas une baseline client ou un simple header. |
+| `20261007222349_international_us_erp_persistence.sql`, lignes 106–152 | Immutabilité de l'historique, protections des factures/encaissements et progression du head. Les grants permettent néanmoins certains INSERT/UPDATE directs au rôle serveur. |
+| `20261007224820_international_us_erp_delta_stream.sql`, lignes 65–92 | L'insertion du reçu capture le delta ERP, puis avance le wakeup dans la même transaction. Une relecture d'un reçu existant ne capture aucun nouvel événement. |
+| Migration V4, lignes 908–946, et gardiens achats/projets | Des contraintes différées corroborent head, changements, journal, audit, événement et reçu. Elles ne doivent pas être désactivées pour faire accepter une projection V5 aux anciennes tables. |
+| `lib/international/runtime-store.ts` | Adapter RPC réel ; refuse une capacité hors 1–4 et valide les états/reçus. Il ne constitue pas un adapter V5. |
+| `lib/international/runtime-bindings.ts`, `lib/international/saas-authority-d1.ts` | Auth/session, rôle, appartenance et droit Gestion sont relus côté serveur dans D1. Le PostgreSQL actuel reçoit ensuite un acteur JSON de confiance ; il ne relit pas ces droits dans la transaction. |
+
+Les commits fiscaux préparés et l'approbation fournisseur appellent eux aussi `zentra_commit_us_erp`. Un garde sur ce chemin commun protège donc leurs écritures ERP, mais ne suffit pas à empêcher les réservations, analyses ou appels externes qui le précèdent.
+
+## 3. Modèle durable proposé et promotion atomique
+
+Noms de travail uniquement, à arrêter après le contrat mixte :
+
+- Un head financier par organisation : révision financière, baseline ERP4, hash canonique de baseline, politique approuvée et provenance de promotion. Baseline/politique/promotion sont immuables. FK vers le head ERP existant, avec `ON DELETE RESTRICT`.
+- Un journal financier append-only, clé `(organization_id, revision)`, contenant les événements privés exacts et leur identité de commande. Les événements mixtes doivent représenter les transitions réellement admises par le noyau ; aucun payload journal libre n'est accepté.
+- Un index de reçus/idempotences par organisation, lié aux événements ou aux reçus ERP4 d'origine. Le head et cet index ne contiennent pas une deuxième version du grand livre courant.
+
+La lecture reconstruit un seul `UsFinancialBookV5` à partir de ces sources et le valide par replay. Elle ne concatène pas plusieurs registres financiers autonomes. Les preuves fiscales intégrales et les informations privées de baseline restent dans des ports serveur ; les futurs DTO publics devront les filtrer explicitement.
+
+La promotion doit, dans **une transaction PostgreSQL** :
+
+1. Vérifier la capacité TEST et l'autorité propriétaire admise ; refuser CH, une devise autre que USD, cash basis, une configuration divergente ou un schéma autre que 4.
+2. Prendre les verrous dans l'ordre existant : workspace → configuration nationale → head ERP4 → head financier éventuel. Le verrou workspace sérialise aussi le cas où le head financier n'existe pas encore.
+3. Comparer la révision ERP4 attendue ; lire `zentra_read_us_erp_v4` sous ces verrous et comparer la baseline exacte, son hash canonique et la provenance attendue. Ne pas valider seulement la révision ou un hash fourni par l'appelant.
+4. Recontrôler la cohérence du pays, de la devise, de la méthode et de la configuration courante. La politique autorisée doit être fournie par un port serveur distinct, jamais accordée parce que la même valeur figure dans le livre proposé.
+5. Insérer le marker/head financier, conserver l'identité de promotion et indexer les reçus ERP4 existants ; aucun journal ERP4 n'est modifié et aucune ancienne opération n'est fabriquée comme événement V5.
+6. Retourner un reçu de promotion minimal. Un retry exact doit retrouver ce reçu ; contenu, acteur, baseline ou politique différents doivent produire un conflit.
+
+Le hash SQL peut réutiliser `zentra_us_erp_v4_canonical` et SHA-256, sous réserve d'un test de parité avec `canonicalErpJson` sur les vraies projections RPC : ordre des tableaux, Unicode, notes multilignes et entiers sûrs. Le livre privé reste limité en taille/nombre d'événements ; aucune rétention ou latence illimitée n'est promise.
+
+**Budgets actuels, pas une capacité de production.** `snapshotPrivateJson` refuse une profondeur supérieure à 20 (racine à 0), plus de 50 000 valeurs visitées par appel, tout tableau de plus de 1 000 éléments, toute chaîne de plus de 524 288 unités UTF-16 et un cumul supérieur à 2 097 152 unités UTF-16 pour les clés et chaînes. Les clés consomment le budget de caractères, pas un nœud séparé ; nombres, booléens, objets, tableaux et valeurs consomment les nœuds. Ces bornes ne sont pas une taille maximale de fichier JSON ou de transport en octets : UTF-8, échappements et ponctuation ont un autre coût. Le snapshot détache et gèle les données, rejette notamment getters, prototypes non admis, tableaux creux, NUL et substituts Unicode invalides ; il n'accorde aucune permission.
+
+Dans le livre mixte actuel, le coût est celui de la baseline complète plus la somme des événements. Un événement ERP conserve commande, faits privés d'émission éventuels, commit ERP4 reconstruit (header, records modifiés, audit et reçu) et effets sur le vrai ledger. Header/configuration/plan de comptes/périodes sont donc répétés ; un devis répète ses lignes entre commande et record, et une facture conserve les lignes fiscales dans ses faits puis son record. Ce sont des faits de replay, pas une seconde autorité modifiable. Les structures répétées sont comptées à nouveau. L'enveloppe de commit contient tout le livre et ajoute ses propres champs/profondeur : un livre validable seul peut dépasser le budget une fois enveloppé. La borne de 1 000 événements est uniquement un plafond structurel ; les autres budgets, la taille des lignes et celle de la baseline peuvent refuser le livre bien avant. Le replay intégral est répété aux lectures, calculs et validation de commit ; sa croissance, sa mémoire et sa contention ne sont pas mesurées comme une garantie de débit. Avant persistance, établir des tests synthétiques de budgets et une stratégie vérifiable de journal paginé/checkpoints, sans tronquer les événements ou supprimer les reçus.
+
+## 4. Gel des anciennes écritures et reprise des reçus
+
+Le marker de promotion doit rendre **les sept tables ERP core** immuables pour l'organisation promue : `zentra_us_erp_heads`, `zentra_us_erp_records`, `zentra_us_erp_receipts`, `zentra_us_erp_ledger_audit`, `zentra_us_erp_streams`, `zentra_us_erp_events`, `zentra_us_erp_wakeups`.
+
+Un nouveau trigger `BEFORE INSERT/UPDATE/DELETE` sur le head bloque le premier effet d'un nouveau commit ERP4 ; celui-ci avance le head avant les autres écritures et toute exception annule sa transaction. Des gardiens de gel sur les autres tables ferment aussi les écritures directes du rôle serveur. Les TRUNCATE doivent être refusés indépendamment de la présence d'un tenant promu. Aucun mode de bypass fondé sur un GUC ou un champ JSON déclaré par l'appelant ne doit réouvrir ces tables.
+
+Le garde doit sérialiser son test du marker avec la promotion. Une simple vérification `EXISTS` avant le verrou laisse une course ; en READ COMMITTED, acquérir le verrou workspace puis relire le marker dans une fonction VOLATILE permet une relecture fraîche. Cela ne suffit pas en REPEATABLE READ : la transaction peut conserver l'absence du marker même après attente, puisque la promotion ne modifie pas la ligne workspace/head4 verrouillée. Le contrat doit donc soit refuser explicitement les niveaux d'isolation non pris en charge, soit installer auparavant une vraie ligne de fence commune, verrouillée par tous les writers et **mise à jour** à la promotion, afin que les anciens snapshots rencontrent un conflit de sérialisation. Une absence de fence ne doit pas signifier « écriture autorisée ».
+
+Les RPC restent au même ordre de verrous. Des writes directs qui ont déjà pris un verrou de tuple peuvent être annulés pour deadlock : les essais multiconnexions devront vérifier l'absence de mutation partielle et la reprise contrôlée. PGlite seul ne démontre pas ce comportement concurrent ni la sûreté des différents niveaux d'isolation.
+
+**Replay historique : décision à figer.** Le commit ERP4 retourne un reçu connu avant son upsert du head. Un trigger de gel n'empêche donc pas ce replay sans mutation. La proposition est de préserver ce retry exact, après contrôle du rôle/acteur et de l'identité de commande, pour ne pas transformer une réponse perdue en doublon. Si toute invocation de l'ancien RPC doit être refusée, ajouter un contrôle d'entrée explicite avant la branche reçu ; ne pas prétendre qu'un trigger d'écriture le fait.
+
+**Index des reçus : migration obligatoire.** La baseline ERP4 ne contient pas tous les reçus de commandes. Le nouvel index doit réserver toutes leurs clés sous le verrou de promotion, avec origine ERP4, acteur, hash, révision et reçu exacts. Les nouvelles clés V5 partagent la même unicité d'organisation ; une clé héritée ne devient pas libre parce qu'elle n'apparaît pas dans les événements financiers. Un replay ancien ne doit pas être renuméroté en V5 ni recréer un encaissement. Les limites historiques de clés doivent être conservées sans troncature, même si le nouveau DTO impose une borne plus petite.
+
+Après promotion, les lecteurs/curseurs ERP4 ne doivent pas continuer à présenter la baseline figée comme l'état courant. Prévoir un refus explicite « mise à jour nécessaire » ou un transport V5 versionné, pas un faux schéma4 masquant les crédits. Le pont ERP4 éphémère sert uniquement au replay interne ; il ne doit être ni exporté ni branché sur un ancien store/rapport public.
+
+## 5. Sources et sidecars à verrouiller ou adapter
+
+| Sidecar actuel | Raccord restant avant activation d'un tenant promu |
+| --- | --- |
+| Commandes commerciales : `20261010054644_international_us_sales_orders.sql`, `zentra_us_sales_order_admit` (L44), `zentra_execute_us_sales_order` (L200), gardiens source (L181) | L'admission accepte actuellement le head4 et lit devis/factures dans les anciennes tables. Le pont mixte doit fournir la source courante V5, sa révision exacte, les mêmes règles PO008/PO011 et un lien facture corroboré. Une annulation historique doit rester possible selon les flags HISTORY/NEW, sans réouvrir la création sur une source obsolète. La confirmation interne ne vaut pas acceptation contractuelle du client. |
+| Achats/fournisseurs : `20261008194930_international_us_supplier_proposals.sql`, `zentra_us_supplier_scope` (L192), approbation (L313) | La création/validation dépend du head4, des fournisseurs/factures et d'un commit ERP4. Refuser les nouvelles validations sur baseline figée jusqu'au port mixte ; conserver sources originales, hash de document, historique et retries exacts. |
+| Originaux fournisseur : `20261010005300_international_us_supplier_originals.sql`, `zentra_us_supplier_document_workspace` (L47) | Réserver/lier un original doit utiliser la même admission de version et une proposition/facture réelle du registre courant. Lecture des anciens originaux autorisée par les droits applicables ; aucun rattachement silencieux à une facture absente de la projection courante. |
+| Banque : `20261008184605_international_us_bank_reconciliation.sql`, `zentra_us_bank_scope` (L233), lectures de journals (L218/340/353) | Matcher/terminer exige le vrai ledger V5, ses IDs immuables et révision ; les écritures et créances créditées ne sont pas retrouvables dans le ledger4 figé. Ne pas reconstruire « reçu = total − dû ». |
+| Automation : `20261008210008_international_us_automation_analysis.sql`, `zentra_us_analysis_scope` (L94) | Le scope délègue aujourd'hui au scope fournisseur4. Conserver droits/quota/consentement et idempotences ; bloquer l'exécution financière ancienne avant consommation externe tant que le workflow mixte n'est pas raccordé. |
+| Facturation fiscale TEST : migrations tax operations, capability v2 et invoice preparation | Vérifier la version courante avant réservation et avant appel fournisseur, pas seulement au commit ERP4 qui sera refusé. Calcul historique, autorisation de plan, transaction fiscale originale et reversal restent distincts. Aucun reversal externe avant CAS/outbox. |
+| Sync sidecars : `20261009215104_international_us_workspace_sync_heads.sql`, `zentra_us_workspace_sync_heads` (L58) | Le head ERP4 cessera d'avancer. Ajouter un head/curseur financier V5 explicite et une invalidation cohérente des sidecars ; aucune preuve fiscale ou baseline privée dans Realtime. |
+
+La politique de première étape est de **fermer les nouvelles actions dépendantes d'une source ERP4 figée**, avec erreur contrôlée et historique consultable, plutôt que d'affirmer une compatibilité globale. Le pont mixte devra reprendre progressivement ces flux. Les données Support, la messagerie et les paramètres sans effet financier n'ont pas à être gelés sans raison ; leurs futurs effets financiers doivent toutefois passer par la même autorité, approbation et transaction V5.
+
+## 6. Autorité transactionnelle et sécurité
+
+Toutes les nouvelles tables exposées au schéma `public` doivent activer RLS et révoquer les accès `PUBLIC`, `anon`, `authenticated`. Les RPC privés restent `SECURITY INVOKER`, `search_path=''`, avec EXECUTE explicitement réservé au rôle serveur. Grants minimaux et triggers d'immutabilité/provenance restent nécessaires pour les écritures directes autorisées. Le rôle `service_role` contourne RLS : une policy `TO service_role USING(true)` n'est **pas** une vérification d'appartenance au tenant.
+
+**Limite réelle : D1 et PostgreSQL ne partagent pas de transaction.** Les relectures Auth/D1 actuelles avant/après RPC réduisent les courses, mais ne peuvent garantir qu'une révocation D1 est contrôlée à l'instant exact du CAS PostgreSQL. L'acteur JSON, un timestamp récent, une signature ou un ticket de courte durée ne rendent pas cette révocation atomique. Un postflight refusé après commit ne doit pas annoncer que l'opération n'a pas eu lieu ; conserver l'enveloppe d'idempotence et permettre sa résolution.
+
+Avant une activation financière de production, choisir et tester une autorité transactionnelle explicite : par exemple un fence d'appartenance/droits financier autoritatif dans PostgreSQL, mis à jour dans le même protocole de révocation/admission, avec versions et état de convergence. Copier D1 vers PostgreSQL de façon asynchrone ne suffit pas à garantir une révocation immédiate. Cette décision affecte les protocoles d'octroi, de révocation et de reprise ; elle n'est pas considérée implémentée par ce design. Le premier adapter local TEST peut seulement démontrer ses invariants SQL et refuser les grants non corroborés par sa fixture.
+
+Les commits durables doivent lier tenant, acteur, commande canonique, idempotence, révision attendue, fingerprint précédent, événement et reçu, dans une seule transaction. Les gardiens doivent refuser les substitutions financières, les anciens événements modifiés, les périodes fermées, le surcrédit/surpaiement et les proofs non liées à la vraie allocation. Un hash cohérent et des débits équilibrés ne prouvent pas à eux seuls un effet correct. Les secrets et preuves privées ne doivent pas apparaître dans les erreurs ou DTO publics.
+
+## 7. Ordre de migration, tests et rollback
+
+Ordre proposé, sans exécution dans ce lot :
+
+1. Stabiliser types, événements mixtes, replay unique et index de reçus ; tester le pont sans persistance ni contrats publics5.
+2. Créer une migration additive versionnée avec le CLI Supabase, sur base locale : tables/head/index, protections append-only, RPC TEST de lecture/promotion/commit, gel ERP core et admissions des sidecars. Installer les refus avant d'autoriser une promotion.
+3. Répéter la chaîne entière des migrations sur PGlite/PostgreSQL local, puis sur un staging explicitement autorisé. Aucune réécriture de migration passée, suppression de données ou désactivation globale de RLS.
+4. Ajouter l'adapter privé avec validation stricte des projections et allowlist de codes SQL ; revalider les droits autour de chaque attente. Garder tous les flags publics/natifs fermés et aucune opération fournisseur réelle.
+5. Après décision d'autorité transactionnelle, achever les transports/public projections, sidecars, exports et appareils ; effectuer recette sandbox puis pilote approuvé. Installer une migration n'accorde pas ces capacités.
+
+Tests nécessaires : parité des hashes RPC/TS ; stale baseline/révision/configuration ; promotion étrangère/CH/cash ; deux promotions ou deux commits au même head ; gel via anciens RPC et writes directs, y compris transaction ouverte avant promotion et niveaux d'isolation admis/refusés ; rollbacks complets au moindre échec ; absence de grants anon/authenticated ; modification/suppression/truncate d'historique refusées ; exact replay avant/après promotion et après réponse perdue ; clés héritées/actor mismatch ; append mixte puis avoir/paiement ; écritures équilibrées et séparation reçu/crédit/dû ; périodes/date/taxe ; PO008/PO011 avec sources V5 ; sidecar fermé avant appel externe ; snapshots CH inchangés. PGlite exécute du vrai PostgreSQL WASM mais sérialise ses transactions : une preuve multiconnexions et les grants/services hébergés restent à établir séparément.
+
+Rollback : fermer d'abord les nouvelles promotions/écritures, conserver les lectures et la résolution des reçus autorisées. **Ne jamais retirer le gel ERP4 ou repointer vers sa baseline après des événements V5** : cela créerait deux comptabilités divergentes. Avant toute promotion et avec toutes les nouvelles tables vides, un retrait des seuls objets nouveaux peut être préparé et testé. Après promotion, privilégier un correctif additif ; tout éventuel retour de données nécessite une reconstruction vérifiée, une procédure dédiée et validation explicite. Aucune suppression d'historique n'est un rollback acceptable.
+
+## 8. Preuves de cette passe et reste à intégrer
+
+Cette passe lit les migrations/adapters/tests existants et crée uniquement le présent document. Elle ne crée aucune migration, ne lance aucune transaction hébergée, ne change aucun flag, abonnement, secret, région ou installation native. Aucun résultat de test d'une persistance V5 inexistante n'est annoncé. Les preuves du noyau mémoire restent dans `US-FINANCIAL-KERNEL-V5-20261010.md` et ne valident pas ce futur adapter.
+
+Sources primaires consultées le 10 octobre 2026 : [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [rôles PostgreSQL Supabase](https://supabase.com/docs/guides/database/postgres/roles), [verrous PostgreSQL](https://www.postgresql.org/docs/current/explicit-locking.html) et [changelog Supabase](https://supabase.com/changelog). La modification mineure PostgreSQL récente a été examinée : aucun ltree, ancien chiffrement PGP ou opérateur personnalisé n'est introduit par ce plan. Les skills Supabase et bonnes pratiques PostgreSQL ont été lus ; les docs RLS/rôles ont été consultées via `search_docs`.
+
+Restent donc à livrer : contrat mixte stable, migration et gardiens indépendants, autorité/fences transactionnels, adapter durable, cursor et reprise, raccord de chaque sidecar, outbox fiscale, projections/export cohérents, interface et appareils, validation professionnelle et recette hébergée approuvée. L'objectif est le même ERP international, pas une branche financière isolée de Gestion/Support/Automation.
