@@ -2,6 +2,8 @@
 
 10 octobre 2026. **Livraison locale privée TEST validée.** Base `c6202a1`, implémentation `46052ab9eaa8e250ff7c548758308ccf98176c26`. Ce jalon poursuit le même ERP international et son livre unique. Aucune migration hébergée, activation fournisseur, route publique, UI ou version native n'est publiée. Preuve : `docs/evidence/us-financial-purchasing-v5-20261010.json`.
 
+Suite additive validée : `US-FINANCIAL-TEST-ACCOUNTING-V5-20261010.md` ajoute journaux et périodes au même livre et préserve les résultats/histoires de cette livraison. Le port purchasing refuse désormais par PF008 une queue comptable avant replay ; il ne sert pas une projection partielle comme état courant.
+
 ## 1. Modifications
 
 Le port privé `postgres-test-purchasing-v5` ajoute fournisseur, facture fournisseur approuvée manuellement et paiements enregistrés, aux clients/devis/acceptations/avoirs/encaissements déjà admis. Les commandes restent exactes, fermées et liées à un grant TEST vivant. Les nouveaux achats doivent produire les mêmes records, journaux et audits que le domaine existant, reconstruits indépendamment en PostgreSQL.

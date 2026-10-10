@@ -1,6 +1,6 @@
 # Livre financier US V5 — plan journaux et périodes
 
-10 octobre 2026. **Plan du prochain lot, non exécuté.** Le cycle achats précédent est validé et documenté dans sa propre livraison. Ce document ne lui ajoute aucun résultat et n'annonce ni une migration appliquée, ni une fonction de production.
+10 octobre 2026. **Plan conservé ; lot implémenté et validé localement.** Voir `US-FINANCIAL-TEST-ACCOUNTING-V5-20261010.md` et sa preuve pour les résultats réels. Le texte ci-dessous conserve les décisions prises avant implémentation ; il n'annonce aucune fonction ni migration hébergée.
 
 ## 1. Modifications proposées
 
