@@ -31,6 +31,7 @@ import { UsSupplierDocuments } from './us-supplier-documents';
 import { UsSupplierAnalysisPanel } from './us-supplier-analysis-panel';
 import type { BrowserUsAnalysisReadiness } from '@/lib/international/browser-us-analysis-session';
 import { UsTeamPanel } from './us-team-panel';
+import { UsSupportWorkspacePanel } from './us-support-workspace-panel';
 import { browserUsTeamCopy } from '@/lib/international/browser-us-team-copy';
 import { browserAccountingError } from '@/lib/international/browser-accounting-copy';
 import { createUsBackgroundSync, type UsBackgroundSync } from '@/lib/international/browser-us-background-sync';
@@ -180,11 +181,11 @@ function UsSalesPanel({ state, language, role, disabled, invoiceIssuanceAvailabl
   </>;
 }
 
-export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion?: 1 | 2 | 3 | 4; salesEnabled?: boolean; invoiceIssuanceAvailable?: boolean; taxInvoiceTestEnabled?: boolean; bankEnabled?: boolean; supplierEnabled?: boolean; documentsEnabled?: boolean; teamEnabled?: boolean; syncEnabled?: boolean }
+export interface UsErpWorkbenchProps { organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion?: 1 | 2 | 3 | 4; salesEnabled?: boolean; invoiceIssuanceAvailable?: boolean; taxInvoiceTestEnabled?: boolean; bankEnabled?: boolean; supplierEnabled?: boolean; documentsEnabled?: boolean; teamEnabled?: boolean; syncEnabled?: boolean; supportWorkspaceEnabled?: boolean }
 export function UsErpWorkbench(props: UsErpWorkbenchProps) {
   return <UsErpWorkbenchPanel key={`${props.organizationId}:${props.expectedUserId}:${props.role}:${props.supportedSchemaVersion ?? 1}:${props.salesEnabled === true}:${props.invoiceIssuanceAvailable === true}:${props.taxInvoiceTestEnabled === true}:${props.bankEnabled === true}:${props.supplierEnabled === true}:${props.documentsEnabled === true}`} {...props} />;
 }
-function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, supportedSchemaVersion = 1, salesEnabled = false, invoiceIssuanceAvailable = false, taxInvoiceTestEnabled = false, bankEnabled = false, supplierEnabled = false, documentsEnabled = false, teamEnabled = false, syncEnabled = false }: UsErpWorkbenchProps) {
+function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, supportedSchemaVersion = 1, salesEnabled = false, invoiceIssuanceAvailable = false, taxInvoiceTestEnabled = false, bankEnabled = false, supplierEnabled = false, documentsEnabled = false, teamEnabled = false, syncEnabled = false, supportWorkspaceEnabled = false }: UsErpWorkbenchProps) {
   const [view, setView] = useState<'management' | 'team'>('management');
   const c = browserWorkbenchCopy[language], p = browserPurchasingCopy[language], projectsCopy = browserProjectsCopy[language], prefix = useId(), purchasingEnabled = supportedSchemaVersion >= 2, projectsEnabled = supportedSchemaVersion >= 3;
   const session = useRef<BrowserErpSession | null>(null), generation = useRef(0), privacyEpoch = useRef(0), busyRef = useRef(true), pendingType = useRef<ErpCommand['type'] | null>(null), noticeRef = useRef<HTMLDivElement>(null), nextLine = useRef(2);
@@ -194,6 +195,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
   const supplierBusyRef = useRef(false), supplierPendingRef = useRef(false), supplierRefreshRequested = useRef(false);
   const analysisBusyRef = useRef(false), analysisPendingRef = useRef(false);
   const documentsBusyRef = useRef(false), documentsPendingRef = useRef(false), documentsInvalidation = useRef<(() => void) | null>(null);
+  const supportInvalidation = useRef<(() => void) | null>(null);
   const [documentsBusy, setDocumentsBusy] = useState(false), [documentsPending, setDocumentsPending] = useState(false);
   const invoiceBusyRef = useRef(false), invoicePendingRef = useRef(false), invoiceInvalidation = useRef<(() => void) | null>(null), invoiceRefreshRequested = useRef(false);
   const [invoiceBusy, setInvoiceBusy] = useState(false), [invoicePending, setInvoicePending] = useState(false);
@@ -228,6 +230,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
     pendingType.current = null; setPending(false); busyRef.current = false; setBusy(false);
     invoiceInvalidation.current?.(); invoiceRefreshRequested.current = false;
     documentsInvalidation.current?.(); documentsBusyRef.current = false; documentsPendingRef.current = false; setDocumentsBusy(false); setDocumentsPending(false);
+    supportInvalidation.current?.();
     for (const channel of Object.values(channels.current)) channel?.invalidate?.();
     const epoch = ++privacyEpoch.current; setAccessEpoch(epoch); setWriteLocked(true);
     bankRefreshRequested.current = false; supplierRefreshRequested.current = false;
@@ -256,6 +259,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
   const documentsOtherBusy = useCallback(() => busyRef.current || sellerBusyRef.current || taxBusyRef.current || bankBusyRef.current || supplierBusyRef.current || analysisBusyRef.current || invoiceBusyRef.current, []), documentsOtherPending = useCallback(() => (session.current?.hasPending() ?? false) || sellerPendingRef.current || taxPendingRef.current || bankPendingRef.current || supplierPendingRef.current || analysisPendingRef.current || invoicePendingRef.current, []);
   const onDocumentsBusy = useCallback((value: boolean) => { documentsBusyRef.current = value; setDocumentsBusy(value); }, []), onDocumentsPending = useCallback((value: boolean) => { documentsPendingRef.current = value; setDocumentsPending(value); }, []);
   const registerDocumentsInvalidation = useCallback((invalidate: (() => void) | null) => { documentsInvalidation.current = invalidate; }, []);
+  const registerSupportInvalidation = useCallback((invalidate: (() => void) | null) => { supportInvalidation.current = invalidate; }, []);
   const onDocumentsCommitted = useCallback(() => { setAnalysisRefresh(value => value + 1); void channels.current.supplierProposals?.refresh().catch(() => { background.current?.wake(); }); }, []);
   const onTaxBusy = useCallback((value: boolean) => { taxBusyRef.current = value; setTaxBusy(value); }, []), onTaxPending = useCallback((value: boolean) => { taxPendingRef.current = value; setTaxPending(value); }, []);
   const registerInvoiceInvalidation = useCallback((invalidate: (() => void) | null) => { invoiceInvalidation.current = invalidate; }, []);
@@ -457,6 +461,7 @@ function UsErpWorkbenchPanel({ organizationId, expectedUserId, role, language, s
     <div id={`${prefix}-tax-settings`} tabIndex={-1}><UsTaxProfilePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} admitted={taxAdmitted} blocked={busy || pending || sellerBusy || sellerPending || bankBusy || bankPending || supplierBusy || supplierPending || analysisBusy || analysisPending || documentsBusy || documentsPending || invoiceBusy || invoicePending} writeLocked={writeLocked} accessEpoch={accessEpoch}
       currentAccessEpoch={currentAccessEpoch} otherBusy={taxOtherBusy} otherPending={taxOtherPending}
       onBusyChange={onTaxBusy} onPendingChange={onTaxPending} onAccessDenied={invalidateAccess} registerInvalidation={registerTaxInvalidation} registerBackground={registerTaxBackground} /></div>
+    {supportWorkspaceEnabled && <UsSupportWorkspacePanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} language={language} admitted={!writeLocked} active={view === 'management'} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} registerInvalidation={registerSupportInvalidation} onIdentityLost={invalidateAccess} />}
     {!canWrite && <p className="us-erp-muted">{c.readOnly}</p>}
     {read?.status === 'uninitialized' && <section className="us-erp-section"><h2>{c.initializeTitle}</h2><p>{c.initializeHelp}</p>{role === 'owner' ? <form onSubmit={event => submit(event, () => buildBrowserInitializeCommand(organizationId, start, end, crypto.randomUUID()))}>
       <fieldset disabled={blocked} className="us-erp-form"><div className="us-erp-grid">{field(c.periodStart, start, setStart, { type: 'date', required: true })}{field(c.periodEnd, end, setEnd, { type: 'date', required: true })}</div><button type="submit" className="account-button">{c.initialize}</button></fieldset>

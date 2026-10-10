@@ -18,6 +18,8 @@ import { usWorkspaceSyncEnabled } from '@/lib/international/us-workspace-sync-he
 import { UsTeamPanel } from '@/components/account/us-team-panel';
 import { browserUsTeamCopy } from '@/lib/international/browser-us-team-copy';
 import { usTaxInvoiceTestEnabled } from '@/lib/international/runtime-bindings';
+import { usSupportWorkspacesEnabled } from '@/lib/international/us-support-workspace-bindings';
+import { UsSupportWorkspacePanel } from '@/components/account/us-support-workspace-panel';
 export const dynamic='force-dynamic';
 export const metadata={robots:{index:false,follow:false}};
 export default async function UsWorkspacePage({params,searchParams}:{params:Promise<{organizationId:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
@@ -30,7 +32,7 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
   if(!await accountWorkspaceDiscoveryEnabled())return unavailable();
   const query=await searchParams;
   const setting=typeof query.reglage==='string'?query.reglage:'';
-  let data:{workspace:AccountWorkspace;preferences:AccountPreferences|null;erpReadiness:Awaited<ReturnType<typeof usExportReadiness>>|null;bankEnabled:boolean;supplierEnabled:boolean;documentsEnabled:boolean;teamEnabled:boolean;syncEnabled:boolean;taxInvoiceTestEnabled:boolean}|null=null;
+  let data:{workspace:AccountWorkspace;preferences:AccountPreferences|null;erpReadiness:Awaited<ReturnType<typeof usExportReadiness>>|null;bankEnabled:boolean;supplierEnabled:boolean;documentsEnabled:boolean;teamEnabled:boolean;syncEnabled:boolean;taxInvoiceTestEnabled:boolean;supportWorkspaceEnabled:boolean}|null=null;
   try {
     const workspaces=await accountWorkspacesForUser(user.userId);
     const workspace=workspaces.find(item=>item.organizationId===organizationId&&item.edition==='us_experimental');
@@ -40,6 +42,11 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
       const bankEnabled=setting==='gestion'?await usBankReadiness():false;
       const documentsEnabled=setting==='gestion'?await usSupplierDocumentsReadiness():false;
       const teamEnabled=await usTeamEnabled();
+      let supportWorkspaceEnabled=false;
+      if(await usSupportWorkspacesEnabled()) {
+        try { const access=await requireUsWorkspaceAccess(organizationId,user.userId,'support'); supportWorkspaceEnabled=access.organizationId===organizationId&&access.userId===user.userId&&access.role===workspace.role; }
+        catch(error) { if(!(error instanceof UsAuthorityError)||![402,403].includes(error.status))throw error; }
+      }
       const syncEnabled=setting==='gestion'?await usWorkspaceSyncEnabled():false;
       const taxInvoiceTestEnabled=setting==='gestion'?await usTaxInvoiceTestEnabled():false;
       let supplierEnabled=false;
@@ -49,17 +56,18 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
       }
       const access=await requireUsWorkspaceAccess(organizationId,user.userId);
       const current=await getZentraUser({offerAccess:false});
-      if(current && current.userId===user.userId && access.organizationId===organizationId && access.userId===user.userId && access.role===workspace.role && await accountWorkspaceDiscoveryEnabled())data={workspace,preferences,erpReadiness,bankEnabled,supplierEnabled,documentsEnabled,teamEnabled,syncEnabled,taxInvoiceTestEnabled};
+      if(current && current.userId===user.userId && access.organizationId===organizationId && access.userId===user.userId && access.role===workspace.role && await accountWorkspaceDiscoveryEnabled())data={workspace,preferences,erpReadiness,bankEnabled,supplierEnabled,documentsEnabled,teamEnabled,syncEnabled,taxInvoiceTestEnabled,supportWorkspaceEnabled};
     }
   } catch(error) {
     if(!(error instanceof UsAuthorityError) && !(error instanceof AccountWorkspaceDiscoveryError))throw error;
   }
   if(!data)return unavailable();
-  const {workspace,preferences,erpReadiness,bankEnabled,supplierEnabled,documentsEnabled,teamEnabled,syncEnabled,taxInvoiceTestEnabled}=data;
-  const settings=<nav className="account-space-settings" aria-label={c.global}>{[{id:'',label:c.overview},{id:'gestion',label:c.management},...(teamEnabled?[{id:'equipe',label:browserUsTeamCopy[language].title}]:[]),{id:'profil',label:c.profile},{id:'securite',label:c.security},{id:'apparence',label:c.appearance}].map(item=><a key={item.id} href={`${path}${item.id?`?reglage=${item.id}`:''}`} aria-current={setting===item.id?'page':undefined}>{item.label}</a>)}</nav>;
+  const {workspace,preferences,erpReadiness,bankEnabled,supplierEnabled,documentsEnabled,teamEnabled,syncEnabled,taxInvoiceTestEnabled,supportWorkspaceEnabled}=data;
+  const settings=<nav className="account-space-settings" aria-label={c.global}>{[{id:'',label:c.overview},{id:'gestion',label:c.management},...(teamEnabled?[{id:'equipe',label:browserUsTeamCopy[language].title}]:[]),...(supportWorkspaceEnabled?[{id:'support',label:'Zentra Support'}]:[]),{id:'profil',label:c.profile},{id:'securite',label:c.security},{id:'apparence',label:c.appearance}].map(item=><a key={item.id} href={`${path}${item.id?`?reglage=${item.id}`:''}`} aria-current={setting===item.id?'page':undefined}>{item.label}</a>)}</nav>;
   // This opt-in reveals only the separate TEST preparation flow. Generic/live
   // issuance stays unavailable; the server still admits every exact request.
-  if(setting==='gestion')return <>{settings}<UsErpWorkbench organizationId={organizationId} role={workspace.role} language={language} expectedUserId={user.userId} supportedSchemaVersion={erpReadiness?.supportedSchemaVersion ?? 1} salesEnabled={erpReadiness?.enabled ?? false} invoiceIssuanceAvailable={false} taxInvoiceTestEnabled={taxInvoiceTestEnabled} bankEnabled={bankEnabled} supplierEnabled={supplierEnabled} documentsEnabled={documentsEnabled} teamEnabled={teamEnabled} syncEnabled={syncEnabled}/></>;
+  if(setting==='gestion')return <>{settings}<UsErpWorkbench organizationId={organizationId} role={workspace.role} language={language} expectedUserId={user.userId} supportedSchemaVersion={erpReadiness?.supportedSchemaVersion ?? 1} salesEnabled={erpReadiness?.enabled ?? false} invoiceIssuanceAvailable={false} taxInvoiceTestEnabled={taxInvoiceTestEnabled} bankEnabled={bankEnabled} supplierEnabled={supplierEnabled} documentsEnabled={documentsEnabled} teamEnabled={teamEnabled} syncEnabled={syncEnabled} supportWorkspaceEnabled={supportWorkspaceEnabled}/></>;
+  if(setting==='support')return supportWorkspaceEnabled?<>{settings}<UsSupportWorkspacePanel organizationId={organizationId} role={workspace.role} language={language} expectedUserId={user.userId}/></>:unavailable();
   if(setting==='equipe')return teamEnabled?<>{settings}<UsTeamPanel organizationId={organizationId} role={workspace.role} language={language} expectedUserId={user.userId}/></>:unavailable();
   if(setting==='profil')return <>{settings}<h1>{c.profile}</h1><p className="account-lead">{c.settingsDetail}</p><ProfileForms userId={user.userId} name={user.displayName} email={user.email}/></>;
   if(setting==='securite')return <>{settings}<h1>{c.security}</h1><p className="account-lead">{c.settingsDetail}</p><SecurityForms userId={user.userId}/></>;

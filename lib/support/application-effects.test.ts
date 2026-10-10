@@ -106,7 +106,12 @@ function fixture(workspace = 'a', subject = 'Initial', mailbox = false): Support
     tickets: [{ id: subject, connectionId: 'api', externalId: subject, subject, body: 'Synthetic', revision: 1, state: 'review', decision: null, error: null, automatic: false, corrected: false, createdAt: 1, updatedAt: 1, routedAt: null }],
   };
 }
-const data = () => host.slots[1].value as SupportState;
+// Observe the state passed to the real view, independently of hook ordering.
+const data = () => {
+  const value = find(node => node.type === 'ConnectionsPanel')?.props?.data;
+  if (!value) throw Error('Support view did not receive its state');
+  return value as SupportState;
+};
 beforeEach(() => {
   host.reset(); vi.useFakeTimers();
   documentEvents.mockClear();
