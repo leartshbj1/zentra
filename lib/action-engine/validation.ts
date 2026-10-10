@@ -521,6 +521,7 @@ export function captureReceipt(
       v.organizationId !== proposal.organizationId ||
       v.proposalId !== proposal.id ||
       v.fingerprint !== proposal.fingerprint ||
+      v.quoteNumber !== null ||
       v.status !== 'draft' ||
       v.requiresHumanValidation !== true
     )
@@ -536,7 +537,7 @@ export function captureReceipt(
       fingerprint: proposal.fingerprint,
       customerId: actionIdentifier(v.customerId),
       quoteId: actionIdentifier(v.quoteId),
-      quoteNumber: text(v.quoteNumber, 80),
+      quoteNumber: null,
       status: 'draft',
       requiresHumanValidation: true,
     });

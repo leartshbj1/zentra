@@ -3,12 +3,14 @@ import { executeQuoteProposal, quotePlanFingerprint } from './engine';
 import {
   captureActor,
   captureQuotePlan,
+  captureReceipt,
   validatePlanAgainstContext,
   validatePlanningContext,
 } from './validation';
 import type {
   ActionActor,
   ActionAdmission,
+  DraftQuoteReceipt,
   QuoteExecutionPorts,
   QuotePlan,
   StoredQuoteProposal,
@@ -259,6 +261,79 @@ describe('source facts remain authoritative even with a recomputed valid fingerp
         validatePlanningContext(input),
       ),
     ).toThrow('stale_plan');
+  });
+});
+
+describe('unnumbered draft creation receipts', () => {
+  const proposal: StoredQuoteProposal = {
+    id: 'proposal-demo',
+    organizationId: 'company-demo',
+    fingerprint: 'a'.repeat(64),
+    plan: plan(),
+  };
+  function creationReceipt(): DraftQuoteReceipt {
+    return {
+      organizationId: proposal.organizationId,
+      proposalId: proposal.id,
+      fingerprint: proposal.fingerprint,
+      customerId: 'customer-camille',
+      quoteId: 'quote-demo',
+      quoteNumber: null,
+      status: 'draft',
+      requiresHumanValidation: true,
+    };
+  }
+
+  it('captures explicit null as a detached, frozen creation fact', () => {
+    const input = { ...creationReceipt() },
+      captured = captureReceipt(input, proposal);
+    input.quoteId = 'changed-quote';
+    expect(captured).toEqual(creationReceipt());
+    expect(captured).not.toBe(input);
+    expect(captured.quoteNumber).toBeNull();
+    expect(Object.isFrozen(captured)).toBe(true);
+  });
+
+  it.each(['DV-2026-0001', '', undefined, 0, false, {}])(
+    'rejects a non-null quote number %j without normalizing it',
+    (quoteNumber) => {
+      expect(() =>
+        captureReceipt({ ...creationReceipt(), quoteNumber }, proposal),
+      ).toThrow('invalid_receipt');
+    },
+  );
+
+  it('requires the explicit null field rather than accepting an omitted number', () => {
+    const input: Record<string, unknown> = { ...creationReceipt() };
+    delete input.quoteNumber;
+    expect(() => captureReceipt(input, proposal)).toThrow('invalid_receipt');
+  });
+
+  it('rejects a quote number getter without evaluating it', () => {
+    const input = { ...creationReceipt() },
+      read = vi.fn(() => null);
+    Object.defineProperty(input, 'quoteNumber', {
+      enumerable: true,
+      get: read,
+    });
+    expect(() => captureReceipt(input, proposal)).toThrow('invalid_receipt');
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('rejects a quote number object without coercing it to text or null', () => {
+    const toString = vi.fn(() => 'DV-2026-0001'),
+      convert = vi.fn(() => null);
+    expect(() =>
+      captureReceipt(
+        {
+          ...creationReceipt(),
+          quoteNumber: { toString, [Symbol.toPrimitive]: convert },
+        },
+        proposal,
+      ),
+    ).toThrow('invalid_receipt');
+    expect(toString).not.toHaveBeenCalled();
+    expect(convert).not.toHaveBeenCalled();
   });
 });
 

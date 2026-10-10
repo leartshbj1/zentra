@@ -1,6 +1,6 @@
-# Action Engine — premier lot local
+# Action Engine — noyau et registre local
 
-Ce dossier contient le noyau TypeScript de préparation des **propositions de devis**. Il ne possède pas encore d’adaptateur de production D1/SQLite et n’est pas raccordé au déclenchement Support ou à un bouton de l’application. Ne pas le présenter comme un devis Gestion déjà créé.
+Ce dossier contient le noyau TypeScript de préparation des **propositions de devis** et un registre D1 interne. L'admission de production, la vérification des publications Gestion et la commande SQLite native restent à raccorder ; aucun déclenchement Support, route ou bouton de l'application n'est activé. Ne pas le présenter comme un devis Gestion déjà créé.
 
 ## Frontières
 
@@ -11,6 +11,16 @@ Ce dossier contient le noyau TypeScript de préparation des **propositions de de
 - `types.ts` : ports étroits. Il n’existe aucune capacité d’émission, d’envoi d’e-mail, de paiement, de comptabilisation ou de mise à jour d’une écriture validée.
 
 Les objets `ActionActor` sont construits par la couche d’authentification. Le navigateur, le mail et le modèle ne fournissent ni autorisation ni locataire. Les adaptateurs devront revalider l’admission au serveur et au point de commit ; les types TypeScript et les vérifications préalables ne remplacent pas une transaction.
+
+## Registre D1 interne
+
+`ledger.ts` conserve la proposition immuable et la réservation permanente par source. La première réservation fixe l'installation, l'acteur et les IDs métier. Aucun TTL ni transfert automatique : une exécution incertaine doit être rapprochée avant de reprendre. Retrouver les IDs ne constitue pas une nouvelle autorisation d'écrire dans Gestion.
+
+La factory exige une barrière SQL serveur (`ledger-types.ts`) appliquée par assertion CHECK dans le même batch que la mutation et le journal. Le lot ne fournit **pas** encore le prédicat couvrant toutes les branches commerciales et sessions réelles : cette interface obligatoire ne doit jamais être alimentée par du SQL reçu en HTTP. La confirmation d'un reçu exige une preuve de publication canonique vérifiée par cette barrière ; elle n'accepte pas à elle seule la déclaration du navigateur ou de l'appareil. Aucun reçu n'est une preuve de conformité fiscale ou d'émission.
+
+Le registre rend une reprise durable possible, mais les deux appels IA concurrents avant la première sauvegarde restent possibles. Le prochain raccord de l'intake devra aussi réserver la préparation avant l'appel fournisseur. La migration proposée 0099 est additive et locale ; aucune migration distante n'a été exécutée.
+
+Le reçu de création décrit un vrai brouillon non numéroté : `status: 'draft'` et `quoteNumber: null`. Cela corrige l’ancienne hypothèse d’un numéro dès la création ; dans Gestion, le numéro est attribué lors de l’émission explicite du devis. Ce noyau n’autorise pas cette émission. Le reçu historique conserve `null`, même si le document est émis plus tard : `quoteId` permet d’ouvrir son état courant, sans réécrire le fait de création.
 
 ## Prochain adaptateur durable
 

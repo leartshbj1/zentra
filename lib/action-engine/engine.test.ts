@@ -121,7 +121,7 @@ function receipt(p: StoredQuoteProposal): DraftQuoteReceipt {
     fingerprint: p.fingerprint,
     customerId: 'client-a',
     quoteId: 'quote-a',
-    quoteNumber: 'DV-2026-0001',
+    quoteNumber: null,
     status: 'draft',
     requiresHumanValidation: true,
   };
@@ -295,8 +295,12 @@ describe('Action Engine authorization and durable port contract', () => {
   it('commits only a valid server-stored plan and captures the draft receipt', async () => {
     const ports = await execution();
     expect(
-      (await executeQuoteProposal(actor, 'proposal-a', ports)).quoteId,
-    ).toBe('quote-a');
+      await executeQuoteProposal(actor, 'proposal-a', ports),
+    ).toMatchObject({
+      quoteId: 'quote-a',
+      quoteNumber: null,
+      status: 'draft',
+    });
     expect(ports.commitDraft).toHaveBeenCalledTimes(1);
     expect(ports.authorize).toHaveBeenCalledTimes(3);
   });
@@ -308,6 +312,48 @@ describe('Action Engine authorization and durable port contract', () => {
       throw Error('catalogue no longer exists');
     });
     expect(await executeQuoteProposal(actor, p.id, ports)).toEqual(receipt(p));
+    expect(ports.loadContext).not.toHaveBeenCalled();
+    expect(ports.commitDraft).not.toHaveBeenCalled();
+  });
+  it('keeps the creation receipt unnumbered after the document is issued later', async () => {
+    const p = await proposal(),
+      ports = await execution(p),
+      historical = receipt(p);
+    // The mutable document and the immutable creation receipt are distinct facts.
+    const currentDocument = {
+      id: historical.quoteId,
+      number: 'DV-2026-0001',
+      status: 'emis',
+    };
+    ports.findReceipt = vi.fn(async () => historical);
+    ports.loadContext = vi.fn(async () => {
+      throw Error('The current document must not replace its creation receipt');
+    });
+    const recovered = await executeQuoteProposal(actor, p.id, ports);
+    expect(recovered).toEqual(historical);
+    expect(recovered.quoteNumber).toBeNull();
+    expect(recovered.status).toBe('draft');
+    expect(currentDocument).toEqual({
+      id: recovered.quoteId,
+      number: 'DV-2026-0001',
+      status: 'emis',
+    });
+    expect(ports.loadContext).not.toHaveBeenCalled();
+    expect(ports.commitDraft).not.toHaveBeenCalled();
+  });
+  it('refuses a numbered historical receipt without preparing or writing again', async () => {
+    const p = await proposal(),
+      ports = await execution(p);
+    ports.findReceipt = vi.fn(
+      async () =>
+        ({
+          ...receipt(p),
+          quoteNumber: 'DV-2026-0001',
+        }) as unknown as DraftQuoteReceipt,
+    );
+    await expect(executeQuoteProposal(actor, p.id, ports)).rejects.toThrow(
+      'invalid_receipt',
+    );
     expect(ports.loadContext).not.toHaveBeenCalled();
     expect(ports.commitDraft).not.toHaveBeenCalled();
   });
@@ -381,6 +427,9 @@ describe('Action Engine authorization and durable port contract', () => {
     { organizationId: 'org-b' },
     { quoteId: '' },
     { customerId: 'client-b' },
+    { quoteNumber: 'DV-2026-0001' },
+    { quoteNumber: '' },
+    { quoteNumber: undefined },
     { status: 'issued' },
     { requiresHumanValidation: false },
     { fingerprint: '0'.repeat(64) },
@@ -389,7 +438,7 @@ describe('Action Engine authorization and durable port contract', () => {
     const p = await proposal(),
       ports = await execution(p);
     ports.commitDraft = vi.fn(
-      async () => ({ ...receipt(p), ...patch }) as DraftQuoteReceipt,
+      async () => ({ ...receipt(p), ...patch }) as unknown as DraftQuoteReceipt,
     );
     await expect(executeQuoteProposal(actor, p.id, ports)).rejects.toThrow(
       'invalid_receipt',

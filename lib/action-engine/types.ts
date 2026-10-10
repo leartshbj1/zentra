@@ -133,7 +133,8 @@ export type DraftQuoteReceipt = Readonly<{
   fingerprint: string;
   customerId: string;
   quoteId: string;
-  quoteNumber: string;
+  /** Creation fact: the draft is unnumbered, even if issued after this receipt. */
+  quoteNumber: null;
   status: 'draft';
   requiresHumanValidation: true;
 }>;
