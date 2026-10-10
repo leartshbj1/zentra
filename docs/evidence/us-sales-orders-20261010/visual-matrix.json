@@ -1,0 +1,3470 @@
+[
+  {
+    "lang": "fr",
+    "theme": "light",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Créer une commande",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Créer la commande",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Actualiser",
+        "width": 85.46875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 $USÀ confirmer",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Fermer",
+        "width": 75.5546875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger PDF",
+        "width": 145.8203125
+      },
+      {
+        "height": 44,
+        "text": "Télécharger HTML",
+        "width": 157.375
+      },
+      {
+        "height": 44,
+        "text": "Télécharger CSV",
+        "width": 146.71875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger JSON",
+        "width": 156.4921875
+      },
+      {
+        "height": 48,
+        "text": "Confirmer la commande",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Retour",
+        "width": 72.0234375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Commandes clients"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Du devis accepté à la facture."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Devis acceptéChoisir un devisEST-000001 · Fictitious Harbor "
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Date de commande"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Référence du client (facultatif)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Choisissez un devis accepté, sans facture ni commande active"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 commandeActualiser"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 $US"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Taxe à déterminer lors de la facturation."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Référence de confirmation"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Par exemple : accord reçu par e-mail le 10 octobre. Cette co"
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "fr",
+    "theme": "light",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Créer une commande",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Créer la commande",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Actualiser",
+        "width": 85.46875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 $USÀ confirmer",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Fermer",
+        "width": 75.5546875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger PDF",
+        "width": 145.8203125
+      },
+      {
+        "height": 44,
+        "text": "Télécharger HTML",
+        "width": 157.375
+      },
+      {
+        "height": 44,
+        "text": "Télécharger CSV",
+        "width": 146.71875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger JSON",
+        "width": 156.4921875
+      },
+      {
+        "height": 48,
+        "text": "Confirmer la commande",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Retour",
+        "width": 72.0234375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Commandes clients"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Du devis accepté à la facture."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Devis acceptéChoisir un devisEST-000001 · Fictitious Harbor "
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Date de commande"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Référence du client (facultatif)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Choisissez un devis accepté, sans facture ni commande active"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 commandeActualiser"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 $US"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Taxe à déterminer lors de la facturation."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Référence de confirmation"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Par exemple : accord reçu par e-mail le 10 octobre. Cette co"
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "fr",
+    "theme": "light",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Créer une commande",
+        "width": 191.078125
+      },
+      {
+        "height": 48,
+        "text": "Créer la commande",
+        "width": 177.71875
+      },
+      {
+        "height": 44,
+        "text": "Actualiser",
+        "width": 85.46875
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 $USÀ confirmer",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Fermer",
+        "width": 75.5546875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger PDF",
+        "width": 145.8203125
+      },
+      {
+        "height": 44,
+        "text": "Télécharger HTML",
+        "width": 157.375
+      },
+      {
+        "height": 44,
+        "text": "Télécharger CSV",
+        "width": 146.71875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger JSON",
+        "width": 156.4921875
+      },
+      {
+        "height": 48,
+        "text": "Confirmer la commande",
+        "width": 206.0625
+      },
+      {
+        "height": 44,
+        "text": "Retour",
+        "width": 72.0234375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Commandes clients"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Du devis accepté à la facture."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Devis acceptéChoisir un devisEST-000001 · Fictitious Harbor "
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Date de commande"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Référence du client (facultatif)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Choisissez un devis accepté, sans facture ni commande active"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 commandeActualiser"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 $US"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Taxe à déterminer lors de la facturation."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Référence de confirmation"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Par exemple : accord reçu par e-mail le 10 octobre. Cette co"
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Créer une commande",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Créer la commande",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Actualiser",
+        "width": 85.46875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 $USÀ confirmer",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Fermer",
+        "width": 75.5546875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger PDF",
+        "width": 145.8203125
+      },
+      {
+        "height": 44,
+        "text": "Télécharger HTML",
+        "width": 157.375
+      },
+      {
+        "height": 44,
+        "text": "Télécharger CSV",
+        "width": 146.71875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger JSON",
+        "width": 156.4921875
+      },
+      {
+        "height": 48,
+        "text": "Confirmer la commande",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Retour",
+        "width": 72.0234375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Commandes clients"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Du devis accepté à la facture."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Devis acceptéChoisir un devisEST-000001 · Fictitious Harbor "
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Date de commande"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Référence du client (facultatif)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Choisissez un devis accepté, sans facture ni commande active"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 commandeActualiser"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 $US"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Taxe à déterminer lors de la facturation."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Référence de confirmation"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Par exemple : accord reçu par e-mail le 10 octobre. Cette co"
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Créer une commande",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Créer la commande",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Actualiser",
+        "width": 85.46875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 $USÀ confirmer",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Fermer",
+        "width": 75.5546875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger PDF",
+        "width": 145.8203125
+      },
+      {
+        "height": 44,
+        "text": "Télécharger HTML",
+        "width": 157.375
+      },
+      {
+        "height": 44,
+        "text": "Télécharger CSV",
+        "width": 146.71875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger JSON",
+        "width": 156.4921875
+      },
+      {
+        "height": 48,
+        "text": "Confirmer la commande",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Retour",
+        "width": 72.0234375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Commandes clients"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Du devis accepté à la facture."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Devis acceptéChoisir un devisEST-000001 · Fictitious Harbor "
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Date de commande"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Référence du client (facultatif)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Choisissez un devis accepté, sans facture ni commande active"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 commandeActualiser"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 $US"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Taxe à déterminer lors de la facturation."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Référence de confirmation"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Par exemple : accord reçu par e-mail le 10 octobre. Cette co"
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Créer une commande",
+        "width": 191.078125
+      },
+      {
+        "height": 48,
+        "text": "Créer la commande",
+        "width": 177.71875
+      },
+      {
+        "height": 44,
+        "text": "Actualiser",
+        "width": 85.46875
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 $USÀ confirmer",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Fermer",
+        "width": 75.5546875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger PDF",
+        "width": 145.8203125
+      },
+      {
+        "height": 44,
+        "text": "Télécharger HTML",
+        "width": 157.375
+      },
+      {
+        "height": 44,
+        "text": "Télécharger CSV",
+        "width": 146.71875
+      },
+      {
+        "height": 44,
+        "text": "Télécharger JSON",
+        "width": 156.4921875
+      },
+      {
+        "height": 48,
+        "text": "Confirmer la commande",
+        "width": 206.0625
+      },
+      {
+        "height": 44,
+        "text": "Retour",
+        "width": 72.0234375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Commandes clients"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Du devis accepté à la facture."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Devis acceptéChoisir un devisEST-000001 · Fictitious Harbor "
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Date de commande"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Référence du client (facultatif)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Choisissez un devis accepté, sans facture ni commande active"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 commandeActualiser"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 $US"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Taxe à déterminer lors de la facturation."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Référence de confirmation"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Par exemple : accord reçu par e-mail le 10 octobre. Cette co"
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Create sales order",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Create order",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Refresh",
+        "width": 73.0234375
+      },
+      {
+        "height": 131,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026$118.75Awaiting confirmation",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Close",
+        "width": 64.90625
+      },
+      {
+        "height": 44,
+        "text": "Download PDF",
+        "width": 131.6015625
+      },
+      {
+        "height": 44,
+        "text": "Download HTML",
+        "width": 143.15625
+      },
+      {
+        "height": 44,
+        "text": "Download CSV",
+        "width": 132.5
+      },
+      {
+        "height": 44,
+        "text": "Download JSON",
+        "width": 142.2734375
+      },
+      {
+        "height": 48,
+        "text": "Confirm order",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Back",
+        "width": 59.5703125
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Sales orders"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "From accepted quote to invoice."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Accepted quoteChoose a quoteEST-000001 · Fictitious Harbor S"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Order date"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Customer reference (optional)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Choose an accepted quote without an invoice or active order."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 orderRefresh"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "$118.75"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Tax will be determined when invoicing."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Confirmation reference"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "For example: approval received by email on October 10. This "
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Create sales order",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Create order",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Refresh",
+        "width": 73.0234375
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026$118.75Awaiting confirmation",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Close",
+        "width": 64.90625
+      },
+      {
+        "height": 44,
+        "text": "Download PDF",
+        "width": 131.6015625
+      },
+      {
+        "height": 44,
+        "text": "Download HTML",
+        "width": 143.15625
+      },
+      {
+        "height": 44,
+        "text": "Download CSV",
+        "width": 132.5
+      },
+      {
+        "height": 44,
+        "text": "Download JSON",
+        "width": 142.2734375
+      },
+      {
+        "height": 48,
+        "text": "Confirm order",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Back",
+        "width": 59.5703125
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Sales orders"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "From accepted quote to invoice."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Accepted quoteChoose a quoteEST-000001 · Fictitious Harbor S"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Order date"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Customer reference (optional)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Choose an accepted quote without an invoice or active order."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 orderRefresh"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "$118.75"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Tax will be determined when invoicing."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Confirmation reference"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "For example: approval received by email on October 10. This "
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Create sales order",
+        "width": 169.3984375
+      },
+      {
+        "height": 48,
+        "text": "Create order",
+        "width": 130.2109375
+      },
+      {
+        "height": 44,
+        "text": "Refresh",
+        "width": 73.0234375
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026$118.75Awaiting confirmation",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Close",
+        "width": 64.90625
+      },
+      {
+        "height": 44,
+        "text": "Download PDF",
+        "width": 131.6015625
+      },
+      {
+        "height": 44,
+        "text": "Download HTML",
+        "width": 143.15625
+      },
+      {
+        "height": 44,
+        "text": "Download CSV",
+        "width": 132.5
+      },
+      {
+        "height": 44,
+        "text": "Download JSON",
+        "width": 142.2734375
+      },
+      {
+        "height": 48,
+        "text": "Confirm order",
+        "width": 137.6953125
+      },
+      {
+        "height": 44,
+        "text": "Back",
+        "width": 59.5703125
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Sales orders"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "From accepted quote to invoice."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Accepted quoteChoose a quoteEST-000001 · Fictitious Harbor S"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Order date"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Customer reference (optional)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Choose an accepted quote without an invoice or active order."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 orderRefresh"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "$118.75"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Tax will be determined when invoicing."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Confirmation reference"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "For example: approval received by email on October 10. This "
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Create sales order",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Create order",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Refresh",
+        "width": 73.0234375
+      },
+      {
+        "height": 131,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026$118.75Awaiting confirmation",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Close",
+        "width": 64.90625
+      },
+      {
+        "height": 44,
+        "text": "Download PDF",
+        "width": 131.6015625
+      },
+      {
+        "height": 44,
+        "text": "Download HTML",
+        "width": 143.15625
+      },
+      {
+        "height": 44,
+        "text": "Download CSV",
+        "width": 132.5
+      },
+      {
+        "height": 44,
+        "text": "Download JSON",
+        "width": 142.2734375
+      },
+      {
+        "height": 48,
+        "text": "Confirm order",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Back",
+        "width": 59.5703125
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Sales orders"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "From accepted quote to invoice."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Accepted quoteChoose a quoteEST-000001 · Fictitious Harbor S"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Order date"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Customer reference (optional)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Choose an accepted quote without an invoice or active order."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 orderRefresh"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "$118.75"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Tax will be determined when invoicing."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Confirmation reference"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "For example: approval received by email on October 10. This "
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Create sales order",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Create order",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Refresh",
+        "width": 73.0234375
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026$118.75Awaiting confirmation",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Close",
+        "width": 64.90625
+      },
+      {
+        "height": 44,
+        "text": "Download PDF",
+        "width": 131.6015625
+      },
+      {
+        "height": 44,
+        "text": "Download HTML",
+        "width": 143.15625
+      },
+      {
+        "height": 44,
+        "text": "Download CSV",
+        "width": 132.5
+      },
+      {
+        "height": 44,
+        "text": "Download JSON",
+        "width": 142.2734375
+      },
+      {
+        "height": 48,
+        "text": "Confirm order",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Back",
+        "width": 59.5703125
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Sales orders"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "From accepted quote to invoice."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Accepted quoteChoose a quoteEST-000001 · Fictitious Harbor S"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Order date"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Customer reference (optional)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Choose an accepted quote without an invoice or active order."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 orderRefresh"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "$118.75"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Tax will be determined when invoicing."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Confirmation reference"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "For example: approval received by email on October 10. This "
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Create sales order",
+        "width": 169.3984375
+      },
+      {
+        "height": 48,
+        "text": "Create order",
+        "width": 130.2109375
+      },
+      {
+        "height": 44,
+        "text": "Refresh",
+        "width": 73.0234375
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026$118.75Awaiting confirmation",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Close",
+        "width": 64.90625
+      },
+      {
+        "height": 44,
+        "text": "Download PDF",
+        "width": 131.6015625
+      },
+      {
+        "height": 44,
+        "text": "Download HTML",
+        "width": 143.15625
+      },
+      {
+        "height": 44,
+        "text": "Download CSV",
+        "width": 132.5
+      },
+      {
+        "height": 44,
+        "text": "Download JSON",
+        "width": 142.2734375
+      },
+      {
+        "height": 48,
+        "text": "Confirm order",
+        "width": 137.6953125
+      },
+      {
+        "height": 44,
+        "text": "Back",
+        "width": 59.5703125
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Sales orders"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "From accepted quote to invoice."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Accepted quoteChoose a quoteEST-000001 · Fictitious Harbor S"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Order date"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Customer reference (optional)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Choose an accepted quote without an invoice or active order."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 orderRefresh"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "$118.75"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Tax will be determined when invoicing."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Confirmation reference"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "For example: approval received by email on October 10. This "
+      }
+    ],
+    "documentOverflow": 0,
+    "focusWidth": "3px",
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Kundenauftrag erstellen",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Auftrag erstellen",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Aktualisieren",
+        "width": 104.15625
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10.10.2026118,75 $Zu bestätigen",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Schliessen",
+        "width": 101.375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen PDF",
+        "width": 161.84375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen HTML",
+        "width": 173.3984375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen CSV",
+        "width": 162.7421875
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen JSON",
+        "width": 172.515625
+      },
+      {
+        "height": 48,
+        "text": "Auftrag bestätigen",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Zurück",
+        "width": 72.8984375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Kundenaufträge"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Vom angenommenen Angebot zur Rechnung."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Angenommenes AngebotAngebot auswählenEST-000001 · Fictitious"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Auftragsdatum"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Kundenreferenz (optional)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Wählen Sie ein angenommenes Angebot ohne Rechnung oder aktiv"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 AuftragAktualisieren"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 $"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Die Steuer wird bei der Rechnungsstellung ermittelt."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Bestätigungsreferenz"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Zum Beispiel: Zustimmung per E-Mail am 10. Oktober. Dies dok"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Kundenauftrag erstellen",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Auftrag erstellen",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Aktualisieren",
+        "width": 104.15625
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10.10.2026118,75 $Zu bestätigen",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Schliessen",
+        "width": 101.375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen PDF",
+        "width": 161.84375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen HTML",
+        "width": 173.3984375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen CSV",
+        "width": 162.7421875
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen JSON",
+        "width": 172.515625
+      },
+      {
+        "height": 48,
+        "text": "Auftrag bestätigen",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Zurück",
+        "width": 72.8984375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Kundenaufträge"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Vom angenommenen Angebot zur Rechnung."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Angenommenes AngebotAngebot auswählenEST-000001 · Fictitious"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Auftragsdatum"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Kundenreferenz (optional)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Wählen Sie ein angenommenes Angebot ohne Rechnung oder aktiv"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 AuftragAktualisieren"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 $"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Die Steuer wird bei der Rechnungsstellung ermittelt."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Bestätigungsreferenz"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Zum Beispiel: Zustimmung per E-Mail am 10. Oktober. Dies dok"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Kundenauftrag erstellen",
+        "width": 205.28125
+      },
+      {
+        "height": 48,
+        "text": "Auftrag erstellen",
+        "width": 155.2265625
+      },
+      {
+        "height": 44,
+        "text": "Aktualisieren",
+        "width": 104.15625
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10.10.2026118,75 $Zu bestätigen",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Schliessen",
+        "width": 101.375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen PDF",
+        "width": 161.84375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen HTML",
+        "width": 173.3984375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen CSV",
+        "width": 162.7421875
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen JSON",
+        "width": 172.515625
+      },
+      {
+        "height": 48,
+        "text": "Auftrag bestätigen",
+        "width": 167.7578125
+      },
+      {
+        "height": 44,
+        "text": "Zurück",
+        "width": 72.8984375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Kundenaufträge"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Vom angenommenen Angebot zur Rechnung."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Angenommenes AngebotAngebot auswählenEST-000001 · Fictitious"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Auftragsdatum"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Kundenreferenz (optional)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Wählen Sie ein angenommenes Angebot ohne Rechnung oder aktiv"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 AuftragAktualisieren"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 $"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Die Steuer wird bei der Rechnungsstellung ermittelt."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Bestätigungsreferenz"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Zum Beispiel: Zustimmung per E-Mail am 10. Oktober. Dies dok"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Kundenauftrag erstellen",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Auftrag erstellen",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Aktualisieren",
+        "width": 104.15625
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10.10.2026118,75 $Zu bestätigen",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Schliessen",
+        "width": 101.375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen PDF",
+        "width": 161.84375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen HTML",
+        "width": 173.3984375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen CSV",
+        "width": 162.7421875
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen JSON",
+        "width": 172.515625
+      },
+      {
+        "height": 48,
+        "text": "Auftrag bestätigen",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Zurück",
+        "width": 72.8984375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Kundenaufträge"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Vom angenommenen Angebot zur Rechnung."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Angenommenes AngebotAngebot auswählenEST-000001 · Fictitious"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Auftragsdatum"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Kundenreferenz (optional)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Wählen Sie ein angenommenes Angebot ohne Rechnung oder aktiv"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 AuftragAktualisieren"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 $"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Die Steuer wird bei der Rechnungsstellung ermittelt."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Bestätigungsreferenz"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Zum Beispiel: Zustimmung per E-Mail am 10. Oktober. Dies dok"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Kundenauftrag erstellen",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Auftrag erstellen",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Aktualisieren",
+        "width": 104.15625
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10.10.2026118,75 $Zu bestätigen",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Schliessen",
+        "width": 101.375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen PDF",
+        "width": 161.84375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen HTML",
+        "width": 173.3984375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen CSV",
+        "width": 162.7421875
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen JSON",
+        "width": 172.515625
+      },
+      {
+        "height": 48,
+        "text": "Auftrag bestätigen",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Zurück",
+        "width": 72.8984375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Kundenaufträge"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Vom angenommenen Angebot zur Rechnung."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Angenommenes AngebotAngebot auswählenEST-000001 · Fictitious"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Auftragsdatum"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Kundenreferenz (optional)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Wählen Sie ein angenommenes Angebot ohne Rechnung oder aktiv"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 AuftragAktualisieren"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 $"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Die Steuer wird bei der Rechnungsstellung ermittelt."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Bestätigungsreferenz"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Zum Beispiel: Zustimmung per E-Mail am 10. Oktober. Dies dok"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Kundenauftrag erstellen",
+        "width": 205.28125
+      },
+      {
+        "height": 48,
+        "text": "Auftrag erstellen",
+        "width": 155.2265625
+      },
+      {
+        "height": 44,
+        "text": "Aktualisieren",
+        "width": 104.15625
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10.10.2026118,75 $Zu bestätigen",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Schliessen",
+        "width": 101.375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen PDF",
+        "width": 161.84375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen HTML",
+        "width": 173.3984375
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen CSV",
+        "width": 162.7421875
+      },
+      {
+        "height": 44,
+        "text": "Herunterladen JSON",
+        "width": 172.515625
+      },
+      {
+        "height": 48,
+        "text": "Auftrag bestätigen",
+        "width": 167.7578125
+      },
+      {
+        "height": 44,
+        "text": "Zurück",
+        "width": 72.8984375
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Kundenaufträge"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Vom angenommenen Angebot zur Rechnung."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Angenommenes AngebotAngebot auswählenEST-000001 · Fictitious"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Auftragsdatum"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Kundenreferenz (optional)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Wählen Sie ein angenommenes Angebot ohne Rechnung oder aktiv"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 AuftragAktualisieren"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 $"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Die Steuer wird bei der Rechnungsstellung ermittelt."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Bestätigungsreferenz"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Zum Beispiel: Zustimmung per E-Mail am 10. Oktober. Dies dok"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Crea ordine cliente",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Crea ordine",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Aggiorna",
+        "width": 80.046875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 USDDa confermare",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Chiudi",
+        "width": 69.359375
+      },
+      {
+        "height": 44,
+        "text": "Scarica PDF",
+        "width": 113.796875
+      },
+      {
+        "height": 44,
+        "text": "Scarica HTML",
+        "width": 125.3515625
+      },
+      {
+        "height": 44,
+        "text": "Scarica CSV",
+        "width": 114.6953125
+      },
+      {
+        "height": 44,
+        "text": "Scarica JSON",
+        "width": 124.46875
+      },
+      {
+        "height": 48,
+        "text": "Conferma ordine",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Indietro",
+        "width": 77.3671875
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Ordini clienti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Dal preventivo accettato alla fattura."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Preventivo accettatoScegli un preventivoEST-000001 · Fictiti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Data dell’ordine"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Riferimento cliente (facoltativo)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Scegli un preventivo accettato, senza fattura né ordine atti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 ordineAggiorna"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 USD"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "L’imposta sarà determinata alla fatturazione."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Riferimento di conferma"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Ad esempio: consenso ricevuto via e-mail il 10 ottobre. La c"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Crea ordine cliente",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Crea ordine",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Aggiorna",
+        "width": 80.046875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 USDDa confermare",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Chiudi",
+        "width": 69.359375
+      },
+      {
+        "height": 44,
+        "text": "Scarica PDF",
+        "width": 113.796875
+      },
+      {
+        "height": 44,
+        "text": "Scarica HTML",
+        "width": 125.3515625
+      },
+      {
+        "height": 44,
+        "text": "Scarica CSV",
+        "width": 114.6953125
+      },
+      {
+        "height": 44,
+        "text": "Scarica JSON",
+        "width": 124.46875
+      },
+      {
+        "height": 48,
+        "text": "Conferma ordine",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Indietro",
+        "width": 77.3671875
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Ordini clienti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Dal preventivo accettato alla fattura."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Preventivo accettatoScegli un preventivoEST-000001 · Fictiti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Data dell’ordine"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Riferimento cliente (facoltativo)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Scegli un preventivo accettato, senza fattura né ordine atti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 ordineAggiorna"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 USD"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "L’imposta sarà determinata alla fatturazione."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Riferimento di conferma"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Ad esempio: consenso ricevuto via e-mail il 10 ottobre. La c"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Crea ordine cliente",
+        "width": 171.90625
+      },
+      {
+        "height": 48,
+        "text": "Crea ordine",
+        "width": 124.3828125
+      },
+      {
+        "height": 44,
+        "text": "Aggiorna",
+        "width": 80.046875
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 USDDa confermare",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Chiudi",
+        "width": 69.359375
+      },
+      {
+        "height": 44,
+        "text": "Scarica PDF",
+        "width": 113.796875
+      },
+      {
+        "height": 44,
+        "text": "Scarica HTML",
+        "width": 125.3515625
+      },
+      {
+        "height": 44,
+        "text": "Scarica CSV",
+        "width": 114.6953125
+      },
+      {
+        "height": 44,
+        "text": "Scarica JSON",
+        "width": 124.46875
+      },
+      {
+        "height": 48,
+        "text": "Conferma ordine",
+        "width": 157.7265625
+      },
+      {
+        "height": 44,
+        "text": "Indietro",
+        "width": 77.3671875
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "20px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Ordini clienti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Dal preventivo accettato alla fattura."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Preventivo accettatoScegli un preventivoEST-000001 · Fictiti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Data dell’ordine"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Riferimento cliente (facoltativo)"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Scegli un preventivo accettato, senza fattura né ordine atti"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "1 ordineAggiorna"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(232, 241, 235)",
+        "fontSize": "16px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "118,75 USD"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "L’imposta sarà determinata alla fatturazione."
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "15px",
+        "foreground": "rgb(24, 56, 44)",
+        "text": "Riferimento di conferma"
+      },
+      {
+        "background": "rgb(242, 245, 243)",
+        "fontSize": "14px",
+        "foreground": "rgb(82, 102, 92)",
+        "text": "Ad esempio: consenso ricevuto via e-mail il 10 ottobre. La c"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "width": 320,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Crea ordine cliente",
+        "width": 265
+      },
+      {
+        "height": 48,
+        "text": "Crea ordine",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Aggiorna",
+        "width": 80.046875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 USDDa confermare",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Chiudi",
+        "width": 69.359375
+      },
+      {
+        "height": 44,
+        "text": "Scarica PDF",
+        "width": 113.796875
+      },
+      {
+        "height": 44,
+        "text": "Scarica HTML",
+        "width": 125.3515625
+      },
+      {
+        "height": 44,
+        "text": "Scarica CSV",
+        "width": 114.6953125
+      },
+      {
+        "height": 44,
+        "text": "Scarica JSON",
+        "width": 124.46875
+      },
+      {
+        "height": 48,
+        "text": "Conferma ordine",
+        "width": 265
+      },
+      {
+        "height": 44,
+        "text": "Indietro",
+        "width": 77.3671875
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Ordini clienti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Dal preventivo accettato alla fattura."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Preventivo accettatoScegli un preventivoEST-000001 · Fictiti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Data dell’ordine"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Riferimento cliente (facoltativo)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Scegli un preventivo accettato, senza fattura né ordine atti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 ordineAggiorna"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 USD"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "L’imposta sarà determinata alla fatturazione."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Riferimento di conferma"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Ad esempio: consenso ricevuto via e-mail il 10 ottobre. La c"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 265,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "width": 390,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Crea ordine cliente",
+        "width": 335
+      },
+      {
+        "height": 48,
+        "text": "Crea ordine",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Aggiorna",
+        "width": 80.046875
+      },
+      {
+        "height": 111.5,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 USDDa confermare",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Chiudi",
+        "width": 69.359375
+      },
+      {
+        "height": 44,
+        "text": "Scarica PDF",
+        "width": 113.796875
+      },
+      {
+        "height": 44,
+        "text": "Scarica HTML",
+        "width": 125.3515625
+      },
+      {
+        "height": 44,
+        "text": "Scarica CSV",
+        "width": 114.6953125
+      },
+      {
+        "height": 44,
+        "text": "Scarica JSON",
+        "width": 124.46875
+      },
+      {
+        "height": 48,
+        "text": "Conferma ordine",
+        "width": 335
+      },
+      {
+        "height": 44,
+        "text": "Indietro",
+        "width": 77.3671875
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Ordini clienti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Dal preventivo accettato alla fattura."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Preventivo accettatoScegli un preventivoEST-000001 · Fictiti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Data dell’ordine"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Riferimento cliente (facoltativo)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Scegli un preventivo accettato, senza fattura né ordine atti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 ordineAggiorna"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 USD"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "L’imposta sarà determinata alla fatturazione."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Riferimento di conferma"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Ad esempio: consenso ricevuto via e-mail il 10 ottobre. La c"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 335,
+      "x": 20
+    },
+    "sectionOverflow": 0
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "width": 1440,
+    "buttons": [
+      {
+        "height": 48,
+        "text": "Crea ordine cliente",
+        "width": 171.90625
+      },
+      {
+        "height": 48,
+        "text": "Crea ordine",
+        "width": 124.3828125
+      },
+      {
+        "height": 44,
+        "text": "Aggiorna",
+        "width": 80.046875
+      },
+      {
+        "height": 116,
+        "text": "SO-000001Fictitious Harbor Studio LLC10/10/2026118,75 USDDa confermare",
+        "width": 720
+      },
+      {
+        "height": 44,
+        "text": "Chiudi",
+        "width": 69.359375
+      },
+      {
+        "height": 44,
+        "text": "Scarica PDF",
+        "width": 113.796875
+      },
+      {
+        "height": 44,
+        "text": "Scarica HTML",
+        "width": 125.3515625
+      },
+      {
+        "height": 44,
+        "text": "Scarica CSV",
+        "width": 114.6953125
+      },
+      {
+        "height": 44,
+        "text": "Scarica JSON",
+        "width": 124.46875
+      },
+      {
+        "height": 48,
+        "text": "Conferma ordine",
+        "width": 157.7265625
+      },
+      {
+        "height": 44,
+        "text": "Indietro",
+        "width": 77.3671875
+      }
+    ],
+    "colors": [
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "20px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Ordini clienti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Dal preventivo accettato alla fattura."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Preventivo accettatoScegli un preventivoEST-000001 · Fictiti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Data dell’ordine"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Riferimento cliente (facoltativo)"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Scegli un preventivo accettato, senza fattura né ordine atti"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "1 ordineAggiorna"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "SO-000001"
+      },
+      {
+        "background": "rgb(42, 64, 51)",
+        "fontSize": "16px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "118,75 USD"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "L’imposta sarà determinata alla fatturazione."
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "15px",
+        "foreground": "rgb(239, 245, 241)",
+        "text": "Riferimento di conferma"
+      },
+      {
+        "background": "rgb(18, 26, 22)",
+        "fontSize": "14px",
+        "foreground": "rgb(176, 193, 182)",
+        "text": "Ad esempio: consenso ricevuto via e-mail il 10 ottobre. La c"
+      }
+    ],
+    "documentOverflow": 0,
+    "font": "Arial, sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "outside": [],
+    "rect": {
+      "width": 720,
+      "x": 352.5
+    },
+    "sectionOverflow": 0
+  }
+]

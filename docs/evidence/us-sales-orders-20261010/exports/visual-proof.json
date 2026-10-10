@@ -1,0 +1,99 @@
+{
+  "scope": "Local fictional commercial documents, no hosted state or financial effect. Visual inspection of the four translations, cancellation and all six pages of long-row/notes output; no clipping, overlap or dropped text observed.",
+  "checks": {
+    "letterPoints": [
+      612,
+      792
+    ],
+    "translationLanguages": [
+      "en",
+      "fr",
+      "de",
+      "it"
+    ],
+    "fontSource": "Existing NotoSans repository export fonts",
+    "bodyAndTableMargins": 42,
+    "repeatedTableHeaders": true,
+    "footerRevisionsAndPageCounts": true,
+    "taxPendingNotZero": true
+  },
+  "images": [
+    {
+      "file": "order-en.png",
+      "sha256": "97d222c40737e7a1b903aac3b2cab3432c9aa2eb34c8095a347e9a3516d8ea25",
+      "width": 1082,
+      "height": 1400,
+      "inspected": true
+    },
+    {
+      "file": "order-fr.png",
+      "sha256": "0311750ffd35f06bb30ef3cfd4d31c54817d877b545b475754f80d26b4e5159b",
+      "width": 1082,
+      "height": 1400,
+      "inspected": true
+    },
+    {
+      "file": "order-de.png",
+      "sha256": "4bf35b61bc12ed69726d7be0198e2178dc630014d4aca601e09d5db4f44453c6",
+      "width": 1082,
+      "height": 1400,
+      "inspected": true
+    },
+    {
+      "file": "order-it.png",
+      "sha256": "03bcd688214b48f27fe2b2ff3dd7d583cc8b5c298a5e8496beaa138eabc5485d",
+      "width": 1082,
+      "height": 1400,
+      "inspected": true
+    },
+    {
+      "file": "order-cancelled-fr.png",
+      "sha256": "9eadeac12f9c6b30e8b24a6b59126cf9dd6466286bcf256749121f8fa48116d9",
+      "width": 1082,
+      "height": 1400,
+      "inspected": true
+    },
+    {
+      "file": "order-long-en-1.png",
+      "sha256": "45114516c0c2f2c3bcbbd2c764874b2b28c0268a82fa2a8743eb52cd688bed42",
+      "width": 928,
+      "height": 1200,
+      "inspected": true
+    },
+    {
+      "file": "order-long-en-2.png",
+      "sha256": "a3d0da917d113ebb27651174fbb0d52b9c49aad083046f7957a319eb1b2bddc2",
+      "width": 928,
+      "height": 1200,
+      "inspected": true
+    },
+    {
+      "file": "order-long-en-3.png",
+      "sha256": "25850a0774f8f31cdc667f96a30275342aa6a62b86aab4f4cdb7d0b8def01a38",
+      "width": 928,
+      "height": 1200,
+      "inspected": true
+    },
+    {
+      "file": "order-long-en-4.png",
+      "sha256": "30043f33bc156e7b0283a7e8456a7e1e67e453d4b33b1dd7a259534012ed16ed",
+      "width": 928,
+      "height": 1200,
+      "inspected": true
+    },
+    {
+      "file": "order-long-en-5.png",
+      "sha256": "576bf6b0e8c43fefec1def321b09d5dfe9065441ad03598ef5c3f7799cf189cf",
+      "width": 928,
+      "height": 1200,
+      "inspected": true
+    },
+    {
+      "file": "order-long-en-6.png",
+      "sha256": "8f53ea29a4564c1fd4b8c7fe902f563b8c27cf2a757a289602fac27b2ef37400",
+      "width": 928,
+      "height": 1200,
+      "inspected": true
+    }
+  ]
+}

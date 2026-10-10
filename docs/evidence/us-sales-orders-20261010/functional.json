@@ -1,0 +1,18 @@
+{
+  "scenarios": {
+    "lostResponseProtected": true,
+    "confirmationReplayOneRecord": true,
+    "cancelledHistoryPreserved": true,
+    "creationAfterCancellation": true,
+    "remoteChangeKeepsDraftAndBlocksStaleAction": true,
+    "closedDetailStaysClosedAfterRefresh": true,
+    "revocationPurgesPanel": true,
+    "sourceReservedOutsideCurrentPage": true,
+    "readOnlyHasNoMutationControls": true,
+    "authChangePurgesPanel": true,
+    "pausedRetainsHistoryAndCancellation": true,
+    "keyboardFocusVisible3px": true
+  },
+  "scope": "Real React component and browser transport; synthetic local HTTP/persistence. Browser export intentionally unavailable; actual rendering and HTTP exports tested separately.",
+  "console": []
+}

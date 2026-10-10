@@ -1,0 +1,59 @@
+{
+  "scope": "Fictitious detached order records. Genuine PDFs independently parsed with pypdf/pdfplumber; no hosted state, customer acceptance, tax or financial posting is proven.",
+  "evidence": [
+    {
+      "file": "order-fr.pdf",
+      "pages": 1,
+      "outside": [],
+      "sizes": [
+        [
+          612,
+          792
+        ]
+      ]
+    },
+    {
+      "file": "order-de.pdf",
+      "pages": 1,
+      "outside": [],
+      "sizes": [
+        [
+          612,
+          792
+        ]
+      ]
+    },
+    {
+      "file": "order-it.pdf",
+      "pages": 1,
+      "outside": [],
+      "sizes": [
+        [
+          612,
+          792
+        ]
+      ]
+    },
+    {
+      "file": "order-en.pdf",
+      "pages": 1,
+      "outside": [],
+      "sizes": [
+        [
+          612,
+          792
+        ]
+      ]
+    },
+    {
+      "file": "order-long-en.pdf",
+      "pages": 6,
+      "outside": []
+    },
+    {
+      "file": "order-cancelled-fr.pdf",
+      "pages": 1,
+      "outside": []
+    }
+  ]
+}
