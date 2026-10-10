@@ -156,7 +156,9 @@ describe('internal US financial runtime5 — actual financial transitions in TES
     const t = await fixture(); let clock = 0;
     const revalidate = async () => ({ configuration: t.configuration, actor: { ...t.actor, timestamp: new Date(Date.parse(t.actor.timestamp) + (++clock) * 1000).toISOString() }, policy: t.policy });
     await executeUsFinancialKernelV5({ ...t.deps, revalidate }, t.request());
-    const event = (await t.read()).events[0]; expect(event.posting.postedAt).toBe(event.actor.timestamp); expect(event.record).toMatchObject({ issuedAt: event.actor.timestamp });
+    const event = (await t.read()).events[0];
+    if (!('posting' in event)) throw new Error('Expected financial posting event');
+    expect(event.posting.postedAt).toBe(event.actor.timestamp); expect(event.record).toMatchObject({ issuedAt: event.actor.timestamp });
   });
   it.each(['invoiceFingerprint', 'allocationSha256', 'authorizedTaxMinor'] as const)('refuses a tax authorization with mismatched %s', async field => {
     const t = await fixture(), resolveTax = async (input: Parameters<typeof t.resolveTax>[0]) => ({ ...await t.resolveTax(input), [field]: field === 'authorizedTaxMinor' ? '1' : '0'.repeat(64) }) as UsFinancialTaxProofV5;

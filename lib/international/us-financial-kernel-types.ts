@@ -1,6 +1,6 @@
-import type { FinancialAuthority, Ledger, PostedJournal } from './accounting/ledger';
-import type { CustomerPayment, IssuedInvoice } from './invoicing';
-import type { ErpState } from './runtime-types';
+import type { FinancialAuthority, Ledger, LedgerAuditEvent, PostedJournal } from './accounting/ledger';
+import type { CustomerPayment, IssuedInvoice, PublicSellerSnapshot, TaxAssessment } from './invoicing';
+import type { ErpCommand, ErpCommit, ErpState } from './runtime-types';
 import type { UsCustomerCreditAllocation, UsCustomerCreditSelection, UsCustomerCreditSource } from './us-customer-credit-types';
 
 /** Internal memory-only financial capability. Never advertise it as the
@@ -50,9 +50,21 @@ export interface UsFinancialPaymentInputV5 {
   readonly periodId: string;
   readonly reference: string;
 }
+export type UsFinancialErpCommandV5 = Exclude<ErpCommand, Readonly<{type:'initialize'|'upgrade_accounting'|'refresh_configuration'|'record_payment'}>>;
+/** Private facts resolved by the trusted runtime. They are never client input. */
+export type UsFinancialErpFactsV5 = Readonly<{kind:'none'}> | Readonly<{
+  kind:'invoice_issuance'; sellerSnapshot:PublicSellerSnapshot; taxAssessment:TaxAssessment;
+}>;
+export interface UsFinancialErpOperationV5 {
+  readonly type:'erp_command';
+  readonly idempotencyKey:string;
+  readonly command:UsFinancialErpCommandV5;
+  readonly facts:UsFinancialErpFactsV5;
+}
 export type UsFinancialOperationV5 =
   | (UsFinancialCreditInputV5 & Readonly<{ taxProof: UsFinancialTaxProofV5 }>)
-  | UsFinancialPaymentInputV5;
+  | UsFinancialPaymentInputV5
+  | UsFinancialErpOperationV5;
 export interface UsFinancialCreditCandidateV5 {
   readonly source: UsCustomerCreditSource;
   readonly invoiceFingerprint: string;
@@ -78,14 +90,25 @@ export interface UsFinancialCreditRecordV5 {
   readonly issuedAt: string;
   readonly recordedRevision: number;
 }
-export interface UsFinancialEventV5 {
+export interface UsFinancialPostingEventV5 {
   readonly revision: number;
   readonly id: string;
-  readonly operation: UsFinancialOperationV5;
+  readonly operation: Exclude<UsFinancialOperationV5,UsFinancialErpOperationV5>;
   readonly actor: FinancialAuthority;
   readonly record: UsFinancialCreditRecordV5 | CustomerPayment;
   readonly posting: PostedJournal;
 }
+export interface UsFinancialErpEventV5 {
+  readonly revision:number;
+  readonly id:string;
+  readonly operation:UsFinancialErpOperationV5;
+  readonly actor:FinancialAuthority;
+  /** Exact reconstructed ERP4 command result in the private compatibility projection. */
+  readonly commit:ErpCommit;
+  /** Actual effects on the sole V5 ledger, with its uncompressed revisions. */
+  readonly effects:Readonly<{postings:readonly PostedJournal[];audit:readonly LedgerAuditEvent[]}>;
+}
+export type UsFinancialEventV5=UsFinancialPostingEventV5|UsFinancialErpEventV5;
 /** The validated baseline and ordered events are the only authoritative
  * financial state. There is no stored second copy of the current ledger. */
 export interface UsFinancialBookV5 {
@@ -112,6 +135,14 @@ export interface UsFinancialBookViewV5 {
   readonly revision: number;
   readonly organizationId: string;
   readonly policyVersion: UsFinancialPolicyV5['version'];
+  readonly configuration:ErpState['configuration'];
+  readonly counters:ErpState['counters'];
+  readonly customers:ErpState['customers'];
+  readonly estimates:ErpState['estimates'];
+  readonly vendors:NonNullable<ErpState['vendors']>;
+  readonly vendorBills:NonNullable<ErpState['vendorBills']>;
+  readonly vendorPayments:NonNullable<ErpState['vendorPayments']>;
+  readonly projects:NonNullable<ErpState['projects']>;
   readonly ledger: Ledger;
   readonly invoices: readonly IssuedInvoice[];
   readonly credits: readonly UsFinancialCreditRecordV5[];

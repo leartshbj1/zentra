@@ -7,8 +7,10 @@ import { parseInstant } from './localization';
 import { money } from './money';
 import { snapshotPrivateJson } from './private-json';
 import { validateStoredErp } from './runtime-validation';
+import type { ErpState } from './runtime-types';
+import { transitionUsFinancialErpV5, validateUsFinancialErpOperationV5 } from './us-financial-kernel-erp';
 import { prepareUsCustomerCreditAllocation, validateUsCustomerCreditSource } from './us-customer-credit-allocation';
-import type { UsFinancialBookV5, UsFinancialBookViewV5, UsFinancialCreditCandidateV5, UsFinancialCreditInputV5, UsFinancialCreditRecordV5, UsFinancialEventV5, UsFinancialInvoiceSettlementV5, UsFinancialOperationV5, UsFinancialPaymentInputV5, UsFinancialPolicyV5, UsFinancialTaxProofV5 } from './us-financial-kernel-types';
+import type { UsFinancialBookV5, UsFinancialBookViewV5, UsFinancialCreditCandidateV5, UsFinancialCreditInputV5, UsFinancialCreditRecordV5, UsFinancialEventV5, UsFinancialPostingEventV5, UsFinancialInvoiceSettlementV5, UsFinancialOperationV5, UsFinancialPaymentInputV5, UsFinancialPolicyV5, UsFinancialTaxProofV5 } from './us-financial-kernel-types';
 
 export type { UsFinancialBookV5, UsFinancialBookViewV5, UsFinancialCreditCandidateV5, UsFinancialCreditInputV5, UsFinancialCreditRecordV5, UsFinancialOperationV5, UsFinancialPaymentInputV5, UsFinancialPolicyV5, UsFinancialTaxProofV5 } from './us-financial-kernel-types';
 const fail = (code = 'invalid_financial_operation', status = 422): never => { throw new ErpError(code, status); };
@@ -40,7 +42,7 @@ function hash(input: unknown): string {
   return input;
 }
 function idempotency(input: unknown): string {
-  if (typeof input !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,231}$/.test(input)) return fail();
+  if (typeof input !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(input)) return fail();
   return input;
 }
 function policy(input: unknown): UsFinancialPolicyV5 {
@@ -48,11 +50,11 @@ function policy(input: unknown): UsFinancialPolicyV5 {
   if (p.version !== 'us-accrual-receivable-credit-v1' || p.environment !== 'test') return fail('financial_policy_unavailable', 409);
   return Object.freeze({ version: p.version, environment: p.environment, approval: Object.freeze({ reference: text(a.reference, 500), reviewedBy: text(a.reviewedBy, 256), reviewedAt: instant(a.reviewedAt) }) });
 }
-function authority(input: unknown, organizationId: string): FinancialAuthority {
+function authority(input: unknown, organizationId: string, financial=true): FinancialAuthority {
   const a = exact(detached(input), ['organizationId', 'userId', 'role', 'managementEntitled', 'timestamp']);
   if (a.organizationId !== organizationId) return fail('tenant_mismatch', 403);
   if (a.managementEntitled !== true) return fail('management_entitlement_required', 402);
-  if (!['owner', 'admin', 'accountant'].includes(String(a.role))) return fail('financial_permission_required', 403);
+  if (!(financial?['owner', 'admin', 'accountant']:['owner','admin','accountant','member']).includes(String(a.role))) return fail('financial_permission_required', 403);
   return Object.freeze({ organizationId, userId: text(a.userId, 256), role: a.role as FinancialAuthority['role'], managementEntitled: true, timestamp: instant(a.timestamp) });
 }
 const creditKeys = ['type', 'idempotencyKey', 'invoiceId', 'transactionDate', 'accountingDate', 'periodId', 'reason', 'selections'];
@@ -84,10 +86,14 @@ function proof(input: unknown): UsFinancialTaxProofV5 {
   if (!/^(tax_[A-Za-z0-9]+|testtxn_[A-Za-z0-9._:-]+)$/.test(originalTaxTransactionReference)) return fail('tax_transaction_required', 409);
   return Object.freeze({ ...base, kind: 'test_adjustment_authorization', providerAccountReference: text(p.providerAccountReference, 256), originalTaxTransactionReference, adjustmentPlanReference: text(p.adjustmentPlanReference, 256), authorizedTaxMinor: integer(p.authorizedTaxMinor) });
 }
-function operation(input: unknown): UsFinancialOperationV5 {
+function operation(input: unknown, organizationId:string): UsFinancialOperationV5 {
   const raw = detached(input) as Record<string, unknown>;
+  if(raw?.type==='erp_command')return validateUsFinancialErpOperationV5(raw,organizationId);
   if (raw?.type === 'customer_credit') return Object.freeze({ ...creditInput(raw, true), taxProof: proof(raw.taxProof) });
   return paymentInput(raw);
+}
+function financialOperation(op:UsFinancialOperationV5):boolean{
+  return op.type!=='erp_command'||!['save_customer','save_estimate','accept_estimate'].includes(op.command.type);
 }
 function settlement(invoice: IssuedInvoice, credits: readonly UsFinancialCreditRecordV5[]): UsFinancialInvoiceSettlementV5 {
   const total = BigInt(invoice.total.minorUnits), received = invoice.payments.reduce((n, p) => n + BigInt(p.amount.minorUnits), BigInt(0));
@@ -96,8 +102,10 @@ function settlement(invoice: IssuedInvoice, credits: readonly UsFinancialCreditR
   const status = outstanding === BigInt(0) ? credited === BigInt(0) ? 'paid' : received === BigInt(0) ? 'credited' : 'settled_with_credit' : received + credited === BigInt(0) ? 'open' : 'partially_settled';
   return Object.freeze({ invoiceId: invoice.id, currency: 'USD', totalMinor: total.toString(), receivedMinor: received.toString(), creditedMinor: credited.toString(), outstandingMinor: outstanding.toString(), status });
 }
-function view(book: UsFinancialBookV5, invoices: readonly IssuedInvoice[], ledger: UsFinancialBookViewV5['ledger'], credits: readonly UsFinancialCreditRecordV5[]): UsFinancialBookViewV5 {
-  return Object.freeze({ schemaVersion: 5, revision: book.revision, organizationId: book.baseline.configuration.organizationId, policyVersion: book.policy.version, ledger, invoices: Object.freeze([...invoices]), credits: Object.freeze([...credits]), settlements: Object.freeze(invoices.map(i => settlement(i, credits))) });
+function view(book: UsFinancialBookV5, invoices: readonly IssuedInvoice[], ledger: UsFinancialBookViewV5['ledger'], credits: readonly UsFinancialCreditRecordV5[], shared:ErpState|UsFinancialBookViewV5=book.baseline): UsFinancialBookViewV5 {
+  return Object.freeze({ schemaVersion: 5, revision: book.revision, organizationId: book.baseline.configuration.organizationId, policyVersion: book.policy.version,
+    configuration:shared.configuration,counters:shared.counters,customers:shared.customers,estimates:shared.estimates,vendors:shared.vendors??[],vendorBills:shared.vendorBills??[],vendorPayments:shared.vendorPayments??[],projects:shared.projects??[],
+    ledger, invoices: Object.freeze([...invoices]), credits: Object.freeze([...credits]), settlements: Object.freeze(invoices.map(i => settlement(i, credits))) });
 }
 export async function fingerprintUsFinancialInvoiceV5(invoice: IssuedInvoice): Promise<string> {
   const { payments: _payments, ...immutable } = detached(invoice) as IssuedInvoice;
@@ -135,12 +143,18 @@ function chronology(book: UsFinancialBookV5, actor: FinancialAuthority, current:
   if (times.some(t => Date.parse(t) > Date.parse(actor.timestamp))) return fail('financial_clock_reversed', 409);
 }
 async function transition(book: UsFinancialBookV5, current: UsFinancialBookViewV5, op: UsFinancialOperationV5, actor: FinancialAuthority, id: string): Promise<{ event: UsFinancialEventV5; view: UsFinancialBookViewV5 }> {
-  assertFinancialAuthority(current.ledger, actor); chronology(book, actor, current);
-  if (book.events.some(e => e.id === id) || book.baseline.invoices.some(i => i.payments.some(p => p.id === id))) return fail('financial_entity_conflict', 409);
-  if (book.events.some(e => e.operation.idempotencyKey === op.idempotencyKey) || book.baseline.invoices.some(i => i.payments.some(p => p.idempotencyKey === op.idempotencyKey))) return fail('idempotency_conflict', 409);
+  chronology(book, actor, current);
+  if (book.events.some(e => e.operation.idempotencyKey === op.idempotencyKey) || book.baseline.invoices.some(i => i.payments.some(p => p.idempotencyKey === op.idempotencyKey)) || book.baseline.vendorPayments?.some(p=>p.idempotencyKey===op.idempotencyKey) || book.baseline.ledger.entries.some(e=>e.idempotencyKey===op.idempotencyKey)) return fail('idempotency_conflict', 409);
   if (!Number.isSafeInteger(book.revision) || book.revision >= Number.MAX_SAFE_INTEGER - 1) return fail('number_sequence_exhausted', 409);
+  if(op.type==='erp_command'){
+    const result=await transitionUsFinancialErpV5(current,op,actor,id);
+    const after=Object.freeze({...book,revision:result.event.revision,events:Object.freeze([...book.events,result.event])});
+    return {event:result.event,view:view(after,result.state.invoices,result.ledger,current.credits,result.state)};
+  }
+  assertFinancialAuthority(current.ledger, actor);
+  if (book.events.some(e => e.id === id) || book.baseline.invoices.some(i => i.payments.some(p => p.id === id))) return fail('financial_entity_conflict', 409);
   const invoice = invoiceFor(current, op.invoiceId), revision = book.revision + 1;
-  let ledger = current.ledger, invoices = current.invoices, credits = current.credits, record: UsFinancialEventV5['record'];
+  let ledger = current.ledger, invoices = current.invoices, credits = current.credits, record: UsFinancialPostingEventV5['record'];
   if (op.type === 'customer_credit') {
     const c = await candidate(current, op), p = op.taxProof;
     if (p.invoiceFingerprint !== c.invoiceFingerprint || p.allocationSha256 !== c.allocationSha256 || Date.parse(p.verifiedAt) > Date.parse(actor.timestamp) || Date.parse(p.verifiedAt) < Date.parse(invoice.issuedAt)) return fail('financial_proof_mismatch', 409);
@@ -174,7 +188,7 @@ async function transition(book: UsFinancialBookV5, current: UsFinancialBookViewV
   if (!posting || ledger.revision !== current.ledger.revision + 1) return fail('financial_posting_required', 409);
   const event = Object.freeze({ revision, id, operation: op, actor, record, posting });
   const after = Object.freeze({ ...book, revision, events: Object.freeze([...book.events, event]) });
-  return { event, view: view(after, invoices, ledger, credits) };
+  return { event, view: view(after, invoices, ledger, credits,current) };
 }
 async function replay(value: unknown, organizationId?: string, expectedPolicy?: UsFinancialPolicyV5): Promise<{ book: UsFinancialBookV5; view: UsFinancialBookViewV5 }> {
   const raw = exact(detached(value), ['schemaVersion', 'revision', 'baseline', 'policy', 'promotion', 'events']);
@@ -194,7 +208,8 @@ async function replay(value: unknown, organizationId?: string, expectedPolicy?: 
   let current = view(book, baseline.invoices, baseline.ledger, []);
   chronology(book, promotionActor, current);
   for (const rawEvent of raw.events) {
-    const e = exact(rawEvent, ['revision', 'id', 'operation', 'actor', 'record', 'posting']), actor = authority(e.actor, org), op = operation(e.operation), id = text(e.id);
+    const erp=(rawEvent as {operation?:{type?:unknown}})?.operation?.type==='erp_command';
+    const e = exact(rawEvent, erp?['revision','id','operation','actor','commit','effects']:['revision', 'id', 'operation', 'actor', 'record', 'posting']), op = operation(e.operation,org), actor = authority(e.actor, org,financialOperation(op)), id = text(e.id);
     const rebuilt = await transition(book, current, op, actor, id);
     if (!same(rawEvent, rebuilt.event)) return fail('invalid_financial_book', 503);
     book = Object.freeze({ ...book, revision: rebuilt.event.revision, events: Object.freeze([...book.events, rebuilt.event]) }); current = rebuilt.view;
@@ -224,8 +239,8 @@ export async function buildUsFinancialCreditCandidateV5(book: UsFinancialBookV5,
  * resolve the proof privately and CAS this book with its receipt atomically. */
 export async function applyUsFinancialOperationV5(book: UsFinancialBookV5, input: UsFinancialOperationV5, suppliedActor: FinancialAuthority, suppliedId: string): Promise<{ book: UsFinancialBookV5; view: UsFinancialBookViewV5 }> {
   // Capture all caller-owned input before awaiting replay/hashing.
-  const op = operation(input), capturedActor = detached(suppliedActor), id = text(suppliedId), current = await replay(book);
-  const actor = authority(capturedActor, current.book.baseline.configuration.organizationId);
+  const capturedActor = detached(suppliedActor) as FinancialAuthority, op = operation(input,capturedActor?.organizationId), id = text(suppliedId), current = await replay(book);
+  const actor = authority(capturedActor, current.book.baseline.configuration.organizationId,financialOperation(op));
   const previous = current.book.events.find(e => e.operation.idempotencyKey === op.idempotencyKey);
   if (previous) {
     if (previous.id !== id || previous.actor.userId !== actor.userId || !same(previous.operation, op)) return fail('idempotency_conflict', 409);

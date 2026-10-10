@@ -48,6 +48,7 @@ async function authorized(book: UsFinancialBookV5, input: UsFinancialCreditInput
 }
 const payment = (amountMinor: string, idempotencyKey = 'payment-one'): UsFinancialOperationV5 => ({ type: 'customer_payment', idempotencyKey, invoiceId: 'invoice', amountMinor, paymentDate: '2026-10-10', accountingDate: '2026-10-10', periodId: '2026', reference: 'Fictitious bank transfer' });
 function clone<T>(value: T): T { return structuredClone(value); }
+function postingEvent(event:UsFinancialBookV5['events'][number]){if(!('posting' in event))throw new Error('Expected financial posting event');return event;}
 
 describe('US internal financial capability5', () => {
   it('promotes an exact immutable ERP4 baseline without altering any old source or journal', async () => {
@@ -84,7 +85,7 @@ describe('US internal financial capability5', () => {
     expect(result.view.invoices).toEqual(t.baseline.invoices);
     expect(result.view.credits[0]).toMatchObject({ number: 'CR-2026-000001', taxDisposition: 'adjustment_pending', allocation: { netMinor: '10000', taxMinor: '825', totalMinor: '10825' } });
     expect(result.view.settlements[0]).toMatchObject({ totalMinor: '32475', receivedMinor: '0', creditedMinor: '10825', outstandingMinor: '21650', status: 'partially_settled' });
-    expect(result.book.events[0].posting.lines).toEqual([{ accountId: 'sales', debitMinor: '10000', creditMinor: '0' }, { accountId: 'tax-payable', debitMinor: '825', creditMinor: '0' }, { accountId: 'receivables', debitMinor: '0', creditMinor: '10825' }]);
+    expect(postingEvent(result.book.events[0]).posting.lines).toEqual([{ accountId: 'sales', debitMinor: '10000', creditMinor: '0' }, { accountId: 'tax-payable', debitMinor: '825', creditMinor: '0' }, { accountId: 'receivables', debitMinor: '0', creditMinor: '10825' }]);
     expect(cashFlow(result.view.ledger, { start: '2026-01-01', end: '2026-12-31' }).netChangeMinor).toBe('0');
     expect(trialBalance(result.view.ledger, '2026-12-31').balanced).toBe(true); expect(balanceSheet(result.view.ledger, '2026-12-31').balanced).toBe(true);
     expect(profitAndLoss(result.view.ledger, { start: '2026-01-01', end: '2026-12-31' }).incomeMinor).toBe('20000');
@@ -129,7 +130,7 @@ describe('US internal financial capability5', () => {
   it('accepts verified historical zero-tax and stores no pending adjustment', async () => {
     const t = await fixture({ tax: '0' }), book = await t.promote(), r = await applyUsFinancialOperationV5(book, await authorized(book, t.credit), actor, 'credit');
     expect(r.view.credits[0].taxDisposition).toBe('historical_zero_tax');
-    expect(r.book.events[0].posting.lines).toHaveLength(2);
+    expect(postingEvent(r.book.events[0]).posting.lines).toHaveLength(2);
   });
   it.each(['invoiceFingerprint', 'allocationSha256', 'authorizedTaxMinor'] as const)('rejects a trusted proof with mismatched%s', async field => {
     const t = await fixture(), book = await t.promote(), op = await authorized(book, t.credit, { [field]: field === 'authorizedTaxMinor' ? '1' : 'a'.repeat(64) });
@@ -149,10 +150,14 @@ describe('US internal financial capability5', () => {
     const input = { ...t.credit, invoiceId: 'invoice-two', idempotencyKey: 'credit-two' };
     await expect(applyUsFinancialOperationV5(first.book, await authorized(first.book, input), actor, 'credit-two')).rejects.toMatchObject({ code: 'tax_transaction_invoice_conflict' });
   });
-  it('retains the published request key length without exceeding journal limits', async () => {
-    const t = await fixture(), book = await t.promote(), input = { ...t.credit, idempotencyKey: 'c'.repeat(232) }, r = await applyUsFinancialOperationV5(book, await authorized(book, input), actor, 'credit');
-    expect(r.book.events[0].posting.idempotencyKey).toHaveLength(239);
-    await expect(buildUsFinancialCreditCandidateV5(book, { ...input, idempotencyKey: 'c'.repeat(233) })).rejects.toMatchObject({ code: 'invalid_financial_operation' });
+  it('retains the private runtime request key limit without exceeding journal limits', async () => {
+    const t = await fixture(), book = await t.promote(), input = { ...t.credit, idempotencyKey: 'c'.repeat(200) }, r = await applyUsFinancialOperationV5(book, await authorized(book, input), actor, 'credit');
+    expect(postingEvent(r.book.events[0]).posting.idempotencyKey).toHaveLength(207);
+    await expect(buildUsFinancialCreditCandidateV5(book, { ...input, idempotencyKey: 'c'.repeat(201) })).rejects.toMatchObject({ code: 'invalid_financial_operation' });
+  });
+  it('keeps payment keys restorable by the same private runtime contract',async()=>{
+    const t=await fixture(),book=await t.promote();await applyUsFinancialOperationV5(book,payment('1','p'.repeat(200)),actor,'payment-id');
+    await expect(applyUsFinancialOperationV5(book,payment('1','p'.repeat(201)),actor,'payment-id')).rejects.toMatchObject({code:'invalid_financial_operation'});
   });
   it('replays exact idempotency without another record, posting or revision', async () => {
     const t = await fixture(), book = await t.promote(), op = await authorized(book, t.credit), r = await applyUsFinancialOperationV5(book, op, actor, 'credit');
@@ -222,6 +227,6 @@ describe('US internal financial capability5', () => {
     const t = await fixture(), book = await t.promote(), op = clone(await authorized(book, t.credit)), suppliedActor = { ...actor }, promise = applyUsFinancialOperationV5(book, op, suppliedActor, 'credit');
     if (op.type === 'customer_credit') (op as { reason: string }).reason = 'changed during hash'; suppliedActor.userId = 'changed';
     const r = await promise; expect(r.view.credits[0].reason).toBe(t.credit.reason); expect(r.view.credits[0].issuedBy).toBe(actor.userId);
-    for (const value of [r.book, r.book.events, r.book.events[0], r.book.events[0].operation, r.book.events[0].record, r.book.events[0].posting, r.view, r.view.credits, r.view.settlements, r.view.invoices[0]]) expect(Object.isFrozen(value)).toBe(true);
+    for (const value of [r.book, r.book.events, r.book.events[0], r.book.events[0].operation, postingEvent(r.book.events[0]).record, postingEvent(r.book.events[0]).posting, r.view, r.view.credits, r.view.settlements, r.view.invoices[0]]) expect(Object.isFrozen(value)).toBe(true);
   });
 });
