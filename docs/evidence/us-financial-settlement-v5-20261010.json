@@ -1,0 +1,1249 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-10T08:53:46.406Z",
+  "phase": "US financial V5 — private PostgreSQL TEST customer credits and payments",
+  "goalComplete": false,
+  "git": {
+    "branch": "codex/international-runtime",
+    "base": "bce9833b3686571e17f94361789937dd7d2d5338",
+    "implementation": "28ebeab4c48cdbea4ef134c38a9d68a29595c289",
+    "created": [
+      "lib/international/us-financial-test-settlement.postgres.test.ts",
+      "lib/international/us-financial-test-settlement.test.ts",
+      "lib/international/us-financial-test-settlement.ts",
+      "supabase/migrations/20261010083027_international_us_financial_test_settlement_v5.sql"
+    ],
+    "modified": [
+      "lib/international/us-financial-kernel-runtime.ts",
+      "lib/international/us-financial-kernel-types.ts",
+      "lib/international/us-financial-test-foundation.ts"
+    ],
+    "sourceFiles": [
+      {
+        "file": "lib/international/us-financial-kernel-runtime.ts",
+        "gitBlob": "907b1891b23ea515595835823a90a830b8dbb34c",
+        "sha256WorkingBytes": "b53c8e66a0c0f657df857b0e27b39d32968dc7287c53d496631d839f54a46c0c"
+      },
+      {
+        "file": "lib/international/us-financial-kernel-types.ts",
+        "gitBlob": "844d76c286f2d164256aba55b7c95f5fe46c5cea",
+        "sha256WorkingBytes": "9d2297aa20b2d702a51e19bef9699d95c487e5d207f0db0abc97bb3a8a512854"
+      },
+      {
+        "file": "lib/international/us-financial-test-foundation.ts",
+        "gitBlob": "4613c0aff90c6561ae7f97159c6a84c6d4db0570",
+        "sha256WorkingBytes": "d181e78549c0bc867dd754101d59fce1733984181abb39d50ab6793f53257d62"
+      },
+      {
+        "file": "lib/international/us-financial-test-settlement.postgres.test.ts",
+        "gitBlob": "af15b6541d928e6ba4c567228d586424aee3a44b",
+        "sha256WorkingBytes": "19cdc59ed764b9503c5bfc749740f5fc534fe6902150597be1acbf4602a954e9"
+      },
+      {
+        "file": "lib/international/us-financial-test-settlement.test.ts",
+        "gitBlob": "77a28854b6ab40185b6e56459096f3529db79ad1",
+        "sha256WorkingBytes": "2ffec2e61d607c665bbe273716020264358702ca26e355bdac08f676d1e1b404"
+      },
+      {
+        "file": "lib/international/us-financial-test-settlement.ts",
+        "gitBlob": "66e65e5792acdf8e5bb054d294c3f9aff4b21326",
+        "sha256WorkingBytes": "894cb07833befb22cde98de31b1af9e21fc4554d0dd1871eeaf5570ddedde6a1"
+      },
+      {
+        "file": "supabase/migrations/20261010083027_international_us_financial_test_settlement_v5.sql",
+        "gitBlob": "983c2c684fb6ade2e99b1ff385ddd07f3171a703",
+        "sha256WorkingBytes": "7e61626b6f624209dbe956865aae467e76e816162f0a081cc351a2c92fd6c006"
+      }
+    ]
+  },
+  "scope": {
+    "privateCapability": "postgres-test-settlement-v5",
+    "operations": [
+      "customer_credit",
+      "customer_payment"
+    ],
+    "erpCommands": false,
+    "foundationAppend": false,
+    "publicSchemas": "1–4 unchanged; V5 remains private",
+    "publicRouteOrUi": false,
+    "oldMigrationsEdited": false,
+    "newMigration": "supabase/migrations/20261010083027_international_us_financial_test_settlement_v5.sql",
+    "hostedChange": false,
+    "productionPublication": false,
+    "providerNetworkCall": false,
+    "providerFinancialWrite": false,
+    "nativeBuild": false,
+    "chSourceEdits": false
+  },
+  "invariants": {
+    "book": "Immutable ERP4 baseline/policy/promotion; ordered events and one derived cursor/hash. SQL independently reconstructs every event, exact posting and receipt; no second writable current ledger.",
+    "money": "Canonical minor-unit decimal strings, SQL NUMERIC and TypeScript BigInt. Cumulative proportional allocation with half-up rounding, including final cents; received/credited/outstanding remain distinct. Historical taxed lines require adjustment plans even if this slice tax rounds to zero.",
+    "authority": "Living versioned PostgreSQL TEST grant, current workspace/configuration/policy under locks; trusted callback before/after RPC and local async validation; captures before await; final revocation wins. TEST live audit actor clock <= PG clock_timestamp+30 seconds; historical read/retry actor allowed. This is not a tax/accounting-date rule or a D1/Auth/Stripe distributed transaction.",
+    "fiscal": "Exact proof in immutable DB-owner-provisioned private TEST plan tied to org/invoice/key; service_role cannot self-provision. adjustment_pending is a plan, not an observed provider reversal. No provider call.",
+    "commit": "Prefix canonical SHA and exact revision CAS; event+receipt+cursor atomic with deferred completeness. Exact old retry returns before CAS; legacy/promotion keys reserved. Invalid direct partial insert rolls back.",
+    "capability": "Settlement excludes ERP commands; foundation append stays PF010. Foundation read/promotion/receipt reject after tail exists rather than return frozen current data. Promotion and first append require two transactions.",
+    "security": "RLS and PUBLIC/anon/authenticated revoke; new functions SECURITY INVOKER/search_path empty. service_role is trusted and can read private tables/helpers; no claim of isolating financial data from it. Grants/plans DB-owner-only; no new bypass GUC or definer.",
+    "maintenance": "Previous foundation global TRUNCATE restriction remains, including shared CH/nonpromoted tables; requires operational review before hosted adoption."
+  },
+  "tests": {
+    "regression": {
+      "success": true,
+      "total": 4826,
+      "passed": 4826,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "files": 144,
+      "retainedPriorFiles": 142,
+      "selection": [
+        "lib/account-workspace-entry.test.ts",
+        "lib/account-workspace-navigation.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/account-workspaces.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/deployment-contract.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/browser-us-sales-order-session.test.ts",
+        "lib/international/browser-us-supplier-documents-session.test.ts",
+        "lib/international/browser-us-supplier-session.test.ts",
+        "lib/international/browser-us-support-worker-session.test.ts",
+        "lib/international/browser-us-team-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-store.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/us-automation-policy.test.ts",
+        "lib/international/us-automation-store.test.ts",
+        "lib/international/us-automation-validation.test.ts",
+        "lib/international/us-customer-credit-allocation.test.ts",
+        "lib/international/us-customer-credit-preparation.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-d1.test.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-financial-kernel-capability.test.ts",
+        "lib/international/us-financial-kernel-erp-runtime.test.ts",
+        "lib/international/us-financial-kernel-erp.test.ts",
+        "lib/international/us-financial-kernel-runtime.test.ts",
+        "lib/international/us-financial-kernel.test.ts",
+        "lib/international/us-financial-test-foundation.postgres.test.ts",
+        "lib/international/us-financial-test-foundation.test.ts",
+        "lib/international/us-financial-test-settlement.postgres.test.ts",
+        "lib/international/us-financial-test-settlement.test.ts",
+        "lib/international/us-saas-test-bindings.test.ts",
+        "lib/international/us-saas-test-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "lib/international/us-saas-test-server.test.ts",
+        "lib/international/us-saas-test-stripe.test.ts",
+        "lib/international/us-sales-order-bindings.test.ts",
+        "lib/international/us-sales-order-contract.test.ts",
+        "lib/international/us-sales-order-erp-guard.test.ts",
+        "lib/international/us-sales-order-export.test.ts",
+        "lib/international/us-sales-order-server.test.ts",
+        "lib/international/us-sales-order-store.test.ts",
+        "lib/international/us-sales-order.postgres.test.ts",
+        "lib/international/us-supplier-analysis-server.test.ts",
+        "lib/international/us-supplier-analysis.test.ts",
+        "lib/international/us-supplier-bindings.test.ts",
+        "lib/international/us-supplier-document-archive.test.ts",
+        "lib/international/us-supplier-document-bindings.test.ts",
+        "lib/international/us-supplier-document-bytes.test.ts",
+        "lib/international/us-supplier-document-contract.test.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-server.test.ts",
+        "lib/international/us-supplier-document-store.test.ts",
+        "lib/international/us-supplier-document-timeout.test.ts",
+        "lib/international/us-supplier-extraction.test.ts",
+        "lib/international/us-supplier-proposal.test.ts",
+        "lib/international/us-supplier-server.test.ts",
+        "lib/international/us-supplier-store.test.ts",
+        "lib/international/us-support-intake-provider.test.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.test.ts",
+        "lib/international/us-support-mailbox-contract.test.ts",
+        "lib/international/us-support-mailbox-d1.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-provider.test.ts",
+        "lib/international/us-support-mailbox-server.test.ts",
+        "lib/international/us-support-mailbox-ui.test.ts",
+        "lib/international/us-support-ticket-bindings.test.ts",
+        "lib/international/us-support-ticket-composition.test.ts",
+        "lib/international/us-support-ticket-contract.test.ts",
+        "lib/international/us-support-ticket-d1.test.ts",
+        "lib/international/us-support-ticket-server.test.ts",
+        "lib/international/us-support-tickets-ui.test.ts",
+        "lib/international/us-support-triage-bindings.test.ts",
+        "lib/international/us-support-triage-composition.test.ts",
+        "lib/international/us-support-triage-contract.test.ts",
+        "lib/international/us-support-triage-d1.test.ts",
+        "lib/international/us-support-triage-policy.test.ts",
+        "lib/international/us-support-triage-provider.test.ts",
+        "lib/international/us-support-triage-server.test.ts",
+        "lib/international/us-support-triage-service.test.ts",
+        "lib/international/us-support-triage-ticket-integration.test.ts",
+        "lib/international/us-support-triage-ui.test.ts",
+        "lib/international/us-support-worker-bindings.test.ts",
+        "lib/international/us-support-worker-composition.test.ts",
+        "lib/international/us-support-worker-contract.test.ts",
+        "lib/international/us-support-worker-d1.test.ts",
+        "lib/international/us-support-worker-migration.test.ts",
+        "lib/international/us-support-worker-server.test.ts",
+        "lib/international/us-support-worker-ui.test.ts",
+        "lib/international/us-support-worker.test.ts",
+        "lib/international/us-support-workspace-bindings.test.ts",
+        "lib/international/us-support-workspace-contract.test.ts",
+        "lib/international/us-support-workspace-d1.test.ts",
+        "lib/international/us-support-workspace-server.test.ts",
+        "lib/international/us-support-workspace-ui.test.ts",
+        "lib/international/us-team-bindings.test.ts",
+        "lib/international/us-team-contract.test.ts",
+        "lib/international/us-team-device-lifecycle.test.ts",
+        "lib/international/us-team-server.test.ts",
+        "lib/international/us-team-store.test.ts",
+        "lib/international/us-team-validation.test.ts",
+        "lib/international/us-team.migrations.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/site-language.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth-http.test.ts",
+        "lib/supabase-auth.test.ts",
+        "lib/support/application-effects.test.ts",
+        "lib/support/billing.test.ts",
+        "lib/support/mail-documents.test.ts",
+        "lib/support/mail-sync-admission.test.ts",
+        "lib/support/reply-transport.test.ts",
+        "lib/support/solicitation-service.test.ts",
+        "lib/support/support.test.ts",
+        "lib/support/workspace-access.test.ts",
+        "lib/support/workspace-selection.test.ts",
+        "lib/support/workspace-state-admission.test.ts"
+      ],
+      "fileResults": [
+        {
+          "file": "lib/account-workspace-entry.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/account-workspace-navigation.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/account-workspace-pages.test.ts",
+          "status": "passed",
+          "total": 95,
+          "passed": 95
+        },
+        {
+          "file": "lib/account-workspaces.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/business-sync-cash-vat.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/deployment-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/document-number-reservations.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/site-language.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/stripe-contract.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/supabase-auth-http.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/supabase-auth.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/accounting-runtime.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/browser-us-sales-order-session.test.ts",
+          "status": "passed",
+          "total": 38,
+          "passed": 38
+        },
+        {
+          "file": "lib/international/browser-us-supplier-documents-session.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/browser-us-supplier-session.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/browser-us-support-worker-session.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/browser-us-team-session.test.ts",
+          "status": "passed",
+          "total": 37,
+          "passed": 37
+        },
+        {
+          "file": "lib/international/browser-us-workspace-sync-session.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/legacy-country-guard.migrations.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/legacy-country-guard.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/private-json.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/purchasing-runtime.test.ts",
+          "status": "passed",
+          "total": 63,
+          "passed": 63
+        },
+        {
+          "file": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/runtime-server-revalidation.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/runtime-server-us-tax.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/runtime-server.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/runtime-store.test.ts",
+          "status": "passed",
+          "total": 83,
+          "passed": 83
+        },
+        {
+          "file": "lib/international/runtime-sync.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/runtime.test.ts",
+          "status": "passed",
+          "total": 36,
+          "passed": 36
+        },
+        {
+          "file": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed",
+          "total": 101,
+          "passed": 101
+        },
+        {
+          "file": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-automation-policy.test.ts",
+          "status": "passed",
+          "total": 69,
+          "passed": 69
+        },
+        {
+          "file": "lib/international/us-automation-store.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-automation-validation.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-customer-credit-allocation.test.ts",
+          "status": "passed",
+          "total": 101,
+          "passed": 101
+        },
+        {
+          "file": "lib/international/us-customer-credit-preparation.test.ts",
+          "status": "passed",
+          "total": 74,
+          "passed": 74
+        },
+        {
+          "file": "lib/international/us-device-bindings.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-device-capability-v4.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-device-d1.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/international/us-device-server.test.ts",
+          "status": "passed",
+          "total": 40,
+          "passed": 40
+        },
+        {
+          "file": "lib/international/us-financial-kernel-capability.test.ts",
+          "status": "passed",
+          "total": 25,
+          "passed": 25
+        },
+        {
+          "file": "lib/international/us-financial-kernel-erp-runtime.test.ts",
+          "status": "passed",
+          "total": 41,
+          "passed": 41
+        },
+        {
+          "file": "lib/international/us-financial-kernel-erp.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-financial-kernel-runtime.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-financial-kernel.test.ts",
+          "status": "passed",
+          "total": 50,
+          "passed": 50
+        },
+        {
+          "file": "lib/international/us-financial-test-foundation.postgres.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/us-financial-test-foundation.test.ts",
+          "status": "passed",
+          "total": 72,
+          "passed": 72
+        },
+        {
+          "file": "lib/international/us-financial-test-settlement.postgres.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/us-financial-test-settlement.test.ts",
+          "status": "passed",
+          "total": 55,
+          "passed": 55
+        },
+        {
+          "file": "lib/international/us-saas-test-bindings.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-saas-test-d1.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-d1.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-server.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+          "status": "passed",
+          "total": 123,
+          "passed": 123
+        },
+        {
+          "file": "lib/international/us-saas-test-server.test.ts",
+          "status": "passed",
+          "total": 27,
+          "passed": 27
+        },
+        {
+          "file": "lib/international/us-saas-test-stripe.test.ts",
+          "status": "passed",
+          "total": 82,
+          "passed": 82
+        },
+        {
+          "file": "lib/international/us-sales-order-bindings.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-sales-order-contract.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-sales-order-erp-guard.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/international/us-sales-order-export.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-sales-order-server.test.ts",
+          "status": "passed",
+          "total": 93,
+          "passed": 93
+        },
+        {
+          "file": "lib/international/us-sales-order-store.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-sales-order.postgres.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-supplier-analysis-server.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-supplier-analysis.test.ts",
+          "status": "passed",
+          "total": 39,
+          "passed": 39
+        },
+        {
+          "file": "lib/international/us-supplier-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-archive.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-supplier-document-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-bytes.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-supplier-document-contract.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.postgres.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.test.ts",
+          "status": "passed",
+          "total": 34,
+          "passed": 34
+        },
+        {
+          "file": "lib/international/us-supplier-document-server.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-supplier-document-store.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-supplier-document-timeout.test.ts",
+          "status": "passed",
+          "total": 4,
+          "passed": 4
+        },
+        {
+          "file": "lib/international/us-supplier-extraction.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/us-supplier-proposal.test.ts",
+          "status": "passed",
+          "total": 105,
+          "passed": 105
+        },
+        {
+          "file": "lib/international/us-supplier-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-supplier-store.test.ts",
+          "status": "passed",
+          "total": 77,
+          "passed": 77
+        },
+        {
+          "file": "lib/international/us-support-intake-provider.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-support-mail-import-ui.test.ts",
+          "status": "passed",
+          "total": 57,
+          "passed": 57
+        },
+        {
+          "file": "lib/international/us-support-mailbox-bindings.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-support-mailbox-contract.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/us-support-mailbox-d1.test.ts",
+          "status": "passed",
+          "total": 43,
+          "passed": 43
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-bindings.test.ts",
+          "status": "passed",
+          "total": 1,
+          "passed": 1
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-composition.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-contract.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-d1.test.ts",
+          "status": "passed",
+          "total": 54,
+          "passed": 54
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-provider.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-server.test.ts",
+          "status": "passed",
+          "total": 42,
+          "passed": 42
+        },
+        {
+          "file": "lib/international/us-support-mailbox-provider.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-mailbox-server.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-ui.test.ts",
+          "status": "passed",
+          "total": 64,
+          "passed": 64
+        },
+        {
+          "file": "lib/international/us-support-ticket-bindings.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-ticket-composition.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/international/us-support-ticket-d1.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-server.test.ts",
+          "status": "passed",
+          "total": 55,
+          "passed": 55
+        },
+        {
+          "file": "lib/international/us-support-tickets-ui.test.ts",
+          "status": "passed",
+          "total": 85,
+          "passed": 85
+        },
+        {
+          "file": "lib/international/us-support-triage-bindings.test.ts",
+          "status": "passed",
+          "total": 3,
+          "passed": 3
+        },
+        {
+          "file": "lib/international/us-support-triage-composition.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-contract.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-support-triage-d1.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/us-support-triage-policy.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-provider.test.ts",
+          "status": "passed",
+          "total": 70,
+          "passed": 70
+        },
+        {
+          "file": "lib/international/us-support-triage-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-support-triage-service.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-support-triage-ticket-integration.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/international/us-support-triage-ui.test.ts",
+          "status": "passed",
+          "total": 74,
+          "passed": 74
+        },
+        {
+          "file": "lib/international/us-support-worker-bindings.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/us-support-worker-composition.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-contract.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-d1.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-migration.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-support-worker-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-support-worker-ui.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/international/us-support-worker.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-support-workspace-bindings.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-workspace-contract.test.ts",
+          "status": "passed",
+          "total": 7,
+          "passed": 7
+        },
+        {
+          "file": "lib/international/us-support-workspace-d1.test.ts",
+          "status": "passed",
+          "total": 53,
+          "passed": 53
+        },
+        {
+          "file": "lib/international/us-support-workspace-server.test.ts",
+          "status": "passed",
+          "total": 31,
+          "passed": 31
+        },
+        {
+          "file": "lib/international/us-support-workspace-ui.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-team-bindings.test.ts",
+          "status": "passed",
+          "total": 49,
+          "passed": 49
+        },
+        {
+          "file": "lib/international/us-team-contract.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-team-device-lifecycle.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-team-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-team-store.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-team-validation.test.ts",
+          "status": "passed",
+          "total": 89,
+          "passed": 89
+        },
+        {
+          "file": "lib/international/us-team.migrations.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads-bindings.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/support/application-effects.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/support/billing.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/support/mail-documents.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/support/mail-sync-admission.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/support/reply-transport.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/support/solicitation-service.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/support/support.test.ts",
+          "status": "passed",
+          "total": 81,
+          "passed": 81
+        },
+        {
+          "file": "lib/support/workspace-access.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/support/workspace-selection.test.ts",
+          "status": "passed",
+          "total": 2,
+          "passed": 2
+        },
+        {
+          "file": "lib/support/workspace-state-admission.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        }
+      ],
+      "elapsedMs": 154121
+    },
+    "adapter": {
+      "file": "lib/international/us-financial-test-settlement.test.ts",
+      "status": "passed",
+      "total": 55,
+      "passed": 55,
+      "includedInRegression": true,
+      "transport": "Synthetic RPC responses; actual financial runtime transitions; not hosted SQL"
+    },
+    "postgres": {
+      "file": "lib/international/us-financial-test-settlement.postgres.test.ts",
+      "status": "passed",
+      "total": 30,
+      "passed": 30,
+      "includedInRegression": true,
+      "execution": "Real local PostgreSQL WASM, 26 prior migrations plus settlement migration, actual ERP4 tax TEST invoice issuance and promotion then append",
+      "pgliteModule": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+      "storage": "NodeFS same dataDir clean close/reopen; exact book, receipts and freeze retained",
+      "representativeRetainedRun": "D:/Codex-Zentra-Temporary/2026-10-08/native-admission-temp/zentra-settlement-test-v5-uIE58E",
+      "multiConnectionProof": false,
+      "crashRecoveryProof": false,
+      "hosted": false
+    },
+    "quality": {
+      "typecheck": {
+        "exitCode": 0,
+        "scope": "global",
+        "incremental": false
+      },
+      "lint": {
+        "exitCode": 0,
+        "typeAware": true,
+        "denyWarnings": true,
+        "files": [
+          "lib/international/us-financial-kernel-runtime.ts",
+          "lib/international/us-financial-kernel-types.ts",
+          "lib/international/us-financial-test-foundation.ts",
+          "lib/international/us-financial-test-settlement.postgres.test.ts",
+          "lib/international/us-financial-test-settlement.test.ts",
+          "lib/international/us-financial-test-settlement.ts"
+        ]
+      },
+      "brand": {
+        "exitCode": 0
+      },
+      "productionBuild": {
+        "exitCode": 0,
+        "notices": "Existing middleware/plugin/chunk/route-classification notices; no deployment",
+        "timing": "After runtime adapter implementation; only comments and PostgreSQL test typing changed afterward"
+      }
+    },
+    "cli": {
+      "migrationCreatedWithSupabaseCli": true,
+      "localLintExecutedThisPhase": false,
+      "environment": "Prior foundation attempt ECONNREFUSED 127.0.0.1:54322; no local PostgreSQL/Docker server installed since",
+      "priorEvidence": "docs/evidence/us-financial-foundation-v5-20261010.json",
+      "hostedSubstitute": false,
+      "dbPull": false,
+      "hostedAdvisors": false
+    },
+    "uiAndNative": {
+      "executed": false,
+      "reason": "Backend-only private capability; no page/route/native source changed"
+    },
+    "intermediate": [
+      "Initial SQL installation failed before tests due to JSONB operator precedence in receipt helper; corrected. An intermediate actual run had 23/24 passing due to ambiguous zero-tax SQL alias; fixed and final 30/30 actual tests executed. Neither earlier run is reported as successful.",
+      "Global TypeScript found new PostgreSQL test fixture UUID inference and event union narrowing errors; fixed and global nonincremental check rerun successfully.",
+      "Review required strict actor strings (null rejected), independent nonzero/exclusive/balanced/cash posting checks, exact three wrapper replacement count and live future-actor audit-clock guard.",
+      "Adapter review found execution actor could exceed trusted callback time; pre/post minimum execution actor and monotone current clock added, with future actor, historical retry and backward clock tests."
+    ],
+    "commands": {
+      "regression": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe node_modules/vitest/vitest.mjs run --config vitest.config.ts --maxWorkers=2 lib/account-workspace-entry.test.ts lib/account-workspace-navigation.test.ts lib/account-workspace-pages.test.ts lib/account-workspaces.test.ts lib/business-sync-cash-vat.test.ts lib/deployment-contract.test.ts lib/document-number-reservations.test.ts lib/international/accounting-runtime.test.ts lib/international/browser-us-sales-order-session.test.ts lib/international/browser-us-supplier-documents-session.test.ts lib/international/browser-us-supplier-session.test.ts lib/international/browser-us-support-worker-session.test.ts lib/international/browser-us-team-session.test.ts lib/international/browser-us-workspace-sync-session.test.ts lib/international/legacy-country-guard.migrations.test.ts lib/international/legacy-country-guard.test.ts lib/international/private-json.test.ts lib/international/purchasing-runtime.test.ts lib/international/runtime-bindings.test.ts lib/international/runtime-response-guards.test.ts lib/international/runtime-server-revalidation.test.ts lib/international/runtime-server-us-tax.test.ts lib/international/runtime-server.test.ts lib/international/runtime-store.test.ts lib/international/runtime-sync.test.ts lib/international/runtime.test.ts lib/international/saas-authorities.migrations.test.ts lib/international/saas-authority.test.ts lib/international/us-automation-policy.test.ts lib/international/us-automation-store.test.ts lib/international/us-automation-validation.test.ts lib/international/us-customer-credit-allocation.test.ts lib/international/us-customer-credit-preparation.test.ts lib/international/us-device-bindings.test.ts lib/international/us-device-capability-v4.test.ts lib/international/us-device-d1.test.ts lib/international/us-device-server.test.ts lib/international/us-financial-kernel-capability.test.ts lib/international/us-financial-kernel-erp-runtime.test.ts lib/international/us-financial-kernel-erp.test.ts lib/international/us-financial-kernel-runtime.test.ts lib/international/us-financial-kernel.test.ts lib/international/us-financial-test-foundation.postgres.test.ts lib/international/us-financial-test-foundation.test.ts lib/international/us-financial-test-settlement.postgres.test.ts lib/international/us-financial-test-settlement.test.ts lib/international/us-saas-test-bindings.test.ts lib/international/us-saas-test-d1.test.ts lib/international/us-saas-test-lifecycle-d1.test.ts lib/international/us-saas-test-lifecycle-server.test.ts lib/international/us-saas-test-lifecycle-stripe.test.ts lib/international/us-saas-test-server.test.ts lib/international/us-saas-test-stripe.test.ts lib/international/us-sales-order-bindings.test.ts lib/international/us-sales-order-contract.test.ts lib/international/us-sales-order-erp-guard.test.ts lib/international/us-sales-order-export.test.ts lib/international/us-sales-order-server.test.ts lib/international/us-sales-order-store.test.ts lib/international/us-sales-order.postgres.test.ts lib/international/us-supplier-analysis-server.test.ts lib/international/us-supplier-analysis.test.ts lib/international/us-supplier-bindings.test.ts lib/international/us-supplier-document-archive.test.ts lib/international/us-supplier-document-bindings.test.ts lib/international/us-supplier-document-bytes.test.ts lib/international/us-supplier-document-contract.test.ts lib/international/us-supplier-document-lookup.postgres.test.ts lib/international/us-supplier-document-lookup.test.ts lib/international/us-supplier-document-server.test.ts lib/international/us-supplier-document-store.test.ts lib/international/us-supplier-document-timeout.test.ts lib/international/us-supplier-extraction.test.ts lib/international/us-supplier-proposal.test.ts lib/international/us-supplier-server.test.ts lib/international/us-supplier-store.test.ts lib/international/us-support-intake-provider.test.ts lib/international/us-support-mail-import-ui.test.ts lib/international/us-support-mailbox-bindings.test.ts lib/international/us-support-mailbox-contract.test.ts lib/international/us-support-mailbox-d1.test.ts lib/international/us-support-mailbox-import-bindings.test.ts lib/international/us-support-mailbox-import-composition.test.ts lib/international/us-support-mailbox-import-contract.test.ts lib/international/us-support-mailbox-import-d1.test.ts lib/international/us-support-mailbox-import-provider.test.ts lib/international/us-support-mailbox-import-server.test.ts lib/international/us-support-mailbox-provider.test.ts lib/international/us-support-mailbox-server.test.ts lib/international/us-support-mailbox-ui.test.ts lib/international/us-support-ticket-bindings.test.ts lib/international/us-support-ticket-composition.test.ts lib/international/us-support-ticket-contract.test.ts lib/international/us-support-ticket-d1.test.ts lib/international/us-support-ticket-server.test.ts lib/international/us-support-tickets-ui.test.ts lib/international/us-support-triage-bindings.test.ts lib/international/us-support-triage-composition.test.ts lib/international/us-support-triage-contract.test.ts lib/international/us-support-triage-d1.test.ts lib/international/us-support-triage-policy.test.ts lib/international/us-support-triage-provider.test.ts lib/international/us-support-triage-server.test.ts lib/international/us-support-triage-service.test.ts lib/international/us-support-triage-ticket-integration.test.ts lib/international/us-support-triage-ui.test.ts lib/international/us-support-worker-bindings.test.ts lib/international/us-support-worker-composition.test.ts lib/international/us-support-worker-contract.test.ts lib/international/us-support-worker-d1.test.ts lib/international/us-support-worker-migration.test.ts lib/international/us-support-worker-server.test.ts lib/international/us-support-worker-ui.test.ts lib/international/us-support-worker.test.ts lib/international/us-support-workspace-bindings.test.ts lib/international/us-support-workspace-contract.test.ts lib/international/us-support-workspace-d1.test.ts lib/international/us-support-workspace-server.test.ts lib/international/us-support-workspace-ui.test.ts lib/international/us-team-bindings.test.ts lib/international/us-team-contract.test.ts lib/international/us-team-device-lifecycle.test.ts lib/international/us-team-server.test.ts lib/international/us-team-store.test.ts lib/international/us-team-validation.test.ts lib/international/us-team.migrations.test.ts lib/international/us-workspace-sync-heads-bindings.test.ts lib/international/us-workspace-sync-heads.test.ts lib/international/workspace-creation-d1.test.ts lib/international/workspace-server.bindings.test.ts lib/site-language.test.ts lib/stripe-contract.test.ts lib/supabase-auth-http.test.ts lib/supabase-auth.test.ts lib/support/application-effects.test.ts lib/support/billing.test.ts lib/support/mail-documents.test.ts lib/support/mail-sync-admission.test.ts lib/support/reply-transport.test.ts lib/support/solicitation-service.test.ts lib/support/support.test.ts lib/support/workspace-access.test.ts lib/support/workspace-selection.test.ts lib/support/workspace-state-admission.test.ts --reporter=json --outputFile=.qa/us-financial-settlement/regression-final.json",
+      "typecheck": "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "lint": "node node_modules/oxlint/bin/oxlint --type-aware --deny-warnings <six changed TS files>",
+      "brand": "node scripts/check-brand-assets.mjs",
+      "build": "node node_modules/vinext/dist/cli.js build"
+    },
+    "reports": [
+      {
+        "file": ".qa/us-financial-settlement/selection-final.json",
+        "sha256": "1e1473d1a6c703a6c28186e0449588bde02343024ad8583e85a5c05bd5718ceb"
+      },
+      {
+        "file": ".qa/us-financial-settlement/regression-final.json",
+        "sha256": "13f78ccc0535f5073d0ebfc054dd6bb143e648a5f5f7ba98f5c6be2c67dc4ef6"
+      },
+      {
+        "file": ".qa/us-financial-settlement/regression-final.log",
+        "sha256": "4241ee8655d0b351ea9997c60587650ffc228f47a0c6753d7646218ff536b6ba"
+      },
+      {
+        "file": ".qa/us-financial-settlement/regression-command.json",
+        "sha256": "40c1a1510e59eff8b1f37fa8035ab55005782400faab9894712c8f2a3068c00c"
+      },
+      {
+        "file": ".qa/us-financial-settlement/focused-third.json",
+        "sha256": "865d6bdd1b16303c7a6cccb836eef3e876025a7598dfcfa59749c55f8ffb9527"
+      },
+      {
+        "file": ".qa/us-financial-settlement/focused-third.log",
+        "sha256": "2029f9f888aabc813980104ea76102f690315136dfec3c5e202be7d4d8b56860"
+      },
+      {
+        "file": ".qa/us-financial-settlement/types-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-financial-settlement/lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-financial-settlement/brand-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-financial-settlement/build-final.log",
+        "sha256": "223c0c95916c23f8f0ea1cb2ba974f1305392cc859ac4c96c4d8f03f4d76b9dc"
+      }
+    ]
+  },
+  "rollback": {
+    "executed": false,
+    "plan": "Advance version and revoke grants; retain promotion/events/receipts/cursor/plans, never reopen ERP4. Additive repair after approved hosted migration/ACL reconciliation.",
+    "partialCommitRollbackTested": true
+  },
+  "remaining": [
+    "Mixed ERP SQL projector and independent commercial/supplier/project/journal/period/invoice effects on the same book.",
+    "Current sidecar sources, public projection/browser TEST/native transports and exports.",
+    "Hosted multi-connection/deadlock/crash/load validation and transactional authorization convergence after approval.",
+    "Tax provider durable outbox/observations and qualified review, no US GAAP certification.",
+    "Cash basis, deposits, recurrence, delivery documents, excess credits/refunds and full international ERP remain active."
+  ],
+  "documents": [
+    "docs/internationalization/US-FINANCIAL-TEST-SETTLEMENT-V5-20261010.md",
+    "docs/internationalization/US-FINANCIAL-TEST-FOUNDATION-V5-20261010.md",
+    "docs/internationalization/US-FINANCIAL-PERSISTENCE-V5-20261010.md",
+    "docs/internationalization/STATUS-20261009.md"
+  ]
+}

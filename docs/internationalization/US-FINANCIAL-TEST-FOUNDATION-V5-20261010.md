@@ -2,6 +2,8 @@
 
 10 octobre 2026. Cette phase poursuit le même ERP, sans modifier les contrats publics ERP1–4. Elle ne constitue pas encore une persistance complète des nouvelles opérations financières.
 
+**Suite livrée localement le même jour :** `US-FINANCIAL-TEST-SETTLEMENT-V5-20261010.md` ajoute une capacité distincte pour les avoirs et encaissements, avec reconstruction SQL indépendante. Ce document conserve l'état historique de la fondation ; son propre append reste fermé par PF010. Dès qu'un événement settlement existe, ses anciennes lectures/promotion refusent explicitement la capacité insuffisante, plutôt que de servir un livre figé comme courant.
+
 ## 1. Modifications
 
 Une migration additive conserve la baseline ERP4 réelle, sa politique TEST, la provenance de promotion, les empreintes et les anciens reçus dans PostgreSQL. La promotion compare le snapshot exact sous verrou ; un rejeu doit conserver le même corps, la même clé et la même provenance. Les clés de tous les anciens reçus sont réservées, même celles qui ne figurent pas dans le journal financier de la baseline.
