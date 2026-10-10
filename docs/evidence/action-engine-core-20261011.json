@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-10T23:28:48.335Z",
+  "objective": "Zentra Action Engine",
+  "phase": "A0-local-core",
+  "codeCommit": "bdc75b6404eb39d58bd5b509a3b53cffc8a29c5f",
+  "parentCommit": "e9096df923e430103e9a2ff8ff3b1e5702904f6f",
+  "sources": [
+    {
+      "path": "docs/action-engine/AUDIT.md",
+      "bytes": 6433,
+      "sha256": "56503136b197d715a1756fe65366c43cd960bd06a0fba7d154053870f0a137a4"
+    },
+    {
+      "path": "lib/action-engine/README.md",
+      "bytes": 4052,
+      "sha256": "2eeaf51af906bab1961716c1c99e85bf6bb58f131be89418a11d58c04e80c071"
+    },
+    {
+      "path": "lib/action-engine/engine.test.ts",
+      "bytes": 16296,
+      "sha256": "817e5fdd8a2e6a538b28f21585a0291de46bc90920b7e6a46088490ce6a5232b"
+    },
+    {
+      "path": "lib/action-engine/engine.ts",
+      "bytes": 5014,
+      "sha256": "4525ea8cb7a0ac3b08d27a6875950e2f4e8c03dbb526868bfbabf24b8995750d"
+    },
+    {
+      "path": "lib/action-engine/money.test.ts",
+      "bytes": 1695,
+      "sha256": "addecb6bceb6bcf8e46e1b788e525358d7f4b3e0b81803562e22faae41b6402a"
+    },
+    {
+      "path": "lib/action-engine/money.ts",
+      "bytes": 1337,
+      "sha256": "6dbb2bbae50b13877613b5fd3c47d18e25978daeb491bab6fcc122f11bd812dd"
+    },
+    {
+      "path": "lib/action-engine/planner.test.ts",
+      "bytes": 25007,
+      "sha256": "b741b16400ac961eca530a87fe2408e4221179e4517c78a42c96c2476855ca7f"
+    },
+    {
+      "path": "lib/action-engine/planner.ts",
+      "bytes": 12396,
+      "sha256": "f25e88bdebacdff88269ac6849f538573927b93ca73192a444f4140d03f51809"
+    },
+    {
+      "path": "lib/action-engine/quantity.ts",
+      "bytes": 7416,
+      "sha256": "65391bcf19bb7fbcef1efa8446c38b2aba5fae73541d7b1b5cb91d259c716411"
+    },
+    {
+      "path": "lib/action-engine/types.ts",
+      "bytes": 5453,
+      "sha256": "eaef0ed31e8fd666c93ecb987db254041d2ad433349c577628a1e67eed6828d7"
+    },
+    {
+      "path": "lib/action-engine/validation.test.ts",
+      "bytes": 13965,
+      "sha256": "bcc1cdbbe26bb52ddba781a2cb16b06d69483967524d13a68f658f9dba242d48"
+    },
+    {
+      "path": "lib/action-engine/validation.ts",
+      "bytes": 15591,
+      "sha256": "ea17f478733aefee2ffb8d2551a2915a4f22e6390e62bad39798169d4c96c8e4"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".qa/action-engine-core/brand-v1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-core/build-v1.log",
+      "bytes": 27769,
+      "sha256": "cbd20ff3da06f41f095d5172fe4a018f28ec2b7bbfa9a1b753152dc71cf3c436"
+    },
+    {
+      "path": ".qa/action-engine-core/format-v2.log",
+      "bytes": 49,
+      "sha256": "026700a942aac8a1e3c2c4177c8a184a7add1bb0833cfa0ca92116cb341ac27f"
+    },
+    {
+      "path": ".qa/action-engine-core/format.log",
+      "bytes": 49,
+      "sha256": "d59355a4f646007f91c627a894e9aed48f073dd236cd465fa09c047c2e58f5cb"
+    },
+    {
+      "path": ".qa/action-engine-core/lint-v1.log",
+      "bytes": 9831,
+      "sha256": "f80f5cfd2bb3f15a18d7ab7a85b2d755e269a20ea32ab2d2138d6e3d3999b0a7"
+    },
+    {
+      "path": ".qa/action-engine-core/lint-v2.log",
+      "bytes": 291,
+      "sha256": "7b544d6c80aa7d046a74873f06d7596b5a15649511ccb2b2549253096508feff"
+    },
+    {
+      "path": ".qa/action-engine-core/lint-v3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-core/regression-v1.json",
+      "bytes": 98838,
+      "sha256": "2db49d25987d5a19743e238ee171f4c0d2e0bdaebfb88539e8c376b8e73b7e3d"
+    },
+    {
+      "path": ".qa/action-engine-core/regression-v1.log",
+      "bytes": 122,
+      "sha256": "aec23d7010287baf35872d00f544258fdc3dbed53aa054f724b0a6e7b70fd8f2"
+    },
+    {
+      "path": ".qa/action-engine-core/regression-v2.json",
+      "bytes": 98857,
+      "sha256": "fd15ec2e8bfec642e45e2b8adf1472593c7a3043ed825b044405731ed3403f30"
+    },
+    {
+      "path": ".qa/action-engine-core/regression-v2.log",
+      "bytes": 122,
+      "sha256": "cfc12a610883fb9b12bfc5ad03f590a1b0c1007f80503ddca683f2be7149473e"
+    },
+    {
+      "path": ".qa/action-engine-core/types-v1.log",
+      "bytes": 309,
+      "sha256": "e49801e787b212d82afa7ff795f23495d2dd2825dd922449495304979ede31d9"
+    },
+    {
+      "path": ".qa/action-engine-core/types-v2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-core/types-v3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-core/unit-v1.json",
+      "bytes": 48638,
+      "sha256": "6101b6cf086dcece95b57b41f7da26300bd8621a0760efffb36c9942ad01cb14"
+    },
+    {
+      "path": ".qa/action-engine-core/unit-v1.log",
+      "bytes": 116,
+      "sha256": "5b6eaaf0de02d933c777fcc5e5ab8f1bce9d777c23251399fa1eb274be9afabb"
+    }
+  ],
+  "checks": {
+    "tests": {
+      "command": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts lib/action-engine lib/automation --reporter=json --outputFile=.qa/action-engine-core/regression-v2.json",
+      "exitCode": 0,
+      "total": 323,
+      "passed": 323,
+      "failed": 0,
+      "files": 14,
+      "newCoreTests": 148,
+      "existingAutomationTests": 175
+    },
+    "types": {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "exitCode": 0,
+      "log": ".qa/action-engine-core/types-v3.log"
+    },
+    "lint": {
+      "command": "node node_modules/oxlint/bin/oxlint lib/action-engine",
+      "exitCode": 0,
+      "log": ".qa/action-engine-core/lint-v3.log"
+    },
+    "brand": {
+      "command": "node scripts/check-brand-assets.mjs",
+      "exitCode": 0
+    },
+    "build": {
+      "command": "node node_modules/vinext/dist/cli.js build",
+      "exitCode": 0,
+      "log": ".qa/action-engine-core/build-v1.log",
+      "warning": "Vinext static route classification incomplete"
+    }
+  },
+  "priorDiagnostics": {
+    "typesV1": {
+      "exitCode": 2,
+      "errors": 3
+    },
+    "lintV1": {
+      "exitCode": 1
+    },
+    "lintV2": {
+      "exitCode": 1
+    },
+    "unitV1": {
+      "exitCode": 0,
+      "passed": 145
+    },
+    "regressionV1": {
+      "exitCode": 0,
+      "passed": 323
+    }
+  },
+  "limits": {
+    "productionDeployed": false,
+    "realJevCalled": false,
+    "nativeAdapterImplemented": false,
+    "durableProposalAdapterImplemented": false,
+    "distributedExactlyOnceProven": false,
+    "uiChanged": false,
+    "migrationsApplied": false,
+    "customerDataChanged": false,
+    "originalRepositoryChanged": false
+  },
+  "nextPhase": "Durable proposals, central reservation and atomic native customer/draft writer; then integrated UI and cross-device tests"
+}
