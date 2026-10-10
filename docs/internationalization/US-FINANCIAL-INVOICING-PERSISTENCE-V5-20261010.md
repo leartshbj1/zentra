@@ -1,5 +1,7 @@
 # Zentra US — plan d'émission fiscale sur le livre V5
 
+Actualisation du 10 octobre — nouvelle émission durable livrée localement sous capacité privée TEST : voir [US-FINANCIAL-TEST-INVOICING-V5-20261010.md](US-FINANCIAL-TEST-INVOICING-V5-20261010.md), implémentation `41df1a7`, preuve `docs/evidence/us-financial-invoicing-v5-20261010.json`. La régression finale passe 5 144/5 144 tests dans 152 fichiers ; types, lint, marque et build passent. Le texte ci-dessous conserve le relevé ou plan historique. Aucun hébergement, fournisseur réel, UI ou natif modifié par ce lot.
+
 10 octobre 2026. **Plan avant implémentation ; aucun résultat de recette de ce lot annoncé.** La comptabilité précédente est livrée localement dans `US-FINANCIAL-TEST-ACCOUNTING-V5-20261010.md`, implémentation `05cd853`, preuves `8c6dd17`. Le prochain résultat concret est une nouvelle facture durable, encaissable et créditable sur le même livre, puis un consommateur pilote avec rapports. Aucun déploiement, migration hébergée, abonnement ou donnée CH ne change.
 
 ## 1. Modifications proposées

@@ -1,5 +1,7 @@
 # Zentra US — journaux et périodes PostgreSQL privés TEST V5
 
+Actualisation du 10 octobre — nouvelle émission durable livrée localement sous capacité privée TEST : voir [US-FINANCIAL-TEST-INVOICING-V5-20261010.md](US-FINANCIAL-TEST-INVOICING-V5-20261010.md), implémentation `41df1a7`, preuve `docs/evidence/us-financial-invoicing-v5-20261010.json`. La régression finale passe 5 144/5 144 tests dans 152 fichiers ; types, lint, marque et build passent. Le texte ci-dessous conserve le relevé ou plan historique. Aucun hébergement, fournisseur réel, UI ou natif modifié par ce lot.
+
 10 octobre 2026. **Livraison locale privée TEST validée.** Base `416a917`, implémentation `05cd853`. Le livre financier unique poursuit la continuité fournisseurs/commerciale ; aucune donnée, migration ou capacité hébergée n'est modifiée. Preuve : `docs/evidence/us-financial-accounting-v5-20261010.json`.
 
 ## 1. Modifications
