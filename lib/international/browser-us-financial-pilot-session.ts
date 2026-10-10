@@ -17,6 +17,15 @@ import { validateUsFinancialPilotAccountingRequest, validateUsFinancialPilotAcco
 import { validateUsFinancialPilotAccountingContext, validateUsFinancialPilotJournalDetail, validateUsFinancialPilotPeriodDetail, financialPilotJournalLinesCursorOffset, type UsFinancialPilotAccountingContext, type UsFinancialPilotJournalDetail, type UsFinancialPilotPeriodDetail } from './us-financial-pilot-accounting-projection';
 import { canonicalErpJson } from './erp-contract';
 import type { CompanyLanguage } from './types';
+import { validateUsFinancialPilotSellerHead, validateUsFinancialPilotSellerRead, validateUsFinancialPilotSellerRequest, validateUsFinancialPilotSellerReceipt, usFinancialPilotSellerCommandHash, type UsFinancialPilotSellerHead, type UsFinancialPilotSellerRead, type UsFinancialPilotSellerCommand, type UsFinancialPilotSellerRequest, type UsFinancialPilotSellerReceipt } from './us-financial-pilot-seller';
+import { buildSellerReview, type SellerReview } from './browser-us-financial-pilot-seller-input';
+
+export interface BrowserUsFinancialPilotSellerState {
+  readonly head: UsFinancialPilotSellerHead | null; readonly read: UsFinancialPilotSellerRead | null;
+  readonly refreshing: boolean; readonly requiresRefresh: boolean;
+  readonly pendingReview: SellerReview | null; readonly lastReceipt: UsFinancialPilotSellerReceipt | null;
+  readonly error: BrowserUsFinancialPilotError | null;
+}
 import { validateUsFinancialPilotBankHead, validateUsFinancialPilotBankReceipt, type UsFinancialPilotBankHead, type UsFinancialPilotBankRequest, type UsFinancialPilotBankCommand, type UsFinancialPilotBankReceipt } from './us-financial-pilot-bank';
 import { validateUsFinancialPilotBankQuery, validateUsFinancialPilotBankListQuery, validateUsFinancialPilotBankDetailQuery, validateUsFinancialPilotBankMovementQuery, validateUsFinancialPilotBankContext, validateUsFinancialPilotBankStatementsPage, validateUsFinancialPilotBankStatementDetail, validateUsFinancialPilotBankMovementsPage, type UsFinancialPilotBankQuery, type UsFinancialPilotBankListQuery, type UsFinancialPilotBankDetailQuery, type UsFinancialPilotBankMovementQuery, type UsFinancialPilotBankContext, type UsFinancialPilotBankStatementsPage, type UsFinancialPilotBankStatementDetail, type UsFinancialPilotBankMovementsPage } from './us-financial-pilot-bank-projection';
 import { BankInputError, buildBankImportReview, buildBankCommandReview, validateUsFinancialPilotBankExportSelector, browserUsFinancialPilotBankExportUrl, US_FINANCIAL_PILOT_BANK_EXPORT_HEADERS as bankExportHeaders, US_FINANCIAL_PILOT_BANK_EXPORT_MAX_BYTES, US_FINANCIAL_PILOT_BANK_EXPORT_TIMEOUT_MS, type BankImportDraft, type BankReview, type BankDetailEvidence, type BankMovementEvidence } from './browser-us-financial-pilot-bank-input';
@@ -50,8 +59,9 @@ export interface BrowserUsFinancialPilotState {
   readonly status: 'idle' | 'loading' | 'ready' | 'denied' | 'stopped';
   readonly snapshot: UsFinancialPilotOverview | null;
   readonly refreshing: boolean; readonly writing: boolean; readonly pending: boolean; readonly requiresRefresh: boolean;
-  readonly pendingKind: 'payment' | 'commercial' | 'invoice_prepare' | 'invoice_issue' | 'purchasing' | 'accounting' | 'bank' | null;
+  readonly pendingKind: 'payment' | 'commercial' | 'invoice_prepare' | 'invoice_issue' | 'purchasing' | 'accounting' | 'bank' | 'seller' | null;
   readonly bank: BrowserUsFinancialPilotBankState;
+  readonly seller?: BrowserUsFinancialPilotSellerState;
   readonly invoiceReview: UsFinancialPilotInvoicePreview | null;
   readonly error: BrowserUsFinancialPilotError | null;
 }
@@ -63,6 +73,7 @@ export interface BrowserUsFinancialPilotOptions {
   readonly organizationId: string; readonly expectedUserId: string;
   readonly fetch?: typeof globalThis.fetch; readonly newId?: () => string;
   readonly environment?: BrowserUsFinancialPilotEnvironment;
+  readonly sellerInstalled?: boolean; readonly sellerWriteEnabled?: boolean;
 }
 export interface BrowserUsFinancialPilotSession {
   getState(this: void): BrowserUsFinancialPilotState;
@@ -97,6 +108,10 @@ export interface BrowserUsFinancialPilotSession {
   clearInvoiceReview(this: void): void;
   retry(this: void): Promise<BrowserUsFinancialPilotOperationReceipt>;
   hasPending(this: void): boolean;
+  readSeller(this: void): Promise<UsFinancialPilotSellerRead>;
+  reviewSeller(this: void, source: UsFinancialPilotSellerRead, command: UsFinancialPilotSellerCommand): SellerReview;
+  submitSeller(this: void, review: SellerReview, approved: boolean): Promise<UsFinancialPilotSellerReceipt>;
+  retrySeller(this: void): Promise<UsFinancialPilotSellerReceipt>;
   setBankActive(this: void, active: boolean): void;
   refreshBank(this: void): Promise<UsFinancialPilotBankHead | null>;
   readBankContext(this: void, query?: UsFinancialPilotBankQuery): Promise<UsFinancialPilotBankContext>;
@@ -125,6 +140,7 @@ const rejectedCommercial: Readonly<Record<string, readonly number[]>> = {
 };
 for (const code of Object.keys(rejectedCommercial)) publicErrors.add(code);
 publicErrors.add('customer_not_found');
+for (const code of ['seller_read_required','seller_review_changed','seller_revision_conflict','seller_limit_reached','seller_clock_conflict','seller_writes_disabled','seller_idempotency_conflict','financial_pilot_seller_required','invalid_financial_seller_data']) publicErrors.add(code);
 const rejectedInvoice: Readonly<Record<string, readonly number[]>> = {
   // These codes are structurally before the issue executor. Context, source,
   // period and provider errors can also arise after append during postflight.
@@ -170,18 +186,24 @@ function browserEnvironment(): BrowserUsFinancialPilotEnvironment {
  */
 export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancialPilotOptions): BrowserUsFinancialPilotSession {
   const { organizationId, expectedUserId } = options;
+  const sellerInstalled = options.sellerInstalled === true, sellerWriteEnabled = sellerInstalled && options.sellerWriteEnabled === true;
   if (typeof organizationId !== 'string' || !uuid.test(organizationId) || !text(expectedUserId, 256)) return fail('invalid_request');
   const fetcher = options.fetch ?? globalThis.fetch.bind(globalThis), newId = options.newId ?? (() => globalThis.crypto.randomUUID());
   const environment = options.environment ?? browserEnvironment(), base = `/api/international/workspaces/${encodeURIComponent(organizationId)}/financial-pilot`;
   const listeners = new Set<() => void>(), controllers = new Set<AbortController>();
   const emptyBank = (): BrowserUsFinancialPilotBankState => ({ active: false, head: null, refreshing: false, requiresRefresh: true, pendingReview: null, lastReceipt: null, error: null });
-  let state: BrowserUsFinancialPilotState = frozen({ status: 'idle', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: false, error: null, bank: emptyBank() });
+  const emptySeller = (): BrowserUsFinancialPilotSellerState => ({ head: null, read: null, refreshing: false, requiresRefresh: true, pendingReview: null, lastReceipt: null, error: null });
+  let state: BrowserUsFinancialPilotState = frozen({ status: 'idle', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: false, error: null, bank: emptyBank(), ...(sellerInstalled ? { seller: emptySeller() } : {}) });
   let disposed = false, running = false, generation = 0, mutation = 0, denied = false, stopping = false;
   let timer: ReturnType<typeof setTimeout> | undefined, unsubscribe: (() => void) | undefined;
   let snapshotFlight: Promise<UsFinancialPilotOverview> | null = null, refreshFlight: Promise<UsFinancialPilotOverview | null> | null = null;
   let pending: Readonly<{ kind: 'payment'; body: string; request: UsFinancialPilotPaymentRequest }> | Readonly<{ kind: 'commercial'; body: string; request: UsFinancialPilotCommercialRequest }> | Readonly<{ kind: 'invoice_prepare' | 'invoice_issue'; body: string; request: UsFinancialPilotInvoiceRequest }> | Readonly<{ kind: 'purchasing'; body: string; request: UsFinancialPilotPurchasingRequest }> | Readonly<{ kind: 'accounting'; body: string; request: UsFinancialPilotAccountingRequest }> | Readonly<{ kind: 'bank'; body: string; request: UsFinancialPilotBankRequest; review: BankReview }> | null = null;
+  let sellerPending: Readonly<{ body: string; request: UsFinancialPilotSellerRequest; review: SellerReview }> | null = null;
   let prepared: Readonly<{ request: UsFinancialPilotInvoiceRequest; preview: UsFinancialPilotInvoicePreview }> | null = null;
-  let bankEpoch = 0, floorF = 0, floorB = 0;
+  let bankEpoch = 0, floorF = 0, floorB = 0, floorS = 0, sellerEpoch = 0;
+  let sellerRefreshFlight: Promise<UsFinancialPilotSellerHead | null> | null = null;
+  type SellerStamp = Readonly<{ epoch: number; generation: number; mutation: number; revision: number; sellerRevision: number }>;
+  let sellerReads = new WeakMap<UsFinancialPilotSellerRead, SellerStamp>(), sellerReviews = new WeakMap<SellerReview, SellerStamp>();
   let bankRefreshFlight: Promise<UsFinancialPilotBankHead | null> | null = null;
   let bankContext: UsFinancialPilotBankContext | null = null;
   type BankPageStamp = Readonly<{ epoch: number; generation: number; mutation: number; kind: 'detail'; query: UsFinancialPilotBankDetailQuery } | { epoch: number; generation: number; mutation: number; kind: 'movements'; query: UsFinancialPilotBankMovementQuery }>;
@@ -192,13 +214,14 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   let bankExportFlight = false, bankExportResult: BrowserUsFinancialPilotBankExportResult | null = null;
   const bankUrls = new Set<string>(), bankUrlTimers = new Set<ReturnType<typeof setTimeout>>(), bankExportCancels = new Set<() => void>();
   const publish = (patch: Partial<BrowserUsFinancialPilotState>) => { state = frozen({ ...state, ...patch }); for (const listener of listeners) { try { listener(); } catch { /* A view cannot change admission or transaction outcome. */ } } };
+  const publishSeller = (patch: Partial<BrowserUsFinancialPilotSellerState>) => { if (state.seller) publish({ seller: { ...state.seller, ...patch } }); };
   const publishBank = (patch: Partial<BrowserUsFinancialPilotBankState>) => publish({ bank: { ...state.bank, ...patch } });
   function invalidateCustomerEdits(): void {
     customerEpoch++; customerPages = new WeakMap(); customerReviews = new WeakMap(); activeCustomerReview = null;
   }
   function customerReady(at?: number): CustomerStamp {
     alive();
-    if (pending || state.writing) return fail('pending_operation', 409);
+    if (pending || sellerPending || state.writing) return fail('pending_operation', 409);
     if (state.requiresRefresh || !state.snapshot) return fail('read_required', 409);
     const revision = currentRevision(at);
     if (revision !== state.snapshot.revision || revision < floorF) return fail('financial_snapshot_changed', 409);
@@ -221,7 +244,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   function observeFinancial(at: number): void {
     const epoch = generation, changed = mutation;
     if (at < floorF) return fail('stale_read', 0);
-    if (at > floorF) invalidateCustomerEdits();
+    if (at > floorF) { invalidateCustomerEdits(); invalidateSeller(); }
     if (!state.snapshot || state.snapshot.revision !== at) publish({ requiresRefresh: true });
     alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
     if (at > floorF) { floorF = at; invalidateBank(); }
@@ -232,10 +255,11 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     denied = true; running = false; generation++; mutation++; pending = null; prepared = null;
     invalidateCustomerEdits();
     invalidateBank(false); floorF = 0; floorB = 0; bankRefreshFlight = null;
+    sellerPending = null; invalidateSeller(false); floorS = 0; sellerRefreshFlight = null;
     if (timer !== undefined) clearTimeout(timer); timer = undefined; unsubscribe?.(); unsubscribe = undefined;
     for (const controller of controllers) controller.abort();
     const error = new BrowserUsFinancialPilotError(status === 401 ? 'unauthorized' : status === 402 ? 'management_entitlement_required' : 'forbidden', status, 'unauthorized');
-    publish({ status: 'denied', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error, bank: { ...emptyBank(), error } }); throw error;
+    publish({ status: 'denied', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error, bank: { ...emptyBank(), error }, ...(sellerInstalled ? { seller: { ...emptySeller(), error } } : {}) }); throw error;
   }
   const headers = () => ({ Accept: 'application/json', 'X-Zentra-Financial-Pilot': '1', 'X-Zentra-Expected-User': expectedUserId });
   async function response(path: string, init: RequestInit, write = false): Promise<unknown> {
@@ -265,7 +289,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
         const customerEditWrite = pending?.kind === 'commercial' && pending.request.command.type === 'update_customer';
         const definitive = customerEditWrite || pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank' ? false : pending?.kind === 'commercial' ? rejectedCommercial[code]?.includes(result.status) : pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' ? rejectedInvoice[code]?.includes(result.status) : rejectedPayments[code] === result.status;
         const invoiceWrite = customerEditWrite || pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' || pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank';
-        if (write && (!invoiceWrite && result.status === 409 && rejectedConflicts.has(code) || definitive)) { pending = null; publish({ pending: false, pendingKind: null, requiresRefresh: true }); return fail(code, result.status); }
+        if (write && !sellerPending && (!invoiceWrite && result.status === 409 && rejectedConflicts.has(code) || definitive)) { pending = null; publish({ pending: false, pendingKind: null, requiresRefresh: true }); return fail(code, result.status); }
         return fail(code, result.status, write ? 'uncertain' : 'rejected');
       }
       return body;
@@ -293,7 +317,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     const flight = (async () => {
       try {
         const body = await response(`/snapshot${expectedRevision === undefined ? '' : `?revision=${expectedRevision}`}`, { method: 'GET', headers: headers() }); alive(epoch);
-        if (mutation !== changed || state.writing || pending) return fail('stale_read', 0);
+        if (mutation !== changed || state.writing || pending || sellerPending) return fail('stale_read', 0);
         const value = validate(() => validateUsFinancialPilotOverview(body, organizationId, expectedRevision));
         if (state.snapshot && value.revision < state.snapshot.revision) return fail('invalid_response', 200);
         observeFinancial(value.revision);
@@ -305,7 +329,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     snapshotFlight = flight; void flight.finally(() => { if (snapshotFlight === flight) snapshotFlight = null; }).catch(() => {}); return flight;
   }
   async function refresh(preserveBankSnapshot = false): Promise<UsFinancialPilotOverview | null> {
-    alive(); if (refreshFlight) return refreshFlight;
+    alive(); if (sellerInstalled) { await refreshSeller(); return state.snapshot; } if (refreshFlight) return refreshFlight;
     const epoch = generation, changed = mutation;
     const flight = (async () => {
       try {
@@ -316,7 +340,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
         observeFinancial(head.revision);
         alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
         // Admission is still checked while an uncertain write remains pending.
-        if (pending || state.writing) return state.snapshot;
+        if (pending || sellerPending || state.writing) return state.snapshot;
         if (state.snapshot && head.revision === state.snapshot.revision && (!state.requiresRefresh || preserveBankSnapshot)) { if (preserveBankSnapshot) publish({ requiresRefresh: false }); return state.snapshot; }
         return await snapshotLoad(head.revision);
       } catch (caught) { notifyError(caught); throw caught; }
@@ -335,6 +359,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     const epoch = generation; void poll().catch(() => {}).finally(() => { if (generation === epoch) schedule(); });
   }
   async function poll(): Promise<unknown> {
+    if (sellerInstalled) return refreshSeller();
     if (!state.bank.active && pending?.kind !== 'bank') return refresh();
     try { return await refreshBank(); }
     catch (error) {
@@ -369,7 +394,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   /** F and B are observed together. Floors reject stale reads; they are never
    * combined to invent a head that the server did not return. */
   function refreshBank(): Promise<UsFinancialPilotBankHead | null> {
-    alive(); if (bankRefreshFlight) return bankRefreshFlight;
+    alive(); if (sellerInstalled) { return refreshSeller().then(() => state.bank.head); } if (bankRefreshFlight) return bankRefreshFlight;
     const epoch = generation, changed = mutation, initialBankEpoch = bankEpoch;
     publishBank({ refreshing: true });
     const flight = (async () => {
@@ -428,7 +453,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   function bankParams(query: UsFinancialPilotBankQuery): URLSearchParams { return new URLSearchParams({ revision: String(query.revision), bankRevision: String(query.bankRevision) }); }
   function readyBank(): UsFinancialPilotBankHead {
     bankPair();
-    if (pending || state.writing) return fail('pending_operation', 409);
+    if (pending || sellerPending || state.writing) return fail('pending_operation', 409);
     if (state.requiresRefresh || !bankContext) return fail('bank_read_required', 409);
     return state.bank.head!;
   }
@@ -513,9 +538,100 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     catch { URL.revokeObjectURL(url); bankUrls.delete(url); return fail('bank_export_unavailable', 0); }
     const timer = setTimeout(() => { URL.revokeObjectURL(url); bankUrls.delete(url); bankUrlTimers.delete(timer); }, 1000); bankUrlTimers.add(timer);
   }
+  function invalidateSeller(emit = true, requiresRefresh = true): void {
+    if (!sellerInstalled) return;
+    sellerEpoch++; sellerReads = new WeakMap(); sellerReviews = new WeakMap();
+    if (emit) publishSeller({ read: null, requiresRefresh, pendingReview: sellerPending?.review ?? null });
+  }
+  function sellerReady(): SellerStamp {
+    alive(); if (!sellerInstalled || !state.seller?.head || state.seller.requiresRefresh) return fail('seller_read_required', 409);
+    if (pending || sellerPending || state.writing) return fail('pending_operation', 409);
+    const head = state.seller.head;
+    if (state.requiresRefresh || state.snapshot?.revision !== head.revision || head.revision < floorF || head.sellerRevision < floorS) return fail('seller_read_required', 409);
+    return { epoch: sellerEpoch, generation, mutation, revision: head.revision, sellerRevision: head.sellerRevision };
+  }
+  function sellerFresh(stamp: SellerStamp): void {
+    alive(stamp.generation);
+    if (stamp.epoch !== sellerEpoch || stamp.mutation !== mutation || state.seller?.head?.revision !== stamp.revision || state.seller.head.sellerRevision !== stamp.sellerRevision || state.seller.requiresRefresh || state.requiresRefresh || pending || sellerPending || state.writing) return fail('seller_review_changed', 409);
+  }
+  function refreshSeller(): Promise<UsFinancialPilotSellerHead | null> {
+    alive(); if (!sellerInstalled) return Promise.reject(new BrowserUsFinancialPilotError('financial_pilot_unavailable', 503, 'rejected'));
+    if (sellerRefreshFlight) return sellerRefreshFlight;
+    const epoch = generation, changed = mutation;
+    // Install the shared flight before notifying observers, which may ask for
+    // the same refresh synchronously from their subscription callback.
+    const flight = Promise.resolve().then(async () => {
+      alive(epoch); publishSeller({ refreshing: true }); alive(epoch);
+      try {
+        const body = await response('/seller?view=head', { method: 'GET', headers: headers() }); alive(epoch);
+        if (changed !== mutation) return fail('stale_read', 0);
+        const head = validate(() => validateUsFinancialPilotSellerHead(body, organizationId));
+        if (head.revision < floorF || head.bankRevision < floorB || head.sellerRevision < floorS) return fail('stale_read', 0);
+        const financialChanged = head.revision > floorF, sellerChanged = head.sellerRevision > floorS;
+        if (financialChanged) invalidateCustomerEdits();
+        if (financialChanged || sellerChanged) invalidateSeller();
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+        if (sellerChanged && !pending) { prepared = null; publish({ invoiceReview: null }); }
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+        if (!state.bank.head || state.bank.head.revision !== head.revision || state.bank.head.bankRevision !== head.bankRevision) invalidateBank();
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+        floorF = head.revision; floorB = head.bankRevision; floorS = head.sellerRevision;
+        const bankHead = validateUsFinancialPilotBankHead({ consumer: 'financial-pilot', schemaVersion: 1, organizationId, revision: head.revision, bankRevision: head.bankRevision }, organizationId);
+        publishBank({ head: bankHead, requiresRefresh: false, error: null });
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+        publishSeller({ head, requiresRefresh: false, error: null });
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+        if (!pending && !sellerPending && !state.writing) {
+          if (state.snapshot?.revision === head.revision) publish({ requiresRefresh: false });
+          else await snapshotLoad(head.revision);
+        }
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0); return head;
+      } catch (caught) {
+        if (!denied && !disposed && generation === epoch && state.status !== 'stopped' && !(caught instanceof BrowserUsFinancialPilotError && caught.code === 'stale_read')) {
+          publishSeller({ requiresRefresh: true, error: caught instanceof BrowserUsFinancialPilotError ? caught : new BrowserUsFinancialPilotError('service_unavailable', 503, 'rejected') });
+        }
+        throw caught;
+      } finally { if (generation === epoch) publishSeller({ refreshing: false }); }
+    });
+    sellerRefreshFlight = flight; void flight.finally(() => { if (sellerRefreshFlight === flight) sellerRefreshFlight = null; }).catch(() => {}); return flight;
+  }
+  async function sendSeller(): Promise<UsFinancialPilotSellerReceipt> {
+    alive(); if (!sellerPending) return fail('no_pending_operation', 409);
+    if (pending || state.writing) return fail('pending_operation', 409);
+    const original = sellerPending, epoch = generation;
+    mutation++; invalidateCustomerEdits();
+    // Publish ownership before callbacks; no generic definitive rejection may
+    // clear this exact intention or infer a current F from its historical receipt.
+    publish({ writing: true, pending: true, pendingKind: 'seller', error: null }); alive(epoch);
+    invalidateBank(); alive(epoch); invalidateSeller(); alive(epoch);
+    prepared = null; publish({ invoiceReview: null }); alive(epoch);
+    try {
+      const body = await response('/seller', { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' }, body: original.body }, true); alive(epoch);
+      let receipt: UsFinancialPilotSellerReceipt;
+      try {
+        receipt = await validateUsFinancialPilotSellerReceipt(body, organizationId); alive(epoch);
+        const hash = await usFinancialPilotSellerCommandHash(organizationId, expectedUserId, original.request); alive(epoch);
+        if (sellerPending !== original || receipt.requestId !== original.request.requestId || receipt.actorId !== expectedUserId || receipt.sourceRevision !== original.request.expectedRevision || receipt.sellerRevision !== original.request.expectedSellerRevision + 1 || receipt.commandHash !== hash) return fail('invalid_response', 200, 'uncertain');
+      } catch (caught) { if (caught instanceof BrowserUsFinancialPilotError) throw caught; return fail('invalid_response', 200, 'uncertain'); }
+      sellerPending = null;
+      publishSeller({ lastReceipt: receipt, pendingReview: null, read: null, requiresRefresh: true, error: null }); alive(epoch);
+      publish({ pending: false, pendingKind: null, error: null }); alive(epoch); return receipt;
+    } catch (caught) {
+      if (!denied && !disposed && generation === epoch) publishSeller({ error: caught instanceof BrowserUsFinancialPilotError ? caught : new BrowserUsFinancialPilotError('service_unavailable', 503, 'uncertain') });
+      notifyError(caught); throw caught;
+    } finally {
+      if (generation === epoch) {
+        mutation++; publish({ writing: false, pending: sellerPending !== null, pendingKind: sellerPending ? 'seller' : null });
+        if (generation === epoch && !sellerPending) void Promise.resolve(sellerRefreshFlight).catch(() => {}).then(() => { if (generation === epoch) return refreshSeller(); }).catch(() => {});
+      }
+    }
+  }
   async function send(): Promise<BrowserUsFinancialPilotOperationReceipt | BrowserUsFinancialPilotInvoiceResult | UsFinancialPilotPurchasingReceipt | UsFinancialPilotAccountingReceipt | UsFinancialPilotBankReceipt> {
-    alive(); if (!pending) return fail('no_pending_operation', 409); if (state.writing) return fail('pending_operation', 409);
-    const original = pending, epoch = generation; mutation++; invalidateCustomerEdits(); publish({ writing: true, pending: true, pendingKind: original.kind, requiresRefresh: true, error: null }); invalidateBank();
+    alive(); if (!pending) return fail('no_pending_operation', 409); if (sellerPending || state.writing) return fail('pending_operation', 409);
+    const original = pending, epoch = generation; mutation++; invalidateCustomerEdits();
+    publish({ writing: true, pending: true, pendingKind: original.kind, requiresRefresh: true, error: null, ...(original.kind === 'invoice_prepare' ? { invoiceReview: null } : {}) }); alive(epoch);
+    invalidateSeller(true, original.kind !== 'invoice_prepare'); alive(epoch);
+    invalidateBank(); alive(epoch);
     try {
       const path = original.kind === 'bank' ? '/bank/operations' : original.kind === 'accounting' ? '/accounting/operations' : original.kind === 'purchasing' ? '/purchasing/operations' : original.kind === 'invoice_prepare' ? '/invoices/prepare' : original.kind === 'invoice_issue' ? '/invoices/issue' : original.kind === 'commercial' ? '/commercial/operations' : '/operations';
       const body = await response(path, { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' }, body: original.body }, true); alive(epoch);
@@ -540,9 +656,9 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       mutation++; if (generation === epoch) {
         publish({ writing: false, pending: pending !== null, pendingKind: pending?.kind ?? null });
         if (!pending && original.kind !== 'invoice_prepare') {
-          const previous = original.kind === 'bank' ? bankRefreshFlight : snapshotFlight;
+          const previous = sellerInstalled ? sellerRefreshFlight : original.kind === 'bank' ? bankRefreshFlight : snapshotFlight;
           void Promise.resolve(previous).catch(() => {}).then(async () => {
-            if (generation === epoch) { if (original.kind === 'bank') await refreshBank(); else await snapshotLoad(); }
+            if (generation === epoch) { if (sellerInstalled) await refreshSeller(); else if (original.kind === 'bank') await refreshBank(); else await snapshotLoad(); }
           }).catch(() => {});
         }
       }
@@ -553,18 +669,43 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     running = false; generation++; mutation++; if (timer !== undefined) clearTimeout(timer); timer = undefined;
     unsubscribe?.(); unsubscribe = undefined; for (const controller of controllers) controller.abort();
     snapshotFlight = null; refreshFlight = null; pending = null; prepared = null;
+    sellerPending = null; invalidateSeller(false); floorS = 0; sellerRefreshFlight = null;
     invalidateCustomerEdits();
     invalidateBank(false); bankRefreshFlight = null; floorF = 0; floorB = 0;
-    publish({ status: 'stopped', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error: null, bank: emptyBank() });
+    publish({ status: 'stopped', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error: null, bank: emptyBank(), ...(sellerInstalled ? { seller: emptySeller() } : {}) });
     stopping = false;
   }
   return Object.freeze({
     getState: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    start() { if (disposed || denied || stopping) return fail('session_disposed', 0, 'unauthorized'); if (running) return; running = true; if (state.status === 'stopped') publish({ status: 'idle' }); unsubscribe = environment.subscribe(wake); const epoch = generation; if (environment.isVisible() && environment.isOnline()) void (state.bank.active ? poll() : snapshotLoad()).catch(() => {}).finally(() => { if (generation === epoch) schedule(); }); },
+    start() { if (disposed || denied || stopping) return fail('session_disposed', 0, 'unauthorized'); if (running) return; running = true; if (state.status === 'stopped') publish({ status: 'idle' }); unsubscribe = environment.subscribe(wake); const epoch = generation; if (environment.isVisible() && environment.isOnline()) void (sellerInstalled || state.bank.active ? poll() : snapshotLoad()).catch(() => {}).finally(() => { if (generation === epoch) schedule(); }); },
     stop,
     dispose() { if (disposed) return; stop(); disposed = true; listeners.clear(); },
-    load: () => snapshotLoad(), refresh: () => refresh(),
+    load: () => sellerInstalled ? refreshSeller().then(() => state.snapshot ?? fail('read_required', 409)) : snapshotLoad(), refresh: () => refresh(),
+    async readSeller() {
+      alive(); if (!sellerInstalled) return fail('financial_pilot_unavailable', 503);
+      if (pending || sellerPending || state.writing) return fail('pending_operation', 409);
+      if (!state.seller?.head || state.seller.requiresRefresh) await refreshSeller();
+      const stamp = sellerReady(), query = new URLSearchParams({ revision: String(stamp.revision), sellerRevision: String(stamp.sellerRevision) });
+      const body = await response(`/seller?${query}`, { method: 'GET', headers: headers() }); sellerFresh(stamp);
+      const read = validate(() => validateUsFinancialPilotSellerRead(body, organizationId));
+      if (read.head.revision !== stamp.revision || read.head.sellerRevision !== stamp.sellerRevision) return fail('seller_review_changed', 409);
+      sellerReads.set(read, stamp); publishSeller({ read, error: null }); sellerFresh(stamp); return read;
+    },
+    reviewSeller(source: UsFinancialPilotSellerRead, command: UsFinancialPilotSellerCommand) {
+      const stamp = sellerReady(), owned = source && sellerReads.get(source);
+      if (!owned) return fail('seller_review_required', 409); sellerFresh(owned);
+      const review = buildSellerReview(source, command);
+      sellerReviews.set(review, stamp); publishSeller({ pendingReview: review, error: null }); sellerFresh(stamp); return review;
+    },
+    submitSeller(review: SellerReview, approved: boolean) {
+      if (!sellerWriteEnabled || approved !== true) return Promise.reject(new BrowserUsFinancialPilotError('seller_approval_required', 409, 'rejected'));
+      const stamp = review && sellerReviews.get(review); if (!stamp) return fail('seller_review_required', 409); sellerFresh(stamp);
+      if (!review.changed) return fail('seller_no_changes', 422);
+      const request = validateUsFinancialPilotSellerRequest({ consumer: 'financial-pilot', schemaVersion: 1, requestId: newId(), expectedRevision: stamp.revision, expectedSellerRevision: stamp.sellerRevision, command: review.command });
+      sellerPending = frozen({ body: JSON.stringify(request), request, review }); return sendSeller();
+    },
+    retrySeller() { alive(); if (!sellerPending) return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation', 409, 'rejected')); return sendSeller(); },
     setBankActive(active: boolean) {
       alive(); if (typeof active !== 'boolean') return fail('bank_input_invalid');
       if (active === state.bank.active) return;
@@ -611,7 +752,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       return ownReview(bankInput(() => buildBankCommandReview({ scope: { organizationId, requestId: newId(), head, expected: { revision: head.revision, bankRevision: head.bankRevision, statementRevision: statement.value.statement.statementRevision } }, context: bankContext!, command, evidence: { statement, linePages, movementPages } })));
     },
     submitBank(review: BankReview, approved: boolean) {
-      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected'));
+      alive(); if (pending || sellerPending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected'));
       const stamp = review && typeof review === 'object' ? bankReviews.get(review) : undefined;
       if (approved !== true || !stamp || review !== state.bank.pendingReview || stamp.epoch !== bankEpoch || stamp.generation !== generation || stamp.mutation !== mutation) return Promise.reject(new BrowserUsFinancialPilotError('bank_review_changed', 409, 'rejected'));
       readyBank();
@@ -694,14 +835,14 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       return detail(`/reports?${params}`, at, value => { const result = validateUsFinancialPilotReports(value, organizationId, at); if (result.from !== saved.from || result.to !== saved.to || result.asOf !== saved.asOf || (result.generalLedger?.account.accountId ?? null) !== (saved.accountId ?? null)) return fail('invalid_response', 200); pageBounds(result.currentReceivables.invoices, 0); if (result.generalLedger) pageBounds(result.generalLedger.movements, financialPilotCursorOffset(saved.cursor, 'general_ledger', at, `${saved.accountId}|${saved.from}|${saved.to}`)); return result; });
     },
     recordPayment(command: BrowserUsFinancialPilotPayment, expectedRevision?: number) {
-      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
+      alive(); if (pending || sellerPending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
       const at = currentRevision(expectedRevision); if (at !== state.snapshot.revision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed', 409, 'rejected'));
       let request: UsFinancialPilotPaymentRequest;
       try { request = frozen(validateUsFinancialPilotPaymentRequest({ consumer: 'financial-pilot', schemaVersion: 1, requestId: newId(), expectedRevision: at, command })); } catch { return fail('invalid_financial_pilot_request'); }
       pending = frozen({ kind: 'payment', body: JSON.stringify(request), request }); return send() as Promise<BrowserUsFinancialPilotReceipt>;
     },
     commercial(command: UsFinancialPilotCommercialCommand, expectedRevision?: number) {
-      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
+      alive(); if (pending || sellerPending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
       const at = currentRevision(expectedRevision); if (at !== state.snapshot.revision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed', 409, 'rejected'));
       let request: UsFinancialPilotCommercialRequest;
       try { request = frozen(validateUsFinancialPilotCommercialRequest({ consumer: 'financial-pilot', schemaVersion: 1, requestId: newId(), expectedRevision: at, command })); } catch { return fail('invalid_financial_pilot_request'); }
@@ -709,14 +850,14 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       pending = frozen({ kind: 'commercial', body: JSON.stringify(request), request }); return send() as Promise<UsFinancialPilotCommercialReceipt>;
     },
     purchasing(command: UsFinancialPilotPurchasingCommand, expectedRevision?: number) {
-      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation',409,'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required',409,'rejected'));
+      alive(); if (pending || sellerPending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation',409,'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required',409,'rejected'));
       const at = currentRevision(expectedRevision); if (at !== state.snapshot.revision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed',409,'rejected'));
       let request: UsFinancialPilotPurchasingRequest; try { request = frozen(validateUsFinancialPilotPurchasingRequest({ consumer:'financial-pilot',schemaVersion:1,requestId:newId(),expectedRevision:at,command })); } catch { return fail('invalid_financial_pilot_request'); }
       pending = frozen({ kind:'purchasing',body:JSON.stringify(request),request }); return send() as Promise<UsFinancialPilotPurchasingReceipt>;
     },
     retryPurchasing() { if (pending?.kind !== 'purchasing') return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation',409,'rejected')); return send() as Promise<UsFinancialPilotPurchasingReceipt>; },
     accounting(command: UsFinancialPilotAccountingCommand, expectedRevision?: number) {
-      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected'));
+      alive(); if (pending || sellerPending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected'));
       if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
       const at = currentRevision(expectedRevision); if (at !== state.snapshot.revision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed', 409, 'rejected'));
       let request: UsFinancialPilotAccountingRequest;
@@ -733,21 +874,25 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       return validate(() => { const value = validateUsFinancialPilotTaxCatalogue(body, organizationId); if (saved.code !== undefined && (value.taxCodes.length !== 1 || value.taxCodes[0].id !== saved.code || value.hasMore || value.nextCursor !== null)) return fail('invalid_response', 200); return value; });
     },
     prepareInvoice(command: UsFinancialPilotInvoiceRequest['command'], choices: UsFinancialPilotInvoiceChoices, expectedRevision?: number) {
-      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
+      alive(); if (pending || sellerPending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
       const at = currentRevision(expectedRevision); if (at !== state.snapshot.revision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed', 409, 'rejected'));
+      if (sellerInstalled && (!state.seller?.head || state.seller.requiresRefresh)) return fail('seller_read_required', 409);
       let request: UsFinancialPilotInvoiceRequest;
       try { request = frozen(validateUsFinancialPilotInvoiceRequest({ consumer: 'financial-pilot', schemaVersion: 1, requestId: newId(), expectedRevision: at, command, choices })); } catch { return fail('invalid_financial_pilot_request'); }
-      prepared = null; publish({ invoiceReview: null }); pending = frozen({ kind: 'invoice_prepare', body: JSON.stringify(request), request }); return send() as Promise<UsFinancialPilotInvoicePreview>;
+      // send publishes this exact pending and its ownership together with the
+      // cleared preview, before any synchronous subscriber can start or stop it.
+      prepared = null; pending = frozen({ kind: 'invoice_prepare', body: JSON.stringify(request), request }); return send() as Promise<UsFinancialPilotInvoicePreview>;
     },
     issueInvoice() {
-      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (!prepared) return Promise.reject(new BrowserUsFinancialPilotError('tax_review_required', 409, 'rejected'));
+      alive(); if (pending || sellerPending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); if (!prepared) return Promise.reject(new BrowserUsFinancialPilotError('tax_review_required', 409, 'rejected'));
+      if (sellerInstalled && (!state.seller?.head || state.seller.requiresRefresh)) return fail('seller_review_changed', 409);
       if (prepared.preview.financialStatus === 'issued') return Promise.reject(new BrowserUsFinancialPilotError('issued_estimate_locked', 409, 'rejected'));
       if (state.requiresRefresh || !state.snapshot || state.snapshot.revision !== prepared.request.expectedRevision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed', 409, 'rejected'));
       if (Date.parse(prepared.preview.expiresAt) <= Date.now()) return Promise.reject(new BrowserUsFinancialPilotError('tax_review_expired', 409, 'rejected'));
       pending = frozen({ kind: 'invoice_issue', request: prepared.request, body: JSON.stringify({ request: prepared.request, reviewId: prepared.preview.reviewId }) }); return send() as Promise<UsFinancialPilotInvoiceReceipt>;
     },
     retryInvoice() { if (!pending || !['invoice_prepare', 'invoice_issue'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotInvoiceResult>; },
-    clearInvoiceReview() { alive(); if (pending || state.writing) return fail('pending_operation', 409); prepared = null; publish({ invoiceReview: null }); },
-    retry() { if (pending && ['invoice_prepare', 'invoice_issue', 'purchasing', 'accounting', 'bank'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotOperationReceipt>; }, hasPending: () => pending !== null,
+    clearInvoiceReview() { alive(); if (pending || sellerPending || state.writing) return fail('pending_operation', 409); prepared = null; publish({ invoiceReview: null }); },
+    retry() { if (pending && ['invoice_prepare', 'invoice_issue', 'purchasing', 'accounting', 'bank'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotOperationReceipt>; }, hasPending: () => pending !== null || sellerPending !== null,
   });
 }

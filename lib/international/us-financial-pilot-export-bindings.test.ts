@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountPublicError } from '../account-security';
+import { ErpError } from './erp-contract';
 import { UsAuthorityError } from './saas-authority';
 import type { FinancialAuthority } from './accounting/ledger';
 import type { UsFinancialPilotScope } from './us-financial-pilot-store';
 
-const f=vi.hoisted(()=>({env:{} as Record<string,string|undefined>,user:vi.fn(),access:vi.fn(),scope:vi.fn(),create:vi.fn(),country:vi.fn(),select:vi.fn(),rate:vi.fn(),fonts:vi.fn(),invoice:vi.fn(),report:vi.fn(),estimate:vi.fn(),factory:vi.fn(),rpc:vi.fn()}));
+const f=vi.hoisted(()=>({env:{} as Record<string,string|undefined>,user:vi.fn(),access:vi.fn(),scope:vi.fn(),create:vi.fn(),sellerCreate:vi.fn(),country:vi.fn(),select:vi.fn(),rate:vi.fn(),fonts:vi.fn(),invoice:vi.fn(),report:vi.fn(),estimate:vi.fn(),factory:vi.fn(),rpc:vi.fn()}));
 vi.mock('cloudflare:workers',()=>({env:f.env}));
 vi.mock('../../app/zentra-auth',()=>({getZentraUser:f.user}));
 vi.mock('./saas-authority-d1',()=>({requireUsWorkspaceAccess:f.access}));
 vi.mock('../supabase-server-runtime',()=>({supabaseServerClient:()=>({rpc:f.rpc,select:f.select})}));
-vi.mock('./us-financial-pilot-store',()=>({readUsFinancialPilotScope:f.scope,createSupabaseUsFinancialPilotStore:f.create,readUsFinancialPilotPromotionStatus:vi.fn()}));
+vi.mock('./us-financial-pilot-store',async importOriginal=>{const actual=await importOriginal<typeof import('./us-financial-pilot-store')>();return{captureUsFinancialPilotScope:actual.captureUsFinancialPilotScope,readUsFinancialPilotScope:f.scope,createSupabaseUsFinancialPilotStore:f.create,readUsFinancialPilotPromotionStatus:vi.fn()};});
+vi.mock('./us-financial-pilot-seller-store',()=>({createSupabaseUsFinancialPilotSellerStore:f.sellerCreate}));
 vi.mock('./workspace-service',()=>({getWorkspaceCountry:f.country}));
 vi.mock('../account',()=>({enforceAccountRateLimit:f.rate}));
 vi.mock('./export-fonts',()=>({getUsExportFonts:f.fonts}));
@@ -24,7 +26,7 @@ const org='10000000-0000-4000-8000-000000000001',userId='20000000-0000-4000-8000
 const required=['INTERNATIONAL_CORE_ENABLED','INTERNATIONAL_US_ERP_ENABLED','INTERNATIONAL_US_FINANCIAL_V5_INSTALLED','INTERNATIONAL_US_FINANCIAL_PILOT_ENABLED'] as const;
 function enable(){for(const name of required)f.env[name]='true';f.env.INTERNATIONAL_US_BILLING_ENVIRONMENT='TEST';}
 function request(headers:Record<string,string>={}){return new Request('https://zentra.test/export',{headers});}
-beforeEach(()=>{vi.clearAllMocks();for(const name of Object.keys(f.env))delete f.env[name];f.user.mockResolvedValue({userId,email:'synthetic-export@example.test'});f.access.mockResolvedValue({organizationId:org,userId,role:'owner'});});
+beforeEach(()=>{vi.clearAllMocks();f.sellerCreate.mockReset();for(const name of Object.keys(f.env))delete f.env[name];f.user.mockResolvedValue({userId,email:'synthetic-export@example.test'});f.access.mockResolvedValue({organizationId:org,userId,role:'owner'});});
 
 describe('financial pilot exports real bindings — synthetic Auth/D1/PG callbacks',()=>{
   it('defaults closed without provisioning any scope or rights',async()=>{expect(await deps.enabled()).toBe(false);expect(f.scope).not.toHaveBeenCalled();expect(f.create).not.toHaveBeenCalled();});
@@ -61,5 +63,33 @@ describe('financial pilot exports real bindings — synthetic Auth/D1/PG callbac
     f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration:{...raw.configuration,organizationId:org},updatedBy:userId,updatedAt:actor.timestamp});
     f.select.mockResolvedValue(kind==='absent'?[]:[{organization_id:kind==='foreign'?'other':org,revision:9,profile:{displayName:'Synthetic seller'},updated_by:userId,updated_at:kind==='malformed'?null:actor.timestamp}]);
     await expect(deps.quoteIdentity!(actor,admit)).rejects.toMatchObject({code:kind==='absent'?'financial_pilot_seller_required':'service_unavailable',status:kind==='absent'?409:503});expect(admit).toHaveBeenCalledTimes(4);expect(f.country).toHaveBeenCalledOnce();expect(f.rpc).not.toHaveBeenCalled();
+  });
+  it('selects the installed effective S reader under renewed full scope while new writes are paused',async()=>{
+    enable();f.env.ZENTRA_US_FINANCIAL_SELLER_TEST_INSTALLED='true';
+    const raw=await financialKernelFixture(),actor={...raw.actor,organizationId:org,userId},configuration={...raw.configuration,organizationId:org},admit=vi.fn(async()=>actor);
+    const scope:UsFinancialPilotScope={scope:{organizationId:org,actor,policy:raw.policy,grantVersion:3},optInVersion:5};
+    f.scope.mockResolvedValue(scope);f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration,updatedBy:userId,updatedAt:actor.timestamp});
+    const read=vi.fn(async()=>({head:{consumer:'financial-pilot',schemaVersion:1,organizationId:org,revision:7,bankRevision:2,sellerRevision:10},presentation:{origin:'financial-v5',baseSellerRevision:9,sellerRevision:10,changeCount:1,profile:{displayName:'Synthetic effective S10',contactEmail:'effective@example.test'},updatedBy:userId,updatedAt:actor.timestamp,changeSha256:'a'.repeat(64)}}));
+    f.sellerCreate.mockImplementation((_client:unknown,initial:UsFinancialPilotScope,fresh:()=>Promise<UsFinancialPilotScope>)=>({read:async()=>{expect(initial).toEqual(scope);expect(await fresh()).toEqual(scope);return read();}}));
+    expect(await deps.quoteIdentity!(actor,admit)).toEqual({organizationId:org,countryRevision:4,configuration,sellerRevision:10,seller:{displayName:'Synthetic effective S10',contactEmail:'effective@example.test'}});
+    expect(read).toHaveBeenCalledOnce();expect(f.sellerCreate).toHaveBeenCalledWith(expect.objectContaining({rpc:f.rpc}),scope,expect.any(Function));expect(f.scope).toHaveBeenNthCalledWith(1,expect.objectContaining({rpc:f.rpc}),actor,undefined);expect(f.scope).toHaveBeenNthCalledWith(2,expect.objectContaining({rpc:f.rpc}),actor,scope);expect(admit).toHaveBeenCalledTimes(8);expect(f.select).not.toHaveBeenCalled();expect(f.create).not.toHaveBeenCalled();
+  });
+  it.each(['missing-helper','malformed-scope','base-paused'] as const)('never falls back to legacy S0 when installed reader is %s',async kind=>{
+    enable();f.env.ZENTRA_US_FINANCIAL_SELLER_TEST_INSTALLED='true';const raw=await financialKernelFixture(),actor={...raw.actor,organizationId:org,userId},admit=vi.fn(async()=>actor);
+    const scope:UsFinancialPilotScope={scope:{organizationId:org,actor,policy:raw.policy,grantVersion:3},optInVersion:5};f.scope.mockResolvedValue(kind==='malformed-scope'?{}:scope);
+    f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration:{...raw.configuration,organizationId:org},updatedBy:userId,updatedAt:actor.timestamp});f.sellerCreate.mockReturnValue({read:async()=>{throw new ErpError('financial_service_unavailable',503);}});
+    if(kind==='base-paused')delete f.env.INTERNATIONAL_US_FINANCIAL_PILOT_ENABLED;
+    await expect(deps.quoteIdentity!(actor,admit)).rejects.toMatchObject({code:'service_unavailable',status:503});expect(f.select).not.toHaveBeenCalled();expect(f.country).toHaveBeenCalledOnce();if(kind!=='missing-helper')expect(f.sellerCreate).not.toHaveBeenCalled();
+  });
+  it('renews outer admission after an installed source rejection and masks it with current revocation',async()=>{
+    enable();f.env.ZENTRA_US_FINANCIAL_SELLER_TEST_INSTALLED='true';const raw=await financialKernelFixture(),actor={...raw.actor,organizationId:org,userId};let revoked=false;
+    f.scope.mockResolvedValue({scope:{organizationId:org,actor,policy:raw.policy,grantVersion:1},optInVersion:1});f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration:{...raw.configuration,organizationId:org},updatedBy:userId,updatedAt:actor.timestamp});
+    f.sellerCreate.mockReturnValue({read:async()=>{revoked=true;throw new Error('PRIVATE SOURCE');}});
+    await expect(deps.quoteIdentity!(actor,async()=>{if(revoked)throw new AccountPublicError('PRIVATE DENIAL',401);return actor;})).rejects.toMatchObject({status:401});expect(f.select).not.toHaveBeenCalled();expect(f.country).toHaveBeenCalledOnce();
+  });
+  it('preserves the explicit installed missing-seller refusal without substituting a profile',async()=>{
+    enable();f.env.ZENTRA_US_FINANCIAL_SELLER_TEST_INSTALLED='true';const raw=await financialKernelFixture(),actor={...raw.actor,organizationId:org,userId},admit=vi.fn(async()=>actor);
+    f.scope.mockResolvedValue({scope:{organizationId:org,actor,policy:raw.policy,grantVersion:1},optInVersion:1});f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration:{...raw.configuration,organizationId:org},updatedBy:userId,updatedAt:actor.timestamp});f.sellerCreate.mockReturnValue({read:async()=>{throw new ErpError('financial_pilot_seller_required',409);}});
+    await expect(deps.quoteIdentity!(actor,admit)).rejects.toMatchObject({code:'financial_pilot_seller_required',status:409});expect(admit).toHaveBeenCalledTimes(4);expect(f.select).not.toHaveBeenCalled();expect(f.country).toHaveBeenCalledOnce();
   });
 });

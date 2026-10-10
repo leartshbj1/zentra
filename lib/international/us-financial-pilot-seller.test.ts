@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FinancialAuthority } from './accounting/ledger';
 import { sha256Hex } from './canonical-hash';
-import { canonicalErpJson } from './erp-contract';
+import { canonicalErpJson, ErpError } from './erp-contract';
+import { financialKernelFixture } from './us-financial-kernel-test-fixture';
 import {
   US_FINANCIAL_PILOT_SELLER_MAX_BODY_BYTES, US_FINANCIAL_PILOT_SELLER_MAX_CHANGES, US_FINANCIAL_PILOT_SELLER_MAX_RESPONSE_BYTES,
   applyUsFinancialPilotSellerProof, buildUsFinancialPilotSellerProof, projectUsFinancialPilotSellerReceipt,
   usFinancialPilotSellerCommandContent, usFinancialPilotSellerCommandHash, usFinancialPilotSellerProfile,
   validateUsFinancialPilotSellerHead, validateUsFinancialPilotSellerPresentation, validateUsFinancialPilotSellerProof,
   validateUsFinancialPilotSellerRead, validateUsFinancialPilotSellerReceipt, validateUsFinancialPilotSellerRequest,
+  executeUsFinancialPilotSeller, type UsFinancialPilotSellerDependencies, type UsFinancialPilotSellerAppend,
   type UsFinancialPilotSellerExpectation, type UsFinancialPilotSellerProof, type UsFinancialPilotSellerRead, type UsFinancialPilotSellerRequest,
 } from './us-financial-pilot-seller';
 
@@ -106,6 +108,60 @@ describe('B0 seller public command and canonical identity', () => {
       [organizationId, owner().userId, { ...original, expectedSellerRevision: 8 }], [organizationId, owner().userId, { ...original, command: { ...original.command, contactPhone: '+1 555 0101' } }]] as const) {
       expect(await usFinancialPilotSellerCommandHash(org, user, changed)).not.toBe(base);
     }
+  });
+});
+
+describe('B1 private seller execution — controlled memory port, not PostgreSQL authority', () => {
+  async function runtime() {
+    let current = source(); const receipts = new Map<string, UsFinancialPilotSellerProof>();
+    const policy = (await financialKernelFixture()).policy;
+    const store = {
+      read: vi.fn(async () => copy(current)), head: vi.fn(async () => copy(current.head)),
+      receipt: vi.fn(async (requestId: string) => copy(receipts.get(requestId) ?? null)),
+      append: vi.fn(async (input: UsFinancialPilotSellerAppend) => { current = await applyUsFinancialPilotSellerProof(current, input.proof); receipts.set(input.request.requestId, input.proof); return copy(input.proof); }),
+    };
+    const fresh = vi.fn(async () => ({ actor: owner(), policy })), writeEnabled = vi.fn(async () => true);
+    const deps: UsFinancialPilotSellerDependencies = { organizationId, actor: owner(), policy, store, revalidate: fresh, writeEnabled };
+    return { deps, store, fresh, writeEnabled, current: () => current, setCurrent: (value: UsFinancialPilotSellerRead) => { current = value; } };
+  }
+  it('advances only S once and recovers a historical receipt before F/S/read/write-off checks', async () => {
+    const t = await runtime(), receipt = await executeUsFinancialPilotSeller(t.deps, request());
+    expect(receipt).toMatchObject({ sourceRevision: 9, sellerRevision: 8, replayed: false }); expect(t.current().head).toEqual({ ...source().head, sellerRevision: 8 });
+    t.setCurrent({ ...t.current(), head: { ...t.current().head, revision: 100, bankRevision: 40 } }); t.writeEnabled.mockResolvedValue(false);
+    t.store.read.mockClear(); t.store.append.mockClear(); t.writeEnabled.mockClear();
+    expect(await executeUsFinancialPilotSeller(t.deps, request())).toEqual({ ...receipt, replayed: true });
+    expect(t.store.read).not.toHaveBeenCalled(); expect(t.store.append).not.toHaveBeenCalled(); expect(t.writeEnabled).not.toHaveBeenCalled();
+  });
+  it('rejects a new write while paused and a changed request under an old UUID', async () => {
+    const t = await runtime(); t.writeEnabled.mockResolvedValue(false);
+    await expect(executeUsFinancialPilotSeller(t.deps, request())).rejects.toMatchObject({ code: 'seller_writes_disabled', status: 409 }); expect(t.store.append).not.toHaveBeenCalled();
+    t.writeEnabled.mockResolvedValue(true); await executeUsFinancialPilotSeller(t.deps, request());
+    await expect(executeUsFinancialPilotSeller(t.deps, { ...request(), command: { ...request().command, displayName: 'Different' } })).rejects.toMatchObject({ code: 'seller_idempotency_conflict', status: 409 }); expect(t.store.append).toHaveBeenCalledTimes(1);
+  });
+  it('reprobes an exact committed receipt after a lost append response without another append', async () => {
+    const t = await runtime(), append = t.store.append.getMockImplementation()!;
+    t.store.append.mockImplementation(async input => { await append(input); throw new Error('PRIVATE LOST RESPONSE'); });
+    expect(await executeUsFinancialPilotSeller(t.deps, request())).toMatchObject({ replayed: true, sellerRevision: 8 }); expect(t.store.append).toHaveBeenCalledOnce();
+  });
+  it('keeps an uncertain failure when receipt recovery fails, then recovers after restoration', async () => {
+    const t = await runtime(), append = t.store.append.getMockImplementation()!, lookup = t.store.receipt.getMockImplementation()!; let offline = false;
+    t.store.append.mockImplementation(async input => { await append(input); offline = true; throw new Error('Lost response'); });
+    t.store.receipt.mockImplementation(async id => { if (offline) throw new ErpError('financial_service_unavailable', 503); return lookup(id); });
+    await expect(executeUsFinancialPilotSeller(t.deps, request())).rejects.toMatchObject({ status: 503 }); offline = false;
+    expect(await executeUsFinancialPilotSeller(t.deps, request())).toMatchObject({ replayed: true }); expect(t.store.append).toHaveBeenCalledOnce();
+  });
+  it('renews owner entitlement and authority after a source rejection rather than disclosing stale errors', async () => {
+    const t = await runtime(); let revoked = false;
+    t.store.read.mockImplementation(async () => { revoked = true; throw new ErpError('seller_revision_conflict', 409); });
+    t.fresh.mockImplementation(async () => { if (revoked) throw new ErpError('forbidden', 403); return { actor: owner(), policy: t.deps.policy }; });
+    await expect(executeUsFinancialPilotSeller(t.deps, request())).rejects.toMatchObject({ code: 'forbidden', status: 403 }); expect(t.store.append).not.toHaveBeenCalled();
+  });
+  it('captures request, dependencies and port methods synchronously and forbids non-owner execution', async () => {
+    const t = await runtime(), value = copy(request()), deps = { ...t.deps }, store = { ...t.store }; deps.store = store;
+    const pending = executeUsFinancialPilotSeller(deps, value); value.command.displayName = 'Changed'; store.append = vi.fn(async () => { throw new Error('Swapped method'); }); deps.writeEnabled = async () => false;
+    expect(await pending).toMatchObject({ sellerRevision: 8 }); expect(t.current().presentation.profile.displayName).toBe(request().command.displayName);
+    await expect(executeUsFinancialPilotSeller({ ...t.deps, actor: { ...owner(), role: 'admin' } }, request())).rejects.toMatchObject({ code: 'financial_permission_required', status: 403 });
+    await expect(executeUsFinancialPilotSeller(new Proxy(t.deps, { getOwnPropertyDescriptor() { throw new Error('PRIVATE PROXY'); } }), request())).rejects.toMatchObject({ code: 'invalid_financial_seller_data', status: 503 });
   });
 });
 

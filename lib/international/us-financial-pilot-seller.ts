@@ -4,9 +4,10 @@ import { canonicalErpJson, ErpError } from './erp-contract';
 import { parseInstant } from './localization';
 import { snapshotPrivateJson } from './private-json';
 import { validateUsSellerProfileState, type UsSellerProfile } from './seller-profile';
+import type { UsFinancialPolicyV5 } from './us-financial-kernel-types';
 
-/** B0 is a pure presentation contract. These objects grant no permission and
- * provide no store, admission, execution, CAS, replay or durable audit service. */
+/** Presentation contracts grant no permission. The B1 executor below requires
+ * freshly admitted private ports; PostgreSQL independently owns CAS/audit. */
 export const US_FINANCIAL_PILOT_SELLER_MAX_BODY_BYTES = 4096;
 export const US_FINANCIAL_PILOT_SELLER_MAX_RESPONSE_BYTES = 65_536;
 export const US_FINANCIAL_PILOT_SELLER_MAX_CHANGES = 1000;
@@ -40,6 +41,18 @@ export interface UsFinancialPilotSellerReceipt {
 /** A caller expectation is detached before hashing. Its current audit time is
  * validated but never replaces or compares equal to the historical actor time. */
 export interface UsFinancialPilotSellerExpectation { readonly request: UsFinancialPilotSellerRequest; readonly actor: FinancialAuthority }
+export interface UsFinancialPilotSellerAppend { readonly request: UsFinancialPilotSellerRequest; readonly proof: UsFinancialPilotSellerProof }
+export interface UsFinancialPilotSellerPort {
+  read(this: void): Promise<UsFinancialPilotSellerRead>;
+  head(this: void): Promise<UsFinancialPilotSellerHead>;
+  receipt(this: void, requestId: string): Promise<UsFinancialPilotSellerProof | null>;
+  append(this: void, value: UsFinancialPilotSellerAppend): Promise<UsFinancialPilotSellerProof>;
+}
+export interface UsFinancialPilotSellerDependencies {
+  readonly organizationId: string; readonly actor: FinancialAuthority; readonly policy: UsFinancialPolicyV5; readonly store: UsFinancialPilotSellerPort;
+  revalidate(this: void): Promise<Readonly<{ actor: FinancialAuthority; policy: UsFinancialPolicyV5 }>>;
+  writeEnabled(this: void): Promise<boolean>;
+}
 
 const MAX_REVISION = Number.MAX_SAFE_INTEGER - 1;
 const COMMAND_NAMESPACE = 'zentra:us:financial-pilot:seller:v1';
@@ -248,4 +261,67 @@ export async function validateUsFinancialPilotSellerReceipt(value: unknown, orga
       BigInt(result.sellerRevision) !== BigInt(request.expectedSellerRevision) + BigInt(1) || result.commandHash !== expectedHash) return fail();
   }
   return result;
+}
+
+/** Receipt-first execution behind a freshly admitted, independently validated
+ * private store. An unchanged historical request may recover with writes off;
+ * no conflict automatically rebases its approved F/S or changes its UUID. */
+export async function executeUsFinancialPilotSeller(deps: UsFinancialPilotSellerDependencies, value: unknown): Promise<UsFinancialPilotSellerReceipt> {
+  const own = (object: unknown, key: string): unknown => {
+    try {
+      if (!object || typeof object !== 'object') return fail();
+      const descriptor = Object.getOwnPropertyDescriptor(object, key);
+      if (!descriptor?.enumerable || !('value' in descriptor)) return fail();
+      return descriptor.value;
+    } catch { return fail(); }
+  };
+  const method = <T>(object: unknown, key: string): T => { const fn = own(object, key); if (typeof fn !== 'function') return fail(); return fn as T; };
+  const admittedActor = (input: unknown, org: string): FinancialAuthority => {
+    const data = fields(captured(input), ['organizationId', 'userId', 'role', 'managementEntitled', 'timestamp']);
+    if (data.organizationId !== org) return fail('tenant_mismatch', 403);
+    if (data.managementEntitled !== true) return fail('management_entitlement_required', 402);
+    if (data.role !== 'owner') return fail('financial_permission_required', 403);
+    return actor(data, org);
+  };
+  const request = validateUsFinancialPilotSellerRequest(value), org = organization(own(deps, 'organizationId'));
+  const initialActor = admittedActor(own(deps, 'actor'), org), policy = captured(own(deps, 'policy')), port = own(deps, 'store');
+  const revalidate = method<UsFinancialPilotSellerDependencies['revalidate']>(deps, 'revalidate'), writeEnabled = method<UsFinancialPilotSellerDependencies['writeEnabled']>(deps, 'writeEnabled');
+  const readPort = method<UsFinancialPilotSellerPort['read']>(port, 'read'), receiptPort = method<UsFinancialPilotSellerPort['receipt']>(port, 'receipt'), appendPort = method<UsFinancialPilotSellerPort['append']>(port, 'append');
+  let observedAt = microseconds(initialActor.timestamp);
+  async function fresh(): Promise<FinancialAuthority> {
+    const current = fields(captured(await revalidate()), ['actor', 'policy']), currentActor = admittedActor(current.actor, org), instant = microseconds(currentActor.timestamp);
+    if (currentActor.userId !== initialActor.userId || currentActor.role !== initialActor.role) return fail('financial_authority_changed', 403);
+    if (!same(current.policy, policy)) return fail('financial_policy_unavailable', 409);
+    if (instant < observedAt) return fail('financial_clock_reversed', 409);
+    observedAt = instant; return currentActor;
+  }
+  async function guarded<T>(operation: () => Promise<T>, captureResult: (result: T) => T = result => result): Promise<T> {
+    await fresh(); let outcome: { value: T } | { error: unknown };
+    try { outcome = { value: captureResult(await operation()) }; } catch (error) { outcome = { error }; }
+    await fresh(); if ('error' in outcome) throw outcome.error; return outcome.value;
+  }
+  const commandHash = await guarded(() => usFinancialPilotSellerCommandHash(org, initialActor.userId, request));
+  async function replay(): Promise<UsFinancialPilotSellerReceipt | null> {
+    const raw = await guarded(() => receiptPort(request.requestId), result => result === null ? null : captured(result) as UsFinancialPilotSellerProof);
+    if (raw === null) return null;
+    const proof = await guarded(() => validateUsFinancialPilotSellerProof(raw, org));
+    if (proof.actor.userId !== initialActor.userId || proof.commandHash !== commandHash || !same(proof.request, request)) return fail('seller_idempotency_conflict', 409);
+    return guarded(() => projectUsFinancialPilotSellerReceipt(proof, true));
+  }
+  const previous = await replay(); if (previous) return previous;
+  try {
+    if (await guarded(writeEnabled) !== true) return fail('seller_writes_disabled', 409);
+    const read = await guarded(readPort, result => validateUsFinancialPilotSellerRead(result, org)), executionActor = await fresh();
+    const proposal = await guarded(() => buildUsFinancialPilotSellerProof(read, request, executionActor));
+    if (await guarded(writeEnabled) !== true) return fail('seller_writes_disabled', 409);
+    const raw = await guarded(() => appendPort(Object.freeze({ request, proof: proposal })), result => captured(result) as UsFinancialPilotSellerProof);
+    const saved = await guarded(() => validateUsFinancialPilotSellerProof(raw, org, { request, actor: initialActor }));
+    if (saved.commandHash !== commandHash) return fail();
+    if (!same(saved, proposal)) {
+      const concurrent = await replay(); if (concurrent) return concurrent; return fail();
+    }
+    return guarded(() => projectUsFinancialPilotSellerReceipt(saved, false));
+  } catch (error) {
+    const recovered = await replay(); if (recovered) return recovered; throw error;
+  }
 }

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBrowserUsFinancialPilotSession, type BrowserUsFinancialPilotEnvironment } from './browser-us-financial-pilot-session';
 import { financialPilotCursor, type UsFinancialPilotInvoiceRow, type UsFinancialPilotOverview, type UsFinancialPilotPage, type UsFinancialPilotReports, type UsFinancialPilotInvoiceDetail } from './us-financial-pilot-contract';
+import type { UsFinancialPilotInvoiceRequest } from './us-financial-pilot-invoice';
 
 // Fictitious client transport fixtures, not a PostgreSQL, accounting or provider test.
 const organizationId = '11111111-1111-4111-8111-111111111111', expectedUserId = '22222222-2222-4222-8222-222222222222', requestId = '33333333-3333-4333-8333-333333333333';
@@ -19,16 +20,16 @@ function invoiceDetail(): UsFinancialPilotInvoiceDetail {
   const address = { country: 'US' as const, line1: '1 Fictitious Street', city: 'New York', subdivision: 'NY', postalCode: '10001' };
   return { ...head(), ledgerRevision: 5, invoice, seller: { name: 'Fictitious Seller', address, email: null, phone: null }, customer: { id: 'customer-a', name: 'Fictitious Customer', kind: 'business', billingAddress: address, shippingAddress: null, email: null, phone: null, contactName: null, paymentTermsDays: 30 }, sourceEstimate: { id: 'estimate-a', revision: 1 }, subtotalMinor: '100', discountMinor: '0', taxMinor: '7', lines: [{ id: 'line-a', description: 'Fictitious goods', quantityUnits: '1', quantityScale: 0, unitPriceMinor: '100', discountBasisPoints: 0, netMinor: '100', taxMinor: '7' }], notes: 'Fictitious client transport only', payments: { ...page('invoice_payments', [{ id: 'payment-a', invoiceId: invoice.id, amountMinor: '50', paymentDate: '2026-10-02', accountingDate: '2026-10-02', reference: 'Fictitious bank', recordedBy: expectedUserId }]), scope: invoice.id }, credits: { ...page('invoice_credits', [{ id: 'credit-a', number: 'CR-2026-1', invoiceId: invoice.id, transactionDate: '2026-10-03', accountingDate: '2026-10-03', periodId: '2026', reason: 'Fictitious return', netMinor: '35', taxMinor: '0', totalMinor: '35', taxDisposition: 'historical_zero_tax' as const, issuedBy: expectedUserId, issuedAt: '2026-10-03T10:00:00.000Z', recordedRevision: 5 }]), scope: invoice.id } };
 }
-function fixture() {
+function fixture(sellerInstalled = false) {
   const queue: Array<() => Promise<Response> | Response> = [];
   const fetcher = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => { const task = queue.shift(); if (!task) throw new Error('No fictitious response queued'); return task(); });
   let visible = true, online = true; const wakes = new Set<() => void>();
   const environment: BrowserUsFinancialPilotEnvironment = { isVisible: () => visible, isOnline: () => online, subscribe(listener) { wakes.add(listener); return () => { wakes.delete(listener); }; } };
-  const newId = vi.fn(() => requestId), session = createBrowserUsFinancialPilotSession({ organizationId, expectedUserId, fetch: fetcher, newId, environment });
+  const newId = vi.fn(() => requestId), session = createBrowserUsFinancialPilotSession({ organizationId, expectedUserId, fetch: fetcher, newId, environment, ...(sellerInstalled ? { sellerInstalled: true, sellerWriteEnabled: true } : {}) });
   const enqueue = (value: unknown, status = 200) => queue.push(() => Response.json(value, { status }));
   const visibility = (value: boolean) => { visible = value; for (const wake of wakes) wake(); };
   const connectivity = (value: boolean) => { online = value; for (const wake of wakes) wake(); };
-  const load = async () => { enqueue(overview()); return session.load(); };
+  const load = async () => { if (sellerInstalled) enqueue({ ...head(), bankRevision: 0, sellerRevision: 4 }); enqueue(overview()); return session.load(); };
   return { queue, fetcher, session, newId, enqueue, visibility, connectivity, load, wakes };
 }
 const denied = (status: number) => status === 401 ? 'unauthorized' : status === 402 ? 'management_entitlement_required' : 'forbidden';
@@ -163,5 +164,81 @@ describe('financial-pilot DTO1 fictitious browser transport', () => {
   });
   it('does not poll or retain financial data after disposal', async () => {
     const t = fixture(); await t.load(); t.session.dispose(); expect(t.session.getState().snapshot).toBeNull(); expect(() => t.session.start()).toThrow('session_disposed'); await reject(t.session.refresh(), 'session_disposed', 'unauthorized'); expect(t.fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('seller-installed shared owner notification reentrance', () => {
+  it('shares the already installed composite flight when a subscriber refreshes synchronously, with no F reload on S alone', async () => {
+    const t = fixture(true); await t.load(); const snapshot = t.session.getState().snapshot;
+    let attempted = false, nested: Promise<unknown> | undefined;
+    const unsubscribe = t.session.subscribe(() => { if (!attempted && t.session.getState().seller?.refreshing) { attempted = true; nested = t.session.refresh(); } });
+    try {
+      t.enqueue({ ...head(), bankRevision: 0, sellerRevision: 5 });
+      // A second response would let an incorrect overlapping flight finish,
+      // while the assertions still detect the extra request deterministically.
+      t.enqueue({ ...head(), bankRevision: 0, sellerRevision: 5 });
+      await t.session.refresh(); await nested;
+      expect(attempted).toBe(true); expect(t.session.getState().snapshot).toBe(snapshot); expect(t.session.getState().seller?.head?.sellerRevision).toBe(5);
+      expect(t.fetcher.mock.calls.filter(([url]) => (typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).includes('/seller?view=head'))).toHaveLength(2);
+      expect(t.fetcher.mock.calls.filter(([url]) => (typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).includes('/snapshot'))).toHaveLength(1);
+    } finally { unsubscribe(); t.session.dispose(); }
+  });
+  it('publishes common write ownership before seller invalidation can reentrantly retry its exact payment', async () => {
+    const t = fixture(true); await t.load(); let attempted = false, nested: Promise<unknown> | undefined;
+    const unsubscribe = t.session.subscribe(() => { if (!attempted && t.session.getState().seller?.requiresRefresh) { attempted = true; nested = t.session.retry().catch(error => error); } });
+    try {
+      t.enqueue(receipt); t.enqueue({ ...head(8), bankRevision: 0, sellerRevision: 4 }); t.enqueue(overview(8));
+      expect(await t.session.recordPayment(command)).toEqual(receipt); expect(await nested).toMatchObject({ code: 'pending_operation', status: 409 }); await flush();
+      expect(attempted).toBe(true); expect(t.fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1); expect(t.newId).toHaveBeenCalledOnce();
+    } finally { unsubscribe(); t.session.dispose(); }
+  });
+  it('stops at the first common write notification without dereferencing a purged payment or sending it', async () => {
+    const t = fixture(true); await t.load(); const before = t.fetcher.mock.calls.length;
+    const unsubscribe = t.session.subscribe(() => { if (t.session.getState().writing) t.session.stop(); });
+    try {
+      await reject(t.session.recordPayment(command), 'session_disposed', 'unauthorized');
+      expect(t.fetcher).toHaveBeenCalledTimes(before); expect(t.session.hasPending()).toBe(false); expect(t.session.getState()).toMatchObject({ status: 'stopped', pending: false, pendingKind: null });
+    } finally { unsubscribe(); t.session.dispose(); }
+  });
+});
+
+describe('invoice preparation ownership before preview notifications', () => {
+  const invoiceCommand: UsFinancialPilotInvoiceRequest['command'] = { type: 'issue_invoice', estimateId: 'estimate-a', expectedEstimateRevision: 2, date: '2026-10-10', accountingDate: '2026-10-10', dueDate: '2026-11-10', periodId: '2026' };
+  const choices: UsFinancialPilotInvoiceRequest['choices'] = { classifications: [{ lineId: 'line-a', taxCode: 'txcd_20030000', confirmedService: true }], taxDateInstant: '2026-10-10T13:00:00.000Z', addressSource: 'billing' };
+
+  it.each([false, true])('does not reinstall a purged preparation after synchronous stop, seller installed=%s', async sellerInstalled => {
+    const t = fixture(sellerInstalled); await t.load(); const before = t.fetcher.mock.calls.length;
+    let notified = false, ownedAtNotification = false;
+    const unsubscribe = t.session.subscribe(() => {
+      if (notified || t.session.getState().invoiceReview !== null) return;
+      notified = true;
+      const state = t.session.getState(); ownedAtNotification = state.writing && state.pending && state.pendingKind === 'invoice_prepare';
+      t.session.stop();
+    });
+    try {
+      await reject(t.session.prepareInvoice(invoiceCommand, choices), 'session_disposed', 'unauthorized');
+      expect(notified).toBe(true); expect(ownedAtNotification).toBe(true);
+      expect(t.fetcher).toHaveBeenCalledTimes(before); expect(t.newId).toHaveBeenCalledOnce();
+      expect(t.session.hasPending()).toBe(false);
+      expect(t.session.getState()).toMatchObject({ status: 'stopped', snapshot: null, pending: false, pendingKind: null, writing: false, invoiceReview: null });
+    } finally { unsubscribe(); t.session.dispose(); }
+  });
+
+  it.each([false, true])('keeps the exact preparation while rejecting a synchronous competing payment, seller installed=%s', async sellerInstalled => {
+    const t = fixture(sellerInstalled); await t.load(); let notified = false, nested: Promise<unknown> | undefined;
+    const unsubscribe = t.session.subscribe(() => {
+      if (notified || t.session.getState().invoiceReview !== null) return;
+      notified = true; nested = t.session.recordPayment(command).catch(error => error);
+    });
+    try {
+      t.enqueue({ error: 'service_unavailable' }, 503);
+      await reject(t.session.prepareInvoice(invoiceCommand, choices), 'service_unavailable', 'uncertain', 503);
+      expect(notified).toBe(true); expect(await nested).toMatchObject({ code: 'pending_operation', status: 409 });
+      expect(t.newId).toHaveBeenCalledOnce(); expect(t.session.hasPending()).toBe(true);
+      expect(t.session.getState()).toMatchObject({ pending: true, pendingKind: 'invoice_prepare', writing: false });
+      const writes = t.fetcher.mock.calls.filter(([, init]) => init?.method === 'POST');
+      expect(writes).toHaveLength(1); expect(writes[0][0]).toBe(`/api/international/workspaces/${organizationId}/financial-pilot/invoices/prepare`);
+      expect(JSON.parse(writes[0][1]?.body as string)).toEqual({ consumer: 'financial-pilot', schemaVersion: 1, requestId, expectedRevision: 7, command: invoiceCommand, choices });
+    } finally { unsubscribe(); t.session.dispose(); }
   });
 });

@@ -9,7 +9,7 @@ vi.mock('./us-financial-pilot-invoice-store', () => ({ createSupabaseUsFinancial
 vi.mock('./us-tax-merchant-resolver', () => ({ resolveUsTaxTestMerchant: f.merchant }));
 vi.mock('../account', () => ({ enforceAccountRateLimit: f.rate }));
 vi.mock('./us-financial-pilot-invoice-server', () => ({ createUsFinancialPilotInvoiceHandlers: (...args: unknown[]) => { f.factory(...args); return { PREPARE: f.prepare, ISSUE: f.issue, CATALOGUE: f.catalogue }; } }));
-import { usFinancialPilotInvoiceDependencies as deps, usFinancialPilotInvoiceMerchant } from './us-financial-pilot-invoice-bindings';
+import { usFinancialPilotInvoiceDependencies as deps, usFinancialPilotInvoiceMerchant, usFinancialPilotInvoiceSellerInstalled } from './us-financial-pilot-invoice-bindings';
 import { POST as prepareRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/invoices/prepare/route';
 import { POST as issueRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/invoices/issue/route';
 import { GET as catalogueRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/tax-codes/route';
@@ -37,7 +37,14 @@ describe('invoice real bindings — synthetic private ports, no provider or netw
   it('closes malformed dedicated merchant resolution without leaking its private failure', async () => { open(); f.merchant.mockImplementation(() => { throw Error('PRIVATE synthetic secret'); }); expect(await deps.merchant(org)).toBeNull(); });
   it('constructs only the pilot-admitted SQL fiscal adapter, with no fixture option', async () => {
     const scope = { scope: { organizationId: org }, optInVersion: 1 } as UsFinancialPilotScope, revalidate = vi.fn(async () => scope), store = { synthetic: 'fiscal' }; f.invoiceStore.mockReturnValue(store);
-    expect(await deps.invoiceStore(scope, revalidate)).toBe(store); expect(f.invoiceStore).toHaveBeenCalledWith(expect.objectContaining({ rpc: f.rpc }), scope, revalidate); expect(f.merchant).not.toHaveBeenCalled();
+    expect(await deps.invoiceStore(scope, revalidate)).toBe(store); expect(f.invoiceStore).toHaveBeenCalledWith(expect.objectContaining({ rpc: f.rpc }), scope, revalidate, { sellerInstalled: false }); expect(f.merchant).not.toHaveBeenCalled();
+  });
+  it('selects compatible invoice aliases from installation, independently of seller write enablement', async () => {
+    const scope = { scope: { organizationId: org }, optInVersion: 1 } as UsFinancialPilotScope, revalidate = vi.fn(async () => scope);
+    f.env.ZENTRA_US_FINANCIAL_SELLER_TEST_INSTALLED = 'true'; f.env.ZENTRA_US_FINANCIAL_SELLER_TEST_ENABLED = 'false';
+    expect(await usFinancialPilotInvoiceSellerInstalled()).toBe(true); await deps.invoiceStore(scope, revalidate);
+    expect(f.invoiceStore).toHaveBeenLastCalledWith(expect.objectContaining({ rpc: f.rpc }), scope, revalidate, { sellerInstalled: true });
+    for (const value of [undefined, 'TRUE', 'true ', 'false']) { f.env.ZENTRA_US_FINANCIAL_SELLER_TEST_INSTALLED = value; expect(await usFinancialPilotInvoiceSellerInstalled()).toBe(false); }
   });
   it('rates catalogue reads separately from preparation/issue writes with exact tenant and user scope', async () => {
     const request = new Request('https://zentra.test/invoice'), actor = { organizationId: org, userId: user, role: 'owner' as const, managementEntitled: true as const, timestamp: '2026-10-10T12:00:00.000Z' };

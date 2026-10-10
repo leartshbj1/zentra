@@ -87,13 +87,17 @@ export function createBrowserUsFinancialPilotExportSession(options: {
   }
   function ownerReady(state: BrowserUsFinancialPilotState, revision: number): boolean {
     return state.status === 'ready' && state.snapshot?.organizationId === organizationId && state.snapshot.revision === revision
-      && !state.requiresRefresh && !state.pending && !state.writing;
+      && !state.requiresRefresh && !state.pending && !state.writing && (!state.seller || !!state.seller.head && !state.seller.requiresRefresh);
   }
   function ownerAlive(stamp: Stamp): void {
+    let observed: BrowserUsFinancialPilotState | undefined;
+    if (getFinancialState) {
+      try { observed = getFinancialState(); } catch { invalidateOwner(); return failure('financial_export_owner_changed', 409); }
+      if (observed.pendingKind === 'seller') return failure('financial_export_owner_changed', 409);
+    }
     if (stamp.selector.kind !== 'estimate') return;
     if (!financialSession || !getFinancialState || stamp.owner !== financialSession) return failure('financial_export_owner_required', 409);
-    let state: BrowserUsFinancialPilotState;
-    try { state = getFinancialState(); } catch { invalidateOwner(); return failure('financial_export_owner_changed', 409); }
+    const state = observed!;
     if (state.status === 'denied' || state.status === 'stopped' || state.snapshot && state.snapshot.organizationId !== organizationId) {
       dispose(); return alive(stamp.epoch);
     }
@@ -109,14 +113,19 @@ export function createBrowserUsFinancialPilotExportSession(options: {
     for (const url of urls.keys()) URL.revokeObjectURL(url); urls.clear();
   }
   if (getFinancialState && subscribeFinancial) {
-    let previousRevision = getFinancialState().snapshot?.revision;
+    let previousRevision = getFinancialState().snapshot?.revision, previousSellerRevision = getFinancialState().seller?.head?.sellerRevision;
     const observe = () => {
       if (disposed) return;
       let state: BrowserUsFinancialPilotState;
       try { state = getFinancialState(); } catch { invalidateOwner(); return; }
       if (state.status === 'denied' || state.status === 'stopped' || state.snapshot && state.snapshot.organizationId !== organizationId) { dispose(); return; }
-      if (state.snapshot?.revision !== previousRevision || !ownerReady(state, state.snapshot?.revision ?? -1)) invalidateOwner();
-      previousRevision = state.snapshot?.revision;
+      if (state.pendingKind === 'seller') {
+        for (const cancel of cancellations.keys()) cancel(new BrowserUsFinancialPilotExportError('financial_export_owner_changed', 409));
+        for (const controller of controllers.keys()) controller.abort();
+        for (const url of urls.keys()) { URL.revokeObjectURL(url); urls.delete(url); }
+      }
+      if (state.snapshot?.revision !== previousRevision || state.seller?.head?.sellerRevision !== previousSellerRevision || !ownerReady(state, state.snapshot?.revision ?? -1)) invalidateOwner();
+      previousRevision = state.snapshot?.revision; previousSellerRevision = state.seller?.head?.sellerRevision;
     };
     unsubscribe = subscribeFinancial(observe);
     observe();
@@ -191,6 +200,7 @@ export function createBrowserUsFinancialPilotExportSession(options: {
       if (!hash || !/^[0-9a-f]{64}$/.test(hash) || !filename || filename.includes('..') || !filename.endsWith(`.${selector.format}`)) return failure('invalid_export_response');
       if (selector.kind === 'estimate') {
         const estimateRevision = revisionHeader(response.headers.get(h.estimateRevision)), countryRevision = revisionHeader(response.headers.get(h.countryRevision)), sellerRevision = revisionHeader(response.headers.get(h.sellerRevision));
+        if (getFinancialState?.().seller && getFinancialState().seller?.head?.sellerRevision !== sellerRevision) return failure('financial_export_owner_changed', 409);
         if ([estimateRevision, countryRevision, sellerRevision].some(value => value < 1 || value >= Number.MAX_SAFE_INTEGER)
           || estimateRevision !== selector.estimateRevision || response.headers.get(h.issuerBasis) !== 'current_at_export'
           || filename !== `zentra-estimate-r${selector.revision}-e${selector.estimateRevision}-${selector.language}.pdf`) return failure('invalid_export_response');

@@ -161,14 +161,14 @@ async function settle() { for (let index = 0; index < 12; index++) await new Pro
 /** Real financial owner, V5 memory store, projections and HTTP handlers.
  * Only Auth/D1, seller identity, renderer bytes and transport faults are synthetic.
  * The separate PostgreSQL and renderer recipes prove those other boundaries. */
-async function quoteFixture() {
+async function quoteFixture(withSeller = false) {
   const original = await financialKernelFixture({ tax: '0', paid: '10000' });
   const org = '11111111-1111-4111-8111-111111111111', origin = 'https://zentra.test';
   const data = JSON.parse(JSON.stringify(original).replaceAll(original.actor.organizationId, org)) as typeof original;
   const initial = await promoteUsFinancialBookV5(data.baseline, data.policy, data.actor);
   const memory = await createInMemoryUsFinancialKernelStoreV5(initial, data.policy, actor => actor);
   const readBook = async () => await memory.read(org) as UsFinancialBookV5;
-  let denied = 0, sequence = 100;
+  let denied = 0, sequence = 100, sellerRevision = 11;
   const uid = () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}`;
   const scope = { scope: { organizationId: org, actor: data.actor, policy: data.policy, grantVersion: 1 }, optInVersion: 1 };
   const shared = { enabled: () => true, authority: async () => { if (denied) throw new AccountPublicError('Synthetic access revoked', denied); return { mode: 'browser' as const, actor: data.actor }; }, configuration: async () => data.configuration, scope: async () => scope, rateLimit: async () => {}, diagnostic: () => {} };
@@ -191,13 +191,14 @@ async function quoteFixture() {
   const exportDeps: UsFinancialPilotExportDependencies = {
     ...deps, diagnostic: () => {}, fonts: () => ({ regular: new Uint8Array([1]), bold: new Uint8Array([2]) }),
     render: vi.fn(() => new Uint8Array(pdf)), hash: sha256Hex,
-    quoteIdentity: async () => ({ organizationId: org, countryRevision: 7, configuration: data.configuration, sellerRevision: 11, seller: { displayName: 'Synthetic Current Seller', contactEmail: 'seller@example.test' } }),
+    quoteIdentity: async () => ({ organizationId: org, countryRevision: 7, configuration: data.configuration, sellerRevision, seller: { displayName: 'Synthetic Current Seller', contactEmail: 'seller@example.test' } }),
   };
   const exports = createUsFinancialPilotExportHandlers(exportDeps), base = `/api/international/workspaces/${org}/financial-pilot`;
   const dispatch = async (request: Request) => {
     const path = new URL(request.url).pathname.slice(base.length);
     if (path === '/snapshot') return finance.SNAPSHOT(request, org);
     if (path === '/head') return finance.HEAD(request, org);
+    if (path === '/seller' && request.method === 'GET') { if (denied) return Response.json({ error: 'forbidden' }, { status: denied }); return Response.json({ ...await store.head(), bankRevision: register.bankRevision, sellerRevision }); }
     if (path === '/operations') return finance.POST(request, org);
     if (path === '/commercial/operations') return commercial.POST(request, org);
     if (path === '/accounting/operations') return accounting.POST(request, org);
@@ -217,7 +218,7 @@ async function quoteFixture() {
     requests.push({ path: new URL(request.url).pathname.slice(base.length), method: request.method, body: request.method === 'POST' ? await request.clone().text() : '', signal: request.signal });
     return intercept ? intercept(request, () => dispatch(request)) : dispatch(request);
   });
-  const financialSession: BrowserUsFinancialPilotSession = createBrowserUsFinancialPilotSession({ organizationId: org, expectedUserId: data.actor.userId, fetch: fetcher, newId: uid, environment: { isVisible: () => true, isOnline: () => true, subscribe: () => () => {} } });
+  const financialSession: BrowserUsFinancialPilotSession = createBrowserUsFinancialPilotSession({ organizationId: org, expectedUserId: data.actor.userId, fetch: fetcher, newId: uid, sellerInstalled: withSeller, sellerWriteEnabled: withSeller, environment: { isVisible: () => true, isOnline: () => true, subscribe: () => () => {} } });
   sessions.push(financialSession);
   const makeExport = (owner: Pick<BrowserUsFinancialPilotSession, 'getState' | 'subscribe'> | undefined = financialSession) => {
     const session = createBrowserUsFinancialPilotExportSession({ organizationId: org, expectedUserId: data.actor.userId, fetch: fetcher, financialSession: owner }); sessions.push(session); return session;
@@ -233,7 +234,7 @@ async function quoteFixture() {
   const externalFinance = async () => executeUsFinancialKernelV5({ configuration: data.configuration, actor: data.actor, policy: data.policy, store: memory, revalidate: async () => ({ configuration: data.configuration, actor: data.actor, policy: data.policy }), resolveTax: async () => { throw Error('No external provider in this quote test'); } },
     { idempotencyKey: 'synthetic-quote-test-' + uid(), expectedRevision: (await readBook()).revision, command: { type: 'erp_command', request: { type: 'close_period', periodId: '2026' } } });
   return { ...data, org, initial, financialSession, exportSession, makeExport, quote, readBook, register: () => register, requests, fetcher, customer, payment, importDraft, externalBank, externalFinance,
-    ready: () => financialSession.load(), intercept: (value?: Intercept) => { intercept = value; }, deny: (status: number) => { denied = status; } };
+    ready: () => withSeller ? financialSession.refresh() : financialSession.load(), advanceSeller: () => { sellerRevision++; }, intercept: (value?: Intercept) => { intercept = value; }, deny: (status: number) => { denied = status; } };
 }
 
 function downloads() {
@@ -430,5 +431,39 @@ describe('quote PDF transport with the real shared financial owner', () => {
     expect(() => t.exportSession.download({ ...result })).toThrow('invalid_export_response'); expect(() => other.download(result)).toThrow('invalid_export_response');
     const download = downloads(); vi.stubGlobal('document', { createElement: () => { t.financialSession.stop(); return { href: '', download: '', rel: '', click: download.click }; } });
     expect(() => t.exportSession.download(result)).toThrow('session_changed'); expect(download.click).not.toHaveBeenCalled(); expect(download.revoke).toHaveBeenCalledWith('blob:synthetic-quote');
+  });
+});
+
+
+describe('seller observations in the existing quote export owner', () => {
+  it('revokes old quotes after an S-only external correction without reloading the financial snapshot', async () => {
+    const t = await quoteFixture(true); await t.ready(); const download = downloads();
+    const snapshot = t.financialSession.getState().snapshot, file = await t.exportSession.file(t.quote()); t.exportSession.download(file);
+    const reads = t.requests.filter(r => r.path === '/snapshot').length;
+    t.advanceSeller(); await t.financialSession.refresh();
+    expect(t.financialSession.getState().snapshot).toBe(snapshot);
+    expect(t.requests.filter(r => r.path === '/snapshot')).toHaveLength(reads);
+    expect(download.revoke).toHaveBeenCalledWith('blob:synthetic-quote');
+    expect(() => t.exportSession.download(file)).toThrow('financial_export_owner_changed');
+    expect((await t.exportSession.file(t.quote())).revision).toBe(snapshot!.revision);
+  });
+  it('keeps a quote result when only B advances under an F/B/S observation', async () => {
+    const t = await quoteFixture(true); await t.ready(); const download = downloads();
+    const file = await t.exportSession.file(t.quote());
+    expect((await t.externalBank()).status).toBe(200); await t.financialSession.refresh();
+    t.exportSession.download(file); expect(download.click).toHaveBeenCalledOnce();
+  });
+  it('rejects a response carrying an unobserved S instead of downloading it as the reviewed seller', async () => {
+    const t = await quoteFixture(true); await t.ready(); t.advanceSeller();
+    await expect(t.exportSession.file(t.quote())).rejects.toMatchObject({ code: 'financial_export_owner_changed' });
+    await t.financialSession.refresh(); expect((await t.exportSession.file(t.quote())).blob.size).toBeGreaterThan(0);
+  });
+  it('cancels a quote read if S changes while the response is in flight', async () => {
+    const t = await quoteFixture(true); await t.ready(); const held = deferred<Response>();
+    t.intercept((request, next) => request.url.includes('/exports/') ? held.promise : next());
+    const task = t.exportSession.file(t.quote()), rejected = expect(task).rejects.toMatchObject({ code: 'financial_export_owner_changed' });
+    await vi.waitFor(() => expect(t.requests.some(row => row.path.startsWith('/exports/'))).toBe(true));
+    t.advanceSeller(); await t.financialSession.refresh(); await rejected;
+    held.resolve(new Response('Late quote')); await settle();
   });
 });

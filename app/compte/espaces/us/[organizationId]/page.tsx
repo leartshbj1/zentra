@@ -1,3 +1,4 @@
+import { usFinancialPilotSellerEnabled, usFinancialPilotSellerWriteEnabled } from '@/lib/international/us-financial-pilot-seller-bindings';
 import { notFound } from 'next/navigation';
 import { UsErpWorkbench } from '@/components/account/us-erp-workbench';
 import { UsFinancialPilot } from '@/components/account/us-financial-pilot';
@@ -41,6 +42,7 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
   const query=await searchParams;
   const setting=typeof query.reglage==='string'?query.reglage:'';
   let pilotWorkspace:AccountWorkspace|null=null;
+  let pilotSellerInstalled=false,pilotSellerWriteEnabled=false;
   let data:{workspace:AccountWorkspace;preferences:AccountPreferences|null;erpReadiness:Awaited<ReturnType<typeof usExportReadiness>>|null;salesOrders:Awaited<ReturnType<typeof usSalesOrderReadiness>>;bankEnabled:boolean;supplierEnabled:boolean;documentsEnabled:boolean;teamEnabled:boolean;syncEnabled:boolean;taxInvoiceTestEnabled:boolean;supportWorkspaceEnabled:boolean;supportMailboxEnabled:boolean;supportMailImportEnabled:boolean;supportTriageEnabled:boolean;supportTicketsEnabled:boolean;supportWorkerEnabled:boolean}|null=null;
   try {
     const workspaces=await accountWorkspacesForUser(user.userId);
@@ -52,10 +54,15 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
         const mode=await usFinancialPilotPageMode(organizationId,user.userId);
         if(mode==='unavailable')return unavailable();
         if(mode==='pilot'){
+          // These flags only describe the UI. Resolve every awaited capability
+          // before the final account and workspace-rights barrier below.
+          const sellerInstalled=await usFinancialPilotSellerEnabled();
+          const sellerWriteEnabled=sellerInstalled&&await usFinancialPilotSellerWriteEnabled();
           const access=await requireUsWorkspaceAccess(organizationId,user.userId);
           const current=await getZentraUser({offerAccess:false});
           if(!current||current.userId!==user.userId||access.organizationId!==organizationId||access.userId!==user.userId||access.role!==workspace.role||!['owner','admin','accountant'].includes(access.role)||!await accountWorkspaceDiscoveryEnabled())return unavailable();
           pilotWorkspace=workspace;
+          pilotSellerInstalled=sellerInstalled;pilotSellerWriteEnabled=sellerWriteEnabled;
         }
       }
       if(!pilotWorkspace){
@@ -90,7 +97,7 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
   } catch(error) {
     if(!(error instanceof UsAuthorityError) && !(error instanceof AccountWorkspaceDiscoveryError))throw error;
   }
-  if(pilotWorkspace)return <UsFinancialPilot organizationId={organizationId} expectedUserId={user.userId} name={pilotWorkspace.name} role={pilotWorkspace.role} language={language}/>;
+  if(pilotWorkspace)return <UsFinancialPilot sellerInstalled={pilotSellerInstalled} sellerWriteEnabled={pilotSellerWriteEnabled} organizationId={organizationId} expectedUserId={user.userId} name={pilotWorkspace.name} role={pilotWorkspace.role} language={language}/>;
   if(!data)return unavailable();
   const {workspace,preferences,erpReadiness,salesOrders,bankEnabled,supplierEnabled,documentsEnabled,teamEnabled,syncEnabled,taxInvoiceTestEnabled,supportWorkspaceEnabled,supportMailboxEnabled,supportMailImportEnabled,supportTriageEnabled,supportTicketsEnabled,supportWorkerEnabled}=data;
   const settings=<nav className="account-space-settings" aria-label={c.global}>{[{id:'',label:c.overview},{id:'gestion',label:c.management},...(teamEnabled?[{id:'equipe',label:browserUsTeamCopy[language].title}]:[]),...(supportWorkspaceEnabled?[{id:'support',label:'Zentra Support'}]:[]),{id:'profil',label:c.profile},{id:'securite',label:c.security},{id:'apparence',label:c.appearance}].map(item=><a key={item.id} href={`${path}${item.id?`?reglage=${item.id}`:''}`} aria-current={setting===item.id?'page':undefined}>{item.label}</a>)}</nav>;

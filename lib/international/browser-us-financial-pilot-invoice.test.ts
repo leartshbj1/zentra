@@ -36,3 +36,57 @@ describe('invoice preparation and issuance in the shared browser session', () =>
   it('rejects oversized catalogue pages and a different single-code result', async () => { const t=fixture();await t.load();const codes=Array.from({ length:21 },(_,index) => ({ id:`txcd_${String(index).padStart(8,'0')}`,name:'Synthetic',description:'Synthetic' }));t.enqueue({ consumer:'financial-pilot',schemaVersion:1,organizationId,taxCodes:codes,hasMore:false,nextCursor:null });await expect(t.session.readTaxCodes()).rejects.toMatchObject({ code:'invalid_response' });t.enqueue({ consumer:'financial-pilot',schemaVersion:1,organizationId,taxCodes:[codes[0]],hasMore:false,nextCursor:null });await expect(t.session.readTaxCodes({ code:'txcd_20030000' })).rejects.toMatchObject({ code:'invalid_response' });t.session.dispose(); });
   it.each(['fr','de','it','en'] as const)('explains unconfigured tax and provider failure in %s without assuming zero tax', language => { const copy=browserUsFinancialPilotInvoiceCopy[language];expect(browserUsFinancialPilotInvoiceErrorCopy(language,'binding_unavailable')).toBe(copy.taxSetup);expect(browserUsFinancialPilotInvoiceErrorCopy(language,'tax_nexus_required')).toBe(copy.taxSetup);expect(browserUsFinancialPilotInvoiceErrorCopy(language,'tax_provider_unavailable')).toBe(copy.taxUnavailable);expect(copy.taxSetup.length).toBeGreaterThan(50);expect(copy.reviewNotice).toContain('TEST'); });
 });
+
+/** Synthetic HTTP transport only: the cumulative PostgreSQL recipe exercises
+ * the actual durable context/provenance and reservation invariants. */
+function sellerInvoiceFixture() {
+  let sellerRevision = 2, revision = 7, losePrepare = false, loseIssue = false;
+  let saved: UsFinancialPilotInvoicePreview | null = null;
+  const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL((typeof url === 'string' ? url : url instanceof URL ? url.href : url.url), 'https://zentra.test');
+    if (path.pathname.endsWith('/seller')) return Response.json({ ...head(revision), bankRevision: 0, sellerRevision });
+    if (path.pathname.endsWith('/snapshot')) return Response.json(overview(revision));
+    if (path.pathname.endsWith('/invoices/prepare')) {
+      saved ??= { ...preview(), schemaVersion: 2, sellerPresentation: { sellerRevision, profile: { displayName: `Synthetic seller ${sellerRevision}`, contactEmail: 'saved@example.test' } } };
+      if (losePrepare) { losePrepare = false; throw Error('Synthetic lost preparation reply'); }
+      return Response.json(saved);
+    }
+    if (path.pathname.endsWith('/invoices/issue')) {
+      revision = 8;
+      if (loseIssue) { loseIssue = false; throw Error('Synthetic lost issued reply'); }
+      return Response.json(receipt);
+    }
+    throw Error('Unexpected synthetic invoice path ' + path.pathname + ' ' + init?.method);
+  });
+  const newId = vi.fn(() => requestId), session = createBrowserUsFinancialPilotSession({ organizationId, expectedUserId, fetch: fetcher, newId, sellerInstalled: true, sellerWriteEnabled: true, environment: { isVisible: () => true, isOnline: () => true, subscribe: () => () => {} } });
+  return { session, fetcher, newId, advanceSeller: () => { sellerRevision++; }, losePrepare: () => { losePrepare = true; }, loseIssue: () => { loseIssue = true; } };
+}
+
+describe('historical invoice recovery under seller observations', () => {
+  it('discards a local, nonpending preview on an S-only change', async () => {
+    const t = sellerInvoiceFixture(); await t.session.load(); await t.session.prepareInvoice(command, choices);
+    const before = t.session.getState().snapshot; t.advanceSeller(); await t.session.refresh();
+    expect(t.session.getState().snapshot).toBe(before); expect(t.session.getState().invoiceReview).toBeNull();
+    await expect(t.session.issueInvoice()).rejects.toMatchObject({ code: 'tax_review_required' }); t.session.dispose();
+  });
+  it('recovers the original preparation and seller then allows a distinct approval without rebasing its request', async () => {
+    const t = sellerInvoiceFixture(); await t.session.load(); t.losePrepare();
+    await expect(t.session.prepareInvoice(command, choices)).rejects.toMatchObject({ outcome: 'uncertain' });
+    t.advanceSeller(); await t.session.refresh();
+    expect(t.session.getState().pendingKind).toBe('invoice_prepare');
+    const recovered = await t.session.retryInvoice(); expect(recovered).toMatchObject({ schemaVersion: 2, sellerPresentation: { sellerRevision: 2, profile: { displayName: 'Synthetic seller 2' } } });
+    expect(t.session.getState().seller?.head?.sellerRevision).toBe(3);
+    expect(await t.session.issueInvoice()).toEqual(receipt); await flush();
+    const calls = t.fetcher.mock.calls.filter(([url]) => (typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).endsWith('/invoices/prepare'));
+    expect(calls[0][1]?.body).toBe(calls[1][1]?.body); expect(t.newId).toHaveBeenCalledOnce(); t.session.dispose();
+  });
+  it('keeps an already approved issue reviewId and body after a lost issued reply and an external S change', async () => {
+    const t = sellerInvoiceFixture(); await t.session.load(); const prepared = await t.session.prepareInvoice(command, choices); t.loseIssue();
+    await expect(t.session.issueInvoice()).rejects.toMatchObject({ outcome: 'uncertain' });
+    t.advanceSeller(); await t.session.refresh(); expect(t.session.getState().pendingKind).toBe('invoice_issue');
+    expect(t.session.getState().invoiceReview?.reviewId).toBe(prepared.reviewId);
+    expect(await t.session.retryInvoice()).toEqual(receipt); await flush();
+    const calls = t.fetcher.mock.calls.filter(([url]) => (typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).endsWith('/invoices/issue'));
+    expect(calls).toHaveLength(2); expect(calls[0][1]?.body).toBe(calls[1][1]?.body); expect(t.newId).toHaveBeenCalledOnce(); t.session.dispose();
+  });
+});

@@ -1,3 +1,4 @@
+import { validateUsSellerProfileState, type UsSellerProfile } from './seller-profile';
 import { validDate } from './accounting/ledger';
 import { sha256Hex } from './canonical-hash';
 import { countryConfiguration } from './country-config';
@@ -20,11 +21,12 @@ export interface UsFinancialPilotInvoiceRequest {
 }
 export interface UsFinancialPilotInvoiceIssueRequest { readonly request: UsFinancialPilotInvoiceRequest; readonly reviewId: string }
 export interface UsFinancialPilotInvoicePreview {
-  readonly consumer: 'financial-pilot'; readonly schemaVersion: 1; readonly organizationId: string; readonly revision: number;
+  readonly consumer: 'financial-pilot'; readonly schemaVersion: 1 | 2; readonly organizationId: string; readonly revision: number;
   readonly requestId: string; readonly reviewId: string; readonly status: 'prepared_test'; readonly financialStatus: 'not_issued' | 'issued';
   readonly invoiceId: string; readonly estimateId: string; readonly estimateRevision: number; readonly estimateNumber: string; readonly customerName: string;
   readonly currency: 'USD'; readonly date: string; readonly accountingDate: string; readonly dueDate: string; readonly periodId: string;
   readonly timeZone: string; readonly addressSource: 'billing' | 'shipping'; readonly taxDateInstant: string;
+  readonly sellerPresentation?: Readonly<{ sellerRevision: number; profile: UsSellerProfile }>;
   readonly lines: readonly Readonly<{ id: string; description: string; quantityUnits: string; quantityScale: number; netMinor: string; taxMinor: string; totalMinor: string; taxCode: string }>[];
   readonly netMinor: string; readonly taxMinor: string; readonly totalMinor: string; readonly retryUntil: string; readonly expiresAt: string;
 }
@@ -112,9 +114,10 @@ export function usFinancialPilotInvoiceChoicesMatch(operation: UsFinancialInvoic
 }
 export function validateUsFinancialPilotInvoicePreview(value: unknown, organizationId?: string, expected?: UsFinancialPilotInvoiceRequest): UsFinancialPilotInvoicePreview {
   try {
-    const v = exact(snapshotPrivateJson(value), ['consumer', 'schemaVersion', 'organizationId', 'revision', 'requestId', 'reviewId', 'status', 'financialStatus', 'invoiceId', 'estimateId', 'estimateRevision', 'estimateNumber', 'customerName', 'currency', 'date', 'accountingDate', 'dueDate', 'periodId', 'timeZone', 'addressSource', 'taxDateInstant', 'lines', 'netMinor', 'taxMinor', 'totalMinor', 'retryUntil', 'expiresAt']);
+    const captured = snapshotPrivateJson(value) as Record<string, unknown>;
+    const v = exact(captured, ['consumer', 'schemaVersion', 'organizationId', 'revision', 'requestId', 'reviewId', 'status', 'financialStatus', 'invoiceId', 'estimateId', 'estimateRevision', 'estimateNumber', 'customerName', 'currency', 'date', 'accountingDate', 'dueDate', 'periodId', 'timeZone', 'addressSource', 'taxDateInstant', 'lines', 'netMinor', 'taxMinor', 'totalMinor', 'retryUntil', 'expiresAt', ...(captured?.schemaVersion === 2 ? ['sellerPresentation'] : [])]);
     const org = text(v.organizationId, 128), requestId = uuid(v.requestId), revision = integer(v.revision), estimateId = text(v.estimateId), estimateRevision = integer(v.estimateRevision);
-    if (v.consumer !== 'financial-pilot' || v.schemaVersion !== 1 || (organizationId !== undefined && org !== organizationId) || v.status !== 'prepared_test' || !['not_issued', 'issued'].includes(v.financialStatus as string) || v.currency !== 'USD' || v.invoiceId !== `pilot-invoice:${requestId}`) return invalid();
+    if (v.consumer !== 'financial-pilot' || ![1, 2].includes(v.schemaVersion as number) || (organizationId !== undefined && org !== organizationId) || v.status !== 'prepared_test' || !['not_issued', 'issued'].includes(v.financialStatus as string) || v.currency !== 'USD' || v.invoiceId !== `pilot-invoice:${requestId}`) return invalid();
     if (!countryConfiguration('US').timeZones.includes(v.timeZone as string) || !['billing', 'shipping'].includes(v.addressSource as string)) return invalid();
     const documentDate = date(v.date), accountingDate = date(v.accountingDate), dueDate = date(v.dueDate), taxDateInstant = instant(v.taxDateInstant), retryUntil = instant(v.retryUntil), expiresAt = instant(v.expiresAt);
     if (dueDate < documentDate || expiresAt > retryUntil || !taxDateInstant.endsWith('.000Z')) return invalid();
@@ -133,7 +136,14 @@ export function validateUsFinancialPilotInvoicePreview(value: unknown, organizat
       const r = validateUsFinancialPilotInvoiceRequest(expected), c = r.command;
       if (requestId !== r.requestId || revision !== r.expectedRevision || estimateId !== c.estimateId || estimateRevision !== c.expectedEstimateRevision || documentDate !== c.date || accountingDate !== c.accountingDate || dueDate !== c.dueDate || v.periodId !== c.periodId || v.addressSource !== r.choices.addressSource || taxDateInstant !== r.choices.taxDateInstant || canonicalErpJson(lines.map(l => ({ lineId: l.id, taxCode: l.taxCode, confirmedService: true }))) !== canonicalErpJson(r.choices.classifications)) return invalid();
     }
-    return Object.freeze({ consumer: 'financial-pilot', schemaVersion: 1, organizationId: org, revision, requestId, reviewId: hash(v.reviewId), status: 'prepared_test', financialStatus: v.financialStatus as 'not_issued' | 'issued', invoiceId: v.invoiceId as string, estimateId, estimateRevision, estimateNumber: text(v.estimateNumber, 160), customerName: text(v.customerName, 160), currency: 'USD', date: documentDate, accountingDate, dueDate, periodId: text(v.periodId), timeZone: v.timeZone as string, addressSource: v.addressSource as 'billing' | 'shipping', taxDateInstant, lines, netMinor, taxMinor, totalMinor, retryUntil, expiresAt });
+    let sellerPresentation: Readonly<{ sellerRevision: number; profile: UsSellerProfile }> | undefined;
+    if (v.schemaVersion === 2) {
+      const presentation = exact(v.sellerPresentation, ['sellerRevision', 'profile']);
+      const state = validateUsSellerProfileState({ status: 'configured', organizationId: org, revision: integer(presentation.sellerRevision), profile: presentation.profile, updatedBy: 'presentation-validation', updatedAt: '2026-01-01T00:00:00Z' }, org);
+      if (state.status !== 'configured') return invalid();
+      sellerPresentation = Object.freeze({ sellerRevision: state.revision, profile: state.profile });
+    }
+    return Object.freeze({ consumer: 'financial-pilot', schemaVersion: v.schemaVersion as 1 | 2, ...(sellerPresentation ? { sellerPresentation } : {}), organizationId: org, revision, requestId, reviewId: hash(v.reviewId), status: 'prepared_test', financialStatus: v.financialStatus as 'not_issued' | 'issued', invoiceId: v.invoiceId as string, estimateId, estimateRevision, estimateNumber: text(v.estimateNumber, 160), customerName: text(v.customerName, 160), currency: 'USD', date: documentDate, accountingDate, dueDate, periodId: text(v.periodId), timeZone: v.timeZone as string, addressSource: v.addressSource as 'billing' | 'shipping', taxDateInstant, lines, netMinor, taxMinor, totalMinor, retryUntil, expiresAt });
   } catch { return responseInvalid(); }
 }
 /** Capture synchronously, validate stored evidence at its historical admission
@@ -154,7 +164,9 @@ export async function projectUsFinancialPilotInvoicePreview(operation: UsFinanci
   const reviewId = await sha256Hex(canonicalErpJson(['zentra:financial-pilot:invoice-review:v1', op.organizationId, request, op.operationId, op.preparation.preparationSha256, op.proofSha256]));
   const sums = Object.fromEntries((['netMinor', 'taxMinor', 'totalMinor'] as const).map(key => [key, lines.reduce((n, l) => n + BigInt(l[key]), BigInt(0)).toString()]));
   const expiresAt = [op.retryUntil, op.assessment.validUntil, op.preparation.context.binding.validUntil].map(v => new Date(parseInstant(v)).toISOString()).sort()[0];
-  return validateUsFinancialPilotInvoicePreview({ consumer: 'financial-pilot', schemaVersion: 1, organizationId: op.organizationId, revision: request.expectedRevision, requestId: request.requestId, reviewId, status: 'prepared_test', financialStatus: op.status === 'committed' ? 'issued' : 'not_issued', invoiceId: `pilot-invoice:${request.requestId}`, estimateId: source.id, estimateRevision: source.revision, estimateNumber: source.number, customerName: source.customer.name, currency: 'USD', date: request.command.date, accountingDate: request.command.accountingDate, dueDate: request.command.dueDate, periodId: request.command.periodId, timeZone: op.preparation.context.configuration.timeZone, addressSource: request.choices.addressSource, taxDateInstant: request.choices.taxDateInstant, lines, ...sums, retryUntil: op.retryUntil, expiresAt }, op.organizationId, request);
+  const context = op.preparation.context;
+  const sellerPresentation = context.schemaVersion === 2 ? { sellerRevision: context.presentation.sellerRevision, profile: context.presentation.profile } : undefined;
+  return validateUsFinancialPilotInvoicePreview({ consumer: 'financial-pilot', schemaVersion: sellerPresentation ? 2 : 1, ...(sellerPresentation ? { sellerPresentation } : {}), organizationId: op.organizationId, revision: request.expectedRevision, requestId: request.requestId, reviewId, status: 'prepared_test', financialStatus: op.status === 'committed' ? 'issued' : 'not_issued', invoiceId: `pilot-invoice:${request.requestId}`, estimateId: source.id, estimateRevision: source.revision, estimateNumber: source.number, customerName: source.customer.name, currency: 'USD', date: request.command.date, accountingDate: request.command.accountingDate, dueDate: request.command.dueDate, periodId: request.command.periodId, timeZone: op.preparation.context.configuration.timeZone, addressSource: request.choices.addressSource, taxDateInstant: request.choices.taxDateInstant, lines, ...sums, retryUntil: op.retryUntil, expiresAt }, op.organizationId, request);
 }
 export function validateUsFinancialPilotInvoiceReceipt(value: unknown, organizationId: string, expected?: UsFinancialPilotInvoiceRequest): UsFinancialPilotInvoiceReceipt {
   try {

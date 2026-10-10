@@ -29,7 +29,7 @@ function observation(r: ResolvedStripeTaxRequest): StripeTaxCalculationObservati
 }
 /** Real validators and resolved calculation; all authority/provider data are
  * synthetic. This unit fixture proves neither SQL admission nor tax law. */
-async function prepared() {
+async function prepared(presentation = false) {
   const f = await financialKernelFixture(), request = input(), built = buildUsFinancialPilotInvoiceRequest(request, f.configuration.organizationId);
   if (built.command.type !== 'erp_command') throw Error('Synthetic issue required');
   const erpRequest = { idempotencyKey: built.idempotencyKey, expectedRevision: built.expectedRevision, command: built.command.request };
@@ -40,9 +40,12 @@ async function prepared() {
     binding: { organizationId: f.configuration.organizationId, accountId: 'acct_PilotSynthetic', mode: 'test' as const, apiVersion: STRIPE_TAX_API_VERSION, revision: 1, settingsSha256: 'b'.repeat(64), registrationsSha256: 'c'.repeat(64), observedAt: '2026-10-10T11:59:30.000Z', validUntil: '2026-10-10T12:01:30.000Z', evidenceKind: 'test_fixture' as const, scope: 'erp_invoice_tax' as const },
     merchant: { credential: { reference: 'PRIVATE-KEY-REFERENCE', revision: 1, accountId: 'acct_PilotSynthetic' }, configurationFingerprint: 'd'.repeat(64) }, admittedBy: 'synthetic-db-owner', admittedAt: now };
   const estimate = f.baseline.estimates[0];
+  const baseContext = { ...c, contextSha256: await digest(c) };
+  const enrichedBody = { ...c, schemaVersion: 2 as const, presentation: { schemaVersion: 1 as const, baseContextRevision: baseContext.revision, baseContextSha256: baseContext.contextSha256, origin: 'financial-v5' as const, sellerRevision: 2, sellerChangeSha256: 'e'.repeat(64), profile: { displayName: 'Updated commercial seller', contactEmail: 'updated@example.test' } } };
+  const context = presentation ? { ...enrichedBody, contextSha256: await digest(enrichedBody) } : baseContext;
   const p = { schemaVersion: 1 as const, organizationId: f.configuration.organizationId, actorId: f.actor.userId, request: built, financialCommandHash,
     erpRequest, erpCommandHash: await digest([f.configuration.organizationId, f.actor.userId, erpRequest]), previousBookFingerprint: await digest(f.baseline),
-    context: { ...c, contextSha256: await digest(c) }, estimate, estimateSha256: await digest(estimate),
+    context, estimate, estimateSha256: await digest(estimate),
     classifications: [{ lineId: 'line-1', taxCode: 'txcd_99999999', kind: 'service' as const, taxBehavior: 'exclusive' as const, revision: 1,
       evidenceReference: await financialInvoiceClassificationEvidenceV5(f.configuration.organizationId, f.actor.userId, financialCommandHash, 'line-1', 'txcd_99999999') }],
     taxDateInstant: now, addressSource: 'billing' as const, preparedAt: now };
@@ -148,5 +151,35 @@ describe('private calculated operation to invoice review projection', () => {
     const t = await prepared(), before = await projectUsFinancialPilotInvoicePreview(t.operation, t.request, true);
     const op: UsFinancialInvoiceOperationV5 = { ...t.operation, status: 'committed', receipt: { actorId: t.actor.userId, idempotencyKey: t.built.idempotencyKey, commandHash: t.operation.preparation.financialCommandHash, revision: 6, entityId: `pilot-invoice:${requestId}`, action: 'erp_command' } };
     const after = await projectUsFinancialPilotInvoicePreview(op, t.request, true); expect(after.reviewId).toBe(before.reviewId); expect(after.financialStatus).toBe('issued');
+  });
+});
+
+
+describe('versioned commercial seller preview', () => {
+  it('shows the historically saved commercial details while fiscal resolved fields remain original', async () => {
+    const before = await prepared(), corrected = await prepared(true);
+    const preview = await projectUsFinancialPilotInvoicePreview(corrected.operation, corrected.request, true);
+    expect(preview.schemaVersion).toBe(2);
+    expect(preview.sellerPresentation).toEqual({ sellerRevision: 2, profile: { displayName: 'Updated commercial seller', contactEmail: 'updated@example.test' } });
+    expect(corrected.operation.preparation.context.sellerRevision).toBe(1);
+    expect(corrected.operation.resolvedBody).toBe(before.operation.resolvedBody);
+    expect(corrected.operation.paramsBody).toBe(before.operation.paramsBody);
+    expect(corrected.operation.providerKey).toBe(before.operation.providerKey);
+    expect(preview.reviewId).not.toBe((await projectUsFinancialPilotInvoicePreview(before.operation, before.request, true)).reviewId);
+  });
+  it('keeps the historical public version1 byte shape and rejects cross-version additions', async () => {
+    const t = await prepared(), v1 = await projectUsFinancialPilotInvoicePreview(t.operation, t.request, true);
+    expect(v1.schemaVersion).toBe(1); expect(v1).not.toHaveProperty('sellerPresentation');
+    expect(() => validateUsFinancialPilotInvoicePreview({ ...v1, sellerPresentation: { sellerRevision: 2, profile: { displayName: 'Forged' } } })).toThrow();
+    expect(() => validateUsFinancialPilotInvoicePreview({ ...v1, schemaVersion: 2 })).toThrow();
+  });
+  it.each([
+    { sellerRevision: 0, profile: { displayName: 'Invalid revision' } },
+    { sellerRevision: 2, profile: { displayName: ' Seller has spaces ' } },
+    { sellerRevision: 2, profile: { displayName: 'Bad email', contactEmail: 'wrong' } },
+    { sellerRevision: 2, profile: { displayName: 'Extra authority' }, actor: 'owner' },
+  ])('rejects malformed presentation in a version2 public preview', async sellerPresentation => {
+    const t = await prepared(true), v2 = await projectUsFinancialPilotInvoicePreview(t.operation, t.request, true);
+    expect(() => validateUsFinancialPilotInvoicePreview({ ...v2, sellerPresentation })).toThrow();
   });
 });

@@ -15,14 +15,15 @@ export function createSupabaseUsFinancialPilotInvoiceStore(
   client: Readonly<{ rpc(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown> }>,
   initialScope: UsFinancialPilotScope,
   revalidate: () => Promise<UsFinancialPilotScope>,
-  options: Readonly<{ allowTestFixtures?: boolean }> = {},
+  options: Readonly<{ allowTestFixtures?: boolean; sellerInstalled?: boolean }> = {},
 ): UsFinancialPilotInvoiceStore {
   const bound = captureUsFinancialPilotScope(initialScope), rpc = client.rpc.bind(client), allowFixtures = options.allowTestFixtures === true;
+  const suffix = options.sellerInstalled === true ? 'seller_v1' : 'v1';
   const routes: Readonly<Record<string, string>> = Object.freeze({
-    zentra_read_us_financial_invoice_test_operation_v5: 'zentra_read_us_financial_pilot_invoice_test_operation_v1',
-    zentra_preflight_us_financial_invoice_test_v5: 'zentra_preflight_us_financial_pilot_invoice_test_v1',
-    zentra_reserve_us_financial_invoice_test_v5: 'zentra_reserve_us_financial_pilot_invoice_test_v1',
-    zentra_record_us_financial_invoice_test_calculation_v5: 'zentra_record_us_financial_pilot_invoice_test_calculation_v1',
+    zentra_read_us_financial_invoice_test_operation_v5: `zentra_read_us_financial_pilot_invoice_test_operation_${suffix}`,
+    zentra_preflight_us_financial_invoice_test_v5: `zentra_preflight_us_financial_pilot_invoice_test_${suffix}`,
+    zentra_reserve_us_financial_invoice_test_v5: `zentra_reserve_us_financial_pilot_invoice_test_${suffix}`,
+    zentra_record_us_financial_invoice_test_calculation_v5: `zentra_record_us_financial_pilot_invoice_test_calculation_${suffix}`,
   });
   if (typeof revalidate !== 'function') throw new ErpError('financial_test_grant_required', 403);
   let lastObservedAt = Date.parse(bound.scope.actor.timestamp);
@@ -45,15 +46,15 @@ export function createSupabaseUsFinancialPilotInvoiceStore(
     const supplied = captureUsFinancialPilotScope({ ...bound, scope: { ...bound.scope, actor } }).scope.actor;
     if (supplied.organizationId !== bound.scope.organizationId || supplied.userId !== bound.scope.actor.userId || supplied.role !== bound.scope.actor.role) throw new ErpError('financial_authority_changed', 403);
     await fresh(supplied);
-    let result: UsFinancialInvoiceContextV5 | undefined, failure: unknown;
+    let result: UsFinancialInvoiceContextV5 | undefined, failure: unknown, failed = false;
     try {
-      result = await validateUsFinancialInvoiceContextV5(await rpc('zentra_us_financial_pilot_invoice_test_context_v1', {
+      result = await validateUsFinancialInvoiceContextV5(await rpc(`zentra_us_financial_pilot_invoice_test_context_${suffix}`, {
         p_organization: bound.scope.organizationId, p_actor: supplied, p_grant_version: bound.scope.grantVersion,
         p_opt_in_version: bound.optInVersion, p_capability: 'postgres-test-financial-pilot-dto1',
       }), bound.scope.organizationId, allowFixtures);
-    } catch (error) { failure = error; }
+    } catch (error) { failure = error; failed = true; }
     await fresh(supplied);
-    if (failure) {
+    if (failed) {
       if (failure instanceof ErpError) throw failure;
       if (failure instanceof SupabaseServerError) {
         const errors: Record<string, readonly [string, number]> = { PF005: ['financial_test_grant_required', 403], PF006: ['financial_test_grant_changed', 409], PF007: ['financial_configuration_changed', 409], PF014: ['binding_unavailable', 409] };

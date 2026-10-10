@@ -12,7 +12,7 @@ import type { UsFinancialBookV5, UsFinancialErpCommandV5, UsFinancialTaxProofV5 
 import { createSupabaseUsFinancialAccountingTestStoreV5 } from './us-financial-test-accounting';
 import type { UsFinancialTestScopeV5 } from './us-financial-test-foundation';
 import { createSupabaseUsFinancialInvoicingTestStoreV5 } from './us-financial-test-invoicing';
-import { createUsFinancialInvoiceTestResolverV5, validateUsFinancialInvoiceContextV5, validateUsFinancialInvoiceOperationV5, type UsFinancialInvoiceContextV5, type UsFinancialInvoiceOperationV5, type UsFinancialInvoicePreparationV5 } from './us-financial-invoice-test';
+import { createUsFinancialInvoiceTestResolverV5, validateUsFinancialInvoiceContextV5, validateUsFinancialInvoiceOperationV5, usFinancialInvoiceBaseContextV5, usFinancialInvoiceSellerProfileV5, type UsFinancialInvoiceContextV5, type UsFinancialInvoiceOperationV5, type UsFinancialInvoicePreparationV5 } from './us-financial-invoice-test';
 import { createSupabaseUsFinancialInvoiceTestStoreV5 } from './us-financial-invoice-test-store';
 
 // Actual ERP/kernel, canonical tax/proof validators and both private adapters.
@@ -57,7 +57,7 @@ async function fixture(options: Readonly<{ allowFixtures?: boolean; role?: 'owne
       const next = args.p_book as UsFinancialBookV5, receipt = args.p_receipt as UsFinancialReceiptV5, event = next.events.at(-1)!;
       if (event.operation.type === 'erp_command' && event.operation.command.type === 'issue_invoice') {
         if (state.gate) throw state.gate;
-        if (!state.operation || state.operation.status !== 'calculated' || state.operation.preparation.financialCommandHash !== receipt.commandHash || canonicalErpJson(event.operation.facts) !== canonicalErpJson({ kind: 'invoice_issuance', sellerSnapshot: { organizationId: actor.organizationId, ...context.seller }, taxAssessment: state.operation.assessment })) throw new SupabaseServerError(503, 'PX005', 'Synthetic absent evidence');
+        if (!state.operation || state.operation.status !== 'calculated' || state.operation.preparation.financialCommandHash !== receipt.commandHash || canonicalErpJson(event.operation.facts) !== canonicalErpJson({ kind: 'invoice_issuance', sellerSnapshot: { organizationId: actor.organizationId, ...usFinancialInvoiceSellerProfileV5(state.operation.preparation.context) }, taxAssessment: state.operation.assessment })) throw new SupabaseServerError(503, 'PX005', 'Synthetic absent evidence');
         state.operation = { ...state.operation, status: 'committed', receipt };
       }
       state.book = clone(next); state.receipts.set(receipt.idempotencyKey, { origin: 'financial_v5', actorId: receipt.actorId, receipt }); result = receipt;
@@ -70,7 +70,7 @@ async function fixture(options: Readonly<{ allowFixtures?: boolean; role?: 'owne
       if (request.expectedRevision !== state.book.revision || args.p_previous_fingerprint !== await digest(state.book)) throw new SupabaseServerError(409, 'PF001', 'Synthetic source changed');
       if (request.command.type !== 'erp_command' || request.command.request.type !== 'issue_invoice') throw Error('Synthetic expected invoice request');
       const command = request.command.request;
-      result = { context, estimate: view.estimates.find(e => e.id === command.estimateId), bookRevision: state.book.revision, bookFingerprint: await digest(state.book) };
+      result = { context: state.operation?.preparation.context ?? context, estimate: view.estimates.find(e => e.id === command.estimateId), bookRevision: state.book.revision, bookFingerprint: await digest(state.book) };
     } else if (name === reserveRpc) {
       const p = args.p_preparation as UsFinancialInvoicePreparationV5;
       if (!state.operation) state.operation = { schemaVersion: 1, organizationId: actor.organizationId, operationId, status: 'reserved', preparation: p, resolvedBody: args.p_resolved_body as string, resolvedSha256: args.p_resolved_sha256 as string, paramsBody: args.p_params_body as string, paramsSha256: args.p_params_sha256 as string, providerKey: args.p_provider_idempotency_key as string, reservedAt: now(), retryUntil: new Date(time + 23 * 3_600_000).toISOString(), proofBody: null, proofSha256: null, assessment: null, receipt: null };
@@ -102,6 +102,63 @@ async function fixture(options: Readonly<{ allowFixtures?: boolean; role?: 'owne
     appends: () => rpc.mock.calls.filter(([name]) => name === appendRpc).length,
   };
 }
+
+async function presentationContext(base: UsFinancialInvoiceContextV5, origin: 'legacy-frozen' | 'financial-v5' = 'financial-v5'): Promise<UsFinancialInvoiceContextV5> {
+  const original = usFinancialInvoiceBaseContextV5(base), { contextSha256, ...fields } = original;
+  const value = { ...fields, schemaVersion: 2 as const, presentation: { schemaVersion: 1 as const, baseContextRevision: original.revision, baseContextSha256: contextSha256,
+    origin, sellerRevision: origin === 'legacy-frozen' ? original.sellerRevision : original.sellerRevision + 1, sellerChangeSha256: origin === 'legacy-frozen' ? null : 'e'.repeat(64),
+    profile: origin === 'legacy-frozen' ? original.seller : { displayName: 'Current commercial seller · Genève', contactPhone: '+1 555 0100' } } };
+  return validateUsFinancialInvoiceContextV5({ ...value, contextSha256: await digest(value) }, original.organizationId, true);
+}
+describe('compatible private invoice presentation context', () => {
+  it.each(['legacy-frozen', 'financial-v5'] as const)('captures %s without changing the original fiscal context or hash', async origin => {
+    const t = await fixture(), original = t.context(), value = await presentationContext(original, origin), supplied = clone(value);
+    const promise = validateUsFinancialInvoiceContextV5(supplied, t.actor.organizationId, true);
+    if (supplied.schemaVersion === 2) (supplied.presentation.profile as { displayName: string }).displayName = 'Mutated after capture';
+    const captured = await promise;
+    expect(captured).toEqual(value); expect(usFinancialInvoiceBaseContextV5(captured)).toEqual(original);
+    expect(canonicalErpJson(usFinancialInvoiceBaseContextV5(captured))).toBe(canonicalErpJson(original));
+    expect(captured.sellerRevision).toBe(original.sellerRevision); expect(captured.binding).toEqual(original.binding); expect(captured.merchant).toEqual(original.merchant);
+  });
+  it.each(['extra', 'baseHash', 'baseRevision', 'profile', 'origin', 'changeHash', 'outerHash'] as const)('rejects coherent malformed %s presentation', async field => {
+    const t = await fixture(), value = clone(await presentationContext(t.context())) as Extract<UsFinancialInvoiceContextV5, { schemaVersion: 2 }>;
+    const changed = value as unknown as Record<string, unknown>, p = changed.presentation as Record<string, unknown>;
+    if (field === 'extra') p.legalName = 'Private field';
+    if (field === 'baseHash') p.baseContextSha256 = 'f'.repeat(64);
+    if (field === 'baseRevision') p.baseContextRevision = 2;
+    if (field === 'profile') p.profile = { displayName: 'Trimmed ', contactEmail: 'invalid' };
+    if (field === 'origin') p.origin = 'current';
+    if (field === 'changeHash') p.sellerChangeSha256 = null;
+    if (field !== 'outerHash') { const { contextSha256: _hash, ...body } = changed; void _hash; changed.contextSha256 = await digest(body); }
+    else changed.contextSha256 = 'f'.repeat(64);
+    await expect(validateUsFinancialInvoiceContextV5(changed, t.actor.organizationId, true)).rejects.toMatchObject({ code: 'invalid_financial_invoice_private_data', status: 503 });
+  });
+  it.each([null, 1, [], 'private'])('closes non-object private context %s', async value => {
+    await expect(validateUsFinancialInvoiceContextV5(value, 'synthetic', true)).rejects.toMatchObject({ code: 'invalid_financial_invoice_private_data', status: 503 });
+  });
+  it('prints commercial presentation while resolved requests retain fiscal S and original money/TTL', async () => {
+    const t = await fixture(), original = t.context(), commercial = await presentationContext(original); t.setContext(commercial);
+    const before = await projectUsFinancialBookV5(t.state.book), oldInvoice = canonicalErpJson(before.invoices[0]); await t.issue();
+    const view = await projectUsFinancialBookV5(t.state.book), operation = t.state.operation!, resolved = JSON.parse(operation.resolvedBody) as { sellerRevision: number; binding: unknown };
+    expect(view.invoices[1].sellerSnapshot).toEqual({ organizationId: t.actor.organizationId, ...usFinancialInvoiceSellerProfileV5(commercial) });
+    expect(resolved.sellerRevision).toBe(original.sellerRevision); expect(operation.preparation.context.binding).toEqual(original.binding);
+    expect(operation.preparation.context.taxFacts).toEqual(original.taxFacts); expect(operation.preparation.context.merchant).toEqual(original.merchant);
+    expect(view.invoices[1].total.minorUnits).toBe('32475'); expect(canonicalErpJson(view.invoices[0])).toBe(oldInvoice);
+    expect(await validateUsFinancialInvoiceOperationV5(operation, t.actor.organizationId, true)).toEqual(operation);
+    expect(t.gateway.calculate).toHaveBeenCalledOnce();
+  });
+  it('retains the recorded presentation across an uncertain calculated operation and a changed current S', async () => {
+    const t = await fixture(), recorded = await presentationContext(t.context()); t.setContext(recorded);
+    t.hooks.set(appendRpc, () => { throw new ErpError('synthetic_lost_financial_append', 503); }); await expect(t.issue()).rejects.toMatchObject({ status: 503 });
+    const prior = clone(t.state.operation!), changed = clone(recorded) as Extract<UsFinancialInvoiceContextV5, { schemaVersion: 2 }>;
+    const payload = { ...changed, presentation: { ...changed.presentation, sellerRevision: changed.presentation.sellerRevision + 1, sellerChangeSha256: 'f'.repeat(64), profile: { displayName: 'Later current seller' } } };
+    const { contextSha256: _hash, ...body } = payload; void _hash;
+    t.setContext(await validateUsFinancialInvoiceContextV5({ ...body, contextSha256: await digest(body) }, t.actor.organizationId, true)); t.state.gate = null;
+    await t.issue(); expect(t.state.operation!.preparation).toEqual(prior.preparation); expect(t.state.operation!.providerKey).toBe(prior.providerKey);
+    expect(t.state.operation!.resolvedBody).toBe(prior.resolvedBody); expect(t.gateway.calculate).toHaveBeenCalledOnce();
+    expect((await projectUsFinancialBookV5(t.state.book)).invoices[1].sellerSnapshot).toEqual({ organizationId: t.actor.organizationId, ...usFinancialInvoiceSellerProfileV5(recorded) });
+  });
+});
 
 describe('private V5 invoice issuance with synthetic tax transport', () => {
   it('issues, persists, receives and credits a new invoice on the same true ledger', async () => {

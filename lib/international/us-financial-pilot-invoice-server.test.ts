@@ -12,7 +12,7 @@ import type { UsFinancialBookV5, UsFinancialErpCommandV5, UsFinancialTaxProofV5 
 
 import type { UsFinancialTestScopeV5 } from './us-financial-test-foundation';
 import { createSupabaseUsFinancialInvoicingTestStoreV5 } from './us-financial-test-invoicing';
-import { createUsFinancialInvoiceTestResolverV5, type UsFinancialInvoiceContextV5, type UsFinancialInvoiceOperationV5, type UsFinancialInvoicePreparationV5 } from './us-financial-invoice-test';
+import { createUsFinancialInvoiceTestResolverV5, usFinancialInvoiceBaseContextV5, usFinancialInvoiceSellerProfileV5, type UsFinancialInvoiceContextV5, type UsFinancialInvoiceOperationV5, type UsFinancialInvoicePreparationV5 } from './us-financial-invoice-test';
 import { createSupabaseUsFinancialInvoiceTestStoreV5 } from './us-financial-invoice-test-store';
 import { createUsFinancialPilotInvoiceHandlers, type UsFinancialPilotInvoiceDependencies } from './us-financial-pilot-invoice-server';
 import { validateUsFinancialPilotInvoicePreview, type UsFinancialPilotInvoiceRequest, type UsFinancialPilotInvoicePreview } from './us-financial-pilot-invoice';
@@ -64,6 +64,29 @@ async function httpFixture() {
 }
 
 describe('invoice pilot HTTP prepare/review/issue — real V5 engine, synthetic private RPC/gateway/Auth', () => {
+  it('returns a presentation2 preview and prints that seller while fiscal verify retains the original S', async () => {
+    const t = await httpFixture(), original = await t.context(), base = usFinancialInvoiceBaseContextV5(original), { contextSha256, ...fields } = base;
+    const body = { ...fields, schemaVersion: 2 as const, presentation: { schemaVersion: 1 as const, baseContextRevision: base.revision, baseContextSha256: contextSha256,
+      origin: 'financial-v5' as const, sellerRevision: 2, sellerChangeSha256: 'e'.repeat(64), profile: { displayName: 'Updated commercial seller · Zürich', contactEmail: 'commercial@example.test' } } };
+    t.setContext({ ...body, contextSha256: await digest(body) });
+    const preview = await t.preview(); expect(preview).toMatchObject({ schemaVersion: 2, sellerPresentation: { sellerRevision: 2, profile: body.presentation.profile }, totalMinor: '32475' });
+    expect(t.verify).toHaveBeenCalledWith(expect.objectContaining({ sellerRevision: base.sellerRevision, seller: base.seller, binding: base.binding }));
+    expect((await t.issue(preview)).status).toBe(200);
+    expect((await projectUsFinancialBookV5(t.state.book)).invoices[1].sellerSnapshot).toEqual({ organizationId: t.org, ...body.presentation.profile });
+    expect(t.gateway.calculate).toHaveBeenCalledOnce(); expect(JSON.stringify(preview)).not.toMatch(/contextSha256|sellerChangeSha256|baseContext|PRIVATE|acct_/);
+  });
+  it('keeps the durable calculated S/review after current S changes and replays the exact committed request', async () => {
+    const t = await httpFixture(), original = await t.context(), preview = await t.preview(), prior = clone(t.state.operation!);
+    const base = usFinancialInvoiceBaseContextV5(original), { contextSha256, ...fields } = base;
+    const body = { ...fields, schemaVersion: 2 as const, presentation: { schemaVersion: 1 as const, baseContextRevision: base.revision, baseContextSha256: contextSha256,
+      origin: 'financial-v5' as const, sellerRevision: 2, sellerChangeSha256: 'e'.repeat(64), profile: { displayName: 'New current seller' } } };
+    t.setContext({ ...body, contextSha256: await digest(body) });
+    const response = await t.issue(preview); expect(response.status).toBe(200); const receipt = await response.json();
+    expect(t.state.operation!.preparation).toEqual(prior.preparation); expect(t.state.operation!.providerKey).toBe(prior.providerKey);
+    expect((await projectUsFinancialBookV5(t.state.book)).invoices[1].sellerSnapshot).toEqual({ organizationId: t.org, ...base.seller });
+    t.merchant.mockRejectedValue(Error('Synthetic later merchant closed'));
+    const replay = await t.issue(preview); expect(replay.status).toBe(200); expect(await replay.json()).toEqual(receipt); expect(t.appends()).toBe(1); expect(t.gateway.calculate).toHaveBeenCalledOnce();
+  });
   it('prepares durable calculation without numbering or appending, then issues once from the reviewed amount', async () => {
     const t = await httpFixture(), before = canonicalErpJson(t.state.book), preview = await t.preview();
     expect(preview).toMatchObject({ totalMinor: '32475', taxMinor: '2475', financialStatus: 'not_issued' });
@@ -193,7 +216,7 @@ async function fixture(options: Readonly<{ allowFixtures?: boolean; role?: 'owne
       const next = args.p_book as UsFinancialBookV5, receipt = args.p_receipt as UsFinancialReceiptV5, event = next.events.at(-1)!;
       if (event.operation.type === 'erp_command' && event.operation.command.type === 'issue_invoice') {
         if (state.gate) throw state.gate;
-        if (!state.operation || state.operation.status !== 'calculated' || state.operation.preparation.financialCommandHash !== receipt.commandHash || canonicalErpJson(event.operation.facts) !== canonicalErpJson({ kind: 'invoice_issuance', sellerSnapshot: { organizationId: actor.organizationId, ...context.seller }, taxAssessment: state.operation.assessment })) throw new SupabaseServerError(503, 'PX005', 'Synthetic absent evidence');
+        if (!state.operation || state.operation.status !== 'calculated' || state.operation.preparation.financialCommandHash !== receipt.commandHash || canonicalErpJson(event.operation.facts) !== canonicalErpJson({ kind: 'invoice_issuance', sellerSnapshot: { organizationId: actor.organizationId, ...usFinancialInvoiceSellerProfileV5(state.operation.preparation.context) }, taxAssessment: state.operation.assessment })) throw new SupabaseServerError(503, 'PX005', 'Synthetic absent evidence');
         state.operation = { ...state.operation, status: 'committed', receipt };
       }
       state.book = clone(next); state.receipts.set(receipt.idempotencyKey, { origin: 'financial_v5', actorId: receipt.actorId, receipt }); result = receipt;
@@ -206,7 +229,7 @@ async function fixture(options: Readonly<{ allowFixtures?: boolean; role?: 'owne
       if (request.expectedRevision !== state.book.revision || args.p_previous_fingerprint !== await digest(state.book)) throw new SupabaseServerError(409, 'PF001', 'Synthetic source changed');
       if (request.command.type !== 'erp_command' || request.command.request.type !== 'issue_invoice') throw Error('Synthetic expected invoice request');
       const command = request.command.request;
-      result = { context, estimate: view.estimates.find(e => e.id === command.estimateId), bookRevision: state.book.revision, bookFingerprint: await digest(state.book) };
+      result = { context: state.operation?.preparation.context ?? context, estimate: view.estimates.find(e => e.id === command.estimateId), bookRevision: state.book.revision, bookFingerprint: await digest(state.book) };
     } else if (name === reserveRpc) {
       const p = args.p_preparation as UsFinancialInvoicePreparationV5;
       if (!state.operation) state.operation = { schemaVersion: 1, organizationId: actor.organizationId, operationId, status: 'reserved', preparation: p, resolvedBody: args.p_resolved_body as string, resolvedSha256: args.p_resolved_sha256 as string, paramsBody: args.p_params_body as string, paramsSha256: args.p_params_sha256 as string, providerKey: args.p_provider_idempotency_key as string, reservedAt: now(), retryUntil: new Date(time + 23 * 3_600_000).toISOString(), proofBody: null, proofSha256: null, assessment: null, receipt: null };

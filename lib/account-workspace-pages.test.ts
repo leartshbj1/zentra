@@ -2,12 +2,13 @@ import {beforeEach,describe,it,expect,vi} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {createElement} from 'react';
 import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
-const f=vi.hoisted(()=>({user:vi.fn(),requireUser:vi.fn(),enabled:vi.fn(),pilotMode:vi.fn(),erpReadiness:vi.fn(),salesOrders:vi.fn(),bank:vi.fn(),supplier:vi.fn(),documents:vi.fn(),team:vi.fn(),sync:vi.fn(),tax:vi.fn(),supportWorkspace:vi.fn(),supportMailbox:vi.fn(),supportImport:vi.fn(),supportTriage:vi.fn(),supportTickets:vi.fn(),supportWorker:vi.fn(),spaces:vi.fn(),access:vi.fn(),preferences:vi.fn(),language:'en',pathname:'/compte/espaces',query:new URLSearchParams()}));
+const f=vi.hoisted(()=>({user:vi.fn(),requireUser:vi.fn(),enabled:vi.fn(),pilotMode:vi.fn(),sellerInstalled:vi.fn(),sellerWrite:vi.fn(),erpReadiness:vi.fn(),salesOrders:vi.fn(),bank:vi.fn(),supplier:vi.fn(),documents:vi.fn(),team:vi.fn(),sync:vi.fn(),tax:vi.fn(),supportWorkspace:vi.fn(),supportMailbox:vi.fn(),supportImport:vi.fn(),supportTriage:vi.fn(),supportTickets:vi.fn(),supportWorker:vi.fn(),spaces:vi.fn(),access:vi.fn(),preferences:vi.fn(),language:'en',pathname:'/compte/espaces',query:new URLSearchParams()}));
 vi.mock('@/app/zentra-auth',()=>({getZentraUser:f.user,requireZentraUser:f.requireUser}));
 vi.mock('@/lib/account-workspaces',()=>({accountWorkspaceDiscoveryEnabled:f.enabled,accountWorkspacesForUser:f.spaces,AccountWorkspaceDiscoveryError:class extends Error{}}));
 vi.mock('@/lib/international/saas-authority-d1',()=>({requireUsWorkspaceAccess:f.access}));
 vi.mock('@/lib/international/export-bindings',()=>({usExportReadiness:f.erpReadiness}));
 vi.mock('@/lib/international/us-financial-pilot-bindings',()=>({usFinancialPilotPageMode:f.pilotMode}));
+vi.mock('@/lib/international/us-financial-pilot-seller-bindings',()=>({usFinancialPilotSellerEnabled:f.sellerInstalled,usFinancialPilotSellerWriteEnabled:f.sellerWrite}));
 vi.mock('@/lib/international/us-sales-order-bindings',()=>({usSalesOrderReadiness:f.salesOrders}));
 vi.mock('@/lib/international/us-bank-bindings',()=>({usBankReadiness:f.bank}));
 vi.mock('@/lib/international/us-supplier-bindings',()=>({usSupplierReadiness:f.supplier}));
@@ -24,7 +25,7 @@ vi.mock('@/lib/international/us-support-worker-bindings',()=>({usSupportWorkerEn
 vi.mock('@/lib/account-preferences',()=>({accountPreferences:f.preferences}));
 vi.mock('@/lib/site-language-server',()=>({getSiteLanguage:async()=>f.language}));
 vi.mock('@/components/account/account-forms',()=>({ProfileForms:()=>createElement('div',null,'profile-fixture'),SecurityForms:()=>createElement('div',null,'security-fixture'),AppearanceForm:()=>createElement('div',null,'appearance-fixture')}));
-vi.mock('@/components/account/us-financial-pilot',()=>({UsFinancialPilot:({organizationId,expectedUserId,name,role,language}:{organizationId:string;expectedUserId:string;name:string;role:string;language:string})=>createElement('section',{'data-workspace':organizationId,'data-expected-user':expectedUserId,'data-name':name,'data-role':role,'data-language':language},'financial-pilot-fixture')}));
+vi.mock('@/components/account/us-financial-pilot',()=>({UsFinancialPilot:({organizationId,expectedUserId,name,role,language,sellerInstalled,sellerWriteEnabled}:{organizationId:string;expectedUserId:string;name:string;role:string;language:string;sellerInstalled:boolean;sellerWriteEnabled:boolean})=>createElement('section',{'data-workspace':organizationId,'data-expected-user':expectedUserId,'data-name':name,'data-role':role,'data-language':language,'data-seller-installed':String(sellerInstalled),'data-seller-write':String(sellerWriteEnabled)},'financial-pilot-fixture')}));
 vi.mock('@/components/account/us-erp-workbench',()=>({UsErpWorkbench:({organizationId,role,language,expectedUserId,salesEnabled,invoiceIssuanceAvailable,supportedSchemaVersion,salesOrdersAvailable,newSalesOrdersEnabled,supportWorkspaceEnabled,supportMailboxEnabled,supportMailImportEnabled,supportTriageEnabled,supportTicketsEnabled,supportWorkerEnabled}:{organizationId:string;role:string;language:string;expectedUserId:string;salesEnabled:boolean;invoiceIssuanceAvailable:boolean;supportedSchemaVersion:1|2|3|4;salesOrdersAvailable:boolean;newSalesOrdersEnabled:boolean;supportWorkspaceEnabled:boolean;supportMailboxEnabled:boolean;supportMailImportEnabled:boolean;supportTriageEnabled:boolean;supportTicketsEnabled:boolean;supportWorkerEnabled:boolean})=>createElement('section',{'data-workspace':organizationId,'data-role':role,'data-language':language,'data-expected-user':expectedUserId,'data-sales':String(salesEnabled),'data-issuance':String(invoiceIssuanceAvailable),'data-schema':supportedSchemaVersion,'data-sales-orders':String(salesOrdersAvailable),'data-new-sales-orders':String(newSalesOrdersEnabled),'data-support-workspace':String(supportWorkspaceEnabled),'data-support-mailbox':String(supportMailboxEnabled),'data-support-import':String(supportMailImportEnabled),'data-support-triage':String(supportTriageEnabled),'data-support-tickets':String(supportTicketsEnabled),'data-support-worker':String(supportWorkerEnabled)},'erp-workbench-fixture')}));
 vi.mock('@/components/account/us-support-workspace-panel',()=>({UsSupportWorkspacePanel:({organizationId,role,language,expectedUserId,mailboxEnabled,importEnabled,triageEnabled,ticketsEnabled,workerEnabled}:{organizationId:string;role:string;language:string;expectedUserId:string;mailboxEnabled:boolean;importEnabled:boolean;triageEnabled:boolean;ticketsEnabled:boolean;workerEnabled:boolean})=>createElement('section',{'data-workspace':organizationId,'data-role':role,'data-language':language,'data-expected-user':expectedUserId,'data-support-mailbox':String(mailboxEnabled),'data-support-import':String(importEnabled),'data-support-triage':String(triageEnabled),'data-support-tickets':String(ticketsEnabled),'data-support-worker':String(workerEnabled)},'support-workspace-fixture')}));
 vi.mock('@/components/account/us-team-panel',()=>({UsTeamPanel:()=>createElement('section',null,'team-fixture')}));
@@ -44,7 +45,7 @@ const us={organizationId:id,name:company,edition:'us_experimental' as const,role
 const ch={organizationId:'ch-old',organizationName:'Suisse SA',role:'owner' as const};
 const page=(reglage='')=>UsWorkspacePage({params:Promise.resolve({organizationId:id}),searchParams:Promise.resolve({reglage})});
 const html=(node:Parameters<typeof renderToStaticMarkup>[0])=>renderToStaticMarkup(node);
-beforeEach(()=>{vi.resetAllMocks();f.user.mockResolvedValue(user);f.requireUser.mockResolvedValue(user);f.enabled.mockResolvedValue(true);f.pilotMode.mockResolvedValue('legacy');f.erpReadiness.mockResolvedValue({enabled:true,supportedSchemaVersion:2});f.salesOrders.mockResolvedValue({available:false,newOrdersEnabled:false});for(const gate of [f.bank,f.supplier,f.documents,f.team,f.sync,f.tax,f.supportWorkspace,f.supportMailbox,f.supportImport,f.supportTriage,f.supportTickets,f.supportWorker])gate.mockResolvedValue(false);f.spaces.mockResolvedValue([us]);f.access.mockResolvedValue({organizationId:id,userId:owner,role:'owner'});f.preferences.mockResolvedValue({theme:'dark',companyDraft:'',onboardingCompletedAt:null,revision:0});f.language='en';f.pathname='/compte/espaces';f.query=new URLSearchParams();});
+beforeEach(()=>{vi.resetAllMocks();f.user.mockResolvedValue(user);f.requireUser.mockResolvedValue(user);f.enabled.mockResolvedValue(true);f.pilotMode.mockResolvedValue('legacy');f.sellerInstalled.mockResolvedValue(false);f.sellerWrite.mockResolvedValue(false);f.erpReadiness.mockResolvedValue({enabled:true,supportedSchemaVersion:2});f.salesOrders.mockResolvedValue({available:false,newOrdersEnabled:false});for(const gate of [f.bank,f.supplier,f.documents,f.team,f.sync,f.tax,f.supportWorkspace,f.supportMailbox,f.supportImport,f.supportTriage,f.supportTickets,f.supportWorker])gate.mockResolvedValue(false);f.spaces.mockResolvedValue([us]);f.access.mockResolvedValue({organizationId:id,userId:owner,role:'owner'});f.preferences.mockResolvedValue({theme:'dark',companyDraft:'',onboardingCompletedAt:null,revision:0});f.language='en';f.pathname='/compte/espaces';f.query=new URLSearchParams();});
 describe('isolated authenticated workspace surfaces',()=>{
  it('renders only metadata and uses read-only account auth',async()=>{const output=html(await WorkspacePage());expect(output).toContain(company.replace('&','&amp;'));expect(output).toContain('/compte/espaces/us/'+id);expect(output).not.toMatch(/subscriptionId|authority|receipt|EIN|configuration|price_/);expect(f.requireUser).toHaveBeenCalledWith('/compte/espaces',{offerAccess:false});expect(f.user).toHaveBeenCalledWith({offerAccess:false});});
  it('never returns previous account companies after a session switch',async()=>{f.user.mockResolvedValue({...user,userId:'other'});expect(html(await WorkspacePage())).not.toContain(company);});
@@ -64,6 +65,29 @@ describe('isolated authenticated workspace surfaces',()=>{
  it('checks the account again after waiting for export readiness',async()=>{f.erpReadiness.mockImplementation(async()=>{f.user.mockResolvedValue({...user,userId:'changed-during-readiness'});return {enabled:true,supportedSchemaVersion:2};});expect(html(await page('gestion'))).not.toContain('erp-workbench-fixture');});
  describe('financial pilot page admission before frozen ERP4 readiness',()=>{
   const oldReadiness=()=>[f.erpReadiness,f.salesOrders,f.bank,f.supplier,f.documents,f.team,f.sync,f.tax,f.supportWorkspace,f.supportMailbox,f.supportImport,f.supportTriage,f.supportTickets,f.supportWorker];
+  it.each([false,true].flatMap(installed=>[false,true].map(write=>({installed,write}))))('normalizes seller presentation installed=$installed write=$write without granting API rights',async({installed,write})=>{
+   f.pilotMode.mockResolvedValue('pilot');f.sellerInstalled.mockResolvedValue(installed);f.sellerWrite.mockResolvedValue(write);
+   const output=html(await page('gestion'));
+   expect(output).toContain('financial-pilot-fixture');expect(output).toContain('data-seller-installed="'+String(installed)+'"');expect(output).toContain('data-seller-write="'+String(installed&&write)+'"');
+   expect(f.sellerInstalled).toHaveBeenCalledTimes(1);expect(f.sellerWrite).toHaveBeenCalledTimes(installed?1:0);for(const gate of oldReadiness())expect(gate).not.toHaveBeenCalled();
+  });
+  it.each(['installed','write'].flatMap(gate=>['switched','signed_out','revoked','role','discovery'].map(change=>({gate,change}))))('withholds previous workspace when $change occurs while awaiting seller $gate',async({gate,change})=>{
+   f.pilotMode.mockResolvedValue('pilot');f.sellerInstalled.mockResolvedValue(true);f.sellerWrite.mockResolvedValue(true);
+   const waiting=gate==='installed'?f.sellerInstalled:f.sellerWrite;
+   waiting.mockImplementation(async()=>{
+    if(change==='switched')f.user.mockResolvedValue({...user,userId:'changed-during-seller-flags'});
+    if(change==='signed_out')f.user.mockResolvedValue(null);
+    if(change==='revoked')f.access.mockRejectedValue(new UsAuthorityError('forbidden',403));
+    if(change==='role')f.access.mockResolvedValue({organizationId:id,userId:owner,role:'member'});
+    if(change==='discovery')f.enabled.mockResolvedValue(false);
+    return true;
+   });
+   const output=html(await page('gestion'));
+   expect(waiting).toHaveBeenCalledTimes(1);expect(output).toContain(accountWorkspaceCopy.en.denied);expect(output).not.toContain('financial-pilot-fixture');expect(output).not.toContain('erp-workbench-fixture');expect(output).not.toContain(company.replace('&','&amp;'));expect(output).not.toContain('data-workspace="'+id+'"');for(const readiness of oldReadiness())expect(readiness).not.toHaveBeenCalled();
+  });
+  it.each(['legacy','unavailable'])('does not consult seller capabilities for %s mode',async mode=>{
+   f.pilotMode.mockResolvedValue(mode);await page('gestion');expect(f.sellerInstalled).not.toHaveBeenCalled();expect(f.sellerWrite).not.toHaveBeenCalled();
+  });
   it.each(['owner','admin','accountant'])('mounts the admitted %s pilot with only scoped public props and no ERP4/sidecar readiness',async role=>{
    f.pilotMode.mockResolvedValue('pilot');f.spaces.mockResolvedValue([{...us,role}]);f.access.mockResolvedValue({organizationId:id,userId:owner,role});
    const output=html(await page('gestion'));expect(output).toContain('financial-pilot-fixture');expect(output).toContain('data-workspace="'+id+'"');expect(output).toContain('data-expected-user="'+owner+'"');expect(output).toContain('data-name="Studio North &amp; Partners"');expect(output).toContain('data-role="'+role+'"');expect(output).toContain('data-language="en"');
@@ -86,7 +110,7 @@ describe('isolated authenticated workspace surfaces',()=>{
    const output=html(await page('gestion'));expect(output).toContain(accountWorkspaceCopy.en.denied);expect(output).not.toContain('financial-pilot-fixture');for(const gate of oldReadiness())expect(gate).not.toHaveBeenCalled();
   });
   it.each(['','support','equipe','profil','securite','apparence'])('does not select or expose the financial pilot on %s',async setting=>{
-   f.team.mockResolvedValue(true);f.supportWorkspace.mockResolvedValue(true);f.pilotMode.mockResolvedValue('pilot');const output=html(await page(setting));expect(f.pilotMode).not.toHaveBeenCalled();expect(output).not.toContain('financial-pilot-fixture');
+   f.team.mockResolvedValue(true);f.supportWorkspace.mockResolvedValue(true);f.pilotMode.mockResolvedValue('pilot');const output=html(await page(setting));expect(f.pilotMode).not.toHaveBeenCalled();expect(f.sellerInstalled).not.toHaveBeenCalled();expect(f.sellerWrite).not.toHaveBeenCalled();expect(output).not.toContain('financial-pilot-fixture');
   });
   it('keeps the Swiss workspace picker independent of the US pilot',async()=>{
    f.spaces.mockResolvedValue([{organizationId:'ch-old',name:'Suisse SA',edition:'ch_legacy',role:'owner'}]);const output=html(await WorkspacePage());expect(output).toContain('Suisse SA');expect(output).toContain('/compte/entreprise?organizationId=ch-old');expect(f.pilotMode).not.toHaveBeenCalled();

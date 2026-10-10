@@ -13,11 +13,11 @@ import { validateUsFinancialReceiptV5, validateUsFinancialRequestV5, type UsFina
 import { captureUsFinancialTestScopeV5, type UsFinancialTestScopeV5 } from './us-financial-test-foundation';
 import { validateUsTaxInvoiceTime } from './us-tax-invoice-time';
 import { validateUsTaxMerchantContext, validateUsTaxMerchantCredential, type UsTaxMerchantCredential } from './us-tax-merchant-store';
-import type { UsSellerProfile } from './seller-profile';
+import { validateUsSellerProfileState, type UsSellerProfile } from './seller-profile';
 import type { UsTaxFacts } from './us-tax-profile';
 import type { CompanyConfiguration } from './types';
 
-export interface UsFinancialInvoiceContextV5 {
+export interface UsFinancialInvoiceLegacyContextV5 {
   readonly schemaVersion: 1; readonly organizationId: string; readonly revision: number;
   readonly countryRevision: number; readonly configuration: CompanyConfiguration;
   readonly sellerRevision: number; readonly seller: UsSellerProfile;
@@ -25,6 +25,16 @@ export interface UsFinancialInvoiceContextV5 {
   readonly binding: StripeTaxTestBinding; readonly merchant: UsTaxMerchantCredential;
   readonly admittedBy: string; readonly admittedAt: string; readonly contextSha256: string;
 }
+/** Commercial identity is independently corroborated in PostgreSQL. The common
+ * seller fields above remain the original fiscal identity used by the gateway. */
+export interface UsFinancialInvoicePresentationV5 {
+  readonly schemaVersion: 1; readonly baseContextRevision: number; readonly baseContextSha256: string;
+  readonly origin: 'legacy-frozen' | 'financial-v5'; readonly sellerRevision: number;
+  readonly sellerChangeSha256: string | null; readonly profile: UsSellerProfile;
+}
+export type UsFinancialInvoiceContextV5 = UsFinancialInvoiceLegacyContextV5 | Readonly<
+  Omit<UsFinancialInvoiceLegacyContextV5, 'schemaVersion'> & { schemaVersion: 2; presentation: UsFinancialInvoicePresentationV5 }
+>;
 export interface UsFinancialInvoicePreparationV5 {
   readonly schemaVersion: 1; readonly organizationId: string; readonly actorId: string;
   readonly request: UsFinancialRequestV5; readonly financialCommandHash: string;
@@ -105,7 +115,7 @@ export async function financialInvoiceClassificationEvidenceV5(org: string, acto
 }
 /** Validates historical evidence at its original admission time. Freshness is a
  * separate new-action gate; the hash is not proof of DB-owner provenance. */
-export async function validateUsFinancialInvoiceContextV5(input: unknown, org: string, allowTestFixtures = false): Promise<UsFinancialInvoiceContextV5> {
+async function validateLegacyContext(input: unknown, org: string, allowTestFixtures: boolean): Promise<UsFinancialInvoiceLegacyContextV5> {
   const v = exact(capture(input), contextFields), binding = exact(v.binding, ['organizationId', 'accountId', 'mode', 'apiVersion', 'revision', 'settingsSha256', 'registrationsSha256', 'observedAt', 'validUntil', 'evidenceKind', 'scope']);
   if (v.schemaVersion !== 1 || v.organizationId !== org) return fail(); revision(v.revision);
   validateUsTaxMerchantContext({ organizationId: org, countryRevision: v.countryRevision, configuration: v.configuration, sellerRevision: v.sellerRevision, seller: v.seller, taxFactsRevision: v.taxFactsRevision, taxFacts: v.taxFacts, bindingRevision: binding.revision }, org);
@@ -115,6 +125,39 @@ export async function validateUsFinancialInvoiceContextV5(input: unknown, org: s
   revision(binding.revision); hash(binding.settingsSha256); hash(binding.registrationsSha256); text(v.admittedBy);
   const admitted = instant(v.admittedAt), observed = instant(binding.observedAt), until = instant(binding.validUntil);
   if (observed > admitted || admitted >= until || until - observed > 120_000 || until <= observed) return fail();
+  if (hash(v.contextSha256) !== await sha256Hex(canonicalErpJson(body(v, 'contextSha256')))) return fail();
+  return v as unknown as UsFinancialInvoiceLegacyContextV5;
+}
+/** Recover the exact immutable DB-owner context; never substitute commercial S
+ * in provider requests, merchant admission, observation or retry windows. */
+export function usFinancialInvoiceBaseContextV5(context: UsFinancialInvoiceContextV5): UsFinancialInvoiceLegacyContextV5 {
+  const captured = capture(context);
+  if (captured.schemaVersion === 1) return captured;
+  const { presentation, ...common } = captured;
+  return Object.freeze({ ...common, schemaVersion: 1, contextSha256: presentation.baseContextSha256 });
+}
+export function usFinancialInvoiceSellerProfileV5(context: UsFinancialInvoiceContextV5): UsSellerProfile {
+  const captured = capture(context);
+  return captured.schemaVersion === 2 ? captured.presentation.profile : captured.seller;
+}
+export async function validateUsFinancialInvoiceContextV5(input: unknown, org: string, allowTestFixtures = false): Promise<UsFinancialInvoiceContextV5> {
+  const captured = capture(input) as Record<string, unknown>;
+  if (!captured || typeof captured !== 'object' || Array.isArray(captured)) return fail();
+  if (captured.schemaVersion === 1) return validateLegacyContext(captured, org, allowTestFixtures);
+  const v = exact(captured, [...contextFields, 'presentation']);
+  if (v.schemaVersion !== 2 || v.organizationId !== org) return fail();
+  const p = exact(v.presentation, ['schemaVersion', 'baseContextRevision', 'baseContextSha256', 'origin', 'sellerRevision', 'sellerChangeSha256', 'profile']);
+  if (p.schemaVersion !== 1 || p.baseContextRevision !== v.revision || !['legacy-frozen', 'financial-v5'].includes(p.origin as string)) return fail();
+  revision(p.baseContextRevision); revision(p.sellerRevision); hash(p.baseContextSha256);
+  if (p.origin === 'legacy-frozen') { if (p.sellerChangeSha256 !== null) return fail(); }
+  else hash(p.sellerChangeSha256);
+  try {
+    const seller = validateUsSellerProfileState({ status: 'configured', organizationId: org, revision: p.sellerRevision,
+      profile: p.profile, updatedBy: 'private-presentation-validation', updatedAt: '2026-01-01T00:00:00Z' }, org);
+    if (seller.status !== 'configured') return fail();
+  } catch { return fail(); }
+  const { presentation: _presentation, ...common } = v; void _presentation;
+  await validateLegacyContext({ ...common, schemaVersion: 1, contextSha256: p.baseContextSha256 }, org, allowTestFixtures);
   if (hash(v.contextSha256) !== await sha256Hex(canonicalErpJson(body(v, 'contextSha256')))) return fail();
   return v as unknown as UsFinancialInvoiceContextV5;
 }
@@ -247,6 +290,6 @@ export function createUsFinancialInvoiceTestResolverV5(dependencies: UsFinancial
       if (!same(operation.preparation, previous.preparation) || operation.operationId !== previous.operationId || operation.status !== 'calculated' || operation.proofBody !== calculated.proofBody || operation.proofSha256 !== calculated.proofSha256 || !same(operation.assessment, calculated.assessment)) return fail();
     }
     const calculated = await guarded(() => validateStoredStripeTaxCalculation(resolved, { proofBody: operation!.proofBody, proofSha256: operation!.proofSha256, assessment: operation!.assessment }, clock()));
-    return Object.freeze({ kind: 'invoice_issuance', sellerSnapshot: validatePublicSellerSnapshot({ organizationId: bound.organizationId, ...context.seller }, bound.organizationId), taxAssessment: calculated.assessment });
+    return Object.freeze({ kind: 'invoice_issuance', sellerSnapshot: validatePublicSellerSnapshot({ organizationId: bound.organizationId, ...usFinancialInvoiceSellerProfileV5(context) }, bound.organizationId), taxAssessment: calculated.assessment });
   };
 }
