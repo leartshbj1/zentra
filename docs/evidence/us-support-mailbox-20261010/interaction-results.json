@@ -1,0 +1,27 @@
+{
+  "fixture": true,
+  "externalProvider": false,
+  "initialMessagesReads": 0,
+  "oneExplicitClickReads": 1,
+  "lostAck": {
+    "posts": 2,
+    "commits": 1,
+    "exactRetry": true,
+    "automaticMessageReads": 0
+  },
+  "revocation": {
+    "detectedBy": "explicit metadata refresh after simulated revocation",
+    "keyAndPendingAndMessagesCleared": true
+  },
+  "disconnect": {
+    "confirmationRequired": true,
+    "posts": 1,
+    "commits": 1,
+    "messageReads": 0
+  },
+  "member": {
+    "mailboxMetadataVisible": true,
+    "connectionFormVisible": false,
+    "messageReadButtonVisible": false
+  }
+}

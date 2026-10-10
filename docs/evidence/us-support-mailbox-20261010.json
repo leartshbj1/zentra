@@ -1,0 +1,435 @@
+{
+  "schemaVersion": 1,
+  "phase": "US Support H2a — scoped mailbox connection and explicit metadata reading",
+  "recordedAt": "2026-10-10T02:32:53.597Z",
+  "branch": "codex/international-runtime",
+  "baseCommit": "feb318f0c5227913867f10f96dfde0e9adbbe201",
+  "implementationCommit": "b6dc6da4a373b4cf2d071378c546c0eda7497945",
+  "execution": {
+    "localOnly": true,
+    "hostedMigrationApplied": false,
+    "productionGateEnabled": false,
+    "externalProviderCalled": false,
+    "published": false,
+    "pushed": false,
+    "nativeBuilt": false,
+    "customerDataUsed": false
+  },
+  "scope": {
+    "verifiedConnectionAdapterImplemented": true,
+    "connectDisconnectCas": true,
+    "explicitMessageMetadataReading": true,
+    "automaticMailReception": false,
+    "attachmentDownloadOrImport": false,
+    "classification": false,
+    "routing": false,
+    "mailAcknowledgement": false,
+    "financialPosting": false
+  },
+  "gate": {
+    "name": "INTERNATIONAL_US_SUPPORT_MAILBOX_ENABLED",
+    "default": false,
+    "alsoRequires": [
+      "INTERNATIONAL_CORE_ENABLED",
+      "INTERNATIONAL_US_ERP_ENABLED",
+      "INTERNATIONAL_US_SUPPORT_WORKSPACES_ENABLED"
+    ]
+  },
+  "migration": {
+    "path": "drizzle/0094_international_us_support_mailbox.sql",
+    "sha256": "904965ffe7d2d2c93946b7cf676f0c69e62b69d97a0843fc192cffb81870e8a3",
+    "additive": true,
+    "localChain": "0000–0094",
+    "engine": "Node built-in SQLite through the real D1 store interface",
+    "hostedD1Verified": false,
+    "postgresMigrationAdded": false,
+    "rollback": "Close H2 gate, revert application commit, retain existing rows and audit history."
+  },
+  "tests": {
+    "command": "node node_modules/vitest/vitest.mjs run <selectedFiles> --maxWorkers=1 --reporter=json --outputFile=.qa/us-support-mailbox/regression-final.json",
+    "selectedFiles": [
+      "lib/account-workspace-entry.test.ts",
+      "lib/account-workspace-navigation.test.ts",
+      "lib/account-workspace-pages.test.ts",
+      "lib/account-workspaces.test.ts",
+      "lib/business-sync-cash-vat.test.ts",
+      "lib/deployment-contract.test.ts",
+      "lib/document-number-reservations.test.ts",
+      "lib/international/accounting-runtime.test.ts",
+      "lib/international/browser-us-supplier-documents-session.test.ts",
+      "lib/international/browser-us-supplier-session.test.ts",
+      "lib/international/browser-us-team-session.test.ts",
+      "lib/international/browser-us-workspace-sync-session.test.ts",
+      "lib/international/legacy-country-guard.migrations.test.ts",
+      "lib/international/legacy-country-guard.test.ts",
+      "lib/international/private-json.test.ts",
+      "lib/international/purchasing-runtime.test.ts",
+      "lib/international/runtime-bindings.test.ts",
+      "lib/international/runtime-response-guards.test.ts",
+      "lib/international/runtime-server-revalidation.test.ts",
+      "lib/international/runtime-server-us-tax.test.ts",
+      "lib/international/runtime-server.test.ts",
+      "lib/international/runtime-store.test.ts",
+      "lib/international/runtime-sync.test.ts",
+      "lib/international/runtime.test.ts",
+      "lib/international/saas-authorities.migrations.test.ts",
+      "lib/international/saas-authority.test.ts",
+      "lib/international/us-automation-policy.test.ts",
+      "lib/international/us-automation-store.test.ts",
+      "lib/international/us-automation-validation.test.ts",
+      "lib/international/us-device-bindings.test.ts",
+      "lib/international/us-device-capability-v4.test.ts",
+      "lib/international/us-device-d1.test.ts",
+      "lib/international/us-device-server.test.ts",
+      "lib/international/us-saas-test-bindings.test.ts",
+      "lib/international/us-saas-test-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-server.test.ts",
+      "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+      "lib/international/us-saas-test-server.test.ts",
+      "lib/international/us-saas-test-stripe.test.ts",
+      "lib/international/us-supplier-analysis-server.test.ts",
+      "lib/international/us-supplier-analysis.test.ts",
+      "lib/international/us-supplier-bindings.test.ts",
+      "lib/international/us-supplier-document-archive.test.ts",
+      "lib/international/us-supplier-document-bindings.test.ts",
+      "lib/international/us-supplier-document-bytes.test.ts",
+      "lib/international/us-supplier-document-contract.test.ts",
+      "lib/international/us-supplier-document-server.test.ts",
+      "lib/international/us-supplier-document-store.test.ts",
+      "lib/international/us-supplier-document-timeout.test.ts",
+      "lib/international/us-supplier-extraction.test.ts",
+      "lib/international/us-supplier-proposal.test.ts",
+      "lib/international/us-supplier-server.test.ts",
+      "lib/international/us-supplier-store.test.ts",
+      "lib/international/us-support-workspace-bindings.test.ts",
+      "lib/international/us-support-workspace-contract.test.ts",
+      "lib/international/us-support-workspace-d1.test.ts",
+      "lib/international/us-support-workspace-server.test.ts",
+      "lib/international/us-support-workspace-ui.test.ts",
+      "lib/international/us-team-bindings.test.ts",
+      "lib/international/us-team-contract.test.ts",
+      "lib/international/us-team-device-lifecycle.test.ts",
+      "lib/international/us-team-server.test.ts",
+      "lib/international/us-team-store.test.ts",
+      "lib/international/us-team-validation.test.ts",
+      "lib/international/us-team.migrations.test.ts",
+      "lib/international/us-workspace-sync-heads-bindings.test.ts",
+      "lib/international/us-workspace-sync-heads.test.ts",
+      "lib/international/workspace-creation-d1.test.ts",
+      "lib/international/workspace-server.bindings.test.ts",
+      "lib/site-language.test.ts",
+      "lib/stripe-contract.test.ts",
+      "lib/supabase-auth-http.test.ts",
+      "lib/supabase-auth.test.ts",
+      "lib/support/application-effects.test.ts",
+      "lib/support/billing.test.ts",
+      "lib/support/mail-documents.test.ts",
+      "lib/support/mail-sync-admission.test.ts",
+      "lib/support/reply-transport.test.ts",
+      "lib/support/solicitation-service.test.ts",
+      "lib/support/support.test.ts",
+      "lib/support/workspace-access.test.ts",
+      "lib/support/workspace-selection.test.ts",
+      "lib/support/workspace-state-admission.test.ts",
+      "lib/international/us-support-mailbox-contract.test.ts",
+      "lib/international/us-support-mailbox-d1.test.ts",
+      "lib/international/us-support-mailbox-server.test.ts",
+      "lib/international/us-support-mailbox-provider.test.ts",
+      "lib/international/us-support-mailbox-bindings.test.ts",
+      "lib/international/us-support-mailbox-ui.test.ts"
+    ],
+    "report": {
+      "path": ".qa/us-support-mailbox/regression-final.json",
+      "sha256": "e93b12b91c82de3e2fe9fe3a3fbdb9a03a62cb81985abd41b2307832777afbe4",
+      "success": true,
+      "passed": 2911,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "testFiles": 90
+    },
+    "followups": [
+      {
+        "path": ".qa/us-support-mailbox/phase-final.json",
+        "sha256": "4b41ded2c2047883868ed1e1d609ff76dea21b4f4f9207093f9b6b24073b4d67",
+        "success": true,
+        "passed": 192,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0,
+        "testFiles": 6
+      },
+      {
+        "path": ".qa/us-support-mailbox/typed-followup.json",
+        "sha256": "c888ce8a031eec38c7e928d20387e98a48b3d2c5f91bbc918f881c7810bdea15",
+        "success": true,
+        "passed": 39,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0,
+        "testFiles": 2
+      }
+    ],
+    "chronology": "90-file regression passed, then explicit this:void typing, bound provider wrappers and equivalent token control predicate resolved typed lint. All 192 phase tests were rerun after the predicate/wrapper edits; 39 HTTP/binding tests were rerun after final type/mock-only edits. The global typecheck and production build cover final source. Followups overlap and are not added to 2911.",
+    "pgliteVersion": "0.5.8",
+    "nodeVersion": "v24.19.0",
+    "realProvider": false,
+    "authAndPaidAuthority": "fictitious"
+  },
+  "checks": [
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "exitCode": 0,
+      "path": ".qa/us-support-mailbox/typecheck-final-clean.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "node node_modules/oxlint/bin/oxlint -- <changed TS/TSX files>",
+      "exitCode": 0,
+      "typed": true,
+      "path": ".qa/us-support-mailbox/lint-final-clean.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "node scripts/check-brand-assets.mjs",
+      "exitCode": 0,
+      "path": ".qa/us-support-mailbox/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "node node_modules/vinext/dist/cli.js build",
+      "exitCode": 0,
+      "path": ".qa/us-support-mailbox/build-final.log",
+      "sha256": "9571162e67e92edf45045aa15bffc41e64e908bf7f71ea7a9dbd66e3e5e41447",
+      "warnings": [
+        "Existing middleware convention deprecation",
+        "Some route classifications unknown to vinext static analysis",
+        "Plugin timings advisory"
+      ]
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "browser": {
+    "realComponents": true,
+    "simulatedHttpAuthProviderAndPersistence": true,
+    "applicationStateInjection": false,
+    "languages": [
+      "fr",
+      "de",
+      "it",
+      "en"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "widths": [
+      320,
+      390,
+      1440
+    ],
+    "layoutCases": 24,
+    "layoutIssues": 0,
+    "interactions": {
+      "fixture": true,
+      "externalProvider": false,
+      "initialMessagesReads": 0,
+      "oneExplicitClickReads": 1,
+      "lostAck": {
+        "posts": 2,
+        "commits": 1,
+        "exactRetry": true,
+        "automaticMessageReads": 0
+      },
+      "revocation": {
+        "detectedBy": "explicit metadata refresh after simulated revocation",
+        "keyAndPendingAndMessagesCleared": true
+      },
+      "disconnect": {
+        "confirmationRequired": true,
+        "posts": 1,
+        "commits": 1,
+        "messageReads": 0
+      },
+      "member": {
+        "mailboxMetadataVisible": true,
+        "connectionFormVisible": false,
+        "messageReadButtonVisible": false
+      }
+    },
+    "consoleErrorsObservedAtFinalCheck": 0,
+    "files": [
+      {
+        "path": "docs/evidence/us-support-mailbox-20261010/1440-fr-light.jpg",
+        "sha256": "43be70b15167a9a27a0b493e48fd2f03a9fbb431aade919a1e23d2262ee26956"
+      },
+      {
+        "path": "docs/evidence/us-support-mailbox-20261010/390-de-dark.jpg",
+        "sha256": "666ebe2d3186f9beb3f88a9995c3e682066c01969fe8debb85f1959efd063c6a"
+      },
+      {
+        "path": "docs/evidence/us-support-mailbox-20261010/desktop-en-light.jpg",
+        "sha256": "02222b144fc2b09e91cd92ed6699adf2868e11c525f19b19b81c1e1a3fb3bfd1"
+      },
+      {
+        "path": "docs/evidence/us-support-mailbox-20261010/interaction-results.json",
+        "sha256": "49e73656fe40c715c2d6eb17331a02db3e2b73125d24a2feb6a5afcc79d2a581"
+      },
+      {
+        "path": "docs/evidence/us-support-mailbox-20261010/layout-results.json",
+        "sha256": "51df48568c008c3b2b6b311151a2403f5ed67fb427850eb936525aff8e33fdbf"
+      },
+      {
+        "path": "docs/evidence/us-support-mailbox-20261010/member-it-dark.jpg",
+        "sha256": "8faf306a2b88aba3f9b6a756b940aa34c9c960c2d597403bac2a2b6b32c9df3f"
+      },
+      {
+        "path": "docs/evidence/us-support-mailbox-20261010/revoked-en-mobile.jpg",
+        "sha256": "37fda47c4ebfdcbaa09f4ec3630a289686716dbaf5511ef3dd0976dedef964ea"
+      }
+    ]
+  },
+  "review": {
+    "independentReadonlyReview": true,
+    "unresolvedP1P2Found": 0,
+    "resolved": [
+      "422 on a retry cannot disprove an earlier in-flight commit; exact uncertain envelope retained",
+      "Late logout/role/payment denial dominates registry failure",
+      "UI error vocabulary aligned with server"
+    ]
+  },
+  "preservation": {
+    "nativeCommit": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+    "nativeCheckoutClean": true,
+    "publicCommit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "publicCheckoutClean": true,
+    "publicMenuPublicationRecorded": "2026-10-08 version 355",
+    "currentLivePublicMenuRecheckVerified": false,
+    "originalDirtyCheckoutTouched": false
+  },
+  "limits": [
+    "Hosted Auth/D1/encryption-key composition and real Infomaniak credentials have not been exercised.",
+    "Read lower bound is 30 days before connection verification, with a one-day search-floor adjustment in the shared helper; this is not a rolling now-based window.",
+    "At most 20 threads, 100 unique message references and offsets 0..200 per request; a single operation deadline is 12 seconds. Oversized or incomplete pages fail without partial success.",
+    "The shared reader copies the requested UID into its result; this is not independent upstream provenance evidence for later ingestion.",
+    "Observed message date version is not content integrity. Only supported attachment names and sizes are exposed; no source is imported.",
+    "Current encrypted credential remains stored but inaccessible when gate/authority is revoked; replacement/disconnect purges obsolete ciphertext. Key rotation requires reconnection.",
+    "Browser exact retry is RAM-only and is lost on tab close/reload; no plaintext key enters persistent browser storage.",
+    "Selected web regressions are not a complete native CH QR/VAT/CHF release qualification or capacity benchmark.",
+    "H2b original intake/provenance, H3 classification/delegation, customer/meeting workflows and hosted/native pilot remain open."
+  ],
+  "sourceFiles": [
+    {
+      "status": "A",
+      "path": "app/api/international/workspaces/[organizationId]/support-mailbox/messages/route.ts",
+      "sha256": "11de61ccb6ac6f3683e5398cf406219c611ffda4271c25a8a5ebc9809fbe39b4"
+    },
+    {
+      "status": "A",
+      "path": "app/api/international/workspaces/[organizationId]/support-mailbox/route.ts",
+      "sha256": "5e15bf67f8c988967e454e2e34680d2a316f24214e620797d44508d5b8f29f50"
+    },
+    {
+      "status": "M",
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "sha256": "e8d01e63078500b8fa478395ed2ec8ca68604626860aead75b314f9cd59bf982"
+    },
+    {
+      "status": "M",
+      "path": "components/account/us-erp-workbench.tsx",
+      "sha256": "e83f6f24790d2644f4e905bf9b100cbe8413ccc455eed6c0c208e4440c7ee3c0"
+    },
+    {
+      "status": "A",
+      "path": "components/account/us-support-mailbox-panel.tsx",
+      "sha256": "b80763cbb12f66a71a70d8453cd2c26bf6180c607d066a795066155f3ec53496"
+    },
+    {
+      "status": "M",
+      "path": "components/account/us-support-workspace-panel.tsx",
+      "sha256": "496d873644e6c45c4b2ea3fc21c20b16175aa7afeb347db5a380e861feea6302"
+    },
+    {
+      "status": "A",
+      "path": "docs/internationalization/US-SUPPORT-MAILBOX-PLAN-20261010.md",
+      "sha256": "3682d2c77bb51e96f770935510a3d08560cc07a3f0ca994eacd6430764e5e372"
+    },
+    {
+      "status": "A",
+      "path": "drizzle/0094_international_us_support_mailbox.sql",
+      "sha256": "904965ffe7d2d2c93946b7cf676f0c69e62b69d97a0843fc192cffb81870e8a3"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/browser-us-support-mailbox-session.ts",
+      "sha256": "82b7780efb6ef66c9c8b121099cfbaeb50762ec16f4473115373729483c48e06"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-bindings.test.ts",
+      "sha256": "2e6567165eccb1e7acebd6bfbac739d55f190c1ca321685ce6a327e395155651"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-bindings.ts",
+      "sha256": "bf25e0265ef1890ba04a72738e67c1525f516269ef0288c5163568d4ccfd2f28"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-contract.test.ts",
+      "sha256": "de50ea2c2f148512bd4934908a2f8dcf219b3d6d9de87aa04d5e677f64fce5d4"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-contract.ts",
+      "sha256": "74a52cc7ff108a7dbd34630e64b7c20e554c249c381addf8f1ef365bac27b90f"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-d1.test.ts",
+      "sha256": "1f7d4d42fef09da1cfafbdd96959e1a474622caa66d8102bed1cd4d0a9f45b70"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-d1.ts",
+      "sha256": "01a327459d4f6b0f34a758cec5a8751afcd7e3026f233115356f3fc060460248"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-messages.ts",
+      "sha256": "aef2e3b228aad6685f612d59dad2de94b341fb6b2837b078fd06746ac8f1e1f7"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-provider.test.ts",
+      "sha256": "09f39dfb6d7d849740eb6422b1f134513de01144dd25834d88e73ec612a2d853"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-provider.ts",
+      "sha256": "b97ce2f317fabdcfda2ea8f7655eb765d49d67f7d76905d5c3df273c9955fe89"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-server.test.ts",
+      "sha256": "61400655a919f8603944086c26e3fa827289f3f95dd849899b386ded3e43d51a"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-server.ts",
+      "sha256": "3b4aacd35a8730df61e8e02996f54be278c515131df0cea339d01d3cd8d9ba1a"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-support-mailbox-ui.test.ts",
+      "sha256": "a32655b570fd3856628762ef0f053911ec5e733367a3433200ca129ced5cb3aa"
+    }
+  ]
+}
