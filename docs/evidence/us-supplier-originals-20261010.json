@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 1,
+  "phase": "Private US supplier originals - local validation",
+  "date": "2026-10-10",
+  "baseCommit": "3965ae7a7b80d786e091de9cde1f18b922f5091c",
+  "sourceCommit": "9cbed497a674264bcb0143f81249da5196185e83",
+  "environment": {
+    "node": "v24.19.0",
+    "pglite": "0.5.8",
+    "supabaseCli": "2.120.0",
+    "postgres": "Disposable PGlite WASM; not hosted PG17.6 or concurrent infrastructure"
+  },
+  "results": {
+    "application": {
+      "path": ".qa/us-supplier-originals/regression-final-verified.json",
+      "sha256": "5d4f3b740db7ac0fac24b4587f8bd22327f9a7e1ffeeb89a27a7c9370cc96de8",
+      "bytes": 668305,
+      "files": 45,
+      "tests": 1520,
+      "passed": 1520,
+      "failed": 0,
+      "skipped": 0
+    },
+    "postgresOriginals": {
+      "path": ".qa/us-supplier-originals/backend-postgres-first.json",
+      "sha256": "af3dd7b63d51860e9125a871ffcf3e4c5b8df16d3e59b922ccfeff16c476eef3",
+      "bytes": 5303,
+      "files": 1,
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "postgresRegression": {
+      "path": ".qa/us-supplier-originals/postgres-regression-final.json",
+      "sha256": "8f5d3ee97891ad84360e84714d3445656aa2aedadb0d357a756ceec8707ca6c1",
+      "bytes": 18729,
+      "files": 3,
+      "tests": 41,
+      "passed": 41,
+      "failed": 0,
+      "skipped": 0
+    },
+    "postgresDistinctTests": 52,
+    "quality": {
+      "node": "v24.19.0",
+      "startedAt": "2026-10-10T01:17:02.8327140Z",
+      "results": [
+        {
+          "command": "vitest45files singleworker",
+          "exitCode": 0
+        },
+        {
+          "command": "tsc --noEmit",
+          "exitCode": 0
+        },
+        {
+          "command": "oxlint changedTS/TSX",
+          "exitCode": 0
+        },
+        {
+          "command": "read selected deployment profile",
+          "exitCode": 0
+        }
+      ],
+      "completedAt": "2026-10-10T01:18:05.1149292Z"
+    }
+  },
+  "build": {
+    "exitCode": 0,
+    "brandCheckExitCode": 0,
+    "profile": {
+      "kind": "production",
+      "sha256": "ad2a897b8fb1c114c6497bbd71cb2dfb12d1431d63788e560f7956b7a9380c90"
+    },
+    "warnings": "Existing middleware convention deprecation and vinext partial static route classification; not repaired in this phase"
+  },
+  "browser": {
+    "scope": "CUA local synthetic React fixture; no physical device or real provider",
+    "viewport": {
+      "width": 320,
+      "height": 900
+    },
+    "checks": [
+      {
+        "language": "fr",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "light",
+        "title": "Originaux fournisseurs",
+        "width": 320
+      },
+      {
+        "language": "fr",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "dark",
+        "title": "Originaux fournisseurs",
+        "width": 320
+      },
+      {
+        "language": "de",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "light",
+        "title": "Lieferantenoriginale",
+        "width": 320
+      },
+      {
+        "language": "de",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "dark",
+        "title": "Lieferantenoriginale",
+        "width": 320
+      },
+      {
+        "language": "it",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "light",
+        "title": "Originali dei fornitori",
+        "width": 320
+      },
+      {
+        "language": "it",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "dark",
+        "title": "Originali dei fornitori",
+        "width": 320
+      },
+      {
+        "language": "en",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "light",
+        "title": "Supplier originals",
+        "width": 320
+      },
+      {
+        "language": "en",
+        "pageOverflow": false,
+        "panelOutside": false,
+        "panelOverflow": false,
+        "theme": "dark",
+        "title": "Supplier originals",
+        "width": 320
+      }
+    ],
+    "behavior": {
+      "scope": "CUA only; actual React workbench/transports with synthetic RAM HTTP; no production or provider",
+      "date": "2026-10-10",
+      "observations": [
+        "Consent then Analyze prepared one review proposal US-1043; quota99/100; vendor bills remained empty",
+        "Lost analysis response: exact retry button enabled; recovery showed one proposal",
+        "Automation-only402 retained originals and enabled download control; no global purge",
+        "Revoke access removed originals and proposal regions from DOM",
+        "Selected local fictitious UTF8 invoice through file chooser; lost PUT503; exact retry added one original",
+        "Four languages times two themes at320x900: no page/panel horizontal overflow",
+        "Desktop1280x900 visual inspection and screenshot saved"
+      ],
+      "notProven": [
+        "Physical devices",
+        "Real provider analysis",
+        "Hosted R2/Auth/D1",
+        "200percent zoom",
+        "Document realtime notifications"
+      ]
+    }
+  },
+  "migration": {
+    "path": "supabase/migrations/20261010005300_international_us_supplier_originals.sql",
+    "sha256": "ae3b95c4047ce2b539fdfc0e4c2d05f208f9dfa727bb065ae0e83803a62f8faf",
+    "internationalMigrationsInNewSuite": 20,
+    "legacyBaselines": 3,
+    "hostedApplied": false,
+    "rollback": "Close new gate; retain immutable SQL and private archive; additive forward repair only"
+  },
+  "boundaries": {
+    "newGate": "INTERNATIONAL_US_SUPPLIER_DOCUMENTS_ENABLED",
+    "defaultClosed": true,
+    "productionMutation": false,
+    "externalInference": false,
+    "hostedAuthD1R2Test": false,
+    "nativeBuild": false,
+    "publicSitePublish": false,
+    "customerDataUsed": false,
+    "originalCwdModified": false,
+    "documentRealtime": false,
+    "ocr": false
+  },
+  "preserved": {
+    "nativeCommit": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+    "publicCommit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "bothWorktreesClean": true,
+    "historicalMigrationsChanged": 0
+  },
+  "artifacts": [
+    {
+      "path": ".qa/us-supplier-originals/quality-final.json",
+      "sha256": "c3ef868ed51208c3c7e071724f251497f81c557165c72c1b39787664ab2adf8f",
+      "bytes": 469
+    },
+    {
+      "path": ".qa/us-supplier-originals/typecheck-final-verified.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".qa/us-supplier-originals/lint-final-verified.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".qa/us-supplier-originals/lint-selection.json",
+      "sha256": "2dfa62d9e1616e01734759842694c34c8b156772f3051e99bb53cb752c6f5231",
+      "bytes": 1761
+    },
+    {
+      "path": ".qa/us-supplier-originals/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".qa/us-supplier-originals/build-final.log",
+      "sha256": "803893daac696a8ef65452a39a3a6416d3e2676866e6c3cdc2fa6cc70f76aaa1",
+      "bytes": 19414
+    },
+    {
+      "path": ".qa/us-supplier-originals/build-profile-final.json",
+      "sha256": "c78165ea342fb31ec82d02b008c6722ea1a3836b8806247cb4de92578f2ce830",
+      "bytes": 99
+    },
+    {
+      "path": ".qa/us-supplier-originals/browser-layout.json",
+      "sha256": "46cb8c57b3de0e3e49237b37bfcda191c0932c9d9680f61e45a0867914db9c80",
+      "bytes": 1820
+    },
+    {
+      "path": ".qa/us-supplier-originals/browser-behavior.json",
+      "sha256": "8ecd998c1ff128791e06f8d3bca56164fdcfb11ec0f3989c725e7cb42e12b8e0",
+      "bytes": 955
+    },
+    {
+      "path": ".qa/us-supplier-originals/desktop-light.jpg",
+      "sha256": "fe964d79ec08ffe2494517516809dd8d78578e55db4862e2b0006ac44fbbb486",
+      "bytes": 52646
+    },
+    {
+      "path": ".qa/us-supplier-originals/selection-final.json",
+      "sha256": "3812326c8458ab530e796a3821c45c94a0ff66148ffdb5802ce2901b6e42bdd1",
+      "bytes": 2317
+    },
+    {
+      "path": ".qa/us-supplier-originals/runtime-response-guards-before.json",
+      "sha256": "0dbb1abe785109a504387ea3b609c6368a68b42ff1f5f3600f02b96c56ffa424",
+      "bytes": 9701
+    },
+    {
+      "path": ".qa/us-supplier-originals/runtime-response-guards-final.json",
+      "sha256": "dad309d74ef9b18aea95a2e0383e58efdeabb12ab8f0d82a1ad4553faadf1c29",
+      "bytes": 9399
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/supplier-documents/[id]/analyze/route.ts",
+      "gitBlobSha256": "4ec403295e08f725d121d3acb6ec53a4c14ce1b87fef2147d852a4cdb329f4ea"
+    },
+    {
+      "path": "app/api/international/workspaces/[organizationId]/supplier-documents/[id]/content/route.ts",
+      "gitBlobSha256": "f1a475d00456e288d5dab6447b7fb8a50095e45a606519fb09498d44c35442c8"
+    },
+    {
+      "path": "app/api/international/workspaces/[organizationId]/supplier-documents/[id]/route.ts",
+      "gitBlobSha256": "223d83f22661fb2cceade2a07158800b0f9c28c86dbbd7830023b7fd978e4711"
+    },
+    {
+      "path": "app/api/international/workspaces/[organizationId]/supplier-documents/route.ts",
+      "gitBlobSha256": "6052b17bd4662137e01121080827cae1ad8c28e87447ba91f0e6f13ffb63d49f"
+    },
+    {
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "gitBlobSha256": "8d2a236aaa83c709137741d85a7921040219e265d0099182e087b2d462485b82"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "gitBlobSha256": "ba39ea281e2ebb81d76746d8ed1eca6042ac7c22fa10221b8dcd5bdcd610e8d6"
+    },
+    {
+      "path": "components/account/us-supplier-documents.css",
+      "gitBlobSha256": "03a00087fb07d6259f57ad371d335c63228939ee0ed487de7b187ef794252b0e"
+    },
+    {
+      "path": "components/account/us-supplier-documents.tsx",
+      "gitBlobSha256": "95b3888fa8b4ed1f8e0bf2414cb47b35978be74f5a6c4d45c36bacf081f6e89b"
+    },
+    {
+      "path": "components/account/us-supplier-proposals.tsx",
+      "gitBlobSha256": "8a1b98039e4d17c9187d5f876956c9665ca679fc9d0b516582bb9dcc39c2d268"
+    },
+    {
+      "path": "docs/internationalization/US-SUPPLIER-ORIGINALS-PLAN-20261010.md",
+      "gitBlobSha256": "4f3adeb986d68fe9e31e7b88999aa4e26bbd1852f9856f0b4ea599d25e4d8a72"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-documents-copy.ts",
+      "gitBlobSha256": "040cc9d2de03fa984d815a7dc2c939729096261532ece701755e251c1e9f8c43"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-documents-session.test.ts",
+      "gitBlobSha256": "f3806f4f39f93a5eda0537d9f3caec74e342a54b348d046976ebed905f5d3eb3"
+    },
+    {
+      "path": "lib/international/browser-us-supplier-documents-session.ts",
+      "gitBlobSha256": "b4a4122e717384ddc00ec3134c0ab66f8945b999c096bcb95cd0b1414c7adb04"
+    },
+    {
+      "path": "lib/international/international-staging-chain.postgres.test.ts",
+      "gitBlobSha256": "61770b2a708d5a5948d5c6a3388a49b3e5dd1b790b7233ebab3988d7092e3c9d"
+    },
+    {
+      "path": "lib/international/runtime-response-guards.test.ts",
+      "gitBlobSha256": "3c036f9aee807550869dd130ed9f07956ca05f6eda10882afad9d0138f54a3f3"
+    },
+    {
+      "path": "lib/international/us-supplier-document-archive.test.ts",
+      "gitBlobSha256": "e724580436adeeddad007405a02a50938048fcc16a93d6c09d889fc23b1afb0f"
+    },
+    {
+      "path": "lib/international/us-supplier-document-archive.ts",
+      "gitBlobSha256": "c6e1152af5110ae4e0bfbc3807a6a5755b684e66cd24221439b6e98260639fcd"
+    },
+    {
+      "path": "lib/international/us-supplier-document-bindings.test.ts",
+      "gitBlobSha256": "d26c46f674ced058789b7f7bc9246ff9302be83a9eb3b932fe60b8cb9bab9670"
+    },
+    {
+      "path": "lib/international/us-supplier-document-bindings.ts",
+      "gitBlobSha256": "79dc308d8bd6a3eb2829e5302667dc16e7fb794b6f6746dc5d92df4b1af490d7"
+    },
+    {
+      "path": "lib/international/us-supplier-document-bytes.test.ts",
+      "gitBlobSha256": "b4001091a002aab44a7357ef394f951a5e01f2ec3fa314813fe6ee7dc2170a27"
+    },
+    {
+      "path": "lib/international/us-supplier-document-bytes.ts",
+      "gitBlobSha256": "e5594193fcc7459ce4999089646b8841f686a32c813d1c1ca810e9b1374576a8"
+    },
+    {
+      "path": "lib/international/us-supplier-document-contract.test.ts",
+      "gitBlobSha256": "2952531b247658ebd293310b77d99717d7de307f86c5a360c1da1e0263311d31"
+    },
+    {
+      "path": "lib/international/us-supplier-document-contract.ts",
+      "gitBlobSha256": "b36b2decc77e5f7d277423fb0f17442a981da8e9fb53ccec3e789a02ac47ede5"
+    },
+    {
+      "path": "lib/international/us-supplier-document-server.test.ts",
+      "gitBlobSha256": "b98f01436725292c5c07769dd55cda3d4f06c2436a6e30d6c18c09a6eb62b939"
+    },
+    {
+      "path": "lib/international/us-supplier-document-server.ts",
+      "gitBlobSha256": "888fc208a541a552f362b268dc747838354bcd2d83c523c3eaee3b7713cb70cf"
+    },
+    {
+      "path": "lib/international/us-supplier-document-store.test.ts",
+      "gitBlobSha256": "d7f828b9e9c6fc73de5eff8eb742139b9952a2b79aefc976486813182a4fedff"
+    },
+    {
+      "path": "lib/international/us-supplier-document-store.ts",
+      "gitBlobSha256": "e345d3d1ef9c0d9f137b43dff9900fd66a1155bf13fbfbcdb48cb9babc089ea4"
+    },
+    {
+      "path": "lib/international/us-supplier-document-timeout.test.ts",
+      "gitBlobSha256": "aa5aa90c25a914917a1620f35c6597cd319f1431f22a5c8a6190acc45b0d6143"
+    },
+    {
+      "path": "lib/international/us-supplier-document.postgres.test.ts",
+      "gitBlobSha256": "91d34f98ad9dd065c7fef14c7730845327587fba1a468d59a8976a64d9c9fedb"
+    },
+    {
+      "path": "supabase/migrations/20261010005300_international_us_supplier_originals.sql",
+      "gitBlobSha256": "ae3b95c4047ce2b539fdfc0e4c2d05f208f9dfa727bb065ae0e83803a62f8faf"
+    },
+    {
+      "path": "tests/us-supplier-documents-preview-server.mjs",
+      "gitBlobSha256": "53d4ff8c1fdd16336d2f3b3cd076b69159a10e2dda963aade07e04667ef45fe0"
+    },
+    {
+      "path": "tests/us-supplier-documents-preview.html",
+      "gitBlobSha256": "2aab54f8189f6b6b563244dce4f247ab53fa5256577daeee3480f87d5d4faa88"
+    },
+    {
+      "path": "tests/us-supplier-documents-preview.tsx",
+      "gitBlobSha256": "8ead3863afeed1ba2d4dd5b1a859144e34d59ba0a41c814cd77cdaf2b369b4ed"
+    }
+  ],
+  "limits": [
+    "6MiB per original;50 descriptors;100MiB per workspace including reservations",
+    "Literal PDF extraction only:12pages,16384UTF8bytes,8second async deadline; no OCR or CPU preemption guarantee",
+    "No automatic US Support mail delegation/intake delivered",
+    "No statutory retention or restoration guarantee; no cleanup/delete port",
+    "No hosted infrastructure, real provider, physical devices or 200percent zoom validation",
+    "All source behavior remains experimental and gated; no US GAAP or tax certification"
+  ],
+  "delivery": "docs/internationalization/US-SUPPLIER-ORIGINALS-DELIVERY-20261010.md"
+}
