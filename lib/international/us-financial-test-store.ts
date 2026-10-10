@@ -6,11 +6,11 @@ import { validateErpReceipt } from './erp-receipt';
 import { parseInstant } from './localization';
 import { snapshotPrivateJson } from './private-json';
 import { validateUsFinancialBookV5 } from './us-financial-kernel';
-import { isUsFinancialCommercialCommandV5, isUsFinancialPurchasingCommandV5, isUsFinancialAccountingCommandV5, validateUsFinancialReceiptV5, validateUsFinancialRequestV5, type UsFinancialCommitV5, type UsFinancialKernelStoreV5, type UsFinancialReceiptV5 } from './us-financial-kernel-runtime';
+import { isUsFinancialCommercialCommandV5, isUsFinancialPurchasingCommandV5, isUsFinancialAccountingCommandV5, isUsFinancialInvoicingCommandV5, validateUsFinancialReceiptV5, validateUsFinancialRequestV5, type UsFinancialCommitV5, type UsFinancialKernelStoreV5, type UsFinancialReceiptV5 } from './us-financial-kernel-runtime';
 import type { UsFinancialBookV5 } from './us-financial-kernel-types';
 import { captureUsFinancialTestScopeV5, type UsFinancialTestScopeV5 } from './us-financial-test-foundation';
 
-type Profile = 'settlement' | 'commercial' | 'purchasing' | 'accounting';
+type Profile = 'settlement' | 'commercial' | 'purchasing' | 'accounting' | 'invoicing';
 const same = (a: unknown, b: unknown) => canonicalErpJson(a) === canonicalErpJson(b);
 const fail = (code = 'invalid_financial_private_data', status = 503): never => { throw new ErpError(code, status); };
 function capture(value: unknown): unknown { try { return snapshotPrivateJson(value); } catch { return fail(); } }
@@ -37,7 +37,7 @@ const codes: Readonly<Record<string, readonly [string, number]>> = {
   PF007: ['financial_configuration_changed', 409], PF008: ['financial_upgrade_required', 409], PF009: ['financial_capability_unavailable', 503],
   PF010: ['financial_append_unavailable', 409], PF011: ['financial_policy_unavailable', 409], PF012: ['financial_book_too_large', 413],
   PF013: ['settlement_amount_conflict', 409], PF014: ['financial_tax_plan_required', 409], PF015: ['accounting_period_not_open', 409], PF016: ['financial_clock_reversed', 409],
-  PO008: ['sales_order_source_locked', 409],
+  PO008: ['sales_order_source_locked', 409], PO011: ['sales_order_confirmation_required', 409],
 };
 function error(value: unknown): ErpError {
   if (value instanceof ErpError) return value;
@@ -77,6 +77,7 @@ function createPrivateTestStore(
   const capability = `postgres-test-${profile}-v5` as const;
   const readRpc = `zentra_read_us_financial_${profile}_test_v5`, receiptRpc = `zentra_us_financial_${profile}_test_receipt_v5`, appendRpc = `zentra_append_us_financial_${profile}_test_v5`;
   const bound = captureUsFinancialTestScopeV5(initialScope);
+  const rpc = client.rpc.bind(client);
   if (typeof revalidate !== 'function') return fail('financial_test_grant_required', 403);
   let lastObservedAt = Date.parse(bound.actor.timestamp);
   async function fresh(minimumActor = bound.actor): Promise<void> {
@@ -98,14 +99,15 @@ function createPrivateTestStore(
     if (result.events.some(e => e.operation.type === 'erp_command' && (profile === 'settlement'
       || (profile === 'commercial' && !isUsFinancialCommercialCommandV5(e.operation.command))
       || (profile === 'purchasing' && !isUsFinancialPurchasingCommandV5(e.operation.command))
-      || (profile === 'accounting' && !isUsFinancialAccountingCommandV5(e.operation.command))))) return fail('financial_append_unavailable', 409);
+      || (profile === 'accounting' && !isUsFinancialAccountingCommandV5(e.operation.command))
+      || (profile === 'invoicing' && !isUsFinancialInvoicingCommandV5(e.operation.command))))) return fail('financial_append_unavailable', 409);
     return result;
   }
   async function call<T>(name: string, extra: Readonly<Record<string, unknown>>, parse: (value: unknown) => Promise<T> | T, executionActor = bound.actor): Promise<T> {
     await fresh(executionActor);
     let outcome: { value: T } | { error: unknown };
     try {
-      const value = capture(await client.rpc(name, { p_organization: bound.organizationId, p_actor: executionActor, p_grant_version: bound.grantVersion, p_capability: capability, ...extra }));
+      const value = capture(await rpc(name, { p_organization: bound.organizationId, p_actor: executionActor, p_grant_version: bound.grantVersion, p_capability: capability, ...extra }));
       outcome = { value: await parse(value) };
     } catch (caught) { outcome = { error: caught }; }
     await fresh(executionActor);
@@ -196,4 +198,8 @@ export function createSupabaseUsFinancialPurchasingTestStoreV5(client: PrivateCl
 /** Manual journals/period control on the same purchasing and settlement book. */
 export function createSupabaseUsFinancialAccountingTestStoreV5(client: PrivateClient, scope: UsFinancialTestScopeV5, revalidate: ScopeReader): UsFinancialKernelStoreV5 {
   return createPrivateTestStore(client, scope, revalidate, 'accounting');
+}
+/** Reviewed private TEST issuance plus accounting, purchases and settlements. */
+export function createSupabaseUsFinancialInvoicingTestStoreV5(client: PrivateClient, scope: UsFinancialTestScopeV5, revalidate: ScopeReader): UsFinancialKernelStoreV5 {
+  return createPrivateTestStore(client, scope, revalidate, 'invoicing');
 }
