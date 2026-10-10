@@ -234,3 +234,13 @@ Conserver les195 fichiers de régression du lot comptable et ajouter les nouvell
 - [Changelog Supabase](https://supabase.com/changelog), index réellement téléchargé, et changements [PostgreSQL15.19/17.11](https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes) et [Realtime](https://supabase.com/changelog/realtime-schema-locked-down-against-modification) consultés. Aucun schéma Realtime ni chiffrement legacy modifié ; les fonctions existantes utilisées seront éprouvées dans la chaîne locale. La CLI existante est vérifiée sans provisionnement.
 
 Ces sources ne valident ni fiscalité de tous les États, conservation légale des originaux, GAAP, paiements/banques réels ou hébergement. Aucune migration de production, région, offre/prix, abonnement, distribution native ou comportement CH n'est modifié. Les hypothèses documentaires et opérations en transit restent à examiner avec un professionnel avant utilisation réelle.
+
+### Précision de contrat avant implémentation — 10 octobre 2026
+
+La CLI 2.120.0 a réellement créé le fichier local `supabase/migrations/20261010155848_international_us_financial_pilot_bank_test_v1.sql` avec `migration new international_us_financial_pilot_bank_test_v1`. Cela remplace le placeholder de l'inventaire ; aucune exécution hébergée n'a eu lieu.
+
+Le registre privé inclut l'historique des preuves, avec un plafond supplémentaire de **1 000 opérations au total par entreprise**, indépendamment des 100 relevés et 1 000 lignes par relevé. Le budget complet, wrappers, preuves, clés et texte Unicode inclus, reste soumis aux limites plus strictes ci-dessus. Le plafond peut donc être atteint plus tôt selon le contenu ; l'append est refusé avant de rendre le registre illisible. Aucun agrégat non borné n'est autorisé.
+
+Le port lit `{book, register}` dans une seule transaction admise ; chaque membre est capturé sous son propre budget. Les reçus se lisent individuellement par requestId. Le commit reçoit `{request, record, proof}` et SQL corrobore chaque fait avec le préfixe financier. Le serveur renouvelle séparément l'autorité courante ; l'horodatage historique du reçu n'est jamais remplacé par celui d'une reprise. L'étape conserve ses douze fichiers et n'ajoute aucune route publique.
+
+Pour les handlers de détail et de mouvements, la query `origin` est obligatoire (`legacy-frozen` ou `financial-v5`), en plus de F/B et des cursors admis. Elle est validée avec l'identité du relevé ; aucune origine n'est choisie par défaut. Cela précise le tableau conceptuel de routes du plan, sans monter de route à cette étape.
