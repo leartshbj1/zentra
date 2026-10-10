@@ -1,0 +1,4389 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-10T12:22:53.692Z",
+  "phase": "Financial pilot — read-only USD invoice PDF and financial report PDF/CSV exports",
+  "goalComplete": false,
+  "git": {
+    "branch": "codex/international-runtime",
+    "base": "38b74a666ffa0692a1ed5bafe93f1b30c3e0bcc5",
+    "implementation": "e77c65385c22c098ef3746144b41ca4ab721a116",
+    "created": [
+      "app/api/international/workspaces/[organizationId]/financial-pilot/exports/invoices/[invoiceId]/route.ts",
+      "app/api/international/workspaces/[organizationId]/financial-pilot/exports/reports/[kind]/route.ts",
+      "components/account/us-financial-pilot-export-actions.tsx",
+      "lib/international/browser-us-financial-pilot-export-copy.ts",
+      "lib/international/browser-us-financial-pilot-export-session.test.ts",
+      "lib/international/browser-us-financial-pilot-export-session.ts",
+      "lib/international/us-financial-pilot-export-bindings.test.ts",
+      "lib/international/us-financial-pilot-export-bindings.ts",
+      "lib/international/us-financial-pilot-export-contract.test.ts",
+      "lib/international/us-financial-pilot-export-contract.ts",
+      "lib/international/us-financial-pilot-export-copy.ts",
+      "lib/international/us-financial-pilot-export-projection.test.ts",
+      "lib/international/us-financial-pilot-export-projection.ts",
+      "lib/international/us-financial-pilot-export-renderer.test.ts",
+      "lib/international/us-financial-pilot-export-renderer.ts",
+      "lib/international/us-financial-pilot-export-server.test.ts",
+      "lib/international/us-financial-pilot-export-server.ts",
+      "lib/international/us-financial-pilot-exports.postgres.test.ts"
+    ],
+    "modified": [
+      ".impeccable/surfaces/financial-pilot.md",
+      "components/account/us-financial-pilot.css",
+      "components/account/us-financial-pilot.tsx"
+    ],
+    "coreAutocrlf": "true",
+    "sourceFiles": [
+      {
+        "file": ".impeccable/surfaces/financial-pilot.md",
+        "gitBlob": "783733db3fecf6669775d35ef092a6e8f66b6b29",
+        "sha256CheckoutFilteredBytes": "21205a4a36fc1a78ca53c008a8e15ddadb104845fbf9cd3d5f2c26d854044ffd",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "df24aaa82897128dae279c14d7f8295cb00fd0f865f841054b1e79531f7c293b"
+      },
+      {
+        "file": "app/api/international/workspaces/[organizationId]/financial-pilot/exports/invoices/[invoiceId]/route.ts",
+        "gitBlob": "733dabd4a362085b0430fd8fdc6b58ccc93c58d5",
+        "sha256CheckoutFilteredBytes": "9ef3a9c18c8ada8ec87f78d871286ff354db80068c0a258d0c4cf9365a2339b2",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "b8e63bbafdd078592080c34ae17483b831d373b574f83b5d7abcf971bd2cfdb7"
+      },
+      {
+        "file": "app/api/international/workspaces/[organizationId]/financial-pilot/exports/reports/[kind]/route.ts",
+        "gitBlob": "4c232aa774d4832963fc56ac1d44c2c90b363e03",
+        "sha256CheckoutFilteredBytes": "f1648c596fd4a8593037523e372e99b4950c90f0baec11eb6a4bca64723f4086",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "4595422d3e9cdaf351f57d38cf204cd321cf5450183264f77783df75271c7fee"
+      },
+      {
+        "file": "components/account/us-financial-pilot-export-actions.tsx",
+        "gitBlob": "beb37ab30c151dac7248f34878a4e289d01dfb0c",
+        "sha256CheckoutFilteredBytes": "b548895c6f46fd420ae4b6a65174509ca26765fb88d28d55644ce4f056fb9039",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "3a7ce025e76174ba101b2ab98a6bf73e4192836f9fc4d2afcc62eca35b6c51e1"
+      },
+      {
+        "file": "components/account/us-financial-pilot.css",
+        "gitBlob": "b800b6c194859a81d0c0dd28e6d12a8c970c7fe7",
+        "sha256CheckoutFilteredBytes": "5db18200bc680143157eb7e05c319ee1165744ca79578ad0bfe965c4377b759f",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "fde42822fc22fba8683cc6e07d2cbaf669ee7de6f15ab0858c7df9e3a7345971"
+      },
+      {
+        "file": "components/account/us-financial-pilot.tsx",
+        "gitBlob": "1338bf7165f8ec7908700aff8932f64fcaf3b066",
+        "sha256CheckoutFilteredBytes": "2047dd152efb849febe4a4b53d0039afebd84877a3d2d5921b2e24c73f021b4d",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "c42ea8915d199d8e6d8a48157a3c1affec86a2f319dfb1a69b03da7e07c16fee"
+      },
+      {
+        "file": "lib/international/browser-us-financial-pilot-export-copy.ts",
+        "gitBlob": "322aa80fbc1c7300a281b9f7eb95ded776eb90ab",
+        "sha256CheckoutFilteredBytes": "08714f884ed44b717b8afe4998bf06b029752cda3d30e059d256991348e5b178",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "526bcfa5259d7ab166557eed6025c5407610ba6bccafa2b22ccf5efc362f51ad"
+      },
+      {
+        "file": "lib/international/browser-us-financial-pilot-export-session.test.ts",
+        "gitBlob": "ab295c3729b234e4509c69efa4ba95063d0a3399",
+        "sha256CheckoutFilteredBytes": "2a7a5c2ef08d67402154ab90afc306fcd2ad849c95b53ae5ce162a5c7f197e96",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "bde008a41bd028deb153afd3385363a31ada8b0421b04643855a50a7eb5371c5"
+      },
+      {
+        "file": "lib/international/browser-us-financial-pilot-export-session.ts",
+        "gitBlob": "906b98d3beba3a2a99314b7b1ffab6d10ab1e55f",
+        "sha256CheckoutFilteredBytes": "bbb4384b41d25a558e02008c148f72c7ecf91416b73d88dcd5a291b608c77956",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "521bae088564ae694a829a220e0df6585437697dda0db0a37a4ae9ccc0ca74bb"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-bindings.test.ts",
+        "gitBlob": "e839e0cea8a5b9becc743db94901821f9cf0e94a",
+        "sha256CheckoutFilteredBytes": "4ddd13331b29cbb51256705ca1a670a5e2f97fc4640d7de9089b2665fa017c41",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "f173a96141ec7cab5849762044eeb344b56dce439640fe03cb93c01a5dbc7ef2"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-bindings.ts",
+        "gitBlob": "e877aa796ffb74cc307b0a7b11baf2d59f1ef94e",
+        "sha256CheckoutFilteredBytes": "a373e5514da6ac5875a97a9cb836aa77d8f4cc336c71abb8f90356e763fed1de",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "56833554e79305a2c71ad2b8b1535ad0c99993c1f120fc1a0b20664269377748"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-contract.test.ts",
+        "gitBlob": "8d758003db7cd3a3afa4a66f8cabe603dc7bc6a4",
+        "sha256CheckoutFilteredBytes": "26cca646172de229115f935c0076c6b8bf2ab11bb9b9e6ffae051523283ff33b",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "efc2735c55e4449c8d2463f77d02eff96f38b5fab410c4706fadeb7213e16813"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-contract.ts",
+        "gitBlob": "c1e48da88c52a59c14b780b076893a6606b9b00b",
+        "sha256CheckoutFilteredBytes": "de60e95051b5cc2e54d490fda6e58e637ca18ffdffa79e2445f1d4ac85c60e5f",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "6945fdc46b488f29ecc3ab84cb9a5672c7dceff20761d742b949b51ea60509bb"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-copy.ts",
+        "gitBlob": "7cc4061a91c9601200b26675a7762307f03acb4e",
+        "sha256CheckoutFilteredBytes": "cfee215dae591083b7153a3c2933a7c12a4204d099f98d224255a2ad6e4eee6e",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "5cfb53bfe2cb30341c38c8be1a3c66a4e14452e962c2748755b38184ae0d761d"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-projection.test.ts",
+        "gitBlob": "07511aec9c23ee02db1ce84b32891a4aff45c929",
+        "sha256CheckoutFilteredBytes": "0da1c56a12ba6e586c31dbe697816ef0c1f71dfafc002d1919f579b283bd1f9c",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "5787b3d37604479ff0a049a3bb408695c43e7f34ebe055e01e931639b6d758d8"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-projection.ts",
+        "gitBlob": "461dc4bd67d232ec63855c052ec3f0fe425e526f",
+        "sha256CheckoutFilteredBytes": "687b70f6cf0dc5bf4990e2f2249b829258ec66bf87039fc4f23435a13339b5d6",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "6fe288cb47bc82678e63ea92d8088f1e5a01c974cf1d219a4b37b312a6c95e39"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-renderer.test.ts",
+        "gitBlob": "c1c4086f3c9a114f99f76e51cb791be7f03ae1d5",
+        "sha256CheckoutFilteredBytes": "7d8a459c1ecbd7a83ab3925d04ca47a9feaff88772ff562e9fec6ca36c7fe88d",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "ecb24d5b7f7a9656640e04e80f7eae50f0c84b29b0cc71cdeddb3e4a0b47f77b"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-renderer.ts",
+        "gitBlob": "7a161db87565efe016040c184a49677b1d43387d",
+        "sha256CheckoutFilteredBytes": "743b72a5b8727021159ef8900321ae643085718d164adaad9cc967acb39c1d51",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "b0d3e621404a2c4ba3f30fce572c0e78f130b5c0d0769b5befd0c11a5ffdfc06"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-server.test.ts",
+        "gitBlob": "fb5582c96135b801ae47b757cca6d79724242be6",
+        "sha256CheckoutFilteredBytes": "72d56e46b279a7eb619bc9dfd1b4af1625e3a62d4ae164c984ec9e484f0ef0d4",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "c3e99d683b9c5862cf18f3701a9a02aca1d1efc0210133365e8c82da41a3da54"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-export-server.ts",
+        "gitBlob": "1da9a24109e90d18108567d433c4a8852dbbc570",
+        "sha256CheckoutFilteredBytes": "cba406584692e25c4de2fe4527f01bb548fbc94e14b7b0e032e9877349838abf",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "76d59d300aeab48cea3c7c339b4ff2d0564615f32f1bf44495b7dd902a9be112"
+      },
+      {
+        "file": "lib/international/us-financial-pilot-exports.postgres.test.ts",
+        "gitBlob": "84687442ba19e8583b454d497843284949bf7de3",
+        "sha256CheckoutFilteredBytes": "a459371fb565e1983d57ee54a135f7ba13cfa5b592af3f7828a86c7a9648b98b",
+        "workingBytesMatchCheckoutFilters": false,
+        "checkoutComparison": "LF_CRLF_equivalent_with_identical_git_filtered_blob",
+        "sha256WorkingBytes": "15bd210154ad7b51b7527ece68d962072ca65c3f4e7f9cf00d7edd9d1de74a8d"
+      }
+    ],
+    "sourceTree": {
+      "baseCommit": "38b74a666ffa0692a1ed5bafe93f1b30c3e0bcc5",
+      "headCommit": "e77c65385c22c098ef3746144b41ca4ab721a116",
+      "files": 3518,
+      "sha256": "efe904ac46ab8cd3f4fbc7e6e389c4ae7f3f0e8b2d3076b74d2b3b4c93601e6b",
+      "status": []
+    },
+    "testedSourceTree": {
+      "baseCommit": "38b74a666ffa0692a1ed5bafe93f1b30c3e0bcc5",
+      "headCommit": "38b74a666ffa0692a1ed5bafe93f1b30c3e0bcc5",
+      "files": 3518,
+      "sha256": "efe904ac46ab8cd3f4fbc7e6e389c4ae7f3f0e8b2d3076b74d2b3b4c93601e6b",
+      "status": [
+        " M .impeccable/surfaces/financial-pilot.md",
+        " M components/account/us-financial-pilot.css",
+        " M components/account/us-financial-pilot.tsx",
+        "?? app/api/international/workspaces/[organizationId]/financial-pilot/exports/invoices/[invoiceId]/route.ts",
+        "?? app/api/international/workspaces/[organizationId]/financial-pilot/exports/reports/[kind]/route.ts",
+        "?? components/account/us-financial-pilot-export-actions.tsx",
+        "?? lib/international/browser-us-financial-pilot-export-copy.ts",
+        "?? lib/international/browser-us-financial-pilot-export-session.test.ts",
+        "?? lib/international/browser-us-financial-pilot-export-session.ts",
+        "?? lib/international/us-financial-pilot-export-bindings.test.ts",
+        "?? lib/international/us-financial-pilot-export-bindings.ts",
+        "?? lib/international/us-financial-pilot-export-contract.test.ts",
+        "?? lib/international/us-financial-pilot-export-contract.ts",
+        "?? lib/international/us-financial-pilot-export-copy.ts",
+        "?? lib/international/us-financial-pilot-export-projection.test.ts",
+        "?? lib/international/us-financial-pilot-export-projection.ts",
+        "?? lib/international/us-financial-pilot-export-renderer.test.ts",
+        "?? lib/international/us-financial-pilot-export-renderer.ts",
+        "?? lib/international/us-financial-pilot-export-server.test.ts",
+        "?? lib/international/us-financial-pilot-export-server.ts",
+        "?? lib/international/us-financial-pilot-exports.postgres.test.ts"
+      ]
+    },
+    "sourceByteCommitVerification": "Final checks preceded the implementation commit. Actual working source hashes and whole-tree SHA match those checked. Git hash-object --path proves identical committed blobs; cat-file --filters records checkout bytes separately and permits only explicitly labeled LF/CRLF equivalence under the unchanged repository configuration."
+  },
+  "scope": {
+    "consumer": "financial-pilot",
+    "schemaVersion": 1,
+    "privateCapability": "postgres-test-financial-pilot-dto1",
+    "underlyingCapability": "postgres-test-invoicing-v5",
+    "publicErpSchemas": "1–4 unchanged; no V5 book snapshot exposed to browser or native consumers",
+    "newMigrations": 0,
+    "oldMigrationsEdited": false,
+    "exportWrites": [],
+    "exportTaxProviderCalls": false,
+    "exportStorageWrites": false,
+    "defaultPilotEnabled": false,
+    "automaticGrantOrOptInProvisioning": false,
+    "hostedChange": false,
+    "productionPublication": false,
+    "nativeBuild": false,
+    "domainEdits": false,
+    "pricingEdits": false
+  },
+  "invariants": {
+    "admission": "Read-only browser Auth and effective D1 membership/entitlement plus living flags/configuration, then PG grant/opt-in versions; repeated final admission after rendering, hashing and head check. The final rollout read follows the final Auth await. No distributed transaction or arbitrary service-role access guarantee.",
+    "snapshot": "Strict selector binds organization, requested financial revision, language, format, invoice or precise report scope. Neutral presentation whitelist omits private book/policy/proofs/credentials/EIN. Actual received/credited/outstanding remain separate exact minor-unit amounts.",
+    "readOnly": "The export handler captures read/head ports only; no commit, receipt, tax/provider or Storage operations. Actual PG before/after snapshots verify no financial registry writes across successful exports.",
+    "output": "USD/US Letter, bounded rows/text/pages/output, fixed embedded fonts, owned snapshots/fonts/response bytes, exact selector/content SHA256, required Content-Length, safe ASCII attachment filename, no-store and nosniff. A changed head returns409 instead of silently selecting another document.",
+    "browser": "Local task feedback preserves invoice/payment draft. A verified download is saved only after bounded transport/header/digest checks; access/context changes discard stale output. Actual browser/download evidence uses a fictitious memory book; PG recipe uses standard Request/Response handlers separately."
+  },
+  "tests": {
+    "regression": {
+      "success": true,
+      "total": 5652,
+      "passed": 5652,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "files": 168,
+      "retainedPriorFiles": 161,
+      "newFiles": 7,
+      "selection": [
+        "lib/account-workspace-entry.test.ts",
+        "lib/account-workspace-navigation.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/account-workspaces.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/deployment-contract.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/browser-us-financial-pilot-export-session.test.ts",
+        "lib/international/browser-us-financial-pilot-session.test.ts",
+        "lib/international/browser-us-sales-order-session.test.ts",
+        "lib/international/browser-us-supplier-documents-session.test.ts",
+        "lib/international/browser-us-supplier-session.test.ts",
+        "lib/international/browser-us-support-worker-session.test.ts",
+        "lib/international/browser-us-team-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-store.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/us-automation-policy.test.ts",
+        "lib/international/us-automation-store.test.ts",
+        "lib/international/us-automation-validation.test.ts",
+        "lib/international/us-customer-credit-allocation.test.ts",
+        "lib/international/us-customer-credit-preparation.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-d1.test.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-financial-invoice-test.test.ts",
+        "lib/international/us-financial-kernel-capability.test.ts",
+        "lib/international/us-financial-kernel-erp-runtime.test.ts",
+        "lib/international/us-financial-kernel-erp.test.ts",
+        "lib/international/us-financial-kernel-runtime.test.ts",
+        "lib/international/us-financial-kernel.test.ts",
+        "lib/international/us-financial-pilot-bindings.test.ts",
+        "lib/international/us-financial-pilot-contract.test.ts",
+        "lib/international/us-financial-pilot-export-bindings.test.ts",
+        "lib/international/us-financial-pilot-export-contract.test.ts",
+        "lib/international/us-financial-pilot-export-projection.test.ts",
+        "lib/international/us-financial-pilot-export-renderer.test.ts",
+        "lib/international/us-financial-pilot-export-server.test.ts",
+        "lib/international/us-financial-pilot-exports.postgres.test.ts",
+        "lib/international/us-financial-pilot-payment.test.ts",
+        "lib/international/us-financial-pilot-projection.test.ts",
+        "lib/international/us-financial-pilot-reports.test.ts",
+        "lib/international/us-financial-pilot-server.test.ts",
+        "lib/international/us-financial-pilot-store.postgres.test.ts",
+        "lib/international/us-financial-pilot-store.test.ts",
+        "lib/international/us-financial-test-accounting.postgres.test.ts",
+        "lib/international/us-financial-test-accounting.test.ts",
+        "lib/international/us-financial-test-commercial.postgres.test.ts",
+        "lib/international/us-financial-test-commercial.test.ts",
+        "lib/international/us-financial-test-foundation.postgres.test.ts",
+        "lib/international/us-financial-test-foundation.test.ts",
+        "lib/international/us-financial-test-invoicing.postgres.test.ts",
+        "lib/international/us-financial-test-purchasing.postgres.test.ts",
+        "lib/international/us-financial-test-purchasing.test.ts",
+        "lib/international/us-financial-test-settlement.postgres.test.ts",
+        "lib/international/us-financial-test-settlement.test.ts",
+        "lib/international/us-saas-test-bindings.test.ts",
+        "lib/international/us-saas-test-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "lib/international/us-saas-test-server.test.ts",
+        "lib/international/us-saas-test-stripe.test.ts",
+        "lib/international/us-sales-order-bindings.test.ts",
+        "lib/international/us-sales-order-contract.test.ts",
+        "lib/international/us-sales-order-erp-guard.test.ts",
+        "lib/international/us-sales-order-export.test.ts",
+        "lib/international/us-sales-order-server.test.ts",
+        "lib/international/us-sales-order-store.test.ts",
+        "lib/international/us-sales-order.postgres.test.ts",
+        "lib/international/us-supplier-analysis-server.test.ts",
+        "lib/international/us-supplier-analysis.test.ts",
+        "lib/international/us-supplier-bindings.test.ts",
+        "lib/international/us-supplier-document-archive.test.ts",
+        "lib/international/us-supplier-document-bindings.test.ts",
+        "lib/international/us-supplier-document-bytes.test.ts",
+        "lib/international/us-supplier-document-contract.test.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-server.test.ts",
+        "lib/international/us-supplier-document-store.test.ts",
+        "lib/international/us-supplier-document-timeout.test.ts",
+        "lib/international/us-supplier-extraction.test.ts",
+        "lib/international/us-supplier-proposal.test.ts",
+        "lib/international/us-supplier-server.test.ts",
+        "lib/international/us-supplier-store.test.ts",
+        "lib/international/us-support-intake-provider.test.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.test.ts",
+        "lib/international/us-support-mailbox-contract.test.ts",
+        "lib/international/us-support-mailbox-d1.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-provider.test.ts",
+        "lib/international/us-support-mailbox-server.test.ts",
+        "lib/international/us-support-mailbox-ui.test.ts",
+        "lib/international/us-support-ticket-bindings.test.ts",
+        "lib/international/us-support-ticket-composition.test.ts",
+        "lib/international/us-support-ticket-contract.test.ts",
+        "lib/international/us-support-ticket-d1.test.ts",
+        "lib/international/us-support-ticket-server.test.ts",
+        "lib/international/us-support-tickets-ui.test.ts",
+        "lib/international/us-support-triage-bindings.test.ts",
+        "lib/international/us-support-triage-composition.test.ts",
+        "lib/international/us-support-triage-contract.test.ts",
+        "lib/international/us-support-triage-d1.test.ts",
+        "lib/international/us-support-triage-policy.test.ts",
+        "lib/international/us-support-triage-provider.test.ts",
+        "lib/international/us-support-triage-server.test.ts",
+        "lib/international/us-support-triage-service.test.ts",
+        "lib/international/us-support-triage-ticket-integration.test.ts",
+        "lib/international/us-support-triage-ui.test.ts",
+        "lib/international/us-support-worker-bindings.test.ts",
+        "lib/international/us-support-worker-composition.test.ts",
+        "lib/international/us-support-worker-contract.test.ts",
+        "lib/international/us-support-worker-d1.test.ts",
+        "lib/international/us-support-worker-migration.test.ts",
+        "lib/international/us-support-worker-server.test.ts",
+        "lib/international/us-support-worker-ui.test.ts",
+        "lib/international/us-support-worker.test.ts",
+        "lib/international/us-support-workspace-bindings.test.ts",
+        "lib/international/us-support-workspace-contract.test.ts",
+        "lib/international/us-support-workspace-d1.test.ts",
+        "lib/international/us-support-workspace-server.test.ts",
+        "lib/international/us-support-workspace-ui.test.ts",
+        "lib/international/us-team-bindings.test.ts",
+        "lib/international/us-team-contract.test.ts",
+        "lib/international/us-team-device-lifecycle.test.ts",
+        "lib/international/us-team-server.test.ts",
+        "lib/international/us-team-store.test.ts",
+        "lib/international/us-team-validation.test.ts",
+        "lib/international/us-team.migrations.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/site-language.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth-http.test.ts",
+        "lib/supabase-auth.test.ts",
+        "lib/support/application-effects.test.ts",
+        "lib/support/billing.test.ts",
+        "lib/support/mail-documents.test.ts",
+        "lib/support/mail-sync-admission.test.ts",
+        "lib/support/reply-transport.test.ts",
+        "lib/support/solicitation-service.test.ts",
+        "lib/support/support.test.ts",
+        "lib/support/workspace-access.test.ts",
+        "lib/support/workspace-selection.test.ts",
+        "lib/support/workspace-state-admission.test.ts"
+      ],
+      "fileResults": [
+        {
+          "file": "lib/account-workspace-entry.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/account-workspace-navigation.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/account-workspace-pages.test.ts",
+          "status": "passed",
+          "total": 115,
+          "passed": 115
+        },
+        {
+          "file": "lib/account-workspaces.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/business-sync-cash-vat.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/deployment-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/document-number-reservations.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/site-language.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/stripe-contract.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/supabase-auth-http.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/supabase-auth.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/accounting-runtime.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/browser-us-financial-pilot-export-session.test.ts",
+          "status": "passed",
+          "total": 53,
+          "passed": 53
+        },
+        {
+          "file": "lib/international/browser-us-financial-pilot-session.test.ts",
+          "status": "passed",
+          "total": 71,
+          "passed": 71
+        },
+        {
+          "file": "lib/international/browser-us-sales-order-session.test.ts",
+          "status": "passed",
+          "total": 38,
+          "passed": 38
+        },
+        {
+          "file": "lib/international/browser-us-supplier-documents-session.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/browser-us-supplier-session.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/browser-us-support-worker-session.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/browser-us-team-session.test.ts",
+          "status": "passed",
+          "total": 37,
+          "passed": 37
+        },
+        {
+          "file": "lib/international/browser-us-workspace-sync-session.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/legacy-country-guard.migrations.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/legacy-country-guard.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/private-json.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/purchasing-runtime.test.ts",
+          "status": "passed",
+          "total": 65,
+          "passed": 65
+        },
+        {
+          "file": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/runtime-server-revalidation.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/runtime-server-us-tax.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/runtime-server.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/runtime-store.test.ts",
+          "status": "passed",
+          "total": 83,
+          "passed": 83
+        },
+        {
+          "file": "lib/international/runtime-sync.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/runtime.test.ts",
+          "status": "passed",
+          "total": 36,
+          "passed": 36
+        },
+        {
+          "file": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed",
+          "total": 101,
+          "passed": 101
+        },
+        {
+          "file": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-automation-policy.test.ts",
+          "status": "passed",
+          "total": 69,
+          "passed": 69
+        },
+        {
+          "file": "lib/international/us-automation-store.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-automation-validation.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-customer-credit-allocation.test.ts",
+          "status": "passed",
+          "total": 101,
+          "passed": 101
+        },
+        {
+          "file": "lib/international/us-customer-credit-preparation.test.ts",
+          "status": "passed",
+          "total": 74,
+          "passed": 74
+        },
+        {
+          "file": "lib/international/us-device-bindings.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-device-capability-v4.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-device-d1.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/international/us-device-server.test.ts",
+          "status": "passed",
+          "total": 40,
+          "passed": 40
+        },
+        {
+          "file": "lib/international/us-financial-invoice-test.test.ts",
+          "status": "passed",
+          "total": 50,
+          "passed": 50
+        },
+        {
+          "file": "lib/international/us-financial-kernel-capability.test.ts",
+          "status": "passed",
+          "total": 25,
+          "passed": 25
+        },
+        {
+          "file": "lib/international/us-financial-kernel-erp-runtime.test.ts",
+          "status": "passed",
+          "total": 41,
+          "passed": 41
+        },
+        {
+          "file": "lib/international/us-financial-kernel-erp.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-financial-kernel-runtime.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-financial-kernel.test.ts",
+          "status": "passed",
+          "total": 50,
+          "passed": 50
+        },
+        {
+          "file": "lib/international/us-financial-pilot-bindings.test.ts",
+          "status": "passed",
+          "total": 65,
+          "passed": 65
+        },
+        {
+          "file": "lib/international/us-financial-pilot-contract.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-bindings.test.ts",
+          "status": "passed",
+          "total": 27,
+          "passed": 27
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-contract.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-projection.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-renderer.test.ts",
+          "status": "passed",
+          "total": 37,
+          "passed": 37
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-server.test.ts",
+          "status": "passed",
+          "total": 56,
+          "passed": 56
+        },
+        {
+          "file": "lib/international/us-financial-pilot-exports.postgres.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-financial-pilot-payment.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-financial-pilot-projection.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-financial-pilot-reports.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/international/us-financial-pilot-server.test.ts",
+          "status": "passed",
+          "total": 34,
+          "passed": 34
+        },
+        {
+          "file": "lib/international/us-financial-pilot-store.postgres.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/international/us-financial-pilot-store.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-financial-test-accounting.postgres.test.ts",
+          "status": "passed",
+          "total": 39,
+          "passed": 39
+        },
+        {
+          "file": "lib/international/us-financial-test-accounting.test.ts",
+          "status": "passed",
+          "total": 60,
+          "passed": 60
+        },
+        {
+          "file": "lib/international/us-financial-test-commercial.postgres.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-financial-test-commercial.test.ts",
+          "status": "passed",
+          "total": 25,
+          "passed": 25
+        },
+        {
+          "file": "lib/international/us-financial-test-foundation.postgres.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/us-financial-test-foundation.test.ts",
+          "status": "passed",
+          "total": 72,
+          "passed": 72
+        },
+        {
+          "file": "lib/international/us-financial-test-invoicing.postgres.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-financial-test-purchasing.postgres.test.ts",
+          "status": "passed",
+          "total": 34,
+          "passed": 34
+        },
+        {
+          "file": "lib/international/us-financial-test-purchasing.test.ts",
+          "status": "passed",
+          "total": 60,
+          "passed": 60
+        },
+        {
+          "file": "lib/international/us-financial-test-settlement.postgres.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/us-financial-test-settlement.test.ts",
+          "status": "passed",
+          "total": 55,
+          "passed": 55
+        },
+        {
+          "file": "lib/international/us-saas-test-bindings.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-saas-test-d1.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-d1.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-server.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+          "status": "passed",
+          "total": 123,
+          "passed": 123
+        },
+        {
+          "file": "lib/international/us-saas-test-server.test.ts",
+          "status": "passed",
+          "total": 27,
+          "passed": 27
+        },
+        {
+          "file": "lib/international/us-saas-test-stripe.test.ts",
+          "status": "passed",
+          "total": 82,
+          "passed": 82
+        },
+        {
+          "file": "lib/international/us-sales-order-bindings.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-sales-order-contract.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-sales-order-erp-guard.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/international/us-sales-order-export.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-sales-order-server.test.ts",
+          "status": "passed",
+          "total": 93,
+          "passed": 93
+        },
+        {
+          "file": "lib/international/us-sales-order-store.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-sales-order.postgres.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-supplier-analysis-server.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-supplier-analysis.test.ts",
+          "status": "passed",
+          "total": 39,
+          "passed": 39
+        },
+        {
+          "file": "lib/international/us-supplier-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-archive.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-supplier-document-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-bytes.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-supplier-document-contract.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.postgres.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.test.ts",
+          "status": "passed",
+          "total": 34,
+          "passed": 34
+        },
+        {
+          "file": "lib/international/us-supplier-document-server.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-supplier-document-store.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-supplier-document-timeout.test.ts",
+          "status": "passed",
+          "total": 4,
+          "passed": 4
+        },
+        {
+          "file": "lib/international/us-supplier-extraction.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/us-supplier-proposal.test.ts",
+          "status": "passed",
+          "total": 105,
+          "passed": 105
+        },
+        {
+          "file": "lib/international/us-supplier-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-supplier-store.test.ts",
+          "status": "passed",
+          "total": 77,
+          "passed": 77
+        },
+        {
+          "file": "lib/international/us-support-intake-provider.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-support-mail-import-ui.test.ts",
+          "status": "passed",
+          "total": 57,
+          "passed": 57
+        },
+        {
+          "file": "lib/international/us-support-mailbox-bindings.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-support-mailbox-contract.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/us-support-mailbox-d1.test.ts",
+          "status": "passed",
+          "total": 43,
+          "passed": 43
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-bindings.test.ts",
+          "status": "passed",
+          "total": 1,
+          "passed": 1
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-composition.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-contract.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-d1.test.ts",
+          "status": "passed",
+          "total": 54,
+          "passed": 54
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-provider.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-server.test.ts",
+          "status": "passed",
+          "total": 42,
+          "passed": 42
+        },
+        {
+          "file": "lib/international/us-support-mailbox-provider.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-mailbox-server.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-ui.test.ts",
+          "status": "passed",
+          "total": 64,
+          "passed": 64
+        },
+        {
+          "file": "lib/international/us-support-ticket-bindings.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-ticket-composition.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/international/us-support-ticket-d1.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-server.test.ts",
+          "status": "passed",
+          "total": 55,
+          "passed": 55
+        },
+        {
+          "file": "lib/international/us-support-tickets-ui.test.ts",
+          "status": "passed",
+          "total": 85,
+          "passed": 85
+        },
+        {
+          "file": "lib/international/us-support-triage-bindings.test.ts",
+          "status": "passed",
+          "total": 3,
+          "passed": 3
+        },
+        {
+          "file": "lib/international/us-support-triage-composition.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-contract.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-support-triage-d1.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/us-support-triage-policy.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-provider.test.ts",
+          "status": "passed",
+          "total": 70,
+          "passed": 70
+        },
+        {
+          "file": "lib/international/us-support-triage-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-support-triage-service.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-support-triage-ticket-integration.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/international/us-support-triage-ui.test.ts",
+          "status": "passed",
+          "total": 74,
+          "passed": 74
+        },
+        {
+          "file": "lib/international/us-support-worker-bindings.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/us-support-worker-composition.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-contract.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-d1.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-migration.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-support-worker-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-support-worker-ui.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/international/us-support-worker.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-support-workspace-bindings.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-workspace-contract.test.ts",
+          "status": "passed",
+          "total": 7,
+          "passed": 7
+        },
+        {
+          "file": "lib/international/us-support-workspace-d1.test.ts",
+          "status": "passed",
+          "total": 53,
+          "passed": 53
+        },
+        {
+          "file": "lib/international/us-support-workspace-server.test.ts",
+          "status": "passed",
+          "total": 31,
+          "passed": 31
+        },
+        {
+          "file": "lib/international/us-support-workspace-ui.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-team-bindings.test.ts",
+          "status": "passed",
+          "total": 49,
+          "passed": 49
+        },
+        {
+          "file": "lib/international/us-team-contract.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-team-device-lifecycle.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-team-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-team-store.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-team-validation.test.ts",
+          "status": "passed",
+          "total": 89,
+          "passed": 89
+        },
+        {
+          "file": "lib/international/us-team.migrations.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads-bindings.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/support/application-effects.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/support/billing.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/support/mail-documents.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/support/mail-sync-admission.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/support/reply-transport.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/support/solicitation-service.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/support/support.test.ts",
+          "status": "passed",
+          "total": 81,
+          "passed": 81
+        },
+        {
+          "file": "lib/support/workspace-access.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/support/workspace-selection.test.ts",
+          "status": "passed",
+          "total": 2,
+          "passed": 2
+        },
+        {
+          "file": "lib/support/workspace-state-admission.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        }
+      ],
+      "elapsedMs": 257021
+    },
+    "quality": {
+      "results": [
+        {
+          "name": "types-final",
+          "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+          "arguments": [
+            "node_modules/typescript/bin/tsc",
+            "--noEmit",
+            "--incremental",
+            "false"
+          ],
+          "startedAt": "2026-10-10T12:17:53.941Z",
+          "elapsedMs": 27538,
+          "exitCode": 0
+        },
+        {
+          "name": "lint-final",
+          "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+          "arguments": [
+            "node_modules/oxlint/bin/oxlint",
+            "--type-aware",
+            "--deny-warnings",
+            "app/api/international/workspaces/[organizationId]/financial-pilot/exports/invoices/[invoiceId]/route.ts",
+            "app/api/international/workspaces/[organizationId]/financial-pilot/exports/reports/[kind]/route.ts",
+            "components/account/us-financial-pilot-export-actions.tsx",
+            "components/account/us-financial-pilot.tsx",
+            "lib/international/browser-us-financial-pilot-export-copy.ts",
+            "lib/international/browser-us-financial-pilot-export-session.test.ts",
+            "lib/international/browser-us-financial-pilot-export-session.ts",
+            "lib/international/us-financial-pilot-export-bindings.test.ts",
+            "lib/international/us-financial-pilot-export-bindings.ts",
+            "lib/international/us-financial-pilot-export-contract.test.ts",
+            "lib/international/us-financial-pilot-export-contract.ts",
+            "lib/international/us-financial-pilot-export-copy.ts",
+            "lib/international/us-financial-pilot-export-projection.test.ts",
+            "lib/international/us-financial-pilot-export-projection.ts",
+            "lib/international/us-financial-pilot-export-renderer.test.ts",
+            "lib/international/us-financial-pilot-export-renderer.ts",
+            "lib/international/us-financial-pilot-export-server.test.ts",
+            "lib/international/us-financial-pilot-export-server.ts",
+            "lib/international/us-financial-pilot-exports.postgres.test.ts"
+          ],
+          "startedAt": "2026-10-10T12:18:22.101Z",
+          "elapsedMs": 1508,
+          "exitCode": 0
+        },
+        {
+          "name": "brand-final",
+          "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+          "arguments": [
+            "scripts/check-brand-assets.mjs"
+          ],
+          "startedAt": "2026-10-10T12:18:24.201Z",
+          "elapsedMs": 49,
+          "exitCode": 0
+        },
+        {
+          "name": "build-final",
+          "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+          "arguments": [
+            "node_modules/vinext/dist/cli.js",
+            "build"
+          ],
+          "startedAt": "2026-10-10T12:18:24.835Z",
+          "elapsedMs": 24437,
+          "exitCode": 0
+        }
+      ],
+      "sourceHashes": {
+        ".impeccable/surfaces/financial-pilot.md": "df24aaa82897128dae279c14d7f8295cb00fd0f865f841054b1e79531f7c293b",
+        "app/api/international/workspaces/[organizationId]/financial-pilot/exports/invoices/[invoiceId]/route.ts": "b8e63bbafdd078592080c34ae17483b831d373b574f83b5d7abcf971bd2cfdb7",
+        "app/api/international/workspaces/[organizationId]/financial-pilot/exports/reports/[kind]/route.ts": "4595422d3e9cdaf351f57d38cf204cd321cf5450183264f77783df75271c7fee",
+        "components/account/us-financial-pilot-export-actions.tsx": "3a7ce025e76174ba101b2ab98a6bf73e4192836f9fc4d2afcc62eca35b6c51e1",
+        "components/account/us-financial-pilot.css": "fde42822fc22fba8683cc6e07d2cbaf669ee7de6f15ab0858c7df9e3a7345971",
+        "components/account/us-financial-pilot.tsx": "c42ea8915d199d8e6d8a48157a3c1affec86a2f319dfb1a69b03da7e07c16fee",
+        "lib/international/browser-us-financial-pilot-export-copy.ts": "526bcfa5259d7ab166557eed6025c5407610ba6bccafa2b22ccf5efc362f51ad",
+        "lib/international/browser-us-financial-pilot-export-session.test.ts": "bde008a41bd028deb153afd3385363a31ada8b0421b04643855a50a7eb5371c5",
+        "lib/international/browser-us-financial-pilot-export-session.ts": "521bae088564ae694a829a220e0df6585437697dda0db0a37a4ae9ccc0ca74bb",
+        "lib/international/us-financial-pilot-export-bindings.test.ts": "f173a96141ec7cab5849762044eeb344b56dce439640fe03cb93c01a5dbc7ef2",
+        "lib/international/us-financial-pilot-export-bindings.ts": "56833554e79305a2c71ad2b8b1535ad0c99993c1f120fc1a0b20664269377748",
+        "lib/international/us-financial-pilot-export-contract.test.ts": "efc2735c55e4449c8d2463f77d02eff96f38b5fab410c4706fadeb7213e16813",
+        "lib/international/us-financial-pilot-export-contract.ts": "6945fdc46b488f29ecc3ab84cb9a5672c7dceff20761d742b949b51ea60509bb",
+        "lib/international/us-financial-pilot-export-copy.ts": "5cfb53bfe2cb30341c38c8be1a3c66a4e14452e962c2748755b38184ae0d761d",
+        "lib/international/us-financial-pilot-export-projection.test.ts": "5787b3d37604479ff0a049a3bb408695c43e7f34ebe055e01e931639b6d758d8",
+        "lib/international/us-financial-pilot-export-projection.ts": "6fe288cb47bc82678e63ea92d8088f1e5a01c974cf1d219a4b37b312a6c95e39",
+        "lib/international/us-financial-pilot-export-renderer.test.ts": "ecb24d5b7f7a9656640e04e80f7eae50f0c84b29b0cc71cdeddb3e4a0b47f77b",
+        "lib/international/us-financial-pilot-export-renderer.ts": "b0d3e621404a2c4ba3f30fce572c0e78f130b5c0d0769b5befd0c11a5ffdfc06",
+        "lib/international/us-financial-pilot-export-server.test.ts": "c3e99d683b9c5862cf18f3701a9a02aca1d1efc0210133365e8c82da41a3da54",
+        "lib/international/us-financial-pilot-export-server.ts": "76d59d300aeab48cea3c7c339b4ff2d0564615f32f1bf44495b7dd902a9be112",
+        "lib/international/us-financial-pilot-exports.postgres.test.ts": "15bd210154ad7b51b7527ece68d962072ca65c3f4e7f9cf00d7edd9d1de74a8d"
+      },
+      "typecheckGlobalNonIncremental": true,
+      "lintTypeAwareDenyWarnings": true,
+      "productionBuildDeployed": false
+    },
+    "targeted": {
+      "serverBindings": {
+        "passed": 83,
+        "countedAgain": false
+      },
+      "postgres": {
+        "passed": 11,
+        "countedAgain": false
+      },
+      "otherReports": [
+        {
+          "file": ".qa/us-financial-exports/contract-projection-tests.json",
+          "total": 34,
+          "passed": 34,
+          "countedAgain": false,
+          "scope": "Overlapping targeted report; final source identity is established by the full frozen regression, not inferred from this report alone"
+        },
+        {
+          "file": ".qa/us-financial-exports/renderer-tests.json",
+          "total": 37,
+          "passed": 37,
+          "countedAgain": false,
+          "scope": "Overlapping targeted report; final source identity is established by the full frozen regression, not inferred from this report alone"
+        },
+        {
+          "file": ".qa/us-financial-exports/browser-transport-initial.json",
+          "total": 49,
+          "passed": 49,
+          "countedAgain": false,
+          "scope": "Overlapping targeted report; final source identity is established by the full frozen regression, not inferred from this report alone"
+        }
+      ],
+      "sourceHashes": [
+        {
+          "file": "lib/international/us-financial-pilot-export-server.ts",
+          "sha256": "76d59d300aeab48cea3c7c339b4ff2d0564615f32f1bf44495b7dd902a9be112"
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-server.test.ts",
+          "sha256": "c3e99d683b9c5862cf18f3701a9a02aca1d1efc0210133365e8c82da41a3da54"
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-bindings.ts",
+          "sha256": "56833554e79305a2c71ad2b8b1535ad0c99993c1f120fc1a0b20664269377748"
+        },
+        {
+          "file": "lib/international/us-financial-pilot-export-bindings.test.ts",
+          "sha256": "f173a96141ec7cab5849762044eeb344b56dce439640fe03cb93c01a5dbc7ef2"
+        },
+        {
+          "file": "lib/international/us-financial-pilot-exports.postgres.test.ts",
+          "sha256": "15bd210154ad7b51b7527ece68d962072ca65c3f4e7f9cf00d7edd9d1de74a8d"
+        },
+        {
+          "file": "app/api/international/workspaces/[organizationId]/financial-pilot/exports/invoices/[invoiceId]/route.ts",
+          "sha256": "b8e63bbafdd078592080c34ae17483b831d373b574f83b5d7abcf971bd2cfdb7"
+        },
+        {
+          "file": "app/api/international/workspaces/[organizationId]/financial-pilot/exports/reports/[kind]/route.ts",
+          "sha256": "4595422d3e9cdaf351f57d38cf204cd321cf5450183264f77783df75271c7fee"
+        }
+      ],
+      "previousAttempts": {
+        "artifacts": [
+          {
+            "file": ".qa\\us-financial-exports\\server-bindings-initial.json",
+            "sha256": "1615ddb105a9b8bdb775c841ade08509dadf4c7b624f841db62e403e5104290f",
+            "success": true,
+            "total": 81,
+            "passed": 81,
+            "failed": 0,
+            "skipped": 0
+          },
+          {
+            "file": ".qa\\us-financial-exports\\server-bindings-final.json",
+            "sha256": "150d4c642aeb4dbf9e315db31743007b75c76853b566215a91d2d7e55fcedbd6",
+            "success": true,
+            "total": 82,
+            "passed": 82,
+            "failed": 0,
+            "skipped": 0
+          },
+          {
+            "file": ".qa\\us-financial-exports\\postgres-initial.json",
+            "sha256": "f69481cbf4c5b599f0f50af210b32763471c4f793be39a2f7cb59ddfdc5e7b7d",
+            "success": false,
+            "total": 10,
+            "passed": 6,
+            "failed": 4,
+            "skipped": 0
+          },
+          {
+            "file": ".qa\\us-financial-exports\\postgres-second.json",
+            "sha256": "cfc953288f9f2f82827fc4482674a6429b00f86c127359d264804a19af1c899b",
+            "success": true,
+            "total": 10,
+            "passed": 10,
+            "failed": 0,
+            "skipped": 0
+          },
+          {
+            "file": ".qa\\us-financial-exports\\postgres-final.json",
+            "sha256": "18c312923b20ab6ac98493d82816f805277de5df5a22d1b8c96ad28226871cb2",
+            "success": false,
+            "total": 11,
+            "passed": 10,
+            "failed": 1,
+            "skipped": 0
+          },
+          {
+            "file": ".qa\\us-financial-exports\\postgres-new-invoice.json",
+            "sha256": "4542bca30ee61750c4c18194030ff265f189dcb29b8b4edb37fdb2cf01f43697",
+            "success": false,
+            "total": 11,
+            "passed": 0,
+            "failed": 1,
+            "skipped": 10
+          },
+          {
+            "file": ".qa\\us-financial-exports\\postgres-final2.json",
+            "sha256": "4023d44214ec89c8ffb068de37900b4dd65fe1986eebdaa2603b533f9a0972ab",
+            "success": true,
+            "total": 11,
+            "passed": 11,
+            "failed": 0,
+            "skipped": 0
+          }
+        ],
+        "notes": [
+          "Initial PG6/10 failed because fixture history timed out, unsupported provider-sized huge invoice, wrong ERP entity capture and a false-positive Referrer-Policy secret check; corrected recipes without changing accounting rules",
+          "Second PG10/10 passed before adding new V5 invoice recipe",
+          "Added recipe initially failed invalid overlapping period fixture, then a wrong assertion conflating per-invoice outstanding with overall ledger account balance; corrected fixture/selected receivables report",
+          "Final earlier PG11/11 passed; frozen rerun includes final malformed-private-exception hardening"
+        ],
+        "countedInFinalTestTotals": false
+      }
+    },
+    "postgres": {
+      "file": "lib/international/us-financial-pilot-exports.postgres.test.ts",
+      "passed": 11,
+      "includedInRegression": true,
+      "assertions": [
+        {
+          "title": "uses32 existing migrations without introducing export persistence, receipts or an ERP4 fallback",
+          "status": "passed"
+        },
+        {
+          "title": "exports original107, received50, credited35 and outstanding22 from the same admitted V5 book",
+          "status": "passed"
+        },
+        {
+          "title": "exports every payment and ledger movement beyond the25-row browser page",
+          "status": "passed"
+        },
+        {
+          "title": "keeps exact large decimal money and emitted discounts without using floating point",
+          "status": "passed"
+        },
+        {
+          "title": "reconciles purchases, credits, manual reversal and accounting periods against actual ledger reports",
+          "status": "passed"
+        },
+        {
+          "title": "refuses a revoked opt-in or grant during actual rendering without returning a late PDF",
+          "status": "passed"
+        },
+        {
+          "title": "rejects a head change caused by a real PG payment during rendering",
+          "status": "passed"
+        },
+        {
+          "title": "checks effective synthetic Auth/D1 session and tenant after the last real PG scope await",
+          "status": "passed"
+        },
+        {
+          "title": "does not disclose private financial, provider, grant or policy material in CSV, headers or errors",
+          "status": "passed"
+        },
+        {
+          "title": "exports a newly issued V5 invoice after a closed and reopened period, then two payments and a credit",
+          "status": "passed"
+        },
+        {
+          "title": "persists the exact book and read-only exports across clean NodeFS close/reopen",
+          "status": "passed"
+        }
+      ],
+      "existingMigrations": 32,
+      "newMigrations": 0,
+      "migrationSourceList": [
+        "202609140100_company_profiles",
+        "202609140200_company_collaboration",
+        "202609200300_company_content",
+        "20261007194528_international_workspace_country_config",
+        "20261007222349_international_us_erp_persistence",
+        "20261007224820_international_us_erp_delta_stream",
+        "20261007225725_international_us_erp_seller_snapshot",
+        "20261008001726_new_us_workspace_admission",
+        "20261008013200_international_tax_proof_allowlist",
+        "20261008034422_international_us_seller_profile",
+        "20261008044402_international_us_tax_profile",
+        "20261008060826_international_us_tax_operations",
+        "20261008081825_international_us_purchasing_v2",
+        "20261008105120_international_us_projects_v3",
+        "20261008161118_international_us_journal_periods_v4",
+        "20261008172520_international_us_tax_invoice_capability_v2",
+        "20261008184605_international_us_bank_reconciliation",
+        "20261008194930_international_us_supplier_proposals",
+        "20261008210008_international_us_automation_analysis",
+        "20261009215104_international_us_workspace_sync_heads",
+        "20261009222319_international_us_tax_test_merchant",
+        "20261009224607_international_us_tax_invoice_preparation",
+        "20261010005300_international_us_supplier_originals",
+        "20261010024618_international_us_supplier_original_hash_lookup",
+        "20261010054644_international_us_sales_orders",
+        "20261010075840_international_us_financial_test_foundation_v5",
+        "20261010083027_international_us_financial_test_settlement_v5",
+        "20261010085523_international_us_financial_test_commercial_v5",
+        "20261010091729_international_us_financial_test_purchasing_v5",
+        "20261010093930_international_us_financial_test_accounting_v5",
+        "20261010100252_international_us_financial_test_invoicing_v5",
+        "20261010104148_international_us_financial_pilot_dto1"
+      ],
+      "pgliteModule": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+      "retainedTargetedDataDir": "D:\\Codex-Zentra-Temporary\\2026-10-08\\native-admission-temp\\zentra-financial-pilot-exports-MU6C3W",
+      "recipe": {
+        "scope": "LOCAL TEST only; serialized PGlite and synthetic Auth/D1",
+        "migrations": 32,
+        "organizationId": "10ffd4b8-a4c1-4f5b-8f46-775f2895ed58",
+        "revision": 8,
+        "cleanCloseReopen": true
+      },
+      "method": "Actual serialized PostgreSQL WASM on retained NodeFS, real private pilot wrappers, exact V5 kernel and real PDF/CSV renderers. Standard Request/Response handlers use explicitly synthetic Auth/D1/fiscal observations. The passed clean-close/reopen test is not crash recovery or a concurrent multi-connection guarantee.",
+      "networkSocketInExportRecipe": false,
+      "multiConnectionProof": false,
+      "crashRecoveryProof": false
+    },
+    "pdf": {
+      "scope": "Eight frozen fictitious PDF outputs, independently parsed glyph/page metadata plus saved root visual review. Numeric layout claims below are saved producer metadata; the recorder validates byte hashes/page metadata and does not rerender, parse PDF text or inspect pixels.",
+      "pdfs": 8,
+      "pageRasters": 23,
+      "manifest": ".qa/us-financial-exports/review-pdfs/manifest.json",
+      "proofs": [
+        {
+          "scope": "Fictitious neutral presentation fixtures only. Genuine vector/text PDFs independently parsed with pypdf/pdfplumber, including every glyph bound. Not evidence of a persisted book, hosted Auth, multiple connections, bank transfer, legal/tax compliance or production readiness.",
+          "limits": {
+            "rows": 1000,
+            "textCharacters": 500000,
+            "pdfPages": 200,
+            "outputBytes": 12582912
+          },
+          "evidence": [
+            {
+              "filename": "fictitious-invoice-fr.pdf",
+              "bytes": 25782,
+              "sha256": "0b84c791ade4456e14e4c4546df28439f4dac774e3955a1d23ab23eb26eb4d8d",
+              "pages": 2,
+              "sizes": [
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            },
+            {
+              "filename": "fictitious-invoice-de.pdf",
+              "bytes": 26454,
+              "sha256": "c54c3f315df78c7fbf7460af7b7f65873a8cddb3f7aadf2f159967bbc24660f9",
+              "pages": 2,
+              "sizes": [
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            },
+            {
+              "filename": "fictitious-invoice-it.pdf",
+              "bytes": 25724,
+              "sha256": "df3219b99472b139d79c858f34f4097d3f4c9a9559f29aae0c732df484c80c44",
+              "pages": 2,
+              "sizes": [
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            },
+            {
+              "filename": "fictitious-invoice-en.pdf",
+              "bytes": 25554,
+              "sha256": "353e23a789feace71ba5b73127fe947aadb3feb66f3a752b5de506152d8f846c",
+              "pages": 2,
+              "sizes": [
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            },
+            {
+              "filename": "fictitious-invoice-long-en.pdf",
+              "bytes": 44784,
+              "sha256": "6ea8d685f33bdd9e91d36a92a91792edc628eb8988fbdce97a09354f164185c6",
+              "pages": 7,
+              "sizes": [
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            }
+          ]
+        },
+        {
+          "scope": "Actual V5 promotion, payment, historical zero-tax credit and 26 manual journals in a fictitious memory book, then actual export builder and PDF/CSV renderers. No hosted Auth, persistence, bank movement or production evidence.",
+          "evidence": [
+            {
+              "filename": "fictitious-v5-general_ledger-fr.pdf",
+              "revision": 34,
+              "ledgerRevision": 29,
+              "rows": 27,
+              "columns": 8,
+              "bytes": 40509,
+              "sha256": "095b15fedf933f9c8a8d630d4e379d5fb28c281281aae9fc2ccf9a022969f114",
+              "pages": 4,
+              "sizes": [
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            },
+            {
+              "filename": "fictitious-v5-receivables-fr.pdf",
+              "revision": 34,
+              "ledgerRevision": 29,
+              "rows": 1,
+              "columns": 9,
+              "bytes": 21101,
+              "sha256": "9de125712c78783db600bce48411f42c6499b9decf7bb43f69595ff9b344539c",
+              "pages": 1,
+              "sizes": [
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            },
+            {
+              "filename": "fictitious-v5-trial_balance-fr.pdf",
+              "revision": 34,
+              "ledgerRevision": 29,
+              "rows": 11,
+              "columns": 5,
+              "bytes": 23682,
+              "sha256": "f18595281cbf689be69785b8a6bfa844f3ffb3a71b4340991787ca56669fb6b6",
+              "pages": 2,
+              "sizes": [
+                [
+                  612,
+                  792
+                ],
+                [
+                  612,
+                  792
+                ]
+              ],
+              "outside": [],
+              "images": 0
+            }
+          ]
+        }
+      ],
+      "visualReview": ".qa/us-financial-exports/pdf-visual-review.md",
+      "recorderReranReview": false
+    },
+    "visual": {
+      "scope": "Actual React/memory V5 browser UI with synthetic authority. The27 original JPEG captures were converted to PNG with matching decoded RGB per saved Pillow proof; no new visual run is inferred. Saved independent reviewer inspected all PNGs.",
+      "captures": 27,
+      "matrixNames": [
+        "fr-light-1440-invoice",
+        "fr-light-1440-reports",
+        "fr-dark-390-invoice",
+        "fr-dark-390-reports",
+        "de-light-1440-invoice",
+        "de-light-1440-reports",
+        "de-dark-390-invoice",
+        "de-dark-390-reports",
+        "it-light-1440-invoice",
+        "it-light-1440-reports",
+        "it-dark-390-invoice",
+        "it-dark-390-reports",
+        "en-light-1440-invoice",
+        "en-light-1440-reports",
+        "en-dark-390-invoice",
+        "en-dark-390-reports"
+      ],
+      "supplementNames": [
+        "de-light-320-invoice",
+        "de-light-320-reports",
+        "en-dark-1440-invoice",
+        "en-dark-1440-reports",
+        "en-light-390-invoice",
+        "en-light-390-reports"
+      ],
+      "flowNames": [
+        "flow-preparing-preserved-draft",
+        "flow-ready-preserved-draft",
+        "flow-export-budget-error",
+        "flow-invoice-download-ready",
+        "flow-access-cleared"
+      ],
+      "matrix": [
+        {
+          "name": "flow-invoice-download-ready",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 470.75,
+              "right": 645.3203125,
+              "text": "Download PDF",
+              "width": 174.5703125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/",
+          "width": 1440
+        },
+        {
+          "name": "fr-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 542.1953125,
+              "right": 744.125,
+              "text": "Télécharger le PDF",
+              "width": 201.9296875
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "fr-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 673.2890625,
+              "text": "Balance des comptesRésultatBilanFlux de trésorerieCréances · situation actuelle",
+              "width": 390.7890625
+            },
+            {
+              "height": 46,
+              "left": 689.2890625,
+              "right": 817.2890625,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 833.2890625,
+              "right": 986.5,
+              "text": "Télécharger",
+              "width": 153.2109375
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "fr-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Télécharger le PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "fr-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Balance des comptesRésultatBilanFlux de trésorerieCréances · situation actuelle",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Télécharger",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "en-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 470.75,
+              "right": 645.3203125,
+              "text": "Download PDF",
+              "width": 174.5703125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "en-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 684.5703125,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 402.0703125
+            },
+            {
+              "height": 46,
+              "left": 700.5703125,
+              "right": 828.5703125,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 844.5703125,
+              "right": 986.5,
+              "text": "Download",
+              "width": 141.9296875
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "en-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "en-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "de-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 463.8046875,
+              "right": 665.4453125,
+              "text": "PDF herunterladen",
+              "width": 201.640625
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "de-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 655.484375,
+              "text": "SaldenbilanzGewinn / VerlustBilanzGeldflussForderungen · aktuell",
+              "width": 372.984375
+            },
+            {
+              "height": 46,
+              "left": 671.484375,
+              "right": 799.484375,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 815.484375,
+              "right": 986.5,
+              "text": "Herunterladen",
+              "width": 171.015625
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "de-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "PDF herunterladen",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "de-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "SaldenbilanzGewinn / VerlustBilanzGeldflussForderungen · aktuell",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Herunterladen",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "it-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 480.9609375,
+              "right": 649.3984375,
+              "text": "Scarica il PDF",
+              "width": 168.4375
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "it-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 701.96875,
+              "text": "Bilancio di verificaUtile / perditaBilancioFlussi di cassaCrediti · situazione attuale",
+              "width": 419.46875
+            },
+            {
+              "height": 46,
+              "left": 717.96875,
+              "right": 845.96875,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 861.96875,
+              "right": 986.5,
+              "text": "Scarica",
+              "width": 124.53125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "it-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Scarica il PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "it-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Bilancio di verificaUtile / perditaBilancioFlussi di cassaCrediti · situazione attuale",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Scarica",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "en-dark-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 470.75,
+              "right": 645.3203125,
+              "text": "Download PDF",
+              "width": 174.5703125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 1440
+        },
+        {
+          "name": "en-dark-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 684.5703125,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 402.0703125
+            },
+            {
+              "height": 46,
+              "left": 700.5703125,
+              "right": 828.5703125,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 844.5703125,
+              "right": 986.5,
+              "text": "Download",
+              "width": 141.9296875
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 1440
+        },
+        {
+          "name": "en-light-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 390
+        },
+        {
+          "name": "en-light-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 390
+        },
+        {
+          "name": "de-light-320-invoice",
+          "bodyWidth": 305,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 285,
+              "text": "PDF herunterladen",
+              "width": 265
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 320
+        },
+        {
+          "name": "de-light-320-reports",
+          "bodyWidth": 305,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 145,
+              "text": "SaldenbilanzGewinn / VerlustBilanzGeldflussForderungen · aktuell",
+              "width": 125
+            },
+            {
+              "height": 46,
+              "left": 157,
+              "right": 285,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 285,
+              "text": "Herunterladen",
+              "width": 265
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 320
+        },
+        {
+          "name": "flow-preparing-preserved-draft",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Preparing your file…",
+              "width": 335
+            }
+          ],
+          "paymentDraft": "7.50",
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "flow-ready-preserved-draft",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": "7.50",
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "flow-export-budget-error",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": "7.50",
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "flow-export-budget-error",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": "7.50",
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "flow-access-cleared",
+          "bodyWidth": 390,
+          "controls": [],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        }
+      ],
+      "matrixMetadata": {
+        "entries": 28,
+        "uniqueCaptures": 27,
+        "scope": "Supplementary historical matrix preserves one duplicate flow budget-error entry. The final adjacent JSON and PNG inventory is authoritative; no earlier metadata is rewritten or counted as another capture."
+      },
+      "geometry": [
+        {
+          "name": "de-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "PDF herunterladen",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "de-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "SaldenbilanzGewinn / VerlustBilanzGeldflussForderungen · aktuell",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Herunterladen",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "de-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 463.8046875,
+              "right": 665.4453125,
+              "text": "PDF herunterladen",
+              "width": 201.640625
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "de-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 655.484375,
+              "text": "SaldenbilanzGewinn / VerlustBilanzGeldflussForderungen · aktuell",
+              "width": 372.984375
+            },
+            {
+              "height": 46,
+              "left": 671.484375,
+              "right": 799.484375,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 815.484375,
+              "right": 986.5,
+              "text": "Herunterladen",
+              "width": 171.015625
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "de-light-320-invoice",
+          "bodyWidth": 305,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 285,
+              "text": "PDF herunterladen",
+              "width": 265
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 320
+        },
+        {
+          "name": "de-light-320-reports",
+          "bodyWidth": 305,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 145,
+              "text": "SaldenbilanzGewinn / VerlustBilanzGeldflussForderungen · aktuell",
+              "width": 125
+            },
+            {
+              "height": 46,
+              "left": 157,
+              "right": 285,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 285,
+              "text": "Herunterladen",
+              "width": 265
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=de&theme=light",
+          "width": 320
+        },
+        {
+          "name": "en-dark-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 470.75,
+              "right": 645.3203125,
+              "text": "Download PDF",
+              "width": 174.5703125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 1440
+        },
+        {
+          "name": "en-dark-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 684.5703125,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 402.0703125
+            },
+            {
+              "height": 46,
+              "left": 700.5703125,
+              "right": 828.5703125,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 844.5703125,
+              "right": 986.5,
+              "text": "Download",
+              "width": 141.9296875
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 1440
+        },
+        {
+          "name": "en-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "en-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "en-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 470.75,
+              "right": 645.3203125,
+              "text": "Download PDF",
+              "width": 174.5703125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "en-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 684.5703125,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 402.0703125
+            },
+            {
+              "height": 46,
+              "left": 700.5703125,
+              "right": 828.5703125,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 844.5703125,
+              "right": 986.5,
+              "text": "Download",
+              "width": 141.9296875
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "en-light-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 390
+        },
+        {
+          "name": "en-light-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Trial balanceProfit / lossBalance sheetCash flowReceivables · current",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=light",
+          "width": 390
+        },
+        {
+          "name": "flow-access-cleared",
+          "bodyWidth": 390,
+          "controls": [],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "flow-export-budget-error",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": "7.50",
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "flow-invoice-download-ready",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 470.75,
+              "right": 645.3203125,
+              "text": "Download PDF",
+              "width": 174.5703125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/",
+          "width": 1440
+        },
+        {
+          "name": "flow-preparing-preserved-draft",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Preparing your file…",
+              "width": 335
+            }
+          ],
+          "paymentDraft": "7.50",
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "flow-ready-preserved-draft",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Download PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": "7.50",
+          "url": "http://127.0.0.1:5383/?language=en&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "fr-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Télécharger le PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "fr-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Balance des comptesRésultatBilanFlux de trésorerieCréances · situation actuelle",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Télécharger",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "fr-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 542.1953125,
+              "right": 744.125,
+              "text": "Télécharger le PDF",
+              "width": 201.9296875
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "fr-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 673.2890625,
+              "text": "Balance des comptesRésultatBilanFlux de trésorerieCréances · situation actuelle",
+              "width": 390.7890625
+            },
+            {
+              "height": 46,
+              "left": 689.2890625,
+              "right": 817.2890625,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 833.2890625,
+              "right": 986.5,
+              "text": "Télécharger",
+              "width": 153.2109375
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=fr&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "it-dark-390-invoice",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Scarica il PDF",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "it-dark-390-reports",
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "height": 46,
+              "left": 20,
+              "right": 215,
+              "text": "Bilancio di verificaUtile / perditaBilancioFlussi di cassaCrediti · situazione attuale",
+              "width": 195
+            },
+            {
+              "height": 46,
+              "left": 227,
+              "right": 355,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 20,
+              "right": 355,
+              "text": "Scarica",
+              "width": 335
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=dark",
+          "width": 390
+        },
+        {
+          "name": "it-light-1440-invoice",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 47.25,
+              "left": 480.9609375,
+              "right": 649.3984375,
+              "text": "Scarica il PDF",
+              "width": 168.4375
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=light",
+          "width": 1440
+        },
+        {
+          "name": "it-light-1440-reports",
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "height": 46,
+              "left": 282.5,
+              "right": 701.96875,
+              "text": "Bilancio di verificaUtile / perditaBilancioFlussi di cassaCrediti · situazione attuale",
+              "width": 419.46875
+            },
+            {
+              "height": 46,
+              "left": 717.96875,
+              "right": 845.96875,
+              "text": "PDFCSV",
+              "width": 128
+            },
+            {
+              "height": 47.25,
+              "left": 861.96875,
+              "right": 986.5,
+              "text": "Scarica",
+              "width": 124.53125
+            }
+          ],
+          "paymentDraft": null,
+          "url": "http://127.0.0.1:5383/?language=it&theme=light",
+          "width": 1440
+        }
+      ],
+      "captureFormatAttestation": [
+        {
+          "source": ".qa/us-financial-exports/browser-captures/de-dark-390-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/de-dark-390-invoice.png",
+          "decodedRgbSha256": "89ebf9aaf4122f0739a07115010ecafa9c75ed797a1a18653a173028dada01de",
+          "dimensions": [
+            375,
+            2247
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/de-dark-390-reports.jpg",
+          "output": ".impeccable/review/financial-exports/de-dark-390-reports.png",
+          "decodedRgbSha256": "418ad64b64736990f1b5e7139aceeef01ec06d6d19246dde3b4921460c12cc24",
+          "dimensions": [
+            375,
+            3175
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/de-light-1440-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/de-light-1440-invoice.png",
+          "decodedRgbSha256": "b0be8bb73b8c0bdf435d242d83a08ff15ac2ba71e57343e41701dd5299e5f43d",
+          "dimensions": [
+            1425,
+            1690
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/de-light-1440-reports.jpg",
+          "output": ".impeccable/review/financial-exports/de-light-1440-reports.png",
+          "decodedRgbSha256": "37ef165d7ae3d716cde1cdc36468b0023810c8d3b0f9c9269f52b556d7d2df59",
+          "dimensions": [
+            1425,
+            2720
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/de-light-320-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/de-light-320-invoice.png",
+          "decodedRgbSha256": "a26d36208d1804e76b730c636095efa78a1701a42bc27149d2cf0e235a1bf2d9",
+          "dimensions": [
+            305,
+            2425
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/de-light-320-reports.jpg",
+          "output": ".impeccable/review/financial-exports/de-light-320-reports.png",
+          "decodedRgbSha256": "bc58bc48c98e34b28630857f4db0cfb73016a5bc6e16eee35e825ee36a8a74bc",
+          "dimensions": [
+            305,
+            3280
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-dark-1440-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/en-dark-1440-invoice.png",
+          "decodedRgbSha256": "17878c309c99900d8111ea3fa605bfeb18f88f4ca63aa156d5a4c80cc8988893",
+          "dimensions": [
+            1425,
+            1690
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-dark-1440-reports.jpg",
+          "output": ".impeccable/review/financial-exports/en-dark-1440-reports.png",
+          "decodedRgbSha256": "d0490e85f214aa38decfcffaadedf6a12609373faa77f27c430bc03a7ee31321",
+          "dimensions": [
+            1425,
+            2720
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-dark-390-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/en-dark-390-invoice.png",
+          "decodedRgbSha256": "7b0f90cc27155ca3f85376c381ea2952bb3e704c3dea8333b1b04c3299a9fbc9",
+          "dimensions": [
+            375,
+            2247
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-dark-390-reports.jpg",
+          "output": ".impeccable/review/financial-exports/en-dark-390-reports.png",
+          "decodedRgbSha256": "c4fa4a13727fe6bbf271509ead69eab3fc76d843316931c97bea013430627bda",
+          "dimensions": [
+            375,
+            3175
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-light-1440-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/en-light-1440-invoice.png",
+          "decodedRgbSha256": "bf431b4bdc94d973e57b0f35d530156f81b5b48d04a33c6c3aacd0f4b5f50b1d",
+          "dimensions": [
+            1425,
+            1690
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-light-1440-reports.jpg",
+          "output": ".impeccable/review/financial-exports/en-light-1440-reports.png",
+          "decodedRgbSha256": "6d4cefb8c8570178090bfe48bdbb4f27ed92f933d29849c44f5fe8243e190245",
+          "dimensions": [
+            1425,
+            2720
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-light-390-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/en-light-390-invoice.png",
+          "decodedRgbSha256": "36f39286440cd203e388ea4f928f77566e6c22916dcf550f972476aa90a4e629",
+          "dimensions": [
+            375,
+            2247
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/en-light-390-reports.jpg",
+          "output": ".impeccable/review/financial-exports/en-light-390-reports.png",
+          "decodedRgbSha256": "54819dd1c586591cb52be1a8d8ea05b2ee6b975b06e13d66c7df5b94a10ccdaf",
+          "dimensions": [
+            375,
+            3175
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/flow-access-cleared.jpg",
+          "output": ".impeccable/review/financial-exports/flow-access-cleared.png",
+          "decodedRgbSha256": "62600ca9930da9624ccd0ff1ecfaef8b4739cb9e7c05b845bbb3ea8de90abac2",
+          "dimensions": [
+            390,
+            844
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/flow-export-budget-error.jpg",
+          "output": ".impeccable/review/financial-exports/flow-export-budget-error.png",
+          "decodedRgbSha256": "61726744808ecbc65345089fcfea449c953ed0525f704d82488ed85e0893c7e4",
+          "dimensions": [
+            375,
+            2925
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/flow-invoice-download-ready.jpg",
+          "output": ".impeccable/review/financial-exports/flow-invoice-download-ready.png",
+          "decodedRgbSha256": "2abb6075a2e21ed3467c7201de74ebe2617d4622e96f6499b6f78993acfccf83",
+          "dimensions": [
+            1425,
+            1720
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/flow-preparing-preserved-draft.jpg",
+          "output": ".impeccable/review/financial-exports/flow-preparing-preserved-draft.png",
+          "decodedRgbSha256": "fecb56a3dbfe16a87edb9d5f214f0879e952975b491195c5511531ed5cc084de",
+          "dimensions": [
+            375,
+            2883
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/flow-ready-preserved-draft.jpg",
+          "output": ".impeccable/review/financial-exports/flow-ready-preserved-draft.png",
+          "decodedRgbSha256": "226e73d6238c52feb59b7365fe53bc1df5c2834026dcc364382ca5146a50470f",
+          "dimensions": [
+            375,
+            2904
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/fr-dark-390-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/fr-dark-390-invoice.png",
+          "decodedRgbSha256": "cc339e03f47ac1e0f2dc2de5a7c1cec656d4797308da507abd77c93c4280b435",
+          "dimensions": [
+            375,
+            2247
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/fr-dark-390-reports.jpg",
+          "output": ".impeccable/review/financial-exports/fr-dark-390-reports.png",
+          "decodedRgbSha256": "f8d9f11460d37532155a3c74123f3c991aaf1ca90053b0bf70e3b985b996f31a",
+          "dimensions": [
+            375,
+            3175
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/fr-light-1440-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/fr-light-1440-invoice.png",
+          "decodedRgbSha256": "1da559d5dc9ae5aedc241a17cc75ba090f46eaaa323afa84d3cbc65e17e1badb",
+          "dimensions": [
+            1425,
+            1690
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/fr-light-1440-reports.jpg",
+          "output": ".impeccable/review/financial-exports/fr-light-1440-reports.png",
+          "decodedRgbSha256": "57803e403b6a9d5231365447bf5f406bff257ed8530eb932eca884c4b03c6c5d",
+          "dimensions": [
+            1425,
+            2720
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/it-dark-390-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/it-dark-390-invoice.png",
+          "decodedRgbSha256": "756b089a8c0b76757fba1df9b36223e81f10c6f1f770c7a8370709f16426a8cd",
+          "dimensions": [
+            375,
+            2247
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/it-dark-390-reports.jpg",
+          "output": ".impeccable/review/financial-exports/it-dark-390-reports.png",
+          "decodedRgbSha256": "9a2496449411049ffaf9cba1756fcc7cc76c0979ef849406d7549034a9f31f09",
+          "dimensions": [
+            375,
+            3175
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/it-light-1440-invoice.jpg",
+          "output": ".impeccable/review/financial-exports/it-light-1440-invoice.png",
+          "decodedRgbSha256": "e0a35705e0061b98a11f541d9161ce8cf95c7bad293ae05154f3e45c84d29bc7",
+          "dimensions": [
+            1425,
+            1690
+          ]
+        },
+        {
+          "source": ".qa/us-financial-exports/browser-captures/it-light-1440-reports.jpg",
+          "output": ".impeccable/review/financial-exports/it-light-1440-reports.png",
+          "decodedRgbSha256": "f351e71f407827dfd1f9978e77642864ade9365ee6cd5e98bc8e25f1fed67768",
+          "dimensions": [
+            1425,
+            2720
+          ]
+        }
+      ],
+      "decodedRgbVerification": "Saved Pillow equality attestation and independent review, not a decoder executed by this recorder.",
+      "finishReview": {
+        "file": ".qa/us-financial-exports/design-finish-review.md",
+        "disposition": "ship",
+        "recorderReranReview": false
+      },
+      "detector": {
+        "file": ".qa/us-financial-exports/ui-detector-final.json",
+        "primaryFindings": 0,
+        "advisories": 6,
+        "recorderReranDetector": false
+      },
+      "adjacentFollowUp": "Inherited German320 report-facts amount wrap is nonblocking and outside the added export controls."
+    },
+    "actualLocalDownloads": {
+      "scope": "Two actually downloaded local browser files, verified against retained copies. The local browser uses a memory V5 book and synthetic authority, distinct from the PG recipe; not hosted/staging/native evidence.",
+      "downloads": [
+        {
+          "kind": "invoice",
+          "source": "C:/Users/alb/Downloads/zentra-invoice-r7-en (2).pdf",
+          "file": ".qa/us-financial-exports/downloads-final/invoice-r7-en.pdf",
+          "bytes": 24662,
+          "sha256": "ec35feca4ba42ea64299cbb78784d236afce74b825ed3dc2cef1eb17bf6f5c45",
+          "mimeType": "application/pdf",
+          "revision": 7,
+          "language": "en",
+          "downloadedAt": "2026-10-10T12:14:47.065Z"
+        },
+        {
+          "kind": "receivables",
+          "source": "C:/Users/alb/Downloads/zentra-receivables-r7-en.csv",
+          "file": ".qa/us-financial-exports/downloads-final/receivables-r7-en.csv",
+          "bytes": 1093,
+          "sha256": "2216bbe5b9be9983d433dc6b6285a3074ca4331adf90aba36809c464948eb662",
+          "mimeType": "text/csv",
+          "revision": 7,
+          "language": "en",
+          "downloadedAt": "2026-10-10T12:15:01.954Z"
+        }
+      ],
+      "uiStatus": "File ready.",
+      "domFile": ".qa/us-financial-exports/downloads-final/report-ready-dom.txt",
+      "screenshotFile": ".qa/us-financial-exports/downloads-final/report-ready.jpg",
+      "viewportOverrideReset": true,
+      "copyHashesVerified": true,
+      "mutableOriginalDownloadsRead": false
+    },
+    "artifacts": [
+      {
+        "file": ".impeccable/review/financial-exports/de-dark-390-invoice.png",
+        "sha256": "3ba2619a260fd4f7cd8c47fd29f007be88b9d55047e824de0c4af25bd821eb9a",
+        "bytes": 469767
+      },
+      {
+        "file": ".impeccable/review/financial-exports/de-dark-390-reports.png",
+        "sha256": "d67ca4ccc63aa27ef5365d55c80556d526fb28c6e7760b39e6ea732c967f2f16",
+        "bytes": 614536
+      },
+      {
+        "file": ".impeccable/review/financial-exports/de-light-1440-invoice.png",
+        "sha256": "f96430bcdb5a980ea481efa071b4b4073de42c369e3cfadb8001463a82e03f17",
+        "bytes": 468832
+      },
+      {
+        "file": ".impeccable/review/financial-exports/de-light-1440-reports.png",
+        "sha256": "fb05d71e84a49dee75c5d4bac9b22c1c07bb873415aaadd28baa84e87c506e5a",
+        "bytes": 652899
+      },
+      {
+        "file": ".impeccable/review/financial-exports/de-light-320-invoice.png",
+        "sha256": "aefa1e4cb5eeadf119fa99a8d358d4977b36068f0543ab3399950729c29d2e55",
+        "bytes": 431851
+      },
+      {
+        "file": ".impeccable/review/financial-exports/de-light-320-reports.png",
+        "sha256": "a89d0bf25dc39435ce4a634807b7f2381e0f60cd4349916fc9c55a1e399c6093",
+        "bytes": 535102
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-dark-1440-invoice.png",
+        "sha256": "768f13dbe5b53e7fcd1845a03f63401322b645f91162f59779e7ddfe47f29eed",
+        "bytes": 458011
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-dark-1440-reports.png",
+        "sha256": "4c1ab61ac15fcd98c52b81d25739eeb8e4138c67592a132b070ce26dd812059d",
+        "bytes": 669422
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-dark-390-invoice.png",
+        "sha256": "e77b43f1a5f64bcc6d14cc53cbcfec92056c1662a11705e8ed32101bcb07c366",
+        "bytes": 426249
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-dark-390-reports.png",
+        "sha256": "85d831d9bd7f89ae99001df370a811dcd069bd041fb9e61cb9317163fc95cd84",
+        "bytes": 591780
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-light-1440-invoice.png",
+        "sha256": "4fbba9418fd730883993114958381214de33220bb481e6a8e9cb894596acf116",
+        "bytes": 426817
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-light-1440-reports.png",
+        "sha256": "bb9188ed68ff9828446b7441e7cccbb36fbf5eff1f3aff3c82a35bd654e58c7f",
+        "bytes": 628308
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-light-390-invoice.png",
+        "sha256": "5d3cb824079ddcdbb0fe778c94c042a7d57ac4b257778aa1f5645b183a0e913b",
+        "bytes": 392314
+      },
+      {
+        "file": ".impeccable/review/financial-exports/en-light-390-reports.png",
+        "sha256": "913c81ed356e7d99a5d56425befcff94f647581f356b03c0e33386232cde8395",
+        "bytes": 552231
+      },
+      {
+        "file": ".impeccable/review/financial-exports/flow-access-cleared.png",
+        "sha256": "d47c7e8e991f0d2f57da54c38117a5c8d18d4c578fe9a4a921c4243410946fba",
+        "bytes": 83222
+      },
+      {
+        "file": ".impeccable/review/financial-exports/flow-export-budget-error.png",
+        "sha256": "d49b25ca49df4241898615adcededc6e74ccf1f7088d364f74251a83a6315d66",
+        "bytes": 541516
+      },
+      {
+        "file": ".impeccable/review/financial-exports/flow-invoice-download-ready.png",
+        "sha256": "2c985ce2c003110f08f31d94ef6f3f59e37b679ca9ba8437a1f4d3a084f3fb99",
+        "bytes": 432657
+      },
+      {
+        "file": ".impeccable/review/financial-exports/flow-preparing-preserved-draft.png",
+        "sha256": "8a149d4d58e1d03ab887608bc805e1c2088c3bcd5d40abf78cc131ac6d9c5f19",
+        "bytes": 510707
+      },
+      {
+        "file": ".impeccable/review/financial-exports/flow-ready-preserved-draft.png",
+        "sha256": "4182dafc4d25ee7e8f1baa842cff4c66cb62069eb4e0238df462ea4826018d47",
+        "bytes": 520496
+      },
+      {
+        "file": ".impeccable/review/financial-exports/fr-dark-390-invoice.png",
+        "sha256": "85d77372e5286579706d3284339bb9d6fcbd1ccde9ce85d55bef905035902207",
+        "bytes": 439804
+      },
+      {
+        "file": ".impeccable/review/financial-exports/fr-dark-390-reports.png",
+        "sha256": "f6f749012933bf4d03f40a5dbc7e03a5b455643af48cbfd8f39cb39e473565a9",
+        "bytes": 613525
+      },
+      {
+        "file": ".impeccable/review/financial-exports/fr-light-1440-invoice.png",
+        "sha256": "003c77e38ce18b0daee6dc627eaa14dcf8f0867ec4efb3604b9c6131f5c41ff5",
+        "bytes": 446738
+      },
+      {
+        "file": ".impeccable/review/financial-exports/fr-light-1440-reports.png",
+        "sha256": "8d9e32618848a4e2fb408f7b127e8fff1d262f0b1841da699e563d2a4d5dffb5",
+        "bytes": 652893
+      },
+      {
+        "file": ".impeccable/review/financial-exports/it-dark-390-invoice.png",
+        "sha256": "6d3654a1948b170ee0d43432334d40f5872fb07139b9d522dbf548f7195b0465",
+        "bytes": 439323
+      },
+      {
+        "file": ".impeccable/review/financial-exports/it-dark-390-reports.png",
+        "sha256": "93d0a1b545e5468277624c4be7bf28ad7d9effe256f9524423fa4d5608a53c5d",
+        "bytes": 614329
+      },
+      {
+        "file": ".impeccable/review/financial-exports/it-light-1440-invoice.png",
+        "sha256": "ee19b2fd42fe628116618724e62d1e098be9ac71b6fa1aa4d11fd3de44c9b680",
+        "bytes": 443299
+      },
+      {
+        "file": ".impeccable/review/financial-exports/it-light-1440-reports.png",
+        "sha256": "72b4bd7008242982f3b12765310ec10a14faf402b9e4717197addc8f13765f88",
+        "bytes": 651922
+      },
+      {
+        "file": ".qa/us-financial-exports/brand-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-dark-390-invoice.jpg",
+        "sha256": "2a9554edf5eaf5a7d0bc9a23734772faf4680e5569eec0dd24b8d49b91f99289",
+        "bytes": 91489
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-dark-390-invoice.json",
+        "sha256": "26a394a9bd93d7f24fca60e72010126aa5be9f9bea11ee95b56f2bb8217bdc06",
+        "bytes": 2848
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-dark-390-reports.jpg",
+        "sha256": "5ab9d38caf70b289e706779b047160d27250e47a9b917cc68b482036e43440c3",
+        "bytes": 128477
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-dark-390-reports.json",
+        "sha256": "caae02e17d718780c74fe19ccdf93934085ab7c0371695b5dbf6e8ef617b6ab0",
+        "bytes": 5898
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-1440-invoice.jpg",
+        "sha256": "42287f7abf6148594d6b56b7b763a3afa7de8eb6eb5c6ed6709c25dca7034964",
+        "bytes": 106418
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-1440-invoice.json",
+        "sha256": "7f6918672f71af13c85850e7d3fcc877b5d74a0295ca0174ca5b6f12de372dd3",
+        "bytes": 2875
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-1440-reports.jpg",
+        "sha256": "445ccff15a2692478af2bcb13df91b61ef570c00f9a73a346845f2a1ce029f7e",
+        "bytes": 156883
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-1440-reports.json",
+        "sha256": "e5dfc415180f8180ea76d191f2731448ecbb780bbc964e73b6c4e111e88cdd53",
+        "bytes": 5949
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-320-invoice.jpg",
+        "sha256": "178493425715cec77df33abc9a4b3fc2bd65c2debe9cdf8e006aeb716a7c34a2",
+        "bytes": 85380
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-320-invoice.json",
+        "sha256": "4ff88a94153882ef799badb3902b87b7999a085f0fead5cd4c39fb87ef4bf0b6",
+        "bytes": 2849
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-320-reports.jpg",
+        "sha256": "fa369a9eec2b013296545bd431d3f2071af0f2398fe21abf7461f2ba4b3f752a",
+        "bytes": 107290
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/de-light-320-reports.json",
+        "sha256": "146460727b32208c266e7af425750817ddd35343544458da5fa720615d28130f",
+        "bytes": 5899
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-1440-invoice.jpg",
+        "sha256": "ddf7aa626bd103e1a654b08b6284fb842378ac6d38374cd3cfdf792a6ed67f48",
+        "bytes": 102186
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-1440-invoice.json",
+        "sha256": "31fcbd2141a5f7fe9c8f3e58041f516e058991ef7be0d0b5548bf60f4dcd6a14",
+        "bytes": 2731
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-1440-reports.jpg",
+        "sha256": "2a9e23ddac134ad5376500dab0f83a07a49d8d8102c290d7c8c32b7dc55c6be7",
+        "bytes": 161064
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-1440-reports.json",
+        "sha256": "739284704f83dc63ee0151e581a557663396d45311c617404ffc45cc0042a1f2",
+        "bytes": 5893
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-390-invoice.jpg",
+        "sha256": "ec7717b8f5a68d8685cd56290b18e7392a3fce911680ee2b8c8c6bdc7b9c168c",
+        "bytes": 84113
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-390-invoice.json",
+        "sha256": "5783e096bc57b90b60576795b5abad089161da90e9b799982b3041205b033b15",
+        "bytes": 2709
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-390-reports.jpg",
+        "sha256": "c7cc19fe1ed699cca09e586774b101f556b3b6f384e13e21e43631add796d28d",
+        "bytes": 124425
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-dark-390-reports.json",
+        "sha256": "9d1c7a23de675c2d2a530898addf2c959801be29e88ec2431ed3243cb93760c9",
+        "bytes": 5837
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-1440-invoice.jpg",
+        "sha256": "83f3ba20529ae3766a92ea9f10639340c6193d38207a56fff13146280dd540ce",
+        "bytes": 98911
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-1440-invoice.json",
+        "sha256": "489c8eacf70e6d3c446959c72ab0ecc8a505da85897472d27586494e446849dc",
+        "bytes": 2732
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-1440-reports.jpg",
+        "sha256": "cfab8002ca32523f4871c543b297b069319bda6290577f837f93dd15cccfa6cf",
+        "bytes": 151988
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-1440-reports.json",
+        "sha256": "b6b90dbc4700963b7a6648edbc2d333d68ca7bf773c11a13c922e39ae85ca4ad",
+        "bytes": 5894
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-390-invoice.jpg",
+        "sha256": "92b548c7e5807e6865b9c65eb9652c445ffd408d955037db354f5776c63a4622",
+        "bytes": 80949
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-390-invoice.json",
+        "sha256": "f617cca1567a7db07f861031cf56d194d9c5a26a97c22e50538b7f58f351fee1",
+        "bytes": 2710
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-390-reports.jpg",
+        "sha256": "cfe8b3f9a6fa78b2aefff7316e8219ab11d87534e5636966671b0bacdf4524ca",
+        "bytes": 115215
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/en-light-390-reports.json",
+        "sha256": "b7f4f01d9a176c499eda1886fc43d11dcb9b342d5ded952f1d244e851f886c93",
+        "bytes": 5838
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-access-cleared.jpg",
+        "sha256": "a1c39c2cd765321ec350b3c6622c32a7c638c1baf2dc6dc42422e83c6ce5ef6f",
+        "bytes": 16496
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-access-cleared.json",
+        "sha256": "fe1ea5222bf261fd11a8e10adcae37ae4316f49313cf72b19f514b761d2a217a",
+        "bytes": 626
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-export-budget-error.jpg",
+        "sha256": "3426bc97db367f9fb45b6948fc0abd1608b8d790c11443e0f96c5ac2a557fff9",
+        "bytes": 108823
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-export-budget-error.json",
+        "sha256": "01d1f78645bfe4f2735cdd747356c89f9d42fc4fdc271030725b682632550c65",
+        "bytes": 3321
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-invoice-download-ready.jpg",
+        "sha256": "0c8222571879f55cae3b8fe0850f77e096f1cc240d6e443494d3896e648c4f3c",
+        "bytes": 100571
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-invoice-download-ready.json",
+        "sha256": "0cf16f87899b10c428deda80ddd7a96d8b41e75d009e3a09d4da0d8cf966a694",
+        "bytes": 2735
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-preparing-preserved-draft.jpg",
+        "sha256": "2e2bd0e73de0b02fef3b0451c67330b6ec57e664e4b4a5f1519e1bd0817c6b98",
+        "bytes": 104400
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-preparing-preserved-draft.json",
+        "sha256": "96fe35755bdb4828fb32a158925561e9c18d96fc48e98f6fb3fbc8b412ceebea",
+        "bytes": 3268
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-ready-preserved-draft.jpg",
+        "sha256": "91f682eb899e090f00df23ead285d3c23d5e21635e88acdfe3d0a921a1e5d7b3",
+        "bytes": 105636
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/flow-ready-preserved-draft.json",
+        "sha256": "6c7f7902230a31a8fb40ed29f8f96d2ec9f5b67bc912ddf145dc62b64f26faf0",
+        "bytes": 3254
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-dark-390-invoice.jpg",
+        "sha256": "f8d7f13e4114011f46bcd1402a5f0581ebee3e3be6b4a61ce9c0cba018fdb180",
+        "bytes": 86772
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-dark-390-invoice.json",
+        "sha256": "a04e285714eb3f45653c02bcadcb0e99a4b75430fcf541360cf1e5c365a58085",
+        "bytes": 2814
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-dark-390-reports.jpg",
+        "sha256": "9173cea91b36e0a0284d479e17d2b0310999c79416c34c82e7ae3e01db377453",
+        "bytes": 128441
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-dark-390-reports.json",
+        "sha256": "e4dff735addd3727d8c6ebd9525061bdefbe728ce54d99e5990b9464f609cdc9",
+        "bytes": 5967
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-light-1440-invoice.jpg",
+        "sha256": "17968a80d58e827b9262ab4bf19b97b1c66cdbb919a7ddc5a2819c1c51568b94",
+        "bytes": 102358
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-light-1440-invoice.json",
+        "sha256": "70430a63cb98fbca3fd4da56c77ce91bef05eac6df7359e85304e3c41fbb0b89",
+        "bytes": 2838
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-light-1440-reports.jpg",
+        "sha256": "f25f4f9e42a4e221a454eafa8a89eb92e9bd475aee75229856a8bcb7cebd4c21",
+        "bytes": 156471
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/fr-light-1440-reports.json",
+        "sha256": "76805aa6b431ac1c197e1d486c7ed8e1c83f75abb6277a0e677d7b06a1d5268a",
+        "bytes": 6024
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-dark-390-invoice.jpg",
+        "sha256": "818de3821919b97c2112b408c68ac39d2eb9cf7dfbb685e51514d7dc6abdea9f",
+        "bytes": 86657
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-dark-390-invoice.json",
+        "sha256": "967578ff83f4592958e17c9a197762dbdea783cca2a79201046eea119dc5ea85",
+        "bytes": 2799
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-dark-390-reports.jpg",
+        "sha256": "c8ec640b7eea56618f311efb426cf16399f346d7d63fbbb5ece437e0425b222f",
+        "bytes": 128416
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-dark-390-reports.json",
+        "sha256": "0bbd3360c8a7a1703b0eb204814dce2550267bf3bd1212b37a16d52733f21a65",
+        "bytes": 5990
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-light-1440-invoice.jpg",
+        "sha256": "aefcde878b74984ef177ed23f840ea5bf122ffbf86928b721e31a48979896c5b",
+        "bytes": 101655
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-light-1440-invoice.json",
+        "sha256": "1b3ffc17b7390ed1cc6214ed35a068372160e4400bed139befb9f904e1b79000",
+        "bytes": 2824
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-light-1440-reports.jpg",
+        "sha256": "015ede39ba9d6232c3e6383e7f38306767cab0117cdecc2d28d46fc9b86ce5d4",
+        "bytes": 156021
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/it-light-1440-reports.json",
+        "sha256": "ac95c3b2543a2575d4bb0ccc0cadeb0567b03c872d2e496bb2b6059dee285b77",
+        "bytes": 6035
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-captures/matrix.json",
+        "sha256": "ea8c1472a2957985c119ab6145bbc326595bb4c27cbcd71b30401c6511f7b73f",
+        "bytes": 13157
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": ".qa/us-financial-exports/browser-transport-initial.json",
+        "sha256": "ba94f11a2186597d625fed46495dc6f774f9d86baa7ff41aeca032103e1c0923",
+        "bytes": 18956
+      },
+      {
+        "file": ".qa/us-financial-exports/browser/entry.tsx",
+        "sha256": "50793dd8bce7a316fdbf582efa383f6ee72b2813ac3e7a77ae0fdd0f1a2540ff",
+        "bytes": 842
+      },
+      {
+        "file": ".qa/us-financial-exports/browser/geist.woff2",
+        "sha256": "9b6f5ff45b278c744b5f379a2c4ecbaf858a842b8eaf82ac8d21b699ca16c608",
+        "bytes": 29288
+      },
+      {
+        "file": ".qa/us-financial-exports/browser/index.html",
+        "sha256": "221eeede5704c5d85a939f6034f9a1fbe8ef0ef2524b2eecac449a060846c08a",
+        "bytes": 511
+      },
+      {
+        "file": ".qa/us-financial-exports/browser/runtime.ts",
+        "sha256": "1c7045934034f2d4b2d15d2b073586d9fdad60d86d1e32d86546116648d85126",
+        "bytes": 4647
+      },
+      {
+        "file": ".qa/us-financial-exports/browser/vite.config.mjs",
+        "sha256": "8a71b5f2cbd13b491963d3d3698a61adb95d1acb86cd4767d701b74f539afdc3",
+        "bytes": 1172
+      },
+      {
+        "file": ".qa/us-financial-exports/build-final.log",
+        "sha256": "ed63d3da06f6a90f21d2f7e15ea54aa75f0c66eb0e3c091c93aa38a391c8bb25",
+        "bytes": 23044
+      },
+      {
+        "file": ".qa/us-financial-exports/capture-format-proof.json",
+        "sha256": "895b09aaf0893d69ea39c3509b43c337a498499fb562159c3cafdaabfe0ed869",
+        "bytes": 8734
+      },
+      {
+        "file": ".qa/us-financial-exports/contract-projection-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": ".qa/us-financial-exports/contract-projection-tests.json",
+        "sha256": "2d45764eb998fdf56b4c633fe4d17ad6eb91241e10c3fb8718566fdf4d8112a5",
+        "bytes": 14517
+      },
+      {
+        "file": ".qa/us-financial-exports/contract-projection-tests.log",
+        "sha256": "7f94e72340cb18916b3c7834ac51a5c57901a55de709f2c036711512bf80224c",
+        "bytes": 758
+      },
+      {
+        "file": ".qa/us-financial-exports/design-finish-review.md",
+        "sha256": "e981250833875c2742173b8232168e9a77c6d17420b58a55ad6c77cc207f981a",
+        "bytes": 7771
+      },
+      {
+        "file": ".qa/us-financial-exports/download-proof.json",
+        "sha256": "c52187576584176d547862fc624a19efc7b5af62964140a7536f7e769963ae12",
+        "bytes": 1265
+      },
+      {
+        "file": ".qa/us-financial-exports/downloads-final/invoice-r7-en.pdf",
+        "sha256": "ec35feca4ba42ea64299cbb78784d236afce74b825ed3dc2cef1eb17bf6f5c45",
+        "bytes": 24662
+      },
+      {
+        "file": ".qa/us-financial-exports/downloads-final/receivables-r7-en.csv",
+        "sha256": "2216bbe5b9be9983d433dc6b6285a3074ca4331adf90aba36809c464948eb662",
+        "bytes": 1093
+      },
+      {
+        "file": ".qa/us-financial-exports/downloads-final/report-ready-dom.txt",
+        "sha256": "9e61f5c2931702d34e217540c5ce6a2453432d5af9449c77d005a86df19874fc",
+        "bytes": 4885
+      },
+      {
+        "file": ".qa/us-financial-exports/downloads-final/report-ready.jpg",
+        "sha256": "1bc7b341cb03a45dbb51963610a539c85fd103f4c83a9cbdfd8c10e01e9b9159",
+        "bytes": 161728
+      },
+      {
+        "file": ".qa/us-financial-exports/finalize-download-proof.mjs",
+        "sha256": "fe3d6b7102d032060a479dbe93a73b26630a021a34213a6426b816a19f9735c2",
+        "bytes": 2580
+      },
+      {
+        "file": ".qa/us-financial-exports/freeze-pdf-review.py",
+        "sha256": "f85ae81cfdb56313a9df2a1d691eda12a55dce9c21fb38d6e42b6e918b75de50",
+        "bytes": 1622
+      },
+      {
+        "file": ".qa/us-financial-exports/implementation-files.json",
+        "sha256": "9b7f83c1750323ba2b02ee3cf666bb91514d337471a3662d1b44e5aabddfb9b8",
+        "bytes": 1381
+      },
+      {
+        "file": ".qa/us-financial-exports/lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": ".qa/us-financial-exports/owned-lint-frozen.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": ".qa/us-financial-exports/pdf-visual-review.md",
+        "sha256": "4f97c3db57ab809bdb243300da64fe8e1a76f7a971ab23b71f88bdf8c0827742",
+        "bytes": 1077
+      },
+      {
+        "file": ".qa/us-financial-exports/postgres-final.json",
+        "sha256": "18c312923b20ab6ac98493d82816f805277de5df5a22d1b8c96ad28226871cb2",
+        "bytes": 7637
+      },
+      {
+        "file": ".qa/us-financial-exports/postgres-final2.json",
+        "sha256": "4023d44214ec89c8ffb068de37900b4dd65fe1986eebdaa2603b533f9a0972ab",
+        "bytes": 6232
+      },
+      {
+        "file": ".qa/us-financial-exports/postgres-frozen.json",
+        "sha256": "2f183764576ab52b4f8ed9accaa5a3916f7dce7b28b955aeb5b75203e0bd16e6",
+        "bytes": 6242
+      },
+      {
+        "file": ".qa/us-financial-exports/postgres-frozen.log",
+        "sha256": "2fbcfd483b77b2e4ea732aa5e1da848a620edd7cb96a820c1e033de8d5a8045d",
+        "bytes": 126
+      },
+      {
+        "file": ".qa/us-financial-exports/postgres-initial.json",
+        "sha256": "f69481cbf4c5b599f0f50af210b32763471c4f793be39a2f7cb59ddfdc5e7b7d",
+        "bytes": 10885
+      },
+      {
+        "file": ".qa/us-financial-exports/postgres-new-invoice.json",
+        "sha256": "4542bca30ee61750c4c18194030ff265f189dcb29b8b4edb37fdb2cf01f43697",
+        "bytes": 6362
+      },
+      {
+        "file": ".qa/us-financial-exports/postgres-second.json",
+        "sha256": "cfc953288f9f2f82827fc4482674a6429b00f86c127359d264804a19af1c899b",
+        "bytes": 5722
+      },
+      {
+        "file": ".qa/us-financial-exports/prepare-capture-review.py",
+        "sha256": "8e356a243f0d04781ae713af0de3c5fb176b4292c08cdd03ffa4d8bb8226eac1",
+        "bytes": 1402
+      },
+      {
+        "file": ".qa/us-financial-exports/quality-commands.json",
+        "sha256": "d4d7863818fb8b378b31a126e0d2b902b3a928a5292702bd7b87d913bc6c969d",
+        "bytes": 10677
+      },
+      {
+        "file": ".qa/us-financial-exports/record-evidence.mjs",
+        "sha256": "2b0024f021bd0b115eb55879a3525531e881ea7af12713761172365eaf7b12e1",
+        "bytes": 28279
+      },
+      {
+        "file": ".qa/us-financial-exports/regression-command.json",
+        "sha256": "13e631137e9832ca855cf7bff3c3cdcc78330ce0897a43343fede4959230466a",
+        "bytes": 16865
+      },
+      {
+        "file": ".qa/us-financial-exports/regression-final.json",
+        "sha256": "058e3417ff3296bf62829a1eb09f9030635f0ddbcb53641095efdf9cfef180eb",
+        "bytes": 2270285
+      },
+      {
+        "file": ".qa/us-financial-exports/regression-final.log",
+        "sha256": "75e722c32eec1aef15a2d9ccabc0c9ca16f4cb068328cb357d738ccf415c0e24",
+        "bytes": 126
+      },
+      {
+        "file": ".qa/us-financial-exports/renderer-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": ".qa/us-financial-exports/renderer-tests.json",
+        "sha256": "0353cb1d1a6b731a56e14c98fa1ba0646b3161e3020c78f6c250f447d073431c",
+        "bytes": 15629
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/contact-1.png",
+        "sha256": "54ae2e50ba45d9c527f02f6a6f3f46875ed2413fc6a764349f2f2411a1b75c1b",
+        "bytes": 215363
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/contact-2.png",
+        "sha256": "6e802dd6378d5b8af8efbc827419f15cb1f28f153ed1a82cfb0f6ae7c653f461",
+        "bytes": 209654
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/contact-3.png",
+        "sha256": "dc5a761f4c0aa05cd853005aac36bed097b22ad25c7a0403d7ff17553e5e0ce9",
+        "bytes": 497462
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/contact-4.png",
+        "sha256": "b15a3482e8c2b2bb86eb7e5ff6d7aaf49018045934a74a8ef76cee198a2692c0",
+        "bytes": 139955
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-de-continuation.png",
+        "sha256": "92bd110acb7cca119dfec96123ce31053b547e8daafa08c48135bf7b09c95344",
+        "bytes": 59422
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-de-first.png",
+        "sha256": "ecbbdfd47eb293b72af836140d5cb1f20e58884c4858108345e033e5cd53a89b",
+        "bytes": 134417
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-de-last.png",
+        "sha256": "92bd110acb7cca119dfec96123ce31053b547e8daafa08c48135bf7b09c95344",
+        "bytes": 59422
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-de.pdf",
+        "sha256": "c54c3f315df78c7fbf7460af7b7f65873a8cddb3f7aadf2f159967bbc24660f9",
+        "bytes": 26454
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-en-continuation.png",
+        "sha256": "ecad58c7c8c08d246367252639fa88ed2923d654b8528e268b5b5472685f7ceb",
+        "bytes": 58785
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-en-first.png",
+        "sha256": "6a1f6d8e8f1bd48bbb5b8223e85cd120f304f979b7e9af83c842778f6b297c83",
+        "bytes": 121367
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-en-last.png",
+        "sha256": "ecad58c7c8c08d246367252639fa88ed2923d654b8528e268b5b5472685f7ceb",
+        "bytes": 58785
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-en.pdf",
+        "sha256": "353e23a789feace71ba5b73127fe947aadb3feb66f3a752b5de506152d8f846c",
+        "bytes": 25554
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-fr-continuation.png",
+        "sha256": "c41e22f64368cb77ed53191047b4d00c5e7dd9643f0f383e6f1b78e12644a10d",
+        "bytes": 57378
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-fr-first.png",
+        "sha256": "52a4a4d6e448c9c14c7d60662ce8cebc6d994be640d4696a6358e68e97b5f4e5",
+        "bytes": 124854
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-fr-last.png",
+        "sha256": "c41e22f64368cb77ed53191047b4d00c5e7dd9643f0f383e6f1b78e12644a10d",
+        "bytes": 57378
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-fr.pdf",
+        "sha256": "0b84c791ade4456e14e4c4546df28439f4dac774e3955a1d23ab23eb26eb4d8d",
+        "bytes": 25782
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-it-continuation.png",
+        "sha256": "e57b99af32e4e3f7a28a3b6f29c0806f14869d41a2df469064e7607a859211d2",
+        "bytes": 58149
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-it-first.png",
+        "sha256": "188541b1bd6fe81fe9d03bee54b241bbca43386da2eeda98b2a23cd17f09b8d0",
+        "bytes": 124924
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-it-last.png",
+        "sha256": "e57b99af32e4e3f7a28a3b6f29c0806f14869d41a2df469064e7607a859211d2",
+        "bytes": 58149
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-it.pdf",
+        "sha256": "df3219b99472b139d79c858f34f4097d3f4c9a9559f29aae0c732df484c80c44",
+        "bytes": 25724
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-long-en-continuation.png",
+        "sha256": "fe57480f54c25ada265d537323ba525884e466c2364688529632e3675941f854",
+        "bytes": 196443
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-long-en-first.png",
+        "sha256": "8b937b606c89a7f882d54b4ce752a10b203ed8a128747d5c9782805d6b18491d",
+        "bytes": 148946
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-long-en-last.png",
+        "sha256": "1d7ab803a15cd3569e676eefa914bd72594169e9d4b81c42c81bf8ea4ec2b1ba",
+        "bytes": 374623
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-invoice-long-en.pdf",
+        "sha256": "6ea8d685f33bdd9e91d36a92a91792edc628eb8988fbdce97a09354f164185c6",
+        "bytes": 44784
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-general_ledger-fr-continuation.png",
+        "sha256": "f9595280ff9211aeb000db5f7fbf1a9c6463f55242919559040fcdd623f4150b",
+        "bytes": 95435
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-general_ledger-fr-first.png",
+        "sha256": "1938a3951d089217f42664c8d64a9e79f78742f136f6593922f07fe9f68e5b8c",
+        "bytes": 111562
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-general_ledger-fr-last.png",
+        "sha256": "de2ea47dd533a0cb6e306b99bc8c14c00ec97b990422af187e027ae9a53aff6d",
+        "bytes": 36877
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-general_ledger-fr.pdf",
+        "sha256": "095b15fedf933f9c8a8d630d4e379d5fb28c281281aae9fc2ccf9a022969f114",
+        "bytes": 40509
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-receivables-fr-first.png",
+        "sha256": "2136cf80e7e7409beee768705d40d60b675bc69c1690c7791c7e77b9ba777d32",
+        "bytes": 101419
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-receivables-fr-last.png",
+        "sha256": "2136cf80e7e7409beee768705d40d60b675bc69c1690c7791c7e77b9ba777d32",
+        "bytes": 101419
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-receivables-fr.pdf",
+        "sha256": "9de125712c78783db600bce48411f42c6499b9decf7bb43f69595ff9b344539c",
+        "bytes": 21101
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-trial_balance-fr-continuation.png",
+        "sha256": "5aeb4da1d7b173efe46e341ed63741da590e985dbf676051ba1d60290c375c6b",
+        "bytes": 22531
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-trial_balance-fr-first.png",
+        "sha256": "b858d0045c2f63aeb3e7a8a6ea070134c91a107d403c74959e93095e26378fa1",
+        "bytes": 124594
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-trial_balance-fr-last.png",
+        "sha256": "5aeb4da1d7b173efe46e341ed63741da590e985dbf676051ba1d60290c375c6b",
+        "bytes": 22531
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/fictitious-v5-trial_balance-fr.pdf",
+        "sha256": "f18595281cbf689be69785b8a6bfa844f3ffb3a71b4340991787ca56669fb6b6",
+        "bytes": 23682
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/manifest.json",
+        "sha256": "d90c8b4ab0f3c65361be2d48595e07b633a47955b0535f0a88c3411a4097e2b7",
+        "bytes": 2352
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/renderer-proof.json",
+        "sha256": "63a2c60db132c08cb3109c89bf10af79418623dc802e9935df7445e58a38db3b",
+        "bytes": 2422
+      },
+      {
+        "file": ".qa/us-financial-exports/review-pdfs/renderer-v5-reports-proof.json",
+        "sha256": "d61e7152de34e75968aaf0a2aeedcf2b93212b799f5981d04503c81125f6d4aa",
+        "bytes": 1645
+      },
+      {
+        "file": ".qa/us-financial-exports/run-quality.mjs",
+        "sha256": "adb1682b164da9d458612218a692a22668217c5b07da8f05c16ee5e1644c54e7",
+        "bytes": 1994
+      },
+      {
+        "file": ".qa/us-financial-exports/run-regression.mjs",
+        "sha256": "dbe83c194c67617677e13cb04feebafcaf75cc30ddef023bece046d111ef36fb",
+        "bytes": 2466
+      },
+      {
+        "file": ".qa/us-financial-exports/selection-final.json",
+        "sha256": "6a8c0d0df354be668b2326375a737e033709a22a76492d1aebc39102c785a220",
+        "bytes": 9258
+      },
+      {
+        "file": ".qa/us-financial-exports/server-bindings-final.json",
+        "sha256": "150d4c642aeb4dbf9e315db31743007b75c76853b566215a91d2d7e55fcedbd6",
+        "bytes": 36298
+      },
+      {
+        "file": ".qa/us-financial-exports/server-bindings-final2.json",
+        "sha256": "02a181f2b34175b90674129db4a1b6766aa781baf91695119179e59bcc1dd3b5",
+        "bytes": 36782
+      },
+      {
+        "file": ".qa/us-financial-exports/server-bindings-final2.log",
+        "sha256": "50bc973c39502b4fd4a21f96ad93ad23234c23a398123ef467f00c215452f26c",
+        "bytes": 133
+      },
+      {
+        "file": ".qa/us-financial-exports/server-bindings-initial.json",
+        "sha256": "1615ddb105a9b8bdb775c841ade08509dadf4c7b624f841db62e403e5104290f",
+        "bytes": 35811
+      },
+      {
+        "file": ".qa/us-financial-exports/server-pg-proof.json",
+        "sha256": "6864c4c8462f9ec2d3ca68790e656d137e9975c0ce068e6246b97249d9ce1fa8",
+        "bytes": 7495
+      },
+      {
+        "file": ".qa/us-financial-exports/source-snapshot.mjs",
+        "sha256": "15b804d59f7b0eded1d9db445fc72fc59bbae737a210060167b6a3f5e317b08e",
+        "bytes": 5190
+      },
+      {
+        "file": ".qa/us-financial-exports/types-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": ".qa/us-financial-exports/ui-detector-final.json",
+        "sha256": "5dd975a9499346a2832a82e753c2d3c7ff64320180d9e863d9148406bc007cd7",
+        "bytes": 3594
+      },
+      {
+        "file": "D:/Codex-Zentra-Temporary/2026-10-08/native-admission-temp/zentra-financial-pilot-exports-MU6C3W/synthetic-export-recipe.json",
+        "sha256": "7966f40966b1b0e6c579737042b5bbe2726d6c8505e4d30bf385467df7406bfc",
+        "bytes": 177
+      }
+    ]
+  },
+  "limitations": [
+    "No hosted migration, production/native publication, actual provider call/write or fiscal/accounting certification.",
+    "Serialized PGlite and clean NodeFS reopen do not establish real multi-connection contention, crash recovery, load capacity or SLA.",
+    "Actual visual/download evidence uses memory V5 and synthetic authority; standard Request/Response PG-handler recipes are separate and use no network socket.",
+    "Auth/D1 pre/post fences and transaction-local PG grants/opt-in do not form distributed atomic authority.",
+    "Saved metadata and source/test artifacts are evidence, not additional passing tests; the recorder does not rerun checks or inspect screenshots.",
+    "Private service credentials remain a trusted-server boundary; this consumer does not restrict arbitrary service-role SELECT access."
+  ],
+  "rollback": {
+    "executed": false,
+    "plan": "Disable private pilot flags or revoke and advance opt-in/grant versions; retain installed marker, immutable history and existing private book. Never delete the tail or fall back to frozen ERP4."
+  },
+  "remaining": [
+    "Actual hosted/staging authority, multi-connection/race/load/crash validation and provider sandbox/outbox work remain separate approved phases.",
+    "Native/public rollout and broader international ERP features remain outside this read-only export extension."
+  ]
+}
