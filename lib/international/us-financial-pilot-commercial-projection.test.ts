@@ -5,7 +5,8 @@ import type { UsFinancialBookV5 } from './us-financial-kernel-types';
 import { financialKernelFixture } from './us-financial-kernel-test-fixture';
 import { createInMemoryUsFinancialKernelStoreV5, executeUsFinancialKernelV5, type UsFinancialRequestV5 } from './us-financial-kernel-runtime';
 import { buildUsFinancialPilotCommercialRequest, validateUsFinancialPilotCommercialRequest, type UsFinancialPilotCommercialCommand } from './us-financial-pilot-commercial';
-import { projectUsFinancialPilotEstimate, validateUsFinancialPilotEstimateDetail } from './us-financial-pilot-commercial-projection';
+import { projectUsFinancialPilotCustomer, projectUsFinancialPilotEstimate, validateUsFinancialPilotCustomerDetail, validateUsFinancialPilotEstimateDetail } from './us-financial-pilot-commercial-projection';
+import { financialPilotParty, projectUsFinancialPilotOverview } from './us-financial-pilot-projection';
 
 /** Actual financial kernel/CAS in synthetic memory, not a hosted/PG assertion. */
 async function fixture() {
@@ -91,5 +92,61 @@ describe('financial-pilot actual V5 commercial detail and editing', () => {
     const getter = vi.fn(() => 'private'); expect(() => validateUsFinancialPilotEstimateDetail(Object.defineProperty({ ...detail }, 'private', { enumerable: true, get: getter }))).toThrow(); expect(getter).not.toHaveBeenCalled();
     expect(() => validateUsFinancialPilotEstimateDetail(detail, 'other-workspace')).toThrow(expect.objectContaining({ status: 503 }));
     expect(() => validateUsFinancialPilotEstimateDetail(detail, detail.organizationId, detail.revision, 'other-quote')).toThrow(expect.objectContaining({ status: 503 }));
+  });
+});
+
+describe('current customer detail from actual V5 replay', () => {
+  it('updates the live card without changing documents or ledger; a quote only adopts it after explicit save', async () => {
+    const t = await fixture(), createdQuote = await t.send(t.quote()), before = await t.read(), view = await projectUsFinancialBookV5(before);
+    const oldQuote = await projectUsFinancialPilotEstimate(before, { revision: before.revision, estimateId: createdQuote.receipt.entityId });
+    const original = await projectUsFinancialPilotCustomer(before, { revision: before.revision, customerId: 'customer-1' });
+    const { id: _id, ...oldFields } = original.customer, corrected = { ...oldFields, name: 'Corrected · fictitious 🌍', email: 'corrected@example.test', phone: '+1 555 0102', contactName: 'Corrected contact', paymentTermsDays: 15 };
+    await t.send({ type: 'update_customer', customerId: original.customer.id, customer: corrected });
+    const after = await t.read(), updated = await projectUsFinancialPilotCustomer(after, { revision: after.revision, customerId: original.customer.id }), next = await projectUsFinancialBookV5(after);
+    expect(updated).toMatchObject({ revision: before.revision + 1, ledgerRevision: view.ledger.revision, customer: { id: original.customer.id, ...corrected } });
+    expect(next.customers).toHaveLength(view.customers.length); expect(next.ledger).toEqual(view.ledger); expect(next.invoices).toEqual(view.invoices); expect(next.estimates).toEqual(view.estimates);
+    expect(next.counters).toEqual(view.counters);
+    expect((await projectUsFinancialPilotEstimate(after, { revision: after.revision, estimateId: oldQuote.estimate.id })).customer).toEqual(oldQuote.customer);
+    const freshQuote = await t.send(t.quote()), freshBook = await t.read();
+    expect((await projectUsFinancialPilotEstimate(freshBook, { revision: freshBook.revision, estimateId: freshQuote.receipt.entityId })).customer).toEqual(updated.customer);
+    await t.send(t.quote({ estimateId: oldQuote.estimate.id, expectedEstimateRevision: oldQuote.estimate.revision, lines: oldQuote.lines.map(({ netMinor: _net, ...line }) => line) }));
+    const resaved = await t.read(); expect((await projectUsFinancialPilotEstimate(resaved, { revision: resaved.revision, estimateId: oldQuote.estimate.id })).customer).toEqual(updated.customer);
+    expect((await projectUsFinancialBookV5(resaved)).invoices).toEqual(view.invoices); expect(t.tax).not.toHaveBeenCalled();
+  });
+  it('permits an exact native no-op at F+1 while keeping all ledger/source facts and customer count stable', async () => {
+    const t = await fixture(), before = await t.read(), view = await projectUsFinancialBookV5(before), original = financialPilotParty(view.customers[0]), { id, ...customer } = original;
+    const sent = await t.send({ type: 'update_customer', customerId: id, customer }), after = await t.read(), next = await projectUsFinancialBookV5(after);
+    expect(sent.receipt.revision).toBe(before.revision + 1); expect(next.customers).toEqual(view.customers); expect(next.ledger).toEqual(view.ledger); expect(next.invoices).toEqual(view.invoices); expect(next.estimates).toEqual(view.estimates);
+    expect(after.events).toHaveLength(1); expect(after.events[0]).toMatchObject({ operation: { type: 'erp_command', command: { type: 'save_customer', customer: { id } } }, commit: { changes: [] }, effects: { postings: [], audit: [] } });
+  });
+  it('finds an existing card outside the first25-row overview without exposing a private identity', async () => {
+    const data = await financialKernelFixture(), baseline = { ...data.baseline, customers: Array.from({ length: 30 }, (_, index) => ({ ...data.baseline.customers[0], id: `existing-card-${index}`, name: `${String(index).padStart(2, '0')} Existing customer` })) };
+    const book = await promoteUsFinancialBookV5(baseline, data.policy, data.actor), overview = await projectUsFinancialPilotOverview(book), customerId = 'existing-card-29';
+    expect(overview.customers.items).toHaveLength(25); expect(overview.customers.items.some(row => 'id' in row && row.id === customerId)).toBe(false);
+    const detail = await projectUsFinancialPilotCustomer(book, { revision: book.revision, customerId }); expect(detail.customer.id).toBe(customerId);
+    expect(Object.keys(detail).sort()).toEqual(['consumer', 'customer', 'ledgerRevision', 'organizationId', 'revision', 'schemaVersion']);
+    for (const privateField of ['organizationId', 'idempotencyKey', 'actor', 'proof', 'policy', 'events']) expect(Object.hasOwn(detail.customer, privateField)).toBe(false);
+  });
+  it('captures query and book before async replay and returns detached frozen values', async () => {
+    const t = await fixture(), raw = structuredClone(await t.read()), query = { revision: raw.revision, customerId: 'customer-1' }, pending = projectUsFinancialPilotCustomer(raw, query);
+    query.customerId = 'mutated'; (raw as { revision: number }).revision++;
+    const detail = await pending; expect(detail.customer.id).toBe('customer-1'); expect(Object.isFrozen(detail)).toBe(true); expect(Object.isFrozen(detail.customer.billingAddress)).toBe(true);
+  });
+  it('rejects stale/unknown/foreign/corrupt sources and closed-query violations', async () => {
+    const t = await fixture(), book = await t.read(), query = { revision: book.revision, customerId: 'customer-1' };
+    await expect(projectUsFinancialPilotCustomer(book, { ...query, revision: book.revision - 1 })).rejects.toMatchObject({ code: 'financial_snapshot_changed', status: 409 });
+    await expect(projectUsFinancialPilotCustomer(book, { ...query, customerId: 'foreign-card' })).rejects.toMatchObject({ code: 'customer_not_found', status: 404 });
+    await expect(projectUsFinancialPilotCustomer({ ...book, revision: book.revision + 1 }, query)).rejects.toMatchObject({ status: 503 });
+    for (const patch of [{ cursor: 'private' }, { bankRevision: 0 }, { customerId: ' customer-1' }, { customerId: 'x'.repeat(161) }, { revision: 0 }]) await expect(projectUsFinancialPilotCustomer(book, { ...query, ...patch } as never)).rejects.toMatchObject({ status: 422 });
+    const getter = vi.fn(() => 'private'); await expect(projectUsFinancialPilotCustomer(book, Object.defineProperty({ ...query }, 'customerId', { enumerable: true, get: getter }))).rejects.toMatchObject({ status: 422 }); expect(getter).not.toHaveBeenCalled();
+  });
+  it('correlates tenant/F/L/customer identity and refuses DTO extras, getters, symbols and prototypes', async () => {
+    const t = await fixture(), book = await t.read(), detail = await projectUsFinancialPilotCustomer(book, { revision: book.revision, customerId: 'customer-1' });
+    expect(validateUsFinancialPilotCustomerDetail(detail, detail.organizationId, detail.revision, detail.customer.id)).toEqual(detail);
+    for (const patch of [{ ledgerRevision: -1 }, { ledgerRevision: detail.revision + 1 }, { actor: {} }, { customer: { ...detail.customer, id: 'other' } }, { customer: { ...detail.customer, organizationId: 'foreign' } }, { customer: { ...detail.customer, email: undefined } }, { customer: { ...detail.customer, id: ' customer-1' } }]) expect(() => validateUsFinancialPilotCustomerDetail({ ...detail, ...patch }, detail.organizationId, detail.revision, detail.customer.id)).toThrow(expect.objectContaining({ status: 503 }));
+    expect(() => validateUsFinancialPilotCustomerDetail(detail, 'foreign')).toThrow(expect.objectContaining({ status: 503 }));
+    expect(() => validateUsFinancialPilotCustomerDetail(detail, detail.organizationId, detail.revision - 1)).toThrow(expect.objectContaining({ code: 'financial_snapshot_changed', status: 409 }));
+    const getter = vi.fn(() => 'private'); expect(() => validateUsFinancialPilotCustomerDetail(Object.defineProperty({ ...detail }, 'customer', { enumerable: true, get: getter }))).toThrow(); expect(getter).not.toHaveBeenCalled();
+    expect(() => validateUsFinancialPilotCustomerDetail({ ...detail, [Symbol('private')]: true })).toThrow(); expect(() => validateUsFinancialPilotCustomerDetail(Object.assign(Object.create({ private: true }) as object, detail))).toThrow();
   });
 });

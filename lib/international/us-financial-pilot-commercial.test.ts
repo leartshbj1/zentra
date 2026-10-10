@@ -93,3 +93,41 @@ describe('financial-pilot closed commercial presentation contract', () => {
     }
   });
 });
+
+describe('closed customer correction intention', () => {
+  const update = () => ({ ...create(), command: { type: 'update_customer' as const, customerId: 'customer-1', customer: publicCustomer } });
+  it('keeps the supplied customer identity and isolates update replay from an identical create command', () => {
+    const creation = buildUsFinancialPilotCommercialRequest(create(), 'workspace');
+    const edit = buildUsFinancialPilotCommercialRequest({ ...update(), command: { ...update().command, customerId: `pilot-customer:${requestId}` } }, 'workspace');
+    expect(edit.command).toEqual(creation.command); expect(edit.expectedRevision).toBe(creation.expectedRevision);
+    expect(creation.idempotencyKey).toBe(`pilot:commercial:${requestId}`);
+    expect(edit.idempotencyKey).toBe(`pilot:commercial:update_customer:${requestId}`); expect(edit.idempotencyKey).toHaveLength(69);
+    expect(validateUsFinancialRequestV5(edit, 'workspace')).toEqual(edit);
+    expect(usFinancialPilotCommercialEntityId(validateUsFinancialPilotCommercialRequest(update()))).toBe('customer-1');
+  });
+  it('captures and freezes every update value while explicit null clears optional contact fields', () => {
+    const value = JSON.parse(JSON.stringify(update())) as { command: { customer: { billingAddress: { city: string }; name: string }; customerId: string } }, captured = validateUsFinancialPilotCommercialRequest(value), mapped = buildUsFinancialPilotCommercialRequest(value, 'workspace');
+    value.command.customer.billingAddress.city = 'Changed after capture'; value.command.customer.name = 'Changed'; value.command.customerId = 'retargeted';
+    expect(captured.command).toMatchObject({ type: 'update_customer', customerId: 'customer-1', customer: { name: publicCustomer.name, shippingAddress: null, email: null, phone: null, contactName: null } });
+    expect(Object.isFrozen(captured.command)).toBe(true);
+    if (captured.command.type !== 'update_customer' || mapped.command.type !== 'erp_command' || mapped.command.request.type !== 'save_customer') throw Error('Update fixture');
+    expect(Object.isFrozen(captured.command.customer.billingAddress)).toBe(true);
+    expect(mapped.command.request.customer).toEqual({ id: 'customer-1', organizationId: 'workspace', kind: publicCustomer.kind, name: publicCustomer.name, billingAddress: address, paymentTermsDays: 30 });
+  });
+  it.each(['shippingAddress', 'email', 'phone', 'contactName'] as const)('requires explicit nullable %s', field => {
+    const value: Record<string, unknown> = { ...publicCustomer }; delete value[field]; bad({ ...update(), command: { ...update().command, customer: value } });
+  });
+  it.each(['', ' customer-1', 'customer-1 ', 'x'.repeat(161), 'customer\n1', 'customer\u007f1'])('refuses noncanonical customer identity %j', customerId => bad({ ...update(), command: { ...update().command, customerId } }));
+  it('reuses contact/address validation and closes update fields without evaluating getters', () => {
+    for (const customer of [{ ...publicCustomer, email: 'invalid' }, { ...publicCustomer, paymentTermsDays: 366 }, { ...publicCustomer, billingAddress: { ...address, subdivision: 'ZZ' } }, { ...publicCustomer, organizationId: 'foreign' }]) bad({ ...update(), command: { ...update().command, customer } });
+    bad({ ...update(), command: { ...update().command, sourceRevision: 2 } }); bad({ ...update(), command: { ...update().command, customer: { ...publicCustomer, name: '\ud800' } } });
+    const getter = vi.fn(() => 'private'); bad({ ...update(), command: Object.defineProperty({ ...update().command }, 'customerId', { enumerable: true, get: getter }) }); expect(getter).not.toHaveBeenCalled();
+    bad({ ...update(), command: Object.assign(Object.create({ authority: 'private' }) as object, update().command) });
+    bad({ ...update(), command: { ...update().command, [Symbol('private')]: true } });
+  });
+  it('binds the six-field update receipt to action, historical F+1, tenant and retained ID', () => {
+    const input = validateUsFinancialPilotCommercialRequest(update()), receipt = { consumer: 'financial-pilot', schemaVersion: 1, organizationId: 'workspace', revision: 10, entityId: 'customer-1', action: 'update_customer' };
+    expect(validateUsFinancialPilotCommercialReceipt(receipt, 'workspace', input)).toEqual(receipt);
+    for (const patch of [{ action: 'create_customer' }, { entityId: `pilot-customer:${requestId}` }, { revision: 11 }, { revision: 9 }, { organizationId: 'foreign' }, { replayed: true }, { actorId: 'private' }]) expect(() => validateUsFinancialPilotCommercialReceipt({ ...receipt, ...patch }, 'workspace', input)).toThrow(expect.objectContaining({ status: 503 }));
+  });
+});

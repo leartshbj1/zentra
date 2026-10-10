@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type SubmitEvent } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type SubmitEvent } from 'react';
 import { ArrowLeft, ChevronRight, Check } from 'lucide-react';
 import type { SiteLanguage } from '@/lib/site-language';
 import type { CompanyAddress } from '@/lib/international/types';
@@ -9,12 +9,12 @@ import { formatDateOnly } from '@/lib/international/localization';
 import { formatMoney, money } from '@/lib/international/money';
 import type { BrowserUsFinancialPilotSession, BrowserUsFinancialPilotState } from '@/lib/international/browser-us-financial-pilot-session';
 import type { UsFinancialPilotEstimateRow, UsFinancialPilotOverview, UsFinancialPilotPage, UsFinancialPilotParty } from '@/lib/international/us-financial-pilot-contract';
-import { US_FINANCIAL_PILOT_COMMERCIAL_MAX_LINES, type UsFinancialPilotCommercialCommand, type UsFinancialPilotCommercialReceipt } from '@/lib/international/us-financial-pilot-commercial';
-import type { UsFinancialPilotEstimateDetail } from '@/lib/international/us-financial-pilot-commercial-projection';
-import { browserUsFinancialPilotCommercialCopy, browserUsFinancialPilotCommercialErrorCopy, browserUsFinancialPilotCommercialLimitCopy } from '@/lib/international/browser-us-financial-pilot-commercial-copy';
+import { US_FINANCIAL_PILOT_COMMERCIAL_MAX_LINES, type UsFinancialPilotCommercialCommand, type UsFinancialPilotCommercialCustomer, type UsFinancialPilotCommercialReceipt } from '@/lib/international/us-financial-pilot-commercial';
+import type { UsFinancialPilotCustomerDetail, UsFinancialPilotEstimateDetail } from '@/lib/international/us-financial-pilot-commercial-projection';
+import { browserUsFinancialPilotCommercialCopy, browserUsFinancialPilotCommercialErrorCopy, browserUsFinancialPilotCommercialLimitCopy, browserUsFinancialPilotCustomerEditCopy } from '@/lib/international/browser-us-financial-pilot-commercial-copy';
 import { browserUsFinancialPilotCopy } from '@/lib/international/browser-us-financial-pilot-copy';
 import { browserUsFinancialPilotInvoiceCopy } from '@/lib/international/browser-us-financial-pilot-invoice-copy';
-import { commercialDiscount, commercialLineNet, commercialMajor, commercialPrice, commercialQuantity, commercialQuantityText } from '@/lib/international/browser-us-financial-pilot-commercial-input';
+import { commercialDiscount, commercialLineNet, commercialMajor, commercialPrice, commercialQuantity, commercialQuantityText, type CustomerEditReview } from '@/lib/international/browser-us-financial-pilot-commercial-input';
 import './us-financial-pilot-commercial.css';
 
 interface Props {
@@ -24,18 +24,22 @@ interface Props {
   onInvoice: (source: UsFinancialPilotEstimateDetail) => void;
 }
 type AddressDraft = { country: 'US' | 'CH'; line1: string; line2: string; city: string; subdivision: string; postalCode: string };
-type CustomerDraft = { token: number; revision: number; kind: 'business' | 'individual'; name: string; contactName: string; email: string; phone: string; terms: string; billing: AddressDraft; shipping: AddressDraft | null };
+type CustomerDraft = { token: number; revision: number; source: UsFinancialPilotCustomerDetail | null; kind: 'business' | 'individual'; name: string; contactName: string; email: string; phone: string; terms: string; billing: AddressDraft; shipping: AddressDraft | null };
 type LineDraft = { key: number; id: string | null; description: string; quantity: string; price: string; discount: string; taxTreatment: 'taxable' | 'non_taxable' | 'exempt' };
 type QuoteDraft = { token: number; revision: number; estimateId: string | null; expectedEstimateRevision: number; customerId: string; projectId: string | null; date: string; expiresAt: string; terms: string; lines: LineDraft[]; notes: string };
 type AcceptanceDraft = { token: number; revision: number; estimateId: string; estimateRevision: number };
 type Review = { kind: 'customer' | 'quote' | 'accept'; revision: number; detail: UsFinancialPilotEstimateDetail | null; customer: UsFinancialPilotParty | null };
 const blankAddress = (): AddressDraft => ({ country: 'US', line1: '', line2: '', city: '', subdivision: '', postalCode: '' });
+const addressDraft = (a: CompanyAddress): AddressDraft => ({ country: a.country, line1: a.line1, line2: a.line2 ?? '', city: a.city, subdivision: a.subdivision, postalCode: a.postalCode });
 const usd = (minor: string) => formatMoney(money('USD', minor), 'en-US');
 const exactInteger = BigInt;
 const date = (value: string) => formatDateOnly(value, 'en-US');
 function terms(value: string): number { if (!/^(0|[1-9][0-9]{0,2})$/.test(value) || Number(value) > 365) throw new TypeError('invalid_commercial_input'); return Number(value); }
 function address(value: AddressDraft): CompanyAddress {
   return validateAddress({ country: value.country, line1: value.line1.trim(), ...(value.line2.trim() ? { line2: value.line2.trim() } : {}), city: value.city.trim(), subdivision: value.subdivision, postalCode: value.postalCode.trim() }, value.country);
+}
+function customerInput(draft: CustomerDraft): UsFinancialPilotCommercialCustomer {
+  return { kind: draft.kind, name: draft.name.trim(), contactName: draft.contactName.trim() || null, email: draft.email.trim() || null, phone: draft.phone.trim() || null, paymentTermsDays: terms(draft.terms), billingAddress: address(draft.billing), shippingAddress: draft.shipping ? address(draft.shipping) : null };
 }
 function today(timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -58,15 +62,19 @@ function AddressFields({ value, onChange, language, legend }: { value: AddressDr
 function PartyAddress({ party }: { party: UsFinancialPilotParty }) { const a = party.billingAddress; return <address>{a.line1}<br/>{a.line2 && <>{a.line2}<br/></>}{a.country === 'US' ? `${a.city}, ${a.subdivision} ${a.postalCode}` : `${a.postalCode} ${a.city}`}<br/>{a.country}</address>; }
 
 export function UsFinancialPilotCommercial({ session, state, snapshot, language, tab, onTab, recoveredReceipt, onInvoice }: Props) {
-  const c = browserUsFinancialPilotCommercialCopy[language], sequence = useRef(0), lifetime = useRef(0), detailGeneration = useRef(0);
+  const c = browserUsFinancialPilotCommercialCopy[language], ce = browserUsFinancialPilotCustomerEditCopy[language], sequence = useRef(0), lifetime = useRef(0), detailGeneration = useRef(0);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft | null>(null), [quoteDraft, setQuoteDraft] = useState<QuoteDraft | null>(null);
+  const [customerReview, setCustomerReview] = useState<{ token: number; value: CustomerEditReview } | null>(null), [customerApproved, setCustomerApproved] = useState<number | null>(null);
+  const [customerReviewToken, setCustomerReviewToken] = useState(0), [customerEditPending, setCustomerEditPending] = useState(false);
+  const [reloadApproved, setReloadApproved] = useState(false);
+  const editToken = useRef(0), draftEdit = useRef(0), editFlight = useRef(false), latest = useRef({ session, organizationId: snapshot.organizationId });
   const [acceptance, setAcceptance] = useState<AcceptanceDraft | null>(null), [review, setReview] = useState<Review | null>(null);
   const [selected, setSelected] = useState<string | null>(null), [detail, setDetail] = useState<UsFinancialPilotEstimateDetail | null>(null);
   const [minimumDetailRevision, setMinimumDetailRevision] = useState(0), [detailTick, setDetailTick] = useState(0);
   const [customerPage, setCustomerPage] = useState<UsFinancialPilotPage | null>(null), [quotePage, setQuotePage] = useState<UsFinancialPilotPage | null>(null);
   const [choices, setChoices] = useState<{ revision: number; items: readonly UsFinancialPilotParty[]; nextCursor: string | null } | null>(null);
   const [created, setCreated] = useState<{ id: string; name: string; terms: number; revision: number } | null>(null);
-  const [busy, setBusy] = useState(false), [errorCode, setErrorCode] = useState(''), [message, setMessage] = useState<'customerSaved' | 'quoteSaved' | 'accepted' | null>(null);
+  const [busy, setBusy] = useState(false), [errorCode, setErrorCode] = useState(''), [message, setMessage] = useState<'customerSaved' | 'customerUpdated' | 'quoteSaved' | 'accepted' | null>(null);
   const write = useRef<{ action: UsFinancialPilotCommercialCommand['type']; token: number } | null>(null), lastRecovered = useRef<UsFinancialPilotCommercialReceipt | null>(null);
   const locked = state.pending || state.writing || busy, active = tab === 'customers' || tab === 'estimates';
   const currentDetail = detail?.revision === snapshot.revision && detail.estimate.id === selected ? detail : null;
@@ -76,10 +84,29 @@ export function UsFinancialPilotCommercial({ session, state, snapshot, language,
   const choicesCursor = customerChoices.length >= snapshot.customers.total ? null : choices?.revision === snapshot.revision ? choices.nextCursor : snapshot.customers.nextCursor;
   const draftChanged = (revision: number) => revision !== snapshot.revision || state.requiresRefresh;
   const shownError = errorCode || state.error?.code || '';
-  const errorText = shownError ? browserUsFinancialPilotCommercialErrorCopy(language, shownError) : '';
+  const errorText = shownError === 'customer_not_found' && customerDraft?.source ? ce.missing : ['customer_edit_review_required', 'customer_edit_review_changed'].includes(shownError) ? ce.stale : shownError ? browserUsFinancialPilotCommercialErrorCopy(language, shownError) : '';
   const tooManyLines = quoteDraft !== null && quoteDraft.lines.length > US_FINANCIAL_PILOT_COMMERCIAL_MAX_LINES;
   const lineLimit = browserUsFinancialPilotCommercialLimitCopy[language].legacyLines;
-  useEffect(() => () => { lifetime.current++; detailGeneration.current++; }, []);
+  const customerReviewCurrent = !!customerReview && customerReview.token === customerReviewToken && customerReview.value.request.expectedRevision === snapshot.revision && !state.requiresRefresh && state.status === 'ready';
+  useLayoutEffect(() => { latest.current = { session, organizationId: snapshot.organizationId }; }, [session, snapshot.organizationId]);
+  function clearCustomerReview() { editToken.current++; setCustomerReviewToken(editToken.current); setCustomerReview(null); setCustomerApproved(null); setReloadApproved(false); }
+  function live(epoch: number) { const now = session.getState(); return epoch === lifetime.current && latest.current.session === session && latest.current.organizationId === snapshot.organizationId && now.status !== 'denied' && now.status !== 'stopped'; }
+  const purge = useEffectEvent(() => {
+    clearCustomerReview(); setCustomerEditPending(false); editFlight.current = false; write.current = null; lastRecovered.current = null;
+    setCustomerDraft(null); setQuoteDraft(null); setAcceptance(null); setReview(null); setSelected(null); setDetail(null); setChoices(null); setCreated(null); setCustomerPage(null); setQuotePage(null); setBusy(false); setErrorCode(''); setMessage(null);
+  });
+  const observe = useEffectEvent((before: BrowserUsFinancialPilotState, next: BrowserUsFinancialPilotState) => {
+    if (next.status === 'denied' || next.status === 'stopped') { lifetime.current++; detailGeneration.current++; purge(); }
+    else if ((!before.writing && next.writing) || before.snapshot?.revision !== next.snapshot?.revision || (!before.requiresRefresh && next.requiresRefresh)) clearCustomerReview();
+  });
+  useEffect(() => {
+    const guard = lifetime, details = detailGeneration; guard.current++; details.current++; const epoch = guard.current;
+    editFlight.current = true;
+    queueMicrotask(() => { if (guard.current === epoch) purge(); });
+    let before = session.getState();
+    const unsubscribe = session.subscribe(() => { const next = session.getState(); observe(before, next); before = next; });
+    return () => { guard.current++; details.current++; unsubscribe(); };
+  }, [session, snapshot.organizationId]);
   useEffect(() => {
     const at = ++detailGeneration.current;
     if (!selected || snapshot.revision < minimumDetailRevision) return;
@@ -88,11 +115,13 @@ export function UsFinancialPilotCommercial({ session, state, snapshot, language,
   function complete(receipt: UsFinancialPilotCommercialReceipt) {
     const operation = write.current;
     if (!operation || operation.action !== receipt.action) return;
-    write.current = null; setErrorCode(''); setReview(null);
+    write.current = null; setCustomerEditPending(false); setErrorCode(''); setReview(null); clearCustomerReview();
     if (receipt.action === 'create_customer') {
       if (customerDraft?.token === operation.token) setCreated({ id: receipt.entityId, name: customerDraft.name.trim(), terms: terms(customerDraft.terms), revision: receipt.revision });
       setCustomerDraft(old => old?.token === operation.token ? null : old);
       setMessage('customerSaved');
+    } else if (receipt.action === 'update_customer') {
+      setCustomerDraft(old => old?.token === operation.token ? null : old); setCreated(null); setMessage('customerUpdated');
     } else if (receipt.action === 'save_estimate') {
       setQuoteDraft(old => old?.token === operation.token ? null : old); setSelected(receipt.entityId); setMinimumDetailRevision(receipt.revision); setDetail(null); setMessage('quoteSaved');
     } else {
@@ -109,7 +138,47 @@ export function UsFinancialPilotCommercial({ session, state, snapshot, language,
     try { const receipt = await session.commercial(command, expectedRevision); if (at === lifetime.current) complete(receipt); }
     catch (error) { if (at === lifetime.current) { const failure = error as { code?: string; outcome?: string }; setErrorCode(failure.code ?? 'invalid_commercial_input'); if (failure.outcome === 'rejected') write.current = null; } }
   }
-  function newCustomer() { if (customerDraft || locked) return; setCustomerDraft({ token: ++sequence.current, revision: snapshot.revision, kind: 'business', name: '', contactName: '', email: '', phone: '', terms: '30', billing: blankAddress(), shipping: null }); setCreated(null); setReview(null); setMessage(null); setErrorCode(''); }
+  function newCustomer() { if (customerDraft || locked || editFlight.current) return; clearCustomerReview(); setCustomerDraft({ token: ++sequence.current, revision: snapshot.revision, source: null, kind: 'business', name: '', contactName: '', email: '', phone: '', terms: '30', billing: blankAddress(), shipping: null }); setCreated(null); setReview(null); setMessage(null); setErrorCode(''); }
+  function updateCustomer(patch: Partial<CustomerDraft>) { draftEdit.current++; clearCustomerReview(); setCustomerDraft(old => old ? { ...old, ...patch } : old); setErrorCode(''); }
+  async function editCustomer(customerId: string) {
+    const now = session.getState();
+    if (locked || editFlight.current || customerDraft || now.pending || now.writing || now.requiresRefresh || !now.snapshot) return;
+    const at = lifetime.current; editFlight.current = true; setBusy(true); setErrorCode(''); setMessage(null); clearCustomerReview(); const readingToken = editToken.current;
+    try {
+      const source = await session.readCustomer(customerId, now.snapshot.revision);
+      if (!live(at) || readingToken !== editToken.current || session.getState().snapshot?.revision !== source.revision) return;
+      const p = source.customer;
+      setCustomerDraft({ token: ++sequence.current, revision: source.revision, source, kind: p.kind, name: p.name, contactName: p.contactName ?? '', email: p.email ?? '', phone: p.phone ?? '', terms: String(p.paymentTermsDays), billing: addressDraft(p.billingAddress), shipping: p.shippingAddress ? addressDraft(p.shippingAddress) : null });
+      setCreated(null); setReview(null);
+    } catch (error) { if (live(at)) setErrorCode((error as { code?: string }).code ?? 'service_unavailable'); }
+    finally { if (live(at)) { editFlight.current = false; setBusy(false); } }
+  }
+  async function previewCustomerEdit() {
+    const now = session.getState(), draft = customerDraft;
+    if (!draft?.source || locked || editFlight.current || now.pending || now.writing) return;
+    clearCustomerReview(); const at = lifetime.current, edited = draftEdit.current; let token = editToken.current;
+    editFlight.current = true; setBusy(true); setErrorCode(''); setMessage(null);
+    try {
+      const customer = customerInput(draft), current = now.requiresRefresh ? await session.refresh() : now.snapshot;
+      if (!current || !live(at) || edited !== draftEdit.current) return;
+      token = editToken.current;
+      const source = await session.readCustomer(draft.source.customer.id, current.revision);
+      if (!live(at) || token !== editToken.current) return;
+      const value = session.reviewCustomerEdit(source, customer);
+      if (!live(at) || token !== editToken.current || session.getState().snapshot?.revision !== value.request.expectedRevision) return;
+      setCustomerDraft(old => old?.token === draft.token ? { ...old, revision: source.revision, source } : old);
+      setCustomerReview({ token, value }); setCustomerApproved(null);
+    } catch (error) { if (live(at) && token === editToken.current) setErrorCode((error as { code?: string }).code ?? 'invalid_commercial_input'); }
+    finally { if (live(at)) { editFlight.current = false; setBusy(false); } }
+  }
+  async function submitCustomerEdit() {
+    const now = session.getState(), draft = customerDraft, reviewed = customerReview;
+    if (!draft?.source || !reviewed || !customerReviewCurrent || customerApproved !== reviewed.token || reviewed.token !== editToken.current || !reviewed.value.changedFields.length || locked || editFlight.current || now.pending || now.writing || now.requiresRefresh) return;
+    const at = lifetime.current; editFlight.current = true; write.current = { action: 'update_customer', token: draft.token }; setCustomerEditPending(true); setErrorCode(''); setMessage(null);
+    try { const receipt = await session.submitCustomerEdit(reviewed.value, true); if (live(at)) complete(receipt); }
+    catch (error) { if (live(at)) { const failure = error as { code?: string; outcome?: string }; setErrorCode(failure.code ?? 'service_unavailable'); if (failure.outcome === 'rejected') { write.current = null; setCustomerEditPending(false); } } }
+    finally { if (live(at)) editFlight.current = false; }
+  }
   function newLine(): LineDraft { return { key: ++sequence.current, id: null, description: '', quantity: '1', price: '', discount: '0', taxTreatment: 'taxable' }; }
   function newQuote(customerId = '', paymentTerms = 30) {
     if (quoteDraft || locked) return;
@@ -124,8 +193,10 @@ export function UsFinancialPilotCommercial({ session, state, snapshot, language,
     setAcceptance(null); setReview(null); setMessage(null); setErrorCode('');
   }
   async function saveCustomer(event: SubmitEvent) {
-    event.preventDefault(); if (!customerDraft || draftChanged(customerDraft.revision)) return;
-    try { await submit({ type: 'create_customer', customer: { kind: customerDraft.kind, name: customerDraft.name.trim(), contactName: customerDraft.contactName.trim() || null, email: customerDraft.email.trim() || null, phone: customerDraft.phone.trim() || null, paymentTermsDays: terms(customerDraft.terms), billingAddress: address(customerDraft.billing), shippingAddress: customerDraft.shipping ? address(customerDraft.shipping) : null } }, customerDraft.token, customerDraft.revision); }
+    event.preventDefault(); if (!customerDraft) return;
+    if (customerDraft.source) { await previewCustomerEdit(); return; }
+    if (draftChanged(customerDraft.revision)) return;
+    try { await submit({ type: 'create_customer', customer: customerInput(customerDraft) }, customerDraft.token, customerDraft.revision); }
     catch { setErrorCode('invalid_commercial_input'); }
   }
   async function saveQuote(event: SubmitEvent) {
@@ -177,6 +248,22 @@ export function UsFinancialPilotCommercial({ session, state, snapshot, language,
     setReview(null); setErrorCode('');
   }
   function updateLine(key: number, patch: Partial<LineDraft>) { setQuoteDraft(old => old ? { ...old, lines: old.lines.map(line => line.key === key ? { ...line, ...patch } : line) } : old); }
+  function customerChanges() {
+    if (!customerReviewCurrent || !customerReview) return null;
+    const labels = { kind: c.kind, name: c.name, billingAddress: c.billing, shippingAddress: c.shippingTitle, email: c.email, phone: c.phone, contactName: c.contactName, paymentTermsDays: c.terms };
+    function field(party: UsFinancialPilotParty, key: keyof UsFinancialPilotCommercialCustomer) {
+      const value = party[key];
+      if (value === null) return ce.notProvided;
+      if (key === 'kind') return value === 'business' ? c.business : c.individual;
+      if (typeof value === 'object') return [value.line1, value.line2, `${value.city}, ${value.subdivision} ${value.postalCode}`, new Intl.DisplayNames([language], { type: 'region' }).of(value.country)].filter(Boolean).join('\n');
+      return String(value);
+    }
+    return <div className="fpc-review" aria-live="polite"><h3>{ce.review}</h3>{customerReview.value.changedFields.length ? <>
+      {customerReview.value.changedFields.map(key => <section className="fpc-current" key={key}><h4>{labels[key]}</h4><dl><div><dt>{ce.before}</dt><dd className="fpc-preserve">{field(customerReview.value.before, key)}</dd></div><div><dt>{ce.after}</dt><dd className="fpc-preserve">{field(customerReview.value.after, key)}</dd></div></dl></section>)}
+      <label className="fpc-checkbox"><input type="checkbox" disabled={locked} checked={customerApproved === customerReview.token} onChange={event => setCustomerApproved(event.target.checked ? customerReview.token : null)}/><span>{ce.approve}</span></label>
+      <button type="button" className="account-button fp-primary" disabled={locked || customerApproved !== customerReview.token} onClick={() => { void submitCustomerEdit(); }}>{state.writing ? c.saving : ce.save}</button>
+    </> : <p>{ce.noChanges}</p>}</div>;
+  }
   function draftReview(kind: Review['kind'], revision: number) { return !state.writing && !state.pending && draftChanged(revision) ? <div className="fp-notice fpc-review"><p>{kind === 'accept' ? c.reviewAcceptance : c.changed}</p><button type="button" className="account-button secondary" disabled={locked} onClick={() => { void reviewDraft(kind); }}>{c.review}</button></div> : null; }
   function reviewPanel(kind: Review['kind']) {
     return review?.kind === kind && <div className="fp-notice fpc-review" aria-live="polite"><p>{c.reviewed}</p>{review.detail && <div className="fpc-current"><h3>{c.currentQuote} · {review.detail.estimate.number}</h3><p>{review.detail.customer.name} · {review.detail.estimate.status === 'accepted' ? c.acceptedStatus : c[review.detail.estimate.status]}</p><PartyAddress party={review.detail.customer}/><p>{c.quoteDate}: {date(review.detail.estimate.date)} · {c.expiry}: {date(review.detail.estimate.expiresAt)}</p><p>{c.terms}: {review.detail.paymentTermsDays}</p><p>{usd(review.detail.netMinor)} · {c.beforeTax}</p><ul>{review.detail.lines.map(line => <li key={line.id}>{line.description} · {commercialQuantityText(line.quantityUnits, line.quantityScale)} × {usd(line.unitPriceMinor)} · {c.discount}: {commercialMajor(String(line.discountBasisPoints))}% · {c[line.taxTreatment]} · {usd(line.netMinor)}</li>)}</ul>{review.detail.notes && <p className="fpc-preserve">{review.detail.notes}</p>}</div>}{review.customer && <div className="fpc-current"><h3>{c.currentCustomer}</h3><p>{review.customer.name}</p><PartyAddress party={review.customer}/></div>}<button type="button" className="account-button secondary" disabled={locked || review.revision !== snapshot.revision || state.requiresRefresh} onClick={continueDraft}>{c.continueDraft}</button></div>;
@@ -187,24 +274,26 @@ export function UsFinancialPilotCommercial({ session, state, snapshot, language,
   return <>
     {!active && (customerDraft || quoteDraft || acceptance) && <div className="fp-notice"><p>{c.draftElsewhere}</p><button type="button" className="account-button secondary" onClick={() => onTab(quoteDraft || acceptance ? 'estimates' : 'customers')}>{c.resume}</button></div>}
     <div className="fpc-workspace" hidden={!active}>
-      {message && <p className="fp-success" aria-live="polite"><Check size={18} aria-hidden/>{c[message]}</p>}
+      {message && <p className="fp-success" aria-live="polite"><Check size={18} aria-hidden/>{message === 'customerUpdated' ? ce.saved : c[message]}</p>}
       {errorText && !state.pending && <div className="fp-notice" role="alert"><p>{errorText}</p><button type="button" className="account-button secondary" disabled={locked} onClick={() => { setErrorCode(''); setDetailTick(value => value + 1); void session.refresh().catch(() => setErrorCode('service_unavailable')); }}>{c.refresh}</button></div>}
       {state.pendingKind === 'payment' && <p className="fp-context">{c.paymentPending}</p>}
+      {state.pendingKind === 'commercial' && customerEditPending && <section className="fp-payment fpc-form"><p>{ce.reloadWarning}</p><label className="fpc-checkbox"><input type="checkbox" disabled={state.writing} checked={reloadApproved} onChange={event => setReloadApproved(event.target.checked)}/><span>{ce.reloadApprove}</span></label><button type="button" className="account-button secondary" disabled={state.writing || !reloadApproved} onClick={() => { if (reloadApproved && !session.getState().writing) window.location.reload(); }}>{ce.reload}</button></section>}
       <section hidden={tab !== 'customers'} className="fp-register">
         <div className="fp-register-title fpc-title"><h2>{browserUsFinancialPilotCopy[language].customers}</h2><span>{currentCustomers.total}</span>{!customerDraft && <button type="button" className="account-button fp-primary" disabled={locked} onClick={newCustomer}>{c.newCustomer}</button>}</div>
         {created && !customerDraft && <div className="fp-notice"><p><strong>{created.name}</strong> · {c.customerCreatedNext}</p><button type="button" className="account-button secondary" disabled={locked || !!quoteDraft || snapshot.revision < created.revision} onClick={() => newQuote(created.id, created.terms)}>{c.newQuote}</button></div>}
-        {customerDraft && <form className="fp-payment fpc-form" onSubmit={saveCustomer}><h3>{c.customerTitle}</h3><fieldset disabled={locked} className="fpc-fields"><div className="fp-form-grid">
-          <label>{c.kind}<select value={customerDraft.kind} onChange={event => setCustomerDraft({ ...customerDraft, kind: event.target.value as CustomerDraft['kind'] })}><option value="business">{c.business}</option><option value="individual">{c.individual}</option></select></label>
-          <label>{c.name}<input required maxLength={160} autoComplete="organization" value={customerDraft.name} onChange={event => setCustomerDraft({ ...customerDraft, name: event.target.value })}/></label>
-          <label>{c.contactName} · {c.optional}<input maxLength={160} autoComplete="name" value={customerDraft.contactName} onChange={event => setCustomerDraft({ ...customerDraft, contactName: event.target.value })}/></label>
-          <label>{c.email} · {c.optional}<input type="email" maxLength={254} autoComplete="email" value={customerDraft.email} onChange={event => setCustomerDraft({ ...customerDraft, email: event.target.value })}/></label>
-          <label>{c.phone} · {c.optional}<input type="tel" maxLength={80} autoComplete="tel" value={customerDraft.phone} onChange={event => setCustomerDraft({ ...customerDraft, phone: event.target.value })}/></label>
-          <label>{c.terms}<input required type="number" min="0" max="365" step="1" value={customerDraft.terms} onChange={event => setCustomerDraft({ ...customerDraft, terms: event.target.value })}/></label>
-        </div><AddressFields legend={c.billing} language={language} value={customerDraft.billing} onChange={billing => setCustomerDraft({ ...customerDraft, billing })}/>
-        <label className="fpc-checkbox"><input type="checkbox" checked={!!customerDraft.shipping} onChange={event => setCustomerDraft({ ...customerDraft, shipping: event.target.checked ? blankAddress() : null })}/><span>{c.shipping}</span></label>
-        {customerDraft.shipping && <AddressFields legend={c.shippingTitle} language={language} value={customerDraft.shipping} onChange={shipping => setCustomerDraft({ ...customerDraft, shipping })}/>}</fieldset>
-        {draftReview('customer', customerDraft.revision)}{reviewPanel('customer')}<div className="fp-actions"><button type="submit" className="account-button fp-primary" disabled={locked || draftChanged(customerDraft.revision)}>{state.writing ? c.saving : c.saveCustomer}</button><button type="button" className="account-button secondary" disabled={locked} onClick={() => { setCustomerDraft(null); setReview(null); setErrorCode(''); }}>{c.cancel}</button></div></form>}
-        {currentCustomers.items.length ? <ul className="fp-records">{(currentCustomers.items as readonly UsFinancialPilotParty[]).map(row => <li className="fp-record" key={row.id}><div><strong>{row.name}</strong><span>{row.contactName || row.billingAddress.city}</span>{row.email && <a href={`mailto:${encodeURIComponent(row.email)}`}>{row.email}</a>}</div><button type="button" className="fp-link" disabled={locked || !!quoteDraft} onClick={() => newQuote(row.id, row.paymentTermsDays)}>{c.newQuote}</button></li>)}</ul> : <p className="fp-empty">{c.emptyCustomers}</p>}{pagination('customers', currentCustomers)}
+        {customerDraft && <form className="fp-payment fpc-form" onSubmit={saveCustomer}><h3>{customerDraft.source ? ce.title : c.customerTitle}</h3>{customerDraft.source && <p className="fp-context">{ce.history}</p>}<fieldset disabled={locked} className="fpc-fields"><div className="fp-form-grid">
+          <label>{c.kind}<select value={customerDraft.kind} onChange={event => updateCustomer({ kind: event.target.value as CustomerDraft['kind'] })}><option value="business">{c.business}</option><option value="individual">{c.individual}</option></select></label>
+          <label>{c.name}<input required maxLength={160} autoComplete="organization" value={customerDraft.name} onChange={event => updateCustomer({ name: event.target.value })}/></label>
+          <label>{c.contactName} · {c.optional}<input maxLength={160} autoComplete="name" value={customerDraft.contactName} onChange={event => updateCustomer({ contactName: event.target.value })}/></label>
+          <label>{c.email} · {c.optional}<input type="email" maxLength={254} autoComplete="email" value={customerDraft.email} onChange={event => updateCustomer({ email: event.target.value })}/></label>
+          <label>{c.phone} · {c.optional}<input type="tel" maxLength={80} autoComplete="tel" value={customerDraft.phone} onChange={event => updateCustomer({ phone: event.target.value })}/></label>
+          <label>{c.terms}<input required type="number" min="0" max="365" step="1" value={customerDraft.terms} onChange={event => updateCustomer({ terms: event.target.value })}/></label>
+        </div><AddressFields legend={c.billing} language={language} value={customerDraft.billing} onChange={billing => updateCustomer({ billing })}/>
+        <label className="fpc-checkbox"><input type="checkbox" checked={!!customerDraft.shipping} onChange={event => updateCustomer({ shipping: event.target.checked ? blankAddress() : null })}/><span>{c.shipping}</span></label>
+        {customerDraft.shipping && <AddressFields legend={c.shippingTitle} language={language} value={customerDraft.shipping} onChange={shipping => updateCustomer({ shipping })}/>}</fieldset>
+        {customerDraft.source ? <>{draftChanged(customerDraft.revision) && <p className="fp-context">{ce.stale}</p>}{customerChanges()}</> : <>{draftReview('customer', customerDraft.revision)}{reviewPanel('customer')}</>}
+        <div className="fp-actions"><button type="submit" className="account-button secondary" disabled={locked || (!customerDraft.source && draftChanged(customerDraft.revision))}>{state.writing ? c.saving : customerDraft.source ? ce.review : c.saveCustomer}</button><button type="button" className="account-button secondary" disabled={locked} onClick={() => { clearCustomerReview(); setCustomerDraft(null); setReview(null); setErrorCode(''); }}>{c.cancel}</button></div></form>}
+        {currentCustomers.items.length ? <ul className="fp-records">{(currentCustomers.items as readonly UsFinancialPilotParty[]).map(row => <li className="fp-record" key={row.id}><div><strong>{row.name}</strong><span>{row.contactName || row.billingAddress.city}</span>{row.email && <a href={`mailto:${encodeURIComponent(row.email)}`}>{row.email}</a>}</div><button type="button" className="fp-link" disabled={locked || !!customerDraft} onClick={() => { void editCustomer(row.id); }}>{ce.edit}</button><button type="button" className="fp-link" disabled={locked || !!quoteDraft} onClick={() => newQuote(row.id, row.paymentTermsDays)}>{c.newQuote}</button></li>)}</ul> : <p className="fp-empty">{c.emptyCustomers}</p>}{pagination('customers', currentCustomers)}
       </section>
       <section hidden={tab !== 'estimates'} className="fp-register">
         {selected && !quoteDraft ? <div className="fp-detail"><button type="button" className="fp-back" disabled={state.pending||state.writing} onClick={() => { setSelected(null); setDetail(null); setAcceptance(null); setReview(null); setErrorCode(''); }}><ArrowLeft size={18} aria-hidden/>{c.back}</button>{!currentDetail ? <p className="fp-empty" aria-live="polite">{c.loading}</p> : <>

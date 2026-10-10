@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountPublicError } from '../account-security';
 import { UsAuthorityError } from './saas-authority';
 import type { UsFinancialPilotScope } from './us-financial-pilot-store';
-const f = vi.hoisted(() => ({ env: {} as Record<string, string | undefined>, user: vi.fn(), access: vi.fn(), scope: vi.fn(), create: vi.fn(), country: vi.fn(), rate: vi.fn(), post: vi.fn(), estimate: vi.fn(), factory: vi.fn(), rpc: vi.fn() }));
+const f = vi.hoisted(() => ({ env: {} as Record<string, string | undefined>, user: vi.fn(), access: vi.fn(), scope: vi.fn(), create: vi.fn(), country: vi.fn(), rate: vi.fn(), post: vi.fn(), estimate: vi.fn(), customer: vi.fn(), factory: vi.fn(), rpc: vi.fn() }));
 vi.mock('cloudflare:workers', () => ({ env: f.env }));
 vi.mock('../../app/zentra-auth', () => ({ getZentraUser: f.user }));
 vi.mock('./saas-authority-d1', () => ({ requireUsWorkspaceAccess: f.access }));
@@ -10,10 +10,11 @@ vi.mock('../supabase-server-runtime', () => ({ supabaseServerClient: () => ({ rp
 vi.mock('./us-financial-pilot-store', () => ({ readUsFinancialPilotScope: f.scope, createSupabaseUsFinancialPilotStore: f.create, readUsFinancialPilotPromotionStatus: vi.fn() }));
 vi.mock('./workspace-service', () => ({ getWorkspaceCountry: f.country }));
 vi.mock('../account', () => ({ enforceAccountRateLimit: f.rate }));
-vi.mock('./us-financial-pilot-commercial-server', () => ({ createUsFinancialPilotCommercialHandlers: (...args: unknown[]) => { f.factory(...args); return { POST: f.post, ESTIMATE: f.estimate }; } }));
+vi.mock('./us-financial-pilot-commercial-server', () => ({ createUsFinancialPilotCommercialHandlers: (...args: unknown[]) => { f.factory(...args); return { POST: f.post, ESTIMATE: f.estimate, CUSTOMER: f.customer }; } }));
 import { usFinancialPilotCommercialDependencies as deps } from './us-financial-pilot-commercial-bindings';
 import { POST as operationRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/commercial/operations/route';
 import { GET as detailRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/estimates/[estimateId]/route';
+import { GET as customerRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/customers/[customerId]/route';
 const org = '10000000-0000-4000-8000-000000000001', userId = '20000000-0000-4000-8000-000000000001';
 const required = ['INTERNATIONAL_CORE_ENABLED', 'INTERNATIONAL_US_ERP_ENABLED', 'INTERNATIONAL_US_FINANCIAL_V5_INSTALLED', 'INTERNATIONAL_US_FINANCIAL_PILOT_ENABLED'] as const;
 function enable() { for (const name of required) f.env[name] = 'true'; f.env.INTERNATIONAL_US_BILLING_ENVIRONMENT = 'TEST'; }
@@ -34,4 +35,5 @@ describe('commercial real bindings — synthetic Auth/D1/PG callbacks', () => {
   it('refuses missing company configuration instead of reading a frozen ERP4 source', async () => { f.country.mockResolvedValue({ status: 'required' }); await expect(deps.configuration((await deps.authority(request(), org)).actor)).rejects.toMatchObject({ code: 'financial_configuration_changed', status: 409 }); });
   it('limits mutations separately from reads, scoped to company and user', async () => { const actor = (await deps.authority(request(), org)).actor, req = request(); await deps.rateLimit(req, actor, 'write'); await deps.rateLimit(req, actor, 'read'); expect(f.rate).toHaveBeenCalledWith(req, 'international-financial-pilot-write', `${org}:${userId}`, 120); expect(f.rate).toHaveBeenCalledWith(req, 'international-financial-pilot-read', `${org}:${userId}`, 3600); });
   it('passes only resolved path parameters through the thin new routes', async () => { const req = request(), mutation = new Response('mutation'), detail = new Response('detail'); f.post.mockResolvedValue(mutation); f.estimate.mockResolvedValue(detail); expect(await operationRoute(req, { params: Promise.resolve({ organizationId: org }) })).toBe(mutation); expect(await detailRoute(req, { params: Promise.resolve({ organizationId: org, estimateId: 'synthetic-estimate' }) })).toBe(detail); expect(f.post).toHaveBeenCalledWith(req, org); expect(f.estimate).toHaveBeenCalledWith(req, org, 'synthetic-estimate'); });
+  it('delegates customer GET with only the resolved tenant and original customer ID', async () => { const req = request(), response = new Response('customer detail'); f.customer.mockResolvedValue(response); expect(await customerRoute(req, { params: Promise.resolve({ organizationId: org, customerId: 'existing-customer' }) })).toBe(response); expect(f.customer).toHaveBeenCalledWith(req, org, 'existing-customer'); expect(f.post).not.toHaveBeenCalled(); expect(f.estimate).not.toHaveBeenCalled(); });
 });

@@ -6,7 +6,8 @@ import { projectUsFinancialBookV5, promoteUsFinancialBookV5 } from './us-financi
 import { createInMemoryUsFinancialKernelStoreV5 } from './us-financial-kernel-runtime';
 import type { UsFinancialBookV5 } from './us-financial-kernel-types';
 import { usFinancialPilotCommercialEntityId, validateUsFinancialPilotCommercialReceipt, type UsFinancialPilotCommercialRequest } from './us-financial-pilot-commercial';
-import { validateUsFinancialPilotEstimateDetail } from './us-financial-pilot-commercial-projection';
+import { validateUsFinancialPilotCustomerDetail, validateUsFinancialPilotEstimateDetail } from './us-financial-pilot-commercial-projection';
+import { financialPilotParty } from './us-financial-pilot-projection';
 import { createUsFinancialPilotCommercialHandlers } from './us-financial-pilot-commercial-server';
 import type { UsFinancialPilotDependencies } from './us-financial-pilot-server';
 
@@ -89,4 +90,99 @@ describe('commercial browser HTTP boundary — synthetic Auth/D1, real memory tr
   it('captures the supplied store methods and configuration instead of rereading mutable callbacks', async () => { const t = await fixture(); let armed = false; t.deps.store = () => { armed = true; return t.store; }; t.deps.scope = async () => { if (armed) t.store.commit = vi.fn(async () => { throw Error('Replaced after capture'); }); return t.scope; }; const r = await createUsFinancialPilotCommercialHandlers(t.deps).POST(t.post(t.create), org); expect(r.status).toBe(200); expect((await t.read()).events).toHaveLength(1); });
   it('closes disabled features and unknown methods without invoking Auth or the old ERP', async () => { const t = await fixture(); t.deps.enabled = () => false; expect((await createUsFinancialPilotCommercialHandlers(t.deps).POST(t.post(t.create), org)).status).toBe(404); expect(t.deps.authority).not.toHaveBeenCalled(); const r = await t.handlers.POST(t.request('commercial/operations'), org); expect(r.status).toBe(405); expect(r.headers.get('Allow')).toBe('POST'); });
   it('sanitizes private exceptions and hostile error accessors into a bounded generic response', async () => { const t = await fixture(); const error = new ErpError('SECRET', 503); Object.defineProperty(error, 'code', { get() { throw Error('Private getter'); } }); t.deps.scope = async () => { throw error; }; t.deps.diagnostic = () => { throw Error('telemetry'); }; const r = await createUsFinancialPilotCommercialHandlers(t.deps).POST(t.post(t.create), org); expect(r.status).toBe(503); expect(await r.json()).toEqual({ error: 'financial_service_unavailable' }); });
+});
+
+describe('customer correction HTTP boundary — actual kernel and memory port', () => {
+  async function customerFixture() {
+    const t = await fixture(), { id: customerId, ...customer } = financialPilotParty(t.baseline.customers[0]);
+    const update: UsFinancialPilotCommercialRequest = { ...t.create, command: { type: 'update_customer', customerId, customer: { ...customer, name: 'Corrected synthetic customer 🌍', email: null, phone: null, contactName: null, shippingAddress: null, paymentTermsDays: 15 } } };
+    const get = (id = customerId, revision = t.book.revision) => t.request(`customers/${encodeURIComponent(id)}?revision=${revision}`);
+    return { ...t, update, customerId, get };
+  }
+  it('reads and replaces the same card once, clears optional fields and leaves all financial effects intact', async () => {
+    const t = await customerFixture(), before = await projectUsFinancialBookV5(await t.read()), detailResponse = await t.handlers.CUSTOMER(t.get(), org, t.customerId);
+    expect(detailResponse.status).toBe(200); const detail = validateUsFinancialPilotCustomerDetail(await detailResponse.json(), org, t.book.revision, t.customerId); expect(detail.customer.id).toBe(t.customerId);
+    const response = await t.handlers.POST(t.post(t.update), org); expect(response.status).toBe(200);
+    const receipt = validateUsFinancialPilotCommercialReceipt(await response.json(), org, t.update); expect(receipt).toEqual({ consumer: 'financial-pilot', schemaVersion: 1, organizationId: org, revision: t.book.revision + 1, entityId: t.customerId, action: 'update_customer' });
+    expect(Object.keys(receipt)).toHaveLength(6); const next = await projectUsFinancialBookV5(await t.read());
+    expect(next.customers).toHaveLength(before.customers.length); expect(next.customers[0]).toMatchObject({ id: t.customerId, organizationId: org, name: 'Corrected synthetic customer 🌍', paymentTermsDays: 15 });
+    for (const key of ['email', 'phone', 'contactName', 'shippingAddress']) expect(Object.hasOwn(next.customers[0], key)).toBe(false);
+    expect(next.ledger).toEqual(before.ledger); expect(next.invoices).toEqual(before.invoices); expect(next.estimates).toEqual(before.estimates); expect(next.counters).toEqual(before.counters);
+    const current = await t.handlers.CUSTOMER(t.get(t.customerId, receipt.revision), org, t.customerId); expect((await current.json() as { customer: unknown }).customer).toMatchObject({ name: 'Corrected synthetic customer 🌍', email: null, shippingAddress: null });
+    expect(current.headers.get('Cache-Control')).toBe('no-store, max-age=0'); expect(current.headers.get('Vary')).toBe('Cookie, X-Zentra-Expected-User, X-Zentra-Financial-Pilot'); expect(current.headers.get('Referrer-Policy')).toBe('no-referrer'); expect(current.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+  it.each(['missing', 'foreign-customer'])('never upserts unknown current-tenant customer %s', async customerId => {
+    const t = await customerFixture(), request = { ...t.update, command: { ...t.update.command, customerId } }, response = await t.handlers.POST(t.post(request), org);
+    expect(response.status).toBe(404); expect(await response.json()).toEqual({ error: 'customer_not_found' }); expect((await t.read()).events).toHaveLength(0); expect(t.store.commit).not.toHaveBeenCalled();
+    const missing = await t.handlers.CUSTOMER(t.get(customerId), org, customerId); expect(missing.status).toBe(404); expect(await missing.json()).toEqual({ error: 'customer_not_found' });
+  });
+  it('does not alias a create receipt even when native save_customer bytes, UUID, ID and F coincide', async () => {
+    const t = await customerFixture(); if (t.create.command.type !== 'create_customer') throw Error('Create fixture');
+    const creation = await t.handlers.POST(t.post(t.create), org); expect(creation.status).toBe(200);
+    const collision: UsFinancialPilotCommercialRequest = { ...t.create, command: { type: 'update_customer', customerId: usFinancialPilotCommercialEntityId(t.create), customer: t.create.command.customer } };
+    const denied = await t.handlers.POST(t.post(collision), org); expect(denied.status).toBe(409); expect(await denied.json()).toEqual({ error: 'revision_conflict' }); expect((await t.read()).events).toHaveLength(1);
+    const current = { ...collision, expectedRevision: t.book.revision + 1 }, result = await t.handlers.POST(t.post(current), org); expect(result.status).toBe(200); expect(await result.json()).toMatchObject({ action: 'update_customer', revision: t.book.revision + 2 });
+    expect((await t.read()).events).toHaveLength(2);
+  });
+  it('recovers exact update after a lost commit reply and later event, retaining historical receipt F', async () => {
+    const t = await customerFixture(), original = t.store.commit;
+    t.store.commit = vi.fn(async input => { await original(input); throw Error('Private synthetic lost reply'); }); const handlers = createUsFinancialPilotCommercialHandlers(t.deps);
+    expect((await handlers.POST(t.post(t.update), org)).status).toBe(503); expect((await t.read()).events).toHaveLength(1);
+    t.store.commit = original; expect((await t.handlers.POST(t.post(t.quote(t.book.revision + 1)), org)).status).toBe(200);
+    const replay = await handlers.POST(t.post(t.update), org); expect(replay.status).toBe(200); expect(validateUsFinancialPilotCommercialReceipt(await replay.json(), org, t.update).revision).toBe(t.book.revision + 1); expect((await t.read()).revision).toBe(t.book.revision + 2); expect((await t.read()).events).toHaveLength(2);
+    if (t.update.command.type !== 'update_customer') throw Error('Update fixture');
+    for (const changed of [{ ...t.update, expectedRevision: t.book.revision + 2 }, { ...t.update, command: { ...t.update.command, customer: { ...t.update.command.customer, name: 'Retargeted' } } }]) {
+      const r = await handlers.POST(t.post(changed), org); expect(r.status).toBe(409); expect(await r.json()).toEqual({ error: 'idempotency_conflict' });
+    }
+  });
+  it.each([1, 2])('uses receipt-first recovery if the original update commits after receipt probe %s', async probe => {
+    const t = await customerFixture(), receipt = t.store.receipt; let probes = 0;
+    t.store.receipt = vi.fn(async (organizationId, key) => { const found = await receipt(organizationId, key); if (++probes === probe) expect((await t.handlers.POST(t.post(t.update), org)).status).toBe(200); return found; });
+    const r = await createUsFinancialPilotCommercialHandlers(t.deps).POST(t.post(t.update), org); expect(r.status).toBe(200); expect(await r.json()).toMatchObject({ action: 'update_customer', revision: t.book.revision + 1 }); expect((await t.read()).events).toHaveLength(1);
+  });
+  it('withholds update receipt after late revoke and returns the exact historical receipt after restoration', async () => {
+    const t = await customerFixture(), commit = t.store.commit; let revoked = false;
+    t.store.commit = vi.fn(async input => { const receipt = await commit(input); revoked = true; return receipt; }); t.deps.authority = async () => { if (revoked) throw new AccountPublicError('Revoked synthetic authority', 401); return { mode: 'browser', actor: t.actor }; };
+    const handlers = createUsFinancialPilotCommercialHandlers(t.deps); expect((await handlers.POST(t.post(t.update), org)).status).toBe(401); expect((await t.read()).events).toHaveLength(1);
+    revoked = false; const replay = await handlers.POST(t.post(t.update), org); expect(replay.status).toBe(200); expect(await replay.json()).toMatchObject({ action: 'update_customer', entityId: t.customerId }); expect((await t.read()).events).toHaveLength(1);
+  });
+  it('fences successful customer projection against a newer final head', async () => {
+    const t = await customerFixture(); t.store.head.mockResolvedValue({ consumer: 'financial-pilot', schemaVersion: 1, organizationId: org, revision: t.book.revision + 1 });
+    const r = await t.handlers.CUSTOMER(t.get(), org, t.customerId); expect(r.status).toBe(409); expect(await r.json()).toEqual({ error: 'financial_snapshot_changed' });
+  });
+  it.each([
+    { mode: 'device', role: 'owner', managementEntitled: true, status: 403 },
+    { mode: 'browser', role: 'owner', managementEntitled: false, status: 402 },
+    { mode: 'browser', role: 'member', managementEntitled: true, status: 403 },
+    { mode: 'browser', role: 'read_only', managementEntitled: true, status: 403 },
+  ] as const)('denies customer detail for $mode/$role with managementEntitled=$managementEntitled before any private read', async admission => {
+    const t = await customerFixture(); t.deps.authority = async () => ({ mode: admission.mode, actor: { ...t.actor, role: admission.role, managementEntitled: admission.managementEntitled } });
+    const response = await createUsFinancialPilotCommercialHandlers(t.deps).CUSTOMER(t.get(), org, t.customerId);
+    expect(response.status).toBe(admission.status); expect(t.deps.scope).not.toHaveBeenCalled(); expect(t.store.read).not.toHaveBeenCalled();
+  });
+  it.each(['authority', 'flag', 'grant', 'optIn', 'policy', 'configuration'] as const)('rechecks living %s after successful and rejected customer reads', async kind => {
+    for (const rejected of [false, true]) {
+      const t = await customerFixture(), read = t.store.read; let changed = false;
+      t.store.read = vi.fn(async id => { const book = await read(id); changed = true; if (rejected) throw Error('Private read exception'); return book; });
+      t.deps.authority = async () => { if (changed && kind === 'authority') throw new AccountPublicError('Synthetic revoke', 401); return { mode: 'browser', actor: t.actor }; };
+      t.deps.enabled = () => !(changed && kind === 'flag');
+      t.deps.configuration = async () => changed && kind === 'configuration' ? { ...t.configuration, language: 'fr' } : t.configuration;
+      t.deps.scope = async () => changed && kind === 'grant' ? { ...t.scope, scope: { ...t.scope.scope, grantVersion: 2 } } : changed && kind === 'optIn' ? { ...t.scope, optInVersion: 2 } : changed && kind === 'policy' ? { ...t.scope, scope: { ...t.scope.scope, policy: { ...t.policy, approval: { ...t.policy.approval, reference: 'Changed policy' } } } } : t.scope;
+      const r = await createUsFinancialPilotCommercialHandlers(t.deps).CUSTOMER(t.get(), org, t.customerId); expect(r.status).toBe(kind === 'authority' ? 401 : kind === 'flag' ? 404 : 409);
+      expect(await r.json()).toEqual({ error: kind === 'authority' ? 'unauthorized' : kind === 'flag' ? 'feature_unavailable' : kind === 'grant' ? 'financial_test_grant_changed' : kind === 'optIn' ? 'financial_pilot_opt_in_changed' : kind === 'policy' ? 'financial_policy_unavailable' : 'financial_configuration_changed' });
+    }
+  });
+  it.each(['revision=1&revision=2', 'revision=01', 'revision=1&cursor=private', 'revision=1&bankRevision=0', 'revision=9007199254740991', ''])('closes customer query %s before source disclosure', async query => {
+    const t = await customerFixture(), r = await t.handlers.CUSTOMER(t.request(`customers/customer-1?${query}`), org, t.customerId); expect(r.status).toBe(422); expect(t.store.read).not.toHaveBeenCalled();
+  });
+  it.each([' customer-1', 'customer-1 ', 'customer\n1', '', 'x'.repeat(161)])('closes customer path identity %j', async id => {
+    const t = await customerFixture(), r = await t.handlers.CUSTOMER(t.get(), org, id); expect(r.status).toBe(422); expect(t.store.read).not.toHaveBeenCalled();
+  });
+  it('applies existing cookie/origin/device/expected-user boundary and exposes bounded private errors', async () => {
+    const t = await customerFixture();
+    for (const headers of [{ Authorization: 'Bearer synthetic' }, { 'Sec-Fetch-Site': 'cross-site' }, { Origin: 'https://foreign.test' }, { 'X-Zentra-Expected-User': 'other-user' }] as Record<string, string>[]) expect([401, 403]).toContain((await t.handlers.CUSTOMER(t.request(`customers/customer-1?revision=${t.book.revision}`, { headers }), org, t.customerId)).status);
+    const privateError = new ErpError('SECRET', 503), getter = vi.fn(() => { throw Error('Private error getter'); }); Object.defineProperty(privateError, 'code', { get: getter }); t.store.read = vi.fn(async () => { throw privateError; });
+    const r = await createUsFinancialPilotCommercialHandlers(t.deps).CUSTOMER(t.get(), org, t.customerId); expect(r.status).toBe(503); expect(await r.json()).toEqual({ error: 'financial_service_unavailable' }); expect(getter).not.toHaveBeenCalled();
+    const method = await t.handlers.CUSTOMER(t.request(`customers/customer-1?revision=${t.book.revision}`, { method: 'POST' }), org, t.customerId); expect(method.status).toBe(405); expect(method.headers.get('Allow')).toBe('GET');
+  });
 });

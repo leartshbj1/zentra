@@ -1,4 +1,37 @@
 import { money, multiplyMoney } from './money';
+import { canonicalErpJson } from './erp-contract';
+import { snapshotPrivateJson } from './private-json';
+import { validateUsFinancialPilotCommercialRequest, type UsFinancialPilotCommercialCustomer, type UsFinancialPilotCommercialRequest, type UsFinancialPilotCommercialUpdateCustomerCommand } from './us-financial-pilot-commercial';
+import { validateUsFinancialPilotCustomerDetail, type UsFinancialPilotCustomerDetail } from './us-financial-pilot-commercial-projection';
+import type { UsFinancialPilotParty } from './us-financial-pilot-contract';
+
+export type CustomerEditReview = Readonly<{
+  organizationId: string;
+  request: UsFinancialPilotCommercialRequest & Readonly<{ command: UsFinancialPilotCommercialUpdateCustomerCommand }>;
+  body: string; before: UsFinancialPilotParty; after: UsFinancialPilotParty;
+  changedFields: readonly (keyof UsFinancialPilotCommercialCustomer)[];
+}>;
+const customerFields = ['kind', 'name', 'billingAddress', 'shippingAddress', 'email', 'phone', 'contactName', 'paymentTermsDays'] as const;
+
+/** Pure capture only: ownership and current admission belong to the session/server. */
+export function buildCustomerEditReview(input: Readonly<{
+  organizationId: string; requestId: string; revision: number;
+  source: UsFinancialPilotCustomerDetail; customer: UsFinancialPilotCommercialCustomer;
+}>): CustomerEditReview {
+  try {
+    const captured = snapshotPrivateJson(input) as Record<string, unknown>;
+    const fields = ['organizationId', 'requestId', 'revision', 'source', 'customer'];
+    if (!captured || Array.isArray(captured) || Reflect.ownKeys(captured).length !== fields.length || fields.some(key => !Object.hasOwn(captured, key)) || typeof captured.organizationId !== 'string' || !captured.organizationId || !Number.isSafeInteger(captured.revision) || (captured.revision as number) < 1) throw new TypeError();
+    const organizationId = captured.organizationId, revision = captured.revision as number;
+    const source = validateUsFinancialPilotCustomerDetail(captured.source, organizationId, revision);
+    const request = validateUsFinancialPilotCommercialRequest({ consumer: 'financial-pilot', schemaVersion: 1, requestId: captured.requestId, expectedRevision: revision,
+      command: { type: 'update_customer', customerId: source.customer.id, customer: captured.customer } });
+    if (request.command.type !== 'update_customer') throw new TypeError();
+    const after = snapshotPrivateJson({ id: source.customer.id, ...request.command.customer }) as UsFinancialPilotParty;
+    const changedFields = Object.freeze(customerFields.filter(key => canonicalErpJson(source.customer[key]) !== canonicalErpJson(after[key])));
+    return Object.freeze({ organizationId, request: request as CustomerEditReview['request'], body: JSON.stringify(request), before: source.customer, after, changedFields });
+  } catch { throw new TypeError('invalid_customer_edit_input'); }
+}
 
 /** Decimal UI values remain strings. No exponent, grouping, rounding or Number money conversion. */
 export function commercialDecimal(value: string, scale: number): { units: string; scale: number } {

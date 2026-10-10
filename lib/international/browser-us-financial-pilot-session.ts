@@ -6,8 +6,9 @@ import {
   financialPilotCursorOffset, type UsFinancialPilotListKind,
 } from './us-financial-pilot-contract';
 import { validateUsFinancialPilotPaymentRequest, validateUsFinancialPilotPaymentReceipt, type UsFinancialPilotPaymentRequest, type UsFinancialPilotPaymentReceipt } from './us-financial-pilot-payment';
-import { validateUsFinancialPilotCommercialRequest, validateUsFinancialPilotCommercialReceipt, type UsFinancialPilotCommercialRequest, type UsFinancialPilotCommercialCommand, type UsFinancialPilotCommercialReceipt } from './us-financial-pilot-commercial';
-import { validateUsFinancialPilotEstimateDetail, type UsFinancialPilotEstimateDetail } from './us-financial-pilot-commercial-projection';
+import { validateUsFinancialPilotCommercialRequest, validateUsFinancialPilotCommercialReceipt, type UsFinancialPilotCommercialRequest, type UsFinancialPilotCommercialCommand, type UsFinancialPilotCommercialReceipt, type UsFinancialPilotCommercialCustomer } from './us-financial-pilot-commercial';
+import { validateUsFinancialPilotEstimateDetail, validateUsFinancialPilotCustomerDetail, type UsFinancialPilotEstimateDetail, type UsFinancialPilotCustomerDetail } from './us-financial-pilot-commercial-projection';
+import { buildCustomerEditReview, type CustomerEditReview } from './browser-us-financial-pilot-commercial-input';
 import { snapshotPrivateJson } from './private-json';
 import { validateUsFinancialPilotInvoiceRequest, validateUsFinancialPilotInvoicePreview, validateUsFinancialPilotInvoiceReceipt, validateUsFinancialPilotTaxCatalogue, type UsFinancialPilotInvoiceRequest, type UsFinancialPilotInvoiceChoices, type UsFinancialPilotInvoicePreview, type UsFinancialPilotInvoiceReceipt, type UsFinancialPilotTaxCatalogue } from './us-financial-pilot-invoice';
 import { validateUsFinancialPilotPurchasingRequest, validateUsFinancialPilotPurchasingReceipt, type UsFinancialPilotPurchasingRequest, type UsFinancialPilotPurchasingCommand, type UsFinancialPilotPurchasingReceipt } from './us-financial-pilot-purchasing';
@@ -74,6 +75,9 @@ export interface BrowserUsFinancialPilotSession {
   readInvoice(this: void, invoiceId: string, revision?: number, cursors?: Readonly<{ paymentCursor?: string; creditCursor?: string }>): Promise<UsFinancialPilotInvoiceDetail>;
   readReports(this: void, query: UsFinancialPilotReportQuery): Promise<UsFinancialPilotReports>;
   readEstimate(this: void, estimateId: string, revision?: number): Promise<UsFinancialPilotEstimateDetail>;
+  readCustomer(this: void, customerId: string, revision?: number): Promise<UsFinancialPilotCustomerDetail>;
+  reviewCustomerEdit(this: void, source: UsFinancialPilotCustomerDetail, customer: UsFinancialPilotCommercialCustomer): CustomerEditReview;
+  submitCustomerEdit(this: void, review: CustomerEditReview, approved: boolean): Promise<UsFinancialPilotCommercialReceipt>;
   recordPayment(this: void, command: BrowserUsFinancialPilotPayment, expectedRevision?: number): Promise<BrowserUsFinancialPilotReceipt>;
   commercial(this: void, command: UsFinancialPilotCommercialCommand, expectedRevision?: number): Promise<UsFinancialPilotCommercialReceipt>;
   purchasing(this: void, command: UsFinancialPilotPurchasingCommand, expectedRevision?: number): Promise<UsFinancialPilotPurchasingReceipt>;
@@ -120,6 +124,7 @@ const rejectedCommercial: Readonly<Record<string, readonly number[]>> = {
   number_sequence_exhausted: [409],
 };
 for (const code of Object.keys(rejectedCommercial)) publicErrors.add(code);
+publicErrors.add('customer_not_found');
 const rejectedInvoice: Readonly<Record<string, readonly number[]>> = {
   // These codes are structurally before the issue executor. Context, source,
   // period and provider errors can also arise after append during postflight.
@@ -181,10 +186,28 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   let bankContext: UsFinancialPilotBankContext | null = null;
   type BankPageStamp = Readonly<{ epoch: number; generation: number; mutation: number; kind: 'detail'; query: UsFinancialPilotBankDetailQuery } | { epoch: number; generation: number; mutation: number; kind: 'movements'; query: UsFinancialPilotBankMovementQuery }>;
   let bankPages = new WeakMap<object, BankPageStamp>(), bankReviews = new WeakMap<BankReview, Readonly<{ epoch: number; generation: number; mutation: number }>>();
+  type CustomerStamp = Readonly<{ epoch: number; generation: number; mutation: number; revision: number }>;
+  let customerEpoch = 0, customerPages = new WeakMap<UsFinancialPilotCustomerDetail, CustomerStamp>();
+  let customerReviews = new WeakMap<CustomerEditReview, CustomerStamp>(), activeCustomerReview: CustomerEditReview | null = null;
   let bankExportFlight = false, bankExportResult: BrowserUsFinancialPilotBankExportResult | null = null;
   const bankUrls = new Set<string>(), bankUrlTimers = new Set<ReturnType<typeof setTimeout>>(), bankExportCancels = new Set<() => void>();
   const publish = (patch: Partial<BrowserUsFinancialPilotState>) => { state = frozen({ ...state, ...patch }); for (const listener of listeners) { try { listener(); } catch { /* A view cannot change admission or transaction outcome. */ } } };
   const publishBank = (patch: Partial<BrowserUsFinancialPilotBankState>) => publish({ bank: { ...state.bank, ...patch } });
+  function invalidateCustomerEdits(): void {
+    customerEpoch++; customerPages = new WeakMap(); customerReviews = new WeakMap(); activeCustomerReview = null;
+  }
+  function customerReady(at?: number): CustomerStamp {
+    alive();
+    if (pending || state.writing) return fail('pending_operation', 409);
+    if (state.requiresRefresh || !state.snapshot) return fail('read_required', 409);
+    const revision = currentRevision(at);
+    if (revision !== state.snapshot.revision || revision < floorF) return fail('financial_snapshot_changed', 409);
+    return { epoch: customerEpoch, generation, mutation, revision };
+  }
+  function customerFresh(stamp: CustomerStamp): void {
+    alive(stamp.generation);
+    if (stamp.epoch !== customerEpoch || stamp.mutation !== mutation || stamp.revision !== state.snapshot?.revision || state.requiresRefresh || pending || state.writing) return fail('customer_edit_review_changed', 409);
+  }
   function clearBankExport(): void {
     bankExportResult = null;
     for (const cancel of bankExportCancels) cancel(); bankExportCancels.clear();
@@ -198,6 +221,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   function observeFinancial(at: number): void {
     const epoch = generation, changed = mutation;
     if (at < floorF) return fail('stale_read', 0);
+    if (at > floorF) invalidateCustomerEdits();
     if (!state.snapshot || state.snapshot.revision !== at) publish({ requiresRefresh: true });
     alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
     if (at > floorF) { floorF = at; invalidateBank(); }
@@ -206,6 +230,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   function alive(epoch = generation): void { if (disposed || stopping || state.status === 'stopped' || epoch !== generation) return fail('session_disposed', 0, 'unauthorized'); if (denied) return fail('session_changed', 401, 'unauthorized'); }
   function invalidate(status: number): never {
     denied = true; running = false; generation++; mutation++; pending = null; prepared = null;
+    invalidateCustomerEdits();
     invalidateBank(false); floorF = 0; floorB = 0; bankRefreshFlight = null;
     if (timer !== undefined) clearTimeout(timer); timer = undefined; unsubscribe?.(); unsubscribe = undefined;
     for (const controller of controllers) controller.abort();
@@ -237,8 +262,9 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
         const code = exact(body, ['error']) && typeof body.error === 'string' && publicErrors.has(body.error) ? body.error : 'service_unavailable';
         // Purchasing public errors carry no execution-phase proof, including
         // mapped ledger validation errors. Preserve its exact envelope.
-        const definitive = pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank' ? false : pending?.kind === 'commercial' ? rejectedCommercial[code]?.includes(result.status) : pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' ? rejectedInvoice[code]?.includes(result.status) : rejectedPayments[code] === result.status;
-        const invoiceWrite = pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' || pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank';
+        const customerEditWrite = pending?.kind === 'commercial' && pending.request.command.type === 'update_customer';
+        const definitive = customerEditWrite || pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank' ? false : pending?.kind === 'commercial' ? rejectedCommercial[code]?.includes(result.status) : pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' ? rejectedInvoice[code]?.includes(result.status) : rejectedPayments[code] === result.status;
+        const invoiceWrite = customerEditWrite || pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' || pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank';
         if (write && (!invoiceWrite && result.status === 409 && rejectedConflicts.has(code) || definitive)) { pending = null; publish({ pending: false, pendingKind: null, requiresRefresh: true }); return fail(code, result.status); }
         return fail(code, result.status, write ? 'uncertain' : 'rejected');
       }
@@ -352,6 +378,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
         if (changed !== mutation || initialBankEpoch !== bankEpoch) return fail('stale_read', 0);
         const head = validate(() => validateUsFinancialPilotBankHead(body, organizationId));
         if (head.revision < floorF || head.bankRevision < floorB) return fail('stale_read', 0);
+        if (head.revision > floorF) invalidateCustomerEdits();
         if (!state.snapshot || state.snapshot.revision !== head.revision) publish({ requiresRefresh: true });
         alive(epoch); if (changed !== mutation || initialBankEpoch !== bankEpoch) return fail('stale_read', 0);
         if (!state.bank.head || head.revision !== state.bank.head.revision || head.bankRevision !== state.bank.head.bankRevision) invalidateBank();
@@ -488,7 +515,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   }
   async function send(): Promise<BrowserUsFinancialPilotOperationReceipt | BrowserUsFinancialPilotInvoiceResult | UsFinancialPilotPurchasingReceipt | UsFinancialPilotAccountingReceipt | UsFinancialPilotBankReceipt> {
     alive(); if (!pending) return fail('no_pending_operation', 409); if (state.writing) return fail('pending_operation', 409);
-    const original = pending, epoch = generation; mutation++; publish({ writing: true, pending: true, pendingKind: original.kind, requiresRefresh: true, error: null }); invalidateBank();
+    const original = pending, epoch = generation; mutation++; invalidateCustomerEdits(); publish({ writing: true, pending: true, pendingKind: original.kind, requiresRefresh: true, error: null }); invalidateBank();
     try {
       const path = original.kind === 'bank' ? '/bank/operations' : original.kind === 'accounting' ? '/accounting/operations' : original.kind === 'purchasing' ? '/purchasing/operations' : original.kind === 'invoice_prepare' ? '/invoices/prepare' : original.kind === 'invoice_issue' ? '/invoices/issue' : original.kind === 'commercial' ? '/commercial/operations' : '/operations';
       const body = await response(path, { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' }, body: original.body }, true); alive(epoch);
@@ -505,7 +532,9 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       if (original.kind === 'invoice_prepare') { prepared = frozen({ request: original.request, preview: receipt as UsFinancialPilotInvoicePreview }); publish({ invoiceReview: prepared.preview, requiresRefresh: false }); }
       if (original.kind === 'invoice_issue') { prepared = null; publish({ invoiceReview: null }); }
       if (original.kind === 'bank') publishBank({ lastReceipt: receipt as UsFinancialPilotBankReceipt, pendingReview: null, error: null });
-      pending = null; publish({ pending: false, pendingKind: null, error: null }); return receipt;
+      pending = null; publish({ pending: false, pendingKind: null, error: null });
+      if (original.kind === 'commercial' && original.request.command.type === 'update_customer') alive(epoch);
+      return receipt;
     } catch (caught) { if (!pending && (original.kind === 'invoice_prepare' || original.kind === 'invoice_issue')) { prepared = null; publish({ invoiceReview: null }); } notifyError(caught); throw caught; }
     finally {
       mutation++; if (generation === epoch) {
@@ -524,6 +553,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     running = false; generation++; mutation++; if (timer !== undefined) clearTimeout(timer); timer = undefined;
     unsubscribe?.(); unsubscribe = undefined; for (const controller of controllers) controller.abort();
     snapshotFlight = null; refreshFlight = null; pending = null; prepared = null;
+    invalidateCustomerEdits();
     invalidateBank(false); bankRefreshFlight = null; floorF = 0; floorB = 0;
     publish({ status: 'stopped', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error: null, bank: emptyBank() });
     stopping = false;
@@ -626,6 +656,28 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       const at = currentRevision(atRevision);
       return detail(`/estimates/${encodeURIComponent(estimateId)}?revision=${at}`, at, value => validateUsFinancialPilotEstimateDetail(value, organizationId, at, estimateId));
     },
+    async readCustomer(customerId: string, atRevision?: number) {
+      if (!text(customerId)) return fail('invalid_request');
+      const stamp = customerReady(atRevision);
+      const value = await detail(`/customers/${encodeURIComponent(customerId)}?revision=${stamp.revision}`, stamp.revision,
+        body => validateUsFinancialPilotCustomerDetail(body, organizationId, stamp.revision, customerId));
+      customerFresh(stamp); customerPages.set(value, stamp); return value;
+    },
+    reviewCustomerEdit(source: UsFinancialPilotCustomerDetail, customer: UsFinancialPilotCommercialCustomer) {
+      const stamp = customerReady(), owned = customerPages.get(source);
+      if (!owned) return fail('customer_edit_review_required', 409);
+      customerFresh(owned);
+      let review: CustomerEditReview;
+      try { review = buildCustomerEditReview({ organizationId, requestId: newId(), revision: stamp.revision, source, customer }); }
+      catch { return fail('invalid_financial_pilot_request'); }
+      customerFresh(stamp); customerReviews.set(review, stamp); activeCustomerReview = review; return review;
+    },
+    async submitCustomerEdit(review: CustomerEditReview, approved: boolean) {
+      const stamp = customerReady(), owned = customerReviews.get(review);
+      if (approved !== true || !owned || activeCustomerReview !== review) return Promise.reject(new BrowserUsFinancialPilotError('customer_edit_review_changed', 409, 'rejected'));
+      customerFresh(owned); customerFresh(stamp);
+      pending = frozen({ kind: 'commercial', body: review.body, request: review.request }); return send() as Promise<UsFinancialPilotCommercialReceipt>;
+    },
     readInvoice(invoiceId: string, atRevision?: number, cursors?: Readonly<{ paymentCursor?: string; creditCursor?: string }>) {
       if (!text(invoiceId)) return Promise.reject(new BrowserUsFinancialPilotError('invalid_request', 422, 'rejected'));
       const at = currentRevision(atRevision), query = new URLSearchParams({ revision: String(at) }); let paymentOffset = 0, creditOffset = 0;
@@ -653,6 +705,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       const at = currentRevision(expectedRevision); if (at !== state.snapshot.revision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed', 409, 'rejected'));
       let request: UsFinancialPilotCommercialRequest;
       try { request = frozen(validateUsFinancialPilotCommercialRequest({ consumer: 'financial-pilot', schemaVersion: 1, requestId: newId(), expectedRevision: at, command })); } catch { return fail('invalid_financial_pilot_request'); }
+      if (request.command.type === 'update_customer') return fail('customer_edit_review_required', 409);
       pending = frozen({ kind: 'commercial', body: JSON.stringify(request), request }); return send() as Promise<UsFinancialPilotCommercialReceipt>;
     },
     purchasing(command: UsFinancialPilotPurchasingCommand, expectedRevision?: number) {

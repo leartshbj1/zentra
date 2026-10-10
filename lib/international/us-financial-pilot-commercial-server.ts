@@ -9,7 +9,7 @@ import type { CompanyConfiguration } from './types';
 import { projectUsFinancialBookV5, validateUsFinancialBookV5 } from './us-financial-kernel';
 import { executeUsFinancialKernelV5, type UsFinancialRuntimeDependenciesV5, type UsFinancialKernelStoreV5, type UsFinancialReceiptV5 } from './us-financial-kernel-runtime';
 import { buildUsFinancialPilotCommercialRequest, validateUsFinancialPilotCommercialReceipt, validateUsFinancialPilotCommercialRequest } from './us-financial-pilot-commercial';
-import { projectUsFinancialPilotEstimate, validateUsFinancialPilotEstimateDetail } from './us-financial-pilot-commercial-projection';
+import { projectUsFinancialPilotCustomer, projectUsFinancialPilotEstimate, validateUsFinancialPilotCustomerDetail, validateUsFinancialPilotEstimateDetail } from './us-financial-pilot-commercial-projection';
 import { UsFinancialPilotError, validateUsFinancialPilotHead } from './us-financial-pilot-contract';
 import type { UsFinancialPilotDependencies, UsFinancialPilotStore } from './us-financial-pilot-server';
 import { captureUsFinancialPilotScope, type UsFinancialPilotScope } from './us-financial-pilot-store';
@@ -25,7 +25,7 @@ const publicCodes: Readonly<Record<string, readonly number[]>> = {
   financial_snapshot_changed: [409], financial_book_required: [409], financial_source_changed: [409], financial_clock_reversed: [409], financial_immutable: [409],
   financial_append_unavailable: [409], invalid_financial_pilot_request: [422], invalid_financial_request: [422], invalid_financial_date: [422],
   revision_conflict: [409], idempotency_conflict: [409], estimate_revision_conflict: [409], issued_estimate_locked: [409], sales_order_source_locked: [409],
-  estimate_not_found: [404], financial_pilot_record_not_found: [404], customer_required: [422], customer_already_exists: [409], project_not_found: [422], project_archived: [409], project_customer_mismatch: [422],
+  estimate_not_found: [404], financial_pilot_record_not_found: [404], customer_not_found: [404], customer_required: [422], customer_already_exists: [409], project_not_found: [422], project_archived: [409], project_customer_mismatch: [422],
   number_sequence_exhausted: [409], rate_limited: [429], invalid_request: [400, 413, 415, 422], edition_unavailable: [409], configuration_changed: [409], method_not_allowed: [405],
 };
 const unavailable = (): never => { throw new ErpError('financial_service_unavailable', 503); };
@@ -77,7 +77,7 @@ function capturedStore(input: UsFinancialPilotStore): UsFinancialPilotStore {
   const d = Object.getOwnPropertyDescriptor(input, 'capability'); if (!d || !('value' in d)) return unavailable();
   return Object.freeze({ capability: snapshotPrivateJson(d.value) as UsFinancialKernelStoreV5['capability'], read: method('read'), receipt: method('receipt'), commit: method('commit'), head: method('head') });
 }
-/** Three commercial intentions only. The existing private PG wrappers retain
+/** Bounded commercial intentions only. The existing private PG wrappers retain
  * their cumulative engine; no browser supplied ledger, role or tax facts enter it. */
 export function createUsFinancialPilotCommercialHandlers(input: UsFinancialPilotCommercialDependencies) {
   const bind = <K extends keyof UsFinancialPilotDependencies>(key: K): UsFinancialPilotDependencies[K] => {
@@ -85,7 +85,7 @@ export function createUsFinancialPilotCommercialHandlers(input: UsFinancialPilot
     return d.value.bind(undefined) as UsFinancialPilotDependencies[K];
   };
   const deps = Object.freeze({ enabled: bind('enabled'), authority: bind('authority'), configuration: bind('configuration'), scope: bind('scope'), store: bind('store'), rateLimit: bind('rateLimit'), diagnostic: bind('diagnostic') });
-  async function run(supplied: Request, organizationId: string, operation: 'read' | 'write', estimateId?: string): Promise<Response> {
+  async function run(supplied: Request, organizationId: string, operation: 'read' | 'write', recordId?: string, detailKind: 'estimate' | 'customer' = 'estimate'): Promise<Response> {
     const request = new Request(supplied); let trusted: ErpReadAdmission | undefined, scope: UsFinancialPilotScope | undefined, configuration: CompanyConfiguration | undefined;
     async function authority() {
       const fresh = capturedAdmission(await deps.authority(request, organizationId)); confirmErpExpectedUser(request, fresh);
@@ -121,7 +121,7 @@ export function createUsFinancialPilotCommercialHandlers(input: UsFinancialPilot
       if (operation === 'write') {
         const publicRequest = validateUsFinancialPilotCommercialRequest(await readJsonObjectWithinLimit(request, 256 * 1024)); await admission();
         const internal = buildUsFinancialPilotCommercialRequest(publicRequest, organizationId);
-        if (publicRequest.command.type === 'create_customer' || publicRequest.command.type === 'save_estimate') {
+        if (publicRequest.command.type === 'create_customer' || publicRequest.command.type === 'update_customer' || publicRequest.command.type === 'save_estimate') {
           // Exact historical replay wins over current state. New creates cannot
           // overwrite a legacy ID, and retained line IDs come from this quote.
           // The runtime still owns the authoritative global revision/CAS check.
@@ -139,6 +139,9 @@ export function createUsFinancialPilotCommercialHandlers(input: UsFinancialPilot
                   if (internal.command.type !== 'erp_command' || internal.command.request.type !== 'save_customer') return unavailable();
                   const customerId = internal.command.request.customer.id;
                   if (view.customers.some(customer => customer.id === customerId)) throw new ErpError('customer_already_exists', 409);
+                } else if (publicRequest.command.type === 'update_customer') {
+                  const customerId = publicRequest.command.customerId;
+                  if (!view.customers.some(customer => customer.id === customerId)) throw new ErpError('customer_not_found', 404);
                 } else {
                   const command = publicRequest.command, selected = command.estimateId === null ? undefined : view.estimates.find(estimate => estimate.id === command.estimateId);
                   if ((selected?.revision ?? 0) !== command.expectedEstimateRevision) throw new ErpError('estimate_revision_conflict', 409);
@@ -167,10 +170,12 @@ export function createUsFinancialPilotCommercialHandlers(input: UsFinancialPilot
         if (receipt.action !== 'erp_command') return unavailable();
         result = validateUsFinancialPilotCommercialReceipt({ consumer: 'financial-pilot', schemaVersion: 1, organizationId, revision: receipt.revision, entityId: receipt.entityId, action: publicRequest.command.type }, organizationId, publicRequest);
       } else {
-        if (!estimateId || estimateId !== estimateId.trim() || estimateId.length > 160 || Array.from(estimateId).some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) throw new ErpError('invalid_financial_pilot_request', 422);
+        if (!recordId || recordId !== recordId.trim() || recordId.length > 160 || Array.from(recordId).some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) throw new ErpError('invalid_financial_pilot_request', 422);
         const book = snapshotPrivateJson(await store.read(organizationId)); await admission();
         if (book === null) throw new ErpError('financial_book_required', 409);
-        result = validateUsFinancialPilotEstimateDetail(await projectUsFinancialPilotEstimate(book, { revision: revision!, estimateId }), organizationId, revision, estimateId);
+        result = detailKind === 'customer'
+          ? validateUsFinancialPilotCustomerDetail(await projectUsFinancialPilotCustomer(book, { revision: revision!, customerId: recordId }), organizationId, revision, recordId)
+          : validateUsFinancialPilotEstimateDetail(await projectUsFinancialPilotEstimate(book, { revision: revision!, estimateId: recordId }), organizationId, revision, recordId);
         const head = validateUsFinancialPilotHead(await store.head(), organizationId); if (head.revision !== revision) throw new ErpError('financial_snapshot_changed', 409);
       }
       await admission(); return Response.json(result, { headers });
@@ -183,5 +188,5 @@ export function createUsFinancialPilotCommercialHandlers(input: UsFinancialPilot
       return failure(latest, operation, deps.diagnostic);
     }
   }
-  return Object.freeze({ POST: (request: Request, organizationId: string) => run(request, organizationId, 'write'), ESTIMATE: (request: Request, organizationId: string, estimateId: string) => run(request, organizationId, 'read', estimateId) });
+  return Object.freeze({ POST: (request: Request, organizationId: string) => run(request, organizationId, 'write'), ESTIMATE: (request: Request, organizationId: string, estimateId: string) => run(request, organizationId, 'read', estimateId), CUSTOMER: (request: Request, organizationId: string, customerId: string) => run(request, organizationId, 'read', customerId, 'customer') });
 }

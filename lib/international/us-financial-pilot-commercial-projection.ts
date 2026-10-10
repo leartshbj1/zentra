@@ -9,6 +9,10 @@ import { UsFinancialPilotError, validateUsFinancialPilotHead, validateUsFinancia
 import { financialPilotHead, financialPilotParty, readUsFinancialPilotView } from './us-financial-pilot-projection';
 
 export interface UsFinancialPilotEstimateDetailQuery { readonly revision: number; readonly estimateId: string }
+export interface UsFinancialPilotCustomerDetailQuery { readonly revision: number; readonly customerId: string }
+export interface UsFinancialPilotCustomerDetail extends UsFinancialPilotHead {
+  readonly ledgerRevision: number; readonly customer: UsFinancialPilotParty;
+}
 export interface UsFinancialPilotEstimateDetail extends UsFinancialPilotHead {
   readonly ledgerRevision: number; readonly estimate: UsFinancialPilotEstimateRow; readonly customer: UsFinancialPilotParty;
   readonly projectId: string | null; readonly paymentTermsDays: number; readonly notes: string;
@@ -30,6 +34,29 @@ function integer(value: unknown, minimum = 0, maximum = Number.MAX_SAFE_INTEGER 
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum && value <= maximum ? value : invalid();
 }
 function unsigned(value: unknown): string { return typeof value === 'string' && /^(0|[1-9][0-9]{0,95})$/.test(value) ? value : invalid(); }
+/** A current customer card, distinct from customer snapshots in documents. */
+export function validateUsFinancialPilotCustomerDetail(value: unknown, organizationId?: string, revision?: number, customerId?: string): UsFinancialPilotCustomerDetail {
+  try {
+    const v = exact(snapshotPrivateJson(value), ['consumer', 'schemaVersion', 'organizationId', 'revision', 'ledgerRevision', 'customer']);
+    const head = validateUsFinancialPilotHead({ consumer: v.consumer, schemaVersion: v.schemaVersion, organizationId: v.organizationId, revision: v.revision }, organizationId);
+    if (revision !== undefined && head.revision !== revision) throw new UsFinancialPilotError('financial_snapshot_changed', 409);
+    const ledgerRevision = integer(v.ledgerRevision); if (ledgerRevision > head.revision) return invalid();
+    const customer = validateUsFinancialPilotPage({ ...head, ledgerRevision, kind: 'customers', scope: null, total: 1, items: [v.customer], nextCursor: null }, head.organizationId, head.revision).items[0] as UsFinancialPilotParty;
+    if (text(customer.id, 160) !== customer.id.trim() || customerId !== undefined && customer.id !== customerId) return invalid();
+    return Object.freeze({ ...head, ledgerRevision, customer });
+  } catch (error) { if (error instanceof UsFinancialPilotError && error.code === 'financial_snapshot_changed') throw error; return invalid(); }
+}
+export async function projectUsFinancialPilotCustomer(input: unknown, queryInput: UsFinancialPilotCustomerDetailQuery): Promise<UsFinancialPilotCustomerDetail> {
+  let query: UsFinancialPilotCustomerDetailQuery;
+  try {
+    const raw = exact(snapshotPrivateJson(queryInput), ['revision', 'customerId']), customerId = text(raw.customerId, 160);
+    if (customerId !== customerId.trim()) throw Error();
+    query = Object.freeze({ revision: integer(raw.revision, 1), customerId });
+  } catch { throw new UsFinancialPilotError('invalid_financial_pilot_query', 422); }
+  const view = await readUsFinancialPilotView(input, query.revision), customer = view.customers.find(row => row.id === query.customerId);
+  if (!customer) throw new ErpError('customer_not_found', 404);
+  return validateUsFinancialPilotCustomerDetail({ ...financialPilotHead(view), ledgerRevision: view.ledger.revision, customer: financialPilotParty(customer) }, view.organizationId, view.revision, query.customerId);
+}
 /** Response validation is structural/privacy validation, never a grant. */
 export function validateUsFinancialPilotEstimateDetail(value: unknown, organizationId?: string, revision?: number, estimateId?: string): UsFinancialPilotEstimateDetail {
   try {

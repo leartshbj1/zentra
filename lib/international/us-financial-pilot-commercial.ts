@@ -20,8 +20,12 @@ export interface UsFinancialPilotCommercialLine {
   readonly id: string | null; readonly description: string; readonly quantityUnits: string; readonly quantityScale: number;
   readonly unitPriceMinor: string; readonly discountBasisPoints: number; readonly taxTreatment: SalesLine['taxTreatment'];
 }
+export type UsFinancialPilotCommercialUpdateCustomerCommand = Readonly<{
+  type: 'update_customer'; customerId: string; customer: UsFinancialPilotCommercialCustomer;
+}>;
 export type UsFinancialPilotCommercialCommand =
   | Readonly<{ type: 'create_customer'; customer: UsFinancialPilotCommercialCustomer }>
+  | UsFinancialPilotCommercialUpdateCustomerCommand
   | Readonly<{ type: 'save_estimate'; estimateId: string | null; expectedEstimateRevision: number; customerId: string; projectId: string | null;
       date: string; expiresAt: string; paymentTermsDays: number; lines: readonly UsFinancialPilotCommercialLine[]; notes: string }>
   | Readonly<{ type: 'accept_estimate'; estimateId: string; expectedEstimateRevision: number }>;
@@ -78,7 +82,11 @@ export function validateUsFinancialPilotCommercialRequest(value: unknown): UsFin
     const requestId = uuid(r.requestId), expectedRevision = integer(r.expectedRevision, 1), raw = r.command as Record<string, unknown>;
     let command: UsFinancialPilotCommercialCommand;
     if (raw?.type === 'create_customer') { const c = exact(raw, ['type', 'customer']); command = Object.freeze({ type: 'create_customer', customer: customer(c.customer) }); }
-    else if (raw?.type === 'accept_estimate') {
+    else if (raw?.type === 'update_customer') {
+      const c = exact(raw, ['type', 'customerId', 'customer']), customerId = text(c.customerId);
+      if (customerId !== customerId.trim()) return invalid();
+      command = Object.freeze({ type: 'update_customer', customerId, customer: customer(c.customer) });
+    } else if (raw?.type === 'accept_estimate') {
       const c = exact(raw, ['type', 'estimateId', 'expectedEstimateRevision']);
       command = Object.freeze({ type: 'accept_estimate', estimateId: text(c.estimateId), expectedEstimateRevision: integer(c.expectedEstimateRevision, 1) });
     } else if (raw?.type === 'save_estimate') {
@@ -100,20 +108,21 @@ export function validateUsFinancialPilotCommercialRequest(value: unknown): UsFin
 /** Deterministic identity only; existence, revision and membership are server checks. */
 export function usFinancialPilotCommercialEntityId(input: UsFinancialPilotCommercialRequest): string {
   const request = validateUsFinancialPilotCommercialRequest(input), command = request.command;
-  return command.type === 'create_customer' ? `pilot-customer:${request.requestId}` : command.type === 'save_estimate' ? command.estimateId ?? `pilot-estimate:${request.requestId}` : command.estimateId;
+  return command.type === 'create_customer' ? `pilot-customer:${request.requestId}` : command.type === 'update_customer' ? command.customerId : command.type === 'save_estimate' ? command.estimateId ?? `pilot-estimate:${request.requestId}` : command.estimateId;
 }
 export function buildUsFinancialPilotCommercialRequest(value: unknown, organizationId: string): UsFinancialRequestV5 {
   try {
     const request = validateUsFinancialPilotCommercialRequest(value), id = usFinancialPilotCommercialEntityId(request), c = request.command;
     text(organizationId, 128);
-    const command = c.type === 'create_customer' ? { type: 'save_customer' as const, customer: { id, organizationId, kind: c.customer.kind, name: c.customer.name, billingAddress: c.customer.billingAddress,
+    const command = c.type === 'create_customer' || c.type === 'update_customer' ? { type: 'save_customer' as const, customer: { id, organizationId, kind: c.customer.kind, name: c.customer.name, billingAddress: c.customer.billingAddress,
       ...(c.customer.shippingAddress === null ? {} : { shippingAddress: c.customer.shippingAddress }), ...(c.customer.email === null ? {} : { email: c.customer.email }),
       ...(c.customer.phone === null ? {} : { phone: c.customer.phone }), ...(c.customer.contactName === null ? {} : { contactName: c.customer.contactName }), paymentTermsDays: c.customer.paymentTermsDays } }
       : c.type === 'save_estimate' ? { type: 'save_estimate' as const, id, expectedEstimateRevision: c.expectedEstimateRevision, customerId: c.customerId, ...(c.projectId === null ? {} : { projectId: c.projectId }),
         date: c.date, expiresAt: c.expiresAt, paymentTermsDays: c.paymentTermsDays, lines: c.lines.map((item, index) => ({ id: item.id ?? `pilot-line:${request.requestId}:${index}`, description: item.description,
           quantityUnits: item.quantityUnits, quantityScale: item.quantityScale, unitPrice: money('USD', item.unitPriceMinor), discountBasisPoints: item.discountBasisPoints, taxTreatment: item.taxTreatment })), notes: c.notes }
       : { type: 'accept_estimate' as const, estimateId: c.estimateId, expectedEstimateRevision: c.expectedEstimateRevision };
-    const privateRequest = validateErpRequest({ idempotencyKey: `pilot:commercial:${request.requestId}`, expectedRevision: request.expectedRevision, command }, organizationId);
+    const idempotencyKey = c.type === 'update_customer' ? `pilot:commercial:update_customer:${request.requestId}` : `pilot:commercial:${request.requestId}`;
+    const privateRequest = validateErpRequest({ idempotencyKey, expectedRevision: request.expectedRevision, command }, organizationId);
     if (canonicalErpJson(privateRequest.command) !== canonicalErpJson(command)) return invalid();
     return snapshotPrivateJson({ idempotencyKey: privateRequest.idempotencyKey, expectedRevision: privateRequest.expectedRevision, command: { type: 'erp_command', request: privateRequest.command } }) as UsFinancialRequestV5;
   } catch { return invalid(); }
@@ -121,7 +130,7 @@ export function buildUsFinancialPilotCommercialRequest(value: unknown, organizat
 export function validateUsFinancialPilotCommercialReceipt(value: unknown, organizationId: string, expected?: UsFinancialPilotCommercialRequest): UsFinancialPilotCommercialReceipt {
   try {
     const r = exact(snapshotPrivateJson(value), ['consumer', 'schemaVersion', 'organizationId', 'revision', 'entityId', 'action']);
-    if (r.consumer !== 'financial-pilot' || r.schemaVersion !== 1 || r.organizationId !== organizationId || !['create_customer', 'save_estimate', 'accept_estimate'].includes(r.action as string)) return invalid();
+    if (r.consumer !== 'financial-pilot' || r.schemaVersion !== 1 || r.organizationId !== organizationId || !['create_customer', 'update_customer', 'save_estimate', 'accept_estimate'].includes(r.action as string)) return invalid();
     const revision = integer(r.revision, 1), entityId = text(r.entityId);
     if (expected) { const request = validateUsFinancialPilotCommercialRequest(expected); if (r.action !== request.command.type || revision !== request.expectedRevision + 1 || entityId !== usFinancialPilotCommercialEntityId(request)) return invalid(); }
     return Object.freeze({ consumer: 'financial-pilot', schemaVersion: 1, organizationId, revision, entityId, action: r.action as UsFinancialPilotCommercialCommand['type'] });
