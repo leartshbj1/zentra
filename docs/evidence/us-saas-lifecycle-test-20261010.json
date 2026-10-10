@@ -1,0 +1,1767 @@
+{
+  "schemaVersion": 1,
+  "phase": "US SaaS constant-offer TEST recurring lifecycle",
+  "date": "2026-10-10",
+  "timeZone": "Europe/Zurich",
+  "sourceBase": "05e47ae308488055b48438958f58782cf6917b99",
+  "sourceCommit": "81149c070e876b02ef8a88ba9bd0f9eda032ae16",
+  "branch": "codex/international-runtime",
+  "scope": "Local source and tests only; no hosted, provider, native or public mutation.",
+  "files": [
+    {
+      "status": "A",
+      "path": "app/api/international/billing/test/lifecycle/webhook/route.ts",
+      "gitBlobSha256": "ed74a53fe822997b90ee338d0f14862cc9e69e218dca519c58eb81f8270d16e3",
+      "worktreeSha256": "ed74a53fe822997b90ee338d0f14862cc9e69e218dca519c58eb81f8270d16e3"
+    },
+    {
+      "status": "M",
+      "path": "docs/internationalization/STATUS-20261009.md",
+      "gitBlobSha256": "2bc38a762428ab53a6c1d3ae752ebaeca3e2e9e10294702a4f8110731963b72f",
+      "worktreeSha256": "2bc38a762428ab53a6c1d3ae752ebaeca3e2e9e10294702a4f8110731963b72f"
+    },
+    {
+      "status": "A",
+      "path": "docs/internationalization/US-SAAS-LIFECYCLE-TEST-DELIVERY-20261010.md",
+      "gitBlobSha256": "d8514b472e6170ab6c946027a24aba7ef0cc16ec5be55fb736b51aa9d908ebff",
+      "worktreeSha256": "d8514b472e6170ab6c946027a24aba7ef0cc16ec5be55fb736b51aa9d908ebff"
+    },
+    {
+      "status": "A",
+      "path": "docs/internationalization/US-SAAS-LIFECYCLE-TEST-PLAN-20261010.md",
+      "gitBlobSha256": "8eb98c92220d8971e42bae04b1c65555ef3c97b768cc0b919a7d0a0eb1fdac4d",
+      "worktreeSha256": "8eb98c92220d8971e42bae04b1c65555ef3c97b768cc0b919a7d0a0eb1fdac4d"
+    },
+    {
+      "status": "M",
+      "path": "docs/internationalization/US-STAGING-READINESS-20261010.md",
+      "gitBlobSha256": "93f8d5a0806145959d3eaec4efafa9c427c98620bb385c0a22788a5406a16fe7",
+      "worktreeSha256": "93f8d5a0806145959d3eaec4efafa9c427c98620bb385c0a22788a5406a16fe7"
+    },
+    {
+      "status": "A",
+      "path": "drizzle/0092_international_us_saas_test_lifecycle.sql",
+      "gitBlobSha256": "27eb95303d0fa00220f48c555959abd33d8823ce72b306eeaffd94034f54b182",
+      "worktreeSha256": "27eb95303d0fa00220f48c555959abd33d8823ce72b306eeaffd94034f54b182"
+    },
+    {
+      "status": "M",
+      "path": "lib/account-workspaces.test.ts",
+      "gitBlobSha256": "4a22a8e1aea128e4b2a4fb8910fcb1828a3aebbe9d4ed4f2af75ea22e9fad404",
+      "worktreeSha256": "4a22a8e1aea128e4b2a4fb8910fcb1828a3aebbe9d4ed4f2af75ea22e9fad404"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/saas-authority-d1.ts",
+      "gitBlobSha256": "3ccb922a35be48656634760039070aa51608557a1de8a9e1139f3d27498e9ec8",
+      "worktreeSha256": "3ccb922a35be48656634760039070aa51608557a1de8a9e1139f3d27498e9ec8"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/saas-authority.test.ts",
+      "gitBlobSha256": "a19ffe10eaba253666ef09d2e22285b264e75d6b2f90d356522fe5261a8b0241",
+      "worktreeSha256": "13ae61de8e5603dfb2b0706f36ef0132e7ec697c3c4c36a0137f5e48a0c233f0"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/saas-authority.workerd.test.ts",
+      "gitBlobSha256": "f3a569ec150440c02f832782f0edb5a42bcfcf1905bd9053795528593ff743e5",
+      "worktreeSha256": "f3a569ec150440c02f832782f0edb5a42bcfcf1905bd9053795528593ff743e5"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-device-bindings.ts",
+      "gitBlobSha256": "6c5a1fba6ea6dc93df703ca56131fdce27a69e3cf71e5f31dc311febc1dace68",
+      "worktreeSha256": "6c5a1fba6ea6dc93df703ca56131fdce27a69e3cf71e5f31dc311febc1dace68"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-device-d1.ts",
+      "gitBlobSha256": "5d986ea03247cf18ecd0642949840bbff4d8c4346f24c527f504071b7512041c",
+      "worktreeSha256": "5d986ea03247cf18ecd0642949840bbff4d8c4346f24c527f504071b7512041c"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-device-server.test.ts",
+      "gitBlobSha256": "f97e06d97335e1cf542aaf53f02e260d6275294f9591dd52bbb742c4fa155a6f",
+      "worktreeSha256": "f97e06d97335e1cf542aaf53f02e260d6275294f9591dd52bbb742c4fa155a6f"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-device-server.ts",
+      "gitBlobSha256": "ba97f92efc353f7708c88a19f0031012cab7b82844282e10d3538da8dfd4e6e6",
+      "worktreeSha256": "ba97f92efc353f7708c88a19f0031012cab7b82844282e10d3538da8dfd4e6e6"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-device-test-fixture.ts",
+      "gitBlobSha256": "fe6936aa46a5c2bd4615c199a57e072b5fd4328e39c936eba27439d0dac139e5",
+      "worktreeSha256": "fe6936aa46a5c2bd4615c199a57e072b5fd4328e39c936eba27439d0dac139e5"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-saas-test-bindings.test.ts",
+      "gitBlobSha256": "16094f4ed6cbec8ecb0167f3c33d5a0adef89d8e82563b2c24c923110f915e39",
+      "worktreeSha256": "16094f4ed6cbec8ecb0167f3c33d5a0adef89d8e82563b2c24c923110f915e39"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-saas-test-bindings.ts",
+      "gitBlobSha256": "647e7b0b257800d70c72d187c89d95e52a60657d01368872952306d94bdc7e79",
+      "worktreeSha256": "647e7b0b257800d70c72d187c89d95e52a60657d01368872952306d94bdc7e79"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-bindings.ts",
+      "gitBlobSha256": "993a5c85901f6b65837ba88b833467181326a173803b01a73019f3ee042adf43",
+      "worktreeSha256": "993a5c85901f6b65837ba88b833467181326a173803b01a73019f3ee042adf43"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-contract.ts",
+      "gitBlobSha256": "0c9a3dc56e9bbbd2b3881d907728342d92b8c4ebc6afb552e72edf88cc2addb3",
+      "worktreeSha256": "0c9a3dc56e9bbbd2b3881d907728342d92b8c4ebc6afb552e72edf88cc2addb3"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-d1.test.ts",
+      "gitBlobSha256": "611e131d8cb8fdb8aa3653e87c50c8edd63b19ce976fddb9ad50d729fbfce899",
+      "worktreeSha256": "611e131d8cb8fdb8aa3653e87c50c8edd63b19ce976fddb9ad50d729fbfce899"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-d1.ts",
+      "gitBlobSha256": "a8a7b2cb62528acc24a9cce0af96389910e54c297cac90c6f7548cb5f292b1c6",
+      "worktreeSha256": "a8a7b2cb62528acc24a9cce0af96389910e54c297cac90c6f7548cb5f292b1c6"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-server.test.ts",
+      "gitBlobSha256": "6349fa64a82c9c7bcd36ae416d8fda14c7be9e384c2ece1ea304168297a11b51",
+      "worktreeSha256": "6349fa64a82c9c7bcd36ae416d8fda14c7be9e384c2ece1ea304168297a11b51"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-server.ts",
+      "gitBlobSha256": "d87f82b73b1183e02f077dece1b29d46122adefadf1f0dcf376fa095a1e400db",
+      "worktreeSha256": "d87f82b73b1183e02f077dece1b29d46122adefadf1f0dcf376fa095a1e400db"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+      "gitBlobSha256": "538c23834b37f889b82a69e4b877d424fb48580c76444c5ab9e82db159fcb112",
+      "worktreeSha256": "538c23834b37f889b82a69e4b877d424fb48580c76444c5ab9e82db159fcb112"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-stripe.ts",
+      "gitBlobSha256": "cefe5e38a7a3bbef3e3ba995cdd917a4bb3d7bba40fcc17997ff4f47f83a682e",
+      "worktreeSha256": "cefe5e38a7a3bbef3e3ba995cdd917a4bb3d7bba40fcc17997ff4f47f83a682e"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-lifecycle-test-fixture.ts",
+      "gitBlobSha256": "2964f74c0627deda3c1a88f8cd53b4671f355ce5f4088e15a401512a3714fbb4",
+      "worktreeSha256": "2964f74c0627deda3c1a88f8cd53b4671f355ce5f4088e15a401512a3714fbb4"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-saas-test-server.test.ts",
+      "gitBlobSha256": "355dc4e22da830d37e33fa283d17364f0d174ca015b385ed549572c551c45289",
+      "worktreeSha256": "355dc4e22da830d37e33fa283d17364f0d174ca015b385ed549572c551c45289"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-saas-test-server.ts",
+      "gitBlobSha256": "3f0de940f38876a88da7c4d54b270fbf835c1f060ee01982518a888f8a9d8668",
+      "worktreeSha256": "3f0de940f38876a88da7c4d54b270fbf835c1f060ee01982518a888f8a9d8668"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-team-bindings.test.ts",
+      "gitBlobSha256": "2ec2e493906fb84309f4235aed8bd05fe98fd0fff39666f79d7d227bebb01654",
+      "worktreeSha256": "2ec2e493906fb84309f4235aed8bd05fe98fd0fff39666f79d7d227bebb01654"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-team-bindings.ts",
+      "gitBlobSha256": "827cddbd8ac99348ac364fc26543989f1ae19962ff672a7b0c7b751e34db11e5",
+      "worktreeSha256": "827cddbd8ac99348ac364fc26543989f1ae19962ff672a7b0c7b751e34db11e5"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-team-device-lifecycle.test.ts",
+      "gitBlobSha256": "e1d78f92278fc0ca2638355269fa7224e3b4da8122bea17b84df31820fd08d6f",
+      "worktreeSha256": "e1d78f92278fc0ca2638355269fa7224e3b4da8122bea17b84df31820fd08d6f"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-team-store.ts",
+      "gitBlobSha256": "409f4cc3a1bd57264d44c75affff0b43c0ead21e9b95ee8e5204312ea4602688",
+      "worktreeSha256": "409f4cc3a1bd57264d44c75affff0b43c0ead21e9b95ee8e5204312ea4602688"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/us-team.workerd.test.ts",
+      "gitBlobSha256": "1ce4fb8a1d6911f59edcade04fbed0ceeffc9fe8ef44778225960d07e76e2736",
+      "worktreeSha256": "1ce4fb8a1d6911f59edcade04fbed0ceeffc9fe8ef44778225960d07e76e2736"
+    }
+  ],
+  "checks": {
+    "units": {
+      "path": ".qa/us-saas-lifecycle/units-final.json",
+      "sha256": "0ab38685f6dd0566e71ad15fd59d3d6b0a8d3e6395a6923f452ea6c7192bb6f6",
+      "success": true,
+      "total": 1060,
+      "passed": 1060,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "pendingSuites": 0,
+      "files": [
+        {
+          "path": "lib/account-workspaces.test.ts",
+          "status": "passed",
+          "tests": 19
+        },
+        {
+          "path": "lib/stripe-checkout.test.ts",
+          "status": "passed",
+          "tests": 9
+        },
+        {
+          "path": "lib/stripe-contract.test.ts",
+          "status": "passed",
+          "tests": 6
+        },
+        {
+          "path": "lib/stripe-event.test.ts",
+          "status": "passed",
+          "tests": 34
+        },
+        {
+          "path": "lib/stripe-webhook-proof.test.ts",
+          "status": "passed",
+          "tests": 2
+        },
+        {
+          "path": "lib/stripe-webhook.test.ts",
+          "status": "passed",
+          "tests": 5
+        },
+        {
+          "path": "lib/international/browser-us-test-onboarding.test.ts",
+          "status": "passed",
+          "tests": 35
+        },
+        {
+          "path": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "tests": 24
+        },
+        {
+          "path": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed",
+          "tests": 101
+        },
+        {
+          "path": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "tests": 47
+        },
+        {
+          "path": "lib/international/us-automation-policy.test.ts",
+          "status": "passed",
+          "tests": 69
+        },
+        {
+          "path": "lib/international/us-device-bindings.test.ts",
+          "status": "passed",
+          "tests": 20
+        },
+        {
+          "path": "lib/international/us-device-capability-v4.test.ts",
+          "status": "passed",
+          "tests": 11
+        },
+        {
+          "path": "lib/international/us-device-d1.test.ts",
+          "status": "passed",
+          "tests": 15
+        },
+        {
+          "path": "lib/international/us-device-server.test.ts",
+          "status": "passed",
+          "tests": 40
+        },
+        {
+          "path": "lib/international/us-saas-test-bindings.test.ts",
+          "status": "passed",
+          "tests": 23
+        },
+        {
+          "path": "lib/international/us-saas-test-d1.test.ts",
+          "status": "passed",
+          "tests": 46
+        },
+        {
+          "path": "lib/international/us-saas-test-lifecycle-d1.test.ts",
+          "status": "passed",
+          "tests": 44
+        },
+        {
+          "path": "lib/international/us-saas-test-lifecycle-server.test.ts",
+          "status": "passed",
+          "tests": 20
+        },
+        {
+          "path": "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+          "status": "passed",
+          "tests": 123
+        },
+        {
+          "path": "lib/international/us-saas-test-server.test.ts",
+          "status": "passed",
+          "tests": 27
+        },
+        {
+          "path": "lib/international/us-saas-test-stripe.test.ts",
+          "status": "passed",
+          "tests": 82
+        },
+        {
+          "path": "lib/international/us-team-bindings.test.ts",
+          "status": "passed",
+          "tests": 49
+        },
+        {
+          "path": "lib/international/us-team-device-lifecycle.test.ts",
+          "status": "passed",
+          "tests": 11
+        },
+        {
+          "path": "lib/international/us-team-server.test.ts",
+          "status": "passed",
+          "tests": 18
+        },
+        {
+          "path": "lib/international/us-team-store.test.ts",
+          "status": "passed",
+          "tests": 23
+        },
+        {
+          "path": "lib/international/us-team.migrations.test.ts",
+          "status": "passed",
+          "tests": 16
+        },
+        {
+          "path": "lib/international/us-test-onboarding-page.test.ts",
+          "status": "passed",
+          "tests": 6
+        },
+        {
+          "path": "lib/international/us-test-onboarding-ui.test.ts",
+          "status": "passed",
+          "tests": 5
+        },
+        {
+          "path": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "tests": 26
+        },
+        {
+          "path": "lib/international/workspace-creation-review.test.ts",
+          "status": "passed",
+          "tests": 34
+        },
+        {
+          "path": "lib/international/workspace-creation.test.ts",
+          "status": "passed",
+          "tests": 48
+        },
+        {
+          "path": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed",
+          "tests": 22
+        }
+      ],
+      "exitCode": 0
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "path": ".qa/us-saas-lifecycle/typecheck-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "lint": {
+      "exitCode": 0,
+      "path": ".qa/us-saas-lifecycle/lint-final.json",
+      "sha256": "4f637e9aaab03754f47ba7f1e14f2cc38ed849e379942e8a148813b91878ffc8",
+      "files": 28,
+      "diagnostics": 0,
+      "typeAware": true
+    },
+    "brand": {
+      "exitCode": 0,
+      "path": ".qa/us-saas-lifecycle/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build": {
+      "exitCode": 0,
+      "path": ".qa/us-saas-lifecycle/build-final.log",
+      "sha256": "44cc84a9be017ebb0e3b38a43728e5640fbf93667cb7d67274c9c0206c6422f0",
+      "profile": "production chosen by default; both build selection variables removed in child shell",
+      "warnings": "Existing middleware deprecation and route/static analysis notices; see raw log."
+    },
+    "diff": {
+      "exitCode": 0,
+      "path": ".qa/us-saas-lifecycle/diff-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "browser": {
+      "executed": false,
+      "reason": "No interface/CSS/translation change in this phase."
+    },
+    "hostedWorkerd": {
+      "executed": false
+    },
+    "native": {
+      "executed": false
+    },
+    "provider": {
+      "executed": false
+    }
+  },
+  "reports": [
+    {
+      "path": ".qa/us-saas-lifecycle/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/build-final.log",
+      "sha256": "44cc84a9be017ebb0e3b38a43728e5640fbf93667cb7d67274c9c0206c6422f0"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/diff-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/empty-catalogue-final-70.json",
+      "sha256": "88f1eb1e8a4b0cb4bb2e055c14702f1ca20016ba3d8f328aeacf14e9b9443710",
+      "success": true,
+      "total": 70,
+      "passed": 70,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/empty-catalogue-final.json",
+      "sha256": "e1d5c8cd55c50470542f1568d931fb327d6f841bbf1b43bcc1d05f16daafc724",
+      "success": true,
+      "total": 69,
+      "passed": 69,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/empty-catalogue-first.json",
+      "sha256": "d86470546f9af34fcad9b34efb95e7ec9520892bc85f5a1164a879bb8016d6c7",
+      "success": false,
+      "total": 69,
+      "passed": 66,
+      "failed": 3,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 2
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/final-selection.json",
+      "sha256": "08736d52f17feab51eb5f3e2a842c3041b7c14d41eb7ebcdf5b8894e02a056db"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/http-bindings-first.json",
+      "sha256": "a71f695a0c1de51f6dde93e421bc4c477703c085fb713f47ef13228be64b557b",
+      "success": false,
+      "total": 64,
+      "passed": 63,
+      "failed": 1,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 2
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/http-bindings-second.json",
+      "sha256": "41d16de31b44f47e726df321594f678b55cd50a1147f6d11ad1cbc2e99217175",
+      "success": true,
+      "total": 64,
+      "passed": 64,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/http-first.json",
+      "sha256": "eec5c3a73bcb677abd2b6868300a3106f9b48020cdcca20e89e6011e6a19f484",
+      "success": true,
+      "total": 47,
+      "passed": 47,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/lint-final.json",
+      "sha256": "4f637e9aaab03754f47ba7f1e14f2cc38ed849e379942e8a148813b91878ffc8"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/lint-first.json",
+      "sha256": "1e55dc3ebb85cca1a8e0c091912419cbcb1f373f6e602d0c3cae788baa7d2fb5"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/team-device-final.json",
+      "sha256": "eb491d2b88c65dff81a57b32fec258a0848664f2de429de226667af694796d80",
+      "success": true,
+      "total": 203,
+      "passed": 203,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/team-device-first.json",
+      "sha256": "6eefe850650ffff588f5e7cb28019c44f310b6887a2f5db98cde5ec213e573d6",
+      "success": true,
+      "total": 192,
+      "passed": 192,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/team-device-lifecycle-first.json",
+      "sha256": "38ba0cfc3ee3100e42183968483c3d5a56d138d262be6143632b5eb2bcce4f49",
+      "success": true,
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/typecheck-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/typecheck-first.log",
+      "sha256": "10a5a8e9e6b5e8b2f05a99552eb0c853b63d50ac86260583b922d076eb331b01"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/typecheck-second.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/units-final.json",
+      "sha256": "0ab38685f6dd0566e71ad15fd59d3d6b0a8d3e6395a6923f452ea6c7192bb6f6",
+      "success": true,
+      "total": 1060,
+      "passed": 1060,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/units-final.log",
+      "sha256": "32157b90d1358444beee55ce10ad0096f4f2abd39a85d577b7cb35f45d81673e"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/units-first.json",
+      "sha256": "b8b640dc27bbf145bb907bf3377557833d87ee31e5414b58778226e9ac28b396",
+      "success": true,
+      "total": 1054,
+      "passed": 1054,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle/units-first.log",
+      "sha256": "dc36914f6ea74442dd6a249711e7ac273536f5bece41f2fbc24fb05f3bdac7c3"
+    },
+    {
+      "path": ".qa/us-saas-lifecycle-test/d1-final.json",
+      "sha256": "f638c3175b3468561b54d6d46f61fb9d4a2fe28fb29bfcc30d3eeb25dd7aeb55",
+      "success": true,
+      "total": 91,
+      "passed": 91,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-lifecycle-test/d1-initial.json",
+      "sha256": "da4c642e8cd696efeb067ffc01acf0ae8f450d568aab24ff6f5c857678cd2b31",
+      "success": true,
+      "total": 91,
+      "passed": 91,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-test/lifecycle-gateway-final.json",
+      "sha256": "cbbcaa9b686f60a47352d36e4912e285cabece6cbf432158f6e9ada2dafba6b3",
+      "success": true,
+      "total": 205,
+      "passed": 205,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-test/lifecycle-gateway-first.json",
+      "sha256": "490c52e39ea44aae8d5c0a3f524ee23e3c1dc5405614122d5c0cc6f2ca07106b",
+      "success": true,
+      "total": 118,
+      "passed": 118,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    },
+    {
+      "path": ".qa/us-saas-test/lifecycle-gateway-second.json",
+      "sha256": "cfe746fc67fc9b811eab499cf144fb3d86183d4f340f5a9f5f288f5523ed5cc1",
+      "success": true,
+      "total": 204,
+      "passed": 204,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0
+    }
+  ],
+  "migration": {
+    "path": "drizzle/0092_international_us_saas_test_lifecycle.sql",
+    "sha256": "27eb95303d0fa00220f48c555959abd33d8823ce72b306eeaffd94034f54b182",
+    "creation": "Wrangler4.92 CLI local; actual0000–0092 chain executed under Node SQLite with foreign keys",
+    "additive": true,
+    "remoteApplied": false,
+    "postgresModified": false
+  },
+  "preservation": {
+    "protectedFiles": [
+      {
+        "path": "lib/stripe.ts",
+        "gitBlobSha256": "be3dc400dbd65219417392eb38eb5fdcf3dda47416acde7ea47888efce0e3ce6",
+        "unchanged": true
+      },
+      {
+        "path": "lib/stripe-webhook.ts",
+        "gitBlobSha256": "467adbb50213bc0dd4469ab9ca52fee743ad905faa9aadb080f0d3c067e0c93c",
+        "unchanged": true
+      },
+      {
+        "path": "lib/stripe-checkout.ts",
+        "gitBlobSha256": "ff8a7b7899b340728660ba9e5e1c32371d18ebe83c6c358d2fd815253ce8c8c3",
+        "unchanged": true
+      },
+      {
+        "path": "config/deployment-profile.production.json",
+        "gitBlobSha256": "8ef00f4b8cb1d5db08d4fd7f737e034cb2c873ca324bc3155aa08a36ee951e05",
+        "unchanged": true
+      }
+    ],
+    "sqlPreservation": [
+      {
+        "path": "drizzle/0000_sweet_owl.sql",
+        "gitBlobSha256": "5b68f23832a3d4692499d6697c88fa68d836787994c3a3fb8d6e2968243f450a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0001_brief_mephisto.sql",
+        "gitBlobSha256": "033719ca271d52519ed5db87debce30e8a34fd259b8c0d0bd4b0a8d8695a9c0a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0002_wonderful_sheva_callister.sql",
+        "gitBlobSha256": "fe71985eb0d39bb53b895a092757f46d1ca2ef5d6f53b7507091daf448d87158",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0003_thin_the_santerians.sql",
+        "gitBlobSha256": "4e9e2e82772d66cd69218c633fb71353e1c395fa3697d8d0d082bc40e20e5e69",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0004_zippy_harry_osborn.sql",
+        "gitBlobSha256": "d7520fc766c7c3c566b2e090a6ebf2c10384ed77857cdf5ae862decebdb7a980",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0005_dashing_union_jack.sql",
+        "gitBlobSha256": "f5756ef7165426b6ceabaa8d12985d8a67f89da0977983a7eba616409d47c4c5",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0006_account_guards.sql",
+        "gitBlobSha256": "8f841976a0401796444b0ff1715495dd70d1563e7897626aa8269ba22b27f853",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0007_device_activation_revocation.sql",
+        "gitBlobSha256": "5596fbaffceeac2d89b8c0864411fef637128a830dff04be4a37467e2e963112",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0008_unlimited_collaborators.sql",
+        "gitBlobSha256": "66df1e84c075734aa12d697d4dd38aa2704bc904dd0535d315c5ddb7205c1a59",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0009_nosy_madame_web.sql",
+        "gitBlobSha256": "a319cbf174bdbf31cbf179599dcf276e56fe1cdb2a10b7e05fe97a70fe014b08",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0010_even_fenris.sql",
+        "gitBlobSha256": "8a4e02512f6c7788a9e2818e0ff43ae58eca3cbdd7d7bccc21beda44656a1c93",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0011_burly_thing.sql",
+        "gitBlobSha256": "f09135c07e2762fbf0cb94e6f5adc2cfe62d8accbde1b872c1cd2cee6f43fe2b",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0012_odd_mongu.sql",
+        "gitBlobSha256": "64fc1ef2646339c5c7a3484e126abc2e1a2e440a94e0e234a854ffc768073d67",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0013_concerned_goliath.sql",
+        "gitBlobSha256": "a6dcf2770449220ec4cab1528d07e824dde78c388ff3d2b33239ac42b0fe0867",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0014_brainy_slayback.sql",
+        "gitBlobSha256": "e0ecbd437d29c8669e4411b3dc603accf79c79a8f78ca6b4330df1d36c6e0910",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0015_business_sync_structural_checks.sql",
+        "gitBlobSha256": "76aebb941dbf54e2b88f9c1299cd0ebb00cd177797f51713d60c22afc4cd9118",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0016_business_sync_integrity.sql",
+        "gitBlobSha256": "d16d71a68b915f1e551db1b81c9bdc063c7c5f97b02893d7d7012b8402e8d873",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0017_business_sync_financial_progress.sql",
+        "gitBlobSha256": "38c0956e8cfa5bfb561a56c568ec8f90eb56f256be2574712b38166f319bb9ef",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0018_jazzy_captain_stacy.sql",
+        "gitBlobSha256": "d3c771805e9ea3da523ee0371e69166e131821e8f07d6fe53c3d8639d8be24a7",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0019_young_richard_fisk.sql",
+        "gitBlobSha256": "474ae71c513c445adac4b5e746dd0acfda816ee6db297e9b5f35df0e651ca1c1",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0020_cute_thor.sql",
+        "gitBlobSha256": "769c165a2f4009552c293fd7cf9fec18b9bc0e0ea1495c3809ee8c6b5db77fa1",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0021_glorious_kingpin.sql",
+        "gitBlobSha256": "212ca2663b4694f3488a5326cac012f55d6080455aebff651c5ebffc7da530e0",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0022_messy_random.sql",
+        "gitBlobSha256": "db74a35405bf4c9291e1ca59716a7f0eab17d49e429edf7dae7086e26a02414d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0023_sharp_justice.sql",
+        "gitBlobSha256": "1f7d2b9d0533b1d25f675a26fade1429f4f97f15f43236ac785711c7e5613bd8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0024_remarkable_praxagora.sql",
+        "gitBlobSha256": "1cd426891fee866e7306f4f53a2b128c6fcd40c175f28d742aa56ddb05f3c24a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0025_mature_logan.sql",
+        "gitBlobSha256": "b7ba502b8b8d126cfc7031e497e3b2eea20654e3573c22371da49b2dad2130f8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0026_dark_wasp.sql",
+        "gitBlobSha256": "c8b97dc076befd8712f819e7065dbb079b0ffdcfa96e547d190cc4638b989bd1",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0027_gifted_leper_queen.sql",
+        "gitBlobSha256": "1a52687e5c9cb4c05fd4397dd06a3814badba3482e27bd91b010c8b718681242",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0028_previous_wilson_fisk.sql",
+        "gitBlobSha256": "ebc3c28617e074490e9d10a5bc5fa696daca657aec7fd975be2b6894c6b0ae5d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0029_marvelous_reavers.sql",
+        "gitBlobSha256": "9cb9fb19eb34778d24ae233a822bd961edf7e22d365c1931152c6283ad351dd6",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0030_charming_vivisector.sql",
+        "gitBlobSha256": "ef039145b451ec361e732c51c977666f3533160c035f962b150d7971c1deae2d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0031_acoustic_microbe.sql",
+        "gitBlobSha256": "a3e3d37b8ffca841b9b081f8e8e9f5a2dca7f2040db00ba45d1015c8e086afb3",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0032_previous_tusk.sql",
+        "gitBlobSha256": "6faf62cf971e23670c12c6f8c7d9226fd44508b0f69eb6c577f7be54de30ba56",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0033_young_emma_frost.sql",
+        "gitBlobSha256": "af7789b403ed916e775c2eac01b90207fe6e79e14a26c00983cdc544197ef31e",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0034_ancient_ricochet.sql",
+        "gitBlobSha256": "eff77a9de05e0d6fc1fa9a42f64f9bffb5a98309cdb3b9ed709f4121e396715c",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0035_spicy_gorilla_man.sql",
+        "gitBlobSha256": "3add13783408a049914d433a0b0d97618e74cebc3503bdca33cd291535855965",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0036_cooing_old_lace.sql",
+        "gitBlobSha256": "38129f445136b0efa7394e04619460edbdb615e67e0240100bfe986a4d4d6b35",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0037_sloppy_lockjaw.sql",
+        "gitBlobSha256": "b55ab850a9d67975bc1d8d4cf8c5d4178b8fc0ae902a089fec9aafcd2de7685d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0038_military_silver_surfer.sql",
+        "gitBlobSha256": "e158c5a44a26e07248a406af32facdbafefb1a78994f916c50ceaa00a105b7b7",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0039_account_checkout_activation.sql",
+        "gitBlobSha256": "b20ed199d8592785f3963a01c86c5e48e30f2fb41d61e5b758dd73e39788c051",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0040_founder_email_access.sql",
+        "gitBlobSha256": "aebd9ee5d7374d1b37e1f7c02bbc1612e19ca96153e5689d41bc224691fb92a8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0041_mysterious_brother_voodoo.sql",
+        "gitBlobSha256": "d4e7be7dfcdd09d9a3ba7e64770a1253667930e302e42e27ec6b1ec7da25ee9e",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0042_support_triage_context.sql",
+        "gitBlobSha256": "ee9802ab77bc5eac540df33d876f7cb8bc6e061067ab72cd39bb0bfb5ba63db5",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0043_support_billing.sql",
+        "gitBlobSha256": "1823d4ac5879ad617ef968e363aa6df9cfe7544f97e52a876b85e74d3339f0b4",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0044_support_onboarding.sql",
+        "gitBlobSha256": "f19668093878c1f7b3af97414ee4f0ddc22d44cdb7d8d393cdeca9ba6e465769",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0045_support_oauth_rotation.sql",
+        "gitBlobSha256": "54737b1d586fd2c61b6334ca1d9211b8089aef3fd829386415eff501b1d441e4",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0046_founder_support_access.sql",
+        "gitBlobSha256": "44435ab4c15580b7d6f174f34ec2e374835f6f121968deb7133ab68f30a52fa3",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0047_zentra_automation.sql",
+        "gitBlobSha256": "13ab458e284ceb2f06cd6c3963f7ffa3201701f2a3130c7727bfe5737a5c4f52",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0048_automation_checkout_guard.sql",
+        "gitBlobSha256": "37f3348f6da989be1235c9f61c895365c6e347cbd071e4ed65dfa1f8538d379f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0049_referral_reward_invoice.sql",
+        "gitBlobSha256": "93163026f8c4087ec490600bbeb0f6bc7be3c61822abbbbeb513627d96982043",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0050_automation_checkout_retry.sql",
+        "gitBlobSha256": "dfa71ed884624c6306a7f16b67b561f5518de716aaf23ebdcc0939f4567f3ce9",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0051_founder_automation_access.sql",
+        "gitBlobSha256": "5d9dd93e98d42bad2a0d992a290453ea7206b89c976ca2f01850cf9e4aa6f3b9",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0052_support_mailboxes.sql",
+        "gitBlobSha256": "73d53572781ece14b38b2632a25fa2938dc7054e826469783a72d2d071aaa80a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0053_founder_platform_keys.sql",
+        "gitBlobSha256": "a94d1a244d2583975537fd8d69b9313b3286b303f10afdf0001db452fed5da3b",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0054_automation_company_activity.sql",
+        "gitBlobSha256": "1111a0999019431fc8d1b147f66addcd7297914958791fa866e1107b80ab7156",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0055_supplier_inbox.sql",
+        "gitBlobSha256": "c2f5284222b73b09ca40a2429484ca0249403822a43d83c9f8a6e7a6cd6c47ad",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0056_account_phase2.sql",
+        "gitBlobSha256": "f72f8dda4f2c354890e7664351e60f0fb1a78f0eebf1458d600eff5de7176ac0",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0057_absent_energizer.sql",
+        "gitBlobSha256": "b79b9675d967b0505dcbfa1b2de8decc0777b1921eb1183e08730f2608dc5f7e",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0058_automation_refund_evidence.sql",
+        "gitBlobSha256": "d506bc8d1ca49fc85cbca1fa64592f55afb1a020948c992d592d7c5d3338a7fd",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0059_careless_proteus.sql",
+        "gitBlobSha256": "a8c74d41079ffa914acdf466e1f4789c995c2a4e587a3ed0ca4f53c795cf4fd4",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0060_bent_triton.sql",
+        "gitBlobSha256": "21cabdb32121f7627fcc42ba7b06f3326a4d10e22140fb5560d09018edd4951f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0061_complete_journey.sql",
+        "gitBlobSha256": "219966ce9ac46dee55b5fda55bf92296f02f3c7041613dd40a835ae64f5e2e7f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0062_scheduler_health.sql",
+        "gitBlobSha256": "68d7a0a20bb816bc8d2e4707c0dcfffaa84732d4ed8642aa296651b6f7ccf3d1",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0063_company_mail.sql",
+        "gitBlobSha256": "88d6b7ece568d5d70e4136e90a6589bee14ebbd2097c20ef3fc56c680ac8ff64",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0064_company_mail_identity.sql",
+        "gitBlobSha256": "8823cb005c605ca2abdb5499b504804f4d86e6438c0b19e7f7e31ba62539d7a9",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0065_scheduler_run_identity.sql",
+        "gitBlobSha256": "ff15449e3b2d1dd1218c99b02e9e765c56985e705c5e010a8e60ac5292788c4d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0066_operations_queue_index.sql",
+        "gitBlobSha256": "2ddafb78922898e345200ac09d876165c3483f33567038bce516d97217327c9e",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0067_quiet_expediter.sql",
+        "gitBlobSha256": "ed413ed2e860946c13a77e456100d15077a2369a9465d37217d8a23dff7db4d3",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0068_burly_silverclaw.sql",
+        "gitBlobSha256": "275bacf21c7c3a57c2bdeaae7d4f168307be5d8a98858229c2fe99313837d3e6",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0069_supplier_capture_analysis.sql",
+        "gitBlobSha256": "b31f5987d8e2d58ce6823c0d35b366726e657bdaafe583fac32a7ddd9a4e0c85",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0070_supplier_capture_quota_requirement.sql",
+        "gitBlobSha256": "b780a7d25d5cc8f105bde7e798bcc45a398c8edecd04a45044e893820a73715b",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0071_mail_scan_resume.sql",
+        "gitBlobSha256": "ea8378fc405914652e3afe5528f10f58339490e9dfdc9611b37a7590d7e541a8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0072_melodic_tinkerer.sql",
+        "gitBlobSha256": "12e6bc9b4f5b4e5d463b7db328482c94451a91033ca78a34e062d48c5b775f65",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0073_complex_molly_hayes.sql",
+        "gitBlobSha256": "a37ee5dab3c1fe7016a262c8c1e82f7f14f430337f27c86d57a9f00e4d4fa479",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0074_prepaid_rights_guards.sql",
+        "gitBlobSha256": "8e846ba39f9696cb9ac3cd6debf03dad6a6df527407ccb6788ef1b6f79a4af96",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0075_prepaid_reconciliation_fences.sql",
+        "gitBlobSha256": "a74f319018b87fed43a7839516a776f1ef3b359862637e695ed80b88d0756e01",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0076_purchase_intent_reservations.sql",
+        "gitBlobSha256": "abeb9e0dab6c5feac4b809434a643751b06cad4537fdcdf8f233b02837ae527e",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0077_gestion_purchase_target.sql",
+        "gitBlobSha256": "6eeac7daeca4a68b33b34f3401d83f02209d5f8d0eede2dc340f398ca75e342d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0078_prepaid_subscription_lifecycle.sql",
+        "gitBlobSha256": "a73ecc5207b120444a8dc91e17244a548c2e757cdc51a26bbcaf2c1dc9faf73b",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0079_stripe_product_handoffs.sql",
+        "gitBlobSha256": "e944930bc15aac209eb9e063b60df79b3f2954bb27cc7f909ceb416703dba28f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0080_standalone_support_plan_change.sql",
+        "gitBlobSha256": "13cadb7df3f0cbcbd079f94c3de36f51497e100c5c39a7abec69ee82190a2fc7",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0081_prepaid_create_recovery.sql",
+        "gitBlobSha256": "e13dcc1d4cadf8c33ef23254e15835508a7958779644792e6a69cd886951a03a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0082_prepaid_renewal_admissions.sql",
+        "gitBlobSha256": "188b140fc46301baaf269bd063333354e1ed54b7a403c58acaf3d81ddd13b37f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0083_postfinance_observation_outbox.sql",
+        "gitBlobSha256": "74a0a0ae30bcf110433d8a88c30b25b53e2c530e71c25862a5fcde9cd47382b6",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0084_prepaid_renewal_create_recovery.sql",
+        "gitBlobSha256": "b58330703f829646ff2531bc7a3ab7bb56cfe67d8e117b5c54ed0cf13b835cd7",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0085_international_workspace_creation_intents.sql",
+        "gitBlobSha256": "3b998382a90451c4f6d9794a1386aca7c3a5315112a236128472e5e703453f4d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0086_international_legacy_country_guards.sql",
+        "gitBlobSha256": "57931b86cae5f7f22e3c973d6d5b5d88f2e563ccf0969d57705128da8fcfea44",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0087_international_saas_authorities.sql",
+        "gitBlobSha256": "1cc92fc0f30ca3fd5cc147e6c707f77fbaf915d2cd1e3d65f7d6d1499e11e200",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0088_international_us_device_admission.sql",
+        "gitBlobSha256": "49c63502fcade6c84234a27f4fcdf3d45d57a1653f9b70d73c78153e7f71dbd8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0089_international_us_device_capability_v4.sql",
+        "gitBlobSha256": "18145da9ad4d057da39088daa8ec8cb53e4b1d9443158c3c5faf60bdfb78712a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0090_international_us_team_admission.sql",
+        "gitBlobSha256": "2e575085308e9b0ecac92005089a2c8be57faa60ea8d42754efa5f9065cbff5d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/0091_international_us_saas_test_checkout.sql",
+        "gitBlobSha256": "e63f137d03a39bac04007dafed3528783bd2e49c496f90e7ef386770aadba77e",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0000_snapshot.json",
+        "gitBlobSha256": "a0b413489bcf6acc5aeb22883687004d664f3e9eb2f0430de925c6e5b04e2237",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0001_snapshot.json",
+        "gitBlobSha256": "a0a741621feeff7a21844e2eb6281877d6b8514527582888e98ca54b1b1fe74a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0002_snapshot.json",
+        "gitBlobSha256": "6b96de64cf2a8ac04feafe07aa7b664c27e654be0d9d25d679bf02a7a6789a82",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0003_snapshot.json",
+        "gitBlobSha256": "50a9fb29efa7b71beca1eb39c1148e041aab56e1559147505c570e5a14fb6190",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0004_snapshot.json",
+        "gitBlobSha256": "f80b2a1fd7cd5bc1552110b6e4a634a86e2a8341d8d86cf28ab689681843386a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0005_snapshot.json",
+        "gitBlobSha256": "4eae6227ecc3a8ae29ff278e07d197f76312d27219d4a85551b6e236234c9302",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0006_snapshot.json",
+        "gitBlobSha256": "a02919b6c22a99f4431d69a2cef83b3cac94e38d8910dd54cab4455d8ff7c2b2",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0007_snapshot.json",
+        "gitBlobSha256": "7b5b39d825fb4a17fb8f7a633f03cd1dc4388c446a81b9b5b020aee381ff67a9",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0008_snapshot.json",
+        "gitBlobSha256": "d90ba9b3f25d21711584986283719f0efbd8a65871c61ee1d003b8bbd6de459f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0009_snapshot.json",
+        "gitBlobSha256": "91d2a37bf1d84c060d9f9bb81b9df59b24df5dd0698304ca0cbcc83e29667cf4",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0010_snapshot.json",
+        "gitBlobSha256": "b1afbce07e9faebe43094f65512eea2e27726adf79f01fe12dbc75f6b359ca02",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0011_snapshot.json",
+        "gitBlobSha256": "06032be5fb35969db871ff3c16157264a6596b873e6f8b824dcb7132f82a59bf",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0012_snapshot.json",
+        "gitBlobSha256": "e3256c08889181421c923a1630811db20e0569c12c255f6bc9c187e28dc0660f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0013_snapshot.json",
+        "gitBlobSha256": "db5ef19e27481a5b4fea3af998edef8257690fb753390e1d78f07a69d0d1574a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0014_snapshot.json",
+        "gitBlobSha256": "2710becb1ed69f9103ddbcedfbcb6f8a305c4e7f002a5bfa383a804c9767b9de",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0015_snapshot.json",
+        "gitBlobSha256": "214716cc1214ee1163b2a86d62cf461e5233e033ae3f520705387e224f392a59",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0016_snapshot.json",
+        "gitBlobSha256": "a3825a4daad0447c28a7f3404bf64157a692ca0350b58ac6455c240902e1fb5a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0017_snapshot.json",
+        "gitBlobSha256": "b37a2aa3acdfbff33ce2a5d3a87c3d9fba728696d6617dacba413f10a056058c",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0018_snapshot.json",
+        "gitBlobSha256": "55e131c5f987d31422b59e2f82b97a54aad75ef377995fefc0ab1b27ee7a85a8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0019_snapshot.json",
+        "gitBlobSha256": "02506bfb95635586979652327f802647860fa4295bc4beefabb06caa41a60a10",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0020_snapshot.json",
+        "gitBlobSha256": "eb96506363695e0677916cf893b4c67345891cb977e35eb01a9aebbde30d7837",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0021_snapshot.json",
+        "gitBlobSha256": "a902016f8849dbf43eda0d844cb285f030cb69a7c0a3d663a54f100c87b572fa",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0022_snapshot.json",
+        "gitBlobSha256": "b2bc70118d717027e05733892688b53cda0806bdf40312ceec54872cb55d8799",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0023_snapshot.json",
+        "gitBlobSha256": "a97120f42d73479cb9e6e733f93acc32f87955701cd1797f635f77fb0086359a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0024_snapshot.json",
+        "gitBlobSha256": "3abd8ca5cd3d1377587c855d10a8b3745e68d94857f81422934186145229eb53",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0025_snapshot.json",
+        "gitBlobSha256": "bb03ab7e02d6470a1ec08daf1e5f3dc19f5e87b600ed49ad0ca9d6a33747bdf0",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0026_snapshot.json",
+        "gitBlobSha256": "6d522dae1c8d39d352a1f5125e126dfe50b80afb1fb2f0744615d39da51f3ece",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0027_snapshot.json",
+        "gitBlobSha256": "0be5a5b61996f26deb1875131377fa405280298af50c82bb2f70aa5e1277505e",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0028_snapshot.json",
+        "gitBlobSha256": "c919d77340ee8fd2955c3bfe8c5bd5e89dfd74760a4ff5d6ef83e2a5388ce38b",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0029_snapshot.json",
+        "gitBlobSha256": "70b35d6b4c57498af990aebe99b33a4e2c7316c2216e08a6f5405ac277efcc8c",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0030_snapshot.json",
+        "gitBlobSha256": "d1296f8b78731699c12aa53285c41a30064a356e8418b2e1326fe7cf46320708",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0031_snapshot.json",
+        "gitBlobSha256": "00738143bc1178bb6156e821e2ab4d4eb8a3986b144fe89cfa4f7ea7a6172477",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0032_snapshot.json",
+        "gitBlobSha256": "c0e17978102bab4bcc02d11398c186077c68032e949bc64b11578eab2c72f268",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0033_snapshot.json",
+        "gitBlobSha256": "9c6a668b37378193c81c7c47e4a99dd7f02662987da164d432c480c91c62fd43",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0034_snapshot.json",
+        "gitBlobSha256": "20974a6cfdc934957969ad7efc28177989321438be1111c790bbee93f7563bf4",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0035_snapshot.json",
+        "gitBlobSha256": "91729a8b6b650a5af77fbdf9533951f869e401d6d1b8632684450b86b2b74894",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0036_snapshot.json",
+        "gitBlobSha256": "434a605034067e9a7a804d8567e926c7032d9bed3526908463427c0f48928ca0",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0037_snapshot.json",
+        "gitBlobSha256": "526a35a0e1545dd298cd7cb3fb28cb4c8fd328ff9df2df1ceab0f175c425d88d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0038_snapshot.json",
+        "gitBlobSha256": "1074db5983138cf93a5079812815b54f263e2105ee816dbd72fa846788efe388",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0039_snapshot.json",
+        "gitBlobSha256": "03f6e3bde7a91530f1e914c94f97b7ba152774d8e0e67c7c7bd244cf056f53e0",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0040_snapshot.json",
+        "gitBlobSha256": "11a3ac0db815d7818b54f3b696cd32fd19baca486993efc5199e5d166697504f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0041_snapshot.json",
+        "gitBlobSha256": "f12e822e5afadb07d306db5aff6dbf162fed445b08bd4335d047e121327658a6",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0042_snapshot.json",
+        "gitBlobSha256": "0765490bdce1ceb71dbf42f2d61f357a199add53be96de45a158f3477a31d6f8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0043_snapshot.json",
+        "gitBlobSha256": "f5a7c45a9f4b2eb898ddc6d4393f83aa7ee3ae9df9f13aa874e3e441830cad68",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0044_snapshot.json",
+        "gitBlobSha256": "4c80ffcc870df97fea9d9c75e2edea1a04654f4974120a43ecc575c607619d30",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0045_snapshot.json",
+        "gitBlobSha256": "7fd950db55c5f8a3628ef8cf57f451b65365ae997282c2e74837851dbf9b3a4c",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0046_snapshot.json",
+        "gitBlobSha256": "de0feab72cc0c4f9163c4c7e43568a3650b9299b835eea3ea0eeb1f56c872f01",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0047_snapshot.json",
+        "gitBlobSha256": "b8446c735a49841aeb2d195227cb7bdb597debc49c319be521ed66dbc3a9a5cc",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0048_snapshot.json",
+        "gitBlobSha256": "05a6149f925a3461ebb8e2fb548d45e9845e17f6ec6e123b3828395d59d57f01",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0049_snapshot.json",
+        "gitBlobSha256": "238311e868386f6b85e6b33ec400f89c550b9d0b87ab9ebde883fb2348f663ea",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0050_snapshot.json",
+        "gitBlobSha256": "88cde638b79c81ace8620a7d58fdd818f777ffcdb9033fdb94c8c34884b5f0d7",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0051_snapshot.json",
+        "gitBlobSha256": "fe6bdf7081d40eeb17df5ffea276617af6db9d2e216c2e1301ffb404cce3973c",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0052_snapshot.json",
+        "gitBlobSha256": "02e6795a4074759745784af40ea355856b29f1510778865d30f8bef209e43b91",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0053_snapshot.json",
+        "gitBlobSha256": "75126a6aeed8ba25f7ff6edd0aa563e69342fd209250be1bb2c7e73a37ee5281",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0054_snapshot.json",
+        "gitBlobSha256": "333c69cad584d787cf4d5ce2126fd7c2aa9c88c16c031788526bd7dfb12d1141",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0055_snapshot.json",
+        "gitBlobSha256": "0abffc8ef836c4bb352b9b2a7697d4b51c05347f29483fb4fe46ef8bee3e30d0",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0057_snapshot.json",
+        "gitBlobSha256": "c059c972e5d44406987b29bef481743a253ad584eec18007dfa62ac26c379667",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0058_snapshot.json",
+        "gitBlobSha256": "9747f8c69a98b8a95c74358653093bb7263b4f24567a15c012f94ff8f07f791b",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0059_snapshot.json",
+        "gitBlobSha256": "5d07f9710b50f6e83ef68e508a6f5cceb6df3d7d7b5775774ff3a9e66892e0d7",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0060_snapshot.json",
+        "gitBlobSha256": "3a861dd513d7159a996034f2e75882ddad15dd8b9b7e57e8eaca5e5734970ec5",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0061_snapshot.json",
+        "gitBlobSha256": "5a2bdd672922d3e6111ff576512c49adeb3544f9e3031abf84dd6563f9fadda6",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0062_snapshot.json",
+        "gitBlobSha256": "194c8e48b40ee26cdeaedb5e288ea7323420cd2c126f915cc033f2123d191837",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0063_snapshot.json",
+        "gitBlobSha256": "0484083f62aaf3c4c27bea5f02552cc6a9d718f037e4afebf1e0271d9a687e84",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0064_snapshot.json",
+        "gitBlobSha256": "4057f2634ebea6d4f0aabc5cf2ee33bb5862826bbbaa7f09171dfd7eb47e15fd",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0065_snapshot.json",
+        "gitBlobSha256": "db790ae96fc8d366ea7b0bfaae212f9afbc6b15ddbbed7176c21453b94edcf1f",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0066_snapshot.json",
+        "gitBlobSha256": "5ac76d14e1dd4804ee0a3e4834fd3f5821a0c07e3350ca23f89bd52d8ad195d6",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0067_snapshot.json",
+        "gitBlobSha256": "aef34314d52dea6e21da66341f56077cb3e8d7129b697b09d1b6e593220b9cd3",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0068_snapshot.json",
+        "gitBlobSha256": "e42a33966ba4fcd3b51dd498136ee6d4144e99aa3240014575aa35fbe368fd79",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0069_snapshot.json",
+        "gitBlobSha256": "20807df6f8474394f2a17a16796f1a1cf67c21dbbb349e91183fb37db4dbe9f9",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0070_snapshot.json",
+        "gitBlobSha256": "88397d037daf9e6f87cbeafc062ff519ebf667398e3218eded5f586e49baddd7",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0071_snapshot.json",
+        "gitBlobSha256": "57b4147d4d14021d37a36e6378f093e44c0730c47901860bfe4488bc71178d84",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0072_snapshot.json",
+        "gitBlobSha256": "5cc91ac829b4dc7346ccc20233043b8247f59596378fb5359595b281265c9a9a",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0073_snapshot.json",
+        "gitBlobSha256": "64e70da142f84038a6f046e4dcdc127ac43c7bd165143c7a4b9cec7879c7b01d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0074_snapshot.json",
+        "gitBlobSha256": "24fb06015199e9f6083001b275c963e72ccd4b9b40ff40942855b4a9078cef8d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0075_snapshot.json",
+        "gitBlobSha256": "7565d6de63f4e984b7a1258176edbbf743bdcda9bab5adeacbc1b7998cd8391b",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0076_snapshot.json",
+        "gitBlobSha256": "3c01e3fa3f258a915617a6c398cb0ec2348b5f60ab9ae0f714fdfa19f61012de",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0077_snapshot.json",
+        "gitBlobSha256": "7c807c33fa2916e6d00bd706bb91d752dd34fd11c2c8ca5c3c3d57839d525220",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0078_snapshot.json",
+        "gitBlobSha256": "9790ab18cee733608c31679b6493d6f1e36d7b78964b34ce7a4721a4567d9be2",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0079_snapshot.json",
+        "gitBlobSha256": "b85ea112f19fc241ad71e5e52086a183aa5d306fef3abe3417e20b3e9de652da",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0080_snapshot.json",
+        "gitBlobSha256": "84e461ca1368496e2e4ebf867b744aafeb9c0870959e881f026439b9985627c2",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0083_snapshot.json",
+        "gitBlobSha256": "10d3c55c44fa5f313218d8f91a97ef8400823c752e022d70ec0b0bde499d583c",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0084_snapshot.json",
+        "gitBlobSha256": "6cf27db7d20ccd841a9be4042ddf01995b76a4ab6ce2a1940c47273e32ee5473",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0085_snapshot.json",
+        "gitBlobSha256": "a55111a4c637afd0731eb2b913d21fbb6fb1376c4adfa67e68f0a288986b044d",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/0086_snapshot.json",
+        "gitBlobSha256": "4815171dce7528e9632aef8f754ec9bdb986ebd969630ef71180087d02b93fb8",
+        "unchanged": true
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "gitBlobSha256": "32ba1bb87bb46deeef46ab11f154f2db6eeeec7868822e825443606b60a8b41d",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20260902000100_zentra_platform.sql",
+        "gitBlobSha256": "05264ef5dc1766fecba1415bee127cd30a1b91f513d9a04ec942680eb30e61e7",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20260902000200_zentra_archive_storage.sql",
+        "gitBlobSha256": "aca7f28f5fb3c68aa534fdfdf23a33884549c3f22fd80e323527891afe2ded31",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20260902000300_zentra_archive_retention.sql",
+        "gitBlobSha256": "c4b30843b86977f15c8999296de55e3b8c7ff153db145564867c9a89e6903f6e",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/202609140100_company_profiles.sql",
+        "gitBlobSha256": "232844d1d2dbfcd9a6e30dd8e7cfd79b34caba9ca9d89c26ff3fd2e95739830d",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/202609140200_company_collaboration.sql",
+        "gitBlobSha256": "b9496af37062ed7978480fd70447bd565634db3dc3f975cfb48eb45743f47a0a",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/202609200300_company_content.sql",
+        "gitBlobSha256": "8949838fcb0c4177cdd6ebd2ff6722ebd26774971661d71324ab3763b9f13712",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261004150344_restrict_rls_auto_enable_client_execution.sql",
+        "gitBlobSha256": "7afdc12f3df9879dccd2d9ce288879d6f4adda74092e2a62020363986c1a4c17",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261004171300_prepare_private_mail_scheduler_relay.sql",
+        "gitBlobSha256": "4ead4642725ca4655094782c61a570469a1e27bf8b3ecc5424b739e12e58b7e6",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261005002340_proportional_mail_scheduler_dispatch.sql",
+        "gitBlobSha256": "35874373d06a82d2be1361e46dda74289c4695e6e138b79ff11fbc1a9c1420ab",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261006114402_prepare_private_postfinance_scheduler.sql",
+        "gitBlobSha256": "4eb2a765d5c8028b41adaae25507faef58458977f0478e6a53d690a7041e0fe9",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261006155425_fair_postfinance_settlement_waiting.sql",
+        "gitBlobSha256": "e7dcc238525974968a9138a9bfd76d4545fd7e1596a9c24a1fd2c0394bc44d2a",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261007165615_us_pilot_market_test.sql",
+        "gitBlobSha256": "d30b662c3bbf461dfae894c72dcdf83125b2578ddd20e9ff0c7725b8aac28316",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261007173315_us_pilot_free_month_offer.sql",
+        "gitBlobSha256": "1985cfd263e217bdc86bb811e3b63f191779be02c5d27a43987043f7c414d9c4",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261007194528_international_workspace_country_config.sql",
+        "gitBlobSha256": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261007222349_international_us_erp_persistence.sql",
+        "gitBlobSha256": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261007224820_international_us_erp_delta_stream.sql",
+        "gitBlobSha256": "3df54310c2da0012d9065886df86a6524963ab594a1f314d10d45fac551af345",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261007225725_international_us_erp_seller_snapshot.sql",
+        "gitBlobSha256": "119e0c850c04c6772c0b002384c2cf86c8ab3427ec24586eb77f73a2a314f4f9",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008001726_new_us_workspace_admission.sql",
+        "gitBlobSha256": "435f87289682dbed3b372bd6790d0f213a5a5e7a4c5aee32f70323798e87edcc",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008013200_international_tax_proof_allowlist.sql",
+        "gitBlobSha256": "7f2d18ba19defb35dc3352624b18f951a26f806b86eb19d2c10c0c2bf4f977d8",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008034422_international_us_seller_profile.sql",
+        "gitBlobSha256": "a97274cb5e8f4d1153e5e0c98749a1d3c89a5d41debd721a3f7e7c1c9e56546b",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008044402_international_us_tax_profile.sql",
+        "gitBlobSha256": "98d5b4dd7b9842def1a036d512876a40ebc7131a44954a1e4ef09dab793e5034",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008060826_international_us_tax_operations.sql",
+        "gitBlobSha256": "a34d2fa9a78876a1c48910c004f25e795c73cfe35797824eb1ca5eaffb161330",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008081825_international_us_purchasing_v2.sql",
+        "gitBlobSha256": "1c0008e766a358166f0eccc25b68c60ee4dcd0f68d9b3220e946df213980013b",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008105120_international_us_projects_v3.sql",
+        "gitBlobSha256": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008161118_international_us_journal_periods_v4.sql",
+        "gitBlobSha256": "3d33a8ff4406a72c5a82a42bdc67bf6a02885b02745cc81fce8976bb10c2a31c",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql",
+        "gitBlobSha256": "f5beddce39dec119e1b606724be9c3ab6b7738260792cbd72d3a45f97993a718",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008184605_international_us_bank_reconciliation.sql",
+        "gitBlobSha256": "1a559b88961dc66ad18a42d84827da0d8ed4668f6b67be3cbe8d2cb82ae34b72",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008194930_international_us_supplier_proposals.sql",
+        "gitBlobSha256": "61d2e26795d86daeba2d0b02792b28a5c9d9b4c33c7ff402f158e48f4dd4d6fd",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261008210008_international_us_automation_analysis.sql",
+        "gitBlobSha256": "108a06f656ac7cba4a55ff60db0cde14bfca5e64b8bdf167ce2039cdf3fa7d6a",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261009215104_international_us_workspace_sync_heads.sql",
+        "gitBlobSha256": "c47f739c2c6d3526df5a7999463ccc2cd717efa310ab319720939f9406cfa6ad",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261009222319_international_us_tax_test_merchant.sql",
+        "gitBlobSha256": "9e436a3c1179dc541b3365f923d3a5f29e78a85ba9f8a0d3da7a40cc8e6ed330",
+        "unchanged": true
+      },
+      {
+        "path": "supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql",
+        "gitBlobSha256": "c3df657f26321ea618b16af340b3f6c9735ef08cee851f1510631fe6f29dc484",
+        "unchanged": true
+      }
+    ],
+    "publicCheckout": {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "cleanObserved": true
+    },
+    "nativeCheckout": {
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "cleanObserved": true
+    },
+    "originalCwd": "C:/Users/alb/Documents/ChatGPT/chantier not edited/reset",
+    "hostedMutation": false,
+    "providerCall": false,
+    "newCredential": false,
+    "publication": false,
+    "regionChange": false
+  },
+  "earlierFailures": {
+    "retained": true,
+    "details": "Mid-integration typecheck lacked the not-yet-written store/options; corrected after integration. First bindings test retained a sandbox profile stub across cases; corrected fixture cleanup. Initial type-aware lint flagged four new D1 test expressions; test code corrected. Independent review found catalogue-empty configuration prevented revocation in actual bindings; fixed with explicit lifecycle-only allowance and actual-signature/dispatch coverage. The first new signature/dispatch fixture had an account mismatch; fixture corrected without weakening the account fence. Earlier reports retain their original results; first common test selection predates this final correction."
+  },
+  "limits": [
+    "TEST unchanged offer/seat identity and fully captured card evidence only. No live sale, tax, trial, discount, proration, plan change or non-card proof.",
+    "Terminal partial/full-refund/dispute policy (including won) is conservative and requires approval before commercial use.",
+    "Missing/undelivered webhooks have no independent periodic reconciliation; unsupported/ambiguous risk evidence refuses observation without automatically revoking existing rights.",
+    "Bounded Invoice Payments graph100 rejects truncation/multiplicity; private SDK22.6 normalization must be retested before upgrade.",
+    "Node SQLite and mocked Auth/PG/provider transport do not establish workerd D1 concurrency, hosted composition, real two-device propagation, physical native behavior or capacity.",
+    "Default production gates remain closed. Ordered staging resource/migration/provider configuration and activation require explicit approval.",
+    "Only selected CH Stripe regressions rerun; complete QR/TVA/native/support functions not all retested in this phase.",
+    "No legal/accounting certification, US GAAP claim, savings measurement or US data-residency guarantee."
+  ],
+  "goalComplete": false
+}
