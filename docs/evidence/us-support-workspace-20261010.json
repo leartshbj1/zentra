@@ -1,0 +1,1167 @@
+{
+  "schemaVersion": 1,
+  "phase": "US Support H1 — per-company registry only",
+  "recordedAt": "2026-10-10T01:58:31.913Z",
+  "branch": "codex/international-runtime",
+  "baseCommit": "8236d41ea2be8353e42710035488b35a0b294c95",
+  "implementationCommit": "03b37c9be0d253eede743d312cb41cf2de16ced0",
+  "scope": {
+    "mailboxConnected": false,
+    "mailReception": false,
+    "classification": false,
+    "routing": false,
+    "financialPosting": false,
+    "approvalBypasses": false
+  },
+  "execution": {
+    "localOnly": true,
+    "hostedMigrationApplied": false,
+    "productionGateEnabled": false,
+    "externalProviderCalled": false,
+    "published": false,
+    "pushed": false,
+    "nativeBuilt": false,
+    "customerDataUsed": false
+  },
+  "gate": {
+    "name": "INTERNATIONAL_US_SUPPORT_WORKSPACES_ENABLED",
+    "default": false,
+    "alsoRequires": [
+      "INTERNATIONAL_CORE_ENABLED",
+      "INTERNATIONAL_US_ERP_ENABLED"
+    ]
+  },
+  "migration": {
+    "path": "drizzle/0093_international_us_support_workspaces.sql",
+    "sha256": "7350a7a1a4d989b439b49e25d84f42b67c9a2c3242aa08b08b14874a45716afa",
+    "additive": true,
+    "localChain": "0000–0093",
+    "engine": "Node built-in SQLite through the real D1 store interface",
+    "hostedD1Verified": false,
+    "postgresMigrationAdded": false
+  },
+  "tests": {
+    "command": "node node_modules/vitest/vitest.mjs run <selectedFiles> --maxWorkers=1 --reporter=json --outputFile=.qa/us-support-workspace/regression-final-complete.json",
+    "report": {
+      "path": ".qa/us-support-workspace/regression-final-complete.json",
+      "sha256": "ec575150f505c8b4f3c95c1027d83f019727c422046ce6a0eace3a1aa0a8f715",
+      "success": true,
+      "passed": 2719,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "testFiles": 84
+    },
+    "selectedFiles": [
+      "lib/account-workspace-entry.test.ts",
+      "lib/account-workspace-navigation.test.ts",
+      "lib/account-workspace-pages.test.ts",
+      "lib/account-workspaces.test.ts",
+      "lib/business-sync-cash-vat.test.ts",
+      "lib/deployment-contract.test.ts",
+      "lib/document-number-reservations.test.ts",
+      "lib/international/accounting-runtime.test.ts",
+      "lib/international/browser-us-supplier-documents-session.test.ts",
+      "lib/international/browser-us-supplier-session.test.ts",
+      "lib/international/browser-us-team-session.test.ts",
+      "lib/international/browser-us-workspace-sync-session.test.ts",
+      "lib/international/legacy-country-guard.migrations.test.ts",
+      "lib/international/legacy-country-guard.test.ts",
+      "lib/international/private-json.test.ts",
+      "lib/international/purchasing-runtime.test.ts",
+      "lib/international/runtime-bindings.test.ts",
+      "lib/international/runtime-response-guards.test.ts",
+      "lib/international/runtime-server-revalidation.test.ts",
+      "lib/international/runtime-server-us-tax.test.ts",
+      "lib/international/runtime-server.test.ts",
+      "lib/international/runtime-store.test.ts",
+      "lib/international/runtime-sync.test.ts",
+      "lib/international/runtime.test.ts",
+      "lib/international/saas-authorities.migrations.test.ts",
+      "lib/international/saas-authority.test.ts",
+      "lib/international/us-automation-policy.test.ts",
+      "lib/international/us-automation-store.test.ts",
+      "lib/international/us-automation-validation.test.ts",
+      "lib/international/us-device-bindings.test.ts",
+      "lib/international/us-device-capability-v4.test.ts",
+      "lib/international/us-device-d1.test.ts",
+      "lib/international/us-device-server.test.ts",
+      "lib/international/us-saas-test-bindings.test.ts",
+      "lib/international/us-saas-test-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-server.test.ts",
+      "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+      "lib/international/us-saas-test-server.test.ts",
+      "lib/international/us-saas-test-stripe.test.ts",
+      "lib/international/us-supplier-analysis-server.test.ts",
+      "lib/international/us-supplier-analysis.test.ts",
+      "lib/international/us-supplier-bindings.test.ts",
+      "lib/international/us-supplier-document-archive.test.ts",
+      "lib/international/us-supplier-document-bindings.test.ts",
+      "lib/international/us-supplier-document-bytes.test.ts",
+      "lib/international/us-supplier-document-contract.test.ts",
+      "lib/international/us-supplier-document-server.test.ts",
+      "lib/international/us-supplier-document-store.test.ts",
+      "lib/international/us-supplier-document-timeout.test.ts",
+      "lib/international/us-supplier-extraction.test.ts",
+      "lib/international/us-supplier-proposal.test.ts",
+      "lib/international/us-supplier-server.test.ts",
+      "lib/international/us-supplier-store.test.ts",
+      "lib/international/us-support-workspace-bindings.test.ts",
+      "lib/international/us-support-workspace-contract.test.ts",
+      "lib/international/us-support-workspace-d1.test.ts",
+      "lib/international/us-support-workspace-server.test.ts",
+      "lib/international/us-support-workspace-ui.test.ts",
+      "lib/international/us-team-bindings.test.ts",
+      "lib/international/us-team-contract.test.ts",
+      "lib/international/us-team-device-lifecycle.test.ts",
+      "lib/international/us-team-server.test.ts",
+      "lib/international/us-team-store.test.ts",
+      "lib/international/us-team-validation.test.ts",
+      "lib/international/us-team.migrations.test.ts",
+      "lib/international/us-workspace-sync-heads-bindings.test.ts",
+      "lib/international/us-workspace-sync-heads.test.ts",
+      "lib/international/workspace-creation-d1.test.ts",
+      "lib/international/workspace-server.bindings.test.ts",
+      "lib/site-language.test.ts",
+      "lib/stripe-contract.test.ts",
+      "lib/supabase-auth-http.test.ts",
+      "lib/supabase-auth.test.ts",
+      "lib/support/application-effects.test.ts",
+      "lib/support/billing.test.ts",
+      "lib/support/mail-documents.test.ts",
+      "lib/support/mail-sync-admission.test.ts",
+      "lib/support/reply-transport.test.ts",
+      "lib/support/solicitation-service.test.ts",
+      "lib/support/support.test.ts",
+      "lib/support/workspace-access.test.ts",
+      "lib/support/workspace-selection.test.ts",
+      "lib/support/workspace-state-admission.test.ts"
+    ],
+    "fileResults": [
+      {
+        "path": "lib/account-workspace-entry.test.ts",
+        "status": "passed",
+        "passed": 8,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/account-workspace-navigation.test.ts",
+        "status": "passed",
+        "passed": 14,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/account-workspace-pages.test.ts",
+        "status": "passed",
+        "passed": 38,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/account-workspaces.test.ts",
+        "status": "passed",
+        "passed": 19,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/business-sync-cash-vat.test.ts",
+        "status": "passed",
+        "passed": 9,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/deployment-contract.test.ts",
+        "status": "passed",
+        "passed": 35,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/document-number-reservations.test.ts",
+        "status": "passed",
+        "passed": 15,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/site-language.test.ts",
+        "status": "passed",
+        "passed": 33,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/stripe-contract.test.ts",
+        "status": "passed",
+        "passed": 6,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/supabase-auth-http.test.ts",
+        "status": "passed",
+        "passed": 14,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/supabase-auth.test.ts",
+        "status": "passed",
+        "passed": 16,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/accounting-runtime.test.ts",
+        "status": "passed",
+        "passed": 33,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/browser-us-supplier-documents-session.test.ts",
+        "status": "passed",
+        "passed": 28,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/browser-us-supplier-session.test.ts",
+        "status": "passed",
+        "passed": 30,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/browser-us-team-session.test.ts",
+        "status": "passed",
+        "passed": 37,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/browser-us-workspace-sync-session.test.ts",
+        "status": "passed",
+        "passed": 18,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/legacy-country-guard.migrations.test.ts",
+        "status": "passed",
+        "passed": 12,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/legacy-country-guard.test.ts",
+        "status": "passed",
+        "passed": 5,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/private-json.test.ts",
+        "status": "passed",
+        "passed": 19,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/purchasing-runtime.test.ts",
+        "status": "passed",
+        "passed": 63,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime-bindings.test.ts",
+        "status": "passed",
+        "passed": 24,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime-response-guards.test.ts",
+        "status": "passed",
+        "passed": 23,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime-server-revalidation.test.ts",
+        "status": "passed",
+        "passed": 96,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime-server-us-tax.test.ts",
+        "status": "passed",
+        "passed": 44,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime-server.test.ts",
+        "status": "passed",
+        "passed": 22,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime-store.test.ts",
+        "status": "passed",
+        "passed": 83,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime-sync.test.ts",
+        "status": "passed",
+        "passed": 29,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/runtime.test.ts",
+        "status": "passed",
+        "passed": 36,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/saas-authorities.migrations.test.ts",
+        "status": "passed",
+        "passed": 101,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/saas-authority.test.ts",
+        "status": "passed",
+        "passed": 47,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-automation-policy.test.ts",
+        "status": "passed",
+        "passed": 69,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-automation-store.test.ts",
+        "status": "passed",
+        "passed": 59,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-automation-validation.test.ts",
+        "status": "passed",
+        "passed": 29,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-device-bindings.test.ts",
+        "status": "passed",
+        "passed": 20,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-device-capability-v4.test.ts",
+        "status": "passed",
+        "passed": 11,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-device-d1.test.ts",
+        "status": "passed",
+        "passed": 15,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-device-server.test.ts",
+        "status": "passed",
+        "passed": 40,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-saas-test-bindings.test.ts",
+        "status": "passed",
+        "passed": 23,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-saas-test-d1.test.ts",
+        "status": "passed",
+        "passed": 46,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "status": "passed",
+        "passed": 44,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "status": "passed",
+        "passed": 20,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "status": "passed",
+        "passed": 123,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-saas-test-server.test.ts",
+        "status": "passed",
+        "passed": 27,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-saas-test-stripe.test.ts",
+        "status": "passed",
+        "passed": 82,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-analysis-server.test.ts",
+        "status": "passed",
+        "passed": 47,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-analysis.test.ts",
+        "status": "passed",
+        "passed": 39,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-bindings.test.ts",
+        "status": "passed",
+        "passed": 12,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-document-archive.test.ts",
+        "status": "passed",
+        "passed": 10,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-document-bindings.test.ts",
+        "status": "passed",
+        "passed": 12,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-document-bytes.test.ts",
+        "status": "passed",
+        "passed": 11,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-document-contract.test.ts",
+        "status": "passed",
+        "passed": 29,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-document-server.test.ts",
+        "status": "passed",
+        "passed": 21,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-document-store.test.ts",
+        "status": "passed",
+        "passed": 33,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-document-timeout.test.ts",
+        "status": "passed",
+        "passed": 4,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-extraction.test.ts",
+        "status": "passed",
+        "passed": 96,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-proposal.test.ts",
+        "status": "passed",
+        "passed": 105,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-server.test.ts",
+        "status": "passed",
+        "passed": 32,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-supplier-store.test.ts",
+        "status": "passed",
+        "passed": 77,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-support-workspace-bindings.test.ts",
+        "status": "passed",
+        "passed": 8,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-support-workspace-contract.test.ts",
+        "status": "passed",
+        "passed": 7,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-support-workspace-d1.test.ts",
+        "status": "passed",
+        "passed": 53,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-support-workspace-server.test.ts",
+        "status": "passed",
+        "passed": 31,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-support-workspace-ui.test.ts",
+        "status": "passed",
+        "passed": 33,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-team-bindings.test.ts",
+        "status": "passed",
+        "passed": 49,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-team-contract.test.ts",
+        "status": "passed",
+        "passed": 8,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-team-device-lifecycle.test.ts",
+        "status": "passed",
+        "passed": 11,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-team-server.test.ts",
+        "status": "passed",
+        "passed": 18,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-team-store.test.ts",
+        "status": "passed",
+        "passed": 23,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-team-validation.test.ts",
+        "status": "passed",
+        "passed": 89,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-team.migrations.test.ts",
+        "status": "passed",
+        "passed": 16,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "status": "passed",
+        "passed": 14,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/us-workspace-sync-heads.test.ts",
+        "status": "passed",
+        "passed": 23,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/workspace-creation-d1.test.ts",
+        "status": "passed",
+        "passed": 26,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/international/workspace-server.bindings.test.ts",
+        "status": "passed",
+        "passed": 22,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/application-effects.test.ts",
+        "status": "passed",
+        "passed": 6,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/billing.test.ts",
+        "status": "passed",
+        "passed": 33,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/mail-documents.test.ts",
+        "status": "passed",
+        "passed": 5,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/mail-sync-admission.test.ts",
+        "status": "passed",
+        "passed": 17,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/reply-transport.test.ts",
+        "status": "passed",
+        "passed": 10,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/solicitation-service.test.ts",
+        "status": "passed",
+        "passed": 19,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/support.test.ts",
+        "status": "passed",
+        "passed": 81,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/workspace-access.test.ts",
+        "status": "passed",
+        "passed": 8,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/workspace-selection.test.ts",
+        "status": "passed",
+        "passed": 2,
+        "failed": 0,
+        "pending": 0
+      },
+      {
+        "path": "lib/support/workspace-state-admission.test.ts",
+        "status": "passed",
+        "passed": 14,
+        "failed": 0,
+        "pending": 0
+      }
+    ],
+    "supportCohort": {
+      "includedInTotal": true,
+      "files": [
+        {
+          "path": "lib/international/us-support-workspace-bindings.test.ts",
+          "status": "passed",
+          "passed": 8,
+          "failed": 0,
+          "pending": 0
+        },
+        {
+          "path": "lib/international/us-support-workspace-contract.test.ts",
+          "status": "passed",
+          "passed": 7,
+          "failed": 0,
+          "pending": 0
+        },
+        {
+          "path": "lib/international/us-support-workspace-d1.test.ts",
+          "status": "passed",
+          "passed": 53,
+          "failed": 0,
+          "pending": 0
+        },
+        {
+          "path": "lib/international/us-support-workspace-server.test.ts",
+          "status": "passed",
+          "passed": 31,
+          "failed": 0,
+          "pending": 0
+        },
+        {
+          "path": "lib/international/us-support-workspace-ui.test.ts",
+          "status": "passed",
+          "passed": 33,
+          "failed": 0,
+          "pending": 0
+        }
+      ],
+      "passed": 132
+    },
+    "fixtureLimits": [
+      "Auth/catalogue/payment are fictitious",
+      "Node SQLite is not a hosted Cloudflare D1 composition test",
+      "No new PostgreSQL/R2/provider test",
+      "Selected CH web checks are not a full native/QR release recipe"
+    ]
+  },
+  "checks": [
+    {
+      "path": ".qa/us-support-workspace/typecheck-final-verified.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "outcome": "passed, exit 0",
+      "command": "node node_modules/typescript/bin/tsc --noEmit"
+    },
+    {
+      "path": ".qa/us-support-workspace/lint-final-complete.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "outcome": "passed, exit 0",
+      "command": "node node_modules/oxlint/bin/oxlint -- <changed TS/TSX plus vitest.config.ts>"
+    },
+    {
+      "path": ".qa/us-support-workspace/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "outcome": "passed, exit 0",
+      "command": "node scripts/check-brand-assets.mjs"
+    },
+    {
+      "path": ".qa/us-support-workspace/build-final-verified.log",
+      "sha256": "7c5696ff487a938264292a83faa661b9815e34e1c49dc88f188ddd7cecc2e6f5",
+      "outcome": "passed, exit 0; route included; existing static-classification notice retained",
+      "command": "node node_modules/vinext/dist/cli.js build"
+    }
+  ],
+  "initialDiagnostics": [
+    {
+      "path": ".qa/us-support-workspace/regression-final-verified.json",
+      "sha256": "b56ff52b13a5e0d8a200fec1521dfe3b5da27516444342f3298682731b3a6b28",
+      "outcome": "2713 tests passed; one file did not load virtual translation module; superseded by final complete run",
+      "command": null
+    },
+    {
+      "path": ".qa/us-support-workspace/support-harness-final.json",
+      "sha256": "6079e58bb5e09216b8e08810ff16151626eb4ce546a39a7fb6d76720a0b8a4a0",
+      "outcome": "after resolver correction, five tests exposed an obsolete fixed hook index; superseded by prop-based observation",
+      "command": null
+    },
+    {
+      "path": ".qa/us-support-workspace/support-harness-final-verified.json",
+      "sha256": "1cfc214b883682717373a7cb18c2ce4f906cb6ff2d93db10d77c027ba6ef6403",
+      "outcome": "targeted Support lifecycle and language rerun passed",
+      "command": null
+    },
+    {
+      "path": ".qa/us-support-workspace/lint-final.log",
+      "sha256": "a9bcebc80fe049a74dd3fdfd7c41291989b83f93c2ca57d9a82bde7e2f7c6a10",
+      "outcome": "initial typed-lint failures in new tests corrected; final complete run used",
+      "command": null
+    },
+    {
+      "path": ".qa/us-support-workspace/build-final.log",
+      "sha256": "002cce7233ec009454297b9513585f56aa408b58d9e3ed1c70da0980b84619d7",
+      "outcome": "initial incorrect CLI path did not start a build; verified package CLI used for final run",
+      "command": null
+    }
+  ],
+  "browser": {
+    "fixture": {
+      "path": ".qa/us-support-workspace/browser/entry.tsx",
+      "sha256": "f54c961ccc7c6ce25b30358be2c4d5c267e3fea25debfb10386f24215921f4eb",
+      "retainedInGit": false,
+      "actualReactPanel": true,
+      "simulatedAuthAndPersistence": true
+    },
+    "layout": [
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Actualiser"
+          },
+          {
+            "h": 45.75,
+            "text": "Préparer l’espace Support"
+          }
+        ],
+        "input": "block",
+        "lang": "fr",
+        "overflow": [],
+        "scrollWidth": 320,
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Actualiser"
+          },
+          {
+            "h": 45.75,
+            "text": "Préparer l’espace Support"
+          }
+        ],
+        "input": "block",
+        "lang": "fr",
+        "overflow": [],
+        "scrollWidth": 320,
+        "theme": "dark",
+        "width": 320
+      },
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Aktualisieren"
+          },
+          {
+            "h": 67.5,
+            "text": "Support-Arbeitsbereich vorbereiten"
+          }
+        ],
+        "input": "block",
+        "lang": "de",
+        "overflow": [],
+        "scrollWidth": 305,
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Aktualisieren"
+          },
+          {
+            "h": 67.5,
+            "text": "Support-Arbeitsbereich vorbereiten"
+          }
+        ],
+        "input": "block",
+        "lang": "de",
+        "overflow": [],
+        "scrollWidth": 305,
+        "theme": "dark",
+        "width": 320
+      },
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Aggiorna"
+          },
+          {
+            "h": 45.75,
+            "text": "Prepara lo spazio Support"
+          }
+        ],
+        "input": "block",
+        "lang": "it",
+        "overflow": [],
+        "scrollWidth": 320,
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Aggiorna"
+          },
+          {
+            "h": 45.75,
+            "text": "Prepara lo spazio Support"
+          }
+        ],
+        "input": "block",
+        "lang": "it",
+        "overflow": [],
+        "scrollWidth": 320,
+        "theme": "dark",
+        "width": 320
+      },
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Refresh"
+          },
+          {
+            "h": 45.75,
+            "text": "Prepare Support workspace"
+          }
+        ],
+        "input": "block",
+        "lang": "en",
+        "overflow": [],
+        "scrollWidth": 320,
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "buttons": [
+          {
+            "h": 45.75,
+            "text": "Refresh"
+          },
+          {
+            "h": 45.75,
+            "text": "Prepare Support workspace"
+          }
+        ],
+        "input": "block",
+        "lang": "en",
+        "overflow": [],
+        "scrollWidth": 320,
+        "theme": "dark",
+        "width": 320
+      }
+    ],
+    "desktop": {
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "horizontalOverflow": []
+    },
+    "scenarios": {
+      "lostResponse": {
+        "explicitRetry": true,
+        "commits": 1,
+        "posts": 2,
+        "exactSameRequest": true
+      },
+      "accessRevoked": "projection and pending purged",
+      "signedOut": "projection and pending purged",
+      "member": "no creation form"
+    },
+    "captures": [
+      {
+        "path": "docs/evidence/us-support-workspace-20261010/mobile-dark-fr.jpg",
+        "sha256": "a2ceaa193f98a2ccd2f047aba21cad22f9472b61ac2b6ebf868ef8d93e947ea1",
+        "mimeType": "image/jpeg",
+        "syntheticAuthAndPersistence": true
+      },
+      {
+        "path": "docs/evidence/us-support-workspace-20261010/desktop-owner-en.jpg",
+        "sha256": "8f3477e4c297c1a4e77f6a7520bf8650697f908012f07d4bed2b7a100bf4ae56",
+        "mimeType": "image/jpeg",
+        "syntheticAuthAndPersistence": true
+      },
+      {
+        "path": "docs/evidence/us-support-workspace-20261010/desktop-member-en.jpg",
+        "sha256": "ff7e182a11d55b32f500abfc9d28dc28800ef4c29d8a9455b25367994bd51f61",
+        "mimeType": "image/jpeg",
+        "syntheticAuthAndPersistence": true
+      }
+    ],
+    "cleanup": {
+      "viewportReset": true,
+      "tabClosed": true,
+      "previewServerStopped": true
+    },
+    "notVerified": [
+      "native iPhone/Android/macOS/Windows builds",
+      "hosted authenticated page",
+      "200% zoom",
+      "real provider throughput",
+      "150-company capacity"
+    ]
+  },
+  "implementationFiles": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/support-workspace/route.ts",
+      "sha256": "a3fe256fb2ccd5b96c0a409b1d89ca9d16482d937b03e0096386d78c69cae378"
+    },
+    {
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "sha256": "e2c795f4375fd70780703ba0b56d75cda13ae6a283bcbe1531f8b21510020923"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "sha256": "bb976c1be319db9a9e042ccc0f9e06763fd39014550d595a14dfcfca318eb72d"
+    },
+    {
+      "path": "components/account/us-support-workspace-panel.tsx",
+      "sha256": "ad87d8215926f9ba692b12716cebc226e40dc361e1a149f585a11bb25df56b3e"
+    },
+    {
+      "path": "docs/internationalization/US-SUPPORT-WORKSPACE-PLAN-20261010.md",
+      "sha256": "c9eee023c9a127631e24d262aef99ccc9bf86e57e60bf9ff459632fe46febb41"
+    },
+    {
+      "path": "drizzle/0093_international_us_support_workspaces.sql",
+      "sha256": "7350a7a1a4d989b439b49e25d84f42b67c9a2c3242aa08b08b14874a45716afa"
+    },
+    {
+      "path": "lib/international/us-support-workspace-bindings.test.ts",
+      "sha256": "78a975e83b565fb9071d82c2174f9fa341854136e3836944df65f991b79407ae"
+    },
+    {
+      "path": "lib/international/us-support-workspace-bindings.ts",
+      "sha256": "eb53310c7d951c6ee56b74e75145ed8f6ea17875ab5511e41161b41dcedac9d9"
+    },
+    {
+      "path": "lib/international/us-support-workspace-contract.test.ts",
+      "sha256": "530adaed81949cbf4c50c184acd032cde235fe95da4ead831d7e206eefd75cf7"
+    },
+    {
+      "path": "lib/international/us-support-workspace-contract.ts",
+      "sha256": "7a1859a2cd0241d22fd13cc8e8a19d1e348fc470b78a2635c30252b4710b39e9"
+    },
+    {
+      "path": "lib/international/us-support-workspace-d1.test.ts",
+      "sha256": "8345d977a596e00179f9be83d29c8f9794bfc7d37d7176da1d1c33cbc73f43bd"
+    },
+    {
+      "path": "lib/international/us-support-workspace-d1.ts",
+      "sha256": "17f3d5df790cd57e22c9edbad2fbc4c98eeb22460b98db3e35d5cf104494dfa1"
+    },
+    {
+      "path": "lib/international/us-support-workspace-server.test.ts",
+      "sha256": "03319d62da609da77d2fd40a5309f67b3acd8dd3ae7b5cc4527fb37f50990f13"
+    },
+    {
+      "path": "lib/international/us-support-workspace-server.ts",
+      "sha256": "304cdfcfe1be6ffae1738acd648432cee6abe663f75daeb8940f88829b491b7e"
+    },
+    {
+      "path": "lib/international/us-support-workspace-ui.test.ts",
+      "sha256": "ac58ce3f50e4397458c3681fa347688ddb5c372a2e851f82b7e978c37a1d20b1"
+    },
+    {
+      "path": "lib/support/application-effects.test.ts",
+      "sha256": "c318dcf725d4c0fc236a5d73427d6fad010de79477965f4ebdbef963aa0df604"
+    },
+    {
+      "path": "vitest.config.ts",
+      "sha256": "0e23bed2d6ab951d1b2076e601258d6fe6d83cfb6110dd286467f8d481be3aaa"
+    }
+  ],
+  "inventory": {
+    "created": [
+      "app/api/international/workspaces/[organizationId]/support-workspace/route.ts",
+      "components/account/us-support-workspace-panel.tsx",
+      "drizzle/0093_international_us_support_workspaces.sql",
+      "lib/international/us-support-workspace-contract.ts",
+      "lib/international/us-support-workspace-contract.test.ts",
+      "lib/international/us-support-workspace-server.ts",
+      "lib/international/us-support-workspace-server.test.ts",
+      "lib/international/us-support-workspace-bindings.ts",
+      "lib/international/us-support-workspace-bindings.test.ts",
+      "lib/international/us-support-workspace-d1.ts",
+      "lib/international/us-support-workspace-d1.test.ts",
+      "lib/international/us-support-workspace-ui.test.ts",
+      "docs/internationalization/US-SUPPORT-WORKSPACE-PLAN-20261010.md",
+      "docs/internationalization/US-SUPPORT-WORKSPACE-DELIVERY-20261010.md",
+      "docs/evidence/us-support-workspace-20261010.json",
+      "docs/evidence/us-support-workspace-20261010/mobile-dark-fr.jpg",
+      "docs/evidence/us-support-workspace-20261010/desktop-owner-en.jpg",
+      "docs/evidence/us-support-workspace-20261010/desktop-member-en.jpg"
+    ],
+    "modified": [
+      "app/compte/espaces/us/[organizationId]/page.tsx",
+      "components/account/us-erp-workbench.tsx",
+      "vitest.config.ts",
+      "lib/support/application-effects.test.ts",
+      "docs/internationalization/STATUS-20261009.md"
+    ]
+  },
+  "preserved": [
+    {
+      "kind": "native",
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/international-native-admission",
+      "expectedHead": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "actualHead": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "status": ""
+    },
+    {
+      "kind": "public",
+      "path": "D:/Codex-Zentra-Temporary/2026-10-08/site-business-results",
+      "expectedHead": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "actualHead": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "status": ""
+    }
+  ],
+  "review": {
+    "independentReadonlyReview": "No remaining P1/P2 identified; local registry scope only; not a proof of production readiness"
+  },
+  "next": [
+    "H2a verified US mailbox connection",
+    "immutable message/attachment provenance and explicit intake to existing private US originals",
+    "separate Automation consent/quota and human financial approval",
+    "worker delegation and general classification policy later",
+    "authorized hosted staging and native verification before commercial pilot"
+  ]
+}
