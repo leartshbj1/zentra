@@ -39,7 +39,7 @@ export interface UsFinancialCommitV5 {
 /** Deliberately separate from ErpStore/public ERP1–4. PostgreSQL TEST
  * capabilities each admit a closed command set, never every memory operation. */
 export interface UsFinancialKernelStoreV5 {
-  readonly capability: 'memory-test-v5' | 'postgres-test-settlement-v5' | 'postgres-test-commercial-v5' | 'postgres-test-purchasing-v5';
+  readonly capability: 'memory-test-v5' | 'postgres-test-settlement-v5' | 'postgres-test-commercial-v5' | 'postgres-test-purchasing-v5' | 'postgres-test-accounting-v5';
   read(this: void, organizationId: string): Promise<unknown>;
   receipt(this: void, organizationId: string, key: string): Promise<unknown>;
   commit(this: void, input: UsFinancialCommitV5): Promise<UsFinancialReceiptV5>;
@@ -110,6 +110,9 @@ export function isUsFinancialCommercialCommandV5(command: UsFinancialErpCommandV
 export function isUsFinancialPurchasingCommandV5(command: UsFinancialErpCommandV5): boolean {
   return isUsFinancialCommercialCommandV5(command) || command.type === 'save_vendor' || command.type === 'record_vendor_bill' || command.type === 'record_vendor_payment';
 }
+export function isUsFinancialAccountingCommandV5(command: UsFinancialErpCommandV5): boolean {
+  return isUsFinancialPurchasingCommandV5(command) || command.type === 'post_manual_journal' || command.type === 'reverse_manual_journal' || command.type === 'open_period' || command.type === 'close_period';
+}
 function financialRequest(request: UsFinancialRequestV5): boolean {
   return request.command.type !== 'erp_command' || !isUsFinancialCommercialCommandV5(request.command.request);
 }
@@ -163,11 +166,12 @@ export async function executeUsFinancialKernelV5(deps: UsFinancialRuntimeDepende
   const rawActor = snapshot(deps.actor, 'service_unavailable', 503) as FinancialAuthority;
   const request = validateUsFinancialRequestV5(input, rawActor?.organizationId);
   const admittedCapability = deps.store.capability;
-  if (!['memory-test-v5', 'postgres-test-settlement-v5', 'postgres-test-commercial-v5', 'postgres-test-purchasing-v5'].includes(admittedCapability)) return fail('financial_capability_unavailable', 503);
+  if (!['memory-test-v5', 'postgres-test-settlement-v5', 'postgres-test-commercial-v5', 'postgres-test-purchasing-v5', 'postgres-test-accounting-v5'].includes(admittedCapability)) return fail('financial_capability_unavailable', 503);
   if (request.command.type === 'erp_command') {
     const permitted = admittedCapability === 'memory-test-v5'
       || (admittedCapability === 'postgres-test-commercial-v5' && isUsFinancialCommercialCommandV5(request.command.request))
-      || (admittedCapability === 'postgres-test-purchasing-v5' && isUsFinancialPurchasingCommandV5(request.command.request));
+      || (admittedCapability === 'postgres-test-purchasing-v5' && isUsFinancialPurchasingCommandV5(request.command.request))
+      || (admittedCapability === 'postgres-test-accounting-v5' && isUsFinancialAccountingCommandV5(request.command.request));
     if (!permitted) return fail('financial_append_unavailable', 409);
   }
   // The first SQL TEST grants remain financial roles even for commercial work.

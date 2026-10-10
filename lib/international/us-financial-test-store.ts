@@ -6,11 +6,11 @@ import { validateErpReceipt } from './erp-receipt';
 import { parseInstant } from './localization';
 import { snapshotPrivateJson } from './private-json';
 import { validateUsFinancialBookV5 } from './us-financial-kernel';
-import { isUsFinancialCommercialCommandV5, isUsFinancialPurchasingCommandV5, validateUsFinancialReceiptV5, validateUsFinancialRequestV5, type UsFinancialCommitV5, type UsFinancialKernelStoreV5, type UsFinancialReceiptV5 } from './us-financial-kernel-runtime';
+import { isUsFinancialCommercialCommandV5, isUsFinancialPurchasingCommandV5, isUsFinancialAccountingCommandV5, validateUsFinancialReceiptV5, validateUsFinancialRequestV5, type UsFinancialCommitV5, type UsFinancialKernelStoreV5, type UsFinancialReceiptV5 } from './us-financial-kernel-runtime';
 import type { UsFinancialBookV5 } from './us-financial-kernel-types';
 import { captureUsFinancialTestScopeV5, type UsFinancialTestScopeV5 } from './us-financial-test-foundation';
 
-type Profile = 'settlement' | 'commercial' | 'purchasing';
+type Profile = 'settlement' | 'commercial' | 'purchasing' | 'accounting';
 const same = (a: unknown, b: unknown) => canonicalErpJson(a) === canonicalErpJson(b);
 const fail = (code = 'invalid_financial_private_data', status = 503): never => { throw new ErpError(code, status); };
 function capture(value: unknown): unknown { try { return snapshotPrivateJson(value); } catch { return fail(); } }
@@ -97,7 +97,8 @@ function createPrivateTestStore(
     try { result = await validateUsFinancialBookV5(value, bound.organizationId, bound.policy); } catch { return fail(); }
     if (result.events.some(e => e.operation.type === 'erp_command' && (profile === 'settlement'
       || (profile === 'commercial' && !isUsFinancialCommercialCommandV5(e.operation.command))
-      || (profile === 'purchasing' && !isUsFinancialPurchasingCommandV5(e.operation.command))))) return fail('financial_append_unavailable', 409);
+      || (profile === 'purchasing' && !isUsFinancialPurchasingCommandV5(e.operation.command))
+      || (profile === 'accounting' && !isUsFinancialAccountingCommandV5(e.operation.command))))) return fail('financial_append_unavailable', 409);
     return result;
   }
   async function call<T>(name: string, extra: Readonly<Record<string, unknown>>, parse: (value: unknown) => Promise<T> | T, executionActor = bound.actor): Promise<T> {
@@ -191,4 +192,8 @@ export function createSupabaseUsFinancialCommercialTestStoreV5(client: PrivateCl
 /** Manual purchasing plus commercial work and settlements; no bank execution. */
 export function createSupabaseUsFinancialPurchasingTestStoreV5(client: PrivateClient, scope: UsFinancialTestScopeV5, revalidate: ScopeReader): UsFinancialKernelStoreV5 {
   return createPrivateTestStore(client, scope, revalidate, 'purchasing');
+}
+/** Manual journals/period control on the same purchasing and settlement book. */
+export function createSupabaseUsFinancialAccountingTestStoreV5(client: PrivateClient, scope: UsFinancialTestScopeV5, revalidate: ScopeReader): UsFinancialKernelStoreV5 {
+  return createPrivateTestStore(client, scope, revalidate, 'accounting');
 }
