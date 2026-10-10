@@ -3,8 +3,8 @@ import type { CustomerPayment, IssuedInvoice, PublicSellerSnapshot, TaxAssessmen
 import type { ErpCommand, ErpCommit, ErpState } from './runtime-types';
 import type { UsCustomerCreditAllocation, UsCustomerCreditSelection, UsCustomerCreditSource } from './us-customer-credit-types';
 
-/** Internal memory-only financial capability. Never advertise it as the
- * existing ErpSchemaVersion or pass it to the published ErpStore. */
+/** Internal TEST financial policy, shared by memory and the limited private
+ * PostgreSQL adapter. Never pass it to the published ErpStore or advertise ERP5. */
 export interface UsFinancialPolicyV5 {
   readonly version: 'us-accrual-receivable-credit-v1';
   readonly environment: 'test';

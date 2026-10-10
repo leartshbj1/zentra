@@ -73,7 +73,8 @@ function key(value: unknown, maximum = 232): string {
   if (typeof value !== 'string' || value.length > maximum || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(value)) return fail('invalid_financial_request', 422);
   return value;
 }
-function scope(value: unknown): UsFinancialTestScopeV5 {
+/** Shared private TEST scope capture. Does not grant a database capability. */
+export function captureUsFinancialTestScopeV5(value: unknown): UsFinancialTestScopeV5 {
   const s = exact(capture(value), ['organizationId', 'actor', 'policy', 'grantVersion']);
   const organizationId = text(s.organizationId, 128);
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(organizationId)) return fail();
@@ -120,11 +121,11 @@ export function createSupabaseUsFinancialTestFoundationV5(
   initialScope: UsFinancialTestScopeV5,
   revalidate: (this: void) => Promise<UsFinancialTestScopeV5>,
 ): UsFinancialTestFoundationV5 {
-  const bound = scope(initialScope);
+  const bound = captureUsFinancialTestScopeV5(initialScope);
   if (typeof revalidate !== 'function') return fail('financial_test_grant_required', 403);
   async function fresh(): Promise<void> {
     let current: UsFinancialTestScopeV5;
-    try { current = scope(await revalidate()); } catch (error) { throw databaseError(error); }
+    try { current = captureUsFinancialTestScopeV5(await revalidate()); } catch (error) { throw databaseError(error); }
     if (current.organizationId !== bound.organizationId || current.actor.userId !== bound.actor.userId || current.actor.role !== bound.actor.role) return fail('financial_authority_changed', 403);
     if (current.grantVersion !== bound.grantVersion) return fail('financial_test_grant_changed', 409);
     if (!same(current.policy, bound.policy)) return fail('financial_policy_unavailable', 409);

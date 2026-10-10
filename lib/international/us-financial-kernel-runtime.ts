@@ -36,11 +36,11 @@ export interface UsFinancialCommitV5 {
   readonly receipt: UsFinancialReceiptV5;
   readonly actor: FinancialAuthority;
 }
-/** This is deliberately not ErpStore. There is no SQL/HTTP/native adapter
- * for this capability. A future durable adapter must atomically retain the
- * event (including pending fiscal plan) and receipt with the CAS. */
+/** Deliberately separate from ErpStore/public ERP1–4. The private PostgreSQL
+ * settlement capability supports credits/payments only, not mixed ERP events.
+ * Its transaction independently admits the event, receipt and CAS. */
 export interface UsFinancialKernelStoreV5 {
-  readonly capability: 'memory-test-v5';
+  readonly capability: 'memory-test-v5' | 'postgres-test-settlement-v5';
   read(this: void, organizationId: string): Promise<unknown>;
   receipt(this: void, organizationId: string, key: string): Promise<unknown>;
   commit(this: void, input: UsFinancialCommitV5): Promise<UsFinancialReceiptV5>;
@@ -129,7 +129,7 @@ function configuration(value: unknown, organizationId: string): CompanyConfigura
   if (result.country !== 'US' || result.currency !== 'USD' || result.accountingBasis !== 'accrual') return fail('financial_policy_unavailable', 409);
   return result;
 }
-function validateReceipt(value: unknown): UsFinancialReceiptV5 {
+export function validateUsFinancialReceiptV5(value: unknown): UsFinancialReceiptV5 {
   const receipt = exact(snapshot(value, 'invalid_financial_receipt', 503), ['idempotencyKey', 'commandHash', 'revision', 'entityId', 'action', 'actorId'], 'invalid_financial_receipt', 503);
   if (!Number.isSafeInteger(receipt.revision) || (receipt.revision as number) < 1 || typeof receipt.commandHash !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.commandHash) || !['customer_credit', 'customer_payment', 'erp_command'].includes(receipt.action as string)) return fail('invalid_financial_receipt', 503);
   try { text(receipt.idempotencyKey, 200); text(receipt.entityId); text(receipt.actorId); } catch { return fail('invalid_financial_receipt', 503); }
@@ -152,8 +152,8 @@ function eventRequest(book: UsFinancialBookV5): UsFinancialRequestV5 {
     return validateUsFinancialRequestV5({ idempotencyKey, expectedRevision: event.revision - 1, command });
   } catch { return fail('invalid_financial_book', 503); }
 }
-/** Real financial transitions, locally in TEST memory only. There is no
- * production gate, browser route, provider write or legacy store invocation. */
+/** Private TEST transitions only. PostgreSQL settlement explicitly excludes
+ * mixed ERP commands. No production gate, browser route or provider write. */
 export async function executeUsFinancialKernelV5(deps: UsFinancialRuntimeDependenciesV5, input: unknown): Promise<UsFinancialReceiptV5> {
   const rawActor = snapshot(deps.actor, 'service_unavailable', 503) as FinancialAuthority;
   const request = validateUsFinancialRequestV5(input, rawActor?.organizationId);
@@ -161,7 +161,9 @@ export async function executeUsFinancialKernelV5(deps: UsFinancialRuntimeDepende
   const actor = authority(rawActor, rawActor?.organizationId, financial);
   const config = configuration(deps.configuration, actor.organizationId);
   const policy = snapshot(deps.policy, 'service_unavailable', 503) as UsFinancialPolicyV5;
-  if (deps.store.capability !== 'memory-test-v5') return fail('financial_capability_unavailable', 503);
+  const admittedCapability = deps.store.capability;
+  if (admittedCapability !== 'memory-test-v5' && admittedCapability !== 'postgres-test-settlement-v5') return fail('financial_capability_unavailable', 503);
+  if (admittedCapability === 'postgres-test-settlement-v5' && request.command.type === 'erp_command') return fail('financial_append_unavailable', 409);
   let lastActor = actor;
   async function current() {
     let raw: unknown;
@@ -172,7 +174,7 @@ export async function executeUsFinancialKernelV5(deps: UsFinancialRuntimeDepende
     if (next.role !== actor.role) return fail('financial_authority_changed', 403);
     if (Date.parse(next.timestamp) < Date.parse(lastActor.timestamp)) return fail('financial_clock_reversed', 409);
     if (!same(configuration(fresh.configuration, actor.organizationId), config) || !same(fresh.policy, policy)) return fail('financial_configuration_changed', 409);
-    if (deps.store.capability !== 'memory-test-v5') return fail('financial_capability_unavailable', 503);
+    if (deps.store.capability !== admittedCapability) return fail('financial_capability_unavailable', 503);
     lastActor = next; return next;
   }
   async function guarded<T>(read: () => Promise<T>): Promise<T> {
@@ -201,7 +203,7 @@ export async function executeUsFinancialKernelV5(deps: UsFinancialRuntimeDepende
   const commandHash = await requestHash(actor.organizationId, actor.userId, request);
   const previous = await guarded(() => deps.store.receipt(actor.organizationId, request.idempotencyKey));
   if (previous !== null) {
-    const receipt = validateReceipt(previous);
+    const receipt = validateUsFinancialReceiptV5(previous);
     if (receipt.idempotencyKey !== request.idempotencyKey || receipt.commandHash !== commandHash || receipt.actorId !== actor.userId) return fail('idempotency_conflict', 409);
     const book = await readBook(), event = book.events.find(event => event.revision === receipt.revision);
     if (!event || event.id !== receipt.entityId || event.operation.type !== receipt.action || event.operation.idempotencyKey !== request.idempotencyKey || event.actor.userId !== receipt.actorId) return fail('invalid_financial_receipt', 503);
@@ -240,8 +242,8 @@ export async function executeUsFinancialKernelV5(deps: UsFinancialRuntimeDepende
   const previousFingerprint = await sha256Hex(canonicalErpJson(book));
   await current();
   // Commit adapters are responsible for authoritative permission/CAS checks
-  // inside their transaction. This local adapter performs no external IO.
-  const committed = validateReceipt(await guarded(() => deps.store.commit({ organizationId: actor.organizationId, expectedRevision: book.revision, previousFingerprint, book: result.book, receipt, actor: executionActor })));
+  // inside their transaction. Neither TEST capability calls a financial provider.
+  const committed = validateUsFinancialReceiptV5(await guarded(() => deps.store.commit({ organizationId: actor.organizationId, expectedRevision: book.revision, previousFingerprint, book: result.book, receipt, actor: executionActor })));
   if (!same(committed, receipt)) return fail('invalid_financial_receipt', 503);
   return committed;
 }
@@ -274,7 +276,7 @@ export async function createInMemoryUsFinancialKernelStoreV5(initial: UsFinancia
       const captured = exact(snapshot(input, 'invalid_financial_commit', 503), ['organizationId', 'expectedRevision', 'previousFingerprint', 'book', 'receipt', 'actor'], 'invalid_financial_commit', 503) as unknown as UsFinancialCommitV5;
       if (!Number.isSafeInteger(captured.expectedRevision) || captured.expectedRevision < 1 || typeof captured.previousFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(captured.previousFingerprint)) return fail('invalid_financial_commit', 503);
       if (captured.organizationId !== organizationId) return fail('tenant_mismatch', 403);
-      const receipt = validateReceipt(captured.receipt);
+      const receipt = validateUsFinancialReceiptV5(captured.receipt);
       const previous = receipts.get(receipt.idempotencyKey);
       if (previous) {
         const event = current.events.find(event => event.revision === previous.revision);
