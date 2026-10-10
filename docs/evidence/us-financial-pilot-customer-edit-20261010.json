@@ -1,0 +1,1935 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-10",
+  "scope": "US/USD/accrual private local TEST pilot customer editing; no production deployment",
+  "implementationCommit": "ceaed1c1d56cb261582f31822b117ca21c6622c4",
+  "baseCommit": "fae8b0fb9cf6b8570f6fd46644804bf25137048c",
+  "plan": "docs/internationalization/US-FINANCIAL-PILOT-CUSTOMER-EDIT-PLAN-20261010.md",
+  "sourceFingerprint": {
+    "head": "fae8b0fb9cf6b8570f6fd46644804bf25137048c",
+    "files": 3644,
+    "sha256": "5fdb6f96e55ce214240a40a163d58c1d13f9c536ca18ec5aee7fed9ab19dc3c6",
+    "status": "A  app/api/international/workspaces/[organizationId]/financial-pilot/customers/[customerId]/route.ts\nM  components/account/us-financial-pilot-commercial.tsx\nM  lib/international/browser-us-financial-pilot-commercial-copy.ts\nM  lib/international/browser-us-financial-pilot-commercial-input.test.ts\nM  lib/international/browser-us-financial-pilot-commercial-input.ts\nM  lib/international/browser-us-financial-pilot-commercial.test.ts\nM  lib/international/browser-us-financial-pilot-session.ts\nM  lib/international/us-financial-pilot-commercial-bindings.test.ts\nM  lib/international/us-financial-pilot-commercial-projection.test.ts\nM  lib/international/us-financial-pilot-commercial-projection.ts\nM  lib/international/us-financial-pilot-commercial-server.test.ts\nM  lib/international/us-financial-pilot-commercial-server.ts\nM  lib/international/us-financial-pilot-commercial.postgres.test.ts\nM  lib/international/us-financial-pilot-commercial.test.ts\nM  lib/international/us-financial-pilot-commercial.ts\n",
+    "algorithm": "SHA256 of sorted JSON [repository-relative path, SHA256 of exact working bytes] followed by LF; includes all tracked files at validation time",
+    "lineEndings": "Working bytes, not Git-normalized blobs. Git core.autocrlf=true."
+  },
+  "files": {
+    "created": [
+      "app/api/international/workspaces/[organizationId]/financial-pilot/customers/[customerId]/route.ts"
+    ],
+    "modified": [
+      "components/account/us-financial-pilot-commercial.tsx",
+      "lib/international/browser-us-financial-pilot-commercial-copy.ts",
+      "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+      "lib/international/browser-us-financial-pilot-commercial-input.ts",
+      "lib/international/browser-us-financial-pilot-commercial.test.ts",
+      "lib/international/browser-us-financial-pilot-session.ts",
+      "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+      "lib/international/us-financial-pilot-commercial-projection.test.ts",
+      "lib/international/us-financial-pilot-commercial-projection.ts",
+      "lib/international/us-financial-pilot-commercial-server.test.ts",
+      "lib/international/us-financial-pilot-commercial-server.ts",
+      "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+      "lib/international/us-financial-pilot-commercial.test.ts",
+      "lib/international/us-financial-pilot-commercial.ts"
+    ],
+    "sources": [
+      {
+        "path": "app/api/international/workspaces/[organizationId]/financial-pilot/customers/[customerId]/route.ts",
+        "bytes": 412,
+        "sha256": "334caca00310f1d5c0a680c52bd4f80d7278fe1447f0ad052f89fdea34740724"
+      },
+      {
+        "path": "components/account/us-financial-pilot-commercial.tsx",
+        "bytes": 47177,
+        "sha256": "3d981121deda35c9fe00faf7cd740ed8e3b14def4a610e3df83b8626e9b6da76"
+      },
+      {
+        "path": "lib/international/browser-us-financial-pilot-commercial-copy.ts",
+        "bytes": 22601,
+        "sha256": "6533b695589c472b18cf7d39c17cf84f3eb6f3d5270bd940bcc65ef287244931"
+      },
+      {
+        "path": "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+        "bytes": 7349,
+        "sha256": "c74c3c5704c5dc57f172a94e01c3534b78b592a19deface41629320f8b0e589a"
+      },
+      {
+        "path": "lib/international/browser-us-financial-pilot-commercial-input.ts",
+        "bytes": 5222,
+        "sha256": "03ef9aaa273020109380e87b3474e1b6a46c8be52fa3fad1f22786b1ccfeaba7"
+      },
+      {
+        "path": "lib/international/browser-us-financial-pilot-commercial.test.ts",
+        "bytes": 40305,
+        "sha256": "7f94f8286b22a443c3c4896c3aadfa5a8ebe6fdbd827bb263a08475f2932aeca"
+      },
+      {
+        "path": "lib/international/browser-us-financial-pilot-session.ts",
+        "bytes": 80802,
+        "sha256": "dbef4924c4b1b197d38739f0006e3ca6b638b333c98b78702ee5f429fa25d56b"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+        "bytes": 8318,
+        "sha256": "9066674e89bc09cd6866a3852d158c090a38a7627330cad5932d8c89b5e647a8"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial-projection.test.ts",
+        "bytes": 20125,
+        "sha256": "20796aa01834ac8383b94a4513ba2903f5c11be2fb84eb13aa26da3be5b86e8c"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial-projection.ts",
+        "bytes": 11074,
+        "sha256": "eab6168f41b2b14a06bb26341f8c337648eae001afbb24dfa1451264b0dc9c4b"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial-server.test.ts",
+        "bytes": 33919,
+        "sha256": "eb749f986d6ab363b3474ba3977f054847dd0e7a70ea7acc1ed9248fcd6e508e"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial-server.ts",
+        "bytes": 19442,
+        "sha256": "e3438763ea8c0d5009f777319dd40f9788e201a079d635bf138045711bc502b4"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+        "bytes": 74727,
+        "sha256": "13bb99bb47378b3e9c0ddf8bf365eb96a3cf3c01b7d18b1b27c66715833e5302"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial.test.ts",
+        "bytes": 16253,
+        "sha256": "7edc1e73701bf545618626c28c09c3b958783c49d7c069ec59b69b401e47ea28"
+      },
+      {
+        "path": "lib/international/us-financial-pilot-commercial.ts",
+        "bytes": 13366,
+        "sha256": "36f45121c5197978e407714efcb1250f0a7c87a6cdccc1cda98122a180819107"
+      }
+    ]
+  },
+  "validation": {
+    "quality": [
+      {
+        "arguments": [
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "exitCode": 0,
+        "elapsedMs": 30008,
+        "sourceSha256": "5fdb6f96e55ce214240a40a163d58c1d13f9c536ca18ec5aee7fed9ab19dc3c6"
+      },
+      {
+        "arguments": [
+          "node_modules/oxlint/bin/oxlint",
+          "--type-aware",
+          "--deny-warnings",
+          "app/api/international/workspaces/[organizationId]/financial-pilot/customers/[customerId]/route.ts",
+          "components/account/us-financial-pilot-commercial.tsx",
+          "lib/international/browser-us-financial-pilot-commercial-copy.ts",
+          "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+          "lib/international/browser-us-financial-pilot-commercial-input.ts",
+          "lib/international/browser-us-financial-pilot-commercial.test.ts",
+          "lib/international/browser-us-financial-pilot-session.ts",
+          "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+          "lib/international/us-financial-pilot-commercial-projection.test.ts",
+          "lib/international/us-financial-pilot-commercial-projection.ts",
+          "lib/international/us-financial-pilot-commercial-server.test.ts",
+          "lib/international/us-financial-pilot-commercial-server.ts",
+          "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+          "lib/international/us-financial-pilot-commercial.test.ts",
+          "lib/international/us-financial-pilot-commercial.ts"
+        ],
+        "exitCode": 0,
+        "elapsedMs": 1601,
+        "sourceSha256": "5fdb6f96e55ce214240a40a163d58c1d13f9c536ca18ec5aee7fed9ab19dc3c6"
+      },
+      {
+        "arguments": [
+          "scripts/check-brand-assets.mjs"
+        ],
+        "exitCode": 0,
+        "elapsedMs": 468,
+        "sourceSha256": "5fdb6f96e55ce214240a40a163d58c1d13f9c536ca18ec5aee7fed9ab19dc3c6"
+      },
+      {
+        "arguments": [
+          "node_modules/vinext/dist/cli.js",
+          "build"
+        ],
+        "exitCode": 0,
+        "elapsedMs": 20183,
+        "sourceSha256": "5fdb6f96e55ce214240a40a163d58c1d13f9c536ca18ec5aee7fed9ab19dc3c6"
+      }
+    ],
+    "targeted": {
+      "passed": 272,
+      "total": 272,
+      "failed": 0,
+      "files": 7
+    },
+    "targetedElapsedMs": 53306,
+    "regression": {
+      "passed": 6709,
+      "total": 6709,
+      "failed": 0,
+      "files": 203
+    },
+    "regressionElapsedMs": 811323,
+    "selectedFiles": [
+      "lib/account-workspace-entry.test.ts",
+      "lib/account-workspace-navigation.test.ts",
+      "lib/account-workspace-pages.test.ts",
+      "lib/account-workspaces.test.ts",
+      "lib/business-sync-cash-vat.test.ts",
+      "lib/deployment-contract.test.ts",
+      "lib/document-number-reservations.test.ts",
+      "lib/international/accounting-runtime.test.ts",
+      "lib/international/browser-us-financial-pilot-accounting-input.test.ts",
+      "lib/international/browser-us-financial-pilot-accounting.test.ts",
+      "lib/international/browser-us-financial-pilot-bank.test.ts",
+      "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+      "lib/international/browser-us-financial-pilot-commercial.test.ts",
+      "lib/international/browser-us-financial-pilot-export-session.test.ts",
+      "lib/international/browser-us-financial-pilot-invoice.test.ts",
+      "lib/international/browser-us-financial-pilot-purchasing-input.test.ts",
+      "lib/international/browser-us-financial-pilot-purchasing.test.ts",
+      "lib/international/browser-us-financial-pilot-session.test.ts",
+      "lib/international/browser-us-sales-order-session.test.ts",
+      "lib/international/browser-us-supplier-documents-session.test.ts",
+      "lib/international/browser-us-supplier-session.test.ts",
+      "lib/international/browser-us-support-worker-session.test.ts",
+      "lib/international/browser-us-team-session.test.ts",
+      "lib/international/browser-us-workspace-sync-session.test.ts",
+      "lib/international/legacy-country-guard.migrations.test.ts",
+      "lib/international/legacy-country-guard.test.ts",
+      "lib/international/private-json.test.ts",
+      "lib/international/purchasing-runtime.test.ts",
+      "lib/international/runtime-bindings.test.ts",
+      "lib/international/runtime-response-guards.test.ts",
+      "lib/international/runtime-server-revalidation.test.ts",
+      "lib/international/runtime-server-us-tax.test.ts",
+      "lib/international/runtime-server.test.ts",
+      "lib/international/runtime-store.test.ts",
+      "lib/international/runtime-sync.test.ts",
+      "lib/international/runtime.test.ts",
+      "lib/international/saas-authorities.migrations.test.ts",
+      "lib/international/saas-authority.test.ts",
+      "lib/international/us-automation-policy.test.ts",
+      "lib/international/us-automation-store.test.ts",
+      "lib/international/us-automation-validation.test.ts",
+      "lib/international/us-customer-credit-allocation.test.ts",
+      "lib/international/us-customer-credit-preparation.test.ts",
+      "lib/international/us-device-bindings.test.ts",
+      "lib/international/us-device-capability-v4.test.ts",
+      "lib/international/us-device-d1.test.ts",
+      "lib/international/us-device-server.test.ts",
+      "lib/international/us-financial-invoice-test.test.ts",
+      "lib/international/us-financial-kernel-capability.test.ts",
+      "lib/international/us-financial-kernel-erp-runtime.test.ts",
+      "lib/international/us-financial-kernel-erp.test.ts",
+      "lib/international/us-financial-kernel-runtime.test.ts",
+      "lib/international/us-financial-kernel.test.ts",
+      "lib/international/us-financial-pilot-accounting-bindings.test.ts",
+      "lib/international/us-financial-pilot-accounting-projection.test.ts",
+      "lib/international/us-financial-pilot-accounting-server.test.ts",
+      "lib/international/us-financial-pilot-accounting.postgres.test.ts",
+      "lib/international/us-financial-pilot-accounting.test.ts",
+      "lib/international/us-financial-pilot-bank-bindings.test.ts",
+      "lib/international/us-financial-pilot-bank-export.test.ts",
+      "lib/international/us-financial-pilot-bank-projection.test.ts",
+      "lib/international/us-financial-pilot-bank-server.test.ts",
+      "lib/international/us-financial-pilot-bank-store.test.ts",
+      "lib/international/us-financial-pilot-bank.postgres.test.ts",
+      "lib/international/us-financial-pilot-bank.test.ts",
+      "lib/international/us-financial-pilot-bindings.test.ts",
+      "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+      "lib/international/us-financial-pilot-commercial-projection.test.ts",
+      "lib/international/us-financial-pilot-commercial-server.test.ts",
+      "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+      "lib/international/us-financial-pilot-commercial.test.ts",
+      "lib/international/us-financial-pilot-contract.test.ts",
+      "lib/international/us-financial-pilot-export-bindings.test.ts",
+      "lib/international/us-financial-pilot-export-contract.test.ts",
+      "lib/international/us-financial-pilot-export-projection.test.ts",
+      "lib/international/us-financial-pilot-export-renderer.test.ts",
+      "lib/international/us-financial-pilot-export-server.test.ts",
+      "lib/international/us-financial-pilot-exports.postgres.test.ts",
+      "lib/international/us-financial-pilot-invoice-bindings.test.ts",
+      "lib/international/us-financial-pilot-invoice-server.test.ts",
+      "lib/international/us-financial-pilot-invoice-store.postgres.test.ts",
+      "lib/international/us-financial-pilot-invoice-store.test.ts",
+      "lib/international/us-financial-pilot-invoice.test.ts",
+      "lib/international/us-financial-pilot-payment.test.ts",
+      "lib/international/us-financial-pilot-projection.test.ts",
+      "lib/international/us-financial-pilot-purchasing-bindings.test.ts",
+      "lib/international/us-financial-pilot-purchasing-projection.test.ts",
+      "lib/international/us-financial-pilot-purchasing-server.test.ts",
+      "lib/international/us-financial-pilot-purchasing.postgres.test.ts",
+      "lib/international/us-financial-pilot-purchasing.test.ts",
+      "lib/international/us-financial-pilot-reports.test.ts",
+      "lib/international/us-financial-pilot-server.test.ts",
+      "lib/international/us-financial-pilot-store.postgres.test.ts",
+      "lib/international/us-financial-pilot-store.test.ts",
+      "lib/international/us-financial-test-accounting.postgres.test.ts",
+      "lib/international/us-financial-test-accounting.test.ts",
+      "lib/international/us-financial-test-commercial.postgres.test.ts",
+      "lib/international/us-financial-test-commercial.test.ts",
+      "lib/international/us-financial-test-foundation.postgres.test.ts",
+      "lib/international/us-financial-test-foundation.test.ts",
+      "lib/international/us-financial-test-invoicing.postgres.test.ts",
+      "lib/international/us-financial-test-purchasing.postgres.test.ts",
+      "lib/international/us-financial-test-purchasing.test.ts",
+      "lib/international/us-financial-test-settlement.postgres.test.ts",
+      "lib/international/us-financial-test-settlement.test.ts",
+      "lib/international/us-saas-test-bindings.test.ts",
+      "lib/international/us-saas-test-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-server.test.ts",
+      "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+      "lib/international/us-saas-test-server.test.ts",
+      "lib/international/us-saas-test-stripe.test.ts",
+      "lib/international/us-sales-order-bindings.test.ts",
+      "lib/international/us-sales-order-contract.test.ts",
+      "lib/international/us-sales-order-erp-guard.test.ts",
+      "lib/international/us-sales-order-export.test.ts",
+      "lib/international/us-sales-order-server.test.ts",
+      "lib/international/us-sales-order-store.test.ts",
+      "lib/international/us-sales-order.postgres.test.ts",
+      "lib/international/us-supplier-analysis-server.test.ts",
+      "lib/international/us-supplier-analysis.test.ts",
+      "lib/international/us-supplier-bindings.test.ts",
+      "lib/international/us-supplier-document-archive.test.ts",
+      "lib/international/us-supplier-document-bindings.test.ts",
+      "lib/international/us-supplier-document-bytes.test.ts",
+      "lib/international/us-supplier-document-contract.test.ts",
+      "lib/international/us-supplier-document-lookup.postgres.test.ts",
+      "lib/international/us-supplier-document-lookup.test.ts",
+      "lib/international/us-supplier-document-server.test.ts",
+      "lib/international/us-supplier-document-store.test.ts",
+      "lib/international/us-supplier-document-timeout.test.ts",
+      "lib/international/us-supplier-extraction.test.ts",
+      "lib/international/us-supplier-proposal.test.ts",
+      "lib/international/us-supplier-server.test.ts",
+      "lib/international/us-supplier-store.test.ts",
+      "lib/international/us-support-intake-provider.test.ts",
+      "lib/international/us-support-mail-import-ui.test.ts",
+      "lib/international/us-support-mailbox-bindings.test.ts",
+      "lib/international/us-support-mailbox-contract.test.ts",
+      "lib/international/us-support-mailbox-d1.test.ts",
+      "lib/international/us-support-mailbox-import-bindings.test.ts",
+      "lib/international/us-support-mailbox-import-composition.test.ts",
+      "lib/international/us-support-mailbox-import-contract.test.ts",
+      "lib/international/us-support-mailbox-import-d1.test.ts",
+      "lib/international/us-support-mailbox-import-provider.test.ts",
+      "lib/international/us-support-mailbox-import-server.test.ts",
+      "lib/international/us-support-mailbox-provider.test.ts",
+      "lib/international/us-support-mailbox-server.test.ts",
+      "lib/international/us-support-mailbox-ui.test.ts",
+      "lib/international/us-support-ticket-bindings.test.ts",
+      "lib/international/us-support-ticket-composition.test.ts",
+      "lib/international/us-support-ticket-contract.test.ts",
+      "lib/international/us-support-ticket-d1.test.ts",
+      "lib/international/us-support-ticket-server.test.ts",
+      "lib/international/us-support-tickets-ui.test.ts",
+      "lib/international/us-support-triage-bindings.test.ts",
+      "lib/international/us-support-triage-composition.test.ts",
+      "lib/international/us-support-triage-contract.test.ts",
+      "lib/international/us-support-triage-d1.test.ts",
+      "lib/international/us-support-triage-policy.test.ts",
+      "lib/international/us-support-triage-provider.test.ts",
+      "lib/international/us-support-triage-server.test.ts",
+      "lib/international/us-support-triage-service.test.ts",
+      "lib/international/us-support-triage-ticket-integration.test.ts",
+      "lib/international/us-support-triage-ui.test.ts",
+      "lib/international/us-support-worker-bindings.test.ts",
+      "lib/international/us-support-worker-composition.test.ts",
+      "lib/international/us-support-worker-contract.test.ts",
+      "lib/international/us-support-worker-d1.test.ts",
+      "lib/international/us-support-worker-migration.test.ts",
+      "lib/international/us-support-worker-server.test.ts",
+      "lib/international/us-support-worker-ui.test.ts",
+      "lib/international/us-support-worker.test.ts",
+      "lib/international/us-support-workspace-bindings.test.ts",
+      "lib/international/us-support-workspace-contract.test.ts",
+      "lib/international/us-support-workspace-d1.test.ts",
+      "lib/international/us-support-workspace-server.test.ts",
+      "lib/international/us-support-workspace-ui.test.ts",
+      "lib/international/us-team-bindings.test.ts",
+      "lib/international/us-team-contract.test.ts",
+      "lib/international/us-team-device-lifecycle.test.ts",
+      "lib/international/us-team-server.test.ts",
+      "lib/international/us-team-store.test.ts",
+      "lib/international/us-team-validation.test.ts",
+      "lib/international/us-team.migrations.test.ts",
+      "lib/international/us-workspace-sync-heads-bindings.test.ts",
+      "lib/international/us-workspace-sync-heads.test.ts",
+      "lib/international/workspace-creation-d1.test.ts",
+      "lib/international/workspace-server.bindings.test.ts",
+      "lib/site-language.test.ts",
+      "lib/stripe-contract.test.ts",
+      "lib/supabase-auth-http.test.ts",
+      "lib/supabase-auth.test.ts",
+      "lib/support/application-effects.test.ts",
+      "lib/support/billing.test.ts",
+      "lib/support/mail-documents.test.ts",
+      "lib/support/mail-sync-admission.test.ts",
+      "lib/support/reply-transport.test.ts",
+      "lib/support/solicitation-service.test.ts",
+      "lib/support/support.test.ts",
+      "lib/support/workspace-access.test.ts",
+      "lib/support/workspace-selection.test.ts",
+      "lib/support/workspace-state-admission.test.ts"
+    ],
+    "selectionLimit": "Inherited 203-file selected regression, including CH cash VAT/auth/Stripe/Support checks. Not all tests in the repository.",
+    "countsAreOverlapping": true
+  },
+  "postgres": {
+    "scope": "LOCAL TEST only; actual cumulative34 SQL and Request/Response handlers; serialized PGlite, synthetic Auth/D1/fiscal observations; clean close/new instance, no concurrency/crash/hosted/provider claim",
+    "migrations": [
+      {
+        "path": "supabase/migrations/202609140100_company_profiles.sql",
+        "bytes": 771,
+        "sha256": "be1fa5eeb05ad593eb17ec83009ff10a285a3c3c830c8c6ad9095b2c3cfc540b"
+      },
+      {
+        "path": "supabase/migrations/202609140200_company_collaboration.sql",
+        "bytes": 7155,
+        "sha256": "2e73dffe285e9ca9a78026995647f45d86bbc6f3f0731bb217e8c60b9048479c"
+      },
+      {
+        "path": "supabase/migrations/202609200300_company_content.sql",
+        "bytes": 10588,
+        "sha256": "51c6789548433f0dd4bc6470246b73823008805b6484969232640f91317910f5"
+      },
+      {
+        "path": "supabase/migrations/20261007194528_international_workspace_country_config.sql",
+        "bytes": 16294,
+        "sha256": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9"
+      },
+      {
+        "path": "supabase/migrations/20261007222349_international_us_erp_persistence.sql",
+        "bytes": 45240,
+        "sha256": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c"
+      },
+      {
+        "path": "supabase/migrations/20261007224820_international_us_erp_delta_stream.sql",
+        "bytes": 11174,
+        "sha256": "3df54310c2da0012d9065886df86a6524963ab594a1f314d10d45fac551af345"
+      },
+      {
+        "path": "supabase/migrations/20261007225725_international_us_erp_seller_snapshot.sql",
+        "bytes": 5808,
+        "sha256": "119e0c850c04c6772c0b002384c2cf86c8ab3427ec24586eb77f73a2a314f4f9"
+      },
+      {
+        "path": "supabase/migrations/20261008001726_new_us_workspace_admission.sql",
+        "bytes": 20367,
+        "sha256": "435f87289682dbed3b372bd6790d0f213a5a5e7a4c5aee32f70323798e87edcc"
+      },
+      {
+        "path": "supabase/migrations/20261008013200_international_tax_proof_allowlist.sql",
+        "bytes": 3818,
+        "sha256": "7f2d18ba19defb35dc3352624b18f951a26f806b86eb19d2c10c0c2bf4f977d8"
+      },
+      {
+        "path": "supabase/migrations/20261008034422_international_us_seller_profile.sql",
+        "bytes": 13268,
+        "sha256": "a97274cb5e8f4d1153e5e0c98749a1d3c89a5d41debd721a3f7e7c1c9e56546b"
+      },
+      {
+        "path": "supabase/migrations/20261008044402_international_us_tax_profile.sql",
+        "bytes": 17214,
+        "sha256": "98d5b4dd7b9842def1a036d512876a40ebc7131a44954a1e4ef09dab793e5034"
+      },
+      {
+        "path": "supabase/migrations/20261008060826_international_us_tax_operations.sql",
+        "bytes": 58502,
+        "sha256": "a34d2fa9a78876a1c48910c004f25e795c73cfe35797824eb1ca5eaffb161330"
+      },
+      {
+        "path": "supabase/migrations/20261008081825_international_us_purchasing_v2.sql",
+        "bytes": 72234,
+        "sha256": "1c0008e766a358166f0eccc25b68c60ee4dcd0f68d9b3220e946df213980013b"
+      },
+      {
+        "path": "supabase/migrations/20261008105120_international_us_projects_v3.sql",
+        "bytes": 76577,
+        "sha256": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d"
+      },
+      {
+        "path": "supabase/migrations/20261008161118_international_us_journal_periods_v4.sql",
+        "bytes": 95905,
+        "sha256": "3d33a8ff4406a72c5a82a42bdc67bf6a02885b02745cc81fce8976bb10c2a31c"
+      },
+      {
+        "path": "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql",
+        "bytes": 8008,
+        "sha256": "f5beddce39dec119e1b606724be9c3ab6b7738260792cbd72d3a45f97993a718"
+      },
+      {
+        "path": "supabase/migrations/20261008184605_international_us_bank_reconciliation.sql",
+        "bytes": 42226,
+        "sha256": "0f43af57a0d9552d572ca353991f10fc214e710279e68defca44c844ba87d298"
+      },
+      {
+        "path": "supabase/migrations/20261008194930_international_us_supplier_proposals.sql",
+        "bytes": 38496,
+        "sha256": "61d2e26795d86daeba2d0b02792b28a5c9d9b4c33c7ff402f158e48f4dd4d6fd"
+      },
+      {
+        "path": "supabase/migrations/20261008210008_international_us_automation_analysis.sql",
+        "bytes": 42635,
+        "sha256": "108a06f656ac7cba4a55ff60db0cde14bfca5e64b8bdf167ce2039cdf3fa7d6a"
+      },
+      {
+        "path": "supabase/migrations/20261009215104_international_us_workspace_sync_heads.sql",
+        "bytes": 10987,
+        "sha256": "c47f739c2c6d3526df5a7999463ccc2cd717efa310ab319720939f9406cfa6ad"
+      },
+      {
+        "path": "supabase/migrations/20261009222319_international_us_tax_test_merchant.sql",
+        "bytes": 18931,
+        "sha256": "9e436a3c1179dc541b3365f923d3a5f29e78a85ba9f8a0d3da7a40cc8e6ed330"
+      },
+      {
+        "path": "supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql",
+        "bytes": 31384,
+        "sha256": "c3df657f26321ea618b16af340b3f6c9735ef08cee851f1510631fe6f29dc484"
+      },
+      {
+        "path": "supabase/migrations/20261010005300_international_us_supplier_originals.sql",
+        "bytes": 15906,
+        "sha256": "ae3b95c4047ce2b539fdfc0e4c2d05f208f9dfa727bb065ae0e83803a62f8faf"
+      },
+      {
+        "path": "supabase/migrations/20261010024618_international_us_supplier_original_hash_lookup.sql",
+        "bytes": 1229,
+        "sha256": "f8cd1050527c40d3241a01d1e31b5469772518ddd9c2aec3c072679faed5d57f"
+      },
+      {
+        "path": "supabase/migrations/20261010054644_international_us_sales_orders.sql",
+        "bytes": 33585,
+        "sha256": "fbf0f516593cbece46f086fd2a20a1beb5cf42d8579ac11ee97a36ef253e70e4"
+      },
+      {
+        "path": "supabase/migrations/20261010075840_international_us_financial_test_foundation_v5.sql",
+        "bytes": 32656,
+        "sha256": "05f8a29dd9f8aa3293d9ddc29d17f617476b0940f65fb40a4dadbfee3c4f6489"
+      },
+      {
+        "path": "supabase/migrations/20261010083027_international_us_financial_test_settlement_v5.sql",
+        "bytes": 42145,
+        "sha256": "7e61626b6f624209dbe956865aae467e76e816162f0a081cc351a2c92fd6c006"
+      },
+      {
+        "path": "supabase/migrations/20261010085523_international_us_financial_test_commercial_v5.sql",
+        "bytes": 30343,
+        "sha256": "20229813baee99b2321e925e88200fd19f066f3a9aca54979fb21ccdfff96982"
+      },
+      {
+        "path": "supabase/migrations/20261010091729_international_us_financial_test_purchasing_v5.sql",
+        "bytes": 43818,
+        "sha256": "a95ea570fa651ec41dd7b1fc747fd9888138e603be9fca3456a38ac2eb0077fb"
+      },
+      {
+        "path": "supabase/migrations/20261010093930_international_us_financial_test_accounting_v5.sql",
+        "bytes": 53498,
+        "sha256": "6ec3b9c3b14b9e7de03e42b792f980ffa1ed4dd85066ae63b5ecc1f504dec729"
+      },
+      {
+        "path": "supabase/migrations/20261010100252_international_us_financial_test_invoicing_v5.sql",
+        "bytes": 109708,
+        "sha256": "9e5bce6e48f77fbd985b81a6830067ed12fdc4f63e8ddd9d92fc04b0b917eff4"
+      },
+      {
+        "path": "supabase/migrations/20261010104148_international_us_financial_pilot_dto1.sql",
+        "bytes": 9203,
+        "sha256": "da15e940ed7093bd07a65056017a7c37770dc3b438f79170ffc3ad47ec39f754"
+      },
+      {
+        "path": "supabase/migrations/20261010131903_international_us_financial_pilot_invoice_dto1.sql",
+        "bytes": 4265,
+        "sha256": "e8b716dd1080966c411443a56756dc8ce94f2f73e20f72d6b5b3df609d31b04d"
+      },
+      {
+        "path": "supabase/migrations/20261010155848_international_us_financial_pilot_bank_test_v1.sql",
+        "bytes": 37576,
+        "sha256": "64bb43677900d945bc16f62308b17157fea7b84d10b944b68b35ea8c3bdfd5b1"
+      }
+    ],
+    "recipe": {
+      "path": ".qa/us-pilot-customer-edit/postgres-recipe-regression.json",
+      "bytes": 4612,
+      "sha256": "41623a39b8207d430d3485189eb25330fb36ffebb07407de25e790841e6eae54"
+    },
+    "targetedRecipe": {
+      "path": ".qa/us-pilot-customer-edit/postgres-recipe-targeted.json",
+      "bytes": 4604,
+      "sha256": "27e6dff17576a2a3bffe90e1f1e6ea6f780d931d7fb3d67d1aac10dceadfa744"
+    },
+    "cleanCloseReopen": true,
+    "invoiceExportComparison": {
+      "scope": "Complete validated PDF snapshots plus internal CSV value serialization; no public invoice CSV or PDF rendering claim",
+      "normalization": [
+        "snapshot.revision",
+        "snapshot.selector.revision",
+        "snapshot.facts[label=financialRevision].value",
+        "exactly two internal CSV rows \"Financial revision\""
+      ],
+      "before": {
+        "revision": 14,
+        "valuesCsvSha256": "4a1930ab682e5e8e0e8a98db71837d9bdf5becd87380a8c017b24a51ae0dd4c3",
+        "valuesCsvBytes": 1949
+      },
+      "after": {
+        "revision": 15,
+        "valuesCsvSha256": "c7d6d971f11f7f6e5aa7482fad6cf1ab699bc26370c276cf66298904a1a91666",
+        "valuesCsvBytes": 1949
+      },
+      "normalizedValuesCsvSha256": "11389bbd04b366e30ff8048b5c9d127ea4cdce73de0f0f563dd466076cde5c9e"
+    },
+    "invoiceExportArtifacts": [
+      {
+        "stage": "before-update",
+        "revision": 14,
+        "snapshot": {
+          "path": ".qa/us-pilot-customer-edit/invoice-pdf-snapshot-before-update-regression.json",
+          "sha256": "79775f0a05df1284ad5232bc0f5cd263c3306fb6401af74cd1612b39f6ba255b",
+          "bytes": 5625
+        },
+        "internalValuesCsv": {
+          "path": ".qa/us-pilot-customer-edit/invoice-internal-values-before-update-regression.csv",
+          "sha256": "4a1930ab682e5e8e0e8a98db71837d9bdf5becd87380a8c017b24a51ae0dd4c3",
+          "bytes": 1949
+        }
+      },
+      {
+        "stage": "after-update",
+        "revision": 15,
+        "snapshot": {
+          "path": ".qa/us-pilot-customer-edit/invoice-pdf-snapshot-after-update-regression.json",
+          "sha256": "e2b7af2432ba8e3e5f9acdd0a5ec401421b4762f72babc5f3ed5904f0884def2",
+          "bytes": 5625
+        },
+        "internalValuesCsv": {
+          "path": ".qa/us-pilot-customer-edit/invoice-internal-values-after-update-regression.csv",
+          "sha256": "c7d6d971f11f7f6e5aa7482fad6cf1ab699bc26370c276cf66298904a1a91666",
+          "bytes": 1949
+        }
+      }
+    ],
+    "oldEvidenceAliasesPreserved": [
+      {
+        "path": ".qa/us-pilot-accounting/postgres-recipe.json",
+        "priorSha256": "934729e56717358bbf753368dd4083b29529424813ea23a66faf3dfa484577ac",
+        "archive": ".qa/us-pilot-customer-edit/regression-final-us-pilot-accounting-postgres-recipe.json",
+        "restoredSha256": "934729e56717358bbf753368dd4083b29529424813ea23a66faf3dfa484577ac"
+      },
+      {
+        "path": ".qa/us-pilot-bank/postgres-recipe-regression.json",
+        "priorSha256": "9d85a43139638d666e0aafbb7df42a9540a7a746f5eb61a9aaef68d9878bcf6c",
+        "archive": ".qa/us-pilot-customer-edit/regression-final-us-pilot-bank-postgres-recipe-regression.json",
+        "restoredSha256": "9d85a43139638d666e0aafbb7df42a9540a7a746f5eb61a9aaef68d9878bcf6c"
+      }
+    ]
+  },
+  "browser": {
+    "environment": "synthetic-loopback-memory",
+    "base": "fae8b0f",
+    "passed": 20,
+    "failed": 0,
+    "results": [
+      {
+        "name": "lost successful reply follows one real customer append",
+        "status": "pass"
+      },
+      {
+        "name": "retry sends identical captured body and UUID",
+        "status": "pass"
+      },
+      {
+        "name": "exact retry does not append or change current source bytes",
+        "status": "pass"
+      },
+      {
+        "name": "one receipt for lost reply request namespace",
+        "status": "pass"
+      },
+      {
+        "name": "second reviewed request uses collaborator advanced source",
+        "status": "pass"
+      },
+      {
+        "name": "actual handler returns 409 after its underlying commit",
+        "status": "pass"
+      },
+      {
+        "name": "explicit reload neither retries nor appends",
+        "status": "pass"
+      },
+      {
+        "name": "all customer operations preserve ledger bank and journal counts",
+        "status": "pass"
+      },
+      {
+        "name": "customer ID remains unique and edited values persist after reload",
+        "status": "pass"
+      },
+      {
+        "name": "denial activated without another commercial attempt",
+        "status": "pass"
+      },
+      {
+        "name": "English before and after values are shown, approval starts unchecked",
+        "status": "pass"
+      },
+      {
+        "name": "English uncertain request locks edit fields and offers exact retry",
+        "status": "pass"
+      },
+      {
+        "name": "automatic collaborator refresh drops approval and preserves typed form",
+        "status": "pass"
+      },
+      {
+        "name": "late 409 remains pending with explicit reload warning",
+        "status": "pass"
+      },
+      {
+        "name": "German no-op has no save or approval action",
+        "status": "pass"
+      },
+      {
+        "name": "Italian review shows long values and explicit nullable erasure",
+        "status": "pass"
+      },
+      {
+        "name": "Italian mobile has no horizontal overflow and touch targets >=44px",
+        "status": "pass"
+      },
+      {
+        "name": "French desktop no overflow and visible keyboard focus",
+        "status": "pass"
+      },
+      {
+        "name": "denial purges customer form values and data, leaving reconnect action",
+        "status": "pass"
+      },
+      {
+        "name": "no recorded warning/error in this tab during this customer recipe",
+        "status": "pass"
+      }
+    ],
+    "limits": [
+      "Local browser, real React/session/handlers/kernel with synthetic Auth/D1/tax and serialized memory port.",
+      "Grouped four languages, two themes and 320/390/1280 desktop/mobile observations, not the full cross product.",
+      "No native iOS/macOS, hosted multi-client/network/provider/load/crash/persistence guarantee.",
+      "PDF historical snapshot preservation is asserted separately by PostgreSQL; browser invoice view was observed after reload, not exported in this recipe.",
+      "Approval invalidation after local typing and the reload checkbox disabled/enabled transitions were observed directly via browser tools; not separately captured at every intermediate state."
+    ],
+    "sourceCorrelation": "Product sources unchanged between the browser recipe/candidate1 and candidate2. Only the PostgreSQL pagination test fixture changed.",
+    "screenshots": [
+      {
+        "path": ".qa/us-pilot-customer-edit/browser/captures/de-light-320-nochange.jpg",
+        "bytes": 162939,
+        "sha256": "82048d29a6b2021ef3a09cda92ed3d89a9c79729d3021a6682b87d87f6e1bada"
+      },
+      {
+        "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-review.jpg",
+        "bytes": 203209,
+        "sha256": "3ece2677e40a29c658c1553b916dbfb4458399f4b69a50404ec9939753bcdc08"
+      },
+      {
+        "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-uncertain.jpg",
+        "bytes": 214684,
+        "sha256": "c0e7933da644f6759cbe56edebaae62b0ee0d0dffedba0e3f3bfc450e488e716"
+      },
+      {
+        "path": ".qa/us-pilot-customer-edit/browser/captures/fr-dark-denied.jpg",
+        "bytes": 96522,
+        "sha256": "5caced0f3b7a495abaed62a6947731e196533037b3532b055334d686e8af0b32"
+      },
+      {
+        "path": ".qa/us-pilot-customer-edit/browser/captures/fr-dark-desktop-review.jpg",
+        "bytes": 210144,
+        "sha256": "d247600577ddc589770ecccb19f45dd78573baf64ccd43acf875904f36997250"
+      },
+      {
+        "path": ".qa/us-pilot-customer-edit/browser/captures/it-dark-390-review.jpg",
+        "bytes": 212023,
+        "sha256": "76680e19ad1f886de898fce3af8e1e956e75e226f3b1b78a514e83571638e5e0"
+      }
+    ],
+    "observationsNotSeparateAssertions": [
+      "Local typing invalidates prior approval synchronously.",
+      "Reload button disabled before warning checkbox and enabled after explicit check.",
+      "German 320px actual DOM metrics observed: scrollWidth320, no overflow; buttons44/48px.",
+      "Historical customer invoice name observed after explicit reload."
+    ],
+    "consoleWarningsAndErrors": 0
+  },
+  "reviews": [
+    {
+      "artifact": {
+        "path": ".qa/us-pilot-customer-edit/review-browser-of-backend-ui.json",
+        "bytes": 4914,
+        "sha256": "ef24afb118f4581efeeeaa37e2c2e4864042bfa31206333329e58b2a32d233ab"
+      },
+      "schemaVersion": 1,
+      "date": "2026-10-10",
+      "reviewKind": "static-source-review",
+      "reviewer": "/root/us_bank_next_plan",
+      "plan": "docs/internationalization/US-FINANCIAL-PILOT-CUSTOMER-EDIT-PLAN-20261010.md",
+      "status": "no-blocking-defect-found",
+      "blockingFindings": [],
+      "reviewedSources": [
+        {
+          "path": "lib/international/us-financial-pilot-commercial.ts",
+          "sha256": "36f45121c5197978e407714efcb1250f0a7c87a6cdccc1cda98122a180819107"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-commercial.test.ts",
+          "sha256": "7edc1e73701bf545618626c28c09c3b958783c49d7c069ec59b69b401e47ea28"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-commercial-projection.ts",
+          "sha256": "eab6168f41b2b14a06bb26341f8c337648eae001afbb24dfa1451264b0dc9c4b"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-commercial-projection.test.ts",
+          "sha256": "20796aa01834ac8383b94a4513ba2903f5c11be2fb84eb13aa26da3be5b86e8c"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-commercial-server.ts",
+          "sha256": "e3438763ea8c0d5009f777319dd40f9788e201a079d635bf138045711bc502b4"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-commercial-server.test.ts",
+          "sha256": "eb749f986d6ab363b3474ba3977f054847dd0e7a70ea7acc1ed9248fcd6e508e"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+          "sha256": "9066674e89bc09cd6866a3852d158c090a38a7627330cad5932d8c89b5e647a8"
+        },
+        {
+          "path": "app/api/international/workspaces/[organizationId]/financial-pilot/customers/[customerId]/route.ts",
+          "sha256": "334caca00310f1d5c0a680c52bd4f80d7278fe1447f0ad052f89fdea34740724"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+          "sha256": "c78a06cc0cc1800337e02fe2b6cfb23259103264417ebcfa165a8f27a64ecd4d"
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-commercial-input.ts",
+          "sha256": "03ef9aaa273020109380e87b3474e1b6a46c8be52fa3fad1f22786b1ccfeaba7"
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+          "sha256": "c74c3c5704c5dc57f172a94e01c3534b78b592a19deface41629320f8b0e589a"
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-session.ts",
+          "sha256": "dbef4924c4b1b197d38739f0006e3ca6b638b333c98b78702ee5f429fa25d56b"
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-commercial.test.ts",
+          "sha256": "7f94f8286b22a443c3c4896c3aadfa5a8ebe6fdbd827bb263a08475f2932aeca"
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-commercial-copy.ts",
+          "sha256": "6533b695589c472b18cf7d39c17cf84f3eb6f3d5270bd940bcc65ef287244931"
+        },
+        {
+          "path": "components/account/us-financial-pilot-commercial.tsx",
+          "sha256": "3d981121deda35c9fe00faf7cd740ed8e3b14def4a610e3df83b8626e9b6da76"
+        }
+      ],
+      "reviewedSourceCount": 15,
+      "independence": {
+        "independentSourceCount": 11,
+        "authorRecheckSourceCount": 4,
+        "authorRecheckSources": [
+          "lib/international/browser-us-financial-pilot-commercial-input.ts",
+          "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+          "lib/international/browser-us-financial-pilot-session.ts",
+          "lib/international/browser-us-financial-pilot-commercial.test.ts"
+        ],
+        "limitation": "The reviewer authored the customer-edit changes in these four browser files. Their recheck is not an independent review of the author."
+      },
+      "focus": [
+        "durable replay before current customer existence",
+        "separate update/create idempotency key",
+        "living tenant/user/role/grant/opt-in/configuration admission",
+        "current customer GET correlated with F and final head fence",
+        "immutable commercial document snapshots",
+        "UI validity after await and synchronous notification",
+        "owned latest review and explicit approval",
+        "uncertain update response retains exact pending until retry or explicit lifecycle purge",
+        "stop/denial/tenant/session purge"
+      ],
+      "limitations": [
+        "Static source review only; absence of a demonstrated blocking defect is not proof of correctness.",
+        "No tests, PostgreSQL/PGlite, build, typecheck, lint, server, browser, hosted validation or network activity was performed for this review.",
+        "Test sources were inspected; their assertions and existing reported results were not re-executed or independently corroborated.",
+        "No source or test file was changed. The only write is this requested ignored review artifact."
+      ],
+      "recommendation": "No blocking finding from this static review. Root retains responsibility for serialized validation and the independent review of the four author-owned browser files."
+    },
+    {
+      "artifact": {
+        "path": ".qa/us-pilot-customer-edit/review-backend-of-browser.json",
+        "bytes": 8152,
+        "sha256": "26e9ebe017eed0c845cb4f59b69e7471da3ca4b185d7e56e68f4004d12ea91d5"
+      },
+      "schemaVersion": 1,
+      "recordedAt": "2026-10-10T19:34:32.969Z",
+      "reviewer": "/root/journal_backend",
+      "verdict": "no_blocking_defect_found",
+      "findings": [],
+      "scope": "Independent read-only review of the four browser input/session/test sources; bounded additional read of the root commercial UI customer-edit lifecycle and receipt adoption. No edits to reviewed sources and no tests/typecheck/build/PG/server/browser/network execution.",
+      "sources": [
+        {
+          "path": "lib/international/browser-us-financial-pilot-commercial-input.ts",
+          "bytes": 5222,
+          "sha256": "03ef9aaa273020109380e87b3474e1b6a46c8be52fa3fad1f22786b1ccfeaba7",
+          "indexSha256": "03ef9aaa273020109380e87b3474e1b6a46c8be52fa3fad1f22786b1ccfeaba7",
+          "workingEqualsIndex": true
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+          "bytes": 7349,
+          "sha256": "c74c3c5704c5dc57f172a94e01c3534b78b592a19deface41629320f8b0e589a",
+          "indexSha256": "c74c3c5704c5dc57f172a94e01c3534b78b592a19deface41629320f8b0e589a",
+          "workingEqualsIndex": true
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-session.ts",
+          "bytes": 80802,
+          "sha256": "dbef4924c4b1b197d38739f0006e3ca6b638b333c98b78702ee5f429fa25d56b",
+          "indexSha256": "dbef4924c4b1b197d38739f0006e3ca6b638b333c98b78702ee5f429fa25d56b",
+          "workingEqualsIndex": true
+        },
+        {
+          "path": "lib/international/browser-us-financial-pilot-commercial.test.ts",
+          "bytes": 40305,
+          "sha256": "7f94f8286b22a443c3c4896c3aadfa5a8ebe6fdbd827bb263a08475f2932aeca",
+          "indexSha256": "7f94f8286b22a443c3c4896c3aadfa5a8ebe6fdbd827bb263a08475f2932aeca",
+          "workingEqualsIndex": true
+        },
+        {
+          "path": "components/account/us-financial-pilot-commercial.tsx",
+          "bytes": 47177,
+          "sha256": "3d981121deda35c9fe00faf7cd740ed8e3b14def4a610e3df83b8626e9b6da76",
+          "indexSha256": "3d981121deda35c9fe00faf7cd740ed8e3b14def4a610e3df83b8626e9b6da76",
+          "workingEqualsIndex": true
+        }
+      ],
+      "observations": [
+        {
+          "claim": "The pure builder captures closed input, validates tenant/F/source identity and all eight customer fields, freezes before/after/request, compares fields canonically, and serializes one exact body.",
+          "citations": [
+            "lib/international/browser-us-financial-pilot-commercial-input.ts:14",
+            "lib/international/browser-us-financial-pilot-commercial-input.ts:22",
+            "lib/international/browser-us-financial-pilot-commercial-input.ts:26",
+            "lib/international/browser-us-financial-pilot-commercial-input.ts:30",
+            "lib/international/browser-us-financial-pilot-commercial-input.test.ts:27"
+          ]
+        },
+        {
+          "claim": "Only readCustomer results owned by this session are stamped; generation/mutation/customer epoch/current F are checked after await before ownership. Only the latest owned review with approval === true can create pending. Direct commercial(update_customer) is refused.",
+          "citations": [
+            "lib/international/browser-us-financial-pilot-session.ts:189",
+            "lib/international/browser-us-financial-pilot-session.ts:199",
+            "lib/international/browser-us-financial-pilot-session.ts:207",
+            "lib/international/browser-us-financial-pilot-session.ts:659",
+            "lib/international/browser-us-financial-pilot-session.ts:666",
+            "lib/international/browser-us-financial-pilot-session.ts:675",
+            "lib/international/browser-us-financial-pilot-session.ts:708",
+            "lib/international/browser-us-financial-pilot-commercial.test.ts:231"
+          ]
+        },
+        {
+          "claim": "Financial F observations invalidate customer ownership before synchronous notification; local common writes, stop and denial invalidate it as well. External B-only observation does not invalidate customer review. Reentrant UUID callback and write-start/write-confirmation stop cases are explicitly authored.",
+          "citations": [
+            "lib/international/browser-us-financial-pilot-session.ts:221",
+            "lib/international/browser-us-financial-pilot-session.ts:381",
+            "lib/international/browser-us-financial-pilot-session.ts:518",
+            "lib/international/browser-us-financial-pilot-session.ts:536",
+            "lib/international/browser-us-financial-pilot-session.ts:556",
+            "lib/international/browser-us-financial-pilot-commercial.test.ts:249",
+            "lib/international/browser-us-financial-pilot-commercial.test.ts:322",
+            "lib/international/browser-us-financial-pilot-commercial.test.ts:327"
+          ]
+        },
+        {
+          "claim": "Update-specific 409/422 errors carry no execution-phase proof and remain uncertain. Shared pending/writing guards exclude other writes; retry sends the retained body and request without new UUID/rebase. Test faults follow actual memory-kernel commits and assert one event plus byte-identical retry bodies.",
+          "citations": [
+            "lib/international/browser-us-financial-pilot-session.ts:265",
+            "lib/international/browser-us-financial-pilot-session.ts:517",
+            "lib/international/browser-us-financial-pilot-session.ts:521",
+            "lib/international/browser-us-financial-pilot-session.ts:679",
+            "lib/international/browser-us-financial-pilot-session.ts:751",
+            "lib/international/browser-us-financial-pilot-commercial.test.ts:257"
+          ]
+        },
+        {
+          "claim": "The historical receipt is validated against the captured request, then pending is cleared. Its revision is not assigned to snapshot/F floor; a later asynchronous current read refreshes independently and a failed refresh cannot recreate pending.",
+          "citations": [
+            "lib/international/browser-us-financial-pilot-session.ts:522",
+            "lib/international/browser-us-financial-pilot-session.ts:535",
+            "lib/international/browser-us-financial-pilot-session.ts:542",
+            "lib/international/browser-us-financial-pilot-commercial.test.ts:276",
+            "lib/international/browser-us-financial-pilot-commercial.test.ts:286"
+          ]
+        },
+        {
+          "claim": "The UI synchronously invalidates local review/approval on edit and common mutation, rereads the current owned customer before review, and checks live lifetime/token/current F before adoption. Stop/denial purge clears write.current synchronously; live(at) and complete() then prevent late receipt adoption, including the recoveredReceipt effect. Pending reload has a distinct acknowledgement checkbox.",
+          "citations": [
+            "components/account/us-financial-pilot-commercial.tsx:92",
+            "components/account/us-financial-pilot-commercial.tsx:93",
+            "components/account/us-financial-pilot-commercial.tsx:95",
+            "components/account/us-financial-pilot-commercial.tsx:99",
+            "components/account/us-financial-pilot-commercial.tsx:116",
+            "components/account/us-financial-pilot-commercial.tsx:131",
+            "components/account/us-financial-pilot-commercial.tsx:142",
+            "components/account/us-financial-pilot-commercial.tsx:156",
+            "components/account/us-financial-pilot-commercial.tsx:174",
+            "components/account/us-financial-pilot-commercial.tsx:280"
+          ]
+        }
+      ],
+      "ownerEvidenceRead": {
+        "path": ".qa/us-pilot-customer-edit/browser-report.json",
+        "sha256": "c89d0980c3d905ab370b9156f0b5065fe2f1c942a52e76ec0f4b2d1ecd09519c",
+        "reportedFinalCounts": {
+          "passed": 299,
+          "tests": 299,
+          "files": 7,
+          "failed": 0
+        },
+        "reportedOwnedCounts": {
+          "passed": 81,
+          "tests": 81,
+          "files": 2,
+          "failed": 0
+        },
+        "independentlyRerun": false
+      },
+      "limitations": [
+        "Static source and authored-test review only; no independent execution or UI/browser behavior claimed.",
+        "The common send finally publication can resolve an already validated receipt after a subscriber stops there; this review establishes that the current UI guards/purge prevent adoption, not that every shared receipt promise is cancelled by stop.",
+        "No PostgreSQL, global regression, hosted authority, provider or production conclusion belongs to this browser review."
+      ]
+    },
+    {
+      "artifact": {
+        "path": ".qa/us-pilot-customer-edit/review-pg-fixture-candidate2.json",
+        "bytes": 3052,
+        "sha256": "95ea60a1170ffcf6884a41a7cc3dd3ea7c0e74f6201e4cfe9d70397d07907316"
+      },
+      "schemaVersion": 1,
+      "date": "2026-10-10",
+      "reviewer": "/root/us_bank_next_plan",
+      "kind": "static-postgres-fixture-delta-review",
+      "status": "no-blocking-defect-found",
+      "previousReview": {
+        "path": ".qa/us-pilot-customer-edit/review-browser-of-backend-ui.json",
+        "sha256": "ef24afb118f4581efeeeaa37e2c2e4864042bfa31206333329e58b2a32d233ab",
+        "preserved": true
+      },
+      "comparedSources": [
+        {
+          "candidate": 1,
+          "path": ".qa/us-pilot-customer-edit/candidate1/us-financial-pilot-commercial.postgres.test.ts",
+          "sha256": "c78a06cc0cc1800337e02fe2b6cfb23259103264417ebcfa165a8f27a64ecd4d"
+        },
+        {
+          "candidate": 2,
+          "path": "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+          "sha256": "13bb99bb47378b3e9c0ddf8bf365eb96a3cf3c01b7d18b1b27c66715833e5302"
+        }
+      ],
+      "scope": "Only the single fixture delta in the real-client-beyond-first-25-rows PostgreSQL scenario. The original fifteen-source review and its authorship limitations remain unchanged.",
+      "changedRanges": [
+        {
+          "path": "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+          "start": 331,
+          "end": 333,
+          "description": "Capture promotionScope.actor once, use that same actor for promoteUsFinancialBookV5 and a newly constructed foundation, and retain fresh actor revalidation."
+        }
+      ],
+      "observations": [
+        "The diff contains one hunk, with two added lines and no removed assertion. It changes only setup of the delayed promotion after the 26 ERP customer writes.",
+        "Candidate 1 built the promoted book with f.refresh() but submitted it through f.foundation, which had been constructed earlier in fixture setup. Candidate 2 constructs the promotion book and foundation from the same promotionScope.actor, preserving identical captured actor identity and timestamp for that promotion.",
+        "The new foundation revalidator still returns the current refreshed actor. The change does not substitute a later timestamp into the already constructed promotion book, bypass admission, or weaken production validation.",
+        "The scenario still creates 26 customers through executeErp, proves 27 total customers with only 25 on the first public page, reads the target by its exact ID, updates the same customer, and proves the total remains 27. Its 60000 ms timeout and all expected outcomes are unchanged.",
+        "No production source, protocol, migration, route, browser source, or other scenario changed in the compared files. No blocking defect was found in this fixture delta."
+      ],
+      "blockingFindings": [],
+      "limitations": [
+        "This is a static comparison only. No test, PostgreSQL execution, type check, lint, build, server, browser, or network operation was run for this supplementary review.",
+        "No rerun result or selected-regression outcome is asserted. Runtime confirmation belongs to the parent's serialized validation evidence.",
+        "Only this requested ignored note was written. The original review report and both compared files were left unchanged."
+      ]
+    }
+  ],
+  "attempts": {
+    "candidate1": {
+      "sourceSha256": "4885f71f273d573d701d9c98aa940cdaa721ae0b1f3c673c785c6b00e0eab335",
+      "targeted": {
+        "passed": 271,
+        "failed": 1,
+        "total": 272
+      },
+      "cause": "Only pagination PostgreSQL fixture used a different timestamp in its bound actor and promotion actor. Financial authority gate correctly refused it.",
+      "repair": "Same captured fresh actor for local promotion and its foundation; production behavior/security/SQL unchanged.",
+      "archived": true
+    },
+    "browserProofDraft": {
+      "passed": 18,
+      "failed": 2,
+      "cause": "Two assertions expected Reload workspace instead of actual translated Reload the workspace. Source/UI unchanged; exact text assertions corrected and draft retained."
+    }
+  },
+  "security": {
+    "newMigrations": [],
+    "hostedMigrations": [],
+    "productionChanges": [],
+    "stripeChanges": [],
+    "chSourceChanges": [],
+    "tenantGate": "Same live user/member/role/grant/opt-in/country admission and revalidation; no automatic grant",
+    "newOperation": "update_customer maps to existing save_customer under a distinct namespace; durable exact replay before live customer existence; unknown IDs never upsert",
+    "pending": "Unproven update409/422 retains exact UUID/body/F in RAM until retry or explicit lifecycle purge; reload does not cancel a server commit"
+  },
+  "limits": [
+    "US pilot remains incomplete and TEST-gated; no certified US GAAP, fifty-state compliance or native deployment claim.",
+    "Serialized PGlite with synthetic Auth/D1/tax is not hosted multi-connection/load/crash/provider evidence.",
+    "Browser recipe is a grouped language/theme/viewport sample, not every cross-product combination and not an actual iPhone/macOS app.",
+    "Invoice invariant compares full validated PDF snapshot and internal value serialization, normalizing only named current F metadata. No public invoice CSV or rendered PDF claim.",
+    "Unknown-operation recovery and unsaved forms are RAM-only.",
+    "No customer merging/deletion/history CRM, cash-basis, automatic provisioning or new regulatory decision in this increment."
+  ],
+  "artifacts": [
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-attempt1-command.json",
+      "bytes": 4145,
+      "sha256": "c8e7b54aeded0d3ef8b6a767d75436a347b4783195dcd881165a794ceacfe4bd"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-attempt1.json",
+      "bytes": 61796,
+      "sha256": "7adeb6cdafa8480f47370d6db5d3a518f92eb131d36c4ce9ab5feb5659cc7fe0"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-attempt1.log",
+      "bytes": 820,
+      "sha256": "3432e8fb4a1b65563aea820a8531ee76b88a806d737538fc4a8cd84eca0989c8"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-final-command.json",
+      "bytes": 4542,
+      "sha256": "cb3e3731d0424d42937d7570e6d3d8852b85522bf0255a4191c392e6131edfce"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-final.json",
+      "bytes": 63620,
+      "sha256": "1a17b7bb81852fe89717c8257abf90fea2349b3d0aa94b6bbd6e705afc3e8350"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-final.log",
+      "bytes": 707,
+      "sha256": "f7b1ebe2e8d82a2860173803b7cf91adc301e1e7efca357954907f5279b14990"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-lint-attempt1.json",
+      "bytes": 761,
+      "sha256": "3f0a4fa9b399fe3d41ce388370c6867a6dc667ce021eb013601550cd6a634a43"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-lint-attempt1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-lint-final.json",
+      "bytes": 4669,
+      "sha256": "b6bc82745a4e42a654683d9e45306b2777e81dea693d2c57c0065243aff7e089"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-lint-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-verification-initial-metadata.json",
+      "bytes": 40739,
+      "sha256": "39c073841adfd9cecd36cb4dc108d729eb0dc90a156cf062821f96b9a911070c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-verification.json",
+      "bytes": 40960,
+      "sha256": "148a23dfff46cbbc28c18c30584f3f9312a9f74c5b934c0687e4fbcca973668d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/backend-whitespace-final.log",
+      "bytes": 1223,
+      "sha256": "4dd69e750ca4a86ca17a3625e56a3c61354c57759a6c8b957d985169b1c29cc0"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/brand-final-command.json",
+      "bytes": 5004,
+      "sha256": "7c12ad0db30ff873e693503d9bf8e1753e1c5b6ba790fa5206364e629e6f1999"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/brand-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt1.json",
+      "bytes": 55186,
+      "sha256": "df35abf3ec3cb5bac6951db889df2e7e4eb8b15aafd0761d80f01416f777ec0a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt1.log",
+      "bytes": 20391,
+      "sha256": "b15f246029b651d52caab4468e537e2dc5a0c5adcf2b090b7a616b5eda52be9f"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt2.json",
+      "bytes": 38866,
+      "sha256": "af869caa9e6f8696850a55e7122e00ff99a5e840e3e75dcf66f7d25ab3aef88e"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt2.log",
+      "bytes": 10382,
+      "sha256": "f219ff16cc4927fed58756268bc0a0b1e6d8a558d92a6d290718ce25ec0db241"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt3.json",
+      "bytes": 29633,
+      "sha256": "1888a8792fadd69f49b24d4f4c017f94fbc2ce24aab87956177076c37bce21e6"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt3.log",
+      "bytes": 670,
+      "sha256": "edba952fb731c040b77666e2b08887a6025bada34a79b7473de5847939edfc1b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt4.json",
+      "bytes": 118101,
+      "sha256": "20fa6bd5d10abc26901ef73eb9fce2c3c6dc3f2ebf63906d81a85ec58cb1c2a4"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-attempt4.log",
+      "bytes": 1672,
+      "sha256": "38d44038f09c38f3cd6531c2e32c202f9dae2dce224590e9fe0bd96b9869c956"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-frozen-sources.json",
+      "bytes": 696,
+      "sha256": "80190ac4f4eae3cd1776053e29c315ff93fd54e0c692ae120fcc511d4b915e04"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-lint1.log",
+      "bytes": 834,
+      "sha256": "f76b1af4fb79a4567279a6a96ec3b7e6053540d35802c1a64e9aae5f57f8c22b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-lint2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser-report.json",
+      "bytes": 3766,
+      "sha256": "c89d0980c3d905ab370b9156f0b5065fe2f1c942a52e76ec0f4b2d1ecd09519c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/baseline.ts",
+      "bytes": 6474,
+      "sha256": "8b5c9ff92b43f84ca0dfbc0f95562e94db43e81409f020bcb2e89913d5f1e9a5"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/console.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/de-light-320-nochange.dom.txt",
+      "bytes": 4870,
+      "sha256": "a4604a91b2f26c1067376090935420fbc586183044dea5041f6f5b27b1ebf067"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/de-light-320-nochange.jpg",
+      "bytes": 162939,
+      "sha256": "82048d29a6b2021ef3a09cda92ed3d89a9c79729d3021a6682b87d87f6e1bada"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-late409.dom.txt",
+      "bytes": 6117,
+      "sha256": "63a212dd29161aa1fb219626c64ced9d6c49832a8e167b7eed159a39975baa51"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-review.dom.txt",
+      "bytes": 5171,
+      "sha256": "19cafc23135025e6ed39d8458cd1ed12251323582797e90de5c01bd4a709aea3"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-review.jpg",
+      "bytes": 203209,
+      "sha256": "3ece2677e40a29c658c1553b916dbfb4458399f4b69a50404ec9939753bcdc08"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-stale.dom.txt",
+      "bytes": 4796,
+      "sha256": "410b49974a4658756ec75aad5579f22ccfc5fbbc39ed2f90a4e2582a4e9ca83e"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-uncertain.dom.txt",
+      "bytes": 6020,
+      "sha256": "c0727dd7504dcaa4761e14db1e068dd0c059c1aa6efe87dbd9d5c08763039691"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/en-light-uncertain.jpg",
+      "bytes": 214684,
+      "sha256": "c0e7933da644f6759cbe56edebaae62b0ee0d0dffedba0e3f3bfc450e488e716"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/fr-dark-denied.dom.txt",
+      "bytes": 1642,
+      "sha256": "74c1c9b055bcce12dc8af91386550e0895aa1378db6deb89b481dee5cb7d9a44"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/fr-dark-denied.jpg",
+      "bytes": 96522,
+      "sha256": "5caced0f3b7a495abaed62a6947731e196533037b3532b055334d686e8af0b32"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/fr-dark-desktop-metrics.json",
+      "bytes": 227,
+      "sha256": "94dd2267300a5acf10459e147b0ce206296cde1295ea5284b5322888dee663c5"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/fr-dark-desktop-review.dom.txt",
+      "bytes": 5312,
+      "sha256": "718f622d286655c38fdcfd4fbefb7c7c61b406a0de22f0549fe8e7f273568338"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/fr-dark-desktop-review.jpg",
+      "bytes": 210144,
+      "sha256": "d247600577ddc589770ecccb19f45dd78573baf64ccd43acf875904f36997250"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/it-dark-390-metrics.json",
+      "bytes": 959,
+      "sha256": "6a038b81da739ea0b4f947fa865a4f5b56045f35be3030cd7545f1960f58e4c8"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/it-dark-390-review.dom.txt",
+      "bytes": 5838,
+      "sha256": "1480a9e10c5679adc3a326aa1b960bfde4c86050fecf386db45ef2ca08299be5"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/captures/it-dark-390-review.jpg",
+      "bytes": 212023,
+      "sha256": "76680e19ad1f886de898fce3af8e1e956e75e226f3b1b78a514e83571638e5e0"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/check-proof-draft1.mjs",
+      "bytes": 7101,
+      "sha256": "1268c95f474327db50e2d725b2452a3507feb7f519d35d9833a23358d129af43"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/check-proof.mjs",
+      "bytes": 7109,
+      "sha256": "7072b595ec4a67804103ee4edec431ae6e0b2c7e3c1b259c94d5f0f8cc51f199"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/entry.tsx",
+      "bytes": 3064,
+      "sha256": "49b69290ce219faa6c2f4d3ca8ece7133845bc29fe5228783df4d561ed87f545"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/final-book-proof.json",
+      "bytes": 50261,
+      "sha256": "0e4e4ede7265e3f624a6be2de30b21aff2eb47e5f770e6a9b55e535d80b5e51a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/final.json",
+      "bytes": 5659,
+      "sha256": "c52d57e3476f5639b3a05552e3b44ee6d84e5e7fbf11744f4d72bc32e5446001"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/geist.woff2",
+      "bytes": 29288,
+      "sha256": "9b6f5ff45b278c744b5f379a2c4ecbaf858a842b8eaf82ac8d21b699ca16c608"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/index.html",
+      "bytes": 506,
+      "sha256": "fb5441e9fad61ba8d825ec87ae1d51c3df5ea553025308cb1f3d4c1c865a11e8"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/late409.json",
+      "bytes": 5659,
+      "sha256": "c52d57e3476f5639b3a05552e3b44ee6d84e5e7fbf11744f4d72bc32e5446001"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/reloaded.json",
+      "bytes": 5659,
+      "sha256": "c52d57e3476f5639b3a05552e3b44ee6d84e5e7fbf11744f4d72bc32e5446001"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/retried.json",
+      "bytes": 4015,
+      "sha256": "2e139d2d97368f64c749acf85d5782dbf41dd05f48367e01becfac2f7387f39f"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/runtime.ts",
+      "bytes": 37307,
+      "sha256": "99a867d633e1958134c39838b923dfac0ea274df754f1f78cb143630f6e3247a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/uncertain.json",
+      "bytes": 2800,
+      "sha256": "bd9b31dd05b3d5e950db40348396c44f17398ab341475fa20ec7778ef0183034"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/verdict-draft1.json",
+      "bytes": 3316,
+      "sha256": "3f7c76ebd1eb5ede44df473cff15b2adee693b449f4bf844c07608198f3914a2"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/verdict.json",
+      "bytes": 3048,
+      "sha256": "4555c933b5b7f991116b06368d88bf9aab4a72dfb8ffd1db555ac4dd48687964"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/browser/vite.config.mjs",
+      "bytes": 2451,
+      "sha256": "970a9203d8c26b2ab2c973d02a97b7bcdde7c83f32bbb6ed2377543cc3793a2a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/build-final-command.json",
+      "bytes": 5020,
+      "sha256": "cecbc7e4d5e8692e5c8cbe520bfb213412585b596d65a7f1d6695c1692418533"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/build-final.log",
+      "bytes": 26969,
+      "sha256": "1746f8be474a63d6ce6223054e3c470f70b6ef09da8a2c034366a6030245869e"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-attempt1-command.json",
+      "bytes": 4145,
+      "sha256": "c8e7b54aeded0d3ef8b6a767d75436a347b4783195dcd881165a794ceacfe4bd"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-attempt1.json",
+      "bytes": 61796,
+      "sha256": "7adeb6cdafa8480f47370d6db5d3a518f92eb131d36c4ce9ab5feb5659cc7fe0"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-attempt1.log",
+      "bytes": 820,
+      "sha256": "3432e8fb4a1b65563aea820a8531ee76b88a806d737538fc4a8cd84eca0989c8"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-final-command.json",
+      "bytes": 4542,
+      "sha256": "cb3e3731d0424d42937d7570e6d3d8852b85522bf0255a4191c392e6131edfce"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-final.json",
+      "bytes": 63620,
+      "sha256": "1a17b7bb81852fe89717c8257abf90fea2349b3d0aa94b6bbd6e705afc3e8350"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-final.log",
+      "bytes": 707,
+      "sha256": "f7b1ebe2e8d82a2860173803b7cf91adc301e1e7efca357954907f5279b14990"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-lint-attempt1.json",
+      "bytes": 761,
+      "sha256": "3f0a4fa9b399fe3d41ce388370c6867a6dc667ce021eb013601550cd6a634a43"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-lint-attempt1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-lint-final.json",
+      "bytes": 4669,
+      "sha256": "b6bc82745a4e42a654683d9e45306b2777e81dea693d2c57c0065243aff7e089"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-lint-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-verification-initial-metadata.json",
+      "bytes": 40739,
+      "sha256": "39c073841adfd9cecd36cb4dc108d729eb0dc90a156cf062821f96b9a911070c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-verification.json",
+      "bytes": 40960,
+      "sha256": "148a23dfff46cbbc28c18c30584f3f9312a9f74c5b934c0687e4fbcca973668d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/backend-whitespace-final.log",
+      "bytes": 1223,
+      "sha256": "4dd69e750ca4a86ca17a3625e56a3c61354c57759a6c8b957d985169b1c29cc0"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/brand-final-command.json",
+      "bytes": 5004,
+      "sha256": "1052c8a0702588fefc5c0615b18a21a3fb781ab53a1c96ccdc99d895527c8683"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/brand-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt1.json",
+      "bytes": 55186,
+      "sha256": "df35abf3ec3cb5bac6951db889df2e7e4eb8b15aafd0761d80f01416f777ec0a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt1.log",
+      "bytes": 20391,
+      "sha256": "b15f246029b651d52caab4468e537e2dc5a0c5adcf2b090b7a616b5eda52be9f"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt2.json",
+      "bytes": 38866,
+      "sha256": "af869caa9e6f8696850a55e7122e00ff99a5e840e3e75dcf66f7d25ab3aef88e"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt2.log",
+      "bytes": 10382,
+      "sha256": "f219ff16cc4927fed58756268bc0a0b1e6d8a558d92a6d290718ce25ec0db241"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt3.json",
+      "bytes": 29633,
+      "sha256": "1888a8792fadd69f49b24d4f4c017f94fbc2ce24aab87956177076c37bce21e6"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt3.log",
+      "bytes": 670,
+      "sha256": "edba952fb731c040b77666e2b08887a6025bada34a79b7473de5847939edfc1b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt4.json",
+      "bytes": 118101,
+      "sha256": "20fa6bd5d10abc26901ef73eb9fce2c3c6dc3f2ebf63906d81a85ec58cb1c2a4"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-attempt4.log",
+      "bytes": 1672,
+      "sha256": "38d44038f09c38f3cd6531c2e32c202f9dae2dce224590e9fe0bd96b9869c956"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-frozen-sources.json",
+      "bytes": 696,
+      "sha256": "80190ac4f4eae3cd1776053e29c315ff93fd54e0c692ae120fcc511d4b915e04"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-lint1.log",
+      "bytes": 834,
+      "sha256": "f76b1af4fb79a4567279a6a96ec3b7e6053540d35802c1a64e9aae5f57f8c22b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-lint2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/browser-report.json",
+      "bytes": 3766,
+      "sha256": "c89d0980c3d905ab370b9156f0b5065fe2f1c942a52e76ec0f4b2d1ecd09519c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/build-final-command.json",
+      "bytes": 5020,
+      "sha256": "15b0fbdf8469c776aa2ddd3685384953c0cdd948c82862ea03fca27bea2b139e"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/build-final.log",
+      "bytes": 26959,
+      "sha256": "abd7f1b4f602db25559903ad31ff868370831503fe05af56b0d78ef34515e8e3"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/implementation-files.json",
+      "bytes": 1035,
+      "sha256": "467224ac8886e737d399a62d5ac208647d1f24c4979fad441b05fe23738455ed"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/invoice-internal-values-after-update-targeted.csv",
+      "bytes": 1949,
+      "sha256": "17c25f5ca4df9c853a3d2289304d047aea237ac8163a8d8c45f32c6ba8cd0ec5"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/invoice-internal-values-before-update-targeted.csv",
+      "bytes": 1949,
+      "sha256": "189171d1ea0d787201ac3fa46a9463df846c4fffe32c095ce926d19a6b36750b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/invoice-pdf-snapshot-after-update-targeted.json",
+      "bytes": 5625,
+      "sha256": "ed85ba46bbba7e50a991d6c2e7a133da2066977a599ffc16b6760a183803022d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/invoice-pdf-snapshot-before-update-targeted.json",
+      "bytes": 5625,
+      "sha256": "4da43dc9fe4f9f25d57a139a6bba39f8e499eb09c274a1c11563648eefdb905a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/lint-final-command.json",
+      "bytes": 6110,
+      "sha256": "95f22117e4ca071022a4ff872140222f215bfebf8fa07905ee41f04ee6fffa97"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/lint-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/postgres-recipe-targeted.json",
+      "bytes": 4604,
+      "sha256": "dc3eb6c02987440dc1a9fdda9101bd605cf2ee330145298285e92c7b71a6ce0e"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/record-backend.mjs",
+      "bytes": 8479,
+      "sha256": "1a6ec6b1ea4add572a1141f2dbbca530da68223869725991aa7d983f6c765be2"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/review-browser-of-backend-ui.json",
+      "bytes": 4914,
+      "sha256": "ef24afb118f4581efeeeaa37e2c2e4864042bfa31206333329e58b2a32d233ab"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/run-backend-lint.mjs",
+      "bytes": 2111,
+      "sha256": "d8e7f901c58aa780c13cffdfb31f667a03c58d9ae6c138e7838061a0522614a7"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/run-backend-targeted.mjs",
+      "bytes": 2821,
+      "sha256": "88e01179c3947c8cd728e63864f5a73af334ae057267ac2037e28d7a764d4f92"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/selection-final.json",
+      "bytes": 11603,
+      "sha256": "dcee90e3eaeebe57b33590c0f949214c23831e50368bc811ecefa09398d7f102"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/targeted-final-command.json",
+      "bytes": 5668,
+      "sha256": "df2421515b43ed4e691bde7e2057d462c561477857065e1fe42b6a8c42d3e5f9"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/targeted-final-preservation.json",
+      "bytes": 705,
+      "sha256": "6db62dc5e8dab39d5273ede7c38f266e6a93894e4062a34dfa32793ec1d1d46c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/targeted-final-us-pilot-accounting-postgres-recipe.json",
+      "bytes": 2343,
+      "sha256": "934729e56717358bbf753368dd4083b29529424813ea23a66faf3dfa484577ac"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/targeted-final-us-pilot-bank-postgres-recipe-regression.json",
+      "bytes": 2382,
+      "sha256": "9d85a43139638d666e0aafbb7df42a9540a7a746f5eb61a9aaef68d9878bcf6c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/targeted-final.json",
+      "bytes": 106543,
+      "sha256": "1ca3e5ca6c82b388992ded284d4cc79d1dd1d525197e7d36260a189ebefc75a8"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/targeted-final.log",
+      "bytes": 126,
+      "sha256": "1fe881e920811d6c0f037a367e3a9da6e3681d0d68e925d65e6fb0f5580cdbb1"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/types-draft-1.log",
+      "bytes": 3108,
+      "sha256": "17ae95aa3102bf8c764ad10b596e6feea885887085d640987006e71bab0acf35"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/types-final-command.json",
+      "bytes": 5057,
+      "sha256": "b552d34f2ad8bd48c8cd6b9784ba79cd24c7ae9d01882713bf5222fdb46deb55"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/types-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/ui-lint-draft-1.log",
+      "bytes": 1706,
+      "sha256": "81284dff9d7f00e79fbd538869e4877753f6d6ba5e46d3e5a12b200eab75cb8b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/ui-lint-draft-2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/us-financial-pilot-commercial.postgres.test.ts",
+      "bytes": 74537,
+      "sha256": "c78a06cc0cc1800337e02fe2b6cfb23259103264417ebcfa165a8f27a64ecd4d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/verify.mjs",
+      "bytes": 6054,
+      "sha256": "fce664a6136b2c81e44b72e37c19fbca1c992815030e654cb4c785f1713e3d7d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/candidate1/whitespace.json",
+      "bytes": 36,
+      "sha256": "1a69d17049160c92e03ebc0bc614f33ef799a9e45421b4ba042d7fcde25f9c53"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/commercial-postgres-candidate1.before",
+      "bytes": 74537,
+      "sha256": "c78a06cc0cc1800337e02fe2b6cfb23259103264417ebcfa165a8f27a64ecd4d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/delivery-draft.md",
+      "bytes": 11384,
+      "sha256": "842adc1ef3f4616dd4b9debc130ea61a2dafc416c68fd87c4a139dcca1ec321d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/implementation-files.json",
+      "bytes": 1035,
+      "sha256": "467224ac8886e737d399a62d5ac208647d1f24c4979fad441b05fe23738455ed"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-internal-values-after-update-regression.csv",
+      "bytes": 1949,
+      "sha256": "c7d6d971f11f7f6e5aa7482fad6cf1ab699bc26370c276cf66298904a1a91666"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-internal-values-after-update-targeted.csv",
+      "bytes": 1949,
+      "sha256": "cbfe9080bb6ff4fdb6c563653f6eba66e03cb5cd2e4dd812db86f59ae22e877b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-internal-values-before-update-regression.csv",
+      "bytes": 1949,
+      "sha256": "4a1930ab682e5e8e0e8a98db71837d9bdf5becd87380a8c017b24a51ae0dd4c3"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-internal-values-before-update-targeted.csv",
+      "bytes": 1949,
+      "sha256": "49927b6f77e45317e72363ff6889e4ae1ab710a505b265bd6b5eb199d8b9c528"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-pdf-snapshot-after-update-regression.json",
+      "bytes": 5625,
+      "sha256": "e2b7af2432ba8e3e5f9acdd0a5ec401421b4762f72babc5f3ed5904f0884def2"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-pdf-snapshot-after-update-targeted.json",
+      "bytes": 5625,
+      "sha256": "edf03932806f4dc7b8c7686ec84a39c4d9e8d0b1860fa83f8e568f4f80590ba7"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-pdf-snapshot-before-update-regression.json",
+      "bytes": 5625,
+      "sha256": "79775f0a05df1284ad5232bc0f5cd263c3306fb6401af74cd1612b39f6ba255b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/invoice-pdf-snapshot-before-update-targeted.json",
+      "bytes": 5625,
+      "sha256": "54c543df98c48e5633ab8484b205b7a4e1f8a8aeadddc487df35585ad3a20812"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/lint-final-command.json",
+      "bytes": 6110,
+      "sha256": "14ef02b761440d3259cca2863fbd793fd4cc141d80de954b3a2c6170fc5d597c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/lint-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/pg-fixture-repair-candidate1.json",
+      "bytes": 542,
+      "sha256": "71248b10c0750abbcdd3c52e3ca2e510a0aaf5fdcc9920df6d6121fecb1a0bed"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/pg-fixture-repair-candidate2.json",
+      "bytes": 451,
+      "sha256": "3e967ae79387e05ec57ba2151b1699a74b9b5ba5a25e934968f9fb3afac2726f"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/postgres-recipe-regression.json",
+      "bytes": 4612,
+      "sha256": "41623a39b8207d430d3485189eb25330fb36ffebb07407de25e790841e6eae54"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/postgres-recipe-targeted.json",
+      "bytes": 4604,
+      "sha256": "27e6dff17576a2a3bffe90e1f1e6ea6f780d931d7fb3d67d1aac10dceadfa744"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/record-backend.mjs",
+      "bytes": 8479,
+      "sha256": "1a6ec6b1ea4add572a1141f2dbbca530da68223869725991aa7d983f6c765be2"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/regression-final-command.json",
+      "bytes": 17270,
+      "sha256": "734ddd898f7d8cb6aec50e74c0cff0b91a93c78246681fed15b22af7e3a4916a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/regression-final-preservation.json",
+      "bytes": 709,
+      "sha256": "8aa06ac2077730b81ac2e39359da630c27407bcf383f1379cc17d4463161c915"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/regression-final-us-pilot-accounting-postgres-recipe.json",
+      "bytes": 2368,
+      "sha256": "c173bfc80d9bb386fc708b5002ae0123b13f882ea71d9723ad3014d083b8f6d0"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/regression-final-us-pilot-bank-postgres-recipe-regression.json",
+      "bytes": 2382,
+      "sha256": "ddccd2cd8d8598ab09a507c05e31dde187c99104dce1d169bad016a9b6d2c43f"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/regression-final.json",
+      "bytes": 2682683,
+      "sha256": "3607bf3e5ab00b3e51a470e949c5db567813a18d75f3274ecbb512ab984246b8"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/regression-final.log",
+      "bytes": 128,
+      "sha256": "74aad9aebd0f46ee40e3c17908cf4f90af99e3ee3ec3f804c52883a7ea945d7e"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/review-backend-of-browser.json",
+      "bytes": 8152,
+      "sha256": "26e9ebe017eed0c845cb4f59b69e7471da3ca4b185d7e56e68f4004d12ea91d5"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/review-browser-of-backend-ui.json",
+      "bytes": 4914,
+      "sha256": "ef24afb118f4581efeeeaa37e2c2e4864042bfa31206333329e58b2a32d233ab"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/review-pg-fixture-candidate2.json",
+      "bytes": 3052,
+      "sha256": "95ea60a1170ffcf6884a41a7cc3dd3ea7c0e74f6201e4cfe9d70397d07907316"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/run-backend-lint.mjs",
+      "bytes": 2111,
+      "sha256": "d8e7f901c58aa780c13cffdfb31f667a03c58d9ae6c138e7838061a0522614a7"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/run-backend-targeted.mjs",
+      "bytes": 2821,
+      "sha256": "88e01179c3947c8cd728e63864f5a73af334ae057267ac2037e28d7a764d4f92"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/selection-final.json",
+      "bytes": 11603,
+      "sha256": "dcee90e3eaeebe57b33590c0f949214c23831e50368bc811ecefa09398d7f102"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/supabase-changelog-20261010.md",
+      "bytes": 100226,
+      "sha256": "958bf033618a6f7b920e3505f8e1fd2f861f6ceb8c687b4451aeff6c4a04ccd3"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/supabase-docs-note.json",
+      "bytes": 1193,
+      "sha256": "7d0015df1cd324be82a4d9896da104ffb88beea9af094385e6713db1033df8a5"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/targeted-final-command.json",
+      "bytes": 5756,
+      "sha256": "5158530fd93a70cc66d5282b0f7ce4bd4444caaca9f740d24466ec64407de72a"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/targeted-final-preservation.json",
+      "bytes": 705,
+      "sha256": "6db62dc5e8dab39d5273ede7c38f266e6a93894e4062a34dfa32793ec1d1d46c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/targeted-final-us-pilot-accounting-postgres-recipe.json",
+      "bytes": 2343,
+      "sha256": "934729e56717358bbf753368dd4083b29529424813ea23a66faf3dfa484577ac"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/targeted-final-us-pilot-bank-postgres-recipe-regression.json",
+      "bytes": 2382,
+      "sha256": "9d85a43139638d666e0aafbb7df42a9540a7a746f5eb61a9aaef68d9878bcf6c"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/targeted-final.json",
+      "bytes": 105905,
+      "sha256": "acc08318cfc01d32b11c01a99f5eb426e26ca0d7ed506b6c9721f4497e803b91"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/targeted-final.log",
+      "bytes": 126,
+      "sha256": "1fe881e920811d6c0f037a367e3a9da6e3681d0d68e925d65e6fb0f5580cdbb1"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/types-draft-1.log",
+      "bytes": 3108,
+      "sha256": "17ae95aa3102bf8c764ad10b596e6feea885887085d640987006e71bab0acf35"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/types-final-command.json",
+      "bytes": 5057,
+      "sha256": "0d40d587d395a14b7486d5fa7ad91ec20e0912244beb8766f7c4bb27d1d8b7c7"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/types-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/ui-lint-draft-1.log",
+      "bytes": 1706,
+      "sha256": "81284dff9d7f00e79fbd538869e4877753f6d6ba5e46d3e5a12b200eab75cb8b"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/ui-lint-draft-2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/verify.mjs",
+      "bytes": 6054,
+      "sha256": "fce664a6136b2c81e44b72e37c19fbca1c992815030e654cb4c785f1713e3d7d"
+    },
+    {
+      "path": ".qa/us-pilot-customer-edit/whitespace.json",
+      "bytes": 36,
+      "sha256": "1a69d17049160c92e03ebc0bc614f33ef799a9e45421b4ba042d7fcde25f9c53"
+    }
+  ]
+}
