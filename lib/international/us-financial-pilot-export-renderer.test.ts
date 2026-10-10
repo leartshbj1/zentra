@@ -16,11 +16,13 @@ import { financialKernelFixture } from './us-financial-kernel-test-fixture';
 import { applyUsFinancialOperationV5, buildUsFinancialCreditCandidateV5, promoteUsFinancialBookV5 } from './us-financial-kernel';
 import { usFinancialErpEntityIdV5 } from './us-financial-kernel-erp';
 import type { UsFinancialOperationV5 } from './us-financial-kernel-types';
-import { buildUsFinancialPilotExportSnapshot } from './us-financial-pilot-export-projection';
+import { buildUsFinancialPilotEstimateExportSnapshot, buildUsFinancialPilotExportSnapshot } from './us-financial-pilot-export-projection';
+import { canonicalErpJson } from './erp-contract';
 
 // Neutral presentation fixtures, deliberately fictitious. These are not proof of
 // a server, persisted book, hosted authentication, bank transaction or tax filing.
 const organizationId = 'synthetic-renderer-test-workspace';
+const quoteRecipeLabel = /^[a-z0-9-]{1,40}$/u.test(process.env.ZENTRA_US_QUOTE_PDF_RECIPE_LABEL ?? '') ? process.env.ZENTRA_US_QUOTE_PDF_RECIPE_LABEL! : 'targeted';
 const address = { country: 'US' as const, line1: '1 Fictitious Example Street', city: 'New York', subdivision: 'NY', postalCode: '10001' };
 const issuer = { name: 'Société fictive Énergie - Genève Zürich città', address, email: 'fictitious@example.test', phone: null };
 function section(kind: SectionKind, rows: string[][], values: string[]): Section {
@@ -29,7 +31,7 @@ function section(kind: SectionKind, rows: string[][], values: string[]): Section
 function commonFacts(): Snapshot['facts'] {
   return [{ label: 'organization', kind: 'text', value: organizationId }, { label: 'currency', kind: 'text', value: 'USD' }, { label: 'accountingBasis', kind: 'text', value: 'accrual' }, { label: 'financialRevision', kind: 'text', value: '7' }, { label: 'ledgerRevision', kind: 'text', value: '3' }];
 }
-function invoice(language: CompanyLanguage = 'en'): Snapshot {
+function invoice(language: CompanyLanguage = 'en'): Exclude<Snapshot, { estimate: unknown }> {
   return {
     consumer: 'financial-pilot', schemaVersion: 1, organizationId, revision: 7, ledgerRevision: 3, currency: 'USD', paper: 'Letter', language,
     selector: { kind: 'invoice', invoiceId: 'synthetic-invoice-1', revision: 7, format: 'pdf', language }, number: 'TEST-INVOICE-1', issuer,
@@ -119,6 +121,51 @@ describe('financial pilot CSV rendering from its neutral presentation contract',
 });
 
 describe('financial pilot real text/vector PDF rendering', () => {
+  it('renders real V5 quote snapshots in four languages with exact discounts, current seller and no invoice or tax determination', async () => {
+    const fixture = await financialKernelFixture({ discountBasisPoints: 1234 }), book = await promoteUsFinancialBookV5(fixture.baseline, fixture.policy, fixture.actor);
+    const identity = { organizationId: fixture.configuration.organizationId, countryRevision: 2, configuration: fixture.configuration, sellerRevision: 3, seller: { displayName: 'Synthetic Current Seller - Genève Zürich città', contactEmail: 'current-seller@example.test' } };
+    const before = canonicalErpJson(book), directory = resolve('.qa/us-pilot-quote-pdf/renderer', quoteRecipeLabel); mkdirSync(directory, { recursive: true });
+    const evidence: unknown[] = [];
+    for (const language of ['fr', 'de', 'it', 'en'] as const) {
+      const selector = { kind: 'estimate' as const, estimateId: 'estimate-1', estimateRevision: 2, revision: book.revision, language, format: 'pdf' as const };
+      const snapshot = await buildUsFinancialPilotEstimateExportSnapshot(book, selector, identity), bytes = await pdf(snapshot, fonts), parsed = inspect(bytes), c = copy[language];
+      const flattened = parsed.text.replace(/\s+/gu, ' ');
+      expect(flattened).toContain(c.estimateNotice); expect(flattened).toContain(c.currentSeller); expect(parsed.text).toContain(c.estimate);
+      expect(parsed.text).toContain(c.beforeSalesTax); expect(parsed.text).toContain(c.accepted); expect(parsed.text).toContain(identity.seller.displayName);
+      expect(parsed.text).toContain('Synthetic Customer LLC'); expect(parsed.text).toContain(language === 'en' ? '12.34 %' : '12,34 %');
+      expect(parsed.text).toContain('$300.00'); expect(parsed.text).toContain('$37.02'); expect(parsed.text).toContain('$262.98');
+      expect(parsed.text).toContain('10/09/2026'); expect(parsed.text).toContain('11/09/2026');
+      for (const key of ['estimateRevision', 'countryRevision', 'sellerRevision'] as const) expect(flattened).toContain(c[key]);
+      expect(flattened).not.toContain(c.invoiceNotice); expect(flattened).not.toContain(c.seller); expect(parsed.text).not.toMatch(/PRIVATE-|idempotencyKey|taxAssessment|providerAccount/);
+      expect(parsed.pages).toBe(1); expect(parsed.sizes.every(size => size[0] === 612 && size[1] === 792)).toBe(true); expect(parsed.outside).toEqual([]); expect(parsed.images).toBe(0);
+      expect(() => csv(snapshot)).toThrow('financial_pilot_export_unavailable');
+      const filename = `fictitious-v5-estimate-${language}.pdf`; writeFileSync(resolve(directory, filename), bytes);
+      writeFileSync(resolve(directory, `fictitious-v5-estimate-${language}.json`), JSON.stringify(snapshot, null, 2));
+      evidence.push({ filename, language, revision: snapshot.revision, bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex'), pages: parsed.pages, sizes: parsed.sizes, outside: parsed.outside, images: parsed.images });
+    }
+    expect(canonicalErpJson(book)).toBe(before);
+    writeFileSync(resolve(directory, 'quote-renderer-proof.json'), JSON.stringify({ scope: 'Actual V5 builder and PDF renderer, fictitious memory book and private current seller identity; pypdf/pdfplumber inspection. No hosted authorization, external tax provider, native app or production claim.', evidence }, null, 2));
+  }, 30_000);
+  it('keeps the historical quote customer after a real V5 correction and renders all 101 lines, fractional quantities, per-line discounts and multiline notes', async () => {
+    const fixture = await financialKernelFixture(); let book = await promoteUsFinancialBookV5(fixture.baseline, fixture.policy, fixture.actor);
+    const apply = async (command: Extract<UsFinancialOperationV5, { type: 'erp_command' }>['command']) => {
+      const operation = { type: 'erp_command' as const, idempotencyKey: `synthetic-quote-render-${book.revision}`, command, facts: { kind: 'none' as const } };
+      book = (await applyUsFinancialOperationV5(book, operation, fixture.actor, usFinancialErpEntityIdV5(command, fixture.configuration.organizationId))).book;
+    };
+    await apply({ type: 'save_estimate', id: 'quote-101', expectedEstimateRevision: 0, customerId: 'customer-1', date: '2026-10-09', expiresAt: '2026-11-09', paymentTermsDays: 30,
+      lines: Array.from({ length: 101 }, (_, i) => ({ id: `quote-line-${i + 1}`, description: `Fictitious detailed service ${i + 1}\nGenève Zürich città ${i === 100 ? 'END-LINE-101' : ''}`, quantityUnits: '125', quantityScale: 2, unitPrice: { currency: 'USD' as const, minorUnits: '10001' }, discountBasisPoints: 1234, taxTreatment: 'taxable' as const })), notes: 'START-NOTES\nA condition on its own line.\nEND-NOTES' });
+    await apply({ type: 'save_customer', customer: { ...fixture.baseline.customers[0], name: 'CURRENT-CUSTOMER-MUST-NOT-REPLACE-QUOTE' } });
+    const identity = { organizationId: fixture.configuration.organizationId, countryRevision: 2, configuration: fixture.configuration, sellerRevision: 4, seller: { displayName: 'Current quote seller - local tests only' } };
+    const before = canonicalErpJson(book), selector = { kind: 'estimate' as const, estimateId: 'quote-101', estimateRevision: 1, revision: book.revision, language: 'de' as const, format: 'pdf' as const };
+    const snapshot = await buildUsFinancialPilotEstimateExportSnapshot(book, selector, identity), bytes = await pdf(snapshot, fonts), parsed = inspect(bytes);
+    expect(snapshot.sections[0].rows).toHaveLength(101); expect(parsed.pages).toBeGreaterThan(3); expect(parsed.outside).toEqual([]);
+    expect(parsed.text).toContain('END-LINE-101'); expect(parsed.text).toContain('END-NOTES'); expect(parsed.text).toContain('1.25'); expect(parsed.text).toContain('12,34 %'); expect(parsed.text).toContain('$109.58'); expect(parsed.text).toContain('$11,067.58');
+    expect(parsed.text).toContain('Synthetic Customer LLC'); expect(parsed.text).not.toContain('CURRENT-CUSTOMER-MUST-NOT-REPLACE-QUOTE');
+    expect(parsed.text.replace(/\s+/gu, ' ').match(/Angebotspositionen/gu)!.length).toBeGreaterThan(1);
+    expect(canonicalErpJson(book)).toBe(before);
+    const directory = resolve('.qa/us-pilot-quote-pdf/renderer', quoteRecipeLabel); mkdirSync(directory, { recursive: true }); writeFileSync(resolve(directory, 'fictitious-v5-estimate-101-de.pdf'), bytes);
+    writeFileSync(resolve(directory, 'quote-101-proof.json'), JSON.stringify({ scope: 'Actual V5 save estimate and customer update, then read-only quote PDF. Fictitious memory execution only.', revision: book.revision, rows: 101, pages: parsed.pages, outside: parsed.outside, bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') }, null, 2));
+  }, 30_000);
   it('writes five explicitly fictitious QA PDFs, preserves all four languages and keeps every glyph in US Letter bounds', async () => {
     const directory = resolve('.qa/us-financial-exports'); mkdirSync(directory, { recursive: true }); const evidence: unknown[] = [];
     for (const language of ['fr', 'de', 'it', 'en'] as const) {

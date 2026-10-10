@@ -1,15 +1,18 @@
 import { LedgerError } from './accounting/ledger';
 import { balanceSheet, cashFlow, generalLedger, profitAndLoss, trialBalance } from './accounting/reports';
-import { lineTotals } from './invoicing';
+import { estimateTotals, lineTotals } from './invoicing';
+import { canonicalErpJson } from './erp-contract';
 import type { UsFinancialBookViewV5 } from './us-financial-kernel-types';
 import {
   US_FINANCIAL_PILOT_EXPORT_COLUMNS, US_FINANCIAL_PILOT_EXPORT_MAX_ROWS, US_FINANCIAL_PILOT_EXPORT_TOTALS,
   UsFinancialPilotExportError, validateUsFinancialPilotExportSelector, validateUsFinancialPilotExportSnapshot,
   type UsFinancialPilotExportFact, type UsFinancialPilotExportLabel, type UsFinancialPilotExportSection,
   type UsFinancialPilotExportSectionKind, type UsFinancialPilotExportSelector, type UsFinancialPilotExportSnapshot,
+  type UsFinancialPilotEstimateExportSelector, type UsFinancialPilotEstimateExportSnapshot,
 } from './us-financial-pilot-export-contract';
 import { UsFinancialPilotError } from './us-financial-pilot-contract';
 import { financialPilotInvoiceRows, financialPilotPublicSource, financialPilotSummary, readUsFinancialPilotView } from './us-financial-pilot-projection';
+import { validateUsFinancialPilotQuoteIdentity, type UsFinancialPilotQuoteIdentity } from './us-financial-pilot-quote-identity';
 
 const invalid = (): never => { throw new UsFinancialPilotExportError('invalid_financial_pilot_export_snapshot', 503); };
 const missing = (): never => { throw new UsFinancialPilotExportError('financial_pilot_export_source_not_found', 404); };
@@ -26,13 +29,31 @@ function quantity(units: string, scale: number): string {
   const padded = units.padStart(scale + 1, '0');
   return `${padded.slice(0, -scale)}.${padded.slice(-scale)}`;
 }
-function common(view: UsFinancialBookViewV5, selector: UsFinancialPilotExportSelector): UsFinancialPilotExportSnapshot {
+function common<S extends UsFinancialPilotExportSelector>(view: UsFinancialBookViewV5, selector: S): Omit<UsFinancialPilotEstimateExportSnapshot, 'selector' | 'estimate'> & Readonly<{ selector: S }> {
   return {
     consumer: 'financial-pilot', schemaVersion: 1, organizationId: view.organizationId, revision: view.revision,
     ledgerRevision: view.ledger.revision, currency: 'USD', paper: 'Letter', language: selector.language, selector,
     number: null, issuer: { name: null, address: view.configuration.address, email: null, phone: null }, recipient: null,
     facts: [fact('organization', view.organizationId), fact('currency', 'USD'), fact('accountingBasis', 'accrual'), fact('financialRevision', String(view.revision)), fact('ledgerRevision', String(view.ledger.revision))],
     sections: [], notes: '',
+  };
+}
+function estimateSnapshot(view: UsFinancialBookViewV5, selector: UsFinancialPilotEstimateExportSelector, identity: UsFinancialPilotQuoteIdentity): UsFinancialPilotEstimateExportSnapshot {
+  const estimate = view.estimates.find(row => row.id === selector.estimateId) ?? missing();
+  if (estimate.revision !== selector.estimateRevision) throw new UsFinancialPilotExportError('financial_snapshot_changed', 409);
+  if (identity.organizationId !== view.organizationId) return invalid();
+  if (canonicalErpJson(identity.configuration) !== canonicalErpJson(view.configuration)) throw new UsFinancialPilotExportError('financial_pilot_quote_identity_changed', 409);
+  const totals = estimateTotals(estimate), base = common(view, selector);
+  return {
+    ...base, number: estimate.number,
+    estimate: { estimateId: estimate.id, estimateRevision: estimate.revision, status: estimate.status, countryRevision: identity.countryRevision, sellerRevision: identity.sellerRevision, issuerBasis: 'current_at_export', amountBasis: 'before_sales_tax' },
+    // Quotes preserve their customer snapshot. Their seller was not captured at
+    // creation, so disclose this separately versioned current export identity.
+    issuer: { name: identity.seller.displayName, address: identity.configuration.address, email: identity.seller.contactEmail ?? null, phone: identity.seller.contactPhone ?? null },
+    recipient: { name: estimate.customer.name, address: estimate.customer.billingAddress, email: estimate.customer.email ?? null, phone: estimate.customer.phone ?? null },
+    facts: [...base.facts, fact('estimateDate', estimate.date, 'date'), fact('expiresAt', estimate.expiresAt, 'date'), fact('paymentTermsDays', String(estimate.paymentTermsDays)), fact('estimateRevision', String(estimate.revision)), fact('status', estimate.status), fact('countryRevision', String(identity.countryRevision)), fact('sellerRevision', String(identity.sellerRevision))],
+    sections: [section('estimate_lines', estimate.lines.map(line => [line.description, quantity(line.quantityUnits, line.quantityScale), line.unitPrice.minorUnits, String(line.discountBasisPoints), lineTotals(line, 'USD').net.minorUnits]), [totals.subtotal.minorUnits, totals.discount.minorUnits, totals.net.minorUnits])],
+    notes: estimate.notes,
   };
 }
 function invoiceSnapshot(view: UsFinancialBookViewV5, selector: Extract<UsFinancialPilotExportSelector, { kind: 'invoice' }>): UsFinancialPilotExportSnapshot {
@@ -97,10 +118,29 @@ function reportSnapshot(view: UsFinancialBookViewV5, selector: Extract<UsFinanci
  * paginated UI DTOs, legacy ERP export semantics or any provider/network call. */
 export async function buildUsFinancialPilotExportSnapshot(book: unknown, selectorInput: UsFinancialPilotExportSelector): Promise<UsFinancialPilotExportSnapshot> {
   const selector = validateUsFinancialPilotExportSelector(selectorInput);
+  if (selector.kind === 'estimate') throw new UsFinancialPilotExportError('invalid_financial_pilot_export_selector', 422);
   try {
     const view = await readUsFinancialPilotView(book, selector.revision);
     const snapshot = selector.kind === 'invoice' ? invoiceSnapshot(view, selector) : reportSnapshot(view, selector);
     return validateUsFinancialPilotExportSnapshot(snapshot, view.organizationId, selector);
+  } catch (error) {
+    if (error instanceof UsFinancialPilotExportError) throw error;
+    if (error instanceof UsFinancialPilotError && error.code === 'financial_snapshot_changed') throw new UsFinancialPilotExportError('financial_snapshot_changed', 409);
+    return invalid();
+  }
+}
+
+/** Explicit quote-only entry: private identity is captured before replay awaits.
+ * It provides presentation data, never admission or a transactional F/C/S fence. */
+export async function buildUsFinancialPilotEstimateExportSnapshot(book: unknown, selectorInput: UsFinancialPilotEstimateExportSelector, identityInput: UsFinancialPilotQuoteIdentity): Promise<UsFinancialPilotEstimateExportSnapshot> {
+  const selector = validateUsFinancialPilotExportSelector(selectorInput);
+  if (selector.kind !== 'estimate') throw new UsFinancialPilotExportError('invalid_financial_pilot_export_selector', 422);
+  try {
+    const identity = validateUsFinancialPilotQuoteIdentity(identityInput);
+    const view = await readUsFinancialPilotView(book, selector.revision);
+    const snapshot = validateUsFinancialPilotExportSnapshot(estimateSnapshot(view, selector, identity), view.organizationId, selector);
+    if (snapshot.selector.kind !== 'estimate' || !snapshot.estimate) return invalid();
+    return snapshot as UsFinancialPilotEstimateExportSnapshot;
   } catch (error) {
     if (error instanceof UsFinancialPilotExportError) throw error;
     if (error instanceof UsFinancialPilotError && error.code === 'financial_snapshot_changed') throw new UsFinancialPilotExportError('financial_snapshot_changed', 409);

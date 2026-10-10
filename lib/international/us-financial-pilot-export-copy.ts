@@ -1,6 +1,9 @@
 import type { CompanyLanguage } from './types';
 
 const en = {
+  estimate: 'Quote', estimate_lines: 'Quote details', estimateDate: 'Quote date', expiresAt: 'Valid until', paymentTermsDays: 'Payment terms (days)', estimateRevision: 'Quote revision', countryRevision: 'Company configuration revision', sellerRevision: 'Seller profile revision', lineDiscount: 'Discount',
+  currentSeller: 'Current seller details', beforeSalesTax: 'Total before sales tax', draft: 'Draft', accepted: 'Accepted', declined: 'Declined',
+  estimateNotice: 'Saved quote at the exported revision. Customer details are those recorded in the quote; seller details are current at export. Amounts exclude sales tax, to be determined before invoicing. This download does not accept the quote or issue an invoice.',
   historicalZeroTax: 'Historical zero-tax credit',
   totals: 'Totals',
   invoice: 'Invoice', invoice_lines: 'Invoice lines', payments: 'Payments received', credits: 'Credit notes', trial_balance: 'Trial balance', profit_loss: 'Profit and loss', balance_sheet: 'Balance sheet', cash_flow: 'Cash flow', general_ledger: 'General ledger', receivables: 'Current receivables',
@@ -14,6 +17,9 @@ type Copy = Readonly<Record<UsFinancialPilotExportCopyKey, string>>;
 export const usFinancialPilotExportCopy: Readonly<Record<CompanyLanguage, Copy>> = {
   en,
   fr: {
+    estimate: 'Devis', estimate_lines: 'Détail du devis', estimateDate: 'Date du devis', expiresAt: "Valable jusqu'au", paymentTermsDays: 'Délai de paiement (jours)', estimateRevision: 'Révision du devis', countryRevision: "Révision de configuration de l'entreprise", sellerRevision: 'Révision du profil vendeur', lineDiscount: 'Remise',
+    currentSeller: 'Coordonnées actuelles du vendeur', beforeSalesTax: 'Total avant sales tax', draft: 'Brouillon', accepted: 'Accepté', declined: 'Refusé',
+    estimateNotice: "Devis enregistré à la révision exportée. Les coordonnées du client sont celles du devis ; celles du vendeur sont actuelles à l'export. Montants avant sales tax, à déterminer avant facturation. Ce téléchargement n'accepte pas le devis et n'émet aucune facture.",
     historicalZeroTax: 'Avoir historique sans taxe',
     totals: 'Totaux',
     invoice: 'Facture', invoice_lines: 'Lignes de facture', payments: 'Encaissements', credits: 'Avoirs', trial_balance: 'Balance des comptes', profit_loss: 'Compte de résultat', balance_sheet: 'Bilan', cash_flow: 'Flux de trésorerie', general_ledger: 'Grand livre', receivables: 'Créances courantes',
@@ -21,6 +27,9 @@ export const usFinancialPilotExportCopy: Readonly<Record<CompanyLanguage, Copy>>
     testNotice: 'Espace privé TEST. Aucun argent transféré.', invoiceNotice: "Représentation d'une facture existante à la révision exportée. Aucune nouvelle facture émise, preuve de paiement ou certification fiscale.", reportNotice: 'Rapport interne expérimental issu du journal enregistré. Ce document ne constitue ni une déclaration fiscale ni une certification.', currentNotice: 'Créances courantes à la révision financière exportée ; aucune situation historique à la date du rapport.', cashUnavailable: 'Flux de trésorerie indisponibles : certaines écritures nécessitent une classification de trésorerie.',
   },
   de: {
+    estimate: 'Angebot', estimate_lines: 'Angebotspositionen', estimateDate: 'Angebotsdatum', expiresAt: 'Gültig bis', paymentTermsDays: 'Zahlungsfrist (Tage)', estimateRevision: 'Angebotsrevision', countryRevision: 'Revision der Unternehmenseinstellungen', sellerRevision: 'Revision des Verkäuferprofils', lineDiscount: 'Rabatt',
+    currentSeller: 'Aktuelle Verkäuferangaben', beforeSalesTax: 'Summe vor Sales Tax', draft: 'Entwurf', accepted: 'Angenommen', declined: 'Abgelehnt',
+    estimateNotice: 'Gespeichertes Angebot zur exportierten Revision. Die Kundenangaben stammen aus dem Angebot; die Verkäuferangaben sind beim Export aktuell. Beträge vor Sales Tax, die vor der Rechnungsstellung zu bestimmen ist. Der Download nimmt das Angebot nicht an und erstellt keine Rechnung.',
     historicalZeroTax: 'Historische Gutschrift ohne Steuer',
     totals: 'Summen',
     invoice: 'Rechnung', invoice_lines: 'Rechnungspositionen', payments: 'Zahlungseingänge', credits: 'Gutschriften', trial_balance: 'Saldenbilanz', profit_loss: 'Erfolgsrechnung', balance_sheet: 'Bilanz', cash_flow: 'Geldfluss', general_ledger: 'Hauptbuch', receivables: 'Aktuelle Forderungen',
@@ -28,6 +37,9 @@ export const usFinancialPilotExportCopy: Readonly<Record<CompanyLanguage, Copy>>
     testNotice: 'Privater TEST-Arbeitsbereich. Es wird kein Geld überwiesen.', invoiceNotice: 'Darstellung einer bestehenden ausgestellten Rechnung zur exportierten Revision. Keine neue Ausstellung, Zahlungsbestätigung oder steuerliche Zertifizierung.', reportNotice: 'Experimenteller interner Bericht aus dem erfassten Hauptbuch. Keine Steuererklärung oder Zertifizierung.', currentNotice: 'Aktuelle Forderungen zur exportierten Finanzrevision; kein historischer Saldo zum Berichtsdatum.', cashUnavailable: 'Geldfluss nicht verfügbar: Für einige Buchungen fehlt eine Geldflusskategorie.',
   },
   it: {
+    estimate: 'Preventivo', estimate_lines: 'Dettaglio del preventivo', estimateDate: 'Data del preventivo', expiresAt: 'Valido fino al', paymentTermsDays: 'Termine di pagamento (giorni)', estimateRevision: 'Revisione del preventivo', countryRevision: "Revisione delle impostazioni dell'azienda", sellerRevision: 'Revisione del profilo venditore', lineDiscount: 'Sconto',
+    currentSeller: 'Dati attuali del venditore', beforeSalesTax: 'Totale prima della sales tax', draft: 'Bozza', accepted: 'Accettato', declined: 'Rifiutato',
+    estimateNotice: 'Preventivo salvato alla revisione esportata. I dati del cliente sono quelli del preventivo; i dati del venditore sono attuali al momento dell’esportazione. Importi prima della sales tax, da determinare prima della fatturazione. Il download non accetta il preventivo e non emette fatture.',
     historicalZeroTax: 'Nota di credito storica senza imposta',
     totals: 'Totali',
     invoice: 'Fattura', invoice_lines: 'Righe della fattura', payments: 'Incassi', credits: 'Note di credito', trial_balance: 'Bilancio di verifica', profit_loss: 'Conto economico', balance_sheet: 'Bilancio', cash_flow: 'Flussi di cassa', general_ledger: 'Libro mastro', receivables: 'Crediti correnti',

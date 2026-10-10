@@ -4,19 +4,21 @@ import { UsAuthorityError } from './saas-authority';
 import type { FinancialAuthority } from './accounting/ledger';
 import type { UsFinancialPilotScope } from './us-financial-pilot-store';
 
-const f=vi.hoisted(()=>({env:{} as Record<string,string|undefined>,user:vi.fn(),access:vi.fn(),scope:vi.fn(),create:vi.fn(),country:vi.fn(),rate:vi.fn(),fonts:vi.fn(),invoice:vi.fn(),report:vi.fn(),factory:vi.fn(),rpc:vi.fn()}));
+const f=vi.hoisted(()=>({env:{} as Record<string,string|undefined>,user:vi.fn(),access:vi.fn(),scope:vi.fn(),create:vi.fn(),country:vi.fn(),select:vi.fn(),rate:vi.fn(),fonts:vi.fn(),invoice:vi.fn(),report:vi.fn(),estimate:vi.fn(),factory:vi.fn(),rpc:vi.fn()}));
 vi.mock('cloudflare:workers',()=>({env:f.env}));
 vi.mock('../../app/zentra-auth',()=>({getZentraUser:f.user}));
 vi.mock('./saas-authority-d1',()=>({requireUsWorkspaceAccess:f.access}));
-vi.mock('../supabase-server-runtime',()=>({supabaseServerClient:()=>({rpc:f.rpc})}));
+vi.mock('../supabase-server-runtime',()=>({supabaseServerClient:()=>({rpc:f.rpc,select:f.select})}));
 vi.mock('./us-financial-pilot-store',()=>({readUsFinancialPilotScope:f.scope,createSupabaseUsFinancialPilotStore:f.create,readUsFinancialPilotPromotionStatus:vi.fn()}));
 vi.mock('./workspace-service',()=>({getWorkspaceCountry:f.country}));
 vi.mock('../account',()=>({enforceAccountRateLimit:f.rate}));
 vi.mock('./export-fonts',()=>({getUsExportFonts:f.fonts}));
-vi.mock('./us-financial-pilot-export-server',()=>({createUsFinancialPilotExportHandlers:(...args:unknown[])=>{f.factory(...args);return{INVOICE:f.invoice,REPORT:f.report};}}));
+vi.mock('./us-financial-pilot-export-server',()=>({createUsFinancialPilotExportHandlers:(...args:unknown[])=>{f.factory(...args);return{INVOICE:f.invoice,REPORT:f.report,ESTIMATE:f.estimate};}}));
 import { usFinancialPilotExportDependencies as deps } from './us-financial-pilot-export-bindings';
 import { GET as invoiceRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/exports/invoices/[invoiceId]/route';
 import { GET as reportRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/exports/reports/[kind]/route';
+import { GET as estimateRoute } from '../../app/api/international/workspaces/[organizationId]/financial-pilot/exports/estimates/[estimateId]/route';
+import { financialKernelFixture } from './us-financial-kernel-test-fixture';
 
 const org='10000000-0000-4000-8000-000000000001',userId='20000000-0000-4000-8000-000000000001';
 const required=['INTERNATIONAL_CORE_ENABLED','INTERNATIONAL_US_ERP_ENABLED','INTERNATIONAL_US_FINANCIAL_V5_INSTALLED','INTERNATIONAL_US_FINANCIAL_PILOT_ENABLED'] as const;
@@ -43,4 +45,21 @@ describe('financial pilot exports real bindings — synthetic Auth/D1/PG callbac
   it('refuses an unconfigured workspace rather than opening an ERP4 seller reader',async()=>{f.country.mockResolvedValue({status:'required'});await expect(deps.configuration((await deps.authority(request(),org)).actor)).rejects.toMatchObject({code:'financial_configuration_changed',status:409});});
   it('charges only the scoped existing read limiter and uses fixed embedded fonts',async()=>{const actor=(await deps.authority(request(),org)).actor as FinancialAuthority,req=request();await deps.rateLimit(req,actor,'read');expect(f.rate).toHaveBeenCalledWith(req,'international-financial-pilot-read',`${org}:${userId}`,3600);const fonts={regular:new Uint8Array([1]),bold:new Uint8Array([2])};f.fonts.mockResolvedValue(fonts);expect(await deps.fonts()).toBe(fonts);});
   it('passes resolved route path parameters to the new export handlers, without extra authority fields',async()=>{const req=request(),invoice=new Response('invoice'),report=new Response('report');f.invoice.mockResolvedValue(invoice);f.report.mockResolvedValue(report);expect(await invoiceRoute(req,{params:Promise.resolve({organizationId:org,invoiceId:'synthetic-invoice'})})).toBe(invoice);expect(await reportRoute(req,{params:Promise.resolve({organizationId:org,kind:'trial_balance'})})).toBe(report);expect(f.invoice).toHaveBeenCalledWith(req,org,'synthetic-invoice');expect(f.report).toHaveBeenCalledWith(req,org,'trial_balance');});
+  it('delegates the exact saved quote route without injecting identity or authority',async()=>{const req=request(),response=new Response('quote');f.estimate.mockResolvedValue(response);expect(await estimateRoute(req,{params:Promise.resolve({organizationId:org,estimateId:'saved quote'})})).toBe(response);expect(f.estimate).toHaveBeenCalledWith(req,org,'saved quote');});
+  it('reads current country C1/S/C2 with the supplied full admission and no tax/provider port',async()=>{
+    const raw=await financialKernelFixture(),actor={...raw.actor,organizationId:org,userId},config={...raw.configuration,organizationId:org},admit=vi.fn(async()=>actor);
+    f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration:config,updatedBy:userId,updatedAt:actor.timestamp});f.select.mockResolvedValue([{organization_id:org,revision:9,profile:{displayName:'Synthetic current quote seller'},updated_by:userId,updated_at:actor.timestamp}]);
+    expect(await deps.quoteIdentity!(actor,admit)).toEqual({organizationId:org,countryRevision:4,configuration:config,sellerRevision:9,seller:{displayName:'Synthetic current quote seller'}});expect(f.country).toHaveBeenCalledTimes(2);expect(f.select).toHaveBeenCalledOnce();expect(admit).toHaveBeenCalledTimes(6);expect(f.select).toHaveBeenCalledWith('zentra_us_seller_profiles',{select:'organization_id,revision,profile,updated_by,updated_at',organization_id:'eq.'+org,limit:1});expect(f.rpc).not.toHaveBeenCalled();
+  });
+  it('renews full admission after a rejected private seller read',async()=>{
+    const raw=await financialKernelFixture(),actor={...raw.actor,organizationId:org,userId};let failed=false;
+    f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration:{...raw.configuration,organizationId:org},updatedBy:userId,updatedAt:actor.timestamp});f.select.mockImplementation(async()=>{failed=true;throw Error('private');});
+    await expect(deps.quoteIdentity!(actor,async()=>{if(failed)throw new AccountPublicError('revoked',401);return actor;})).rejects.toMatchObject({status:401});expect(f.country).toHaveBeenCalledOnce();
+  });
+  it.each(['absent','foreign','malformed'] as const)('does not substitute a seller when the real private select is %s',async kind=>{
+    const raw=await financialKernelFixture(),actor={...raw.actor,organizationId:org,userId},admit=vi.fn(async()=>actor);
+    f.country.mockResolvedValue({status:'configured',organizationId:org,revision:4,configuration:{...raw.configuration,organizationId:org},updatedBy:userId,updatedAt:actor.timestamp});
+    f.select.mockResolvedValue(kind==='absent'?[]:[{organization_id:kind==='foreign'?'other':org,revision:9,profile:{displayName:'Synthetic seller'},updated_by:userId,updated_at:kind==='malformed'?null:actor.timestamp}]);
+    await expect(deps.quoteIdentity!(actor,admit)).rejects.toMatchObject({code:kind==='absent'?'financial_pilot_seller_required':'service_unavailable',status:kind==='absent'?409:503});expect(admit).toHaveBeenCalledTimes(4);expect(f.country).toHaveBeenCalledOnce();expect(f.rpc).not.toHaveBeenCalled();
+  });
 });

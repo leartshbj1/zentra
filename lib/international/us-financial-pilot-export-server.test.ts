@@ -7,6 +7,7 @@ import { promoteUsFinancialBookV5 } from './us-financial-kernel';
 import { createInMemoryUsFinancialKernelStoreV5 } from './us-financial-kernel-runtime';
 import { validateUsFinancialPilotExportSelector } from './us-financial-pilot-export-contract';
 import { createUsFinancialPilotExportHandlers, type UsFinancialPilotExportDependencies } from './us-financial-pilot-export-server';
+import { readUsFinancialPilotQuoteIdentity, UsFinancialPilotQuoteIdentityError } from './us-financial-pilot-quote-identity';
 
 const org='0a7ec0b8-a465-4df9-b756-e99aca4439ce';
 const markerPdf=()=>new TextEncoder().encode('%PDF-1.7\nSynthetic boundary-test bytes, not a rendered document\n%%EOF');
@@ -105,4 +106,80 @@ describe('financial pilot read-only export HTTP boundary — synthetic authority
     t.deps.render=()=>{failed=true;throw Error('SECRET renderer');};t.deps.authority=async()=>{if(failed)throw error;return{mode:'browser',actor:t.actor};};
     const r=await t.invoice();expect(r.status).toBe(503);expect(await r.json()).toEqual({error:'financial_export_unavailable'});expect(get).not.toHaveBeenCalled();
   });
+});
+
+async function quoteFixture(){
+  const t=await fixture(),identity={organizationId:org,countryRevision:2,configuration:t.configuration,sellerRevision:7,seller:{displayName:'Current synthetic quote seller',contactEmail:'current@example.test'}};
+  t.deps.quoteIdentity=vi.fn(async()=>identity);
+  const quoteQuery=`revision=${t.book.revision}&estimateRevision=2&format=pdf&language=en`;
+  const quote=(query=quoteQuery,id='estimate-1',request?:Request)=>createUsFinancialPilotExportHandlers(t.deps).ESTIMATE(request??t.request(query),org,id);
+  return{...t,identity,quoteQuery,quote};
+}
+describe('saved quote PDF HTTP — current private issuer, historical recipient and exact F/E',()=>{
+  it('exports the saved quote with distinct C/S/E headers, exact selector hash and no write',async()=>{
+    const t=await quoteFixture(),before=canonicalErpJson(await t.store.read(org)),r=await t.quote(),bytes=new Uint8Array(await r.arrayBuffer());
+    expect(r.status).toBe(200);expect(bytes).toEqual(markerPdf());expect(r.headers.get('Content-Disposition')).toBe(`attachment; filename="zentra-estimate-r${t.book.revision}-e2-en.pdf"`);
+    expect(r.headers.get('X-Zentra-Estimate-Revision')).toBe('2');expect(r.headers.get('X-Zentra-Country-Revision')).toBe('2');expect(r.headers.get('X-Zentra-Seller-Revision')).toBe('7');expect(r.headers.get('X-Zentra-Issuer-Basis')).toBe('current_at_export');
+    const selector={kind:'estimate',estimateId:'estimate-1',estimateRevision:2,revision:t.book.revision,language:'en',format:'pdf'};
+    expect(r.headers.get('X-Zentra-Export-Selector-SHA256')).toBe(await sha256Hex(canonicalErpJson(selector)));expect(r.headers.get('X-Zentra-Content-SHA256')).toBe(await sha256Hex(bytes));expect(t.deps.quoteIdentity).toHaveBeenCalledTimes(2);
+    expect(t.deps.render).toHaveBeenCalledWith(expect.objectContaining({issuer:expect.objectContaining({name:t.identity.seller.displayName}),recipient:expect.objectContaining({name:t.book.baseline.estimates[0].customer.name}),estimate:{estimateId:'estimate-1',estimateRevision:2,status:'accepted',countryRevision:2,sellerRevision:7,issuerBasis:'current_at_export',amountBasis:'before_sales_tax'}}),'pdf',expect.any(Object));
+    expect(canonicalErpJson(await t.store.read(org))).toBe(before);expect(t.store.receipt).not.toHaveBeenCalled();expect(t.store.commit).not.toHaveBeenCalled();
+  });
+  it('does not read current quote identity or add its headers to historical invoice/report exports',async()=>{
+    const t=await quoteFixture();t.deps.quoteIdentity=async()=>{throw Error('No current seller should be required');};
+    const r=await t.invoice();expect(r.status).toBe(200);for(const h of ['X-Zentra-Estimate-Revision','X-Zentra-Country-Revision','X-Zentra-Seller-Revision','X-Zentra-Issuer-Basis'])expect(r.headers.has(h)).toBe(false);
+    const s=await createUsFinancialPilotExportHandlers(t.deps).REPORT(t.request(`revision=${t.book.revision}&format=csv&language=en&asOf=2026-12-31`),org,'trial_balance');expect(s.status).toBe(200);
+  });
+  it.each(['revision=1&format=pdf&language=en','revision=1&estimateRevision=02&format=pdf&language=en','revision=1&estimateRevision=2&estimateRevision=3&format=pdf&language=en','revision=1&estimateRevision=2&format=csv&language=en','revision=1&estimateRevision=2&format=pdf','revision=9007199254740991&estimateRevision=2&format=pdf&language=en','revision=1&estimateRevision=9007199254740991&format=pdf&language=en','revision=1&estimateRevision=2&format=pdf&language=en&seller=forged','revision=1&estimateRevision=2&format=pdf&language=en&bankRevision=1','revision=1&estimateRevision=2&format=pdf&language=en&cursor=abc'])('refuses noncanonical or extra quote query %s before private reads',async query=>{
+    const t=await quoteFixture(),r=await t.quote(query);expect(r.status).toBe(422);expect(t.store.read).not.toHaveBeenCalled();expect(t.deps.quoteIdentity).not.toHaveBeenCalled();
+  });
+  it.each(['',' padded','padded ','line\nfeed','x'.repeat(161)])('refuses a noncanonical quote ID before reading %j',async id=>{const t=await quoteFixture(),r=await t.quote(t.quoteQuery,id);expect(r.status).toBe(422);expect(t.store.read).not.toHaveBeenCalled();});
+  it.each(['missing','E','F'] as const)('resolves quote %s failure before a current seller read',async reason=>{
+    const t=await quoteFixture(),r=await t.quote(reason==='E'?t.quoteQuery.replace('estimateRevision=2','estimateRevision=1'):reason==='F'?t.quoteQuery.replace(`revision=${t.book.revision}`,`revision=${t.book.revision+1}`):t.quoteQuery,reason==='missing'?'missing':'estimate-1');expect(r.status).toBe(reason==='missing'?404:409);expect(t.deps.quoteIdentity).not.toHaveBeenCalled();expect(t.deps.render).not.toHaveBeenCalled();
+  });
+  it('requires the private identity port only for quotes',async()=>{const t=await quoteFixture();delete t.deps.quoteIdentity;expect((await t.invoice()).status).toBe(200);const r=await t.quote();expect(r.status).toBe(503);expect(await r.json()).toEqual({error:'financial_export_unavailable'});});
+  it('maps a genuinely unconfigured current seller without fallback to an invoice issuer',async()=>{const t=await quoteFixture();t.deps.quoteIdentity=async()=>{throw new UsFinancialPilotQuoteIdentityError('financial_pilot_seller_required',409);};const r=await t.quote();expect(r.status).toBe(409);expect(await r.json()).toEqual({error:'financial_pilot_seller_required'});expect(t.deps.render).not.toHaveBeenCalled();});
+  it('closes a seller-required failure when renewed full admission becomes unavailable',async()=>{
+    const t=await quoteFixture();let rejected=false;t.deps.quoteIdentity=async()=>{rejected=true;throw new UsFinancialPilotQuoteIdentityError('financial_pilot_seller_required',409);};t.deps.scope=async()=>{if(rejected)throw new ErpError('PRIVATE scope outage',503);return t.scope;};
+    const r=await t.quote();expect(r.status).toBe(503);expect(await r.json()).toEqual({error:'financial_export_unavailable'});expect(r.headers.has('Content-Disposition')).toBe(false);expect(t.deps.render).not.toHaveBeenCalled();
+  });
+  it.each([401,403])('retains an already proved denial %s if later scope admission has an outage',async status=>{
+    const t=await quoteFixture();let rejected=false;t.deps.quoteIdentity=async()=>{rejected=true;throw new AccountPublicError('PRIVATE current denial',status);};t.deps.scope=async()=>{if(rejected)throw new ErpError('PRIVATE scope outage',503);return t.scope;};
+    const r=await t.quote();expect(r.status).toBe(status);expect(await r.json()).toEqual({error:status===401?'unauthorized':'forbidden'});expect(r.headers.has('Content-Disposition')).toBe(false);
+  });
+  it.each(['countryRevision','sellerRevision','seller','configuration'] as const)('withholds PDF when postflight current identity %s changes, including no-op versions',async reason=>{
+    const t=await quoteFixture();let rendered=false;t.deps.render=()=>{rendered=true;return markerPdf();};t.deps.quoteIdentity=async()=>!rendered?t.identity:{...t.identity,...(reason==='countryRevision'?{countryRevision:3}:reason==='sellerRevision'?{sellerRevision:8}:reason==='seller'?{seller:{...t.identity.seller,displayName:'Changed current seller'}}:{configuration:{...t.configuration,timeZone:'America/Chicago'}})};
+    const r=await t.quote();expect(r.status).toBe(409);expect(await r.json()).toEqual({error:'financial_pilot_quote_identity_changed'});expect(r.headers.has('Content-Disposition')).toBe(false);
+  });
+  it.each(['fonts','render','hash','postflight'] as const)('detects a seller no-op version after the %s wait',async stage=>{
+    const t=await quoteFixture();let changed=false,reads=0;t.deps.quoteIdentity=async()=>{if(stage==='postflight'&&++reads===2)changed=true;return{...t.identity,sellerRevision:changed?8:7};};
+    if(stage==='fonts')t.deps.fonts=async()=>{await Promise.resolve();changed=true;return{regular:new Uint8Array([1]),bold:new Uint8Array([2])};};
+    if(stage==='render')t.deps.render=async()=>{await Promise.resolve();changed=true;return markerPdf();};
+    if(stage==='hash')t.deps.hash=async bytes=>{const value=await sha256Hex(bytes);changed=true;return value;};
+    const r=await t.quote();expect(r.status).toBe(409);expect(await r.json()).toEqual({error:'financial_pilot_quote_identity_changed'});expect(r.headers.has('Content-Disposition')).toBe(false);
+  });
+  it('renews full authority after a successful identity wait before rendering any quote',async()=>{
+    const t=await quoteFixture();let revoked=false;t.deps.quoteIdentity=async()=>{await Promise.resolve();revoked=true;return t.identity;};t.deps.authority=async()=>{if(revoked)throw new AccountPublicError('revoked',403);return{mode:'browser',actor:t.actor};};const r=await t.quote();expect(r.status).toBe(403);expect(t.deps.render).not.toHaveBeenCalled();
+  });
+  it('integrates the real C1/S/C2 helper and passes full pilot admission into every read',async()=>{
+    const t=await quoteFixture(),country=vi.fn(async()=>({status:'configured' as const,organizationId:org,revision:2,configuration:t.configuration,updatedBy:t.actor.userId,updatedAt:t.actor.timestamp})),seller=vi.fn(async()=>({status:'configured' as const,organizationId:org,revision:7,profile:t.identity.seller,updatedBy:t.actor.userId,updatedAt:t.actor.timestamp}));
+    t.deps.quoteIdentity=(actor,revalidate)=>readUsFinancialPilotQuoteIdentity({country,seller},actor,revalidate);expect((await t.quote()).status).toBe(200);expect(country).toHaveBeenCalledTimes(4);expect(seller).toHaveBeenCalledTimes(2);
+  });
+  it.each(['identity','fonts','render','hash'] as const)('prioritizes current denial on rejected quote %s wait',async stage=>{
+    const t=await quoteFixture();let revoked=false;const reject=()=>{revoked=true;throw Error('PRIVATE quote await rejection');};if(stage==='identity')t.deps.quoteIdentity=async()=>reject();if(stage==='fonts')t.deps.fonts=reject;if(stage==='render')t.deps.render=reject;if(stage==='hash')t.deps.hash=async()=>reject();
+    t.deps.authority=async()=>{if(revoked)throw new AccountPublicError('PRIVATE revoked',401);return{mode:'browser',actor:t.actor};};const r=await t.quote();expect(r.status).toBe(401);expect(await r.json()).toEqual({error:'unauthorized'});expect(r.headers.has('Content-Disposition')).toBe(false);
+  });
+  it.each(['flag','grant','opt-in','policy'] as const)('renews full %s admission after a rejected renderer, not just browser identity',async reason=>{
+    const t=await quoteFixture();let rejected=false;t.deps.render=()=>{rejected=true;throw Error('PRIVATE render');};
+    if(reason==='flag')t.deps.enabled=()=>!rejected;else t.deps.scope=async()=>({...t.scope,optInVersion:rejected&&reason==='opt-in'?2:1,scope:{...t.scope.scope,grantVersion:rejected&&reason==='grant'?2:1,policy:rejected&&reason==='policy'?{...t.policy,approval:{...t.policy.approval,reference:'changed'}}:t.policy}});
+    const r=await t.quote();expect(r.status).toBe(reason==='flag'?404:409);expect(r.headers.has('Content-Disposition')).toBe(false);expect((await r.text())).not.toContain('PRIVATE');
+  });
+  it('captures quote port and returned identity before subsequent admission mutates shared objects',async()=>{
+    const t=await quoteFixture(),raw=JSON.parse(JSON.stringify(t.identity)) as typeof t.identity;let read=false;
+    t.deps.quoteIdentity=async()=>{read=true;return raw;};const identity=t.deps.quoteIdentity;
+    t.deps.scope=async()=>{if(read){Reflect.set(raw.seller,'displayName','mutated');t.deps.quoteIdentity=async()=>{throw Error('replacement');};}return t.scope;};
+    const r=await t.quote();expect(r.status).toBe(409);expect(identity).not.toBe(t.deps.quoteIdentity);expect(r.headers.has('Content-Disposition')).toBe(false);
+  });
+  it('refuses hostile identity accessors without invoking them or leaking private content',async()=>{const t=await quoteFixture(),get=vi.fn(()=>{throw Error('PRIVATE getter');});t.deps.quoteIdentity=async()=>Object.defineProperty({...t.identity},'seller',{enumerable:true,get}) as never;const r=await t.quote();expect(r.status).toBe(503);expect(get).not.toHaveBeenCalled();expect(await r.json()).toEqual({error:'financial_export_unavailable'});});
+  it('bounds identity and postflight waits by the same total deadline',async()=>{const t=await quoteFixture();t.deps.deadlineMs=40;t.deps.quoteIdentity=()=>new Promise(()=>{});const r=await t.quote();expect(r.status).toBe(503);expect(await r.json()).toEqual({error:'financial_export_timeout'});expect(t.deps.render).not.toHaveBeenCalled();});
 });

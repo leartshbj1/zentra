@@ -17,7 +17,9 @@ type Section = Snapshot['sections'][number];
 const tooLarge = (): never => { throw new UsFinancialPilotExportError('financial_pilot_export_too_large', 413); };
 const usd = (minor: string) => formatMoney(money('USD', minor), 'en-US');
 const date = (value: string) => value === '' ? '' : formatDateOnly(value, 'en-US');
-const title = (s: Snapshot) => usFinancialPilotExportCopy[s.language][s.selector.kind === 'invoice' ? 'invoice' : s.selector.reportType];
+const title = (s: Snapshot) => usFinancialPilotExportCopy[s.language][s.selector.kind === 'invoice' ? 'invoice' : s.selector.kind === 'estimate' ? 'estimate' : s.selector.reportType];
+const notice = (s: Snapshot) => { const c = usFinancialPilotExportCopy[s.language]; return s.selector.kind === 'estimate' ? c.estimateNotice : s.number === null ? c.reportNotice : c.invoiceNotice; };
+const sellerLabel = (s: Snapshot) => { const c = usFinancialPilotExportCopy[s.language]; return s.selector.kind === 'estimate' ? c.currentSeller : s.number === null ? c.organization : c.seller; };
 const trace = (s: Snapshot) => { const c = usFinancialPilotExportCopy[s.language]; return `${c.organization}: ${s.organizationId} | ${c.financialRevision}: ${s.revision} | ${c.ledgerRevision}: ${s.ledgerRevision}`; };
 const partyLines = (s: Snapshot, party: Snapshot['issuer']) => {
   const lines = formatAddress(party.address);
@@ -28,16 +30,22 @@ function displayCell(s: Snapshot, column: Section['columns'][number], value: str
   const c = usFinancialPilotExportCopy[s.language];
   if (column.kind === 'money') return usd(value);
   if (column.kind === 'date') return date(value);
+  if (column.label === 'lineDiscount') {
+    const padded = value.padStart(3, '0'), fraction = padded.slice(-2).replace(/0+$/u, '');
+    return `${padded.slice(0, -2)}${fraction ? `${s.language === 'en' ? '.' : ','}${fraction}` : ''} %`;
+  }
   if (column.label === 'accountType') return value === 'asset' ? c.assets : value === 'liability' ? c.liabilities : value === 'equity' ? c.equity : value === 'income' ? c.income : c.expense;
   if (column.label === 'taxDisposition') return value === 'adjustment_pending' ? c.taxAdjustmentPending : c.historicalZeroTax;
   if (column.label === 'status' && (value === 'open' || value === 'partially_settled' || value === 'paid' || value === 'credited' || value === 'settled_with_credit')) return c[value];
   return value;
 }
-const factValue = (s: Snapshot, fact: Snapshot['facts'][number]) => fact.kind === 'date' ? date(fact.value) : fact.label === 'accountingBasis' && fact.value === 'accrual' ? usFinancialPilotExportCopy[s.language].accrual : fact.value;
+const factValue = (s: Snapshot, fact: Snapshot['facts'][number]) => fact.kind === 'date' ? date(fact.value) : fact.label === 'accountingBasis' && fact.value === 'accrual' ? usFinancialPilotExportCopy[s.language].accrual : s.selector.kind === 'estimate' && fact.label === 'status' && ['draft', 'accepted', 'declined'].includes(fact.value) ? usFinancialPilotExportCopy[s.language][fact.value as 'draft' | 'accepted' | 'declined'] : fact.value;
+const totalLabel = (s: Snapshot, label: Snapshot['sections'][number]['totals'][number]['label']) => usFinancialPilotExportCopy[s.language][s.selector.kind === 'estimate' && label === 'net' ? 'beforeSalesTax' : label];
 
 /** Complete, quoted UTF-8 CSV with BOM and CRLF records; never an ERP1-4 snapshot. */
 export function renderUsFinancialPilotExportCsv(input: unknown): string {
   const s = validateUsFinancialPilotExportSnapshot(input), c = usFinancialPilotExportCopy[s.language];
+  if (s.selector.kind === 'estimate') throw new UsFinancialPilotExportError('financial_pilot_export_unavailable', 409);
   const textRow = (...values: string[]) => values.map(textCell);
   const rows: string[][] = [textRow(title(s), s.number ?? ''), textRow(c.testNotice), textRow(s.number === null ? c.reportNotice : c.invoiceNotice), textRow(c.organization, s.organizationId), [c.financialRevision, String(s.revision)], [c.ledgerRevision, String(s.ledgerRevision)], ...partyLines(s, s.issuer).map(line => textRow(s.number === null ? c.organization : c.seller, line)), ...(s.recipient ? partyLines(s, s.recipient).map(line => textRow(c.customer, line)) : []), ...s.facts.map(fact => textRow(c[fact.label], factValue(s, fact)))];
   for (const section of s.sections) {
@@ -79,7 +87,7 @@ export async function renderUsFinancialPilotExportPdf(input: unknown, fontInput:
     bold = await pdf.embedFont(bytes.bold, { subset: true });
   } catch { throw new UsFinancialPilotExportError('invalid_financial_pilot_export_font', 503); }
   const regularGlyphs = new Set(regular.getCharacterSet()), boldGlyphs = new Set(bold.getCharacterSet());
-  const allText = [title(s), s.number ?? '', c.testNotice, c.invoiceNotice, c.reportNotice, c.currentNotice, c.seller, c.customer, c.organization, c.notes, c.totals, c.continuation, c.page, c.of, trace(s), ...partyLines(s, s.issuer), ...(s.recipient ? partyLines(s, s.recipient) : []), ...s.facts.flatMap(fact => [c[fact.label], factValue(s, fact)]), s.notes, ...s.sections.flatMap(section => [c[section.kind], ...section.columns.map(column => columnLabel(s, section, column)), ...section.rows.flatMap(row => row.map((value, index) => displayCell(s, section.columns[index], value))), ...section.totals.flatMap(total => [c[total.label], usd(total.minorUnits)])])];
+  const allText = [title(s), s.number ?? '', c.testNotice, notice(s), c.currentNotice, sellerLabel(s), c.customer, c.organization, c.notes, c.totals, c.continuation, c.page, c.of, trace(s), ...partyLines(s, s.issuer), ...(s.recipient ? partyLines(s, s.recipient) : []), ...s.facts.flatMap(fact => [c[fact.label], factValue(s, fact)]), s.notes, ...s.sections.flatMap(section => [c[section.kind], ...section.columns.map(column => columnLabel(s, section, column)), ...section.rows.flatMap(row => row.map((value, index) => displayCell(s, section.columns[index], value))), ...section.totals.flatMap(total => [totalLabel(s, total.label), usd(total.minorUnits)])])];
   for (const value of allText) for (const character of value) {
     if ('\r\n\t'.includes(character)) continue;
     const point = character.codePointAt(0)!;
@@ -119,7 +127,7 @@ export async function renderUsFinancialPilotExportPdf(input: unknown, fontInput:
     }
   }
   function drawTotals(section: Section) {
-    const values = section.totals.map(total => `${c[total.label]}: ${usd(total.minorUnits)}`);
+    const values = section.totals.map(total => `${totalLabel(s, total.label)}: ${usd(total.minorUnits)}`);
     const height = values.reduce((sum, value) => sum + wrap(value, bold, 10, contentWidth).length * 14.5, 0);
     // Keep small, comparable total blocks together rather than orphaning one
     // amount on a fresh page. Long validated amounts still wrap in full.
@@ -131,12 +139,32 @@ export async function renderUsFinancialPilotExportPdf(input: unknown, fontInput:
   draw(title(s), { size: 21, strong: true });
   if (s.number) draw(s.number, { size: 12, strong: true });
   y -= 10; draw(c.testNotice, { size: 9, strong: true });
-  draw(s.number === null ? c.reportNotice : c.invoiceNotice, { size: 9, color: muted }); y -= 14;
-  const parties = [[s.number === null ? c.organization : c.seller, s.issuer], ...(s.recipient ? [[c.customer, s.recipient] as const] : [])] as const;
-  for (const [label, party] of parties) {
-    draw(label, { size: 9, strong: true });
-    for (const value of partyLines(s, party)) draw(value, { size: 10 });
-    y -= 12;
+  draw(notice(s), { size: 9, color: muted }); y -= 14;
+  const parties = [[sellerLabel(s), s.issuer], ...(s.recipient ? [[c.customer, s.recipient] as const] : [])] as const;
+  const partyWidth = (contentWidth - 24) / 2;
+  const quoteParties = s.selector.kind === 'estimate' ? parties.map(([label, party]) => [
+    ...wrap(label, bold, 9, partyWidth).map(text => ({ text, strong: true, size: 9 })),
+    ...partyLines(s, party).flatMap(value => wrap(value, regular, 10, partyWidth).map(text => ({ text, strong: false, size: 10 }))),
+  ]) : null;
+  const partyHeight = quoteParties ? Math.max(...quoteParties.map(lines => lines.reduce((height, item) => height + item.size * 1.45, 0))) + 12 : 0;
+  // Keep ordinary quote addresses side by side. Extremely long validated
+  // parties retain the existing paginated path rather than clipping content.
+  if (quoteParties && partyHeight < pageHeight - margin - bottom) {
+    if (y - partyHeight < bottom) newPage();
+    quoteParties.forEach((lines, index) => {
+      let lineY = y;
+      for (const item of lines) {
+        page.drawText(item.text, { x: margin + index * (partyWidth + 24), y: lineY - item.size, size: item.size, font: item.strong ? bold : regular, color: ink });
+        lineY -= item.size * 1.45;
+      }
+    });
+    y -= partyHeight;
+  } else {
+    for (const [label, party] of parties) {
+      draw(label, { size: 9, strong: true });
+      for (const value of partyLines(s, party)) draw(value, { size: 10 });
+      y -= 12;
+    }
   }
   for (const fact of s.facts) draw(`${c[fact.label]}: ${factValue(s, fact)}`, { size: 9 });
   y -= 6;

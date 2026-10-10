@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { SupabaseServerError, type SupabaseServerClient } from '../supabase-server';
@@ -21,7 +21,7 @@ import type { UsFinancialCommitV5, UsFinancialReceiptV5 } from './us-financial-k
 import { createSupabaseUsFinancialTestFoundationV5 } from './us-financial-test-foundation';
 import { createSupabaseUsFinancialPilotStore, readUsFinancialPilotScope, type UsFinancialPilotScope } from './us-financial-pilot-store';
 import { getUsExportFonts } from './export-fonts';
-import { buildUsFinancialPilotExportSnapshot } from './us-financial-pilot-export-projection';
+import { buildUsFinancialPilotEstimateExportSnapshot, buildUsFinancialPilotExportSnapshot } from './us-financial-pilot-export-projection';
 import { createUsFinancialPilotExportHandlers, type UsFinancialPilotExportDependencies } from './us-financial-pilot-export-server';
 import { renderUsFinancialPilotExportCsv, renderUsFinancialPilotExportPdf } from './us-financial-pilot-export-renderer';
 import { projectUsFinancialPilotReports } from './us-financial-pilot-reports';
@@ -30,6 +30,13 @@ import { usFinancialErpEntityIdV5 } from './us-financial-kernel-erp';
 import { createSupabaseUsFinancialInvoiceTestStoreV5 } from './us-financial-invoice-test-store';
 import { financialInvoiceClassificationEvidenceV5, resolveUsFinancialInvoicePreparationV5, validateUsFinancialInvoiceContextV5, validateUsFinancialInvoicePreparationV5, type UsFinancialInvoiceContextV5, type UsFinancialInvoicePreparationV5 } from './us-financial-invoice-test';
 import { validateStoredStripeTaxCalculation } from './stripe-tax-calculation';
+import { getWorkspaceCountry } from './workspace-service';
+import { readUsFinancialPilotQuoteIdentity, readUsFinancialPilotQuoteSeller } from './us-financial-pilot-quote-identity';
+import { createSupabaseUsFinancialPilotBankStore } from './us-financial-pilot-bank-store';
+import { executeUsFinancialPilotBank, type UsFinancialPilotBankRequest, type UsFinancialPilotBankRead } from './us-financial-pilot-bank';
+import { projectUsFinancialPilotBankStatement } from './us-financial-pilot-bank-projection';
+import { createUsFinancialPilotCommercialHandlers } from './us-financial-pilot-commercial-server';
+import { validateUsFinancialPilotCommercialReceipt, type UsFinancialPilotCommercialCommand } from './us-financial-pilot-commercial';
 
 // Actual existing32 migrations, SQL and export HTTP handlers on retained NodeFS.
 // Auth/D1 and all fiscal
@@ -49,6 +56,7 @@ const migrations=[
  '20261010100252_international_us_financial_test_invoicing_v5',
 ];
 const parameters:Record<string,readonly string[]>={
+ zentra_read_us_seller_profile:['p_organization'],
  zentra_read_us_financial_invoicing_test_v5:['p_organization','p_actor','p_grant_version','p_capability'],zentra_us_financial_invoicing_test_receipt_v5:['p_organization','p_actor','p_grant_version','p_capability','p_idempotency_key'],zentra_append_us_financial_invoicing_test_v5:['p_organization','p_actor','p_grant_version','p_capability','p_expected_revision','p_previous_fingerprint','p_book','p_receipt'],
  zentra_read_us_financial_invoice_test_operation_v5:['p_organization','p_actor','p_grant_version','p_capability','p_idempotency_key','p_financial_command_hash','p_erp_command_hash'],zentra_preflight_us_financial_invoice_test_v5:['p_organization','p_actor','p_grant_version','p_capability','p_request','p_financial_command_hash','p_erp_command_hash','p_previous_fingerprint'],zentra_reserve_us_financial_invoice_test_v5:['p_organization','p_actor','p_grant_version','p_capability','p_preparation','p_resolved_body','p_resolved_sha256','p_params_body','p_params_sha256','p_provider_idempotency_key'],zentra_record_us_financial_invoice_test_calculation_v5:['p_organization','p_actor','p_grant_version','p_capability','p_operation_id','p_proof_body','p_proof_sha256','p_assessment'],
  zentra_read_us_financial_accounting_test_v5:['p_organization','p_actor','p_grant_version','p_capability'],zentra_us_financial_accounting_test_receipt_v5:['p_organization','p_actor','p_grant_version','p_capability','p_idempotency_key'],zentra_append_us_financial_accounting_test_v5:['p_organization','p_actor','p_grant_version','p_capability','p_expected_revision','p_previous_fingerprint','p_book','p_receipt'],
@@ -66,6 +74,7 @@ Object.assign(parameters,{
  zentra_us_financial_pilot_test_receipt_v1:['p_organization','p_actor','p_grant_version','p_opt_in_version','p_capability','p_idempotency_key'],
  zentra_append_us_financial_pilot_test_v1:['p_organization','p_actor','p_grant_version','p_opt_in_version','p_capability','p_expected_revision','p_previous_fingerprint','p_book','p_receipt'],
 });
+
 async function sql<T=Record<string,unknown>>(q:string,v:unknown[]=[],role='service_role'){return db.transaction(async tx=>{await tx.exec(`set local role ${role}`);return(await tx.query<T>(q,v)).rows;});}
 async function result<T=unknown>(q:string,v:unknown[]=[]){return(await sql<{result:T}>(q,v))[0].result;}
 const client:Pick<SupabaseServerClient,'rpc'|'select'>={
@@ -75,11 +84,16 @@ const client:Pick<SupabaseServerClient,'rpc'|'select'>={
   catch(error){if(process.env.ZENTRA_LOCAL_SQL_DEBUG==='1')console.error((error as Error).message,(error as {where?:string}).where);throw new SupabaseServerError(503,(error as {code:string}).code,'private SQL TEST');}
  },
  async select<T>(name:string,q?:Readonly<Record<string,string|number|boolean>>|URLSearchParams):Promise<T[]>{
-  if(name!=='zentra_us_financial_test_heads'||!q||q instanceof URLSearchParams||q.select!=='organization_id'||q.limit!==1||typeof q.organization_id!=='string'||!q.organization_id.startsWith('eq.'))throw Error('Unexpected private marker query');
-  return await sql<T>('select organization_id from public.zentra_us_financial_test_heads where organization_id=$1 limit 1',[q.organization_id.slice(3)]);
+  if(!q||q instanceof URLSearchParams||q.limit!==1||typeof q.organization_id!=='string'||!q.organization_id.startsWith('eq.'))throw Error('Unexpected private marker query');
+  const org=q.organization_id.slice(3);
+  if(name==='zentra_us_financial_test_heads'&&q.select==='organization_id')return await sql<T>('select organization_id from public.zentra_us_financial_test_heads where organization_id=$1 limit 1',[org]);
+  if(name==='zentra_workspaces'&&q.select==='organization_id')return await sql<T>('select organization_id from public.zentra_workspaces where organization_id=$1 limit 1',[org]);
+  if(name==='zentra_workspace_country_configs'&&q.select==='organization_id,schema_version,config,country,currency,revision,updated_by,updated_at')return await sql<T>('select organization_id,schema_version,config,country,currency,revision::float8 revision,updated_by,to_char(updated_at at time zone \'UTC\',\'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') updated_at from public.zentra_workspace_country_configs where organization_id=$1 limit 1',[org]);
+  if(name==='zentra_us_seller_profiles'&&q.select==='organization_id,revision,profile,updated_by,updated_at')return await sql<T>('select organization_id,revision::float8 revision,profile,updated_by,to_char(updated_at at time zone \'UTC\',\'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') updated_at from public.zentra_us_seller_profiles where organization_id=$1 limit 1',[org]);
+  throw Error('Unexpected private country query');
  },
 };
-async function fixture(options:{tax?:string;quantity?:string;scale?:number;discount?:number;unitPrice?:string;lines?:number;paid?:string;paymentCount?:number;closed?:boolean;laterOpen?:boolean;periodCount?:number;unpromoted?:boolean;activeOrder?:boolean;confirmedOrder?:boolean;pendingTax?:boolean;shortPeriod?:boolean;projects?:boolean;baselinePurchases?:boolean}={}){
+async function fixture(options:{tax?:string;quantity?:string;scale?:number;discount?:number;unitPrice?:string;lines?:number;paid?:string;paymentCount?:number;closed?:boolean;laterOpen?:boolean;periodCount?:number;unpromoted?:boolean;activeOrder?:boolean;confirmedOrder?:boolean;pendingTax?:boolean;shortPeriod?:boolean;projects?:boolean;baselinePurchases?:boolean;quoteSellerBeforePromotion?:boolean}={}){
  const org=randomUUID(),user=randomUUID(),now=new Date(),day=now.toISOString().slice(0,10),year=now.getUTCFullYear();
  const config:CompanyConfiguration={schemaVersion:1,organizationId:org,country:'US',currency:'USD',language:'en',timeZone:'America/New_York',address:{country:'US',line1:'1 Synthetic Example Street',city:'Brooklyn',postalCode:'11201',subdivision:'NY'},accountingBasis:'accrual',invoiceNumberPrefix:'SYNTHETIC',taxConfiguration:{status:'configured'}};
  let actor:FinancialAuthority={organizationId:org,userId:user,role:'owner',managementEntitled:true,timestamp:now.toISOString()};
@@ -121,6 +135,9 @@ async function fixture(options:{tax?:string;quantity?:string;scale?:number;disco
   await send({type:'record_vendor_bill',id:'bill',vendorId:'vendor',reference:'Synthetic historical supplier bill',date:day,accountingDate:day,dueDate:day,periodId:'year',netMinor:'100',purchaseTaxMinor:'7',expenseAccountId:'purchases',sourceReference:'Synthetic declared original'});
   await send({type:'record_vendor_payment',id:'baseline-vendor-payment',billId:'bill',amountMinor:'50',paymentDate:day,accountingDate:day,periodId:'year',reference:'Synthetic declared payment'});
  }
+ // The invoice above already owns S1. Native country/seller writes are frozen
+ // after promotion; the quote's current issuer is this genuine S2 head.
+ if(options.quoteSellerBeforePromotion)await sql('select public.zentra_put_us_seller_profile($1,$2,1,$3::uuid,$4)',[org,user,randomUUID(),{displayName:'Current seller before financial promotion · Zürich',contactEmail:'new-seller@example.test'}]);
  const baseline=(await erp.read(org))!;actor={...actor,timestamp:new Date().toISOString()};
  const policy:UsFinancialPolicyV5={version:'us-accrual-receivable-credit-v1',environment:'test',approval:{reference:'SYNTHETIC-LOCAL-PILOT-ONLY',reviewedBy:'synthetic-reviewer',reviewedAt:new Date(now.getTime()-2000).toISOString()}};
  await db.query('insert into public.zentra_us_financial_test_grants values($1,$2,$3,1,true,$4)',[org,user,'owner',policy]);
@@ -268,3 +285,95 @@ describe.skipIf(!enabled)('financial pilot exports —32 existing migrations, re
  });
 });
 
+// Quote-only cumulative recipe. The historical32 suite and its retained
+// NodeFS recipe above keep their own chain/output; this is a separate database.
+const quotePdfMigrations=[...migrations,migration,'20261010131903_international_us_financial_pilot_invoice_dto1','20261010155848_international_us_financial_pilot_bank_test_v1'];
+const quoteBankCommon=['p_organization','p_actor','p_grant_version','p_opt_in_version','p_capability'];
+Object.assign(parameters,{
+ zentra_read_us_financial_pilot_bank_test_v1:quoteBankCommon,
+ zentra_us_financial_pilot_bank_test_head_v1:quoteBankCommon,
+ zentra_us_financial_pilot_bank_test_receipt_v1:[...quoteBankCommon,'p_request_id'],
+ zentra_commit_us_financial_pilot_bank_test_v1:[...quoteBankCommon,'p_request','p_record','p_proof'],
+});
+const quoteBankTables=['zentra_us_financial_bank_test_reconciliations','zentra_us_financial_bank_test_receipts','zentra_us_financial_bank_test_audit','zentra_us_financial_bank_test_entry_claims'];
+async function quoteBankState(f:Fixture){const rows=[];for(const table of quoteBankTables)rows.push(await sql(`select to_jsonb(t) row from public.${table} t where organization_id=$1 order by to_jsonb(t)::text`,[f.org]));return canonicalErpJson(rows);}
+function quoteBankPort(f:Fixture){if(!f.pilotScope)throw Error('Explicit quote pilot opt-in required');const bound=f.pilotScope;return createSupabaseUsFinancialPilotBankStore(client,bound,()=>f.capture(bound));}
+async function quoteBankPost(f:Fixture,command:UsFinancialPilotBankRequest['command'],statementRevision:number|null=null){
+ const store=quoteBankPort(f),read=await store.read(),request:UsFinancialPilotBankRequest={consumer:'financial-pilot',schemaVersion:1,requestId:randomUUID(),expectedRevision:read.book.revision,expectedBankRevision:read.register.bankRevision,expectedStatementRevision:statementRevision,command};
+ const result=await executeUsFinancialPilotBank({organizationId:f.org,actor:f.refresh(),policy:f.policy,store,revalidate:async()=>({actor:(await f.capture(f.pilotScope)).scope.actor,policy:f.policy})},request);
+ expect(result.replayed).toBe(false);return request;
+}
+function quotePdfHttp(f:Fixture,overrides:Partial<UsFinancialPilotExportDependencies>={}){
+ const h=http(f,{quoteIdentity:(actor,revalidate)=>readUsFinancialPilotQuoteIdentity({country:current=>getWorkspaceCountry(client,current),seller:current=>readUsFinancialPilotQuoteSeller(client,current)},actor,revalidate),...overrides});
+ return{...h,quote:(revision:number,estimateRevision=1,id='saved-quote',language='en')=>h.handlers.ESTIMATE(h.request(revision,'pdf',language,`&estimateRevision=${estimateRevision}`),f.org,id)};
+}
+async function quoteCommercialPost(f:Fixture,command:UsFinancialPilotCommercialCommand){
+ const h=http(f),d=h.deps,handlers=createUsFinancialPilotCommercialHandlers({enabled:d.enabled,authority:d.authority,configuration:d.configuration,scope:d.scope,store:d.store,rateLimit:d.rateLimit,diagnostic:()=>{}});
+ const body={consumer:'financial-pilot',schemaVersion:1,requestId:randomUUID(),expectedRevision:(await f.read()).revision,command};
+ const response=await handlers.POST(new Request(`https://synthetic.example.test/api/international/workspaces/${f.org}/financial-pilot/commercial/operations`,{method:'POST',headers:{Origin:'https://synthetic.example.test','Content-Type':'application/json','X-Zentra-Financial-Pilot':'1','X-Zentra-Expected-User':f.user},body:canonicalErpJson(body)}),f.org);
+ const payload:unknown=await response.json();expect(response.status,canonicalErpJson(payload)).toBe(200);return validateUsFinancialPilotCommercialReceipt(payload,f.org);
+}
+async function quoteCommand(f:Fixture,estimateId:string|null=null,expectedEstimateRevision=0):Promise<Extract<UsFinancialPilotCommercialCommand,{type:'save_estimate'}>>{
+ const source=estimateId===null?f.baseline.estimates[0]:(await projectUsFinancialBookV5(await f.read())).estimates.find(estimate=>estimate.id===estimateId);
+ if(!source)throw Error('Missing saved quote fixture source');
+ return{type:'save_estimate',estimateId,expectedEstimateRevision,customerId:'customer',projectId:null,date:f.day,expiresAt:f.day,paymentTermsDays:30,lines:source.lines.map(line=>({id:estimateId===null?null:line.id,description:line.description,quantityUnits:line.quantityUnits,quantityScale:line.quantityScale,unitPriceMinor:line.unitPrice.minorUnits,discountBasisPoints:line.discountBasisPoints,taxTreatment:line.taxTreatment})),notes:'Synthetic quote terms · Genève · Zürich'};
+}
+async function quoteIdentity(f:Fixture){return readUsFinancialPilotQuoteIdentity({country:current=>getWorkspaceCountry(client,current),seller:current=>readUsFinancialPilotQuoteSeller(client,current)},f.refresh(),async()=>(await f.capture(f.pilotScope)).scope.actor);}
+async function quoteIdentityState(f:Fixture){const rows=[];for(const table of ['zentra_workspace_country_configs','zentra_workspace_country_config_changes','zentra_us_seller_profiles','zentra_us_seller_profile_changes'])rows.push(await sql(`select to_jsonb(t) row from public.${table} t where organization_id=$1 order by to_jsonb(t)::text`,[f.org]));return canonicalErpJson(rows);}
+async function quotePdfBytes(response:Response){expect(response.status).toBe(200);const bytes=new Uint8Array(await response.arrayBuffer());expect(response.headers.get('X-Zentra-Content-SHA256')).toBe(createHash('sha256').update(bytes).digest('hex'));const pdf=await PDFDocument.load(bytes);expect(pdf.getPage(0).getSize()).toEqual({width:612,height:792});return bytes;}
+function quoteNormalizeCurrentF(snapshot:Awaited<ReturnType<typeof buildUsFinancialPilotExportSnapshot>>,revision:number){return{...snapshot,revision,selector:{...snapshot.selector,revision},facts:snapshot.facts.map(fact=>fact.label==='financialRevision'?{...fact,value:String(revision)}:fact)};}
+let quotePdfRetained:{f:Fixture;read:UsFinancialPilotBankRead;financial:string;bank:string;identity:Awaited<ReturnType<typeof quoteIdentity>>;snapshot:Awaited<ReturnType<typeof buildUsFinancialPilotEstimateExportSnapshot>>;statementId:string;quoteId:string;beforeBytes:Uint8Array;afterBytes:Uint8Array;customerReceipt:Awaited<ReturnType<typeof quoteCommercialPost>>}|undefined;
+const quotePdfFrozenWrites=new Set<'country'|'seller'>();
+
+describe.skipIf(!enabled)('saved quote PDF → cumulative34 PostgreSQL, synthetic authority and clean NodeFS reopen',()=>{
+ beforeAll(async()=>{
+  const require=createRequire(import.meta.url);({PGlite}=require(join(directory!,'dist/index.cjs')) as {PGlite:new(dataDir?:string)=>Db});dataDir=await mkdtemp(join(tmpdir(),'zentra-financial-pilot-quote-pdf-'));db=new PGlite(dataDir);
+  await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);grant usage on schema public to service_role;');
+  for(const name of quotePdfMigrations)await db.exec(await readFile(new URL(`../../supabase/migrations/${name}.sql`,import.meta.url),'utf8'));
+ },30000);
+ afterAll(async()=>{await db?.close();});
+ it('exports current C/S and historical customer in a mixed book without changing financial/bank facts',async()=>{
+  expect(quotePdfMigrations).toHaveLength(34);const f=await fixture({baselinePurchases:true,paid:'100',lines:3,quoteSellerBeforePromotion:true});await f.enable();await append(f,await f.credit(await f.read()));await append(f,f.payment('50'));
+  await append(f,operation({type:'post_manual_journal',id:'quote-pdf-manual',transactionDate:f.day,accountingDate:f.day,periodId:'year',description:'Synthetic quote export cash contribution',sourceReference:'Synthetic declared original',lines:[{accountId:'cash',debitMinor:'7',creditMinor:'0'},{accountId:'equity',debitMinor:'0',creditMinor:'7'}],cashFlowCategory:'financing'}));
+  const created=await quoteCommercialPost(f,await quoteCommand(f)),quoteId=created.entityId,mixed=await projectUsFinancialBookV5(await f.read());
+  expect(mixed.vendorBills).toHaveLength(1);expect(mixed.vendorPayments).toHaveLength(1);expect(mixed.credits).toHaveLength(1);expect(mixed.invoices[0].payments).toHaveLength(2);
+  const cash= mixed.ledger.entries.map(entry=>({entry,minor:entry.lines.filter(line=>line.accountId==='cash').reduce((sum,line)=>sum+BigInt(line.debitMinor)-BigInt(line.creditMinor),BigInt(0))})).filter(row=>row.minor!==BigInt(0)),cashTotal=cash.reduce((sum,row)=>sum+row.minor,BigInt(0)).toString();
+  expect(cashTotal).toBe('107');const imported=await quoteBankPost(f,{type:'create_statement',cashAccountId:'cash',start:f.day.slice(0,4)+'-01-01',end:f.day.slice(0,4)+'-12-31',openingMinor:'0',closingMinor:cashTotal,lines:cash.map((row,index)=>({date:row.entry.paymentDate??row.entry.transactionDate,amountMinor:row.minor.toString(),reference:'Synthetic quote source '+index}))});
+  await quoteBankPost(f,{type:'approve_match',statementId:imported.requestId,statementLineIds:cash.map((_,index)=>imported.requestId+':'+(index+1)),journalRevisions:cash.map(row=>row.entry.revision)},0);await quoteBankPost(f,{type:'complete',statementId:imported.requestId},1);
+  const port=quoteBankPort(f),before=await port.read(),financialBefore=await state(f),bankBefore=await quoteBankState(f),identityBefore=await quoteIdentity(f),selector={kind:'estimate' as const,estimateId:quoteId,estimateRevision:1,revision:before.book.revision,language:'en' as const,format:'pdf' as const},snapshotBefore=await buildUsFinancialPilotEstimateExportSnapshot(before.book,selector,identityBefore),beforeBytes=await quotePdfBytes(await quotePdfHttp(f).quote(before.book.revision,1,quoteId));
+  expect(identityBefore.countryRevision).toBe(2);expect(identityBefore.sellerRevision).toBe(2);expect(identityBefore.seller.displayName).toBe('Current seller before financial promotion · Zürich');expect(snapshotBefore.issuer.name).toBe(identityBefore.seller.displayName);expect(snapshotBefore.sections[0].totals).toEqual([{label:'subtotal',minorUnits:'90009'},{label:'discount',minorUnits:'9000'},{label:'net',minorUnits:'81009'}]);expect(snapshotBefore.sections[0].rows).toHaveLength(3);expect(snapshotBefore.sections[0].rows[0]).toContain('1000');
+  await expect(client.rpc('zentra_read_us_seller_profile',{p_organization:f.org})).rejects.toMatchObject({code:'PU008'});
+  expect(await state(f)).toBe(financialBefore);expect(await quoteBankState(f)).toBe(bankBefore);expect(await port.read()).toEqual(before);
+  const invoiceBefore=await buildUsFinancialPilotExportSnapshot(before.book,{kind:'invoice',invoiceId:'invoice',revision:before.book.revision,language:'en',format:'pdf'}),oldView=await projectUsFinancialBookV5(before.book),oldCustomer=oldView.estimates.find(row=>row.id===quoteId)!.customer;
+  expect(invoiceBefore.issuer.name).toBe('Synthetic Seller — local tests only');expect(invoiceBefore.issuer.name).not.toBe(snapshotBefore.issuer.name);
+  const customerReceipt=await quoteCommercialPost(f,{type:'update_customer',customerId:'customer',customer:{kind:'business',name:'Corrected current customer · Genève',billingAddress:{...f.config.address,line1:'2 Synthetic Corrected Street'},shippingAddress:null,email:'corrected@example.test',phone:null,contactName:null,paymentTermsDays:45}});
+  const after=await port.read(),identityAfter=await quoteIdentity(f),snapshotAfter=await buildUsFinancialPilotEstimateExportSnapshot(after.book,{...selector,revision:after.book.revision},identityAfter),financialAfter=await state(f),afterBytes=await quotePdfBytes(await quotePdfHttp(f).quote(after.book.revision,1,quoteId));
+  expect(customerReceipt.revision).toBe(before.book.revision+1);expect(identityAfter).toEqual(identityBefore);expect(snapshotAfter.recipient).toEqual(snapshotBefore.recipient);expect(snapshotAfter.issuer.name).toBe(identityAfter.seller.displayName);expect(snapshotAfter.estimate.estimateRevision).toBe(1);
+  const afterView=await projectUsFinancialBookV5(after.book);expect(afterView.customers[0].name).toBe('Corrected current customer · Genève');expect(afterView.estimates.find(row=>row.id===quoteId)!.customer).toEqual(oldCustomer);expect(afterView.invoices).toEqual(oldView.invoices);expect(afterView.ledger).toEqual(oldView.ledger);expect(afterView.counters).toEqual(oldView.counters);expect(after.register).toEqual(before.register);expect(await quoteBankState(f)).toBe(bankBefore);expect(await state(f)).toBe(financialAfter);
+  const invoiceAfter=await buildUsFinancialPilotExportSnapshot(after.book,{...invoiceBefore.selector,revision:after.book.revision});expect(quoteNormalizeCurrentF(invoiceAfter,invoiceBefore.revision)).toEqual(invoiceBefore);
+  const completed=await projectUsFinancialPilotBankStatement(after.book,after.register,{revision:after.book.revision,bankRevision:3,statementId:imported.requestId,origin:'financial-v5'});expect(completed.cashChangedSinceCompletion).toBe(false);expect(completed.current?.ready).toBe(true);
+  const resaved=await quoteCommercialPost(f,await quoteCommand(f,quoteId,1)),finalRead=await port.read(),finalIdentity=await quoteIdentity(f),finalSnapshot=await buildUsFinancialPilotEstimateExportSnapshot(finalRead.book,{...selector,revision:resaved.revision,estimateRevision:2},finalIdentity);expect(finalSnapshot.recipient?.name).toBe('Corrected current customer · Genève');expect(finalSnapshot.estimate.estimateRevision).toBe(2);expect(finalRead.register).toEqual(before.register);expect((await projectUsFinancialBookV5(finalRead.book)).ledger).toEqual(oldView.ledger);
+  quotePdfRetained={f,read:finalRead,financial:await state(f),bank:bankBefore,identity:finalIdentity,snapshot:finalSnapshot,statementId:imported.requestId,quoteId,beforeBytes,afterBytes,customerReceipt};
+ },60000);
+ it.each(['country','seller'] as const)('keeps the real %s identity frozen after attempted correction and no-op during rendering',async kind=>{
+  const f=await fixture();await f.enable();const quote=await quoteCommercialPost(f,await quoteCommand(f)),before=await f.read(),bank=await quoteBankState(f),financial=await state(f),identity=await quoteIdentity(f),identityState=await quoteIdentityState(f);let attempts=0;
+  const h=quotePdfHttp(f,{render:async(snapshot,_format,fonts)=>{const bytes=await renderUsFinancialPilotExportPdf(snapshot,fonts!);for(const noop of [false,true]){attempts++;if(kind==='country')await expect(sql('select public.zentra_put_workspace_country_config($1,$2,2,$3::uuid,$4)',[f.org,f.user,randomUUID(),noop?f.config:{...f.config,language:'fr'}])).rejects.toMatchObject({code:'PF008'});else await expect(sql('select public.zentra_put_us_seller_profile($1,$2,1,$3::uuid,$4)',[f.org,f.user,randomUUID(),noop?{displayName:'Synthetic Seller — local tests only',contactEmail:'synthetic@example.test'}:{displayName:'Refused post-promotion correction',contactEmail:'refused@example.test'}])).rejects.toMatchObject({code:'PU008'});}return bytes;}}),response=await h.quote(before.revision,1,quote.entityId);
+  await quotePdfBytes(response);expect(attempts).toBe(2);expect(await quoteIdentity(f)).toEqual(identity);expect(await quoteIdentityState(f)).toBe(identityState);expect(await state(f)).toBe(financial);expect(await quoteBankState(f)).toBe(bank);expect(await f.read()).toEqual(before);quotePdfFrozenWrites.add(kind);
+ },30000);
+ it.each(['zentra_us_financial_pilot_test_opt_ins','zentra_us_financial_test_grants'])('prioritizes actual %s revocation when the renderer rejects',async table=>{
+  const f=await fixture();await f.enable();const quote=await quoteCommercialPost(f,await quoteCommand(f)),before=await f.read(),financial=await state(f),bank=await quoteBankState(f),h=quotePdfHttp(f,{render:async()=>{await db.query(`update public.${table} set enabled=false,version=2 where organization_id=$1`,[f.org]);throw Error('PRIVATE rendering failure');}}),response=await h.quote(before.revision,1,quote.entityId);expect(response.status).toBe(403);expect(response.headers.has('Content-Disposition')).toBe(false);expect(await response.text()).not.toContain('PRIVATE');expect(await state(f)).toBe(financial);expect(await quoteBankState(f)).toBe(bank);
+ });
+ it('refuses a changed F after a real financial append while retaining bank completion history',async()=>{
+  const f=await fixture();await f.enable();const quote=await quoteCommercialPost(f,await quoteCommand(f)),before=await f.read(),bank=await quoteBankState(f),h=quotePdfHttp(f,{render:async(snapshot,_format,fonts)=>{const bytes=await renderUsFinancialPilotExportPdf(snapshot,fonts!);await append(f,f.payment('1'));return bytes;}}),response=await h.quote(before.revision,1,quote.entityId);expect(response.status).toBe(409);expect(await response.json()).toEqual({error:'financial_snapshot_changed'});expect((await f.read()).revision).toBe(before.revision+1);expect(await quoteBankState(f)).toBe(bank);
+ });
+ it('keeps exact source, identity, bank receipts and quote values across clean NodeFS close/new instance reopen',async()=>{
+  const saved=quotePdfRetained;if(!saved)throw Error('Mixed quote recipe must execute first');await db.close();db=new PGlite(dataDir);
+  const read=await quoteBankPort(saved.f).read(),identity=await quoteIdentity(saved.f),snapshot=await buildUsFinancialPilotEstimateExportSnapshot(read.book,{...saved.snapshot.selector},identity),response=await quotePdfHttp(saved.f).quote(read.book.revision,2,saved.quoteId),bytes=await quotePdfBytes(response);
+  expect(read).toEqual(saved.read);expect(identity).toEqual(saved.identity);expect(snapshot).toEqual(saved.snapshot);expect(await state(saved.f)).toBe(saved.financial);expect(await quoteBankState(saved.f)).toBe(saved.bank);
+  for(const proof of saved.read.register.operations)expect(await quoteBankPort(saved.f).receipt(proof.request.requestId)).toEqual(proof);
+  expect([...quotePdfFrozenWrites].sort()).toEqual(['country','seller']);
+  const label=process.env.ZENTRA_US_QUOTE_PDF_RECIPE_LABEL??'targeted';if(!/^[a-z0-9][a-z0-9-]{0,63}$/.test(label))throw Error('Invalid private quote recipe label');const output=new URL('../../.qa/us-pilot-quote-pdf/',import.meta.url);await mkdir(output,{recursive:true});
+  const artifacts=[{name:`quote-before-correction-${label}.pdf`,bytes:saved.beforeBytes},{name:`quote-after-correction-${label}.pdf`,bytes:saved.afterBytes},{name:`quote-after-reopen-${label}.pdf`,bytes}];for(const artifact of artifacts)await writeFile(new URL(artifact.name,output),artifact.bytes);
+  await writeFile(new URL(`postgres-recipe-${label}.json`,output),JSON.stringify({schemaVersion:1,scope:'Serialized private local TEST; synthetic Auth/D1, tax and customer data; no provider/network; clean close/new-instance reopen only',label,dataDir,migrations:quotePdfMigrations,organizationId:saved.f.org,quoteId:saved.quoteId,statementId:saved.statementId,source:{financialRevision:read.book.revision,ledgerRevision:snapshot.ledgerRevision,bankRevision:read.register.bankRevision,bookSha256:hash(canonicalErpJson(read.book))},identity:{countryRevision:identity.countryRevision,sellerRevision:identity.sellerRevision},identityLifecycle:{sellerCorrection:'before-promotion',countrySellerAfterPromotion:'frozen',legacySellerRead:'PU008',versionChangeFences:'memory-handler-tests-only'},estimateRevision:snapshot.estimate.estimateRevision,customerEditReceipt:saved.customerReceipt,invariants:{sourceAndRegisterExactAfterReopen:true,bankReceiptsExactAfterReopen:true,readOnlyExports:true,historicalCustomerUntilResave:true,currentIssuer:true,invoiceHistoricalSnapshotsPreserved:true,ledgerAndBankCompletionUnchanged:true,currentIssuerPrePromotionCorrection:true,legacySellerRpcRemainsClosed:true,postPromotionCountrySellerWritesRefused:true},pdfArtifacts:artifacts.map(artifact=>({path:'.qa/us-pilot-quote-pdf/'+artifact.name,bytes:artifact.bytes.byteLength,sha256:createHash('sha256').update(artifact.bytes).digest('hex')})),limitations:['No multi-connection race, crash recovery, hosted authority, legal archive or production claim.','Actual PDF render/structure and hashes checked; this recipe does not extract or rasterize PDF text.','Seller corrected before promotion; actual post-promotion country/seller corrections and no-ops are refused. Version-change fences during waits are covered only by memory handler tests.']},null,2)+'\n');
+ },30000);
+});

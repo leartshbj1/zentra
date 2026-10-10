@@ -5,6 +5,7 @@ import { canonicalErpJson, ErpError } from './erp-contract';
 import { snapshotPrivateJson } from './private-json';
 import { confirmErpExpectedUser, confirmErpReadAdmission, type ErpReadAdmission } from './read-admission';
 import type { CompanyConfiguration } from './types';
+import type { FinancialAuthority } from './accounting/ledger';
 import { UsFinancialPilotError, validateUsFinancialPilotHead } from './us-financial-pilot-contract';
 import { captureUsFinancialPilotScope, type UsFinancialPilotScope } from './us-financial-pilot-store';
 import type { UsFinancialPilotDependencies } from './us-financial-pilot-server';
@@ -13,16 +14,19 @@ import {
   UsFinancialPilotExportError, validateUsFinancialPilotExportSelector, validateUsFinancialPilotExportSnapshot,
   type UsFinancialPilotExportFormat, type UsFinancialPilotExportSelector, type UsFinancialPilotExportSnapshot,
 } from './us-financial-pilot-export-contract';
-import { buildUsFinancialPilotExportSnapshot } from './us-financial-pilot-export-projection';
+import { buildUsFinancialPilotEstimateExportSnapshot, buildUsFinancialPilotExportSnapshot } from './us-financial-pilot-export-projection';
+import { readUsFinancialPilotView } from './us-financial-pilot-projection';
+import { UsFinancialPilotQuoteIdentityError, validateUsFinancialPilotQuoteIdentity, type UsFinancialPilotQuoteIdentity } from './us-financial-pilot-quote-identity';
 import { creationUuid } from './workspace-creation';
 
 export interface UsFinancialPilotExportFonts { readonly regular: Uint8Array; readonly bold: Uint8Array }
-export type UsFinancialPilotExportStage='parameters'|'admission'|'source'|'snapshot'|'fonts'|'render'|'hash'|'head'|'postflight';
+export type UsFinancialPilotExportStage='parameters'|'admission'|'source'|'identity'|'snapshot'|'fonts'|'render'|'hash'|'head'|'postflight';
 export interface UsFinancialPilotExportDependencies extends Pick<UsFinancialPilotDependencies,'enabled'|'authority'|'configuration'|'scope'|'store'|'rateLimit'> {
   fonts(this:void):Promise<UsFinancialPilotExportFonts>|UsFinancialPilotExportFonts;
   render?(this:void,snapshot:UsFinancialPilotExportSnapshot,format:UsFinancialPilotExportFormat,fonts?:UsFinancialPilotExportFonts):Promise<Uint8Array|string>|Uint8Array|string;
   hash?(this:void,bytes:Uint8Array):Promise<string>;
-  diagnostic?(this:void,event:Readonly<{operation:'invoice'|'report';stage:UsFinancialPilotExportStage;code:string;status:number}>):void;
+  quoteIdentity?(this:void,actor:FinancialAuthority,revalidate:()=>Promise<FinancialAuthority>):Promise<UsFinancialPilotQuoteIdentity>;
+  diagnostic?(this:void,event:Readonly<{operation:'invoice'|'report'|'estimate';stage:UsFinancialPilotExportStage;code:string;status:number}>):void;
   /** Private bounded test seam. It never comes from a browser or a grant. */
   deadlineMs?:number;
 }
@@ -47,6 +51,7 @@ const publicCodes:Readonly<Record<string,number>>={
   invalid_financial_pilot_export_selector:422,invalid_financial_pilot_export_snapshot:503,financial_pilot_export_source_not_found:404,
   financial_pilot_export_too_large:413,financial_pilot_export_unavailable:409,financial_pilot_export_cash_flow_unavailable:409,
   invalid_financial_pilot_export_font:503,unsupported_financial_pilot_export_glyph:422,
+  financial_pilot_seller_required:409,financial_pilot_quote_identity_changed:409,
 };
 function capturedAdmission(value:unknown):ErpReadAdmission {
   const a=snapshotPrivateJson(value) as ErpReadAdmission;
@@ -79,26 +84,39 @@ function outputBytes(output:unknown,format:UsFinancialPilotExportFormat):Uint8Ar
   if(output.length>US_FINANCIAL_PILOT_EXPORT_MAX_OUTPUT_BYTES)throw new ErpError('financial_pilot_export_too_large',413);
   return copyBytes(new TextEncoder().encode(output),US_FINANCIAL_PILOT_EXPORT_MAX_OUTPUT_BYTES);
 }
-function parameters(request:Request,kind:'invoice'|'report',detail:string):UsFinancialPilotExportSelector {
+function parameters(request:Request,kind:'invoice'|'report'|'estimate',detail:string):UsFinancialPilotExportSelector {
   if(request.method!=='GET')throw new ErpError('method_not_allowed',405);
   if(request.url.length>4096)return invalid();
   const params=new URL(request.url).searchParams;
-  const allowed=['revision','format','language',...(kind==='report'?(detail==='trial_balance'||detail==='balance_sheet'?['asOf']:detail==='general_ledger'?['from','to','accountId']:detail==='profit_loss'||detail==='cash_flow'?['from','to']:[]):[])];
+  const allowed=['revision','format','language',...(kind==='estimate'?['estimateRevision']:kind==='report'?(detail==='trial_balance'||detail==='balance_sheet'?['asOf']:detail==='general_ledger'?['from','to','accountId']:detail==='profit_loss'||detail==='cash_flow'?['from','to']:[]):[])];
   for(const key of params.keys())if(!allowed.includes(key)||params.getAll(key).length!==1)return invalid();
   const raw=params.get('revision');if(raw===null||!/^[1-9][0-9]{0,15}$/.test(raw)||!Number.isSafeInteger(Number(raw)))return invalid();
+  if(kind==='estimate'){
+    const e=params.get('estimateRevision');
+    if(allowed.some(key=>!params.has(key))||e===null||!/^[1-9][0-9]{0,15}$/.test(e)||!Number.isSafeInteger(Number(e))||Number(e)>=Number.MAX_SAFE_INTEGER||Number(raw)>=Number.MAX_SAFE_INTEGER)return invalid();
+    return validateUsFinancialPilotExportSelector({kind,estimateId:detail,estimateRevision:Number(e),revision:Number(raw),format:params.get('format'),language:params.get('language')});
+  }
   const selector:Record<string,unknown>={revision:Number(raw),format:params.get('format'),language:params.get('language'),kind,...(kind==='invoice'?{invoiceId:detail}:{reportType:detail})};
   for(const key of allowed)if(!['revision','format','language'].includes(key)&&params.has(key))selector[key]=params.get(key);
   return validateUsFinancialPilotExportSelector(selector);
 }
 function filename(selector:UsFinancialPilotExportSelector):string {
+  if(selector.kind==='estimate')return `zentra-estimate-r${selector.revision}-e${selector.estimateRevision}-${selector.language}.pdf`;
   return `zentra-${selector.kind==='invoice'?'invoice':selector.reportType}-r${selector.revision}-${selector.language}.${selector.format}`;
 }
-function failure(error:unknown,operation:'invoice'|'report',stage:UsFinancialPilotExportStage,diagnostic:UsFinancialPilotExportDependencies['diagnostic']):Response {
+function admissionDenial(error:unknown):boolean {
+  if(!error||typeof error!=='object')return false;
+  const s=Object.getOwnPropertyDescriptor(error,'status'),d=Object.getOwnPropertyDescriptor(error,'code');
+  if(!s||!('value'in s)||![401,402,403].includes(s.value as number))return false;
+  if(error instanceof AccountPublicError)return true;
+  return error instanceof ErpError&&!!d&&'value'in d&&typeof d.value==='string'&&Object.hasOwn(publicCodes,d.value)&&publicCodes[d.value]===s.value;
+}
+function failure(error:unknown,operation:'invoice'|'report'|'estimate',stage:UsFinancialPilotExportStage,diagnostic:UsFinancialPilotExportDependencies['diagnostic']):Response {
   let code='financial_export_unavailable',status=503;
   try{
     const d=error&&typeof error==='object'?Object.getOwnPropertyDescriptor(error,'code'):undefined,s=error&&typeof error==='object'?Object.getOwnPropertyDescriptor(error,'status'):undefined;
     if(error instanceof AccountPublicError){status=s&&'value'in s&&[401,402,403,429].includes(s.value as number)?s.value as number:503;code=status===401?'unauthorized':status===402?'management_entitlement_required':status===403?'forbidden':status===429?'rate_limited':code;}
-    else if(error instanceof ErpError||error instanceof UsFinancialPilotError||error instanceof UsFinancialPilotExportError){if(d&&s&&'value'in d&&'value'in s&&typeof d.value==='string'&&Object.hasOwn(publicCodes,d.value)&&publicCodes[d.value]===s.value){code=d.value;status=s.value as number;}}
+    else if(error instanceof ErpError||error instanceof UsFinancialPilotError||error instanceof UsFinancialPilotExportError||error instanceof UsFinancialPilotQuoteIdentityError){if(d&&s&&'value'in d&&'value'in s&&typeof d.value==='string'&&Object.hasOwn(publicCodes,d.value)&&publicCodes[d.value]===s.value){code=d.value;status=s.value as number;}}
   }catch{/* Malformed private exceptions remain one generic bounded field. */}
   try{diagnostic?.({operation,stage,code,status});}catch{/* Diagnostics never disclose data or change admission. */}
   return Response.json({error:code},{status,headers:{...securityHeaders,...(status===405?{Allow:'GET'}:{})}});
@@ -111,10 +129,10 @@ export function createUsFinancialPilotExportHandlers(input:UsFinancialPilotExpor
     if(!d||!('value'in d)||typeof d.value!=='function')return unavailable();
     return d.value.bind(undefined) as UsFinancialPilotExportDependencies[K];
   };
-  const deps=Object.freeze({enabled:bind('enabled'),authority:bind('authority'),configuration:bind('configuration'),scope:bind('scope'),store:bind('store'),rateLimit:bind('rateLimit'),fonts:bind('fonts'),render:bind('render',true),hash:bind('hash',true),diagnostic:bind('diagnostic',true)});
+  const deps=Object.freeze({enabled:bind('enabled'),authority:bind('authority'),configuration:bind('configuration'),scope:bind('scope'),store:bind('store'),rateLimit:bind('rateLimit'),fonts:bind('fonts'),render:bind('render',true),hash:bind('hash',true),quoteIdentity:bind('quoteIdentity',true),diagnostic:bind('diagnostic',true)});
   const descriptor=Object.getOwnPropertyDescriptor(input,'deadlineMs'),duration=descriptor&&'value'in descriptor?descriptor.value:30_000;
   if(descriptor&&!('value'in descriptor)||typeof duration!=='number'||!Number.isSafeInteger(duration)||duration<1||duration>120_000)return unavailable();
-  async function run(supplied:Request,organizationId:string,kind:'invoice'|'report',detail:string):Promise<Response>{
+  async function run(supplied:Request,organizationId:string,kind:'invoice'|'report'|'estimate',detail:string):Promise<Response>{
     // Request headers/cookies and callback references are owned before a wait.
     const request=new Request(supplied.url,{method:supplied.method,headers:new Headers(supplied.headers),signal:supplied.signal});
     const until=Date.now()+duration;let stage:UsFinancialPilotExportStage='parameters',trusted:ErpReadAdmission|undefined,scope:UsFinancialPilotScope|undefined,configuration:CompanyConfiguration|undefined;
@@ -161,24 +179,54 @@ export function createUsFinancialPilotExportHandlers(input:UsFinancialPilotExpor
       if(canonicalErpJson(source.baseline.configuration)!==canonicalErpJson(configuration))throw new ErpError('financial_configuration_changed',409);
       if(canonicalErpJson(source.policy)!==canonicalErpJson(scope.scope.policy))throw new ErpError('financial_policy_unavailable',409);
       await admission();
-      stage='snapshot';const snapshot=validateUsFinancialPilotExportSnapshot(await wait(()=>buildUsFinancialPilotExportSnapshot(source,selector)),organizationId,selector);await admission();
+      let identity:UsFinancialPilotQuoteIdentity|undefined;
+      const identityAdmission=async()=>{const current=await admission();return current.scope.actor;};
+      async function quoteIdentity(){
+        if(!deps.quoteIdentity)return unavailable();
+        await admission();
+        const captured=validateUsFinancialPilotQuoteIdentity(await wait(()=>deps.quoteIdentity!(trusted!.actor,identityAdmission)),organizationId);
+        await admission();
+        if(canonicalErpJson(captured.configuration)!==canonicalErpJson(configuration))throw new UsFinancialPilotQuoteIdentityError('financial_pilot_quote_identity_changed',409);
+        return captured;
+      }
+      if(selector.kind==='estimate'){
+        // Resolve existence/E before private current seller reads. No receipt or
+        // current customer card contributes to a saved quote's recipient.
+        const view=await wait(()=>readUsFinancialPilotView(source,selector.revision));await admission();
+        const estimate=view.estimates.find(row=>row.id===selector.estimateId);
+        if(!estimate)throw new UsFinancialPilotExportError('financial_pilot_export_source_not_found',404);
+        if(estimate.revision!==selector.estimateRevision)throw new ErpError('financial_snapshot_changed',409);
+        stage='identity';identity=await quoteIdentity();
+      }
+      stage='snapshot';const snapshot=validateUsFinancialPilotExportSnapshot(await wait(()=>selector.kind==='estimate'?buildUsFinancialPilotEstimateExportSnapshot(source,selector,identity!):buildUsFinancialPilotExportSnapshot(source,selector)),organizationId,selector);await admission();
       stage='fonts';const ownedFonts=selector.format==='pdf'?fonts(await wait(deps.fonts)):undefined;await admission();
       stage='render';const output=await wait(async()=>{if(deps.render)return deps.render(snapshot,selector.format,ownedFonts);const renderer=await import('./us-financial-pilot-export-renderer');return selector.format==='pdf'?renderer.renderUsFinancialPilotExportPdf(snapshot,ownedFonts!):renderer.renderUsFinancialPilotExportCsv(snapshot);});
       const bytes=outputBytes(output,selector.format);await admission();
       stage='hash';const hash=deps.hash??sha256Hex;const contentHash=await wait(()=>hash(copyBytes(bytes,US_FINANCIAL_PILOT_EXPORT_MAX_OUTPUT_BYTES)));
       if(typeof contentHash!=='string'||!/^[0-9a-f]{64}$/.test(contentHash))return unavailable();
       const selectorHash=await wait(()=>sha256Hex(canonicalErpJson(selector)));await admission();
+      if(identity){stage='identity';if(canonicalErpJson(await quoteIdentity())!==canonicalErpJson(identity))throw new UsFinancialPilotQuoteIdentityError('financial_pilot_quote_identity_changed',409);}
       stage='head';const currentHead=validateUsFinancialPilotHead(await wait(head),organizationId);
       if(currentHead.revision!==selector.revision)throw new ErpError('financial_snapshot_changed',409);
       stage='postflight';await admission();active();
       const headers=new Headers(securityHeaders);headers.set('Content-Type',selector.format==='pdf'?'application/pdf':'text/csv; charset=utf-8');headers.set('Content-Length',String(bytes.byteLength));headers.set('Content-Disposition',`attachment; filename="${filename(selector)}"`);
       const h=US_FINANCIAL_PILOT_EXPORT_HEADERS;
       for(const [key,value]of [[h.scope,'1'],[h.organization,organizationId],[h.revision,String(snapshot.revision)],[h.ledgerRevision,String(snapshot.ledgerRevision)],[h.currency,'USD'],[h.language,selector.language],[h.format,selector.format],[h.selectorHash,selectorHash],[h.contentHash,contentHash]])headers.set(key,value);
+      if(selector.kind==='estimate'&&identity){headers.set(h.estimateRevision,String(selector.estimateRevision));headers.set(h.countryRevision,String(identity.countryRevision));headers.set(h.sellerRevision,String(identity.sellerRevision));headers.set(h.issuerBasis,'current_at_export');}
       return new Response(bytes,{headers});
     }catch(error){
-      let latest=error;if(trusted&&!request.signal.aborted&&Date.now()<until)try{await authority();}catch(fresh){try{const status=fresh&&typeof fresh==='object'?Object.getOwnPropertyDescriptor(fresh,'status'):undefined;if((fresh instanceof ErpError||fresh instanceof AccountPublicError)&&status&&'value'in status&&[401,402,403].includes(status.value as number))latest=fresh;}catch{/* Untrusted exception accessors never escape the bounded failure response. */}}
+      let latest=error;if(trusted&&!request.signal.aborted&&Date.now()<until)try{await admission();}catch(fresh){try{
+        if(kind==='estimate'){
+          // A bounded source failure is publishable only after current full
+          // admission succeeds. Keep proven denials ahead of an outage.
+          if(admissionDenial(fresh)||!admissionDenial(error))latest=fresh;
+        }else{
+          const status=fresh&&typeof fresh==='object'?Object.getOwnPropertyDescriptor(fresh,'status'):undefined;
+          if((fresh instanceof ErpError||fresh instanceof AccountPublicError)&&status&&'value'in status&&[401,402,403,404,409].includes(status.value as number))latest=fresh;
+        }
+      }catch{if(kind==='estimate')latest=new ErpError('financial_export_unavailable',503);/* No private exception accessor escapes. */}}
       return failure(latest,kind,stage,deps.diagnostic);
     }
   }
-  return Object.freeze({INVOICE:(request:Request,organizationId:string,invoiceId:string)=>run(request,organizationId,'invoice',invoiceId),REPORT:(request:Request,organizationId:string,reportType:string)=>run(request,organizationId,'report',reportType)});
+  return Object.freeze({INVOICE:(request:Request,organizationId:string,invoiceId:string)=>run(request,organizationId,'invoice',invoiceId),REPORT:(request:Request,organizationId:string,reportType:string)=>run(request,organizationId,'report',reportType),ESTIMATE:(request:Request,organizationId:string,estimateId:string)=>run(request,organizationId,'estimate',estimateId)});
 }

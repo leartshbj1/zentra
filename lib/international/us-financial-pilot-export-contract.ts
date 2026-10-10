@@ -2,26 +2,32 @@ import { validDate } from './accounting/ledger';
 import { snapshotPrivateJson } from './private-json';
 import type { CompanyAddress, CompanyLanguage } from './types';
 import { validateAddress } from './addresses';
+import { money, multiplyMoney } from './money';
 
 export const US_FINANCIAL_PILOT_EXPORT_MAX_ROWS = 1_000;
 export const US_FINANCIAL_PILOT_EXPORT_MAX_TEXT_CHARACTERS = 500_000;
 export const US_FINANCIAL_PILOT_EXPORT_MAX_PDF_PAGES = 200;
 export const US_FINANCIAL_PILOT_EXPORT_MAX_OUTPUT_BYTES = 12 * 1024 * 1024;
+export const US_FINANCIAL_PILOT_ESTIMATE_EXPORT_MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
 export const US_FINANCIAL_PILOT_EXPORT_HEADERS = {
   scope: 'X-Zentra-Financial-Pilot', organization: 'X-Zentra-Organization-Id', revision: 'X-Zentra-Financial-Revision',
   ledgerRevision: 'X-Zentra-Ledger-Revision', currency: 'X-Zentra-Currency', language: 'X-Zentra-Export-Language',
   format: 'X-Zentra-Export-Format', selectorHash: 'X-Zentra-Export-Selector-SHA256', contentHash: 'X-Zentra-Content-SHA256',
+  estimateRevision: 'X-Zentra-Estimate-Revision', countryRevision: 'X-Zentra-Country-Revision',
+  sellerRevision: 'X-Zentra-Seller-Revision', issuerBasis: 'X-Zentra-Issuer-Basis',
 } as const;
 export type UsFinancialPilotExportFormat = 'pdf' | 'csv';
 export type UsFinancialPilotExportReportType = 'trial_balance' | 'profit_loss' | 'balance_sheet' | 'cash_flow' | 'general_ledger' | 'receivables';
 type Selection = Readonly<{ revision: number; language: CompanyLanguage; format: UsFinancialPilotExportFormat }>;
+export type UsFinancialPilotEstimateExportSelector = Selection & Readonly<{ kind: 'estimate'; estimateId: string; estimateRevision: number; format: 'pdf' }>;
 export type UsFinancialPilotExportSelector =
+  | UsFinancialPilotEstimateExportSelector
   | (Selection & Readonly<{ kind: 'invoice'; invoiceId: string; format: 'pdf' }>)
   | (Selection & Readonly<{ kind: 'report'; reportType: 'trial_balance' | 'balance_sheet'; asOf: string }>)
   | (Selection & Readonly<{ kind: 'report'; reportType: 'profit_loss' | 'cash_flow'; from: string; to: string }>)
   | (Selection & Readonly<{ kind: 'report'; reportType: 'general_ledger'; from: string; to: string; accountId: string }>)
   | (Selection & Readonly<{ kind: 'report'; reportType: 'receivables' }>);
-export type UsFinancialPilotExportSectionKind = UsFinancialPilotExportReportType | 'invoice_lines' | 'payments' | 'credits';
+export type UsFinancialPilotExportSectionKind = UsFinancialPilotExportReportType | 'invoice_lines' | 'estimate_lines' | 'payments' | 'credits';
 export type UsFinancialPilotExportLabel =
   | 'organization' | 'customer' | 'number' | 'date' | 'dueDate' | 'transactionDate' | 'accountingDate' | 'paymentDate'
   | 'from' | 'to' | 'asOf' | 'period' | 'account' | 'accountType' | 'description' | 'quantity' | 'unitPrice'
@@ -29,7 +35,8 @@ export type UsFinancialPilotExportLabel =
   | 'debit' | 'credit' | 'opening' | 'closing' | 'income' | 'expense' | 'profit' | 'assets' | 'liabilities' | 'equity'
   | 'unclosedEarnings' | 'operating' | 'investing' | 'financing' | 'netChange' | 'currency' | 'accountingBasis'
   | 'financialRevision' | 'ledgerRevision' | 'sourceEstimateRevision' | 'sourceReference' | 'reference' | 'reason'
-  | 'taxDisposition' | 'recordedBy' | 'journalRevision' | 'status';
+  | 'taxDisposition' | 'recordedBy' | 'journalRevision' | 'status'
+  | 'estimateDate' | 'expiresAt' | 'paymentTermsDays' | 'estimateRevision' | 'countryRevision' | 'sellerRevision' | 'lineDiscount';
 export type UsFinancialPilotExportParty = Readonly<{ name: string | null; address: CompanyAddress; email: string | null; phone: string | null }>;
 export type UsFinancialPilotExportColumn = Readonly<{ label: UsFinancialPilotExportLabel; kind: 'text' | 'money' | 'date'; align: 'left' | 'right' }>;
 export type UsFinancialPilotExportFact = Readonly<{ label: UsFinancialPilotExportLabel; kind: 'text' | 'date'; value: string }>;
@@ -38,16 +45,27 @@ export type UsFinancialPilotExportSection = Readonly<{
   kind: UsFinancialPilotExportSectionKind; columns: readonly UsFinancialPilotExportColumn[];
   rows: readonly (readonly string[])[]; totals: readonly UsFinancialPilotExportTotal[];
 }>;
-export type UsFinancialPilotExportSnapshot = Readonly<{
+type UsFinancialPilotExportSnapshotFields = Readonly<{
   consumer: 'financial-pilot'; schemaVersion: 1; organizationId: string; revision: number; ledgerRevision: number;
   currency: 'USD'; paper: 'Letter'; language: CompanyLanguage; selector: UsFinancialPilotExportSelector;
   number: string | null; issuer: UsFinancialPilotExportParty; recipient: UsFinancialPilotExportParty | null;
   facts: readonly UsFinancialPilotExportFact[]; sections: readonly UsFinancialPilotExportSection[]; notes: string;
 }>;
+export type UsFinancialPilotEstimateExportMeta = Readonly<{
+  estimateId: string; estimateRevision: number; status: 'draft' | 'accepted' | 'declined';
+  countryRevision: number; sellerRevision: number; issuerBasis: 'current_at_export'; amountBasis: 'before_sales_tax';
+}>;
+export type UsFinancialPilotEstimateExportSnapshot = UsFinancialPilotExportSnapshotFields & Readonly<{
+  selector: UsFinancialPilotEstimateExportSelector; estimate: UsFinancialPilotEstimateExportMeta;
+}>;
+export type UsFinancialPilotExportSnapshot =
+  | (UsFinancialPilotExportSnapshotFields & Readonly<{ selector: Exclude<UsFinancialPilotExportSelector, UsFinancialPilotEstimateExportSelector>; estimate?: never }>)
+  | UsFinancialPilotEstimateExportSnapshot;
 export type UsFinancialPilotExportErrorCode =
   | 'invalid_financial_pilot_export_selector' | 'invalid_financial_pilot_export_snapshot' | 'financial_snapshot_changed'
   | 'financial_pilot_export_source_not_found' | 'financial_pilot_export_too_large' | 'financial_pilot_export_unavailable'
-  | 'financial_pilot_export_cash_flow_unavailable' | 'invalid_financial_pilot_export_font' | 'unsupported_financial_pilot_export_glyph';
+  | 'financial_pilot_export_cash_flow_unavailable' | 'invalid_financial_pilot_export_font' | 'unsupported_financial_pilot_export_glyph'
+  | 'financial_pilot_seller_required' | 'financial_pilot_quote_identity_changed';
 export class UsFinancialPilotExportError extends Error {
   constructor(readonly code: UsFinancialPilotExportErrorCode, readonly status: number) { super(code); this.name = 'UsFinancialPilotExportError'; }
 }
@@ -74,6 +92,11 @@ function minor(value: unknown, positive = false): string {
 }
 function array(value: unknown, maximum: number): readonly unknown[] { if (!Array.isArray(value)) return fail(); if (value.length > maximum) return tooLarge(); return value; }
 function language(value: unknown): CompanyLanguage { if (!['fr', 'de', 'it', 'en'].includes(value as string)) return fail(); return value as CompanyLanguage; }
+function estimateId(value: unknown): string {
+  const result = text(value, 160);
+  if (result !== result.trim() || Array.from(result).some(character => { const code = character.charCodeAt(0); return code < 32 || code === 127; })) return fail();
+  return result;
+}
 /** Pure public selector. No actor, grant, provider, book fingerprint or tax proof. */
 export function validateUsFinancialPilotExportSelector(input: unknown): UsFinancialPilotExportSelector {
   try {
@@ -83,6 +106,7 @@ export function validateUsFinancialPilotExportSelector(input: unknown): UsFinanc
     revision(raw.revision); language(raw.language);
     if (raw.format !== 'pdf' && raw.format !== 'csv') return fail();
     if (raw.kind === 'invoice') { object(raw, [...common, 'invoiceId']); text(raw.invoiceId, 256); if (raw.format !== 'pdf') return fail(); }
+    else if (raw.kind === 'estimate') { object(raw, [...common, 'estimateId', 'estimateRevision']); estimateId(raw.estimateId); revision(raw.estimateRevision); if (raw.format !== 'pdf') return fail(); }
     else if (raw.kind === 'report') {
       if (raw.reportType === 'trial_balance' || raw.reportType === 'balance_sheet') { object(raw, [...common, 'reportType', 'asOf']); date(raw.asOf); }
       else if (raw.reportType === 'profit_loss' || raw.reportType === 'cash_flow' || raw.reportType === 'general_ledger') {
@@ -97,6 +121,7 @@ export function validateUsFinancialPilotExportSelector(input: unknown): UsFinanc
 const column = (label: UsFinancialPilotExportLabel, kind: UsFinancialPilotExportColumn['kind'] = 'text'): UsFinancialPilotExportColumn => ({ label, kind, align: kind === 'money' ? 'right' : 'left' });
 export const US_FINANCIAL_PILOT_EXPORT_COLUMNS: Readonly<Record<UsFinancialPilotExportSectionKind, readonly UsFinancialPilotExportColumn[]>> = {
   invoice_lines: [column('description'), column('quantity'), column('unitPrice', 'money'), column('net', 'money'), column('tax', 'money'), column('total', 'money')],
+  estimate_lines: [column('description'), column('quantity'), column('unitPrice', 'money'), column('lineDiscount'), column('net', 'money')],
   payments: [column('reference'), column('paymentDate', 'date'), column('accountingDate', 'date'), column('amount', 'money')],
   credits: [column('number'), column('transactionDate', 'date'), column('accountingDate', 'date'), column('reason'), column('taxDisposition'), column('net', 'money'), column('tax', 'money'), column('total', 'money')],
   trial_balance: [column('account'), column('description'), column('accountType'), column('debit', 'money'), column('credit', 'money')],
@@ -107,6 +132,7 @@ export const US_FINANCIAL_PILOT_EXPORT_COLUMNS: Readonly<Record<UsFinancialPilot
   receivables: [column('number'), column('customer'), column('date', 'date'), column('dueDate', 'date'), column('total', 'money'), column('received', 'money'), column('credited', 'money'), column('outstanding', 'money'), column('status')],
 };
 export const US_FINANCIAL_PILOT_EXPORT_TOTALS: Readonly<Record<UsFinancialPilotExportSectionKind, readonly UsFinancialPilotExportLabel[]>> = {
+  estimate_lines: ['subtotal', 'discount', 'net'],
   invoice_lines: ['subtotal', 'discount', 'net', 'tax', 'total', 'received', 'credited', 'outstanding'], payments: ['received'], credits: ['credited'],
   trial_balance: ['debit', 'credit'], profit_loss: ['income', 'expense', 'profit'], balance_sheet: ['assets', 'liabilities', 'equity', 'unclosedEarnings'],
   cash_flow: ['opening', 'operating', 'investing', 'financing', 'netChange', 'closing'], general_ledger: ['opening', 'closing'], receivables: ['total', 'received', 'credited', 'outstanding'],
@@ -162,11 +188,22 @@ function party(value: unknown, nameRequired: boolean, usOnly: boolean): void {
 function factLabels(selector: UsFinancialPilotExportSelector): readonly UsFinancialPilotExportLabel[] {
   const common: UsFinancialPilotExportLabel[] = ['organization', 'currency', 'accountingBasis', 'financialRevision', 'ledgerRevision'];
   if (selector.kind === 'invoice') return [...common, 'date', 'accountingDate', 'dueDate', 'sourceEstimateRevision'];
+  if (selector.kind === 'estimate') return [...common, 'estimateDate', 'expiresAt', 'paymentTermsDays', 'estimateRevision', 'status', 'countryRevision', 'sellerRevision'];
   if ('asOf' in selector) return [...common, 'asOf'];
   if ('from' in selector) return [...common, 'from', 'to', ...(selector.reportType === 'general_ledger' ? ['account' as const] : [])];
   return common;
 }
-const dateLabels: readonly UsFinancialPilotExportLabel[] = ['date', 'accountingDate', 'dueDate', 'from', 'to', 'asOf'];
+const dateLabels: readonly UsFinancialPilotExportLabel[] = ['date', 'accountingDate', 'dueDate', 'from', 'to', 'asOf', 'estimateDate', 'expiresAt'];
+/** The source rounds gross and then its discount half away from zero. Keep
+ * this same exact two-stage operation; quantities never pass through Number. */
+function estimateRowAmounts(row: readonly string[]): Readonly<{ gross: bigint; discount: bigint; net: bigint }> {
+  if (!/^(?:0|[1-9]\d{0,95})(?:\.\d{1,6})?$/u.test(row[1]) || !/^(?:0|[1-9]\d{0,3}|10000)$/u.test(row[3])) return fail();
+  const [whole, fraction = ''] = row[1].split('.'), units = BigInt(whole + fraction);
+  if (units <= BigInt(0)) return fail();
+  const gross = multiplyMoney(money('USD', row[2]), units.toString(), (BigInt(10) ** BigInt(fraction.length)).toString());
+  const discount = multiplyMoney(gross, row[3], '10000');
+  return { gross: BigInt(gross.minorUnits), discount: BigInt(discount.minorUnits), net: BigInt(gross.minorUnits) - BigInt(discount.minorUnits) };
+}
 function validateSection(value: unknown, kind: UsFinancialPilotExportSectionKind): UsFinancialPilotExportSection {
   const raw = object(value, ['kind', 'columns', 'rows', 'totals']); if (raw.kind !== kind) return fail();
   const expectedColumns = US_FINANCIAL_PILOT_EXPORT_COLUMNS[kind], columns = array(raw.columns, 12);
@@ -182,6 +219,7 @@ function validateSection(value: unknown, kind: UsFinancialPilotExportSectionKind
       else text(cell, 20_000, column.label === 'reference' || column.label === 'sourceReference');
     });
     const typed = cells as readonly string[];
+    if (kind === 'estimate_lines' && estimateRowAmounts(typed).net !== BigInt(typed[4])) return fail();
     if (kind === 'invoice_lines' && (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/u.test(typed[1]) || BigInt(typed[3]) + BigInt(typed[4]) !== BigInt(typed[5]))) return fail();
     if (kind === 'credits' && (!['historical_zero_tax', 'adjustment_pending'].includes(typed[4]) || BigInt(typed[5]) + BigInt(typed[6]) !== BigInt(typed[7]) || BigInt(typed[7]) <= BigInt(0) || (typed[4] === 'historical_zero_tax' && typed[6] !== '0'))) return fail();
     if (kind === 'payments' && BigInt(typed[3]) <= BigInt(0)) return fail();
@@ -202,6 +240,11 @@ function validateSection(value: unknown, kind: UsFinancialPilotExportSectionKind
   const section = raw as unknown as UsFinancialPilotExportSection;
   const amount = (label: UsFinancialPilotExportLabel) => BigInt(section.totals.find(item => item.label === label)?.minorUnits ?? fail());
   const sum = (index: number, type?: string) => section.rows.filter(row => !type || row[1] === type).reduce((n, row) => n + BigInt(row[index]), BigInt(0));
+  if (kind === 'estimate_lines') {
+    const computed = section.rows.map(estimateRowAmounts);
+    const exact = (key: 'gross' | 'discount' | 'net') => computed.reduce((total, row) => total + row[key], BigInt(0));
+    if (exact('gross') !== amount('subtotal') || exact('discount') !== amount('discount') || exact('net') !== amount('net') || amount('subtotal') - amount('discount') !== amount('net')) return fail();
+  }
   if (kind === 'invoice_lines' && (amount('subtotal') - amount('discount') !== amount('net') || sum(3) !== amount('net') || sum(4) !== amount('tax') || sum(5) !== amount('total') || amount('net') + amount('tax') !== amount('total') || amount('total') !== amount('received') + amount('credited') + amount('outstanding'))) return fail();
   if (kind === 'payments' && sum(3) !== amount('received')) return fail();
   if (kind === 'credits' && sum(7) !== amount('credited')) return fail();
@@ -221,16 +264,20 @@ function validateSection(value: unknown, kind: UsFinancialPilotExportSectionKind
  * membership authority. The sole source is still the replayed private book. */
 export function validateUsFinancialPilotExportSnapshot(input: unknown, organizationId?: string, expectedSelector?: UsFinancialPilotExportSelector): UsFinancialPilotExportSnapshot {
   try {
-    const raw = object(captureSnapshot(input), ['consumer', 'schemaVersion', 'organizationId', 'revision', 'ledgerRevision', 'currency', 'paper', 'language', 'selector', 'number', 'issuer', 'recipient', 'facts', 'sections', 'notes']);
+    const captured = captureSnapshot(input);
+    if (!captured || typeof captured !== 'object' || Array.isArray(captured)) return fail();
+    const selector = validateUsFinancialPilotExportSelector((captured as Record<string, unknown>).selector);
+    if (selector.kind === 'estimate' && new TextEncoder().encode(JSON.stringify(captured)).byteLength > US_FINANCIAL_PILOT_ESTIMATE_EXPORT_MAX_SNAPSHOT_BYTES) return tooLarge();
+    const raw = object(captured, ['consumer', 'schemaVersion', 'organizationId', 'revision', 'ledgerRevision', 'currency', 'paper', 'language', 'selector', 'number', 'issuer', 'recipient', 'facts', 'sections', 'notes', ...(selector.kind === 'estimate' ? ['estimate'] : [])]);
     if (raw.consumer !== 'financial-pilot' || raw.schemaVersion !== 1 || raw.currency !== 'USD' || raw.paper !== 'Letter') return fail();
     text(raw.organizationId, 256); if (organizationId !== undefined && raw.organizationId !== organizationId) return fail();
-    const currentRevision = revision(raw.revision), ledgerRevision = revision(raw.ledgerRevision, true), selector = validateUsFinancialPilotExportSelector(raw.selector);
+    const currentRevision = revision(raw.revision), ledgerRevision = revision(raw.ledgerRevision, true);
     if (ledgerRevision > currentRevision || selector.revision !== currentRevision || language(raw.language) !== selector.language) return fail();
     if (expectedSelector && JSON.stringify(selector) !== JSON.stringify(validateUsFinancialPilotExportSelector(expectedSelector))) {
       const expected = validateUsFinancialPilotExportSelector(expectedSelector);
       if (Object.keys(selector).length !== Object.keys(expected).length || Object.keys(selector).some(key => Reflect.get(selector, key) !== Reflect.get(expected, key))) return fail();
     }
-    if (selector.kind === 'invoice') { text(raw.number, 160); party(raw.issuer, true, true); party(raw.recipient, true, false); }
+    if (selector.kind === 'invoice' || selector.kind === 'estimate') { text(raw.number, 160); party(raw.issuer, true, true); party(raw.recipient, true, false); }
     else { if (raw.number !== null || raw.recipient !== null || (raw.issuer as UsFinancialPilotExportParty)?.name !== null) return fail(); party(raw.issuer, false, true); if ((raw.issuer as UsFinancialPilotExportParty).email !== null || (raw.issuer as UsFinancialPilotExportParty).phone !== null) return fail(); }
     const labels = factLabels(selector), facts = array(raw.facts, 16); if (facts.length !== labels.length) return fail();
     facts.forEach((item, index) => { const fact = object(item, ['label', 'kind', 'value']), label = labels[index]; if (fact.label !== label || fact.kind !== (dateLabels.includes(label) ? 'date' : 'text')) return fail(); if (fact.kind === 'date') date(fact.value); else text(fact.value, 400); });
@@ -239,13 +286,22 @@ export function validateUsFinancialPilotExportSnapshot(input: unknown, organizat
     if ('asOf' in selector && getFact('asOf') !== selector.asOf) return fail();
     if ('from' in selector && (getFact('from') !== selector.from || getFact('to') !== selector.to)) return fail();
     if (selector.kind === 'invoice' && (!/^[1-9]\d{0,15}$/u.test(getFact('sourceEstimateRevision') ?? '') || !Number.isSafeInteger(Number(getFact('sourceEstimateRevision'))))) return fail();
-    const kinds: readonly UsFinancialPilotExportSectionKind[] = selector.kind === 'invoice' ? ['invoice_lines', 'payments', 'credits'] : [selector.reportType];
+    if (selector.kind === 'estimate') {
+      const meta = object(raw.estimate, ['estimateId', 'estimateRevision', 'status', 'countryRevision', 'sellerRevision', 'issuerBasis', 'amountBasis']);
+      if (estimateId(meta.estimateId) !== selector.estimateId || revision(meta.estimateRevision) !== selector.estimateRevision || !['draft', 'accepted', 'declined'].includes(meta.status as string) || meta.issuerBasis !== 'current_at_export' || meta.amountBasis !== 'before_sales_tax') return fail();
+      const countryRevision = revision(meta.countryRevision), sellerRevision = revision(meta.sellerRevision);
+      if (getFact('estimateRevision') !== String(selector.estimateRevision) || getFact('countryRevision') !== String(countryRevision) || getFact('sellerRevision') !== String(sellerRevision) || getFact('status') !== meta.status) return fail();
+      const terms = getFact('paymentTermsDays') ?? '';
+      if (!/^(?:0|[1-9]\d{0,2})$/u.test(terms) || BigInt(terms) > BigInt(365) || date(getFact('expiresAt')) < date(getFact('estimateDate'))) return fail();
+    }
+    const kinds: readonly UsFinancialPilotExportSectionKind[] = selector.kind === 'invoice' ? ['invoice_lines', 'payments', 'credits'] : selector.kind === 'estimate' ? ['estimate_lines'] : [selector.reportType];
     const rawSections = array(raw.sections, 3); if (rawSections.length !== kinds.length) return fail();
     const sections = rawSections.map((section, index) => validateSection(section, kinds[index]));
     if (sections.reduce((count, section) => count + section.rows.length, 0) > US_FINANCIAL_PILOT_EXPORT_MAX_ROWS) return tooLarge();
     if (selector.kind === 'invoice') {
       if (!sections[0].rows.length || sections[0].totals.find(item => item.label === 'received')?.minorUnits !== sections[1].totals[0].minorUnits || sections[0].totals.find(item => item.label === 'credited')?.minorUnits !== sections[2].totals[0].minorUnits) return fail();
     }
+    if (selector.kind === 'estimate' && !sections[0].rows.length) return fail();
     if (selector.kind === 'report' && selector.reportType === 'general_ledger') for (const row of sections[0].rows) if (Number(row[0]) > ledgerRevision || row[2] < selector.from || row[2] > selector.to) return fail();
     text(raw.notes, 20_000, true);
     return raw as unknown as UsFinancialPilotExportSnapshot;
