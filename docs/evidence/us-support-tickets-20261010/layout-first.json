@@ -1,0 +1,4730 @@
+[
+  {
+    "lang": "fr",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 111.859375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 59.578125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 123.375
+      },
+      {
+        "h": 145.25,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 145.890625,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 111.859375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 59.578125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 123.375
+      },
+      {
+        "h": 145.25,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 145.890625,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 131.8828125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 53.3515625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 127.265625
+      },
+      {
+        "h": 125.75,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 126.390625,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 131.8828125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 53.3515625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 127.265625
+      },
+      {
+        "h": 125.75,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 126.390625,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 106.046875
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 56.7109375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 168.5,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 168.5,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 106.046875
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 56.7109375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 168.5,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 168.5,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 98.5234375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 45.5625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 145.25,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 145.25,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 98.5234375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 45.5625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 145.25,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 145.25,
+        "tag": "BUTTON",
+        "w": 265
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 253
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 253
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 223
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 223
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 305,
+    "viewport": 320
+  },
+  {
+    "lang": "fr",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 111.859375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 59.578125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 123.375
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 111.859375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 59.578125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 123.375
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 131.8828125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 53.3515625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 127.265625
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 131.8828125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 53.3515625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 127.265625
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 106.046875
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 56.7109375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 106.046875
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 56.7109375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 106.25,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 98.5234375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 45.5625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 125.75,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 125.75,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 98.5234375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 45.5625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 125.75,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 125.75,
+        "tag": "BUTTON",
+        "w": 335
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 323
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 323
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 293
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 293
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 375,
+    "viewport": 390
+  },
+  {
+    "lang": "fr",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 111.859375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 59.578125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 123.375
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 205.234375
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 199.140625
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 176.0625
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 187.7265625
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  },
+  {
+    "lang": "fr",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 111.859375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 59.578125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 123.375
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 205.234375
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 199.140625
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 176.0625
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 187.7265625
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  },
+  {
+    "lang": "de",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 131.8828125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 53.3515625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 127.265625
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 176.8984375
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 187.75
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 157.734375
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 162.7421875
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  },
+  {
+    "lang": "de",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 131.8828125
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 53.3515625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 127.265625
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 176.8984375
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 187.75
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 157.734375
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 162.7421875
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  },
+  {
+    "lang": "it",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 106.046875
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 56.7109375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 173.5703125
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 186.9296875
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 136.0546875
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 145.234375
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  },
+  {
+    "lang": "it",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 106.046875
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 56.7109375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 173.5703125
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 186.9296875
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 136.0546875
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 145.234375
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  },
+  {
+    "lang": "en",
+    "theme": "light",
+    "background": "rgb(242, 245, 243)",
+    "color": "rgb(24, 56, 44)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 98.5234375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 45.5625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 150.21875
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 161.0703125
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 124.3828125
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 116.875
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  },
+  {
+    "lang": "en",
+    "theme": "dark",
+    "background": "rgb(18, 26, 22)",
+    "color": "rgb(239, 245, 241)",
+    "controls": [
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 98.5234375
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 45.5625
+      },
+      {
+        "h": 44,
+        "tag": "BUTTON",
+        "w": 126.5
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 76,
+        "tag": "BUTTON",
+        "w": 728
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 345
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 150.21875
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 161.0703125
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 704
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 124.3828125
+      },
+      {
+        "h": 44,
+        "tag": "SUMMARY",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 48,
+        "tag": "INPUT",
+        "w": 678
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 44,
+        "tag": "SELECT",
+        "w": 333
+      },
+      {
+        "h": 45.75,
+        "tag": "BUTTON",
+        "w": 116.875
+      }
+    ],
+    "focused": true,
+    "overflow": [],
+    "pageWidth": 1425,
+    "viewport": 1440
+  }
+]

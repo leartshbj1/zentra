@@ -1,0 +1,46 @@
+[
+  {
+    "case": "pending-original-target-after-selection",
+    "text": "Message #1043 · Statut modifié\n\nLa modification n’est pas confirmée. La demande exacte reste en mémoire ; une actualisation ne l’acquitte pas.\n\nFermer ou recharger cet onglet efface cette reprise.\n\nRéessayer la même demande",
+    "newSaveBlocked": true
+  },
+  {
+    "case": "exact-retry-preserves-other-ticket-draft",
+    "category": "billing",
+    "saveEnabled": true,
+    "pending": 0
+  },
+  {
+    "case": "own-confirmed-action-no-false-stale",
+    "status": "in_progress",
+    "staleCount": 0,
+    "history": "Statut modifié\n\n10 oct. 2026, 04:33 UTC · par Fictitious Harbor\n\nFacture fournisseur · Normale · En cours · Fictitious Harbor\n\nTicket créé\n\n10 oct. 2026, 02:40 UTC · par Fictitious Harbor\n\nFacture fournisseur · Normale · Ouvert · Fictitious Harbor"
+  },
+  {
+    "case": "row-collapse",
+    "detailCount": 0
+  },
+  {
+    "case": "remote-change-auto-in-3s",
+    "draft": "bug",
+    "saveBlocked": true,
+    "current": "Créé le: 10 oct. 2026, 02:40 UTC\nValeurs actuelles: Facture fournisseur · Normale · En cours\nResponsable: Fictitious Harbor"
+  },
+  {
+    "case": "human-correction-after-explicit-review",
+    "stale": 0,
+    "category": "bug",
+    "original": true
+  },
+  {
+    "case": "explicit-routing-save",
+    "stale": 0,
+    "enabled": true,
+    "target": "Fictitious Avery"
+  },
+  {
+    "case": "access-purge",
+    "tickets": 0,
+    "ticketText": false
+  }
+]

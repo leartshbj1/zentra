@@ -1,0 +1,1767 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-10T04:43:06.571Z",
+  "phase": "F / Support H3b",
+  "scope": "local pilot only",
+  "goalComplete": false,
+  "git": {
+    "branch": "codex/international-runtime",
+    "base": "412fdc00145394c43ff80b9b1b0a5739c612ee7f",
+    "implementation": "80077ff83ee701a1424f19d0ca2e29f16fdce0ed",
+    "created": [
+      "app/api/international/workspaces/[organizationId]/support-tickets/head/route.ts",
+      "app/api/international/workspaces/[organizationId]/support-tickets/route.ts",
+      "app/api/international/workspaces/[organizationId]/support-tickets/routing/route.ts",
+      "components/account/us-support-tickets.css",
+      "components/account/us-support-tickets.tsx",
+      "docs/internationalization/US-SUPPORT-TICKETS-PLAN-20261010.md",
+      "drizzle/0097_international_us_support_tickets.sql",
+      "lib/international/browser-us-support-tickets-session.ts",
+      "lib/international/us-support-ticket-bindings.test.ts",
+      "lib/international/us-support-ticket-bindings.ts",
+      "lib/international/us-support-ticket-composition.test.ts",
+      "lib/international/us-support-ticket-contract.test.ts",
+      "lib/international/us-support-ticket-contract.ts",
+      "lib/international/us-support-ticket-d1.test.ts",
+      "lib/international/us-support-ticket-d1.ts",
+      "lib/international/us-support-ticket-server.test.ts",
+      "lib/international/us-support-ticket-server.ts",
+      "lib/international/us-support-ticket-test-fixture.ts",
+      "lib/international/us-support-tickets-ui.test.ts",
+      "lib/international/us-support-triage-ticket-integration.test.ts"
+    ],
+    "modified": [
+      "app/compte/espaces/us/[organizationId]/page.tsx",
+      "components/account/us-erp-workbench.tsx",
+      "components/account/us-support-workspace-panel.tsx",
+      "lib/account-workspace-pages.test.ts",
+      "lib/international/us-support-triage-bindings.ts",
+      "lib/international/us-support-triage-server.ts",
+      "tests/us-supplier-documents-preview.tsx"
+    ],
+    "sourceFiles": [
+      {
+        "file": "app/api/international/workspaces/[organizationId]/support-tickets/head/route.ts",
+        "sha256WorkingBytes": "d309756940b90a0b771337b964e2e6c503e416d0290556a864a44e03f08d7e2e",
+        "gitBlob": "3ef923a61ac5fe1705650f2fa0ad2f371cdd6a5e"
+      },
+      {
+        "file": "app/api/international/workspaces/[organizationId]/support-tickets/route.ts",
+        "sha256WorkingBytes": "c99807dd1a243aaa91a52ca31d54043a3bdf593be42ce4d9d32fe4ca9bd8951a",
+        "gitBlob": "c71827305c2f45da6aad74cbd27d212707081c26"
+      },
+      {
+        "file": "app/api/international/workspaces/[organizationId]/support-tickets/routing/route.ts",
+        "sha256WorkingBytes": "646d354e76dfb9f40864bab313b50b039ce8e8d1d2c1aff98940bac250efc193",
+        "gitBlob": "b81ebcd62213920fe2205996cbb18e8cf09ed436"
+      },
+      {
+        "file": "app/compte/espaces/us/[organizationId]/page.tsx",
+        "sha256WorkingBytes": "d60badec8c9d6504d49ab4d506e467750873e1507044cea0267c53a61b7e70bd",
+        "gitBlob": "b0e97dc7925219187896a9dd1db8c30e333f7501"
+      },
+      {
+        "file": "components/account/us-erp-workbench.tsx",
+        "sha256WorkingBytes": "4c5c3a976cae4bc3060ff9fe075bd718f176acc576fed98e17fd9016ef177f35",
+        "gitBlob": "90e68b055b52bb38585d90973bdfbeb182022045"
+      },
+      {
+        "file": "components/account/us-support-tickets.css",
+        "sha256WorkingBytes": "6181ace111add24977bcb486d70e43e0237f8641c31821225fb227eeef5a3705",
+        "gitBlob": "c5f93eb5bc59c4b69f2b5258fb14bbce6b4931df"
+      },
+      {
+        "file": "components/account/us-support-tickets.tsx",
+        "sha256WorkingBytes": "cf69a757c07969a549ba792a2b1ae917645305ea00d54542a0395eef1e2fb717",
+        "gitBlob": "5e1fb01075dcefa7620c15dafb09df1f884a06fc"
+      },
+      {
+        "file": "components/account/us-support-workspace-panel.tsx",
+        "sha256WorkingBytes": "ffe92f3b2880cf0f95b67557232dfaaf29a75046e8f6f4e747ad29c8093a56a7",
+        "gitBlob": "e2d9652cb2f93d9f28890712cecbef27e3bdd924"
+      },
+      {
+        "file": "docs/internationalization/US-SUPPORT-TICKETS-PLAN-20261010.md",
+        "sha256WorkingBytes": "f80f7a49455d6a8c2f4710360b8a4dd1dd9249c1b21002b45b29a917f2e832de",
+        "gitBlob": "1699a7ed27ee4c650d9de75c49f0f4e700be2e47"
+      },
+      {
+        "file": "drizzle/0097_international_us_support_tickets.sql",
+        "sha256WorkingBytes": "6532db7b561c51e72615acda484d040ca04c306f4d048e3fdf472c692307e45c",
+        "gitBlob": "4a76e55e702f2817b575db1231c5eb47fb6295f8"
+      },
+      {
+        "file": "lib/account-workspace-pages.test.ts",
+        "sha256WorkingBytes": "fad054e49f049b81bb53fec05b4b6625fb423fec1864bfce61572b4d69cfed03",
+        "gitBlob": "2adfadd4143dfee5a5a85d86759870ca241d94fd"
+      },
+      {
+        "file": "lib/international/browser-us-support-tickets-session.ts",
+        "sha256WorkingBytes": "abba52234e42c13fc2836fe9fcb9b966cf6ea7fe01caceb934bc931b0e91d932",
+        "gitBlob": "e9480ecf7fcb7c056dc7b4e98fb3f21b3fd91ae5"
+      },
+      {
+        "file": "lib/international/us-support-ticket-bindings.test.ts",
+        "sha256WorkingBytes": "bc12c00eff396dbd2823e14bc3d28156144d1a3c5a3558a810b1fbe80be2f7dc",
+        "gitBlob": "f35a0bf0ccd352bffd57851f6cd4ce4d3e09662d"
+      },
+      {
+        "file": "lib/international/us-support-ticket-bindings.ts",
+        "sha256WorkingBytes": "b7e431b2b13f0ac0ff04b42b6ca7d84d2f3de02f28444a9c97733d103f4aee60",
+        "gitBlob": "17119ef0096b30d675c0e5a55c93cd9532249b69"
+      },
+      {
+        "file": "lib/international/us-support-ticket-composition.test.ts",
+        "sha256WorkingBytes": "6ef9ca96c8f8237ac57185ba7c9edb0ac71a86a80a67f5299d8e3f850c405256",
+        "gitBlob": "37188af5895956a296c2fe6ef49f98bc16170db2"
+      },
+      {
+        "file": "lib/international/us-support-ticket-contract.test.ts",
+        "sha256WorkingBytes": "4c47cb7915048fb19a3fb10ef69ba0356f1e0728bd091a91b767f36a01bda395",
+        "gitBlob": "a53aba15d12f8f0506eab24f6a29c606ec6b4d7f"
+      },
+      {
+        "file": "lib/international/us-support-ticket-contract.ts",
+        "sha256WorkingBytes": "f1413a35a4792fc2a0c1e412772269a47814adb6c295de392465d0d63bd84c7f",
+        "gitBlob": "b6670741b6d79624ae88ba0ff2de3dc5f142972f"
+      },
+      {
+        "file": "lib/international/us-support-ticket-d1.test.ts",
+        "sha256WorkingBytes": "04e4edafda88ccea75bc1835656b2c2932f920ac2759f28e6526bd680f184c5b",
+        "gitBlob": "d58dbb89ec6201c2bcdec2172dc91dfd29dd9cab"
+      },
+      {
+        "file": "lib/international/us-support-ticket-d1.ts",
+        "sha256WorkingBytes": "d3c7bca99d48a0da124f455a9bfc5156647f3c4dac6f7fdc79cdb386646b3cff",
+        "gitBlob": "66b720661a9012cb6c03788e11d1b6bd4e48b808"
+      },
+      {
+        "file": "lib/international/us-support-ticket-server.test.ts",
+        "sha256WorkingBytes": "0077e122a2cdcc56c9576120bb569f73b560e42ac97f74bf331612337618d375",
+        "gitBlob": "f3cedc4293682e46098dd35e0ef96ff694420669"
+      },
+      {
+        "file": "lib/international/us-support-ticket-server.ts",
+        "sha256WorkingBytes": "6ea61ec9bdd7beb9c6f194196fa16716539b0d40e768a0e8b221f3e3a9a084d6",
+        "gitBlob": "e2afbbba6c38f3ffefc58005d5eb5ae915fee42d"
+      },
+      {
+        "file": "lib/international/us-support-ticket-test-fixture.ts",
+        "sha256WorkingBytes": "ec827c7e99128fc4ba71ed42f6b67f4846bd964492314f8760cc86e235ce7dea",
+        "gitBlob": "9dd0656ac839a0e81e6d9a644b04290df9167ec4"
+      },
+      {
+        "file": "lib/international/us-support-tickets-ui.test.ts",
+        "sha256WorkingBytes": "fcee4638ac74076e949a7f063a9ba773e0bf8c20d696d34ebc73854b5032b79a",
+        "gitBlob": "c88042eb296ecae217b4d5d072f5309e4c9afa37"
+      },
+      {
+        "file": "lib/international/us-support-triage-bindings.ts",
+        "sha256WorkingBytes": "6b28307d6d950ad46a0513982c03173b99e0381a4f16c0852b854a049bf0e463",
+        "gitBlob": "e9c2078d0f88c8bac4f82d615e58f84acf261673"
+      },
+      {
+        "file": "lib/international/us-support-triage-server.ts",
+        "sha256WorkingBytes": "6c570cb66b7a68ae49f237f74f3b48f1862241f89392ca43576f3f4ca3970c58",
+        "gitBlob": "44fafd267cfc57b4886fb063bbe5ef052840f01b"
+      },
+      {
+        "file": "lib/international/us-support-triage-ticket-integration.test.ts",
+        "sha256WorkingBytes": "c41cea16550ba85f25b63adb3a42e9fb39840dc318ed86c7af8c6a95da2bad7b",
+        "gitBlob": "b3e3067cee239155cfc4541d8e9d2439c83c98c5"
+      },
+      {
+        "file": "tests/us-supplier-documents-preview.tsx",
+        "sha256WorkingBytes": "fdb8d73cabe972bdb22318502f6482dc278b6c9e0632509451b3c7fb3b960044",
+        "gitBlob": "a23e1cfa8a63e7a148b82876c58982b41277d903"
+      }
+    ]
+  },
+  "behavior": {
+    "creation": "Actual completed H3a provenance loaded privately; one ticket per source hash and organization/workspace, including aliases across recipes/actors.",
+    "corrections": "Original decision/review reasons immutable; separate effective category, priority and language; audit and receipt.",
+    "roles": {
+      "owner": "manage",
+      "admin": "manage",
+      "member": "read and status only for own current active assignment",
+      "accountant": "read",
+      "read_only": "read"
+    },
+    "autoAssignment": "Only a newly created source, explicit enabled category rule, current active same-company target and no review reason; all three confidence scores meet both rule and grant thresholds. New rules do not reassign history.",
+    "idempotency": "Actor-scoped exact request IDs shared by ticket and routing commands; CAS; immutable receipts/audit. Browser ambiguous command remains RAM-only, exact retry and original target retained.",
+    "recovery": "First definitive nonambiguous 409/strict422 may release a rejected command. An earlier uncertain write prevents this shortcut. Submitted fields only are cleared after authoritative receipt; unrelated drafts survive.",
+    "synchronization": "Compact head polling nominally every3 seconds while visible/online; reload already-viewed pages only on ticket/team changes; no WebSocket/field delta claim.",
+    "dataMinimization": "No message subject/body/attachment/mailbox locator/sourceHash/secret in public ticket projection; creation and follow-up timestamps explicitly UTC.",
+    "noEffects": [
+      "outgoing email",
+      "provider ticket routing",
+      "supplier creation",
+      "accounting posting",
+      "appointment creation"
+    ],
+    "limits": {
+      "ticketsPerCompany": 500,
+      "appliedRevisionsPerTicket": 100,
+      "visibleAuditEvents": 20,
+      "routingRevisions": 1000,
+      "commandsPerCompany": 52000,
+      "pageSize": 25
+    },
+    "gates": {
+      "dedicated": "INTERNATIONAL_US_SUPPORT_TICKETS_ENABLED",
+      "default": "closed",
+      "alsoRequired": [
+        "international core",
+        "US ERP",
+        "Support H1"
+      ],
+      "historyDoesNotRequire": [
+        "current H2 mailbox",
+        "current JEV key/recipe",
+        "Automation"
+      ],
+      "nativeProtocol": 4
+    }
+  },
+  "migration": {
+    "file": "drizzle/0097_international_us_support_tickets.sql",
+    "sha256": "6532db7b561c51e72615acda484d040ca04c306f4d048e3fdf472c692307e45c",
+    "engine": "D1 / SQLite",
+    "additive": true,
+    "newTables": 6,
+    "applied": "local fictitious databases only",
+    "chain": "drizzle0000..0097, including workerd through legacy-country-guard.migrations.test.ts",
+    "chainFileCount": 98,
+    "supabaseChanged": false,
+    "rollback": "Close gate; restore previous application code; retain immutable tables/history. No deletion or production schema operation authorized by this record."
+  },
+  "tests": {
+    "regression": {
+      "success": true,
+      "total": 3715,
+      "passed": 3715,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "files": 114,
+      "selection": [
+        "lib/account-workspace-entry.test.ts",
+        "lib/account-workspace-navigation.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/account-workspaces.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/deployment-contract.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/browser-us-supplier-documents-session.test.ts",
+        "lib/international/browser-us-supplier-session.test.ts",
+        "lib/international/browser-us-team-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-store.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/us-automation-policy.test.ts",
+        "lib/international/us-automation-store.test.ts",
+        "lib/international/us-automation-validation.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-d1.test.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-saas-test-bindings.test.ts",
+        "lib/international/us-saas-test-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "lib/international/us-saas-test-server.test.ts",
+        "lib/international/us-saas-test-stripe.test.ts",
+        "lib/international/us-supplier-analysis-server.test.ts",
+        "lib/international/us-supplier-analysis.test.ts",
+        "lib/international/us-supplier-bindings.test.ts",
+        "lib/international/us-supplier-document-archive.test.ts",
+        "lib/international/us-supplier-document-bindings.test.ts",
+        "lib/international/us-supplier-document-bytes.test.ts",
+        "lib/international/us-supplier-document-contract.test.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-server.test.ts",
+        "lib/international/us-supplier-document-store.test.ts",
+        "lib/international/us-supplier-document-timeout.test.ts",
+        "lib/international/us-supplier-extraction.test.ts",
+        "lib/international/us-supplier-proposal.test.ts",
+        "lib/international/us-supplier-server.test.ts",
+        "lib/international/us-supplier-store.test.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.test.ts",
+        "lib/international/us-support-mailbox-contract.test.ts",
+        "lib/international/us-support-mailbox-d1.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-provider.test.ts",
+        "lib/international/us-support-mailbox-server.test.ts",
+        "lib/international/us-support-mailbox-ui.test.ts",
+        "lib/international/us-support-ticket-bindings.test.ts",
+        "lib/international/us-support-ticket-composition.test.ts",
+        "lib/international/us-support-ticket-contract.test.ts",
+        "lib/international/us-support-ticket-d1.test.ts",
+        "lib/international/us-support-ticket-server.test.ts",
+        "lib/international/us-support-tickets-ui.test.ts",
+        "lib/international/us-support-triage-bindings.test.ts",
+        "lib/international/us-support-triage-composition.test.ts",
+        "lib/international/us-support-triage-contract.test.ts",
+        "lib/international/us-support-triage-d1.test.ts",
+        "lib/international/us-support-triage-policy.test.ts",
+        "lib/international/us-support-triage-provider.test.ts",
+        "lib/international/us-support-triage-server.test.ts",
+        "lib/international/us-support-triage-ticket-integration.test.ts",
+        "lib/international/us-support-triage-ui.test.ts",
+        "lib/international/us-support-workspace-bindings.test.ts",
+        "lib/international/us-support-workspace-contract.test.ts",
+        "lib/international/us-support-workspace-d1.test.ts",
+        "lib/international/us-support-workspace-server.test.ts",
+        "lib/international/us-support-workspace-ui.test.ts",
+        "lib/international/us-team-bindings.test.ts",
+        "lib/international/us-team-contract.test.ts",
+        "lib/international/us-team-device-lifecycle.test.ts",
+        "lib/international/us-team-server.test.ts",
+        "lib/international/us-team-store.test.ts",
+        "lib/international/us-team-validation.test.ts",
+        "lib/international/us-team.migrations.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/site-language.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth-http.test.ts",
+        "lib/supabase-auth.test.ts",
+        "lib/support/application-effects.test.ts",
+        "lib/support/billing.test.ts",
+        "lib/support/mail-documents.test.ts",
+        "lib/support/mail-sync-admission.test.ts",
+        "lib/support/reply-transport.test.ts",
+        "lib/support/solicitation-service.test.ts",
+        "lib/support/support.test.ts",
+        "lib/support/workspace-access.test.ts",
+        "lib/support/workspace-selection.test.ts",
+        "lib/support/workspace-state-admission.test.ts"
+      ],
+      "fileResults": [
+        {
+          "file": "lib/account-workspace-entry.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/account-workspace-navigation.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/account-workspace-pages.test.ts",
+          "status": "passed",
+          "total": 65,
+          "passed": 65
+        },
+        {
+          "file": "lib/account-workspaces.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/business-sync-cash-vat.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/deployment-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/document-number-reservations.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/site-language.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/stripe-contract.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/supabase-auth-http.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/supabase-auth.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/accounting-runtime.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/browser-us-supplier-documents-session.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/browser-us-supplier-session.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/browser-us-team-session.test.ts",
+          "status": "passed",
+          "total": 37,
+          "passed": 37
+        },
+        {
+          "file": "lib/international/browser-us-workspace-sync-session.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/legacy-country-guard.migrations.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/legacy-country-guard.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/private-json.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/purchasing-runtime.test.ts",
+          "status": "passed",
+          "total": 63,
+          "passed": 63
+        },
+        {
+          "file": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/runtime-server-revalidation.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/runtime-server-us-tax.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/runtime-server.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/runtime-store.test.ts",
+          "status": "passed",
+          "total": 83,
+          "passed": 83
+        },
+        {
+          "file": "lib/international/runtime-sync.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/runtime.test.ts",
+          "status": "passed",
+          "total": 36,
+          "passed": 36
+        },
+        {
+          "file": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed",
+          "total": 101,
+          "passed": 101
+        },
+        {
+          "file": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-automation-policy.test.ts",
+          "status": "passed",
+          "total": 69,
+          "passed": 69
+        },
+        {
+          "file": "lib/international/us-automation-store.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-automation-validation.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-device-bindings.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-device-capability-v4.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-device-d1.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/international/us-device-server.test.ts",
+          "status": "passed",
+          "total": 40,
+          "passed": 40
+        },
+        {
+          "file": "lib/international/us-saas-test-bindings.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-saas-test-d1.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-d1.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-server.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+          "status": "passed",
+          "total": 123,
+          "passed": 123
+        },
+        {
+          "file": "lib/international/us-saas-test-server.test.ts",
+          "status": "passed",
+          "total": 27,
+          "passed": 27
+        },
+        {
+          "file": "lib/international/us-saas-test-stripe.test.ts",
+          "status": "passed",
+          "total": 82,
+          "passed": 82
+        },
+        {
+          "file": "lib/international/us-supplier-analysis-server.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-supplier-analysis.test.ts",
+          "status": "passed",
+          "total": 39,
+          "passed": 39
+        },
+        {
+          "file": "lib/international/us-supplier-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-archive.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-supplier-document-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-bytes.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-supplier-document-contract.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.postgres.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.test.ts",
+          "status": "passed",
+          "total": 34,
+          "passed": 34
+        },
+        {
+          "file": "lib/international/us-supplier-document-server.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-supplier-document-store.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-supplier-document-timeout.test.ts",
+          "status": "passed",
+          "total": 4,
+          "passed": 4
+        },
+        {
+          "file": "lib/international/us-supplier-extraction.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/us-supplier-proposal.test.ts",
+          "status": "passed",
+          "total": 105,
+          "passed": 105
+        },
+        {
+          "file": "lib/international/us-supplier-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-supplier-store.test.ts",
+          "status": "passed",
+          "total": 77,
+          "passed": 77
+        },
+        {
+          "file": "lib/international/us-support-mail-import-ui.test.ts",
+          "status": "passed",
+          "total": 57,
+          "passed": 57
+        },
+        {
+          "file": "lib/international/us-support-mailbox-bindings.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-support-mailbox-contract.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/us-support-mailbox-d1.test.ts",
+          "status": "passed",
+          "total": 43,
+          "passed": 43
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-bindings.test.ts",
+          "status": "passed",
+          "total": 1,
+          "passed": 1
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-composition.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-contract.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-d1.test.ts",
+          "status": "passed",
+          "total": 54,
+          "passed": 54
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-provider.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-server.test.ts",
+          "status": "passed",
+          "total": 42,
+          "passed": 42
+        },
+        {
+          "file": "lib/international/us-support-mailbox-provider.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-mailbox-server.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-ui.test.ts",
+          "status": "passed",
+          "total": 64,
+          "passed": 64
+        },
+        {
+          "file": "lib/international/us-support-ticket-bindings.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/international/us-support-ticket-composition.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/international/us-support-ticket-d1.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-server.test.ts",
+          "status": "passed",
+          "total": 55,
+          "passed": 55
+        },
+        {
+          "file": "lib/international/us-support-tickets-ui.test.ts",
+          "status": "passed",
+          "total": 85,
+          "passed": 85
+        },
+        {
+          "file": "lib/international/us-support-triage-bindings.test.ts",
+          "status": "passed",
+          "total": 3,
+          "passed": 3
+        },
+        {
+          "file": "lib/international/us-support-triage-composition.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-contract.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-support-triage-d1.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/us-support-triage-policy.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-provider.test.ts",
+          "status": "passed",
+          "total": 70,
+          "passed": 70
+        },
+        {
+          "file": "lib/international/us-support-triage-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-support-triage-ticket-integration.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/international/us-support-triage-ui.test.ts",
+          "status": "passed",
+          "total": 74,
+          "passed": 74
+        },
+        {
+          "file": "lib/international/us-support-workspace-bindings.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-workspace-contract.test.ts",
+          "status": "passed",
+          "total": 7,
+          "passed": 7
+        },
+        {
+          "file": "lib/international/us-support-workspace-d1.test.ts",
+          "status": "passed",
+          "total": 53,
+          "passed": 53
+        },
+        {
+          "file": "lib/international/us-support-workspace-server.test.ts",
+          "status": "passed",
+          "total": 31,
+          "passed": 31
+        },
+        {
+          "file": "lib/international/us-support-workspace-ui.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-team-bindings.test.ts",
+          "status": "passed",
+          "total": 49,
+          "passed": 49
+        },
+        {
+          "file": "lib/international/us-team-contract.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-team-device-lifecycle.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-team-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-team-store.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-team-validation.test.ts",
+          "status": "passed",
+          "total": 89,
+          "passed": 89
+        },
+        {
+          "file": "lib/international/us-team.migrations.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads-bindings.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/support/application-effects.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/support/billing.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/support/mail-documents.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/support/mail-sync-admission.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/support/reply-transport.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/support/solicitation-service.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/support/support.test.ts",
+          "status": "passed",
+          "total": 81,
+          "passed": 81
+        },
+        {
+          "file": "lib/support/workspace-access.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/support/workspace-selection.test.ts",
+          "status": "passed",
+          "total": 2,
+          "passed": 2
+        },
+        {
+          "file": "lib/support/workspace-state-admission.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        }
+      ]
+    },
+    "newH3b": {
+      "files": [
+        {
+          "file": "lib/international/us-support-ticket-bindings.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/international/us-support-ticket-composition.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/international/us-support-ticket-d1.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-server.test.ts",
+          "status": "passed",
+          "total": 55,
+          "passed": 55
+        },
+        {
+          "file": "lib/international/us-support-tickets-ui.test.ts",
+          "status": "passed",
+          "total": 85,
+          "passed": 85
+        },
+        {
+          "file": "lib/international/us-support-triage-ticket-integration.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        }
+      ],
+      "total": 238,
+      "includedInRegression": true
+    },
+    "accountPageCases": {
+      "total": 65,
+      "new": 27,
+      "includedInRegression": true
+    },
+    "postgres": {
+      "module": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+      "suite": "lib/international/us-supplier-document-lookup.postgres.test.ts",
+      "passed": 14,
+      "includedInRegression": true,
+      "hosted": false
+    },
+    "chains": "Actual SQLite D1 adapter/composition plus local workerd and PGlite; Auth, entitlement/provider observations are synthetic.",
+    "quality": {
+      "typecheck": {
+        "exitCode": 0,
+        "scope": "global"
+      },
+      "lint": {
+        "exitCode": 0,
+        "typeAware": true,
+        "denyWarnings": true,
+        "files": [
+          "app/api/international/workspaces/[organizationId]/support-tickets/head/route.ts",
+          "app/api/international/workspaces/[organizationId]/support-tickets/route.ts",
+          "app/api/international/workspaces/[organizationId]/support-tickets/routing/route.ts",
+          "app/compte/espaces/us/[organizationId]/page.tsx",
+          "components/account/us-erp-workbench.tsx",
+          "components/account/us-support-tickets.tsx",
+          "components/account/us-support-workspace-panel.tsx",
+          "lib/account-workspace-pages.test.ts",
+          "lib/international/browser-us-support-tickets-session.ts",
+          "lib/international/us-support-ticket-bindings.test.ts",
+          "lib/international/us-support-ticket-bindings.ts",
+          "lib/international/us-support-ticket-composition.test.ts",
+          "lib/international/us-support-ticket-contract.test.ts",
+          "lib/international/us-support-ticket-contract.ts",
+          "lib/international/us-support-ticket-d1.test.ts",
+          "lib/international/us-support-ticket-d1.ts",
+          "lib/international/us-support-ticket-server.test.ts",
+          "lib/international/us-support-ticket-server.ts",
+          "lib/international/us-support-ticket-test-fixture.ts",
+          "lib/international/us-support-tickets-ui.test.ts",
+          "lib/international/us-support-triage-bindings.ts",
+          "lib/international/us-support-triage-server.ts",
+          "lib/international/us-support-triage-ticket-integration.test.ts",
+          "tests/us-supplier-documents-preview.tsx"
+        ]
+      },
+      "brand": {
+        "exitCode": 0
+      },
+      "build": {
+        "exitCode": 0,
+        "notices": [
+          "existing middleware convention deprecation",
+          "plugin timing notices",
+          "vinext static route classification limitations"
+        ]
+      }
+    },
+    "commands": {
+      "regression": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts --maxWorkers=1 <selection-final.json entries> --reporter=json --outputFile=.qa/us-support-tickets/regression-final.json",
+      "environment": {
+        "PGLITE_MODULE_DIR": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+        "TEMP": "D:/Codex-Zentra-Temporary/2026-10-08/native-admission-temp",
+        "TMP": "D:/Codex-Zentra-Temporary/2026-10-08/native-admission-temp"
+      },
+      "typecheck": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "lint": "node node_modules/oxlint/bin/oxlint --type-aware --deny-warnings <lint-selection.json entries>",
+      "brand": "node scripts/check-brand-assets.mjs",
+      "build": "node node_modules/vinext/dist/cli.js build"
+    },
+    "reports": [
+      {
+        "file": ".qa/us-support-tickets/regression-final.json",
+        "sha256": "efe23cdff79c1b5e6007a85a4481bf85cd632101e627379c0420fc9c7ceb8e99"
+      },
+      {
+        "file": ".qa/us-support-tickets/regression-final.log",
+        "sha256": "dc10ce17ce34bf5a99e70ce58c807a92171c1c6245ec47ac209d18e4e3e074c7"
+      },
+      {
+        "file": ".qa/us-support-tickets/selection-final.json",
+        "sha256": "43103b1453bbbbfe865e59ec7aa8233c1f1a00a116b8648d506949d98d177029"
+      },
+      {
+        "file": ".qa/us-support-tickets/typecheck-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-support-tickets/lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-support-tickets/lint-selection.json",
+        "sha256": "2499c70bb15a6517ec3b1165f41a9f23e4e0be0b7b69e641c67bb50e9a2d7450"
+      },
+      {
+        "file": ".qa/us-support-tickets/brand-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-support-tickets/build-final.log",
+        "sha256": "a5ddfacfaea87fa8496ad06aa575e15f640ea7dd3cbbbf427d889ce706dbf171"
+      },
+      {
+        "file": ".qa/us-support-tickets/chain-first.json",
+        "sha256": "a80f29e5723f3f1c9723e3ca2065420d2fc241708b3a0e654973bef1bfe42b95"
+      },
+      {
+        "file": ".qa/us-support-tickets/ui-final.json",
+        "sha256": "020629789cdf037413f22396a3a956461364c734974c66243b172757e0ae01b8"
+      }
+    ],
+    "intermediate": "Earlier failing UI/typecheck runs retained in ignored .qa; final runs alone support successful counts. The preview server reported a transient JSX parse error during the06:29 edit batch; the subsequent final typecheck/build and browser confirmations use the corrected source. Overlapping targeted runs are not added to3715."
+  },
+  "browser": {
+    "fixture": "http://127.0.0.1:4179/tests/us-supplier-documents-preview.html?tickets=1",
+    "realComponentsAndTransports": true,
+    "syntheticHttpAuthProviderPersistence": true,
+    "layouts": [
+      {
+        "lang": "fr",
+        "theme": "light",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "fr",
+        "theme": "dark",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "de",
+        "theme": "light",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "de",
+        "theme": "dark",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "it",
+        "theme": "light",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "it",
+        "theme": "dark",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "requestedViewport": 320,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 305,
+        "statusNoWrap": "nowrap",
+        "viewport": 320
+      },
+      {
+        "lang": "fr",
+        "theme": "light",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "fr",
+        "theme": "dark",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "de",
+        "theme": "light",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "de",
+        "theme": "dark",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "it",
+        "theme": "light",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "it",
+        "theme": "dark",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "requestedViewport": 390,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 375,
+        "statusNoWrap": "nowrap",
+        "viewport": 390
+      },
+      {
+        "lang": "fr",
+        "theme": "light",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      },
+      {
+        "lang": "fr",
+        "theme": "dark",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      },
+      {
+        "lang": "de",
+        "theme": "light",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      },
+      {
+        "lang": "de",
+        "theme": "dark",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      },
+      {
+        "lang": "it",
+        "theme": "light",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      },
+      {
+        "lang": "it",
+        "theme": "dark",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "requestedViewport": 1440,
+        "focused": true,
+        "height": 900,
+        "minControlHeight": 44,
+        "overflow": [],
+        "pageWidth": 1425,
+        "statusNoWrap": "nowrap",
+        "viewport": 1440
+      }
+    ],
+    "contrasts390Only": [
+      {
+        "lang": "fr",
+        "theme": "light",
+        "viewport": 390,
+        "contrastMinimum": 5.33499466622672,
+        "contrastFailures": []
+      },
+      {
+        "lang": "fr",
+        "theme": "dark",
+        "viewport": 390,
+        "contrastMinimum": 5.931809447733058,
+        "contrastFailures": []
+      },
+      {
+        "lang": "de",
+        "theme": "light",
+        "viewport": 390,
+        "contrastMinimum": 5.33499466622672,
+        "contrastFailures": []
+      },
+      {
+        "lang": "de",
+        "theme": "dark",
+        "viewport": 390,
+        "contrastMinimum": 5.931809447733058,
+        "contrastFailures": []
+      },
+      {
+        "lang": "it",
+        "theme": "light",
+        "viewport": 390,
+        "contrastMinimum": 5.33499466622672,
+        "contrastFailures": []
+      },
+      {
+        "lang": "it",
+        "theme": "dark",
+        "viewport": 390,
+        "contrastMinimum": 5.931809447733058,
+        "contrastFailures": []
+      },
+      {
+        "lang": "en",
+        "theme": "light",
+        "viewport": 390,
+        "contrastMinimum": 5.33499466622672,
+        "contrastFailures": []
+      },
+      {
+        "lang": "en",
+        "theme": "dark",
+        "viewport": 390,
+        "contrastMinimum": 5.931809447733058,
+        "contrastFailures": []
+      }
+    ],
+    "interactiveCases": [
+      {
+        "case": "pending-original-target-after-selection",
+        "text": "Message #1043 · Statut modifié\n\nLa modification n’est pas confirmée. La demande exacte reste en mémoire ; une actualisation ne l’acquitte pas.\n\nFermer ou recharger cet onglet efface cette reprise.\n\nRéessayer la même demande",
+        "newSaveBlocked": true
+      },
+      {
+        "case": "exact-retry-preserves-other-ticket-draft",
+        "category": "billing",
+        "saveEnabled": true,
+        "pending": 0
+      },
+      {
+        "case": "own-confirmed-action-no-false-stale",
+        "status": "in_progress",
+        "staleCount": 0,
+        "history": "Statut modifié\n\n10 oct. 2026, 04:33 UTC · par Fictitious Harbor\n\nFacture fournisseur · Normale · En cours · Fictitious Harbor\n\nTicket créé\n\n10 oct. 2026, 02:40 UTC · par Fictitious Harbor\n\nFacture fournisseur · Normale · Ouvert · Fictitious Harbor"
+      },
+      {
+        "case": "row-collapse",
+        "detailCount": 0
+      },
+      {
+        "case": "remote-change-auto-in-3s",
+        "draft": "bug",
+        "saveBlocked": true,
+        "current": "Créé le: 10 oct. 2026, 02:40 UTC\nValeurs actuelles: Facture fournisseur · Normale · En cours\nResponsable: Fictitious Harbor"
+      },
+      {
+        "case": "human-correction-after-explicit-review",
+        "stale": 0,
+        "category": "bug",
+        "original": true
+      },
+      {
+        "case": "explicit-routing-save",
+        "stale": 0,
+        "enabled": true,
+        "target": "Fictitious Avery"
+      },
+      {
+        "case": "access-purge",
+        "tickets": 0,
+        "ticketText": false
+      }
+    ],
+    "measurementCorrection": "A prior final draft repeated actual390px24 times while the override affected the other active tab. After closing that tab, the unchanged UI was reconfirmed at all24 unique language/theme/actual-width combinations. layout-results.json supersedes that draft. No source edit followed final regression.",
+    "artifacts": [
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/contrast-390-results.json",
+        "sha256": "79847175887f0f42ba29f27c86455a9a10c366d44d14a3e7a78c3b04126e014e"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/de-dark-390-first.jpg",
+        "sha256": "755e18285e801c17b3baa9103cc1acc95d5d1ee67b2d8e7de531871fb76058a9"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/de-dark-390.jpg",
+        "sha256": "1c3ce3efc18516a79d15a1558b0226eec1322d47466dc3b007eba1b9d3ea216c"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/de-light-390-first.jpg",
+        "sha256": "3705013ba11dfb74c1f2ca502e559ad4f65733e2b0829712d42bae01dbb250aa"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/de-light-390.jpg",
+        "sha256": "141d3bf3575af6a36a253da440d942a41eaf5670808285683457ab1503ba6bca"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/en-dark-1440.jpg",
+        "sha256": "146b14981478f5a0f3d337dacbbd75ff3a00228169d5f55165401dbafd5fc5ba"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/en-dark-390-first.jpg",
+        "sha256": "f654d6747fae796616e1739bc717113474c10c0cac473101c8a9b2f58a81ad4b"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/en-dark-390.jpg",
+        "sha256": "a6e8e7209f25b69cc6558fa34b9860712d524ccd32e1939e8de7a2babd4fb0da"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/en-light-390-first.jpg",
+        "sha256": "6a77fb80c596604f41a49657788d5c8b4dff50914ff64ca07ec696e7148af2ba"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/en-light-390.jpg",
+        "sha256": "3bf24d63804697e869ac82f457db3fdb21caa1d9bb90c064913034da2c5c104c"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/fr-dark-390-first.jpg",
+        "sha256": "03177c2840be9929446cbd3f325ec24587377f072e9d4da9db3eca1c225230ae"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/fr-dark-390.jpg",
+        "sha256": "6ca27cbb52dd4d5e280633e0378d32a811725cd7c4341fd257f172b27bd62cfd"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/fr-light-320.jpg",
+        "sha256": "c6fd8e7e68f24aa62c0cc4ee224f0b63591bbb11499d8ac1fea163cf049a708e"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/fr-light-390-first.jpg",
+        "sha256": "1733e0dc77d031babfd83315ee52fc2a3d3432a4a3c0ba0338016e1c66ef34f7"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/fr-light-390.jpg",
+        "sha256": "7b5a1f1913bbff5cec7f21d86853ab8548cbd61faaffde86ab54a36831aeff04"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/functional-results.json",
+        "sha256": "65c2c61101b2ff6d9f4ea7d9b1ec40f3c5224c3c2e2f92b1dd332fc4cdd918bf"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/it-dark-390-first.jpg",
+        "sha256": "b9cf361229818c04fd29949de4b15bb515d2ebfc58c6e0227996181a131738e5"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/it-dark-390.jpg",
+        "sha256": "ad1debb68feb5bc3a0b178e3a86361ddce4c0698cba91b7414f26910839c7d10"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/it-light-390-first.jpg",
+        "sha256": "31bae35c9c79b953befab573812b95e24368242e782a679def6c2f2518681f18"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/it-light-390.jpg",
+        "sha256": "901f4f944c4b5389a288b550638b000a23c51e01de9b60e6ece76404fb6e294a"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/layout-first.json",
+        "sha256": "67ecd1945c462c0e2789adee8feaa71dd4c76b871f5838307c60f192bdb2c87d"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/layout-results.json",
+        "sha256": "2f4ebe42d4c67d31bf57bf2e5cf7ce68b885ff464319dedb23682bcb518eb667"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/public-menu-desktop-live.jpg",
+        "sha256": "e6d477d41a0dda911391fee9b2523be1973727629621863b618b16feb3df02ae"
+      },
+      {
+        "file": "docs/evidence/us-support-tickets-20261010/public-menu-mobile-live.jpg",
+        "sha256": "5bb5559cef9d8cb2e3477a4fc5ddaa7efb4f82f32bbf01fe2b10db84dbb828a3"
+      }
+    ],
+    "intermediateArtifacts": "*-first.jpg and layout-first.json are intermediate, not final pass evidence."
+  },
+  "publicMenuReadOnly": {
+    "url": "https://zentraapp.ch/",
+    "previouslyPublishedVersion": 355,
+    "sourceCommit": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "newPublication": false,
+    "observed": [
+      "opaque white panel",
+      "1px contour",
+      "22px desktop /18px mobile radius",
+      "mobile vertical scroll",
+      "Escape closes"
+    ],
+    "captures": [
+      "public-menu-desktop-live.jpg",
+      "public-menu-mobile-live.jpg"
+    ]
+  },
+  "preserved": {
+    "publicWorktreeHead": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "nativeWorktreeHead": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+    "userCheckoutEdited": false,
+    "hostedMigration": false,
+    "hostedGateActivation": false,
+    "providerCall": false,
+    "customerData": false,
+    "regionChange": false,
+    "subscriptionsCHChanged": false,
+    "push": false,
+    "publish": false,
+    "nativeArtifact": false
+  },
+  "cleanup": {
+    "ownedTabsClosed": [
+      "7",
+      "8"
+    ],
+    "viewportOverrideReset": true,
+    "ownedPreviewServerStopped": true,
+    "previewSession": 1384,
+    "previewStop": "Ctrl-C; process exit1 from interruption is not a failed final build",
+    "otherProcessesStopped": false
+  },
+  "remaining": [
+    "revocable worker delegations",
+    "autonomous reception",
+    "full message content and retention",
+    "persistent authorized customer/meeting workflows",
+    "real hosted Auth/D1/PostgreSQL/JEV staging with explicit approval",
+    "multi-device pilot and load measurements",
+    "complete US commercial/tax/payment cycle and professional validation"
+  ],
+  "delivery": "docs/internationalization/US-SUPPORT-TICKETS-DELIVERY-20261010.md"
+}
