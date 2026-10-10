@@ -161,8 +161,12 @@ describe.skipIf(!enabled)('complete international staging SQL chain on populated
   }, 60_000);
   afterAll(async () => { await db?.close(); });
 
-  it('covers all 19 reviewed files and preserves populated CH rows after every migration', async () => {
-    const actual = (await readdir(migrationDirectory)).filter(name => /^\d+_(?:international_.+|new_us_workspace_admission)\.sql$/.test(name)).sort();
+  it('covers the 19-file reviewed staging snapshot and preserves populated CH rows after every migration', async () => {
+    // This evidence is the structural snapshot reviewed before supplier
+    // originals. Later additive migrations have their own full-chain tests;
+    // they must not retroactively change this observed staging inventory.
+    const boundary = `${migrations[migrations.length - 1]}.sql`;
+    const actual = (await readdir(migrationDirectory)).filter(name => name <= boundary && /^\d+_(?:international_.+|new_us_workspace_admission)\.sql$/.test(name)).sort();
     expect(actual).toEqual(migrations.map(name => `${name}.sql`)); expect(preservedAt).toEqual(migrations);
     expect(await legacyState(chOrg)).toEqual(initialCH); expect(Object.values(initialCH).every(rows => rows.length > 0)).toBe(true);
   });

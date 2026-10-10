@@ -113,9 +113,16 @@ describe('fresh US HTTP response and feature policy guards', () => {
     const t=fixture();let committed=false;t.hooks.commit=()=>{committed=true;};t.hooks.configuration=()=>{if(committed)t.change('role');};
     await rejected(await t.handlers.POST(t.post(),org),403,'forbidden');expect(t.commit).toHaveBeenCalledTimes(1);expect(t.dependencies.authority).toHaveBeenCalledTimes(3);
   });
-  it('checks flags after the last postcommit authority await',async()=>{
-    const t=fixture();let committed=false;t.hooks.commit=()=>{committed=true;};t.hooks.authority=()=>{if(committed)t.change('flags');};
-    await rejected(await t.handlers.POST(t.post(),org),404,'feature_unavailable');expect(t.commit).toHaveBeenCalledTimes(1);expect(t.receipts.size).toBe(1);expect(t.dependencies.authority).toHaveBeenCalledTimes(3);
+  it('withholds a committed receipt when flags close as postcommit authority resolves',async()=>{
+    const t=fixture();let committed=false;const checks:string[]=[];
+    const authority=t.dependencies.authority,enabled=t.dependencies.enabled;
+    t.hooks.commit=()=>{committed=true;};
+    t.dependencies.authority=vi.fn(async(...args:Parameters<ErpServerDependencies['authority']>)=>{const admission=await authority(...args);if(committed){checks.push('authority:resolved');t.change('flags');}return admission;});
+    t.dependencies.enabled=vi.fn(async()=>{const available=await enabled();if(committed)checks.push(available?'flags:open':'flags:closed');return available;});
+    await rejected(await t.handlers.POST(t.post(),org),404,'feature_unavailable');expect(t.commit).toHaveBeenCalledTimes(1);expect(t.receipts.size).toBe(1);
+    const postcommitAuthority=checks.indexOf('authority:resolved');
+    // A rejected flag check may recheck Auth to prioritize a concurrent revocation.
+    expect(postcommitAuthority).toBeGreaterThanOrEqual(0);expect(checks.slice(postcommitAuthority+1)).toContain('flags:closed');
   });
   it('rejects a role change during precommit configuration with one final authority read',async()=>{
     const t=fixture();t.hooks.configuration=call=>{if(call===2)t.change('role');};

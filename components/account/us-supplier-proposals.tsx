@@ -35,6 +35,7 @@ export interface UsSupplierProposalsProps {
   disabled?: boolean;
   /** Explicit service readiness, never inferred from subscription or schema. */
   analysisAvailable?: boolean;
+  hideTextImport?: boolean;
   binding: UsSupplierProposalsBinding;
 }
 interface Draft { proposalId: string; vendorId: string; reference: string; date: string; accountingDate: string; dueDate: string; periodId: string; net: string; tax: string; taxReviewed: boolean; confirmed: boolean; openedRevision: number }
@@ -56,7 +57,7 @@ export function buildBrowserUsSupplierReview(organizationId: string, state: ErpS
   return validateUsSupplierReview({ vendorId: command.vendorId, reference: command.reference, date: command.date, accountingDate: command.accountingDate, dueDate: command.dueDate, periodId: command.periodId, netMinor: command.netMinor, printedTaxMinor: command.purchaseTaxMinor });
 }
 
-export function UsSupplierProposals({ state, organizationId, role, language, supportedSchemaVersion, disabled = false, analysisAvailable = false, binding }: UsSupplierProposalsProps) {
+export function UsSupplierProposals({ state, organizationId, role, language, supportedSchemaVersion, disabled = false, analysisAvailable = false, hideTextImport = false, binding }: UsSupplierProposalsProps) {
   const c = browserUsSupplierCopy[language], prefix = useId(), locale = `${language}-US`;
   const identity = `${organizationId}:${binding.expectedUserId}:${role}:${supportedSchemaVersion}:${binding.accessEpoch()}`;
   const refs = useRef({ binding, identity, state, organizationId, role, supportedSchemaVersion });
@@ -144,13 +145,13 @@ export function UsSupplierProposals({ state, organizationId, role, language, sup
   }
   const proposals = owned ? read?.proposals ?? [] : [], pageCount = Math.max(1, Math.ceil(proposals.length / 10)), visiblePage = Math.min(page, pageCount - 1);
   return <section className="us-supplier" aria-labelledby={`${prefix}-title`}>
-    <div className="us-supplier-heading"><div><h2 id={`${prefix}-title`}>{c.title}</h2><p>{c.intro}</p></div><div className="us-supplier-actions"><button type="button" className="account-button secondary" disabled={blocked || !analysisAvailable || importDraft?.fileBusy} onClick={() => { fileSequence.current++; setSelectedId(null); setDraft(null); setReview(null); setImportDraft({ fileName: '', documentText: '', consent: false, fileBusy: false }); setError(''); setNotice(''); }}>{c.import}</button><button type="button" className="account-button secondary" disabled={!enabled || busy || loading} onClick={() => void load()}>{c.refresh}</button></div></div>
+    <div className="us-supplier-heading"><div><h2 id={`${prefix}-title`}>{c.title}</h2><p>{c.intro}</p></div><div className="us-supplier-actions">{!hideTextImport && <button type="button" className="account-button secondary" disabled={blocked || !analysisAvailable || importDraft?.fileBusy} onClick={() => { fileSequence.current++; setSelectedId(null); setDraft(null); setReview(null); setImportDraft({ fileName: '', documentText: '', consent: false, fileBusy: false }); setError(''); setNotice(''); }}>{c.import}</button>}<button type="button" className="account-button secondary" disabled={!enabled || busy || loading} onClick={() => void load()}>{c.refresh}</button></div></div>
     {!enabled ? <p>{state.schemaVersion !== 4 || supportedSchemaVersion !== 4 ? c.upgrade : c.access}</p> : <>
       {!analysisAvailable && <p className="us-supplier-muted">{c.unavailable}</p>}
       {error && <p role="alert" className="us-supplier-feedback">{error}</p>}{notice && <output className="us-supplier-feedback">{notice}</output>}
       {loading && !read && <output>{c.loading}</output>}
       {pending && <section className="us-supplier-recovery" aria-label={c.waiting}><p>{c.waiting}</p><button type="button" className="account-button" disabled={disabled || busy || otherBlocked} onClick={() => void operate(session => session.retry())}>{c.retry}</button></section>}
-      {owned && importDraft && <section className="us-supplier-editor"><div className="us-supplier-heading"><h3>{c.import}</h3><button type="button" className="account-button secondary" disabled={editingBlocked || importDraft.fileBusy} onClick={back}>{c.close}</button></div><form onSubmit={prepare}><fieldset disabled={editingBlocked || importDraft.fileBusy || !analysisAvailable}>
+      {owned && !hideTextImport && importDraft && <section className="us-supplier-editor"><div className="us-supplier-heading"><h3>{c.import}</h3><button type="button" className="account-button secondary" disabled={editingBlocked || importDraft.fileBusy} onClick={back}>{c.close}</button></div><form onSubmit={prepare}><fieldset disabled={editingBlocked || importDraft.fileBusy || !analysisAvailable}>
         <label>{c.fileName}<input name="fileName" required maxLength={160} value={importDraft.fileName} onChange={event => setImportDraft(previous => previous ? { ...previous, fileName: event.target.value, consent: false } : previous)} /></label>
         <label>{c.file}<input name="file" type="file" accept=".txt,text/plain" onChange={event => void readFile(event.target.files?.[0])} /></label>
         <label>{c.text}<textarea name="documentText" required value={importDraft.documentText} maxLength={16_384} onChange={event => setImportDraft(previous => previous ? { ...previous, documentText: event.target.value, consent: false } : previous)} /></label><p className="us-supplier-muted">{c.plainText}</p>
