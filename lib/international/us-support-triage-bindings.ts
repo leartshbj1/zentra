@@ -5,6 +5,7 @@ import { parseUsSupportTriagePolicy } from './us-support-triage-policy';
 import { createUsSupportTriageMessageReader, createUsSupportTriageClassifier } from './us-support-triage-provider';
 import { UsSupportTriageError } from './us-support-triage-contract';
 import { createUsSupportTriageHandlers } from './us-support-triage-server';
+import { recordUsSupportTicketCompletion } from './us-support-ticket-bindings';
 
 export async function usSupportTriageEnabled(): Promise<boolean> {
   try {
@@ -24,6 +25,7 @@ export const usSupportTriageHandlers = createUsSupportTriageHandlers({
   async encryptionKey() { return (await import('../runtime')).runtimeValue('SUPPORT_ENCRYPTION_KEY'); },
   async providerReady() { return Boolean(await (await import('../automation/config')).decisionApiKey()); },
   message:createUsSupportTriageMessageReader(),
+  recordTicket: recordUsSupportTicketCompletion,
   async classify(message,grant,check) {
     await check(); const key = await (await import('../automation/config')).decisionApiKey(); await check();
     if (!key) throw new UsSupportTriageError('triage_provider_unavailable',503);

@@ -1,0 +1,53 @@
+.us-support-tickets{min-width:0;color:var(--ac-ink,#19251f)}
+.us-support-tickets .us-tickets-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.us-support-tickets .us-tickets-heading h2{margin:0}
+.us-support-tickets .us-tickets-description{max-width:70ch;color:var(--ac-muted,#626b66);font-size:.9375rem}
+.us-support-tickets .us-tickets-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:20px 0 12px}
+.us-support-tickets .us-tickets-tools>span{margin-left:auto;color:var(--ac-muted,#626b66);font-size:.8125rem}
+.us-support-tickets .us-tickets-tools button{min-height:44px;padding:9px 14px;border:1px solid var(--ac-line,#dce1de);border-radius:10px;background:transparent;color:inherit;font:inherit;font-size:.875rem;cursor:pointer;transition:background-color 150ms ease-out,color 150ms ease-out}
+.us-support-tickets .us-tickets-tools button[aria-pressed=true]{background:var(--ac-tint,#e9f0ec);color:var(--ac-accent,#225b40);border-color:var(--ac-accent,#225b40)}
+.us-support-tickets .us-tickets-tools button:hover{background:var(--ac-input,#f5f6f7)}
+.us-support-tickets .us-tickets-tools button:active{background:var(--ac-tint,#e9f0ec)}
+.us-support-tickets .us-tickets-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--ac-line,#dce1de)}
+.us-support-tickets .us-tickets-list>li{border-bottom:1px solid var(--ac-line,#dce1de)}
+.us-support-tickets .us-tickets-row{display:grid;grid-template-columns:minmax(7rem,1.15fr) minmax(7rem,1fr) minmax(5rem,.7fr) minmax(6rem,.85fr);gap:12px;align-items:center;width:100%;min-height:76px;padding:14px 12px;text-align:left;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;cursor:pointer;transition:background-color 150ms ease-out}
+.us-support-tickets .us-tickets-row:hover{background:var(--ac-input,#f5f6f7)}
+.us-support-tickets .us-tickets-row:active,.us-support-tickets .us-tickets-row[aria-expanded=true]{background:var(--ac-tint,#e9f0ec)}
+.us-support-tickets .us-tickets-row strong{font-size:.9375rem;font-weight:580}
+.us-support-tickets .us-tickets-row small{display:block;color:var(--ac-muted,#626b66);font-size:.8125rem;line-height:1.5;margin-top:3px}
+.us-support-tickets .us-tickets-row>span{font-size:.875rem;overflow-wrap:anywhere}
+.us-support-tickets .us-tickets-state{display:flex;align-items:flex-start;gap:7px;font-size:.8125rem;line-height:1.4}
+.us-support-tickets .us-tickets-state>span{display:block;overflow-wrap:normal;word-break:normal;hyphens:none}
+.us-support-tickets .us-tickets-state>span>span{white-space:nowrap}
+.us-support-tickets .us-tickets-state::before{content:'';width:6px;height:6px;flex:0 0 6px;margin-top:.4em;border-radius:50%;background:var(--ac-muted,#626b66)}
+.us-support-tickets .us-tickets-state[data-resolved=true]::before{background:var(--ac-accent,#225b40)}
+.us-support-tickets .us-tickets-detail{padding:24px 12px 12px;scroll-margin-top:24px}
+.us-support-tickets .us-tickets-detail h3{margin:0 0 16px;font-size:1.125rem;line-height:1.4;letter-spacing:-.02em}
+.us-support-tickets .us-tickets-detail h4{margin:24px 0 10px;font-size:.9375rem;font-weight:600}
+.us-support-tickets .us-tickets-origin{display:flex;gap:8px 24px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--ac-line,#dce1de);font-size:.875rem;color:var(--ac-muted,#626b66)}
+.us-support-tickets .us-tickets-editor{margin-top:20px}
+.us-support-tickets .us-tickets-editor .us-erp-grid{gap:14px}
+.us-support-tickets .us-tickets-editor select{min-height:44px;font-size:.9375rem}
+.us-support-tickets .us-tickets-editor .us-erp-actions{margin-top:4px}
+.us-support-tickets .us-tickets-stale,.us-support-tickets .us-tickets-pending{margin:16px 0;padding:14px 16px;border:1px solid var(--ac-line,#dce1de);border-radius:12px;background:var(--ac-input,#f5f6f7);font-size:.9375rem}
+.us-support-tickets .us-tickets-stale p,.us-support-tickets .us-tickets-pending p{margin-bottom:10px}
+.us-support-tickets .us-tickets-stale p:last-child,.us-support-tickets .us-tickets-pending p:last-child{margin-bottom:0}
+.us-support-tickets .us-tickets-audit{list-style:none;margin:0;padding:0}
+.us-support-tickets .us-tickets-audit>li{padding:10px 0;border-bottom:1px solid var(--ac-line,#dce1de);font-size:.875rem}
+.us-support-tickets .us-tickets-audit>li:last-child{border:0}
+.us-support-tickets .us-tickets-audit p{margin:3px 0 0;color:var(--ac-muted,#626b66);font-size:.8125rem}
+.us-support-tickets .us-tickets-rules{margin-top:24px;border-top:1px solid var(--ac-line,#dce1de);padding-top:20px}
+.us-support-tickets .us-tickets-rules>summary{min-height:44px;padding:8px 0;cursor:pointer;font-weight:580;font-size:1rem}
+.us-support-tickets .us-tickets-rule{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--ac-line,#dce1de)}
+.us-support-tickets .us-tickets-rule label{font-size:.875rem;font-weight:500}
+.us-support-tickets .us-tickets-rule select{min-height:44px;font-size:.875rem}
+.us-support-tickets .us-tickets-rules .us-erp-actions{margin-top:18px}
+.us-support-tickets .us-tickets-empty{padding:24px 0;color:var(--ac-muted,#626b66);max-width:65ch}
+.us-support-tickets .us-tickets-date,.us-support-tickets output{font-variant-numeric:tabular-nums}
+.us-support-tickets :is(input,select){caret-color:var(--ac-accent,#225b40);accent-color:var(--ac-accent,#225b40)}
+.us-support-tickets ::selection{background:var(--ac-tint,#e9f0ec);color:var(--ac-ink,#19251f)}
+.us-support-tickets :focus-visible{outline:3px solid var(--ac-accent,#225b40);outline-offset:3px}
+.us-support-tickets .us-tickets-row:focus-visible{outline-offset:-3px}
+.us-support-tickets button:disabled,.us-support-tickets select:disabled{cursor:default;opacity:.55}
+@media(max-width:620px){.us-support-tickets .us-tickets-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 16px;padding-inline:6px}.us-support-tickets .us-tickets-detail{padding-inline:6px}.us-support-tickets .us-tickets-rule{grid-template-columns:minmax(0,1fr);gap:6px}.us-support-tickets .us-tickets-tools>span{flex-basis:100%;margin-left:0}.us-support-tickets .us-tickets-heading{align-items:flex-start}.us-support-tickets .us-tickets-heading>.account-button{width:auto}}
+@media(prefers-reduced-motion:reduce){.us-support-tickets *{transition:none!important;scroll-behavior:auto}}

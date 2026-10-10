@@ -18,6 +18,9 @@ export interface UsSupportTriageDependencies {
   policy(this: void): Promise<UsSupportTriagePolicy>; providerReady(this: void): Promise<boolean>; encryptionKey(this: void): Promise<string>;
   message(this: void, connection: UsMailboxConnection, token: string, request: UsSupportTriageRequest, check: () => Promise<unknown>): Promise<UsSupportTriageMessage>;
   classify(this: void, message: UsSupportTriageMessage, grant: UsSupportTriageGrant, check: () => Promise<unknown>): Promise<UsSupportTriageDecision>;
+  /** Optional separately gated body-free Support lifecycle; never a provider,
+   * mail send or financial effect. Exact completed-result retries recover it. */
+  recordTicket?(this: void, context: UsMailboxContext, jobId: string, revalidate: () => Promise<UsMailboxContext>): Promise<void>;
   newId?(this: void): string;
   rateLimit?(this: void, request: Request, operation: 'read' | 'triage', key: string): Promise<void>;
   diagnostic?(this: void, event: Readonly<{ operation: 'read' | 'triage'; code: string; status: number }>): void;
@@ -48,8 +51,8 @@ function expected(request: Request, c: UsMailboxContext) {
   if (erpClientSchemaVersion(request) !== 4 || c.authority.credential.kind === 'device' && c.authority.credential.supportedSchemaVersion !== 4) denied('client_upgrade_required',409);
   if (!['owner','admin'].includes(c.authority.role)) denied('support_management_required',403);
 }
-/** Classification only. No mail acknowledgement, route, reply, supplier,
- * appointment or financial command port is present in this service. */
+/** Text classification with an optional durable internal ticket hook. No mail
+ * acknowledgement, reply, supplier, appointment or financial command port. */
 export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
   function handler(operation: 'read' | 'triage') {
     return async (request: Request, organizationId: string): Promise<Response> => {
@@ -84,6 +87,7 @@ export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
       }
       async function respond(r: UsSupportTriageResult) {
         const c = await current(), job = r.job;
+        if (job.state === 'completed' && d.recordTicket) { await d.recordTicket(c, job.id, current); await current(); }
         // Another first request may still be completing. An observed dispatch
         // is never permission for this HTTP request to repeat provider I/O.
         return Response.json({schemaVersion:1,organizationId,userId:c.authority.userId,role:c.authority.role,workspaceId:c.workspaceId,
@@ -102,7 +106,7 @@ export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
           input = validateUsSupportTriageRequest(await readJsonObjectWithinLimit(request,8192));
           requestHash = await hashUsSupportTriageRequest(organizationId,admitted.workspaceId,admitted.authority.userId,input);
           const saved = await store.find(await current(),input.requestId,requestHash); await current();
-          if (saved && result(saved).job.state !== 'reserved') return respond(result(saved));
+          if (saved && result(saved).job.state !== 'reserved') return await respond(result(saved));
         }
         capturedPolicy = parseUsSupportTriagePolicy(await d.policy());
         capturedGrant = createUsSupportTriageGrant(await current(),capturedPolicy); await inferenceCurrent();
@@ -135,21 +139,21 @@ export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
         const source = validateUsSupportTriageSource(message.source);
         if (source.provider !== connection.provider || source.mailboxId !== connection.mailboxId || source.folderId !== connection.folderId || source.uid !== input.uid || source.messageVersion !== input.expectedMessageVersion) denied('triage_source_conflict',409);
         const reserved = result(await store.claim(await connected(),{request:input,source,grant:capturedGrant},connected)); await connected();
-        if (reserved.job.state !== 'reserved') return respond(reserved);
+        if (reserved.job.state !== 'reserved') return await respond(reserved);
         if (canonicalErpJson(reserved.job.grant) !== canonicalErpJson(capturedGrant)) denied('triage_policy_changed',409);
         const candidateDispatchId = (d.newId ?? (() => crypto.randomUUID()))();
         const dispatched = await store.dispatch(await connected(),{requestId:input.requestId,requestHash,dispatchId:candidateDispatchId},connected);
         // Capture attempted durable dispatch before any further await. Even a
         // gate/Auth failure here cannot release a possibly emitted operation.
         const fenced = result(dispatched.result);
-        if (!dispatched.mayDispatch) return respond(fenced);
+        if (!dispatched.mayDispatch) return await respond(fenced);
         dispatchId = candidateDispatchId;
         if (fenced.job.state !== 'dispatched' || fenced.job.dispatchId !== dispatchId) denied('invalid_triage_record');
         await inferenceCurrent();
         const decision = validateUsSupportTriageDecision(await d.classify(message,capturedGrant,connected),{source,grant:capturedGrant}); await connected();
         const completed = result(await store.complete(await inferenceCurrent(),{requestId:input.requestId,requestHash,dispatchId,decision},inferenceCurrent)); await inferenceCurrent();
         if (completed.job.state !== 'completed' || canonicalErpJson(completed.job.result) !== canonicalErpJson(decision)) denied('invalid_triage_record');
-        return respond(completed);
+        return await respond(completed);
       } catch (error) {
         let outgoing = failure(error);
         // Auth/gate loss outranks a simultaneous private provider/store error.
@@ -160,7 +164,7 @@ export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
           if (outgoing.status === 422) outgoing = {code:'triage_provider_unavailable',status:503};
           try { await current(); } catch (late) { const f = failure(late); if ([401,402,403,404].includes(f.status)) outgoing = f; }
         }
-        d.diagnostic?.({operation,...outgoing});
+        try { d.diagnostic?.({operation,...outgoing}); } catch { /* Diagnostics never replace the confirmed public failure. */ }
         return Response.json({error:outgoing.code},{status:outgoing.status,headers});
       }
     };
