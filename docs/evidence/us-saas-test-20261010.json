@@ -1,0 +1,732 @@
+{
+  "schemaVersion": 1,
+  "phase": "US SaaS initial USD TEST payment → D1 READY",
+  "date": "2026-10-10",
+  "timeZone": "Europe/Zurich",
+  "sourceBase": "d3a92e036aa7c102b3e6cd65e50ec69c60869345",
+  "sourceCommit": "cf53d3a81bd32761131e5d9357ee43bdb0171e33",
+  "branch": "codex/international-runtime",
+  "scope": "Local source and tests only. No hosted/provider/resource/publication/native mutation.",
+  "files": [
+    {
+      "status": "A",
+      "path": "app/api/international/billing/test/recover/route.ts",
+      "gitBlobSha256": "a10d1be95c8778f998dd1b31c7f6ba1f7ae26e5eaadde7e5d34cf4562ef02d5e",
+      "worktreeSha256": "a10d1be95c8778f998dd1b31c7f6ba1f7ae26e5eaadde7e5d34cf4562ef02d5e"
+    },
+    {
+      "status": "A",
+      "path": "app/api/international/billing/test/route.ts",
+      "gitBlobSha256": "e1af5221cda3be3fab097af94fdafc5d437108fd7b09fa23fcb3823c2ee070f8",
+      "worktreeSha256": "e1af5221cda3be3fab097af94fdafc5d437108fd7b09fa23fcb3823c2ee070f8"
+    },
+    {
+      "status": "A",
+      "path": "app/api/international/billing/test/webhook/route.ts",
+      "gitBlobSha256": "6db5597bb27fb48691aa37032a1011c8f9d64cdbef6e8ba71139e1b1a469e0ae",
+      "worktreeSha256": "6db5597bb27fb48691aa37032a1011c8f9d64cdbef6e8ba71139e1b1a469e0ae"
+    },
+    {
+      "status": "M",
+      "path": "app/compte/espaces/page.tsx",
+      "gitBlobSha256": "1ff96a673eb21dd5b10d2dc49544a7afd774f9d3d7889a7be1d62d9eb1c0ff3d",
+      "worktreeSha256": "13916cf37d057e06a1cf4f2e3a4e8c424dfe8d803536c48cce2d87c2023ab4bb"
+    },
+    {
+      "status": "A",
+      "path": "app/compte/espaces/us/nouveau/page.tsx",
+      "gitBlobSha256": "996feafcc63620f8b7b4f22cf97b863a454ea205b86bfa5c2a25c0b8397449c6",
+      "worktreeSha256": "996feafcc63620f8b7b4f22cf97b863a454ea205b86bfa5c2a25c0b8397449c6"
+    },
+    {
+      "status": "A",
+      "path": "components/account/us-test-onboarding.css",
+      "gitBlobSha256": "2dc24fdfbab893095b095f5e083fad98acf99a8f5cf22f6e1fc0e8acf21d91d0",
+      "worktreeSha256": "2dc24fdfbab893095b095f5e083fad98acf99a8f5cf22f6e1fc0e8acf21d91d0"
+    },
+    {
+      "status": "A",
+      "path": "components/account/us-test-onboarding.tsx",
+      "gitBlobSha256": "d63399c38624136d020afcec5a3abc36f657924febd2de8f8afe578ec8fd8a59",
+      "worktreeSha256": "d63399c38624136d020afcec5a3abc36f657924febd2de8f8afe578ec8fd8a59"
+    },
+    {
+      "status": "M",
+      "path": "components/account/workspace-picker.tsx",
+      "gitBlobSha256": "a64bef7449e81c3e6245ad7b499e94d90ab51cedc6e59073ddb32c2c3ae04dc3",
+      "worktreeSha256": "928ae0f1b5ec0d749f0aa18847564b62b8754e7501af06a33c2b8da844bb851e"
+    },
+    {
+      "status": "M",
+      "path": "docs/internationalization/STATUS-20261009.md",
+      "gitBlobSha256": "6de95f00658bc208586b5f42d080a4c76d55a8ca14e0f3cfbf953fdd06e0416c",
+      "worktreeSha256": "6de95f00658bc208586b5f42d080a4c76d55a8ca14e0f3cfbf953fdd06e0416c"
+    },
+    {
+      "status": "A",
+      "path": "docs/internationalization/US-SAAS-TEST-DELIVERY-20261010.md",
+      "gitBlobSha256": "fb7a57964647fa69f5c373e6d500bbe59b3d979c7b14700800c2186bf8f66634",
+      "worktreeSha256": "fb7a57964647fa69f5c373e6d500bbe59b3d979c7b14700800c2186bf8f66634"
+    },
+    {
+      "status": "A",
+      "path": "docs/internationalization/US-SAAS-TEST-PLAN-20261010.md",
+      "gitBlobSha256": "189c9e8059465dd71c8d7605584d3c631256167815d4654c52c126aa89e8c5e1",
+      "worktreeSha256": "189c9e8059465dd71c8d7605584d3c631256167815d4654c52c126aa89e8c5e1"
+    },
+    {
+      "status": "M",
+      "path": "docs/internationalization/US-STAGING-READINESS-20261010.md",
+      "gitBlobSha256": "046afe8555d0662ef6ceda7ec809ed113a368b3d5ba68b6699d3d2ed7d441f80",
+      "worktreeSha256": "046afe8555d0662ef6ceda7ec809ed113a368b3d5ba68b6699d3d2ed7d441f80"
+    },
+    {
+      "status": "A",
+      "path": "drizzle/0091_international_us_saas_test_checkout.sql",
+      "gitBlobSha256": "e63f137d03a39bac04007dafed3528783bd2e49c496f90e7ef386770aadba77e",
+      "worktreeSha256": "e63f137d03a39bac04007dafed3528783bd2e49c496f90e7ef386770aadba77e"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/browser-us-test-onboarding.test.ts",
+      "gitBlobSha256": "96430d410500e58af62d0eb304322c13c94836f3acd4ba6347ec1a7eb5d2342e",
+      "worktreeSha256": "96430d410500e58af62d0eb304322c13c94836f3acd4ba6347ec1a7eb5d2342e"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/browser-us-test-onboarding.ts",
+      "gitBlobSha256": "adfceb1c7b7142f941599df2f4027069b120dd725068515775124d537f665107",
+      "worktreeSha256": "adfceb1c7b7142f941599df2f4027069b120dd725068515775124d537f665107"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/saas-authority-d1.ts",
+      "gitBlobSha256": "247a09675b68e55141f6fd4898e61cc0c3a4846aae18eed7d2d9b43aaaa5b260",
+      "worktreeSha256": "247a09675b68e55141f6fd4898e61cc0c3a4846aae18eed7d2d9b43aaaa5b260"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/saas-authority.test.ts",
+      "gitBlobSha256": "9828edc236359c7d43b3801a4512e20706466559304fc118c4d2342ac9388581",
+      "worktreeSha256": "b364a752f25bb8c1cdf9d360bee0c600e8c0998bd4253339fcb65f9721008619"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-bindings.test.ts",
+      "gitBlobSha256": "035f47cba680c3305633c932c7327e538d09146624dfd53cd6f699f6f691286b",
+      "worktreeSha256": "035f47cba680c3305633c932c7327e538d09146624dfd53cd6f699f6f691286b"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-bindings.ts",
+      "gitBlobSha256": "97be9786583c241dd9990c1e01456703412eca8074ffa7225faca3bd92659d9e",
+      "worktreeSha256": "97be9786583c241dd9990c1e01456703412eca8074ffa7225faca3bd92659d9e"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-contract.ts",
+      "gitBlobSha256": "6423042beba6d85d0ab6d9e54e0bc9cef9ac0900ad2dc0eb85f54fbb7c1798f7",
+      "worktreeSha256": "6423042beba6d85d0ab6d9e54e0bc9cef9ac0900ad2dc0eb85f54fbb7c1798f7"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-d1.test.ts",
+      "gitBlobSha256": "077ed9575f8fd2454a8cfb9e63a90394727453b427699ab4525d31f7cd3f8b47",
+      "worktreeSha256": "077ed9575f8fd2454a8cfb9e63a90394727453b427699ab4525d31f7cd3f8b47"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-d1.ts",
+      "gitBlobSha256": "301d6c8fa5e2742dfed11af5b45611b48d4e45138a8a14d56ce625c39f50d18a",
+      "worktreeSha256": "301d6c8fa5e2742dfed11af5b45611b48d4e45138a8a14d56ce625c39f50d18a"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-public.ts",
+      "gitBlobSha256": "b85f2609a5a26bc6188f8db5850a0e72b5778767a369bff5024103816b73b729",
+      "worktreeSha256": "b85f2609a5a26bc6188f8db5850a0e72b5778767a369bff5024103816b73b729"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-server.test.ts",
+      "gitBlobSha256": "ce6150a17f7eabad859f8b2a56408cf6c88e0a1a436a3ba477ad913927cfdb28",
+      "worktreeSha256": "ce6150a17f7eabad859f8b2a56408cf6c88e0a1a436a3ba477ad913927cfdb28"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-server.ts",
+      "gitBlobSha256": "2321dc6fdff31d49c047d697335b56e63b6e7143fb4bbb11a4a8697535ca3354",
+      "worktreeSha256": "2321dc6fdff31d49c047d697335b56e63b6e7143fb4bbb11a4a8697535ca3354"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-stripe.test.ts",
+      "gitBlobSha256": "1297da12b23a242ebe66ba173d54831a2a479c5df9b5ecd3912bdfdadc0bb795",
+      "worktreeSha256": "1297da12b23a242ebe66ba173d54831a2a479c5df9b5ecd3912bdfdadc0bb795"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-saas-test-stripe.ts",
+      "gitBlobSha256": "cc65b97a85361fb06d92107a5ac2c61ef20b0c94870da839566d367c1b786b7f",
+      "worktreeSha256": "cc65b97a85361fb06d92107a5ac2c61ef20b0c94870da839566d367c1b786b7f"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-test-onboarding-copy.ts",
+      "gitBlobSha256": "96a2ead8bddeb6dd2850680f99867786d587f9dcef425155deaa8a1c54b45e54",
+      "worktreeSha256": "96a2ead8bddeb6dd2850680f99867786d587f9dcef425155deaa8a1c54b45e54"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-test-onboarding-page.test.ts",
+      "gitBlobSha256": "ee2cb6b03be11b75cfa4d37bc9a2428ee2662343d55f737c3f64c64ec8cf5c27",
+      "worktreeSha256": "ee2cb6b03be11b75cfa4d37bc9a2428ee2662343d55f737c3f64c64ec8cf5c27"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-test-onboarding-ui.test.ts",
+      "gitBlobSha256": "0369e04427015bbdbf1295b12fc0ad4ca2adcec6a1dcb8bd6e8ab9b8ac8e1860",
+      "worktreeSha256": "0369e04427015bbdbf1295b12fc0ad4ca2adcec6a1dcb8bd6e8ab9b8ac8e1860"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-test-onboarding.browser.test.ts",
+      "gitBlobSha256": "93c53793163dcbeece6a886eaf1086cb9e62bd3de8d9b2b8f88dc816e7d880e5",
+      "worktreeSha256": "93c53793163dcbeece6a886eaf1086cb9e62bd3de8d9b2b8f88dc816e7d880e5"
+    },
+    {
+      "status": "A",
+      "path": "lib/international/us-test-onboarding.test-fixtures.ts",
+      "gitBlobSha256": "1aaffbafd65f634ab707aa0a9acdf1879e916f64e9289d960bfe0c00afc48bbf",
+      "worktreeSha256": "1aaffbafd65f634ab707aa0a9acdf1879e916f64e9289d960bfe0c00afc48bbf"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/workspace-creation-review.test.ts",
+      "gitBlobSha256": "038cb70a2b369c9828a6fc907c967790f90e2e78d289d52db4a5925edb10ef25",
+      "worktreeSha256": "038cb70a2b369c9828a6fc907c967790f90e2e78d289d52db4a5925edb10ef25"
+    },
+    {
+      "status": "M",
+      "path": "lib/international/workspace-creation-server.ts",
+      "gitBlobSha256": "4d7078e705278a8bcf907dc68a953fd2cc2c43c1b674b4b375b7f889c54f1a80",
+      "worktreeSha256": "4d7078e705278a8bcf907dc68a953fd2cc2c43c1b674b4b375b7f889c54f1a80"
+    },
+    {
+      "status": "A",
+      "path": "tests/us-test-onboarding-preview.html",
+      "gitBlobSha256": "ad577443792bc8cf6998e23e87ab9365cf534c8e80ab03af1767bc90182d5f6b",
+      "worktreeSha256": "ad577443792bc8cf6998e23e87ab9365cf534c8e80ab03af1767bc90182d5f6b"
+    },
+    {
+      "status": "A",
+      "path": "tests/us-test-onboarding-preview.tsx",
+      "gitBlobSha256": "54d7b84bc5af0ef96ad4b3639914e1b93a7f30e0f077191319a06568e7da370c",
+      "worktreeSha256": "54d7b84bc5af0ef96ad4b3639914e1b93a7f30e0f077191319a06568e7da370c"
+    }
+  ],
+  "checks": {
+    "units": {
+      "path": ".qa/us-saas-test/units-final.json",
+      "sha256": "5497c4ee088f762db3855c95ab2da4824ec9c09ec40b9dc74e8fc7749acd26c9",
+      "success": true,
+      "total": 492,
+      "passed": 492,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "pendingSuites": 0,
+      "files": [
+        {
+          "path": "lib/stripe-checkout.test.ts",
+          "status": "passed",
+          "tests": 9
+        },
+        {
+          "path": "lib/stripe-contract.test.ts",
+          "status": "passed",
+          "tests": 6
+        },
+        {
+          "path": "lib/stripe-event.test.ts",
+          "status": "passed",
+          "tests": 34
+        },
+        {
+          "path": "lib/stripe-webhook-proof.test.ts",
+          "status": "passed",
+          "tests": 2
+        },
+        {
+          "path": "lib/stripe-webhook.test.ts",
+          "status": "passed",
+          "tests": 5
+        },
+        {
+          "path": "lib/international/browser-us-test-onboarding.test.ts",
+          "status": "passed",
+          "tests": 35
+        },
+        {
+          "path": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "tests": 47
+        },
+        {
+          "path": "lib/international/us-device-bindings.test.ts",
+          "status": "passed",
+          "tests": 20
+        },
+        {
+          "path": "lib/international/us-saas-test-bindings.test.ts",
+          "status": "passed",
+          "tests": 15
+        },
+        {
+          "path": "lib/international/us-saas-test-d1.test.ts",
+          "status": "passed",
+          "tests": 46
+        },
+        {
+          "path": "lib/international/us-saas-test-server.test.ts",
+          "status": "passed",
+          "tests": 25
+        },
+        {
+          "path": "lib/international/us-saas-test-stripe.test.ts",
+          "status": "passed",
+          "tests": 82
+        },
+        {
+          "path": "lib/international/us-team-bindings.test.ts",
+          "status": "passed",
+          "tests": 47
+        },
+        {
+          "path": "lib/international/us-test-onboarding-page.test.ts",
+          "status": "passed",
+          "tests": 6
+        },
+        {
+          "path": "lib/international/us-test-onboarding-ui.test.ts",
+          "status": "passed",
+          "tests": 5
+        },
+        {
+          "path": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "tests": 26
+        },
+        {
+          "path": "lib/international/workspace-creation-review.test.ts",
+          "status": "passed",
+          "tests": 34
+        },
+        {
+          "path": "lib/international/workspace-creation.test.ts",
+          "status": "passed",
+          "tests": 48
+        }
+      ],
+      "exitCode": 0
+    },
+    "browser": {
+      "path": ".qa/us-saas-test/browser-final.json",
+      "sha256": "6cb68dac534a61a487bcdd118080b46d52428dacfe04df1ef76b2a7f32d04382",
+      "success": true,
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "pendingSuites": 0,
+      "files": [
+        {
+          "path": "lib/international/us-test-onboarding.browser.test.ts",
+          "status": "passed",
+          "tests": 1
+        }
+      ],
+      "exitCode": 0
+    },
+    "selectedTotal": 493,
+    "typecheck": {
+      "exitCode": 0,
+      "report": ".qa/us-saas-test/typecheck-final.log"
+    },
+    "lint": {
+      "exitCode": 0,
+      "report": ".qa/us-saas-test/lint-final.json",
+      "files": 29,
+      "diagnostics": 0,
+      "typeAware": true
+    },
+    "brand": {
+      "exitCode": 0,
+      "report": ".qa/us-saas-test/brand-final.log"
+    },
+    "build": {
+      "exitCode": 0,
+      "report": ".qa/us-saas-test/build-final.log",
+      "profile": "production selected by default, both build-selection env variables removed in the child shell",
+      "warnings": "Existing middleware deprecation/static analysis route classification; see raw log."
+    },
+    "diffCheck": {
+      "exitCode": 0
+    }
+  },
+  "browserEvidence": {
+    "path": ".qa/us-saas-test/browser/evidence.json",
+    "sha256": "ecd9358b647648a4aa9b8298ccdff6e7884335d6171c56c3647aaca71e77c096",
+    "scope": "Actual React UI with synthetic in-memory HTTP; backend HTTP/SQLite tested separately; no provider/hosted/native proof.",
+    "metricsCases": 24,
+    "allScrollWidthsWithinViewport": true,
+    "screenshots": [
+      {
+        "path": ".qa/us-saas-test/browser/offers-fr-light-320-text200.png",
+        "sha256": "ad7df8c78181ce71a61f260b045aa552efe3ca2f09e86d25f8eec7f375893826",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/offers-fr-dark-320-text200.png",
+        "sha256": "26a79fd668bd8a188eee59ffc80e8f71c4ebb17341b32c443052b8696238690f",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/offers-de-light-320-text200.png",
+        "sha256": "3cfdc6f5bf77614f210b2ff7ce8e98a40b7a3cae773a68ea8093faf26a38d099",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/offers-de-dark-320-text200.png",
+        "sha256": "f9bb107d384a6d49399052baa2f4b2275b5de8375b3b8cef164f9aa1e88d4ec6",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/offers-it-light-320-text200.png",
+        "sha256": "30da09288e50eed11d7d753cda1e7871ffcebf2523916614764a694b03eb9a94",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/offers-it-dark-320-text200.png",
+        "sha256": "139d1e7aacf40d9cc0399deaffa7dab17ed6191865bce5e66494e0b1eb7f4d1f",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/offers-en-light-320-text200.png",
+        "sha256": "5dba3ca80c48f66bc33b87aff392ce08d8fed8faeeddf5b9127fce1562d95a3b",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/offers-en-dark-320-text200.png",
+        "sha256": "90528f275d637bd1767c5e91172ed54bcf55ed484de8901c57bb67a74380e378",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/creation-en-light-1280.png",
+        "sha256": "e04b7217cf3cd35d20ebfe46bc2edfb4dda259bdcfe9c39eb42e856ef0f47adc",
+        "visuallyOpened": true
+      },
+      {
+        "path": ".qa/us-saas-test/browser/creation-en-dark-1280.png",
+        "sha256": "46c131f66f111d94e1d6c2e7b19fadb1caca85c575158768055db0006e71897a",
+        "visuallyOpened": true
+      }
+    ],
+    "errors": []
+  },
+  "reports": [
+    {
+      "path": ".qa/us-saas-test/authority-clock-diagnostic.json",
+      "sha256": "3c96c9c0243fd008adb8b63e29f848a379c29d55050b4b19e6e5e3765ce8b28c"
+    },
+    {
+      "path": ".qa/us-saas-test/authority-clock-diagnostic2.json",
+      "sha256": "d4bcd71342958bc965fbb42f77a5c568d7836d86e29997e940a733d162c68fdc"
+    },
+    {
+      "path": ".qa/us-saas-test/authority-targeted-before.json",
+      "sha256": "889308c5805d2aa2a24b91f30c1707aa325c612007b8a577760e34efe847f010",
+      "success": true,
+      "total": 46,
+      "passed": 46,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/authority-targeted-final.json",
+      "sha256": "944b5c2dfa02932d64c2a2628f5c256058c14df84e57cc81a64dae93bade2bbf",
+      "success": true,
+      "total": 47,
+      "passed": 47,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-saas-test/browser-final.json",
+      "sha256": "6cb68dac534a61a487bcdd118080b46d52428dacfe04df1ef76b2a7f32d04382",
+      "success": true,
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/browser-first.json",
+      "sha256": "2453eb1e00d5101e4c33eb983fe424aa660cbcc48f9ca1a9e53fd66fed034fd8",
+      "success": false,
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/browser-second.json",
+      "sha256": "d92733b61ed1dc18c3fffd0abc7bac54388aea03efae4d9413da7aa920bd5137",
+      "success": true,
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/build-final.log",
+      "sha256": "1a6bc3da2238a6a0da7bd5f5d1587d99a5e4fcc30afa6baeebc28feca5f44d0e"
+    },
+    {
+      "path": ".qa/us-saas-test/combined-final.json",
+      "sha256": "d76602b0aaa6580be55192a938444a53c34b455ca66737dbdd9b509f4384622d",
+      "success": true,
+      "total": 445,
+      "passed": 445,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/d1-initial.json",
+      "sha256": "1beb53ae3d5f4493a4e8b85c4a85fa5be4dba0f9683f248eaf9605d310e507c0",
+      "success": false,
+      "total": 36,
+      "passed": 10,
+      "failed": 26,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/d1-repair1.json",
+      "sha256": "d76f02b05d8914defca42816b7179a3b0dcadf82c7b039d3ff318c4e4382e12d",
+      "success": false,
+      "total": 37,
+      "passed": 36,
+      "failed": 1,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/d1-repair2.json",
+      "sha256": "27786868116e475a8357ea6966706a11f3849d3df8c8c826fd6328e272eb6592",
+      "success": true,
+      "total": 46,
+      "passed": 46,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/d1-sql-diagnostic.json",
+      "sha256": "0803d4ab66e75fb2be7f12ea9bac6a7f23f825c3e4fc4953c7567855a4fefbd0",
+      "success": false,
+      "total": 37,
+      "passed": 0,
+      "failed": 1,
+      "pending": 36
+    },
+    {
+      "path": ".qa/us-saas-test/lint-final.json",
+      "sha256": "8b49bb42f0b0811e7a8530942a181e1a1227f6dba0217c265133c19a7a927816"
+    },
+    {
+      "path": ".qa/us-saas-test/lint-wide-first.json",
+      "sha256": "d3ee907453a679a14de88971955083f16a584aa88b677ae4c5ba76c9443a6686"
+    },
+    {
+      "path": ".qa/us-saas-test/regression-first.json",
+      "sha256": "0147d1e04d5c185e624560598434220873d5fc55e311711e5299c425396305dc",
+      "success": false,
+      "total": 276,
+      "passed": 275,
+      "failed": 1,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/root-first.json",
+      "sha256": "bdf2d570434949d6ebaf554f25f8d26350b1ac3b82d21968a56b7e02ec0ac513",
+      "success": true,
+      "total": 35,
+      "passed": 35,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/stripe-gateway-final-82.json",
+      "sha256": "97e1a224a4301d504b77368f6dc94b75ef11799440ab536ef8b8aa7173c7bff1",
+      "success": true,
+      "total": 82,
+      "passed": 82,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/stripe-gateway-final.json",
+      "sha256": "0235c9d332c361def3e60404252cfa866b307f3876a76ec500a8a34f84a8bdcc",
+      "success": true,
+      "total": 76,
+      "passed": 76,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/stripe-gateway-first.json",
+      "sha256": "b4cd656c1f3701300c92060701713f226489a644855c48d8896beaae6b833788",
+      "success": false,
+      "total": 72,
+      "passed": 17,
+      "failed": 55,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/stripe-gateway-sdk-final.json",
+      "sha256": "370d90b9f3f8934fd57736780fa10e2af07bc5de84a1681ef97a68c40cc0bfea",
+      "success": false,
+      "total": 77,
+      "passed": 76,
+      "failed": 1,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/stripe-gateway-sdk-second.json",
+      "sha256": "d0af5dbf9cf33d230be0e3d1de506e3e13ed08698352dfbd037c99d5152dc8f7",
+      "success": true,
+      "total": 77,
+      "passed": 77,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/stripe-gateway-sdk-third.json",
+      "sha256": "96644eddf63fb54fb8a4e33f6209895990b1400689cce07e485b25b94fd2b2fb",
+      "success": false,
+      "total": 77,
+      "passed": 76,
+      "failed": 1,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/stripe-gateway-second.json",
+      "sha256": "34b1691a72606efb315e31415ff3f84fca57d4fdc36fa35b9915a912a97962ab",
+      "success": true,
+      "total": 72,
+      "passed": 72,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/typecheck-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-saas-test/units-final.json",
+      "sha256": "5497c4ee088f762db3855c95ab2da4824ec9c09ec40b9dc74e8fc7749acd26c9",
+      "success": true,
+      "total": 492,
+      "passed": 492,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/units-wide-first.json",
+      "sha256": "e08e375651ddc7d4e9f14cf152fda57ac203a9c42ca65c309f19edc37eaab0dc",
+      "success": false,
+      "total": 491,
+      "passed": 490,
+      "failed": 1,
+      "pending": 0
+    },
+    {
+      "path": ".qa/us-saas-test/wrangler-migration.json",
+      "sha256": "bd98907d71ecbcdf3b0803b45680f1cc8dd7b35c0ad5b24638d1a27b197cfc23"
+    }
+  ],
+  "additionalFinalReports": [
+    {
+      "path": ".qa/us-test-onboarding/ui-unit-final.json",
+      "sha256": "64a0a5559b0ea087a3882a57d7b532506095e14b68286387103022d167b8938d",
+      "subsetOfUnits": true
+    }
+  ],
+  "migration": {
+    "path": "drizzle/0091_international_us_saas_test_checkout.sql",
+    "creation": "Wrangler CLI local; raw SQL chain reconciled in Node SQLite through0091",
+    "provenance": ".qa/us-saas-test/wrangler-migration.json",
+    "remoteApplied": false,
+    "postgresModified": false,
+    "additive": true
+  },
+  "preservation": {
+    "protectedFiles": [
+      {
+        "path": "lib/stripe.ts",
+        "gitBlobSha256": "be3dc400dbd65219417392eb38eb5fdcf3dda47416acde7ea47888efce0e3ce6",
+        "unchanged": true
+      },
+      {
+        "path": "lib/stripe-webhook.ts",
+        "gitBlobSha256": "467adbb50213bc0dd4469ab9ca52fee743ad905faa9aadb080f0d3c067e0c93c",
+        "unchanged": true
+      },
+      {
+        "path": "lib/stripe-checkout.ts",
+        "gitBlobSha256": "ff8a7b7899b340728660ba9e5e1c32371d18ebe83c6c358d2fd815253ce8c8c3",
+        "unchanged": true
+      },
+      {
+        "path": "config/deployment-profile.production.json",
+        "gitBlobSha256": "8ef00f4b8cb1d5db08d4fd7f737e034cb2c873ca324bc3155aa08a36ee951e05",
+        "unchanged": true
+      }
+    ],
+    "earlierSqlUnchanged": true,
+    "publicCheckout": {
+      "head": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+      "cleanObserved": true
+    },
+    "nativeCheckout": {
+      "head": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+      "cleanObserved": true
+    },
+    "originalCwd": "C:/Users/alb/Documents/ChatGPT/chantier was not edited/reset",
+    "hostedMutation": false,
+    "providerCall": false,
+    "newCredential": false,
+    "publication": false,
+    "regionChange": false,
+    "nativeBuild": false
+  },
+  "earlierFailures": {
+    "retained": true,
+    "details": "Prefix-length SQL guard and duplicate CH fixture subscription repaired without weakening guards; revoked-authority expectation corrected; SDK Decimal incompatibility fixed with real SDK/fetch test; exact-label browser locator and lint annotations/config spelling corrected. One wider authority admission failure was not reproduced individually; SQL/Node fixture clocks aligned and deliberate ahead-clock rejection tested. Precise original cause remains unproven."
+  },
+  "limits": [
+    "Initial TEST card payment only; no SaaS tax/trial/discount/credit/partial/off-Stripe evidence.",
+    "Late recovery bounded to100 sessions, no automatic replacement of expired/ambiguous purchase.",
+    "No renewals/plan changes/cancel/refund/dispute/provider-revocation synchronization; immutable initial authority expires.",
+    "SDK22.6 Decimal representation pinned and real-SDK transport test required before upgrade.",
+    "Node SQLite and synthetic browser/Auth/PG/provider fixtures do not prove hosted workerd D1/Auth/PG/Stripe composition, physical native devices, scale or legal/accounting compliance.",
+    "Default production profile remains closed; staging resources/migrations/provider configuration/publication require explicit approval.",
+    "Full CH QR/TVA/native tests not rerun in this phase; selected CH Stripe regressions and unchanged source hashes only."
+  ],
+  "goalComplete": false
+}
