@@ -2,11 +2,12 @@ import {beforeEach,describe,it,expect,vi} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {createElement} from 'react';
 import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
-const f=vi.hoisted(()=>({user:vi.fn(),requireUser:vi.fn(),enabled:vi.fn(),erpReadiness:vi.fn(),bank:vi.fn(),supplier:vi.fn(),documents:vi.fn(),team:vi.fn(),sync:vi.fn(),tax:vi.fn(),supportWorkspace:vi.fn(),supportMailbox:vi.fn(),supportImport:vi.fn(),supportTriage:vi.fn(),supportTickets:vi.fn(),supportWorker:vi.fn(),spaces:vi.fn(),access:vi.fn(),preferences:vi.fn(),language:'en',pathname:'/compte/espaces',query:new URLSearchParams()}));
+const f=vi.hoisted(()=>({user:vi.fn(),requireUser:vi.fn(),enabled:vi.fn(),erpReadiness:vi.fn(),salesOrders:vi.fn(),bank:vi.fn(),supplier:vi.fn(),documents:vi.fn(),team:vi.fn(),sync:vi.fn(),tax:vi.fn(),supportWorkspace:vi.fn(),supportMailbox:vi.fn(),supportImport:vi.fn(),supportTriage:vi.fn(),supportTickets:vi.fn(),supportWorker:vi.fn(),spaces:vi.fn(),access:vi.fn(),preferences:vi.fn(),language:'en',pathname:'/compte/espaces',query:new URLSearchParams()}));
 vi.mock('@/app/zentra-auth',()=>({getZentraUser:f.user,requireZentraUser:f.requireUser}));
 vi.mock('@/lib/account-workspaces',()=>({accountWorkspaceDiscoveryEnabled:f.enabled,accountWorkspacesForUser:f.spaces,AccountWorkspaceDiscoveryError:class extends Error{}}));
 vi.mock('@/lib/international/saas-authority-d1',()=>({requireUsWorkspaceAccess:f.access}));
 vi.mock('@/lib/international/export-bindings',()=>({usExportReadiness:f.erpReadiness}));
+vi.mock('@/lib/international/us-sales-order-bindings',()=>({usSalesOrderReadiness:f.salesOrders}));
 vi.mock('@/lib/international/us-bank-bindings',()=>({usBankReadiness:f.bank}));
 vi.mock('@/lib/international/us-supplier-bindings',()=>({usSupplierReadiness:f.supplier}));
 vi.mock('@/lib/international/us-supplier-document-bindings',()=>({usSupplierDocumentsReadiness:f.documents}));
@@ -22,7 +23,7 @@ vi.mock('@/lib/international/us-support-worker-bindings',()=>({usSupportWorkerEn
 vi.mock('@/lib/account-preferences',()=>({accountPreferences:f.preferences}));
 vi.mock('@/lib/site-language-server',()=>({getSiteLanguage:async()=>f.language}));
 vi.mock('@/components/account/account-forms',()=>({ProfileForms:()=>createElement('div',null,'profile-fixture'),SecurityForms:()=>createElement('div',null,'security-fixture'),AppearanceForm:()=>createElement('div',null,'appearance-fixture')}));
-vi.mock('@/components/account/us-erp-workbench',()=>({UsErpWorkbench:({organizationId,role,language,expectedUserId,salesEnabled,invoiceIssuanceAvailable,supportedSchemaVersion,supportWorkspaceEnabled,supportMailboxEnabled,supportMailImportEnabled,supportTriageEnabled,supportTicketsEnabled,supportWorkerEnabled}:{organizationId:string;role:string;language:string;expectedUserId:string;salesEnabled:boolean;invoiceIssuanceAvailable:boolean;supportedSchemaVersion:1|2|3|4;supportWorkspaceEnabled:boolean;supportMailboxEnabled:boolean;supportMailImportEnabled:boolean;supportTriageEnabled:boolean;supportTicketsEnabled:boolean;supportWorkerEnabled:boolean})=>createElement('section',{'data-workspace':organizationId,'data-role':role,'data-language':language,'data-expected-user':expectedUserId,'data-sales':String(salesEnabled),'data-issuance':String(invoiceIssuanceAvailable),'data-schema':supportedSchemaVersion,'data-support-workspace':String(supportWorkspaceEnabled),'data-support-mailbox':String(supportMailboxEnabled),'data-support-import':String(supportMailImportEnabled),'data-support-triage':String(supportTriageEnabled),'data-support-tickets':String(supportTicketsEnabled),'data-support-worker':String(supportWorkerEnabled)},'erp-workbench-fixture')}));
+vi.mock('@/components/account/us-erp-workbench',()=>({UsErpWorkbench:({organizationId,role,language,expectedUserId,salesEnabled,invoiceIssuanceAvailable,supportedSchemaVersion,salesOrdersAvailable,newSalesOrdersEnabled,supportWorkspaceEnabled,supportMailboxEnabled,supportMailImportEnabled,supportTriageEnabled,supportTicketsEnabled,supportWorkerEnabled}:{organizationId:string;role:string;language:string;expectedUserId:string;salesEnabled:boolean;invoiceIssuanceAvailable:boolean;supportedSchemaVersion:1|2|3|4;salesOrdersAvailable:boolean;newSalesOrdersEnabled:boolean;supportWorkspaceEnabled:boolean;supportMailboxEnabled:boolean;supportMailImportEnabled:boolean;supportTriageEnabled:boolean;supportTicketsEnabled:boolean;supportWorkerEnabled:boolean})=>createElement('section',{'data-workspace':organizationId,'data-role':role,'data-language':language,'data-expected-user':expectedUserId,'data-sales':String(salesEnabled),'data-issuance':String(invoiceIssuanceAvailable),'data-schema':supportedSchemaVersion,'data-sales-orders':String(salesOrdersAvailable),'data-new-sales-orders':String(newSalesOrdersEnabled),'data-support-workspace':String(supportWorkspaceEnabled),'data-support-mailbox':String(supportMailboxEnabled),'data-support-import':String(supportMailImportEnabled),'data-support-triage':String(supportTriageEnabled),'data-support-tickets':String(supportTicketsEnabled),'data-support-worker':String(supportWorkerEnabled)},'erp-workbench-fixture')}));
 vi.mock('@/components/account/us-support-workspace-panel',()=>({UsSupportWorkspacePanel:({organizationId,role,language,expectedUserId,mailboxEnabled,importEnabled,triageEnabled,ticketsEnabled,workerEnabled}:{organizationId:string;role:string;language:string;expectedUserId:string;mailboxEnabled:boolean;importEnabled:boolean;triageEnabled:boolean;ticketsEnabled:boolean;workerEnabled:boolean})=>createElement('section',{'data-workspace':organizationId,'data-role':role,'data-language':language,'data-expected-user':expectedUserId,'data-support-mailbox':String(mailboxEnabled),'data-support-import':String(importEnabled),'data-support-triage':String(triageEnabled),'data-support-tickets':String(ticketsEnabled),'data-support-worker':String(workerEnabled)},'support-workspace-fixture')}));
 vi.mock('@/components/account/us-team-panel',()=>({UsTeamPanel:()=>createElement('section',null,'team-fixture')}));
 vi.mock('@/components/zentra-sign-out',()=>({ZentraSignOut:()=>createElement('button',null,'Sign out')}));
@@ -41,7 +42,7 @@ const us={organizationId:id,name:company,edition:'us_experimental' as const,role
 const ch={organizationId:'ch-old',organizationName:'Suisse SA',role:'owner' as const};
 const page=(reglage='')=>UsWorkspacePage({params:Promise.resolve({organizationId:id}),searchParams:Promise.resolve({reglage})});
 const html=(node:Parameters<typeof renderToStaticMarkup>[0])=>renderToStaticMarkup(node);
-beforeEach(()=>{vi.resetAllMocks();f.user.mockResolvedValue(user);f.requireUser.mockResolvedValue(user);f.enabled.mockResolvedValue(true);f.erpReadiness.mockResolvedValue({enabled:true,supportedSchemaVersion:2});for(const gate of [f.bank,f.supplier,f.documents,f.team,f.sync,f.tax,f.supportWorkspace,f.supportMailbox,f.supportImport,f.supportTriage,f.supportTickets,f.supportWorker])gate.mockResolvedValue(false);f.spaces.mockResolvedValue([us]);f.access.mockResolvedValue({organizationId:id,userId:owner,role:'owner'});f.preferences.mockResolvedValue({theme:'dark',companyDraft:'',onboardingCompletedAt:null,revision:0});f.language='en';f.pathname='/compte/espaces';f.query=new URLSearchParams();});
+beforeEach(()=>{vi.resetAllMocks();f.user.mockResolvedValue(user);f.requireUser.mockResolvedValue(user);f.enabled.mockResolvedValue(true);f.erpReadiness.mockResolvedValue({enabled:true,supportedSchemaVersion:2});f.salesOrders.mockResolvedValue({available:false,newOrdersEnabled:false});for(const gate of [f.bank,f.supplier,f.documents,f.team,f.sync,f.tax,f.supportWorkspace,f.supportMailbox,f.supportImport,f.supportTriage,f.supportTickets,f.supportWorker])gate.mockResolvedValue(false);f.spaces.mockResolvedValue([us]);f.access.mockResolvedValue({organizationId:id,userId:owner,role:'owner'});f.preferences.mockResolvedValue({theme:'dark',companyDraft:'',onboardingCompletedAt:null,revision:0});f.language='en';f.pathname='/compte/espaces';f.query=new URLSearchParams();});
 describe('isolated authenticated workspace surfaces',()=>{
  it('renders only metadata and uses read-only account auth',async()=>{const output=html(await WorkspacePage());expect(output).toContain(company.replace('&','&amp;'));expect(output).toContain('/compte/espaces/us/'+id);expect(output).not.toMatch(/subscriptionId|authority|receipt|EIN|configuration|price_/);expect(f.requireUser).toHaveBeenCalledWith('/compte/espaces',{offerAccess:false});expect(f.user).toHaveBeenCalledWith({offerAccess:false});});
  it('never returns previous account companies after a session switch',async()=>{f.user.mockResolvedValue({...user,userId:'other'});expect(html(await WorkspacePage())).not.toContain(company);});
@@ -59,6 +60,47 @@ describe('isolated authenticated workspace surfaces',()=>{
  it('exposes only server-negotiated read capability and keeps real invoice issuance closed',async()=>{const output=html(await page('gestion'));expect(output).toContain('data-sales="true"');expect(output).toContain('data-schema="2"');expect(output).toContain('data-issuance="false"');});
  it('does not open sales or schema two when the trusted ERP binding is unavailable',async()=>{f.erpReadiness.mockResolvedValue({enabled:false,supportedSchemaVersion:1});const output=html(await page('gestion'));expect(output).toContain('data-sales="false"');expect(output).toContain('data-schema="1"');expect(output).toContain('data-issuance="false"');});
  it('checks the account again after waiting for export readiness',async()=>{f.erpReadiness.mockImplementation(async()=>{f.user.mockResolvedValue({...user,userId:'changed-during-readiness'});return {enabled:true,supportedSchemaVersion:2};});expect(html(await page('gestion'))).not.toContain('erp-workbench-fixture');});
+ describe('sales-order page admission',()=>{
+  it.each([
+   {available:false,newOrdersEnabled:false},
+   {available:true,newOrdersEnabled:false},
+   {available:true,newOrdersEnabled:true},
+  ])('passes distinct schema4 history $available and new-order $newOrdersEnabled flags',async readiness=>{
+   f.erpReadiness.mockResolvedValue({enabled:true,supportedSchemaVersion:4});f.salesOrders.mockResolvedValue(readiness);
+   const output=html(await page('gestion'));
+   expect(output).toContain('erp-workbench-fixture');expect(output).toContain('data-schema="4"');
+   expect(output).toContain('data-sales-orders="'+String(readiness.available)+'"');expect(output).toContain('data-new-sales-orders="'+String(readiness.newOrdersEnabled)+'"');
+   expect(output).toContain('data-expected-user="'+owner+'"');expect(output).toContain('data-issuance="false"');
+   expect(f.salesOrders).toHaveBeenCalledTimes(1);expect(f.access).toHaveBeenLastCalledWith(id,owner);expect(f.user).toHaveBeenCalledWith({offerAccess:false});
+  });
+  it.each([1,2,3] as const)('does not advertise orders to schema %s even if their separate binding was momentarily open',async supportedSchemaVersion=>{
+   f.erpReadiness.mockResolvedValue({enabled:true,supportedSchemaVersion});f.salesOrders.mockResolvedValue({available:true,newOrdersEnabled:true});
+   const output=html(await page('gestion'));expect(output).toContain('erp-workbench-fixture');expect(output).toContain('data-schema="'+String(supportedSchemaVersion)+'"');expect(output).toContain('data-sales-orders="false"');expect(output).toContain('data-new-sales-orders="false"');
+  });
+  it('keeps orders closed when the ERP read admission is unavailable even with a schema4-shaped readiness result',async()=>{
+   f.erpReadiness.mockResolvedValue({enabled:false,supportedSchemaVersion:4});f.salesOrders.mockResolvedValue({available:true,newOrdersEnabled:true});
+   const output=html(await page('gestion'));expect(output).toContain('data-sales="false"');expect(output).toContain('data-sales-orders="false"');expect(output).toContain('data-new-sales-orders="false"');
+  });
+  it.each([null,{...user,userId:'changed-during-order-readiness'}])('does not mount a previous account workbench after identity changes during order readiness',async current=>{
+   f.erpReadiness.mockResolvedValue({enabled:true,supportedSchemaVersion:4});f.salesOrders.mockImplementation(async()=>{f.user.mockResolvedValue(current);return{available:true,newOrdersEnabled:true};});
+   const output=html(await page('gestion'));expect(f.salesOrders).toHaveBeenCalledTimes(1);expect(output).toContain(accountWorkspaceCopy.en.denied);expect(output).not.toContain('erp-workbench-fixture');expect(output).not.toContain('data-sales-orders');
+  });
+  it('denies a role changed during order readiness instead of passing stale commercial access',async()=>{
+   f.salesOrders.mockImplementation(async()=>{f.access.mockResolvedValue({organizationId:id,userId:owner,role:'member'});return{available:true,newOrdersEnabled:true};});
+   const output=html(await page('gestion'));expect(output).toContain(accountWorkspaceCopy.en.denied);expect(output).not.toContain('erp-workbench-fixture');expect(f.access).toHaveBeenLastCalledWith(id,owner);
+  });
+  it('denies revoked rights after the order readiness wait',async()=>{
+   f.salesOrders.mockImplementation(async()=>{f.access.mockRejectedValue(new UsAuthorityError('forbidden',403));return{available:true,newOrdersEnabled:true};});
+   const output=html(await page('gestion'));expect(output).toContain(accountWorkspaceCopy.en.denied);expect(output).not.toContain('erp-workbench-fixture');expect(f.access).toHaveBeenLastCalledWith(id,owner);
+  });
+  it.each(['','support','equipe','profil','securite','apparence'])('does not consult or expose orders on the %s destination',async setting=>{
+   f.team.mockResolvedValue(true);f.supportWorkspace.mockResolvedValue(true);f.salesOrders.mockResolvedValue({available:true,newOrdersEnabled:true});
+   const output=html(await page(setting));expect(f.salesOrders).not.toHaveBeenCalled();expect(output).not.toContain('data-sales-orders');expect(output).not.toContain('data-new-sales-orders');expect(output).not.toContain('erp-workbench-fixture');
+  });
+  it('does not query or expose the order feature in the account workspace picker',async()=>{
+   f.salesOrders.mockResolvedValue({available:true,newOrdersEnabled:true});const output=html(await WorkspacePage());expect(f.salesOrders).not.toHaveBeenCalled();expect(output).not.toContain('data-sales-orders');expect(output).not.toContain('data-new-sales-orders');
+  });
+ });
  describe('Support worker page admission',()=>{
   const open=()=>{for(const gate of [f.supportWorkspace,f.supportMailbox,f.supportTriage,f.supportTickets,f.supportWorker])gate.mockResolvedValue(true);};
   it.each(['support','gestion'])('passes the separately gated intake capability to %s',async setting=>{

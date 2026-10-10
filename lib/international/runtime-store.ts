@@ -12,7 +12,7 @@ function storageError(error:unknown): ErpError {
   if (error instanceof ErpError) return error;
   if (error instanceof SupabaseServerError) {
     const codes:Record<string,[string,number]>={PU001:['revision_conflict',409],PU002:['idempotency_conflict',409],PU003:['immutable_record',409],PU004:['invalid_state',422],PU005:['workspace_unavailable',409],PU006:['configuration_changed',409],PU007:['event_too_large',413],PU008:['client_upgrade_required',409],PU009:['legacy_project_review_required',409],PU010:['project_revision_conflict',409],PU011:['project_customer_locked',409],PU012:['vendor_bill_project_conflict',409],PU013:['project_archived',409],PU014:['project_customer_mismatch',422],PU015:['project_not_found',422]};
-    Object.assign(codes,{PU016:['accounting_upgrade_required',409],PU017:['accounting_period_order_conflict',409],PU018:['manual_account_forbidden',422],PU019:['invalid_reversal',409],PU020:['period_limit_reached',409]});
+    Object.assign(codes,{PO008:['sales_order_source_locked',409],PO011:['sales_order_invoice_blocked',409],PU016:['accounting_upgrade_required',409],PU017:['accounting_period_order_conflict',409],PU018:['manual_account_forbidden',422],PU019:['invalid_reversal',409],PU020:['period_limit_reached',409]});
     if (codes[error.code]) return new ErpError(...codes[error.code]);
   }
   return new ErpError('service_unavailable',503);

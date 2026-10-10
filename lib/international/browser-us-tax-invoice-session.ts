@@ -26,7 +26,7 @@ export interface BrowserUsTaxInvoiceSession {
 }
 const codePattern = /^txcd_[0-9]{8}$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const conflicts = new Set(['revision_conflict', 'estimate_revision_conflict', 'idempotency_conflict', 'tax_preparation_conflict']);
+const conflicts = new Set(['sales_order_source_locked','sales_order_invoice_blocked','revision_conflict', 'estimate_revision_conflict', 'idempotency_conflict', 'tax_preparation_conflict']);
 const known = new Set([...conflicts, 'invalid_request', 'invalid_tax_preparation', 'invalid_tax_date', 'unsupported_tax_request', 'tax_classification_changed', 'tax_configuration_changed', 'tax_binding_changed', 'binding_unavailable', 'tax_binding_unavailable', 'tax_operation_expired', 'tax_preparation_required', 'tax_preparation_changed', 'tax_preparation_expired', 'configuration_changed', 'feature_unavailable', 'edition_unavailable', 'client_upgrade_required', 'rate_limited', 'service_unavailable', 'seller_configuration_required', 'tax_details_required', 'country_configuration_required', 'accounting_period_not_open', 'invoice_already_issued', 'estimate_acceptance_required', 'catalogue_unavailable']);
 function exact(input: unknown, keys: readonly string[]): Record<string, unknown> {
   const value = snapshotPrivateJson(input);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type SubmitEv
 import type { AccountRole } from '@/lib/account-security';
 import type { SiteLanguage } from '@/lib/site-language';
 import { validateAddress } from '@/lib/international/addresses';
+import { browserUsSalesOrderSourceGuidance } from '@/lib/international/browser-us-sales-order-copy';
 import { BrowserErpError } from '@/lib/international/browser-erp-session';
 import { buildBrowserInvoiceCommand, emptyBrowserInvoice, type BrowserInvoiceDraft } from '@/lib/international/browser-sales';
 import { browserUsTaxInvoiceCopy, browserUsTaxInvoicePendingConflict } from '@/lib/international/browser-us-tax-invoice-copy';
@@ -28,7 +29,7 @@ export interface UsTaxInvoicePanelProps {
   onAccessDenied(this: void, status: number): void; onCommitted(this: void): void;
   registerInvalidation(this: void, invalidate: (() => void) | null): void;
 }
-type Notice = 'invalid' | 'stale' | 'pendingBlocked' | 'unavailable' | 'denied' | 'saved' | 'savedReload';
+type Notice = 'orderBlocked' | 'invalid' | 'stale' | 'pendingBlocked' | 'unavailable' | 'denied' | 'saved' | 'savedReload';
 type Review = Readonly<{ command: Extract<ErpCommand, { type: 'issue_invoice' }>; revision: number; choices: BrowserUsTaxInvoiceChoices; localTime: string; zone: string; codes: readonly BrowserUsTaxCode[] }>;
 const blankLine = (): BrowserUsTaxLineChoice => ({ code: '', checked: null, confirmed: false });
 
@@ -71,7 +72,7 @@ export function UsTaxInvoicePanel(props: UsTaxInvoicePanelProps) {
     catch (error) {
       if (generation.current !== current || currentAccessEpoch() !== privacy) return;
       if (error instanceof BrowserErpError && error.outcome === 'unauthorized') { onAccessDenied(error.status); return; }
-      setNotice(error instanceof BrowserErpError && error.status === 409 ? instance.hasPending() ? 'pendingBlocked' : 'stale' : error instanceof BrowserErpError && error.outcome === 'rejected' && error.status === 422 ? 'invalid' : 'unavailable');
+      setNotice(error instanceof BrowserErpError && ['sales_order_source_locked','sales_order_invoice_blocked'].includes(error.code) ? 'orderBlocked' : error instanceof BrowserErpError && error.status === 409 ? instance.hasPending() ? 'pendingBlocked' : 'stale' : error instanceof BrowserErpError && error.outcome === 'rejected' && error.status === 422 ? 'invalid' : 'unavailable');
     } finally { if (generation.current === current && currentAccessEpoch() === privacy) { const value = instance.hasPending(); setPending(value); onPendingChange(value); occupy(false); } }
   }
   function prepare(event: SubmitEvent<HTMLFormElement>) {
@@ -99,7 +100,7 @@ export function UsTaxInvoicePanel(props: UsTaxInvoicePanelProps) {
   if (!['owner', 'admin', 'accountant'].includes(role)) return null;
   return <section className="us-erp-section us-tax-invoice" aria-labelledby={`${prefix}-title`}>
     <h2 id={`${prefix}-title`}>{c.title}</h2><p className="us-erp-muted">{c.limitation}</p>
-    {notice && <div ref={noticeRef} tabIndex={-1} className={`us-erp-notice ${notice === 'saved' ? 'success' : 'error'}`} role={notice === 'saved' ? 'status' : 'alert'}>{notice === 'pendingBlocked' ? browserUsTaxInvoicePendingConflict[language] : c[notice]}</div>}
+    {notice && <div ref={noticeRef} tabIndex={-1} className={`us-erp-notice ${notice === 'saved' ? 'success' : 'error'}`} role={notice === 'saved' ? 'status' : 'alert'}>{notice === 'orderBlocked' ? browserUsSalesOrderSourceGuidance[language].invoiceBlocked : notice === 'pendingBlocked' ? browserUsTaxInvoicePendingConflict[language] : c[notice]}</div>}
     {permitted && <>
       <div className="us-tax-invoice-readiness"><button type="button" className="account-button secondary" disabled={disabled} onClick={() => void run(async instance => { const value = await instance.readiness(); setReadiness(value); setExpired(value.expiresAt * 1000 <= Date.now()); })}>{busy ? c.loading : c.readiness}</button>{readiness && <output>{expired ? c.expired : readiness.status === 'ready_test' ? c.ready : c.blocked}</output>}<p className="us-erp-muted">{c.readinessHelp}</p></div>
       {pending && <aside className="us-erp-pending" aria-live="polite"><p>{c.pending}</p><button type="button" className="account-button" disabled={busy || writeLocked} onClick={() => void issue(true)}>{busy ? c.loading : c.retry}</button></aside>}
