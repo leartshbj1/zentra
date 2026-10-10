@@ -1,0 +1,15 @@
+{
+  "scope": "Actual React workbench and transports with synthetic in-page HTTP. Browser observations prove UI state; exact envelopes/emission fencing are verified by unit and SQLite composition tests.",
+  "completed": "Analyse du message\n\nFictitious supplier original — imported through Support\n\nAnalyse confirmée. Vérifiez les propositions avant toute action.\nCatégorie proposée\nFacture fournisseur\nPriorité proposée\nNormale\nLangue détectée\nAnglais\nConfiance\n96 %\nVérification humaine nécessaire\nPièces jointes non lues\n\nLes analyses sont déclenchées après confirmation. Aucun routage, réponse, import ou effet comptable automatique.",
+  "uncertain": "Analyse du message\n\nFictitious supplier original — imported through Support\n\nLe résultat n’est pas confirmé. Cette analyse reste consommée et aucun deuxième appel ne sera envoyé.\n\nFermer ou recharger cet onglet efface cette reprise.\n\nVérifier la même demande\n\nLes analyses sont déclenchées après confirmation. Aucun routage, réponse, import ou effet comptable automatique.",
+  "newClassificationDisabled": true,
+  "disconnectAvailable": true,
+  "financeAvailable": true,
+  "afterRecheck": "Analyse du message\n\nFictitious supplier original — imported through Support\n\nLe résultat n’est pas confirmé. Cette analyse reste consommée et aucun deuxième appel ne sera envoyé.\n\nFermer ou recharger cet onglet efface cette reprise.\n\nVérifier la même demande\n\nLes analyses sont déclenchées après confirmation. Aucun routage, réponse, import ou effet comptable automatique.",
+  "purged": {
+    "privateSubjectVisible": false,
+    "privateMailboxVisible": false,
+    "privateVendorVisible": false,
+    "classificationButtonVisible": false
+  }
+}

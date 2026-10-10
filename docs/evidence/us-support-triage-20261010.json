@@ -1,0 +1,405 @@
+{
+  "schemaVersion": 1,
+  "phase": "US Support H3a — explicit message text classification",
+  "recordedAt": "2026-10-10T03:59:41.691Z",
+  "branch": "codex/international-runtime",
+  "baseCommit": "9c8013eb6e4cb9220aa839e609ee1cc5e8a08728",
+  "implementationCommit": "308b10f2bf952c44d54f0999a202d43505ffa131",
+  "execution": {
+    "localOnly": true,
+    "hostedMigrationApplied": false,
+    "productionGateEnabled": false,
+    "externalProviderCalled": false,
+    "published": false,
+    "pushed": false,
+    "nativeBuilt": false,
+    "customerDataUsed": false
+  },
+  "scope": {
+    "country": "US",
+    "currency": "USD",
+    "protocol": 4,
+    "roles": [
+      "owner",
+      "admin"
+    ],
+    "freshH1GestionAndSupportSamePaidAuthority": true,
+    "explicitConsent": true,
+    "textOnly": true,
+    "independentBudget": true,
+    "sourceDedupAcrossActorsAndConnections": true,
+    "permanentDispatchFence": true,
+    "exactRetryInTabMemory": true,
+    "financialWorkbenchUnlockedWhenUncertain": true,
+    "automaticReception": false,
+    "routing": false,
+    "mailAcknowledgement": false,
+    "outboundMail": false,
+    "financialPosting": false
+  },
+  "gate": {
+    "name": "INTERNATIONAL_US_SUPPORT_TRIAGE_ENABLED",
+    "default": false,
+    "alsoRequires": [
+      "Core",
+      "US ERP",
+      "H1 Support workspace",
+      "H2a mailbox",
+      "fresh same-period US/USD Gestion+Support"
+    ],
+    "policy": "INTERNATIONAL_US_SUPPORT_TRIAGE_POLICY_JSON",
+    "bucket": "support_message_classify",
+    "period": "UTC calendar month",
+    "commercialQuotaInferred": false
+  },
+  "provider": {
+    "model": "jev-1.13.0",
+    "recipe": "us-support-text:support-2026-09-28-solicitation-v6",
+    "requests": "synthetic only",
+    "retry": false,
+    "bodyMaxBytes": 16384,
+    "subjectMaxBytes": 1024,
+    "unreadAttachmentsRequireReview": true,
+    "unconfirmedDispatchCanConsumeWithoutEmission": true
+  },
+  "migrations": [
+    {
+      "path": "drizzle/0096_international_us_support_triage.sql",
+      "sha256": "b7995142b944b6f53720025e9a6dca10fada36b2d7bd508fab9bbd8855630e55",
+      "additive": true,
+      "generatedWith": "Wrangler4.92.0 migrations create",
+      "commentOnlySeparatorsRemoved": true,
+      "localChain": "0000–0096",
+      "engines": [
+        "Node SQLite through actual D1 interface",
+        "pinned workerd D1"
+      ],
+      "hostedApplied": false,
+      "rollback": "Close gate, revert application code, retain all immutable receipts"
+    }
+  ],
+  "verification": {
+    "regression": {
+      "files": 107,
+      "total": 3450,
+      "passed": 3450,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "success": true
+    },
+    "newPhase": {
+      "files": 8,
+      "tests": 255,
+      "passed": 255
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false"
+    },
+    "lint": {
+      "exitCode": 0,
+      "files": 23,
+      "command": "node node_modules/oxlint/bin/oxlint --type-aware --deny-warnings <lint-selection>"
+    },
+    "brand": {
+      "exitCode": 0,
+      "command": "node scripts/check-brand-assets.mjs"
+    },
+    "build": {
+      "exitCode": 0,
+      "command": "node node_modules/vinext/dist/cli.js build",
+      "warnings": "Existing middleware/static-route classification notices"
+    },
+    "testCommand": "PGLITE_MODULE_DIR=D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite; node node_modules/vitest/vitest.mjs run --config vitest.config.ts --maxWorkers=1 <selection-final> --reporter=json --outputFile=.qa/us-support-triage/regression-final.json",
+    "forkWarning": {
+      "file": "lib/international/us-support-mailbox-import-d1.test.ts",
+      "message": "Timeout terminating forks worker after tests passed",
+      "targetedFollowup": {
+        "files": 1,
+        "total": 54,
+        "passed": 54,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "failedSuites": 0,
+        "success": true
+      },
+      "repeatedWarning": false
+    },
+    "visual": {
+      "cases": 24,
+      "languages": [
+        "fr",
+        "de",
+        "it",
+        "en"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "widths": [
+        320,
+        390,
+        1440
+      ],
+      "overflowCases": 0,
+      "focused": true,
+      "primaryInitiallyVisible": true,
+      "screenshots": 15,
+      "synthetic": true,
+      "physicalDevices": false
+    }
+  },
+  "sources": [
+    {
+      "path": "app/api/international/workspaces/[organizationId]/support-mailbox/triage/route.ts",
+      "sha256": "ab27355ff7fbbc32fd8cf9e2687392052eb6b6f27521f9bb733b74063156c5c6"
+    },
+    {
+      "path": "app/compte/espaces/us/[organizationId]/page.tsx",
+      "sha256": "70662a0d9fb4e787cd53c16349b7afdeedea421833f86109dadb1fac0bd35ade"
+    },
+    {
+      "path": "components/account/us-erp-workbench.tsx",
+      "sha256": "e742892b74d32fc9ce6c1ce153ebf7cfd49cdfac4cea8285535c32ff2803fd9d"
+    },
+    {
+      "path": "components/account/us-support-mailbox-panel.tsx",
+      "sha256": "2ef68fb33c827668f748ce92320c51ea67ea5c95e96b5fc9f9c6abde6c12d250"
+    },
+    {
+      "path": "components/account/us-support-triage.tsx",
+      "sha256": "1eaaac4861c6c6bfa095ab50468ad2ab2c06b5145809e86c5e960b2ace258143"
+    },
+    {
+      "path": "components/account/us-support-workspace-panel.tsx",
+      "sha256": "f2d9fa155aaf7ec1d4efb41483301d30fd15a3b35489978558e2ad8b38dc2491"
+    },
+    {
+      "path": "docs/internationalization/US-SUPPORT-TRIAGE-PLAN-20261010.md",
+      "sha256": "32eadfc2e83cf3c83aebfe2595e4ca57e75f73617bdadbb19d85ed86c4e02024"
+    },
+    {
+      "path": "drizzle/0096_international_us_support_triage.sql",
+      "sha256": "b7995142b944b6f53720025e9a6dca10fada36b2d7bd508fab9bbd8855630e55"
+    },
+    {
+      "path": "lib/international/browser-us-support-triage-session.ts",
+      "sha256": "95cfcdddd6bd4e3eb08bbdefd8309beb11d0866c18f333381e0366ab6b6d6a71"
+    },
+    {
+      "path": "lib/international/us-support-triage-bindings.test.ts",
+      "sha256": "fb5258fcbf090c135a6ae5c4de1f5dc851b8ae58b1af1973c230c14e5ec6e150"
+    },
+    {
+      "path": "lib/international/us-support-triage-bindings.ts",
+      "sha256": "bb8b58a41761ef7b2fae7fb5c7a26c293d1365eb136e6c646abb99645233b427"
+    },
+    {
+      "path": "lib/international/us-support-triage-composition.test.ts",
+      "sha256": "f56e128bca243928c5778cb28d461f6f6fd87a6377e6762472af964e3344c709"
+    },
+    {
+      "path": "lib/international/us-support-triage-contract.test.ts",
+      "sha256": "2fb8ae71b59f3e56fca65e29030efde4fc71fb0d8f9d27c4402a902f78ee23ec"
+    },
+    {
+      "path": "lib/international/us-support-triage-contract.ts",
+      "sha256": "33f82312c65126a9fe174129ef26953b0a478d084b835a3ff5fb248d81ea39b2"
+    },
+    {
+      "path": "lib/international/us-support-triage-d1.test.ts",
+      "sha256": "b81390598360cf72a92d8682b5e485ce90e6369ac6a632e2c55d6cda29e853bb"
+    },
+    {
+      "path": "lib/international/us-support-triage-d1.ts",
+      "sha256": "6844c68dfd3b62a818d84e54de80147ce7de3723e8a7de5160308f826035cdae"
+    },
+    {
+      "path": "lib/international/us-support-triage-policy.test.ts",
+      "sha256": "ec9a1481c13390d7d137366824f2eab4a931cdf823bfe08ae7f39c2abc29aa4e"
+    },
+    {
+      "path": "lib/international/us-support-triage-policy.ts",
+      "sha256": "6ed37536ced564aea15896b459e36c443d7bc51843ea88b3bfc5df9b08b3288c"
+    },
+    {
+      "path": "lib/international/us-support-triage-provider.test.ts",
+      "sha256": "3e9fbe841007af4387a2c72908568a1848cff28f9d41ba08ba431121ea343343"
+    },
+    {
+      "path": "lib/international/us-support-triage-provider.ts",
+      "sha256": "d688fd189509b740363617950b7644275a4a0fa113308c6277815a4ad6987373"
+    },
+    {
+      "path": "lib/international/us-support-triage-server.test.ts",
+      "sha256": "b2fda0252897ac25f8a600d0b59e4fba77020b8e17e92946dbf6a4c59642580a"
+    },
+    {
+      "path": "lib/international/us-support-triage-server.ts",
+      "sha256": "4d106979a8c71b2234af19237038ee31467a58a537d74fde579dc8ab7e9274e0"
+    },
+    {
+      "path": "lib/international/us-support-triage-test-fixture.ts",
+      "sha256": "bf4442767d6423781c311352ff77cf07a6ef68e940e840306eb7f8775e495979"
+    },
+    {
+      "path": "lib/international/us-support-triage-ui.test.ts",
+      "sha256": "0b8d8be05135c09170da0b00d04b804bbb3cab13949452de56f36f86d1ffe64c"
+    },
+    {
+      "path": "tests/us-supplier-documents-preview.tsx",
+      "sha256": "144a3ba40fd0809ea8650ac0763e9d66c087fda73fd4a541874c7856e5d7aa14"
+    }
+  ],
+  "reports": [
+    {
+      "path": ".qa/us-support-triage/regression-final.json",
+      "sha256": "348554f740fc8f47e3e401ff7eeef03a55474d84d07663cb379771d97976310b"
+    },
+    {
+      "path": ".qa/us-support-triage/selection-final.json",
+      "sha256": "8526bac1bb34f5b988990442096c23042c5572cf27d01aa174335762e87a2d22"
+    },
+    {
+      "path": ".qa/us-support-triage/lint-selection.json",
+      "sha256": "a3439ede4696aa6b31df255d350bc16e86b2198bd1583156f324ba07932bb6ce"
+    },
+    {
+      "path": ".qa/us-support-triage/typecheck-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-support-triage/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-support-triage/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-support-triage/build-final.log",
+      "sha256": "bf8043c90a41e5e730e82aab4de342cc3f6fb63a2c2017fba1ed0bfc3da8786f"
+    },
+    {
+      "path": ".qa/us-support-triage/fork-followup.json",
+      "sha256": "bd5a12f5504bacb73bd1907154d563f8cd5c9df084bdf3748b0eac93fbe4f20e"
+    },
+    {
+      "path": ".qa/us-support-triage/fork-followup.log",
+      "sha256": "19253f88d0fb89a3e3fa0d2ebd9271ceecf31a6dfcc6d5396f0ccf264d1682ee"
+    }
+  ],
+  "visual": [
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-de-dark-320.jpg",
+      "sha256": "9db4641e9dc008b79d0417861b3e1a15c27470011d12cbdf638fda953cdf8fd5"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-de-light-320.jpg",
+      "sha256": "4065e9bd6a665d6988cd52e6ae7acf498f70c16de12f39ce10acaff3ef42f462"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-en-dark-1440.jpg",
+      "sha256": "dddd76106048d6bd7b114a35738baa79d56124a4dd6c35be5876c3f52dfb3142"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-en-dark-320.jpg",
+      "sha256": "78eee79d6abfb080ef95cb054127aff8b73594775ea6fc07a78ff5e262e1ac9d"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-en-light-1440.jpg",
+      "sha256": "52046559be23d0a7d72889fc54339cf9ba5cc8cfcfaede823b7fb5e2a313728f"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-en-light-320.jpg",
+      "sha256": "fca401a625d9e40423c5c5cedffc0605bb750fa059a2c74078973e265cb24861"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-fr-dark-1440.jpg",
+      "sha256": "52e1cf76ccefe28f58cc28ebeb0ac79ad68d2ca639ae6549c29bad19b830d761"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-fr-dark-320.jpg",
+      "sha256": "102332b6e8c599bcbd82b6960e10e5b2c8695fa120292111652be31f79cba356"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-fr-light-1440.jpg",
+      "sha256": "b71788cb01b0873246dfd0b647fab2546e10b17c41e23a41dc5a11f171b2303b"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-fr-light-320.jpg",
+      "sha256": "af84d5fa7f41da49fb6bffc5294ae3423c01632f1f68d97285cca8651cc64577"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-it-dark-320.jpg",
+      "sha256": "b37d2a80f5572365f14e41c28e775784ee38b7d81e78f64dda6db3de1f3adeef"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/confirmation-it-light-320.jpg",
+      "sha256": "2b90fd9bcb1fc50b64c70f8b841390bf3ec3ec88129984c95e3c92f654d8e351"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/interaction-results.json",
+      "sha256": "3b7f15052744b484e804f511ccba3f26605544422cb2191f281cb8b6c998225f"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/layout-first.json",
+      "sha256": "8ec56f2b359a9ca20ce68e5e7f05a45c5430c99efa242537f2c7051d299f727e"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/layout-results.json",
+      "sha256": "c6fff157f22fa32093b7d8e6f53b2b65298053edac86fe699e9b7144b5e77810"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/purged-fr-dark-390.jpg",
+      "sha256": "5eade47aa2c112cb77ca6e7e67bfc9de249ab3712bfee066f251eae5043f660f"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/result-fr-dark-390.jpg",
+      "sha256": "703690249c9290bad8c8881585b931078ffce95b407d8d2b32776494ac9fb75e"
+    },
+    {
+      "path": "docs/evidence/us-support-triage-20261010/uncertain-fr-dark-390.jpg",
+      "sha256": "dbc31db5b456794fd6124724d11dfdd13a237987a5ae131220cb6719ec585355"
+    }
+  ],
+  "research": [
+    {
+      "url": "https://docs.typesafe.ai/api",
+      "checked": "2026-10-10"
+    },
+    {
+      "url": "https://docs.typesafe.ai/confidence",
+      "checked": "2026-10-10"
+    },
+    {
+      "url": "https://docs.typesafe.ai/patterns/confidence-routing",
+      "checked": "2026-10-10"
+    },
+    {
+      "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+      "checked": "2026-10-10"
+    }
+  ],
+  "limitations": [
+    "No provider accuracy or hosted latency proof",
+    "No automatic intake/routing/financial action",
+    "No strong UIDVALIDITY/ETag or atomic mail snapshot",
+    "No supplier attachment analysis in classification",
+    "Server policy/source inputs are service-only trust boundaries",
+    "Pilot source/request caps500/2000; no audit deletion",
+    "No native builds or certified fiscal/accounting compliance"
+  ],
+  "initialFailuresRetained": [
+    ".qa/us-support-triage/regression-first.json",
+    ".qa/us-support-triage/regression-second.json",
+    ".qa/us-support-triage/http-first.json",
+    ".qa/us-support-triage/build-first.log",
+    ".qa/us-support-triage/build-before-lazy.log"
+  ],
+  "goalComplete": false
+}
