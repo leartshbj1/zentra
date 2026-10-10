@@ -1,0 +1,3778 @@
+{
+  "phase": "financial-pilot-invoicing-dto1",
+  "date": "2026-10-10",
+  "environment": "local-private-test-only",
+  "baseCommit": "581900abb2dc1122a2ec90acc0de3cf18427d1bf",
+  "implementationCommit": "bf4ea9f45fc31b993d9e6b24658cb7f92fb3bd51",
+  "sourceTree": {
+    "baseCommit": "581900abb2dc1122a2ec90acc0de3cf18427d1bf",
+    "headCommit": "bf4ea9f45fc31b993d9e6b24658cb7f92fb3bd51",
+    "files": 3558,
+    "sha256": "891eb9873b6e0a5845c539da10532d6f4ab2354f2972c9b1fdb3e21e97b2014d",
+    "status": []
+  },
+  "implementationFiles": {
+    "app/api/international/workspaces/[organizationId]/financial-pilot/invoices/issue/route.ts": "1f2c9fc72344b505ab2934e37079268fe742e60c4a236e687b897df6503fc69c",
+    "app/api/international/workspaces/[organizationId]/financial-pilot/invoices/prepare/route.ts": "c8b2acd66a7823ecf90f74f67fe585aecb607fd6e3697b2383118fcc2a7d7e4d",
+    "app/api/international/workspaces/[organizationId]/financial-pilot/tax-codes/route.ts": "b9bb77a8505715d5dcd14e842f85d3eb6b9120fd7c1453ce9bc23de9cf3e310a",
+    "components/account/us-financial-pilot-commercial.tsx": "ad8521fc649b70d4da3140db8dbddeb8e5296f6daaa243d3a243235c7c5de3f5",
+    "components/account/us-financial-pilot-invoice.css": "e37b1f1fd1ad86eb164c0929a48014055e8b3a43f226437f26aed4f375d19588",
+    "components/account/us-financial-pilot-invoice.tsx": "fbdc3a375d7efb029527d72ee176026bb8b5149f00bdf48674fe26943d43ccf3",
+    "components/account/us-financial-pilot.tsx": "10bc7a90c4c34a87da966934dfcc6354f31e50a4de0fdaa27b37b68ff7dc63a1",
+    "lib/international/browser-us-financial-pilot-invoice-copy.ts": "f7590a9bb14dee064eac3383fd948e9ff8358684cc59a6748acc1484f201c9c2",
+    "lib/international/browser-us-financial-pilot-invoice.test.ts": "4a37395ccf835ba01be9c59815e65866da7f75f77f269f53e4e18f9db0aac32d",
+    "lib/international/browser-us-financial-pilot-session.ts": "cbf2b7f4a4da5418e5a7354c8b52baa2475cb8ea2457730f1cb2f614c2e9f213",
+    "lib/international/us-financial-pilot-invoice-bindings.test.ts": "b605042015fa2d312d5316fccd2b637121b40fc00f1b0bf0ccfd299f2f07b94a",
+    "lib/international/us-financial-pilot-invoice-bindings.ts": "672ef0a4f0f508b2953d929410699fffdab9e993ad7857b46cfd2540088f88f7",
+    "lib/international/us-financial-pilot-invoice-server.test.ts": "10888a03dff386519b14a17d8509cb9cfc0787c68cc83d1aa42ba6f173c60aa6",
+    "lib/international/us-financial-pilot-invoice-server.ts": "7ff858699cc0093e5fa53ef881380c88d3836dd7064575191d9282903360a257",
+    "lib/international/us-financial-pilot-invoice-store.postgres.test.ts": "197356452a533a713c8dd9a53df14fac7389a3aaf0967707c2a9885d5e54eab8",
+    "lib/international/us-financial-pilot-invoice-store.test.ts": "60a80af93f03ca7d11c4115beb1d34294c3b4c80a09984663644143544f3def5",
+    "lib/international/us-financial-pilot-invoice-store.ts": "357b629c1b292af758bd806b142bffe896254b404281affe8365260c177f8501",
+    "lib/international/us-financial-pilot-invoice.test.ts": "b103bb70c3de575ee2dd12a4775c874845e3a8c472360076a8e33e20f681d61a",
+    "lib/international/us-financial-pilot-invoice.ts": "e9764284ebd73029894d8f3b237af88a44ea607c26b75a91bd3962298627be36",
+    "supabase/migrations/20261010131903_international_us_financial_pilot_invoice_dto1.sql": "e8b716dd1080966c411443a56756dc8ce94f2f73e20f72d6b5b3df609d31b04d"
+  },
+  "validation": {
+    "quality": [
+      {
+        "name": "types-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "startedAt": "2026-10-10T13:41:41.211Z",
+        "elapsedMs": 28544,
+        "exitCode": 0,
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "lint-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/oxlint/bin/oxlint",
+          "--type-aware",
+          "--deny-warnings",
+          "app/api/international/workspaces/[organizationId]/financial-pilot/invoices/issue/route.ts",
+          "app/api/international/workspaces/[organizationId]/financial-pilot/invoices/prepare/route.ts",
+          "app/api/international/workspaces/[organizationId]/financial-pilot/tax-codes/route.ts",
+          "components/account/us-financial-pilot-commercial.tsx",
+          "components/account/us-financial-pilot-invoice.tsx",
+          "components/account/us-financial-pilot.tsx",
+          "lib/international/browser-us-financial-pilot-invoice-copy.ts",
+          "lib/international/browser-us-financial-pilot-invoice.test.ts",
+          "lib/international/browser-us-financial-pilot-session.ts",
+          "lib/international/us-financial-pilot-invoice-bindings.test.ts",
+          "lib/international/us-financial-pilot-invoice-bindings.ts",
+          "lib/international/us-financial-pilot-invoice-server.test.ts",
+          "lib/international/us-financial-pilot-invoice-server.ts",
+          "lib/international/us-financial-pilot-invoice-store.postgres.test.ts",
+          "lib/international/us-financial-pilot-invoice-store.test.ts",
+          "lib/international/us-financial-pilot-invoice-store.ts",
+          "lib/international/us-financial-pilot-invoice.test.ts",
+          "lib/international/us-financial-pilot-invoice.ts"
+        ],
+        "startedAt": "2026-10-10T13:42:10.363Z",
+        "elapsedMs": 1229,
+        "exitCode": 0,
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "brand-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "scripts/check-brand-assets.mjs"
+        ],
+        "startedAt": "2026-10-10T13:42:12.200Z",
+        "elapsedMs": 52,
+        "exitCode": 0,
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "build-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/vinext/dist/cli.js",
+          "build"
+        ],
+        "startedAt": "2026-10-10T13:42:12.851Z",
+        "elapsedMs": 23187,
+        "exitCode": 0,
+        "logSha256": "c84234dbc2ebfad5c83b48ad1dc395ef022dc94f7d410befd969e2ab7b0a896e"
+      }
+    ],
+    "qualityProofSha256": "9442debfeb9506471c832e3969876cad066e2392cb94e33259487aaf088cf1f2",
+    "regression": {
+      "total": 5950,
+      "passed": 5950,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "files": 181,
+      "retainedPriorFiles": 175,
+      "selection": [
+        "lib/account-workspace-entry.test.ts",
+        "lib/account-workspace-navigation.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/account-workspaces.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/deployment-contract.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+        "lib/international/browser-us-financial-pilot-commercial.test.ts",
+        "lib/international/browser-us-financial-pilot-export-session.test.ts",
+        "lib/international/browser-us-financial-pilot-invoice.test.ts",
+        "lib/international/browser-us-financial-pilot-session.test.ts",
+        "lib/international/browser-us-sales-order-session.test.ts",
+        "lib/international/browser-us-supplier-documents-session.test.ts",
+        "lib/international/browser-us-supplier-session.test.ts",
+        "lib/international/browser-us-support-worker-session.test.ts",
+        "lib/international/browser-us-team-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-store.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/us-automation-policy.test.ts",
+        "lib/international/us-automation-store.test.ts",
+        "lib/international/us-automation-validation.test.ts",
+        "lib/international/us-customer-credit-allocation.test.ts",
+        "lib/international/us-customer-credit-preparation.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-d1.test.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-financial-invoice-test.test.ts",
+        "lib/international/us-financial-kernel-capability.test.ts",
+        "lib/international/us-financial-kernel-erp-runtime.test.ts",
+        "lib/international/us-financial-kernel-erp.test.ts",
+        "lib/international/us-financial-kernel-runtime.test.ts",
+        "lib/international/us-financial-kernel.test.ts",
+        "lib/international/us-financial-pilot-bindings.test.ts",
+        "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+        "lib/international/us-financial-pilot-commercial-projection.test.ts",
+        "lib/international/us-financial-pilot-commercial-server.test.ts",
+        "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+        "lib/international/us-financial-pilot-commercial.test.ts",
+        "lib/international/us-financial-pilot-contract.test.ts",
+        "lib/international/us-financial-pilot-export-bindings.test.ts",
+        "lib/international/us-financial-pilot-export-contract.test.ts",
+        "lib/international/us-financial-pilot-export-projection.test.ts",
+        "lib/international/us-financial-pilot-export-renderer.test.ts",
+        "lib/international/us-financial-pilot-export-server.test.ts",
+        "lib/international/us-financial-pilot-exports.postgres.test.ts",
+        "lib/international/us-financial-pilot-invoice-bindings.test.ts",
+        "lib/international/us-financial-pilot-invoice-server.test.ts",
+        "lib/international/us-financial-pilot-invoice-store.postgres.test.ts",
+        "lib/international/us-financial-pilot-invoice-store.test.ts",
+        "lib/international/us-financial-pilot-invoice.test.ts",
+        "lib/international/us-financial-pilot-payment.test.ts",
+        "lib/international/us-financial-pilot-projection.test.ts",
+        "lib/international/us-financial-pilot-reports.test.ts",
+        "lib/international/us-financial-pilot-server.test.ts",
+        "lib/international/us-financial-pilot-store.postgres.test.ts",
+        "lib/international/us-financial-pilot-store.test.ts",
+        "lib/international/us-financial-test-accounting.postgres.test.ts",
+        "lib/international/us-financial-test-accounting.test.ts",
+        "lib/international/us-financial-test-commercial.postgres.test.ts",
+        "lib/international/us-financial-test-commercial.test.ts",
+        "lib/international/us-financial-test-foundation.postgres.test.ts",
+        "lib/international/us-financial-test-foundation.test.ts",
+        "lib/international/us-financial-test-invoicing.postgres.test.ts",
+        "lib/international/us-financial-test-purchasing.postgres.test.ts",
+        "lib/international/us-financial-test-purchasing.test.ts",
+        "lib/international/us-financial-test-settlement.postgres.test.ts",
+        "lib/international/us-financial-test-settlement.test.ts",
+        "lib/international/us-saas-test-bindings.test.ts",
+        "lib/international/us-saas-test-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "lib/international/us-saas-test-server.test.ts",
+        "lib/international/us-saas-test-stripe.test.ts",
+        "lib/international/us-sales-order-bindings.test.ts",
+        "lib/international/us-sales-order-contract.test.ts",
+        "lib/international/us-sales-order-erp-guard.test.ts",
+        "lib/international/us-sales-order-export.test.ts",
+        "lib/international/us-sales-order-server.test.ts",
+        "lib/international/us-sales-order-store.test.ts",
+        "lib/international/us-sales-order.postgres.test.ts",
+        "lib/international/us-supplier-analysis-server.test.ts",
+        "lib/international/us-supplier-analysis.test.ts",
+        "lib/international/us-supplier-bindings.test.ts",
+        "lib/international/us-supplier-document-archive.test.ts",
+        "lib/international/us-supplier-document-bindings.test.ts",
+        "lib/international/us-supplier-document-bytes.test.ts",
+        "lib/international/us-supplier-document-contract.test.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-server.test.ts",
+        "lib/international/us-supplier-document-store.test.ts",
+        "lib/international/us-supplier-document-timeout.test.ts",
+        "lib/international/us-supplier-extraction.test.ts",
+        "lib/international/us-supplier-proposal.test.ts",
+        "lib/international/us-supplier-server.test.ts",
+        "lib/international/us-supplier-store.test.ts",
+        "lib/international/us-support-intake-provider.test.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.test.ts",
+        "lib/international/us-support-mailbox-contract.test.ts",
+        "lib/international/us-support-mailbox-d1.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-provider.test.ts",
+        "lib/international/us-support-mailbox-server.test.ts",
+        "lib/international/us-support-mailbox-ui.test.ts",
+        "lib/international/us-support-ticket-bindings.test.ts",
+        "lib/international/us-support-ticket-composition.test.ts",
+        "lib/international/us-support-ticket-contract.test.ts",
+        "lib/international/us-support-ticket-d1.test.ts",
+        "lib/international/us-support-ticket-server.test.ts",
+        "lib/international/us-support-tickets-ui.test.ts",
+        "lib/international/us-support-triage-bindings.test.ts",
+        "lib/international/us-support-triage-composition.test.ts",
+        "lib/international/us-support-triage-contract.test.ts",
+        "lib/international/us-support-triage-d1.test.ts",
+        "lib/international/us-support-triage-policy.test.ts",
+        "lib/international/us-support-triage-provider.test.ts",
+        "lib/international/us-support-triage-server.test.ts",
+        "lib/international/us-support-triage-service.test.ts",
+        "lib/international/us-support-triage-ticket-integration.test.ts",
+        "lib/international/us-support-triage-ui.test.ts",
+        "lib/international/us-support-worker-bindings.test.ts",
+        "lib/international/us-support-worker-composition.test.ts",
+        "lib/international/us-support-worker-contract.test.ts",
+        "lib/international/us-support-worker-d1.test.ts",
+        "lib/international/us-support-worker-migration.test.ts",
+        "lib/international/us-support-worker-server.test.ts",
+        "lib/international/us-support-worker-ui.test.ts",
+        "lib/international/us-support-worker.test.ts",
+        "lib/international/us-support-workspace-bindings.test.ts",
+        "lib/international/us-support-workspace-contract.test.ts",
+        "lib/international/us-support-workspace-d1.test.ts",
+        "lib/international/us-support-workspace-server.test.ts",
+        "lib/international/us-support-workspace-ui.test.ts",
+        "lib/international/us-team-bindings.test.ts",
+        "lib/international/us-team-contract.test.ts",
+        "lib/international/us-team-device-lifecycle.test.ts",
+        "lib/international/us-team-server.test.ts",
+        "lib/international/us-team-store.test.ts",
+        "lib/international/us-team-validation.test.ts",
+        "lib/international/us-team.migrations.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/site-language.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth-http.test.ts",
+        "lib/supabase-auth.test.ts",
+        "lib/support/application-effects.test.ts",
+        "lib/support/billing.test.ts",
+        "lib/support/mail-documents.test.ts",
+        "lib/support/mail-sync-admission.test.ts",
+        "lib/support/reply-transport.test.ts",
+        "lib/support/solicitation-service.test.ts",
+        "lib/support/support.test.ts",
+        "lib/support/workspace-access.test.ts",
+        "lib/support/workspace-selection.test.ts",
+        "lib/support/workspace-state-admission.test.ts"
+      ],
+      "reportSha256": "3951b3416abde4e8f9a293cdf437aa0189ffdd3e33307b64c22ced7ca85050b4",
+      "commandProofSha256": "513a66f983f3460bcf692225aa5b1e5b0e71ebb5ee08e035de1b8bed49de8aee"
+    },
+    "targetedBackend": {
+      "status": "passed",
+      "tests": 53,
+      "testFiles": 4,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "actualSqlMigrationCount": 33,
+      "actualSqlScenarioCount": 8,
+      "retainedNodeFs": "C:/Users/alb/AppData/Local/Temp/zentra-financial-pilot-invoice-o2xype",
+      "nodeFsReopened": true,
+      "nodeFsReopenedHistoricalReceiptReplay": true,
+      "typeAwareLint": "0 diagnostics",
+      "vitestReport": "backend-targeted.json",
+      "limits": [
+        "Synthetic Auth/D1 and gateway observations",
+        "Serialized single-process PGlite does not establish multi-connection locking, crash recovery or hosted readiness",
+        "No hosted migration or provider call performed"
+      ],
+      "files": [
+        {
+          "path": "lib/international/us-financial-pilot-invoice-server.ts",
+          "sha256": "7ff858699cc0093e5fa53ef881380c88d3836dd7064575191d9282903360a257"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-invoice-server.test.ts",
+          "sha256": "10888a03dff386519b14a17d8509cb9cfc0787c68cc83d1aa42ba6f173c60aa6"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-invoice-store.ts",
+          "sha256": "357b629c1b292af758bd806b142bffe896254b404281affe8365260c177f8501"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-invoice-store.test.ts",
+          "sha256": "60a80af93f03ca7d11c4115beb1d34294c3b4c80a09984663644143544f3def5"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-invoice-store.postgres.test.ts",
+          "sha256": "197356452a533a713c8dd9a53df14fac7389a3aaf0967707c2a9885d5e54eab8"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-invoice-bindings.ts",
+          "sha256": "672ef0a4f0f508b2953d929410699fffdab9e993ad7857b46cfd2540088f88f7"
+        },
+        {
+          "path": "lib/international/us-financial-pilot-invoice-bindings.test.ts",
+          "sha256": "b605042015fa2d312d5316fccd2b637121b40fc00f1b0bf0ccfd299f2f07b94a"
+        },
+        {
+          "path": "app/api/international/workspaces/[organizationId]/financial-pilot/invoices/prepare/route.ts",
+          "sha256": "c8b2acd66a7823ecf90f74f67fe585aecb607fd6e3697b2383118fcc2a7d7e4d"
+        },
+        {
+          "path": "app/api/international/workspaces/[organizationId]/financial-pilot/invoices/issue/route.ts",
+          "sha256": "1f2c9fc72344b505ab2934e37079268fe742e60c4a236e687b897df6503fc69c"
+        },
+        {
+          "path": "app/api/international/workspaces/[organizationId]/financial-pilot/tax-codes/route.ts",
+          "sha256": "b9bb77a8505715d5dcd14e842f85d3eb6b9120fd7c1453ce9bc23de9cf3e310a"
+        },
+        {
+          "path": "supabase/migrations/20261010131903_international_us_financial_pilot_invoice_dto1.sql",
+          "sha256": "e8b716dd1080966c411443a56756dc8ce94f2f73e20f72d6b5b3df609d31b04d"
+        }
+      ],
+      "reportSha256": "41e6ebcc59e59a45bec1a5ce5f532a794bc49c0f5c1549c034355e16deded5be",
+      "proofSha256": "fc69488f4b1d24dc9e7e7bbf7cad92f63bec052c06edc4fabb16218fddc90fd1",
+      "independentReviewSha256": "1edf29d29e9e9981f251f2c622913e336c7e14670b30363b69990d835e5eeabf",
+      "overlapsRegression": true
+    },
+    "contractProjection": {
+      "file": "lib/international/us-financial-pilot-invoice.test.ts",
+      "total": 33,
+      "passed": 33,
+      "sourceReport": ".qa/us-pilot-invoicing/regression-final.json",
+      "reportSha256": "3951b3416abde4e8f9a293cdf437aa0189ffdd3e33307b64c22ced7ca85050b4",
+      "sourceSha256": "b103bb70c3de575ee2dd12a4775c874845e3a8c472360076a8e33e20f681d61a",
+      "overlapsRegression": true
+    },
+    "browserInvoiceSession": {
+      "file": "lib/international/browser-us-financial-pilot-invoice.test.ts",
+      "total": 45,
+      "passed": 45,
+      "sourceReport": ".qa/us-pilot-invoicing/regression-final.json",
+      "reportSha256": "3951b3416abde4e8f9a293cdf437aa0189ffdd3e33307b64c22ced7ca85050b4",
+      "sourceSha256": "4a37395ccf835ba01be9c59815e65866da7f75f77f269f53e4e18f9db0aac32d",
+      "overlapsRegression": true
+    },
+    "contractReviewSha256": "f60e912b3c522d165ca27b49dc500daa67d381007b9d4b4641a71cadc9f120ad",
+    "uiSourceProofSha256": "c95accce68ff4ec86580fcbb2f4fc7ddc897c2c69f3bb3026a9abdac42c0d496"
+  },
+  "visual": {
+    "rounds": 2,
+    "initialCaptureGroup": "browser-captures-initial",
+    "captures": [
+      {
+        "name": "en-light-1440-form",
+        "file": ".impeccable/review/financial-invoicing/en-light-1440-form.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          2081
+        ],
+        "view": "form",
+        "sha256": "ad51b7af2a9bb68936b5817d280fec749b7fc433ec2d9663fd4726d78552520e",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 439.515625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 1118.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Open accounting period01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Billing address",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Choose the resolved timeUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 437.53125,
+              "tag": "BUTTON",
+              "text": "Browse catalogue",
+              "type": "button",
+              "width": 131.03125,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 1118.5,
+              "tag": "BUTTON",
+              "text": "Find this code",
+              "type": "button",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Choose a classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · General",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 326.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 470.1171875,
+              "tag": "BUTTON",
+              "text": "Load more codes",
+              "type": "button",
+              "width": 163.6171875,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 471.9765625,
+              "tag": "BUTTON",
+              "text": "Prepare sales tax",
+              "type": "submit",
+              "width": 165.4765625,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 711.328125,
+              "tag": "BUTTON",
+              "text": "Cancel invoice preparation",
+              "type": "button",
+              "width": 227.3515625,
+              "x": 483.9765625
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "en-light-1440-review",
+        "file": ".impeccable/review/financial-invoicing/en-light-1440-review.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          1603
+        ],
+        "view": "review",
+        "sha256": "19860816f6010ce55abe810cc6154c1837b94107c86ca0fa6c12a1a6cc8b4fa8",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 439.515625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 506.5859375,
+              "tag": "BUTTON",
+              "text": "Issue the test invoice",
+              "type": "button",
+              "width": 191.0859375,
+              "x": 315.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 725.796875,
+              "tag": "BUTTON",
+              "text": "Change invoice choices",
+              "type": "button",
+              "width": 207.2109375,
+              "x": 518.5859375
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "fr-light-1440-form",
+        "file": ".impeccable/review/financial-invoicing/fr-light-1440-form.png",
+        "language": "fr",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          2081
+        ],
+        "view": "form",
+        "sha256": "379c245a41168a842d19050c38c590422f58ba93b3e1526198cd2b3ef8e7f0c9",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 422.1171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 1118.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Période comptable ouverte01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Adresse de facturation",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Choisir l’heure résolueUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 466.6015625,
+              "tag": "BUTTON",
+              "text": "Parcourir le catalogue",
+              "type": "button",
+              "width": 160.1015625,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 1118.5,
+              "tag": "BUTTON",
+              "text": "Rechercher ce code",
+              "type": "button",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Choisir une classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · Gene",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 326.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 511.8671875,
+              "tag": "BUTTON",
+              "text": "Charger d’autres codes",
+              "type": "button",
+              "width": 205.3671875,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 493.53125,
+              "tag": "BUTTON",
+              "text": "Préparer la sales tax",
+              "type": "submit",
+              "width": 187.03125,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 776.640625,
+              "tag": "BUTTON",
+              "text": "Annuler la préparation de facture",
+              "type": "button",
+              "width": 271.109375,
+              "x": 505.53125
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "fr-light-1440-review",
+        "file": ".impeccable/review/financial-invoicing/fr-light-1440-review.png",
+        "language": "fr",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          1603
+        ],
+        "view": "review",
+        "sha256": "f231191c2904592e1e90610c6eeb2a2a6ad8781df33d9b5bfaf36952b3fba0ae",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 422.1171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 536.359375,
+              "tag": "BUTTON",
+              "text": "Émettre la facture de test",
+              "type": "button",
+              "width": 220.859375,
+              "x": 315.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 813.765625,
+              "tag": "BUTTON",
+              "text": "Modifier les choix de facturation",
+              "type": "button",
+              "width": 265.40625,
+              "x": 548.359375
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "de-light-1440-form",
+        "file": ".impeccable/review/financial-invoicing/de-light-1440-form.png",
+        "language": "de",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          2081
+        ],
+        "view": "form",
+        "sha256": "df473518dcd18b795bb471d7b2e3eb8a8cc6aee5ce9ebf78825851b87b67cc9e",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 460.34375,
+              "tag": "BUTTON",
+              "text": "Zurück zum Angebot",
+              "type": "button",
+              "width": 177.84375,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 1118.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Offene Buchungsperiode01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Rechnungsadresse",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Aufgelöste Uhrzeit wählenUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 460.5546875,
+              "tag": "BUTTON",
+              "text": "Katalog durchsuchen",
+              "type": "button",
+              "width": 154.0546875,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 1118.5,
+              "tag": "BUTTON",
+              "text": "Diesen Code suchen",
+              "type": "button",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Klassifizierung wählentxcd_20030000 · General consulting service · synthetictxcd_20030001 · General ",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 326.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 493.953125,
+              "tag": "BUTTON",
+              "text": "Weitere Codes laden",
+              "type": "button",
+              "width": 187.453125,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 499.125,
+              "tag": "BUTTON",
+              "text": "Sales Tax vorbereiten",
+              "type": "submit",
+              "width": 192.625,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 796.5703125,
+              "tag": "BUTTON",
+              "text": "Rechnungsvorbereitung abbrechen",
+              "type": "button",
+              "width": 285.4453125,
+              "x": 511.125
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "de-light-1440-review",
+        "file": ".impeccable/review/financial-invoicing/de-light-1440-review.png",
+        "language": "de",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          1688
+        ],
+        "view": "review",
+        "sha256": "42cc4de0c3326d9576caf81485a3483e22515847a1d30220b106a9bf2b68f137",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 460.34375,
+              "tag": "BUTTON",
+              "text": "Zurück zum Angebot",
+              "type": "button",
+              "width": 177.84375,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 528.5859375,
+              "tag": "BUTTON",
+              "text": "Testrechnung ausstellen",
+              "type": "button",
+              "width": 213.0859375,
+              "x": 315.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 771.421875,
+              "tag": "BUTTON",
+              "text": "Rechnungsauswahl ändern",
+              "type": "button",
+              "width": 230.8359375,
+              "x": 540.5859375
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "it-light-1440-form",
+        "file": ".impeccable/review/financial-invoicing/it-light-1440-form.png",
+        "language": "it",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          2081
+        ],
+        "view": "form",
+        "sha256": "2a9fe89a9a11b87fa0146d646bf34001e0a3608a62fef85e0b8fa20da9532197",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 445.4453125,
+              "tag": "BUTTON",
+              "text": "Torna al preventivo",
+              "type": "button",
+              "width": 162.9453125,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 1118.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Periodo contabile aperto01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Indirizzo di fatturazione",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Scegli l’ora risoltaUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 450.7890625,
+              "tag": "BUTTON",
+              "text": "Consulta il catalogo",
+              "type": "button",
+              "width": 144.2890625,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 1118.5,
+              "tag": "BUTTON",
+              "text": "Cerca questo codice",
+              "type": "button",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Scegli una classificazionetxcd_20030000 · General consulting service · synthetictxcd_20030001 · Gene",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 326.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 470.4921875,
+              "tag": "BUTTON",
+              "text": "Carica altri codici",
+              "type": "button",
+              "width": 163.9921875,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 487.8515625,
+              "tag": "BUTTON",
+              "text": "Prepara la sales tax",
+              "type": "submit",
+              "width": 181.3515625,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 792.3671875,
+              "tag": "BUTTON",
+              "text": "Annulla la preparazione della fattura",
+              "type": "button",
+              "width": 292.515625,
+              "x": 499.8515625
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "it-light-1440-review",
+        "file": ".impeccable/review/financial-invoicing/it-light-1440-review.png",
+        "language": "it",
+        "theme": "light",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          1603
+        ],
+        "view": "review",
+        "sha256": "8c8f24fafcd90074b2ce32f37d355ee69a20fcc78b3364ae2a1878d24a2fba7d",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 445.4453125,
+              "tag": "BUTTON",
+              "text": "Torna al preventivo",
+              "type": "button",
+              "width": 162.9453125,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 517.265625,
+              "tag": "BUTTON",
+              "text": "Emetti la fattura di test",
+              "type": "button",
+              "width": 201.765625,
+              "x": 315.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 796.5625,
+              "tag": "BUTTON",
+              "text": "Modifica le scelte di fatturazione",
+              "type": "button",
+              "width": 267.296875,
+              "x": 529.265625
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "en-dark-390-form",
+        "file": ".impeccable/review/financial-invoicing/en-dark-390-form.png",
+        "language": "en",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          3019
+        ],
+        "view": "form",
+        "sha256": "85992aebf95e0fe6f0cf1f3af459a206c9021f58cf266d77278b5c43fc5494fd",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 177.015625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Open accounting period01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Billing address",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choose the resolved timeUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 167.03125,
+              "tag": "BUTTON",
+              "text": "Browse catalogue",
+              "type": "button",
+              "width": 131.03125,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Find this code",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choose a classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · General",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 199.6171875,
+              "tag": "BUTTON",
+              "text": "Load more codes",
+              "type": "button",
+              "width": 163.6171875,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Prepare sales tax",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Cancel invoice preparation",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "en-dark-390-review",
+        "file": ".impeccable/review/financial-invoicing/en-dark-390-review.png",
+        "language": "en",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2328
+        ],
+        "view": "review",
+        "sha256": "18b95fe3e9c0be96223a909e312435d967442cac54d57c7a688160d5d3f53059",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 177.015625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Issue the test invoice",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Change invoice choices",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "fr-dark-390-form",
+        "file": ".impeccable/review/financial-invoicing/fr-dark-390-form.png",
+        "language": "fr",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          3041
+        ],
+        "view": "form",
+        "sha256": "cffe7e78e2f961c9006a6af5ffa49e4470bc26356c76e1d8175632cd315fbca3",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 159.6171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Période comptable ouverte01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Adresse de facturation",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir l’heure résolueUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 196.1015625,
+              "tag": "BUTTON",
+              "text": "Parcourir le catalogue",
+              "type": "button",
+              "width": 160.1015625,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Rechercher ce code",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir une classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · Gene",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 241.3671875,
+              "tag": "BUTTON",
+              "text": "Charger d’autres codes",
+              "type": "button",
+              "width": 205.3671875,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Préparer la sales tax",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Annuler la préparation de facture",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "fr-dark-390-review",
+        "file": ".impeccable/review/financial-invoicing/fr-dark-390-review.png",
+        "language": "fr",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2398
+        ],
+        "view": "review",
+        "sha256": "70aaf995a43b2b99bcd9abc6d9a95e712038688ee6041236e1297dac955e00db",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 159.6171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Émettre la facture de test",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Modifier les choix de facturation",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "de-dark-390-form",
+        "file": ".impeccable/review/financial-invoicing/de-dark-390-form.png",
+        "language": "de",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          3085
+        ],
+        "view": "form",
+        "sha256": "cead5d45e7cd0b6261cf923c107cf0d3331d6bb7a5c12392aff86ecc93ecb929",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 197.84375,
+              "tag": "BUTTON",
+              "text": "Zurück zum Angebot",
+              "type": "button",
+              "width": 177.84375,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Offene Buchungsperiode01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Rechnungsadresse",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Aufgelöste Uhrzeit wählenUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 190.0546875,
+              "tag": "BUTTON",
+              "text": "Katalog durchsuchen",
+              "type": "button",
+              "width": 154.0546875,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Diesen Code suchen",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Klassifizierung wählentxcd_20030000 · General consulting service · synthetictxcd_20030001 · General ",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 223.453125,
+              "tag": "BUTTON",
+              "text": "Weitere Codes laden",
+              "type": "button",
+              "width": 187.453125,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Sales Tax vorbereiten",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Rechnungsvorbereitung abbrechen",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "de-dark-390-review",
+        "file": ".impeccable/review/financial-invoicing/de-dark-390-review.png",
+        "language": "de",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2376
+        ],
+        "view": "review",
+        "sha256": "c2381d5a2c2df63f129ab9eade511123f2aa27c1ca7b22d75fafb7f8da56cf06",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 197.84375,
+              "tag": "BUTTON",
+              "text": "Zurück zum Angebot",
+              "type": "button",
+              "width": 177.84375,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Testrechnung ausstellen",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Rechnungsauswahl ändern",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "it-dark-390-form",
+        "file": ".impeccable/review/financial-invoicing/it-dark-390-form.png",
+        "language": "it",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2998
+        ],
+        "view": "form",
+        "sha256": "f1dede15de8dfc468e5ad68a6b9a78bc17175aa08db6108643ad00927404b64f",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 182.9453125,
+              "tag": "BUTTON",
+              "text": "Torna al preventivo",
+              "type": "button",
+              "width": 162.9453125,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Periodo contabile aperto01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Indirizzo di fatturazione",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Scegli l’ora risoltaUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 180.2890625,
+              "tag": "BUTTON",
+              "text": "Consulta il catalogo",
+              "type": "button",
+              "width": 144.2890625,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Cerca questo codice",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Scegli una classificazionetxcd_20030000 · General consulting service · synthetictxcd_20030001 · Gene",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 199.9921875,
+              "tag": "BUTTON",
+              "text": "Carica altri codici",
+              "type": "button",
+              "width": 163.9921875,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Prepara la sales tax",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Annulla la preparazione della fattura",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "it-dark-390-review",
+        "file": ".impeccable/review/financial-invoicing/it-dark-390-review.png",
+        "language": "it",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2376
+        ],
+        "view": "review",
+        "sha256": "c84e0a42bb92a1db57c7f3d26875aa202764ecf8ef6c16dc6536011afa0401c0",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 182.9453125,
+              "tag": "BUTTON",
+              "text": "Torna al preventivo",
+              "type": "button",
+              "width": 162.9453125,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Emetti la fattura di test",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Modifica le scelte di fatturazione",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "de-light-320-form",
+        "file": ".impeccable/review/financial-invoicing/de-light-320-form.png",
+        "language": "de",
+        "theme": "light",
+        "viewportWidth": 320,
+        "dimensions": [
+          305,
+          3275
+        ],
+        "view": "form",
+        "sha256": "2f74a813dae7befbeb6822b28d231f3cba46e6a774166f6028a6d0d55179bc25",
+        "metrics": {
+          "bodyWidth": 305,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 197.84375,
+              "tag": "BUTTON",
+              "text": "Zurück zum Angebot",
+              "type": "button",
+              "width": 177.84375,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 269,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 269,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 269,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 269,
+              "tag": "SELECT",
+              "text": "Offene Buchungsperiode01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 269,
+              "tag": "SELECT",
+              "text": "Rechnungsadresse",
+              "type": null,
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 269,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 269,
+              "tag": "SELECT",
+              "text": "Aufgelöste Uhrzeit wählenUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 190.0546875,
+              "tag": "BUTTON",
+              "text": "Katalog durchsuchen",
+              "type": "button",
+              "width": 154.0546875,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 269,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 269,
+              "tag": "BUTTON",
+              "text": "Diesen Code suchen",
+              "type": "button",
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 269,
+              "tag": "SELECT",
+              "text": "Klassifizierung wählentxcd_20030000 · General consulting service · synthetictxcd_20030001 · General ",
+              "type": null,
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 223.453125,
+              "tag": "BUTTON",
+              "text": "Weitere Codes laden",
+              "type": "button",
+              "width": 187.453125,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 269,
+              "tag": "BUTTON",
+              "text": "Sales Tax vorbereiten",
+              "type": "submit",
+              "width": 233,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 70.5,
+              "right": 269,
+              "tag": "BUTTON",
+              "text": "Rechnungsvorbereitung abbrechen",
+              "type": "button",
+              "width": 233,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 305
+        }
+      },
+      {
+        "name": "de-light-320-review",
+        "file": ".impeccable/review/financial-invoicing/de-light-320-review.png",
+        "language": "de",
+        "theme": "light",
+        "viewportWidth": 320,
+        "dimensions": [
+          305,
+          2710
+        ],
+        "view": "review",
+        "sha256": "385e761360e4df725ceda42068bab1fd47a62f8bdde0977bb95b1ffe77621430",
+        "metrics": {
+          "bodyWidth": 305,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 197.84375,
+              "tag": "BUTTON",
+              "text": "Zurück zum Angebot",
+              "type": "button",
+              "width": 177.84375,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 266,
+              "tag": "BUTTON",
+              "text": "Testrechnung ausstellen",
+              "type": "button",
+              "width": 227,
+              "x": 39
+            },
+            {
+              "disabled": false,
+              "height": 70.5,
+              "right": 266,
+              "tag": "BUTTON",
+              "text": "Rechnungsauswahl ändern",
+              "type": "button",
+              "width": 227,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 305
+        }
+      },
+      {
+        "name": "en-dark-1440-form",
+        "file": ".impeccable/review/financial-invoicing/en-dark-1440-form.png",
+        "language": "en",
+        "theme": "dark",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          2081
+        ],
+        "view": "form",
+        "sha256": "86c16df2a7c1aefca75b1b069a9c7e5c294227b91bc5abc5ead852544e1700cb",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 439.515625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 1118.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Open accounting period01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Billing address",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46.625,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Choose the resolved timeUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 437.53125,
+              "tag": "BUTTON",
+              "text": "Browse catalogue",
+              "type": "button",
+              "width": 131.03125,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 703.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 397,
+              "x": 306.5
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 1118.5,
+              "tag": "BUTTON",
+              "text": "Find this code",
+              "type": "button",
+              "width": 397,
+              "x": 721.5
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 1118.5,
+              "tag": "SELECT",
+              "text": "Choose a classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · General",
+              "type": null,
+              "width": 812,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 326.5,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 470.1171875,
+              "tag": "BUTTON",
+              "text": "Load more codes",
+              "type": "button",
+              "width": 163.6171875,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 471.9765625,
+              "tag": "BUTTON",
+              "text": "Prepare sales tax",
+              "type": "submit",
+              "width": 165.4765625,
+              "x": 306.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 711.328125,
+              "tag": "BUTTON",
+              "text": "Cancel invoice preparation",
+              "type": "button",
+              "width": 227.3515625,
+              "x": 483.9765625
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "en-dark-1440-review",
+        "file": ".impeccable/review/financial-invoicing/en-dark-1440-review.png",
+        "language": "en",
+        "theme": "dark",
+        "viewportWidth": 1440,
+        "dimensions": [
+          1425,
+          1603
+        ],
+        "view": "review",
+        "sha256": "8b0612f9575512a39e61e8c4373ab0fa5e99ee52a30a512a23fbe82a5f2350ba",
+        "metrics": {
+          "bodyWidth": 1425,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 439.515625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 282.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 506.5859375,
+              "tag": "BUTTON",
+              "text": "Issue the test invoice",
+              "type": "button",
+              "width": 191.0859375,
+              "x": 315.5
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 725.796875,
+              "tag": "BUTTON",
+              "text": "Change invoice choices",
+              "type": "button",
+              "width": 207.2109375,
+              "x": 518.5859375
+            }
+          ],
+          "scrollWidth": 1425
+        }
+      },
+      {
+        "name": "en-light-390-form",
+        "file": ".impeccable/review/financial-invoicing/en-light-390-form.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          3019
+        ],
+        "view": "form",
+        "sha256": "7ef2bf5b514ec619aacc104c171fed15274c70f7b6e25a9377d9fedebb19ff6a",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 177.015625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Open accounting period01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Billing address",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choose the resolved timeUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 167.03125,
+              "tag": "BUTTON",
+              "text": "Browse catalogue",
+              "type": "button",
+              "width": 131.03125,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Find this code",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choose a classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · General",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 199.6171875,
+              "tag": "BUTTON",
+              "text": "Load more codes",
+              "type": "button",
+              "width": 163.6171875,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Prepare sales tax",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Cancel invoice preparation",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "en-light-390-review",
+        "file": ".impeccable/review/financial-invoicing/en-light-390-review.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2328
+        ],
+        "view": "review",
+        "sha256": "38e2c23c04038a651f2967ecb895e7850fb5e21b25a013678a5ae51b9f70297f",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 177.015625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Issue the test invoice",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Change invoice choices",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "en-light-390-uncertain",
+        "file": ".impeccable/review/financial-invoicing/en-light-390-uncertain.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2590
+        ],
+        "view": "uncertain",
+        "sha256": "e1bca6f4d9b894322f293eb26013f6ed525680051906f36d8a2970ebe27682fe",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": true,
+              "height": 44,
+              "right": 177.015625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 334,
+              "tag": "BUTTON",
+              "text": "Check this same request",
+              "type": "button",
+              "width": 293,
+              "x": 41
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Issue the test invoice",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Change invoice choices",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "en-light-390-issued",
+        "file": ".impeccable/review/financial-invoicing/en-light-390-issued.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          1245
+        ],
+        "view": "issued",
+        "sha256": "cfe86a054e1d86608e2d7eac6bdea6e69212a6893225d81824e938c64655f59c",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 177.015625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 157.015625,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 355,
+              "tag": "BUTTON",
+              "text": "View the invoice",
+              "type": "button",
+              "width": 335,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 151.015625,
+              "tag": "BUTTON",
+              "text": "Back to the quote",
+              "type": "button",
+              "width": 131.015625,
+              "x": 20
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "en-light-390-denied",
+        "file": ".impeccable/review/financial-invoicing/en-light-390-denied.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 390,
+        "dimensions": [
+          390,
+          1000
+        ],
+        "view": "denied",
+        "sha256": "fd4437cc316df643ca6225d58e894506a4895937af5441d14841e0366456ce8d",
+        "metrics": {
+          "bodyWidth": 390,
+          "controls": [],
+          "scrollWidth": 390
+        }
+      },
+      {
+        "name": "en-light-390-invoice-detail",
+        "file": ".impeccable/review/financial-invoicing/en-light-390-invoice-detail.png",
+        "language": "en",
+        "theme": "light",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2566
+        ],
+        "view": "invoice-detail",
+        "sha256": "e2d2eddc7ca9bc993effc8dc88ef393087297d3c650de9fbfd1a2bc1f39763d9",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "fr-dark-390-draft-review",
+        "file": ".impeccable/review/financial-invoicing/fr-dark-390-draft-review.png",
+        "language": "fr",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          3743
+        ],
+        "view": "draft-review",
+        "sha256": "838507898e1394511347f93b32b347c678827ce6e6019df14f9ddb7273124eb9",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 159.6171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 334,
+              "tag": "BUTTON",
+              "text": "Lire le devis actuel",
+              "type": "button",
+              "width": 293,
+              "x": 41
+            },
+            {
+              "disabled": false,
+              "height": 70.5,
+              "right": 355,
+              "tag": "BUTTON",
+              "text": "Utiliser ce devis actuel et conserver mes choix",
+              "type": "button",
+              "width": 335,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Période comptable ouverte01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Adresse de facturation",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir l’heure résolueUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 196.1015625,
+              "tag": "BUTTON",
+              "text": "Parcourir le catalogue",
+              "type": "button",
+              "width": 160.1015625,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Rechercher ce code",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir une classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · Gene",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 241.3671875,
+              "tag": "BUTTON",
+              "text": "Charger d’autres codes",
+              "type": "button",
+              "width": 205.3671875,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Préparer la sales tax",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Annuler la préparation de facture",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "fr-dark-390-tax-blocked",
+        "file": ".impeccable/review/financial-invoicing/fr-dark-390-tax-blocked.png",
+        "language": "fr",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          3367
+        ],
+        "view": "tax-blocked",
+        "sha256": "9e38a1507a75c2516a90540adf64fb3b1fc07ccd24e735a22cb8950ab84e3977",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": true,
+              "height": 44,
+              "right": 159.6171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 334,
+              "tag": "BUTTON",
+              "text": "Vérifier cette même demande",
+              "type": "button",
+              "width": 293,
+              "x": 41
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Période comptable ouverte01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Adresse de facturation",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir l’heure résolueUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 196.1015625,
+              "tag": "BUTTON",
+              "text": "Parcourir le catalogue",
+              "type": "button",
+              "width": 160.1015625,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Rechercher ce code",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir une classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · Gene",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 241.3671875,
+              "tag": "BUTTON",
+              "text": "Charger d’autres codes",
+              "type": "button",
+              "width": 205.3671875,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Préparer la sales tax",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Annuler la préparation de facture",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "fr-dark-390-preparing",
+        "file": ".impeccable/review/financial-invoicing/fr-dark-390-preparing.png",
+        "language": "fr",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          3230
+        ],
+        "view": "preparing",
+        "sha256": "cdef48c8b6e6da0985a90f0d5fade65d92d5d7d878eef7da040c792ff0e09cfb",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": true,
+              "height": 44,
+              "right": 159.6171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 20
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 334,
+              "tag": "BUTTON",
+              "text": "Préparation de la sales tax…",
+              "type": "button",
+              "width": 293,
+              "x": 41
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "date",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Période comptable ouverte01/01/2026 – 12/31/2026",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Adresse de facturation",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 47.25,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": "time",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir l’heure résolueUTC-04:00 · 2026-10-10T13:00:00.000Z",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 196.1015625,
+              "tag": "BUTTON",
+              "text": "Parcourir le catalogue",
+              "type": "button",
+              "width": 160.1015625,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "INPUT",
+              "text": "",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Rechercher ce code",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 46,
+              "right": 339,
+              "tag": "SELECT",
+              "text": "Choisir une classificationtxcd_20030000 · General consulting service · synthetictxcd_20030001 · Gene",
+              "type": null,
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 20,
+              "right": 56,
+              "tag": "INPUT",
+              "text": "",
+              "type": "checkbox",
+              "width": 20,
+              "x": 36
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 241.3671875,
+              "tag": "BUTTON",
+              "text": "Charger d’autres codes",
+              "type": "button",
+              "width": 205.3671875,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Préparation de la sales tax…",
+              "type": "submit",
+              "width": 303,
+              "x": 36
+            },
+            {
+              "disabled": true,
+              "height": 48,
+              "right": 339,
+              "tag": "BUTTON",
+              "text": "Annuler la préparation de facture",
+              "type": "button",
+              "width": 303,
+              "x": 36
+            }
+          ],
+          "scrollWidth": 375
+        }
+      },
+      {
+        "name": "fr-dark-390-recovered-review",
+        "file": ".impeccable/review/financial-invoicing/fr-dark-390-recovered-review.png",
+        "language": "fr",
+        "theme": "dark",
+        "viewportWidth": 390,
+        "dimensions": [
+          375,
+          2398
+        ],
+        "view": "recovered-review",
+        "sha256": "294371d40d0008ee97325c00914cc0b63824bffccfbfe9692740b935bca3ab56",
+        "metrics": {
+          "bodyWidth": 375,
+          "controls": [
+            {
+              "disabled": false,
+              "height": 44,
+              "right": 159.6171875,
+              "tag": "BUTTON",
+              "text": "Retour au devis",
+              "type": "button",
+              "width": 139.6171875,
+              "x": 20
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Émettre la facture de test",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            },
+            {
+              "disabled": false,
+              "height": 48,
+              "right": 336,
+              "tag": "BUTTON",
+              "text": "Modifier les choix de facturation",
+              "type": "button",
+              "width": 297,
+              "x": 39
+            }
+          ],
+          "scrollWidth": 375
+        }
+      }
+    ],
+    "behaviorProof": {
+      "preparationNoAppend": true,
+      "exactIssueRetry": true,
+      "secondClientAutomatic": true,
+      "draftPreserved": true,
+      "blockedRecovery": true,
+      "invoiceDetail": true,
+      "accessCleared": true
+    },
+    "recipeEvidence": {
+      ".qa/us-pilot-invoicing/capture-index-final.json": "756a63a27c4e3c24d135ce0078709b585ecf5294a34d529bc2067a9481b0b676",
+      ".qa/us-pilot-invoicing/before-preparation.json": "4ebb8bdbb053d3be2083e66534162d3809ce15099d93eb276c6d2027c1b59ad3",
+      ".qa/us-pilot-invoicing/after-preparation.json": "43309131460165f1de7c4444c22027e55216515f9f5a7f4644f055726b9b00b4",
+      ".qa/us-pilot-invoicing/after-matrix-preparations.json": "f1d03946bf628994a45dda06ae4f845d5d4178458a9dd516bf11654fc5a20d71",
+      ".qa/us-pilot-invoicing/lost-issue-committed.json": "ded9ad346a3f7631c5256c20d3d2cf891d34fc075564bb489108c307b7983542",
+      ".qa/us-pilot-invoicing/after-exact-retry.json": "ded9ad346a3f7631c5256c20d3d2cf891d34fc075564bb489108c307b7983542",
+      ".qa/us-pilot-invoicing/second-client-automatic.json": "89689d46f90a4f09c9a829802663bc1bbbc0967d030b36498526ddda3a7253ed",
+      ".qa/us-pilot-invoicing/denied-proof.json": "22d82f650de03547df7407a184b510f26585c336da8144871722dc403f7bb9a1",
+      ".qa/us-pilot-invoicing/detail-journal-proof.json": "b469c4901235f8f1bda4c9f049b50a69c9553cccc0e15cc6dc79758232d3129a",
+      ".qa/us-pilot-invoicing/draft-review-proof.json": "490d7646e15479be051cfe86cb8651c34ea2ccffe03b09a7e9d758fd44b4e542",
+      ".qa/us-pilot-invoicing/blocked-before-recovery.json": "1e261b2f1ab7ef92ca163f99d4d5ad086810cab5c846b396afa741a70c933469",
+      ".qa/us-pilot-invoicing/blocked-book.json": "27677b8e5ae720a7fc6561a892e0632d629977075a267d03ba5dfa95f26e9d91",
+      ".qa/us-pilot-invoicing/blocked-recovery-proof.json": "c377eebb5cc647409dedab6e440ea7e52bf1a3b231e18396143a1eba21ab75e2",
+      ".qa/us-pilot-invoicing/recovered-book.json": "e87e77d9ef08f1514a86655c6bd321885ccc1d66a3e8f370be32db113c3e5364",
+      ".qa/us-pilot-invoicing/harness-encoded-id-defect.json": "55f44468ee6e0c8c1f20e754b8de70dd6742adb686cc38f3c88a900e7579fb71"
+    },
+    "format": "Browser JPEG captures converted to PNG; decoded RGB identity verified by Pillow.",
+    "scope": "Actual React and imported handlers with memory V5 kernel; fictitious data and synthetic Auth/D1/fiscal gateway. No real provider, hosted Realtime or native-device proof.",
+    "draftEvidenceLimit": "Catalogue selection and fiscal instant survived external revision. Native ArrowUp due-date entry then survived current-source read and same-request recovery. CUA fill changed the date DOM without committing React state; that fill alone is not counted as successful entry.",
+    "proofSha256": "bac5ad83e254c28c30421816e5cc8f7d754990dcf4d08044dd3f13bdad7030d1",
+    "reviewSha256": "929ac0c646a57b5f3dd465635d0605793ade1a201dcea2d06bb5dd4bbab76b47",
+    "formatProofSha256": "bc882085ac2c4bdc39805475aff06a6193ba96963d1618fb0718496d25e1b904",
+    "detector": {
+      "runs": 1,
+      "report": ".qa/us-pilot-invoicing/ui-detector-final.json",
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+      "result": []
+    }
+  },
+  "migrations": {
+    "new": [
+      "supabase/migrations/20261010131903_international_us_financial_pilot_invoice_dto1.sql"
+    ],
+    "totalTested": 33,
+    "existing": 32,
+    "testedFiles": {
+      "supabase/migrations/202609140100_company_profiles.sql": "be1fa5eeb05ad593eb17ec83009ff10a285a3c3c830c8c6ad9095b2c3cfc540b",
+      "supabase/migrations/202609140200_company_collaboration.sql": "2e73dffe285e9ca9a78026995647f45d86bbc6f3f0731bb217e8c60b9048479c",
+      "supabase/migrations/202609200300_company_content.sql": "51c6789548433f0dd4bc6470246b73823008805b6484969232640f91317910f5",
+      "supabase/migrations/20261007194528_international_workspace_country_config.sql": "097bcc42c4e2cd8835a62b240152038711d9b3e2d88dda8cc4da9cb8d151cae9",
+      "supabase/migrations/20261007222349_international_us_erp_persistence.sql": "80a2fae2ddf7e59d64d2ffb49c51ba61842c02f57700f3f013fa4a877a5bf68c",
+      "supabase/migrations/20261007224820_international_us_erp_delta_stream.sql": "3df54310c2da0012d9065886df86a6524963ab594a1f314d10d45fac551af345",
+      "supabase/migrations/20261007225725_international_us_erp_seller_snapshot.sql": "119e0c850c04c6772c0b002384c2cf86c8ab3427ec24586eb77f73a2a314f4f9",
+      "supabase/migrations/20261008001726_new_us_workspace_admission.sql": "435f87289682dbed3b372bd6790d0f213a5a5e7a4c5aee32f70323798e87edcc",
+      "supabase/migrations/20261008013200_international_tax_proof_allowlist.sql": "7f2d18ba19defb35dc3352624b18f951a26f806b86eb19d2c10c0c2bf4f977d8",
+      "supabase/migrations/20261008034422_international_us_seller_profile.sql": "a97274cb5e8f4d1153e5e0c98749a1d3c89a5d41debd721a3f7e7c1c9e56546b",
+      "supabase/migrations/20261008044402_international_us_tax_profile.sql": "98d5b4dd7b9842def1a036d512876a40ebc7131a44954a1e4ef09dab793e5034",
+      "supabase/migrations/20261008060826_international_us_tax_operations.sql": "a34d2fa9a78876a1c48910c004f25e795c73cfe35797824eb1ca5eaffb161330",
+      "supabase/migrations/20261008081825_international_us_purchasing_v2.sql": "1c0008e766a358166f0eccc25b68c60ee4dcd0f68d9b3220e946df213980013b",
+      "supabase/migrations/20261008105120_international_us_projects_v3.sql": "c88fe97ed67e24c50f83d81cd7371e9f3a6a4a335b2c136fe0f2665f8e52620d",
+      "supabase/migrations/20261008161118_international_us_journal_periods_v4.sql": "3d33a8ff4406a72c5a82a42bdc67bf6a02885b02745cc81fce8976bb10c2a31c",
+      "supabase/migrations/20261008172520_international_us_tax_invoice_capability_v2.sql": "f5beddce39dec119e1b606724be9c3ab6b7738260792cbd72d3a45f97993a718",
+      "supabase/migrations/20261008184605_international_us_bank_reconciliation.sql": "0f43af57a0d9552d572ca353991f10fc214e710279e68defca44c844ba87d298",
+      "supabase/migrations/20261008194930_international_us_supplier_proposals.sql": "61d2e26795d86daeba2d0b02792b28a5c9d9b4c33c7ff402f158e48f4dd4d6fd",
+      "supabase/migrations/20261008210008_international_us_automation_analysis.sql": "108a06f656ac7cba4a55ff60db0cde14bfca5e64b8bdf167ce2039cdf3fa7d6a",
+      "supabase/migrations/20261009215104_international_us_workspace_sync_heads.sql": "c47f739c2c6d3526df5a7999463ccc2cd717efa310ab319720939f9406cfa6ad",
+      "supabase/migrations/20261009222319_international_us_tax_test_merchant.sql": "9e436a3c1179dc541b3365f923d3a5f29e78a85ba9f8a0d3da7a40cc8e6ed330",
+      "supabase/migrations/20261009224607_international_us_tax_invoice_preparation.sql": "c3df657f26321ea618b16af340b3f6c9735ef08cee851f1510631fe6f29dc484",
+      "supabase/migrations/20261010005300_international_us_supplier_originals.sql": "ae3b95c4047ce2b539fdfc0e4c2d05f208f9dfa727bb065ae0e83803a62f8faf",
+      "supabase/migrations/20261010024618_international_us_supplier_original_hash_lookup.sql": "f8cd1050527c40d3241a01d1e31b5469772518ddd9c2aec3c072679faed5d57f",
+      "supabase/migrations/20261010054644_international_us_sales_orders.sql": "fbf0f516593cbece46f086fd2a20a1beb5cf42d8579ac11ee97a36ef253e70e4",
+      "supabase/migrations/20261010075840_international_us_financial_test_foundation_v5.sql": "05f8a29dd9f8aa3293d9ddc29d17f617476b0940f65fb40a4dadbfee3c4f6489",
+      "supabase/migrations/20261010083027_international_us_financial_test_settlement_v5.sql": "7e61626b6f624209dbe956865aae467e76e816162f0a081cc351a2c92fd6c006",
+      "supabase/migrations/20261010085523_international_us_financial_test_commercial_v5.sql": "20229813baee99b2321e925e88200fd19f066f3a9aca54979fb21ccdfff96982",
+      "supabase/migrations/20261010091729_international_us_financial_test_purchasing_v5.sql": "a95ea570fa651ec41dd7b1fc747fd9888138e603be9fca3456a38ac2eb0077fb",
+      "supabase/migrations/20261010093930_international_us_financial_test_accounting_v5.sql": "6ec3b9c3b14b9e7de03e42b792f980ffa1ed4dd85066ae63b5ecc1f504dec729",
+      "supabase/migrations/20261010100252_international_us_financial_test_invoicing_v5.sql": "9e5bce6e48f77fbd985b81a6830067ed12fdc4f63e8ddd9d92fc04b0b917eff4",
+      "supabase/migrations/20261010104148_international_us_financial_pilot_dto1.sql": "da15e940ed7093bd07a65056017a7c37770dc3b438f79170ffc3ad47ec39f754",
+      "supabase/migrations/20261010131903_international_us_financial_pilot_invoice_dto1.sql": "e8b716dd1080966c411443a56756dc8ce94f2f73e20f72d6b5b3df609d31b04d"
+    },
+    "hostedApplied": false
+  },
+  "boundaries": {
+    "country": "US",
+    "currency": "USD",
+    "basis": "accrual",
+    "consumer": "financial-pilot",
+    "publicSchemaVersion": 1,
+    "privateEngineVersion": 5,
+    "productionChanged": false,
+    "nativePublished": false,
+    "swissBusinessSourceChanged": false,
+    "realTaxProviderCalled": false
+  },
+  "limitations": [
+    "Auth/D1 and tax provider observations are synthetic; no real Stripe account or provider call is claimed.",
+    "PGlite PostgreSQL WASM is serialized: no multi-connection/load/crash/SLA or hosted readiness claim.",
+    "Browser interaction recipe uses the real memory V5 kernel with synthetic data; separate SQL scenarios validate the migration chain and persistence.",
+    "A TEST tax calculation is not a tax transaction, general compliance certification or US GAAP certification.",
+    "Current supported scope is taxable exclusive services, whole positive quantities, US destination, USD and accrual.",
+    "No hosted migration, public US activation, native admission/installer publication, customer data or Swiss business-source change.",
+    "Targeted/backend/contract/browser unit counts overlap the global regression and must not be added to its total."
+  ]
+}
