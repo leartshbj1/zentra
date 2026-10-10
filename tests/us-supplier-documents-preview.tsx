@@ -6,6 +6,7 @@ import { createLedger } from '../lib/international/accounting/ledger';
 import { usStarterChart } from '../lib/international/countries/us/accounting';
 import { sha256Hex } from '../lib/international/canonical-hash';
 import { hashUsMailboxImportRequest, validateUsMailboxImportRequest } from '../lib/international/us-support-mailbox-import-contract';
+import { hashUsSupportTriageRequest, validateUsSupportTriageRequest, US_SUPPORT_TRIAGE_MODEL, US_SUPPORT_TRIAGE_RECIPE_VERSION } from '../lib/international/us-support-triage-contract';
 import { validateStoredErp } from '../lib/international/runtime-validation';
 import { validateUsSupplierProposal } from '../lib/international/us-supplier-proposal';
 import { US_SUPPLIER_FIELDS, validateUsSupplierExtraction } from '../lib/international/us-supplier-extraction';
@@ -26,6 +27,8 @@ const text = 'Fictitious Harbor LLC\nInvoice Number US-1043\nInvoice Date April 
 const pdf = new TextEncoder().encode('%PDF-1.7\nFictitious local review original.\n' + text), photo = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]), reserved = new TextEncoder().encode('Fictitious reserved original');
 const documents = new Map<string, UsSupplierDocument>(), objects = new Map<string, Uint8Array<ArrayBuffer>>(), proposals = new Map<string, UsSupplierProposal>();
 const mailImports = new Map<string, UsSupplierDocument>();
+const triageResults = new Map<string, object>();
+let triageUncertain = false;
 const makeDocument = async (id: string, fileName: string, mediaType: UsSupplierDocument['mediaType'], bytes: Uint8Array, readable: boolean, stored = true) => { const row: UsSupplierDocument = { schemaVersion: 1, organizationId, id, fileName, mediaType, sizeBytes: bytes.length, contentSha256: await sha256Hex(bytes), createdBy: userId, createdAt: '2026-10-10T12:00:00.000Z', readable, stored, proposalId: null }; documents.set(id, row); objects.set(id, bytes.slice()); return row; };
 await makeDocument('af6e5eae-23c8-4535-bb3c-a8eafc1bf8a7', 'Fictitious supplier invoice.pdf', 'application/pdf', pdf, true);
 await makeDocument('bf6e5eae-23c8-4535-bb3c-a8eafc1bf8a7', 'Fictitious scanned receipt.png', 'image/png', photo, false);
@@ -34,6 +37,7 @@ const extraction = validateUsSupplierExtraction({ schemaVersion: 1, kind: 'vendo
 let revoked = false, loseUpload = false, loseAnalysis = false, automationDenied = false, hold = false, release: (() => void) | null = null;
 const requests: { path: string; method: string; body: string; bytes: number[]; fileName: string | null; status: number }[] = [];
 const fixture = { scope: 'Actual React workbench/transports; synthetic RAM HTTP, actor, archive, provider and ERP. No production or physical-device proof.', requests, documents, proposals, state,
+  uncertainNextTriage: () => { triageUncertain = true; },
   loseNextUpload: () => { loseUpload = true; }, loseNextAnalysis: () => { loseAnalysis = true; }, denyAutomation: () => { automationDenied = true; }, allowAutomation: () => { automationDenied = false; }, holdNextWrite: () => { hold = true; }, release: () => { release?.(); release = null; }, revoke: () => { revoked = true; window.dispatchEvent(new Event(AUTH_CHANGED_EVENT)); },
 };
 Object.assign(window, { __US_SUPPLIER_DOCUMENTS_FIXTURE__: fixture });
@@ -47,6 +51,15 @@ window.fetch = async (input, init = {}) => {
   if (path.endsWith('/support-workspace') && method === 'GET') return respond({ schemaVersion: 1, organizationId, userId, role, canCreate: false, stage: 'registry_only', mailboxAvailable: false, classificationAvailable: false, workspace: { schemaVersion: 1, organizationId, workspaceId, ownerUserId: userId, connectedBy: userId, name: 'Fictitious Harbor Support', revision: 1, createdAt: 1791600000 } });
   if (path.endsWith('/support-mailbox') && method === 'GET') return respond({ schemaVersion: 1, organizationId, userId, role, workspaceId, revision: 1, canManage: ['owner', 'admin'].includes(role), connection: { id: connectionId, provider: 'infomaniak', email: 'fictitious@example.invalid', verifiedAt: 1791600000 } });
   if (path.includes('/support-mailbox/messages?') && method === 'GET') return respond({ schemaVersion: 1, organizationId, userId, role, workspaceId, connectionId, revision: 1, offset: 0, nextOffset: null, messages: [{ uid: '1043', version: '1791600000', subject: 'Fictitious supplier original — imported through Support', sender: 'Fictitious vendor', receivedAt: 1791600000, attachments: [{ id: '1.2', name: 'Fictitious mail original.pdf', sizeBytes: pdf.length }, { id: '1.3', name: 'Fictitious meeting.ics', sizeBytes: 120 }] }] });
+  if (path.endsWith('/support-mailbox/triage') && method === 'GET') return respond({schemaVersion:1,organizationId,userId,role,workspaceId,processingPolicyVersion:'synthetic-triage-v1',recipeVersion:US_SUPPORT_TRIAGE_RECIPE_VERSION,usage:{limit:25,used:triageResults.size,remaining:25-triageResults.size}});
+  if (path.endsWith('/support-mailbox/triage') && method === 'POST') {
+    const command=validateUsSupportTriageRequest(JSON.parse(record.body)),prior=triageResults.get(command.requestId);
+    if(prior)return respond({...prior,replayed:true});
+    const uncertain=triageUncertain;triageUncertain=false;
+    const result={schemaVersion:1,organizationId,userId,role,workspaceId,requestId:command.requestId,requestHash:await hashUsSupportTriageRequest(organizationId,workspaceId,userId,command),replayed:false,state:uncertain?'uncertain':'completed',jobId:crypto.randomUUID(),createdAt:1791600000,
+      result:uncertain?null:{schemaVersion:1,category:'supplier_invoice',priority:'normal',categoryConfidence:0.96,priorityConfidence:0.98,confidence:0.96,language:'en',languageConfidence:0.99,humanRequested:0,reviewReasons:['unread_attachments'],needsReview:true,model:US_SUPPORT_TRIAGE_MODEL,recipeVersion:US_SUPPORT_TRIAGE_RECIPE_VERSION}};
+    triageResults.set(command.requestId,result);return respond(result);
+  }
   if (path.endsWith('/support-mailbox/import') && method === 'POST') {
     const command = validateUsMailboxImportRequest(JSON.parse(record.body));
     if (headers.get('X-Zentra-Erp-Schema-Version') !== '4') return respond({ error: 'client_schema_required' }, 409);
@@ -86,4 +99,4 @@ window.fetch = async (input, init = {}) => {
   return respond({ error: 'feature_unavailable' }, 404);
 };
 document.documentElement.lang = language;
-createRoot(document.getElementById('root')!).render(<div className="account-experience account-detail" data-theme={query.get('theme') === 'dark' ? 'dark' : 'light'}><main className="account-content preview-content"><UsErpWorkbench organizationId={organizationId} expectedUserId={userId} role={role} language={language} supportedSchemaVersion={4} documentsEnabled supportWorkspaceEnabled={query.get('mailImport') === '1'} supportMailboxEnabled={query.get('mailImport') === '1'} supportMailImportEnabled={query.get('mailImport') === '1'} supplierEnabled={query.get('automation') !== 'off'} /><aside className="preview-controls" aria-label="Local fixture controls"><p>Local synthetic review fixture · no provider or real archive</p><button onClick={fixture.loseNextUpload}>Lose next save response</button><button onClick={fixture.loseNextAnalysis}>Lose next analysis response</button><button onClick={fixture.denyAutomation}>Refuse Automation only</button><button onClick={fixture.allowAutomation}>Restore Automation</button><button onClick={fixture.holdNextWrite}>Hold next write</button><button onClick={fixture.release}>Release held write</button><button onClick={fixture.revoke}>Revoke access</button></aside></main></div>);
+createRoot(document.getElementById('root')!).render(<div className="account-experience account-detail" data-theme={query.get('theme') === 'dark' ? 'dark' : 'light'}><main className="account-content preview-content"><UsErpWorkbench organizationId={organizationId} expectedUserId={userId} role={role} language={language} supportedSchemaVersion={4} documentsEnabled supportWorkspaceEnabled={query.get('mailImport') === '1' || query.get('triage') === '1'} supportMailboxEnabled={query.get('mailImport') === '1' || query.get('triage') === '1'} supportTriageEnabled={query.get('triage') === '1'} supportMailImportEnabled={query.get('mailImport') === '1'} supplierEnabled={query.get('automation') !== 'off'} /><aside className="preview-controls" aria-label="Local fixture controls"><p>Local synthetic review fixture · no provider or real archive</p><button onClick={fixture.uncertainNextTriage}>Uncertain next classification</button><button onClick={fixture.loseNextUpload}>Lose next save response</button><button onClick={fixture.loseNextAnalysis}>Lose next analysis response</button><button onClick={fixture.denyAutomation}>Refuse Automation only</button><button onClick={fixture.allowAutomation}>Restore Automation</button><button onClick={fixture.holdNextWrite}>Hold next write</button><button onClick={fixture.release}>Release held write</button><button onClick={fixture.revoke}>Revoke access</button></aside></main></div>);
