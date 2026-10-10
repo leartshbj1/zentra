@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-10T23:54:38.420Z",
+  "objective": "Zentra Action Engine",
+  "phase": "A1-local-durable-ledger",
+  "codeCommit": "31483afb1a76d0c1c6705d47c9a870dddc545999",
+  "parentCommit": "8b2ece70a7208934be719225d9967943bdaecc1f",
+  "sources": [
+    {
+      "path": "db/action-engine-schema.ts",
+      "bytes": 2818,
+      "sha256": "3b22fcbd25b63d03400810593a06660280f0b49db89f90105790d7144590ccd1"
+    },
+    {
+      "path": "db/schema.ts",
+      "bytes": 48107,
+      "sha256": "a587f7617086270d1322c8a96205d7ec4d9e6051f35122b5b16b5385e51d4904"
+    },
+    {
+      "path": "docs/action-engine/DURABLE-LEDGER-PLAN.md",
+      "bytes": 6228,
+      "sha256": "031b4fe30e0f728b628f94b36a253353c9dc334e1570697307daf83232d6645c"
+    },
+    {
+      "path": "docs/action-engine/NATIVE-ADAPTER-CONTRACT.md",
+      "bytes": 4429,
+      "sha256": "216852d38625f7832eb39235b5f6816695a2bcdf3451faa47b41ed11b52e994f"
+    },
+    {
+      "path": "drizzle/0099_action_engine_quote_ledger.sql",
+      "bytes": 7870,
+      "sha256": "c71555d1147bcd4da3b489e2b5dcadf168dc0ccd00c3e5f4b6220c22f144f139"
+    },
+    {
+      "path": "lib/action-engine/README.md",
+      "bytes": 5904,
+      "sha256": "3071a540ced4d1f30ff0cebee8f5bf6515b8aff715498b47280e36bb4cc66bba"
+    },
+    {
+      "path": "lib/action-engine/engine.test.ts",
+      "bytes": 18046,
+      "sha256": "2474a1a97c15a9f839158e616022df20c9be4fdc9ee3b1c44c6a03191e6c1bc9"
+    },
+    {
+      "path": "lib/action-engine/ledger-d1.test.ts",
+      "bytes": 12253,
+      "sha256": "709cfc78e94089c57ff0d42d73f6e49efbfc9c28345a2199e6cb52596d4c490c"
+    },
+    {
+      "path": "lib/action-engine/ledger-types.ts",
+      "bytes": 3695,
+      "sha256": "6d769157f53f7d7ce0fbc2e2c10d2baa2552541b6e14fded71c7fbaf71ed8dd2"
+    },
+    {
+      "path": "lib/action-engine/ledger.test.ts",
+      "bytes": 53167,
+      "sha256": "ca8a426308bd83ae2737415d46e6a2419b6a28b86e471a6340b9df44a061daaa"
+    },
+    {
+      "path": "lib/action-engine/ledger.ts",
+      "bytes": 21410,
+      "sha256": "73e9576936a1aeae9067c5da12982b8b41e4da1cf4a1159ea3de427708473c73"
+    },
+    {
+      "path": "lib/action-engine/types.ts",
+      "bytes": 5535,
+      "sha256": "378d4fe4834d1118843cf341ea5aecac513391ece22050c0a0baf88d9bbc00ac"
+    },
+    {
+      "path": "lib/action-engine/validation.test.ts",
+      "bytes": 16376,
+      "sha256": "71d88c0fa386b305e6f04957710415a28511a4fc3a11889b1ce2e7ed2f2e56f8"
+    },
+    {
+      "path": "lib/action-engine/validation.ts",
+      "bytes": 15604,
+      "sha256": "20172ab01a760bdf3b503c89c4b650737b052c644eb805d6f2d7d19a5cb3b229"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".qa/action-engine-ledger/brand-v1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-ledger/build-v1.log",
+      "bytes": 27766,
+      "sha256": "7a07c0554b0ec7d3aa6a014ebc2a1dfdf7cdc049af1c56db2bbc427789d9e0d4"
+    },
+    {
+      "path": ".qa/action-engine-ledger/d1-v2.json",
+      "bytes": 2634,
+      "sha256": "649e87463fad4da43b5ccab3514dcbb3713a0ff224baf2217dbdc9fafa515499"
+    },
+    {
+      "path": ".qa/action-engine-ledger/d1-v2.log",
+      "bytes": 116,
+      "sha256": "eb06285f09b6d685f04c42a0e9086a157dd6bae8e6174368dcbfe4bdde7ed520"
+    },
+    {
+      "path": ".qa/action-engine-ledger/format-v1.log",
+      "bytes": 48,
+      "sha256": "c7a48f340396afc89e3b21434984cc942de3454968e8fdc6e416abc1b81efe94"
+    },
+    {
+      "path": ".qa/action-engine-ledger/format-v2.log",
+      "bytes": 48,
+      "sha256": "0144bfc7ed5e518a84f5dd43902564871cab8eb584402a6aa098f67e053dd654"
+    },
+    {
+      "path": ".qa/action-engine-ledger/lint-v1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-ledger/regression-v1.json",
+      "bytes": 129087,
+      "sha256": "1ff76c0dd766d39f104ac5ea0fc505e537be340dd70996650634790dd883293e"
+    },
+    {
+      "path": ".qa/action-engine-ledger/regression-v1.log",
+      "bytes": 124,
+      "sha256": "2622ac80e84232cca900901f44501553e96e7c9591fe5551c1e07acd1a738cd1"
+    },
+    {
+      "path": ".qa/action-engine-ledger/regression-v2.json",
+      "bytes": 129370,
+      "sha256": "c2579dfedfabec3591faa67b20f7fe557fe63f32aa15894db0dae6e97e7fe8db"
+    },
+    {
+      "path": ".qa/action-engine-ledger/regression-v2.log",
+      "bytes": 124,
+      "sha256": "4c9aaae49278422d8503eb39b59fa1c1119987843e76331d51e146f81e0eea57"
+    },
+    {
+      "path": ".qa/action-engine-ledger/smoke-v1.json",
+      "bytes": 29847,
+      "sha256": "0adea0392b08ba5d12b510419f83f06e7678b188367845adaaad758c3f34169d"
+    },
+    {
+      "path": ".qa/action-engine-ledger/smoke-v1.log",
+      "bytes": 119,
+      "sha256": "731758199d01448e5a1394e8ca3e9cfc7183fbf0ea9ab1e2214a6c6234befade"
+    },
+    {
+      "path": ".qa/action-engine-ledger/types-v1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-ledger/wrangler.json",
+      "bytes": 286,
+      "sha256": "afc37ef1cf16a747951fc3e10efa58eac317824eea30d230fd4c4dc51aa160c7"
+    }
+  ],
+  "checks": [
+    {
+      "command": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts lib/action-engine lib/automation --reporter=json --outputFile=.qa/action-engine-ledger/regression-v2.json",
+      "exitCode": 0,
+      "passed": 408,
+      "failed": 0,
+      "pending": 0,
+      "testFiles": 16,
+      "breakdown": {
+        "core": 163,
+        "sqliteLedger": 63,
+        "d1Ledger": 7,
+        "automation": 175
+      }
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "exitCode": 0
+    },
+    {
+      "command": "node node_modules/oxlint/bin/oxlint lib/action-engine db/action-engine-schema.ts",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/check-brand-assets.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "node node_modules/vinext/dist/cli.js build",
+      "exitCode": 0,
+      "warnings": [
+        "Existing middleware deprecation",
+        "Vinext static route classification incomplete"
+      ]
+    },
+    {
+      "command": "git diff --cached --check",
+      "exitCode": 0
+    }
+  ],
+  "nativeBaseline": {
+    "path": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+    "commit": "56daec734529c06bae6dd73729c74b3a655edb86",
+    "version": "1.90.15",
+    "modified": false
+  },
+  "limits": {
+    "productionDeployed": false,
+    "nativeAdapterImplemented": false,
+    "productionFenceImplemented": false,
+    "canonicalPublicationVerifierImplemented": false,
+    "realJevCalled": false,
+    "migrationsAppliedToProduction": false,
+    "customerDataChanged": false,
+    "originalRepositoryChanged": false,
+    "distributedExactlyOnceProven": false,
+    "fullSqlHistoryAppliedLocally": true,
+    "newMigrationAppliedToLocalWorkerd": true
+  },
+  "observations": [
+    "Authority and canonical-publication predicates in tests use fictitious QA fixtures; not production adapters.",
+    "No physical-device, native-build, live-authentication, Stripe, QR-invoice or cross-device business workflow validation in this phase.",
+    "Existing Drizzle metadata ends at 0087; existing SQL files reach 0098. New 0099 was created with Wrangler. History unchanged.",
+    "Preparation races can still call a model twice before the first proposal save. Intake reservation remains required."
+  ]
+}
