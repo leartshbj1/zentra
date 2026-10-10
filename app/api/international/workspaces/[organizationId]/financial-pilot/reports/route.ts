@@ -1,0 +1,2 @@
+import { usFinancialPilotHandlers } from '@/lib/international/us-financial-pilot-bindings';
+export async function GET(request:Request,context:{params:Promise<{organizationId:string}>}):Promise<Response>{return usFinancialPilotHandlers.REPORTS(request,(await context.params).organizationId);}

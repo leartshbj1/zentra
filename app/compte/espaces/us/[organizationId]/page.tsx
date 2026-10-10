@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 import { UsErpWorkbench } from '@/components/account/us-erp-workbench';
+import { UsFinancialPilot } from '@/components/account/us-financial-pilot';
+import { usFinancialPilotPageMode } from '@/lib/international/us-financial-pilot-bindings';
 import { getZentraUser, requireZentraUser } from '@/app/zentra-auth';
 import { accountWorkspaceDiscoveryEnabled, accountWorkspacesForUser, AccountWorkspaceDiscoveryError, type AccountWorkspace } from '@/lib/account-workspaces';
 import { requireUsWorkspaceAccess } from '@/lib/international/saas-authority-d1';
@@ -38,11 +40,25 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
   if(!await accountWorkspaceDiscoveryEnabled())return unavailable();
   const query=await searchParams;
   const setting=typeof query.reglage==='string'?query.reglage:'';
+  let pilotWorkspace:AccountWorkspace|null=null;
   let data:{workspace:AccountWorkspace;preferences:AccountPreferences|null;erpReadiness:Awaited<ReturnType<typeof usExportReadiness>>|null;salesOrders:Awaited<ReturnType<typeof usSalesOrderReadiness>>;bankEnabled:boolean;supplierEnabled:boolean;documentsEnabled:boolean;teamEnabled:boolean;syncEnabled:boolean;taxInvoiceTestEnabled:boolean;supportWorkspaceEnabled:boolean;supportMailboxEnabled:boolean;supportMailImportEnabled:boolean;supportTriageEnabled:boolean;supportTicketsEnabled:boolean;supportWorkerEnabled:boolean}|null=null;
   try {
     const workspaces=await accountWorkspacesForUser(user.userId);
     const workspace=workspaces.find(item=>item.organizationId===organizationId&&item.edition==='us_experimental');
     if(workspace){
+      if(setting==='gestion'){
+        // Select the private pilot before consulting any frozen ERP4 or
+        // sidecar readiness. A promoted but closed space has no fallback.
+        const mode=await usFinancialPilotPageMode(organizationId,user.userId);
+        if(mode==='unavailable')return unavailable();
+        if(mode==='pilot'){
+          const access=await requireUsWorkspaceAccess(organizationId,user.userId);
+          const current=await getZentraUser({offerAccess:false});
+          if(!current||current.userId!==user.userId||access.organizationId!==organizationId||access.userId!==user.userId||access.role!==workspace.role||!['owner','admin','accountant'].includes(access.role)||!await accountWorkspaceDiscoveryEnabled())return unavailable();
+          pilotWorkspace=workspace;
+        }
+      }
+      if(!pilotWorkspace){
       const preferences=setting==='apparence'?await accountPreferences(user.userId):null;
       const erpReadiness=setting==='gestion'?await usExportReadiness():null;
       const salesOrders=setting==='gestion'?await usSalesOrderReadiness():{available:false,newOrdersEnabled:false};
@@ -69,10 +85,12 @@ export default async function UsWorkspacePage({params,searchParams}:{params:Prom
       const access=await requireUsWorkspaceAccess(organizationId,user.userId);
       const current=await getZentraUser({offerAccess:false});
       if(current && current.userId===user.userId && access.organizationId===organizationId && access.userId===user.userId && access.role===workspace.role && await accountWorkspaceDiscoveryEnabled())data={workspace,preferences,erpReadiness,salesOrders,bankEnabled,supplierEnabled,documentsEnabled,teamEnabled,syncEnabled,taxInvoiceTestEnabled,supportWorkspaceEnabled,supportMailboxEnabled,supportMailImportEnabled,supportTriageEnabled,supportTicketsEnabled,supportWorkerEnabled};
+      }
     }
   } catch(error) {
     if(!(error instanceof UsAuthorityError) && !(error instanceof AccountWorkspaceDiscoveryError))throw error;
   }
+  if(pilotWorkspace)return <UsFinancialPilot organizationId={organizationId} expectedUserId={user.userId} name={pilotWorkspace.name} role={pilotWorkspace.role} language={language}/>;
   if(!data)return unavailable();
   const {workspace,preferences,erpReadiness,salesOrders,bankEnabled,supplierEnabled,documentsEnabled,teamEnabled,syncEnabled,taxInvoiceTestEnabled,supportWorkspaceEnabled,supportMailboxEnabled,supportMailImportEnabled,supportTriageEnabled,supportTicketsEnabled,supportWorkerEnabled}=data;
   const settings=<nav className="account-space-settings" aria-label={c.global}>{[{id:'',label:c.overview},{id:'gestion',label:c.management},...(teamEnabled?[{id:'equipe',label:browserUsTeamCopy[language].title}]:[]),...(supportWorkspaceEnabled?[{id:'support',label:'Zentra Support'}]:[]),{id:'profil',label:c.profile},{id:'securite',label:c.security},{id:'apparence',label:c.appearance}].map(item=><a key={item.id} href={`${path}${item.id?`?reglage=${item.id}`:''}`} aria-current={setting===item.id?'page':undefined}>{item.label}</a>)}</nav>;
