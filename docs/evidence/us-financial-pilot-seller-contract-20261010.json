@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "scope": "private-US-TEST-pure-seller-contract-B0-not-integrated",
+  "implementationCommit": "9bbf7ad257b8eb694d448dd3ee3600a2e1930cab",
+  "plan": {
+    "path": "docs/internationalization/US-FINANCIAL-PILOT-SELLER-CONTRACT-PLAN-20261010.md",
+    "sha256": "75922d7164529ed5b0bc36000353e0ab7d0b2cec3d1ce7bc802bcd60828036e3",
+    "commit": "881abf2acdc3343dd227d8775da85e0f26e50b43"
+  },
+  "sourceTree": {
+    "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+    "files": 3655,
+    "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+    "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+  },
+  "sourceHashes": {
+    "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+    "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+  },
+  "validation": {
+    "quality": [
+      {
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "startedAt": "2026-10-10T21:17:24.206Z",
+        "elapsedMs": 29503,
+        "exitCode": 0,
+        "sourceTree": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceTreeAfter": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceHashes": {
+          "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+          "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+        }
+      },
+      {
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/oxlint/bin/oxlint",
+          "--type-aware",
+          "--deny-warnings",
+          "lib/international/us-financial-pilot-seller.test.ts",
+          "lib/international/us-financial-pilot-seller.ts"
+        ],
+        "startedAt": "2026-10-10T21:17:54.104Z",
+        "elapsedMs": 2132,
+        "exitCode": 0,
+        "sourceTree": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceTreeAfter": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceHashes": {
+          "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+          "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+        }
+      },
+      {
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "scripts/check-brand-assets.mjs"
+        ],
+        "startedAt": "2026-10-10T21:17:56.645Z",
+        "elapsedMs": 422,
+        "exitCode": 0,
+        "sourceTree": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceTreeAfter": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceHashes": {
+          "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+          "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+        }
+      },
+      {
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/vinext/dist/cli.js",
+          "build"
+        ],
+        "startedAt": "2026-10-10T21:17:57.444Z",
+        "elapsedMs": 20881,
+        "exitCode": 0,
+        "sourceTree": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceTreeAfter": {
+          "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+          "files": 3655,
+          "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+          "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+        },
+        "sourceHashes": {
+          "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+          "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+        }
+      }
+    ],
+    "targeted": {
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "arguments": [
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--maxWorkers=1",
+        "lib/international/us-financial-pilot-seller.test.ts",
+        "lib/international/seller-profile.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/canonical-hash.test.ts",
+        "--reporter=json",
+        "--outputFile=.qa/us-pilot-seller-contract/targeted-final.json"
+      ],
+      "startedAt": "2026-10-10T21:17:18.243Z",
+      "elapsedMs": 1868,
+      "exitCode": 0,
+      "sourceTree": {
+        "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+        "files": 3655,
+        "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+        "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+      },
+      "sourceTreeAfter": {
+        "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+        "files": 3655,
+        "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+        "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+      },
+      "sourceHashes": {
+        "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+        "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+      },
+      "report": {
+        "passed": 158,
+        "total": 158,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "files": 4
+      }
+    },
+    "compatibility": {
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "arguments": [
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "--config",
+        "vitest.config.ts",
+        "--maxWorkers=1",
+        "lib/account-security.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/international/browser-us-financial-pilot-export-session.test.ts",
+        "lib/international/browser-us-financial-pilot-invoice.test.ts",
+        "lib/international/canonical-hash.test.ts",
+        "lib/international/core.test.ts",
+        "lib/international/finance.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/seller-profile.test.ts",
+        "lib/international/us-financial-invoice-test.test.ts",
+        "lib/international/us-financial-kernel-runtime.test.ts",
+        "lib/international/us-financial-kernel.test.ts",
+        "lib/international/us-financial-pilot-bank.test.ts",
+        "lib/international/us-financial-pilot-commercial.test.ts",
+        "lib/international/us-financial-pilot-export-contract.test.ts",
+        "lib/international/us-financial-pilot-export-projection.test.ts",
+        "lib/international/us-financial-pilot-quote-identity.test.ts",
+        "lib/international/us-financial-pilot-seller.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth.test.ts",
+        "--reporter=json",
+        "--outputFile=.qa/us-pilot-seller-contract/compatibility-final.json"
+      ],
+      "startedAt": "2026-10-10T21:18:25.098Z",
+      "elapsedMs": 21378,
+      "exitCode": 0,
+      "sourceTree": {
+        "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+        "files": 3655,
+        "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+        "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+      },
+      "sourceTreeAfter": {
+        "head": "881abf2acdc3343dd227d8775da85e0f26e50b43",
+        "files": 3655,
+        "sha256": "8ad838a89ff5341936fe56ec848b7309d949aa79a75f3519fa132fca6ec7c444",
+        "status": "?? lib/international/us-financial-pilot-seller.test.ts\n?? lib/international/us-financial-pilot-seller.ts\n"
+      },
+      "sourceHashes": {
+        "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+        "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+      },
+      "report": {
+        "passed": 862,
+        "total": 862,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "files": 21
+      }
+    }
+  },
+  "review": {
+    "method": "independent-static-review-no-execution",
+    "reviewer": "/root/journal_backend",
+    "recordedBy": "/root from the independent reviewer's final message",
+    "scope": "The two B0 files read in full, final frozen bytes corroborated by reviewer",
+    "sourceHashes": {
+      "lib/international/us-financial-pilot-seller.test.ts": "0744b7227b1a22f018d0ac81332e4c60a4c8086ad010d2298712c10e5bd9822b",
+      "lib/international/us-financial-pilot-seller.ts": "68bba8751f3b8180b48362575f5cf3d7903baf2b761b62ad1779f966381ba560"
+    },
+    "openFindings": [],
+    "blockingFindings": [],
+    "observations": [
+      "All mutable inputs and optional expectations captured before first await; returned data detached and frozen.",
+      "Complete canonical command namespace includes tenant, actor identity, entire F/S request.",
+      "Historical profile timestamps preserved; exact BigInt microsecond comparison honors offsets.",
+      "S0/count/sellerRevision correlations and safe integer boundaries retained.",
+      "Pure application advances S alone and preserves the supplied financial F and bank B; stale or divergent source refuses.",
+      "Historical proof/receipt remain separate from current heads and current actor clock.",
+      "Digest failures sanitized to stable 503; malformed public request remains 422.",
+      "No store, port, admission, route, execution or effective replay hidden in B0."
+    ],
+    "limits": [
+      "Static review only; reviewer executed no test, typecheck, lint, build, PostgreSQL, browser or provider call.",
+      "B0 validation is structural and cannot establish current Auth/D1/PG authority, approval, durable provenance, CAS or replay.",
+      "B0 Read has no book/audit: F-source time and provenance must be reconstructed from real source F under B1 SQL admission.",
+      "Future B1 must preserve original fiscal context fields and expose separate commercial presentation S; reserved invoice retries retain original context and keys.",
+      "No additional file beyond candidate B1 32-file inventory demonstrated necessary while keeping the compatible invoice-context facade; inventory must be amended first if this changes."
+    ]
+  },
+  "artifacts": [
+    {
+      "path": ".qa/us-pilot-seller-contract/amend-integration-candidate.mjs",
+      "bytes": 4112,
+      "sha256": "8d425fd8085df806ae1d6ce459c26bdb817123737b7d2d144ff66fc122453322"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/assemble.mjs",
+      "bytes": 3313,
+      "sha256": "11165bee9e3720a906e3bc29b9a941bd973a0f4238b871cf241a8b9853fb4e1d"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/brand-quality-final-command.json",
+      "bytes": 1144,
+      "sha256": "5a8f9166aecbd387b2c56864df4f32b2245a35a5b889818d5c5022a6a69fdd13"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/brand-quality-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/build-quality-final-command.json",
+      "bytes": 1160,
+      "sha256": "b10b67b5b690e957a931e47b3f658ba385566b1a3598cfdcc7d4831223c7b0ca"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/build-quality-final.log",
+      "bytes": 27079,
+      "sha256": "cb9a4b3a20b722277b90aa758c4bf691458d633f65082c630f9b2565da9220cb"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/compatibility-final-command.json",
+      "bytes": 2559,
+      "sha256": "0bb576e855b3d65267588ddb02d5c6686ab7181ebd8c90e43c8c338ae6238c5e"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/compatibility-final.json",
+      "bytes": 319010,
+      "sha256": "84b443461753678387a00464ef5978f0150d8aa23297afed6671f7c2af11e8a4"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/compatibility-final.log",
+      "bytes": 133,
+      "sha256": "48f61b836aba6e1b8c011f3e97e1462341205d1d550f8f10d24906dd90fec053"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/integration-candidate-amendment.json",
+      "bytes": 3803,
+      "sha256": "0d6ea9611a0e929580277403d99f03626db9e418b53568577f6f1f51744eddd8"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/lint-quality-final-command.json",
+      "bytes": 1301,
+      "sha256": "abee514f686131ac00151f02b74d3a23c13b076548defa502c5e5f88dd6ef6e2"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/lint-quality-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/review-final.json",
+      "bytes": 2136,
+      "sha256": "1cad7e70c3edc40b086efa9e4a05b9ddb92050fabff3f58cb32a6eb45c93f94b"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/selection.json",
+      "bytes": 1082,
+      "sha256": "f07c49b03449ba42531d7c9c399a5c9d8fb1bdf53cb54694a54f99fe807b4146"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/targeted-final-command.json",
+      "bytes": 1632,
+      "sha256": "0046ddcaf9d510ab28795e15703273e8dd37252d7654c0cd9ff0f89a3813e409"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/targeted-final.json",
+      "bytes": 58922,
+      "sha256": "4e3f058f2b10da2e0273670d50642ce93e29190f5e1658d59306f424114d3003"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/targeted-final.log",
+      "bytes": 128,
+      "sha256": "2a5e10b2c0721558f48ecf1adcf4390d97614a578ac8e89417b70853e35e0fc9"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/types-quality-final-command.json",
+      "bytes": 1197,
+      "sha256": "62b4d84cbe9a5d533673adf3a8eeb1c4d3a55666d5dcb4198a52e759a06de856"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/types-quality-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/us-pilot-seller-contract/verify.mjs",
+      "bytes": 4424,
+      "sha256": "371170bc9528cb561142c2f991bc2990c8991aa21b7cdf9df020af77971e3498"
+    }
+  ],
+  "limits": [
+    "No store, RPC, route, session, UI, permission or activation added.",
+    "Proof/receipt validation is structural and grants no authority, approval, provenance or effective replay.",
+    "No PostgreSQL, hosted Auth/D1/PG, browser, provider, native, load or legal-compliance validation for B0.",
+    "Compatibility is the declared selection, not a complete test suite or Swiss QR/native validation.",
+    "B1 invoice-context, atomic persistence and UI integrations remain unimplemented."
+  ]
+}
