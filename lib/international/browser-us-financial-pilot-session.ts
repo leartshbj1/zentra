@@ -14,6 +14,27 @@ import { validateUsFinancialPilotPurchasingRequest, validateUsFinancialPilotPurc
 import { validateUsFinancialPilotVendorDetail, validateUsFinancialPilotVendorBillDetail, validateUsFinancialPilotPurchasingPage, financialPilotPurchasingCursorOffset, type UsFinancialPilotVendorDetail, type UsFinancialPilotVendorBillDetail, type UsFinancialPilotPurchasingPage, type UsFinancialPilotVendorBillRow } from './us-financial-pilot-purchasing-projection';
 import { validateUsFinancialPilotAccountingRequest, validateUsFinancialPilotAccountingReceipt, type UsFinancialPilotAccountingCommand, type UsFinancialPilotAccountingRequest, type UsFinancialPilotAccountingReceipt } from './us-financial-pilot-accounting';
 import { validateUsFinancialPilotAccountingContext, validateUsFinancialPilotJournalDetail, validateUsFinancialPilotPeriodDetail, financialPilotJournalLinesCursorOffset, type UsFinancialPilotAccountingContext, type UsFinancialPilotJournalDetail, type UsFinancialPilotPeriodDetail } from './us-financial-pilot-accounting-projection';
+import { canonicalErpJson } from './erp-contract';
+import type { CompanyLanguage } from './types';
+import { validateUsFinancialPilotBankHead, validateUsFinancialPilotBankReceipt, type UsFinancialPilotBankHead, type UsFinancialPilotBankRequest, type UsFinancialPilotBankCommand, type UsFinancialPilotBankReceipt } from './us-financial-pilot-bank';
+import { validateUsFinancialPilotBankQuery, validateUsFinancialPilotBankListQuery, validateUsFinancialPilotBankDetailQuery, validateUsFinancialPilotBankMovementQuery, validateUsFinancialPilotBankContext, validateUsFinancialPilotBankStatementsPage, validateUsFinancialPilotBankStatementDetail, validateUsFinancialPilotBankMovementsPage, type UsFinancialPilotBankQuery, type UsFinancialPilotBankListQuery, type UsFinancialPilotBankDetailQuery, type UsFinancialPilotBankMovementQuery, type UsFinancialPilotBankContext, type UsFinancialPilotBankStatementsPage, type UsFinancialPilotBankStatementDetail, type UsFinancialPilotBankMovementsPage } from './us-financial-pilot-bank-projection';
+import { BankInputError, buildBankImportReview, buildBankCommandReview, validateUsFinancialPilotBankExportSelector, browserUsFinancialPilotBankExportUrl, US_FINANCIAL_PILOT_BANK_EXPORT_HEADERS as bankExportHeaders, US_FINANCIAL_PILOT_BANK_EXPORT_MAX_BYTES, US_FINANCIAL_PILOT_BANK_EXPORT_TIMEOUT_MS, type BankImportDraft, type BankReview, type BankDetailEvidence, type BankMovementEvidence } from './browser-us-financial-pilot-bank-input';
+
+export interface BrowserUsFinancialPilotBankState {
+  readonly active: boolean; readonly head: UsFinancialPilotBankHead | null;
+  readonly refreshing: boolean; readonly requiresRefresh: boolean;
+  readonly pendingReview: BankReview | null; readonly lastReceipt: UsFinancialPilotBankReceipt | null;
+  readonly error: BrowserUsFinancialPilotError | null;
+}
+export interface BrowserUsFinancialPilotBankEvidence {
+  readonly statement: UsFinancialPilotBankStatementDetail;
+  readonly linePages: readonly UsFinancialPilotBankStatementDetail[];
+  readonly movementPages: readonly UsFinancialPilotBankMovementsPage[];
+}
+export interface BrowserUsFinancialPilotBankExportResult {
+  readonly blob: Blob; readonly filename: string; readonly revision: number; readonly bankRevision: number;
+  readonly statementRevision: number; readonly statementId: string; readonly ledgerRevision: number;
+}
 
 export type BrowserUsFinancialPilotPayment = UsFinancialPilotPaymentRequest['command'];
 export type BrowserUsFinancialPilotReceipt = UsFinancialPilotPaymentReceipt;
@@ -28,7 +49,8 @@ export interface BrowserUsFinancialPilotState {
   readonly status: 'idle' | 'loading' | 'ready' | 'denied' | 'stopped';
   readonly snapshot: UsFinancialPilotOverview | null;
   readonly refreshing: boolean; readonly writing: boolean; readonly pending: boolean; readonly requiresRefresh: boolean;
-  readonly pendingKind: 'payment' | 'commercial' | 'invoice_prepare' | 'invoice_issue' | 'purchasing' | 'accounting' | null;
+  readonly pendingKind: 'payment' | 'commercial' | 'invoice_prepare' | 'invoice_issue' | 'purchasing' | 'accounting' | 'bank' | null;
+  readonly bank: BrowserUsFinancialPilotBankState;
   readonly invoiceReview: UsFinancialPilotInvoicePreview | null;
   readonly error: BrowserUsFinancialPilotError | null;
 }
@@ -71,6 +93,18 @@ export interface BrowserUsFinancialPilotSession {
   clearInvoiceReview(this: void): void;
   retry(this: void): Promise<BrowserUsFinancialPilotOperationReceipt>;
   hasPending(this: void): boolean;
+  setBankActive(this: void, active: boolean): void;
+  refreshBank(this: void): Promise<UsFinancialPilotBankHead | null>;
+  readBankContext(this: void, query?: UsFinancialPilotBankQuery): Promise<UsFinancialPilotBankContext>;
+  readBankStatements(this: void, query?: UsFinancialPilotBankListQuery): Promise<UsFinancialPilotBankStatementsPage>;
+  readBankStatement(this: void, query: UsFinancialPilotBankDetailQuery): Promise<UsFinancialPilotBankStatementDetail>;
+  readBankMovements(this: void, query: UsFinancialPilotBankMovementQuery): Promise<UsFinancialPilotBankMovementsPage>;
+  reviewBankImport(this: void, draft: BankImportDraft): BankReview;
+  reviewBank(this: void, command: Exclude<UsFinancialPilotBankCommand, { type: 'create_statement' }>, evidence: BrowserUsFinancialPilotBankEvidence): BankReview;
+  submitBank(this: void, review: BankReview, approved: boolean): Promise<UsFinancialPilotBankReceipt>;
+  retryBank(this: void): Promise<UsFinancialPilotBankReceipt>;
+  exportBank(this: void, statement: UsFinancialPilotBankStatementDetail, language: CompanyLanguage): Promise<BrowserUsFinancialPilotBankExportResult>;
+  downloadBank(this: void, result: BrowserUsFinancialPilotBankExportResult): void;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const publicErrors = new Set(['financial_snapshot_changed', 'financial_revision_conflict', 'financial_authority_changed', 'financial_test_grant_changed', 'financial_test_grant_required', 'financial_policy_unavailable', 'financial_configuration_changed', 'financial_upgrade_required', 'financial_capability_unavailable', 'financial_append_unavailable', 'financial_book_too_large', 'financial_permission_required', 'management_entitlement_required', 'session_changed', 'forbidden', 'unauthorized', 'invalid_financial_request', 'invalid_financial_date', 'invalid_request', 'invoice_not_found', 'accounting_period_not_open', 'accounting_period_closed', 'payment_exceeds_balance', 'overpayment', 'revision_conflict', 'idempotency_conflict', 'rate_limited', 'service_unavailable', 'financial_service_unavailable', 'financial_pilot_unavailable', 'financial_pilot_opt_in_required', 'financial_pilot_opt_in_changed', 'financial_book_required', 'financial_source_changed', 'financial_clock_reversed', 'financial_immutable', 'financial_tax_plan_required', 'invalid_financial_pilot_request', 'invalid_financial_pilot_cursor', 'settlement_amount_conflict', 'account_not_found', 'cash_flow_classification_required', 'tenant_mismatch', 'feature_unavailable', 'edition_unavailable', 'configuration_changed']);
@@ -97,6 +131,7 @@ for (const code of ['unknown_account','entry_id_conflict','entry_not_found','inv
 for (const code of ['vendor_required','vendor_already_exists','vendor_bill_already_recorded','vendor_bill_not_found','vendor_payment_already_recorded','invalid_amount','invalid_date','purchase_account_required']) publicErrors.add(code);
 for (const code of ['tax_preparation_conflict','unsupported_tax_request','binding_unavailable','tax_binding_changed','tax_configuration_changed','tax_calculation_expired','invoice_already_issued','sales_order_confirmation_required','invalid_tax_date','financial_invoice_fixture_disabled']) publicErrors.add(code);
 for (const code of ['tax_provider_unavailable', 'tax_catalogue_unavailable', 'tax_context_unavailable', 'tax_provider_rejected', 'financial_tax_provider_unavailable', 'financial_tax_catalogue_unavailable', 'tax_nexus_required', 'financial_tax_nexus_required', 'tax_classification_unsupported', 'tax_service_confirmation_required']) publicErrors.add(code);
+for (const code of ['invalid_financial_pilot_bank_request', 'invalid_financial_pilot_bank_query', 'invalid_financial_pilot_bank_cursor', 'bank_snapshot_changed', 'bank_record_not_found', 'bank_legacy_frozen', 'bank_legacy_pending', 'bank_capacity_exceeded', 'bank_duplicate_statement', 'bank_overlap', 'bank_entry_claimed', 'bank_statement_closed', 'bank_revision_conflict', 'bank_idempotency_conflict', 'bank_statement_overlap', 'bank_entry_already_matched', 'invalid_bank_request', 'bank_limit_reached', 'bank_statement_duplicate', 'bank_operation_limit_reached', 'bank_legacy_immutable', 'bank_clock_reversed', 'bank_statement_limit_reached', 'reconciliation_not_found', 'reconciliation_voided', 'reconciliation_closed', 'statement_not_voidable', 'cash_account_required', 'reconciliation_ledger_changed', 'reconciliation_incomplete', 'reconciliation_already_matched', 'reconciliation_amount_mismatch', 'statement_line_required', 'ledger_entry_required', 'cash_movement_required', 'invalid_bank_statement', 'invalid_amount', 'invalid_date', 'invalid_bank_reference', 'invalid_statement_amount', 'invalid_statement_period', 'invalid_statement_date', 'duplicate_statement_line', 'statement_balance_mismatch', 'currency_mismatch', 'invalid_reconciliation_match', 'invalid_financial_pilot_bank_export_selector', 'invalid_financial_pilot_bank_export_snapshot', 'financial_pilot_bank_export_too_large', 'financial_pilot_bank_export_unavailable', 'financial_pilot_bank_export_timeout']) publicErrors.add(code);
 const fail = (code: string, status = 422, outcome: BrowserUsFinancialPilotError['outcome'] = 'rejected'): never => { throw new BrowserUsFinancialPilotError(code, status, outcome); };
 function exact(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value)) && Reflect.ownKeys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -134,20 +169,48 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   const fetcher = options.fetch ?? globalThis.fetch.bind(globalThis), newId = options.newId ?? (() => globalThis.crypto.randomUUID());
   const environment = options.environment ?? browserEnvironment(), base = `/api/international/workspaces/${encodeURIComponent(organizationId)}/financial-pilot`;
   const listeners = new Set<() => void>(), controllers = new Set<AbortController>();
-  let state: BrowserUsFinancialPilotState = frozen({ status: 'idle', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: false, error: null });
-  let disposed = false, running = false, generation = 0, mutation = 0, denied = false;
+  const emptyBank = (): BrowserUsFinancialPilotBankState => ({ active: false, head: null, refreshing: false, requiresRefresh: true, pendingReview: null, lastReceipt: null, error: null });
+  let state: BrowserUsFinancialPilotState = frozen({ status: 'idle', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: false, error: null, bank: emptyBank() });
+  let disposed = false, running = false, generation = 0, mutation = 0, denied = false, stopping = false;
   let timer: ReturnType<typeof setTimeout> | undefined, unsubscribe: (() => void) | undefined;
   let snapshotFlight: Promise<UsFinancialPilotOverview> | null = null, refreshFlight: Promise<UsFinancialPilotOverview | null> | null = null;
-  let pending: Readonly<{ kind: 'payment'; body: string; request: UsFinancialPilotPaymentRequest }> | Readonly<{ kind: 'commercial'; body: string; request: UsFinancialPilotCommercialRequest }> | Readonly<{ kind: 'invoice_prepare' | 'invoice_issue'; body: string; request: UsFinancialPilotInvoiceRequest }> | Readonly<{ kind: 'purchasing'; body: string; request: UsFinancialPilotPurchasingRequest }> | Readonly<{ kind: 'accounting'; body: string; request: UsFinancialPilotAccountingRequest }> | null = null;
+  let pending: Readonly<{ kind: 'payment'; body: string; request: UsFinancialPilotPaymentRequest }> | Readonly<{ kind: 'commercial'; body: string; request: UsFinancialPilotCommercialRequest }> | Readonly<{ kind: 'invoice_prepare' | 'invoice_issue'; body: string; request: UsFinancialPilotInvoiceRequest }> | Readonly<{ kind: 'purchasing'; body: string; request: UsFinancialPilotPurchasingRequest }> | Readonly<{ kind: 'accounting'; body: string; request: UsFinancialPilotAccountingRequest }> | Readonly<{ kind: 'bank'; body: string; request: UsFinancialPilotBankRequest; review: BankReview }> | null = null;
   let prepared: Readonly<{ request: UsFinancialPilotInvoiceRequest; preview: UsFinancialPilotInvoicePreview }> | null = null;
+  let bankEpoch = 0, floorF = 0, floorB = 0;
+  let bankRefreshFlight: Promise<UsFinancialPilotBankHead | null> | null = null;
+  let bankContext: UsFinancialPilotBankContext | null = null;
+  type BankPageStamp = Readonly<{ epoch: number; generation: number; mutation: number; kind: 'detail'; query: UsFinancialPilotBankDetailQuery } | { epoch: number; generation: number; mutation: number; kind: 'movements'; query: UsFinancialPilotBankMovementQuery }>;
+  let bankPages = new WeakMap<object, BankPageStamp>(), bankReviews = new WeakMap<BankReview, Readonly<{ epoch: number; generation: number; mutation: number }>>();
+  let bankExportFlight = false, bankExportResult: BrowserUsFinancialPilotBankExportResult | null = null;
+  const bankUrls = new Set<string>(), bankUrlTimers = new Set<ReturnType<typeof setTimeout>>(), bankExportCancels = new Set<() => void>();
   const publish = (patch: Partial<BrowserUsFinancialPilotState>) => { state = frozen({ ...state, ...patch }); for (const listener of listeners) { try { listener(); } catch { /* A view cannot change admission or transaction outcome. */ } } };
-  function alive(epoch = generation): void { if (disposed || state.status === 'stopped' || epoch !== generation) return fail('session_disposed', 0, 'unauthorized'); if (denied) return fail('session_changed', 401, 'unauthorized'); }
+  const publishBank = (patch: Partial<BrowserUsFinancialPilotBankState>) => publish({ bank: { ...state.bank, ...patch } });
+  function clearBankExport(): void {
+    bankExportResult = null;
+    for (const cancel of bankExportCancels) cancel(); bankExportCancels.clear();
+    for (const timer of bankUrlTimers) clearTimeout(timer); bankUrlTimers.clear();
+    for (const url of bankUrls) URL.revokeObjectURL(url); bankUrls.clear();
+  }
+  function invalidateBank(emit = true): void {
+    bankEpoch++; bankContext = null; bankPages = new WeakMap(); bankReviews = new WeakMap(); clearBankExport();
+    if (emit) publishBank({ head: null, requiresRefresh: true, pendingReview: pending?.kind === 'bank' ? pending.review : null });
+  }
+  function observeFinancial(at: number): void {
+    const epoch = generation, changed = mutation;
+    if (at < floorF) return fail('stale_read', 0);
+    if (!state.snapshot || state.snapshot.revision !== at) publish({ requiresRefresh: true });
+    alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+    if (at > floorF) { floorF = at; invalidateBank(); }
+    alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+  }
+  function alive(epoch = generation): void { if (disposed || stopping || state.status === 'stopped' || epoch !== generation) return fail('session_disposed', 0, 'unauthorized'); if (denied) return fail('session_changed', 401, 'unauthorized'); }
   function invalidate(status: number): never {
     denied = true; running = false; generation++; mutation++; pending = null; prepared = null;
+    invalidateBank(false); floorF = 0; floorB = 0; bankRefreshFlight = null;
     if (timer !== undefined) clearTimeout(timer); timer = undefined; unsubscribe?.(); unsubscribe = undefined;
     for (const controller of controllers) controller.abort();
     const error = new BrowserUsFinancialPilotError(status === 401 ? 'unauthorized' : status === 402 ? 'management_entitlement_required' : 'forbidden', status, 'unauthorized');
-    publish({ status: 'denied', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error }); throw error;
+    publish({ status: 'denied', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error, bank: { ...emptyBank(), error } }); throw error;
   }
   const headers = () => ({ Accept: 'application/json', 'X-Zentra-Financial-Pilot': '1', 'X-Zentra-Expected-User': expectedUserId });
   async function response(path: string, init: RequestInit, write = false): Promise<unknown> {
@@ -159,7 +222,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       alive(epoch); if ([401, 402, 403].includes(result.status)) invalidate(result.status);
       let body: unknown;
       try {
-        const maximum = result.ok ? 4 * 1024 * 1024 : 4096, length = result.headers.get('Content-Length');
+        const maximum = result.ok ? path.startsWith('/bank/') ? 2_621_440 : 4 * 1024 * 1024 : 4096, length = result.headers.get('Content-Length');
         if (result.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json' || length !== null && (!/^\d+$/.test(length) || Number(length) > maximum)) throw new Error('Invalid response');
         const reader = result.body?.getReader(), parts: Uint8Array[] = []; let size = 0;
         if (reader) {
@@ -174,8 +237,8 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
         const code = exact(body, ['error']) && typeof body.error === 'string' && publicErrors.has(body.error) ? body.error : 'service_unavailable';
         // Purchasing public errors carry no execution-phase proof, including
         // mapped ledger validation errors. Preserve its exact envelope.
-        const definitive = pending?.kind === 'purchasing' || pending?.kind === 'accounting' ? false : pending?.kind === 'commercial' ? rejectedCommercial[code]?.includes(result.status) : pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' ? rejectedInvoice[code]?.includes(result.status) : rejectedPayments[code] === result.status;
-        const invoiceWrite = pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' || pending?.kind === 'purchasing' || pending?.kind === 'accounting';
+        const definitive = pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank' ? false : pending?.kind === 'commercial' ? rejectedCommercial[code]?.includes(result.status) : pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' ? rejectedInvoice[code]?.includes(result.status) : rejectedPayments[code] === result.status;
+        const invoiceWrite = pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' || pending?.kind === 'purchasing' || pending?.kind === 'accounting' || pending?.kind === 'bank';
         if (write && (!invoiceWrite && result.status === 409 && rejectedConflicts.has(code) || definitive)) { pending = null; publish({ pending: false, pendingKind: null, requiresRefresh: true }); return fail(code, result.status); }
         return fail(code, result.status, write ? 'uncertain' : 'rejected');
       }
@@ -207,23 +270,28 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
         if (mutation !== changed || state.writing || pending) return fail('stale_read', 0);
         const value = validate(() => validateUsFinancialPilotOverview(body, organizationId, expectedRevision));
         if (state.snapshot && value.revision < state.snapshot.revision) return fail('invalid_response', 200);
+        observeFinancial(value.revision);
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
         publish({ status: 'ready', snapshot: value, requiresRefresh: false, error: null }); return value;
       } catch (caught) { notifyError(caught); throw caught; }
       finally { if (generation === epoch) publish({ refreshing: false, ...(state.status === 'loading' ? { status: 'idle' as const } : {}) }); }
     })();
     snapshotFlight = flight; void flight.finally(() => { if (snapshotFlight === flight) snapshotFlight = null; }).catch(() => {}); return flight;
   }
-  async function refresh(): Promise<UsFinancialPilotOverview | null> {
+  async function refresh(preserveBankSnapshot = false): Promise<UsFinancialPilotOverview | null> {
     alive(); if (refreshFlight) return refreshFlight;
-    const epoch = generation;
+    const epoch = generation, changed = mutation;
     const flight = (async () => {
       try {
         const body = await response('/head', { method: 'GET', headers: headers() }); alive(epoch);
         const head = validate(() => validateUsFinancialPilotHead(body, organizationId));
+        if (mutation !== changed) return fail('stale_read', 0);
         if (state.snapshot && head.revision < state.snapshot.revision) return fail('invalid_response', 200);
+        observeFinancial(head.revision);
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
         // Admission is still checked while an uncertain write remains pending.
         if (pending || state.writing) return state.snapshot;
-        if (state.snapshot && head.revision === state.snapshot.revision && !state.requiresRefresh) return state.snapshot;
+        if (state.snapshot && head.revision === state.snapshot.revision && (!state.requiresRefresh || preserveBankSnapshot)) { if (preserveBankSnapshot) publish({ requiresRefresh: false }); return state.snapshot; }
         return await snapshotLoad(head.revision);
       } catch (caught) { notifyError(caught); throw caught; }
     })();
@@ -233,12 +301,22 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     if (timer !== undefined) clearTimeout(timer); timer = undefined;
     if (!running || denied || disposed || !environment.isVisible() || !environment.isOnline()) return;
     const epoch = generation;
-    timer = setTimeout(() => { timer = undefined; if (!running || generation !== epoch) return; void refresh().catch(() => {}).finally(() => { if (generation === epoch) schedule(); }); }, 3000);
+    timer = setTimeout(() => { timer = undefined; if (!running || generation !== epoch) return; void poll().catch(() => {}).finally(() => { if (generation === epoch) schedule(); }); }, 3000);
   }
   function wake(): void {
     if (!running) return; if (timer !== undefined) clearTimeout(timer); timer = undefined;
     if (!environment.isVisible() || !environment.isOnline()) return;
-    const epoch = generation; void refresh().catch(() => {}).finally(() => { if (generation === epoch) schedule(); });
+    const epoch = generation; void poll().catch(() => {}).finally(() => { if (generation === epoch) schedule(); });
+  }
+  async function poll(): Promise<unknown> {
+    if (!state.bank.active && pending?.kind !== 'bank') return refresh();
+    try { return await refreshBank(); }
+    catch (error) {
+      if (denied || disposed || state.status === 'stopped' || error instanceof BrowserUsFinancialPilotError && error.outcome === 'unauthorized') throw error;
+      // One financial fallback preserves the other modules. It cannot clear
+      // the bank error, uncertainty or debt, nor fabricate a composite head.
+      return refresh(true);
+    }
   }
   async function detail<T>(path: string, expectedRevision: number, parser: (value: unknown) => T): Promise<T> {
     alive(); const epoch = generation, changed = mutation;
@@ -262,13 +340,160 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   function pageBounds(page: UsFinancialPilotPage, offset: number): void {
     if (offset > page.total || page.items.length !== Math.min(25, page.total - offset) || (page.nextCursor === null ? offset + page.items.length !== page.total : financialPilotCursorOffset(page.nextCursor, page.kind, page.revision, page.scope) !== offset + 25)) return fail('invalid_response', 200);
   }
-  async function send(): Promise<BrowserUsFinancialPilotOperationReceipt | BrowserUsFinancialPilotInvoiceResult | UsFinancialPilotPurchasingReceipt | UsFinancialPilotAccountingReceipt> {
-    alive(); if (!pending) return fail('no_pending_operation', 409); if (state.writing) return fail('pending_operation', 409);
-    const original = pending, epoch = generation; mutation++; publish({ writing: true, pending: true, pendingKind: original.kind, requiresRefresh: true, error: null });
+  /** F and B are observed together. Floors reject stale reads; they are never
+   * combined to invent a head that the server did not return. */
+  function refreshBank(): Promise<UsFinancialPilotBankHead | null> {
+    alive(); if (bankRefreshFlight) return bankRefreshFlight;
+    const epoch = generation, changed = mutation, initialBankEpoch = bankEpoch;
+    publishBank({ refreshing: true });
+    const flight = (async () => {
+      try {
+        const body = await response('/bank/head', { method: 'GET', headers: headers() }); alive(epoch);
+        if (changed !== mutation || initialBankEpoch !== bankEpoch) return fail('stale_read', 0);
+        const head = validate(() => validateUsFinancialPilotBankHead(body, organizationId));
+        if (head.revision < floorF || head.bankRevision < floorB) return fail('stale_read', 0);
+        if (!state.snapshot || state.snapshot.revision !== head.revision) publish({ requiresRefresh: true });
+        alive(epoch); if (changed !== mutation || initialBankEpoch !== bankEpoch) return fail('stale_read', 0);
+        if (!state.bank.head || head.revision !== state.bank.head.revision || head.bankRevision !== state.bank.head.bankRevision) invalidateBank();
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+        floorF = head.revision; floorB = head.bankRevision;
+        publishBank({ head, requiresRefresh: false, error: null });
+        alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+        const adoptedEpoch = bankEpoch;
+        if (!pending && !state.writing) {
+          if (state.snapshot?.revision === head.revision) publish({ requiresRefresh: false });
+          else await snapshotLoad(head.revision);
+        }
+        alive(epoch); if (changed !== mutation || bankEpoch !== adoptedEpoch || state.bank.head !== head) return fail('stale_read', 0); return head;
+      } catch (caught) {
+        if (!denied && !disposed && generation === epoch && state.status !== 'stopped' && !(caught instanceof BrowserUsFinancialPilotError && caught.code === 'stale_read')) {
+          const error = caught instanceof BrowserUsFinancialPilotError ? caught : new BrowserUsFinancialPilotError('service_unavailable', 503, 'rejected');
+          publishBank({ requiresRefresh: true, error });
+        }
+        throw caught;
+      } finally { if (generation === epoch) publishBank({ refreshing: false }); }
+    })();
+    bankRefreshFlight = flight;
+    void flight.finally(() => { if (bankRefreshFlight === flight) bankRefreshFlight = null; }).catch(() => {});
+    return flight;
+  }
+  function bankPair(query?: UsFinancialPilotBankQuery): UsFinancialPilotBankQuery {
+    alive(); const head = state.bank.head;
+    if (!head || state.bank.requiresRefresh || !state.snapshot || state.snapshot.revision !== head.revision || state.writing) return fail('bank_read_required', 409);
+    const owned = query === undefined ? { revision: head.revision, bankRevision: head.bankRevision } : query;
+    if (owned.revision !== head.revision || owned.bankRevision !== head.bankRevision) return fail('bank_review_changed', 409);
+    return { revision: head.revision, bankRevision: head.bankRevision };
+  }
+  function bankInput<T>(task: () => T): T {
+    try { return task(); }
+    catch (caught) { if (caught instanceof BankInputError) return fail(caught.code, caught.status); if (caught instanceof BrowserUsFinancialPilotError) throw caught; return fail('bank_input_invalid', 422); }
+  }
+  async function bankRead<T>(path: string, query: UsFinancialPilotBankQuery, parser: (value: unknown) => T): Promise<T> {
+    bankPair(query); const epoch = generation, changed = mutation, at = bankEpoch;
+    const body = await response(path, { method: 'GET', headers: headers() }); alive(epoch);
+    if (changed !== mutation || at !== bankEpoch || state.writing) return fail('stale_read', 0);
+    bankPair(query); return validate(() => parser(body));
+  }
+  function bankReadStamp(): Readonly<{ epoch: number; generation: number; mutation: number }> { return { epoch: bankEpoch, generation, mutation }; }
+  function confirmBankRead(stamp: ReturnType<typeof bankReadStamp>): void {
+    alive(stamp.generation); if (stamp.epoch !== bankEpoch || stamp.mutation !== mutation) return fail('stale_read', 0);
+  }
+  function bankParams(query: UsFinancialPilotBankQuery): URLSearchParams { return new URLSearchParams({ revision: String(query.revision), bankRevision: String(query.bankRevision) }); }
+  function readyBank(): UsFinancialPilotBankHead {
+    bankPair();
+    if (pending || state.writing) return fail('pending_operation', 409);
+    if (state.requiresRefresh || !bankContext) return fail('bank_read_required', 409);
+    return state.bank.head!;
+  }
+  function ownReview(review: BankReview): BankReview {
+    bankReviews.set(review, { epoch: bankEpoch, generation, mutation }); publishBank({ pendingReview: review, error: null }); return review;
+  }
+  function detailEvidence(value: UsFinancialPilotBankStatementDetail): BankDetailEvidence {
+    const stamp = value && typeof value === 'object' ? bankPages.get(value) : undefined;
+    if (!stamp || stamp.kind !== 'detail' || stamp.epoch !== bankEpoch || stamp.generation !== generation || stamp.mutation !== mutation) return fail('bank_review_evidence_required', 409);
+    bankPair(stamp.query); return { query: stamp.query, value };
+  }
+  function movementEvidence(value: UsFinancialPilotBankMovementsPage): BankMovementEvidence {
+    const stamp = value && typeof value === 'object' ? bankPages.get(value) : undefined;
+    if (!stamp || stamp.kind !== 'movements' || stamp.epoch !== bankEpoch || stamp.generation !== generation || stamp.mutation !== mutation) return fail('bank_review_evidence_required', 409);
+    bankPair(stamp.query); return { query: stamp.query, value };
+  }
+  // Retain page identity without invoking accessors or cloning away ownership.
+  function evidenceArray<T>(value: readonly T[], maximum: number): readonly T[] {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > maximum || Reflect.ownKeys(value).length !== value.length + 1) return fail('bank_input_invalid');
+    const output: T[] = [];
+    for (let i = 0; i < value.length; i++) { const d = Object.getOwnPropertyDescriptor(value, String(i)); if (!d || !d.enumerable || !('value' in d)) return fail('bank_input_invalid'); output.push(d.value as T); }
+    return output;
+  }
+  async function exportBank(statement: UsFinancialPilotBankStatementDetail, language: CompanyLanguage): Promise<BrowserUsFinancialPilotBankExportResult> {
+    alive(); if (pending || state.writing || bankExportFlight) return fail('pending_operation', 409);
+    const evidence = detailEvidence(statement), pair = bankPair(evidence.query);
+    const selector = bankInput(() => validateUsFinancialPilotBankExportSelector({ consumer: 'financial-pilot', schemaVersion: 1, kind: 'bank_reconciliation', organizationId, ...pair, statementRevision: statement.statement.statementRevision, statementId: statement.statement.statementId, origin: statement.statement.origin, format: 'csv', language }, organizationId));
+    const url = browserUsFinancialPilotBankExportUrl(selector), selectorBytes = new TextEncoder().encode(canonicalErpJson(selector));
+    clearBankExport(); bankExportFlight = true;
+    const epoch = generation, changed = mutation, at = bankEpoch, controller = new AbortController(); controllers.add(controller);
+    let timer: ReturnType<typeof setTimeout> | undefined, reader: ReadableStreamDefaultReader<Uint8Array> | undefined, received: Response | undefined;
+    let cancel: () => void = () => {};
+    const cancelled = new Promise<never>((_resolve, reject) => { cancel = () => { controller.abort(); reject(new BrowserUsFinancialPilotError('bank_review_changed', 409, 'rejected')); }; bankExportCancels.add(cancel); });
+    const deadline = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => { controller.abort(); reject(new BrowserUsFinancialPilotError('bank_export_timeout', 0, 'rejected')); }, US_FINANCIAL_PILOT_BANK_EXPORT_TIMEOUT_MS); });
+    const wait = <T>(task: Promise<T>): Promise<T> => Promise.race([task, deadline, cancelled]);
+    function fresh(): void { alive(epoch); if (changed !== mutation || at !== bankEpoch || pending || state.writing) return fail('bank_review_changed', 409); bankPair(pair); }
+    const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
+    async function bytesOf(result: Response, maximum: number): Promise<Uint8Array<ArrayBuffer>> {
+      if (!result.body) return fail('invalid_bank_export_response');
+      reader = result.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
+      for (;;) { const part = await wait(reader.read()); fresh(); if (part.done) break; const owned = new Uint8Array(part.value); size += owned.byteLength; if (size > maximum) return fail('invalid_bank_export_response'); chunks.push(owned); }
+      const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; } return bytes;
+    }
     try {
-      const path = original.kind === 'accounting' ? '/accounting/operations' : original.kind === 'purchasing' ? '/purchasing/operations' : original.kind === 'invoice_prepare' ? '/invoices/prepare' : original.kind === 'invoice_issue' ? '/invoices/issue' : original.kind === 'commercial' ? '/commercial/operations' : '/operations';
+      const selectorHash = hex(await wait(crypto.subtle.digest('SHA-256', selectorBytes))); fresh();
+      const result = await wait(fetcher(url, { method: 'GET', headers: { ...headers(), Accept: 'text/csv' }, credentials: 'same-origin', mode: 'same-origin', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer', signal: controller.signal }));
+      received = result;
+      alive(epoch); if ([401, 402, 403].includes(result.status)) return invalidate(result.status); fresh();
+      if (!result.ok) {
+        if (result.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') return fail('bank_export_unavailable', result.status);
+        const bytes = await bytesOf(result, 4096); let body: unknown;
+        try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { return fail('bank_export_unavailable', result.status); }
+        const code = exact(body, ['error']) && typeof body.error === 'string' && publicErrors.has(body.error) ? body.error : 'bank_export_unavailable';
+        return fail(code, result.status);
+      }
+      const h = bankExportHeaders, length = result.headers.get('Content-Length');
+      if (!length || !/^[1-9][0-9]*$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > US_FINANCIAL_PILOT_BANK_EXPORT_MAX_BYTES) return fail('invalid_bank_export_response');
+      const checks: Readonly<Record<string, string>> = { [h.scope]: '1', [h.bankScope]: '1', [h.organization]: organizationId, [h.revision]: String(selector.revision), [h.bankRevision]: String(selector.bankRevision), [h.statementRevision]: String(selector.statementRevision), [h.statementId]: selector.statementId, [h.origin]: selector.origin, [h.ledgerRevision]: String(statement.ledgerRevision), [h.currency]: 'USD', [h.language]: language, [h.format]: 'csv', [h.selectorHash]: selectorHash };
+      if (Object.entries(checks).some(([key, value]) => result.headers.get(key) !== value) || result.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'text/csv' || result.headers.get('X-Content-Type-Options')?.toLowerCase() !== 'nosniff' || result.headers.get('Referrer-Policy')?.toLowerCase() !== 'no-referrer' || !result.headers.get('Cache-Control')?.toLowerCase().split(',').some(value => value.trim() === 'no-store')) return fail('invalid_bank_export_response');
+      const vary = result.headers.get('Vary')?.toLowerCase().split(',').map(value => value.trim());
+      if (!['cookie', 'x-zentra-expected-user', 'x-zentra-financial-pilot'].every(value => vary?.includes(value))) return fail('invalid_bank_export_response');
+      const filename = result.headers.get('Content-Disposition')?.match(/^attachment; filename="([A-Za-z0-9][A-Za-z0-9._-]{0,179})"$/)?.[1], hash = result.headers.get(h.contentHash);
+      if (!filename || filename.includes('..') || !filename.endsWith('.csv') || !hash || !/^[0-9a-f]{64}$/.test(hash)) return fail('invalid_bank_export_response');
+      const bytes = await bytesOf(result, Number(length)); fresh();
+      if (bytes.byteLength !== Number(length) || bytes[0] !== 239 || bytes[1] !== 187 || bytes[2] !== 191) return fail('invalid_bank_export_response');
+      new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      const actualHash = hex(await wait(crypto.subtle.digest('SHA-256', bytes))); fresh(); if (actualHash !== hash) return fail('invalid_bank_export_response');
+      const output = Object.freeze({ blob: new Blob([bytes], { type: 'text/csv;charset=utf-8' }), filename, revision: selector.revision, bankRevision: selector.bankRevision, statementRevision: selector.statementRevision, statementId: selector.statementId, ledgerRevision: statement.ledgerRevision });
+      bankExportResult = output; return output;
+    } catch (caught) {
+      if (caught instanceof BrowserUsFinancialPilotError) throw caught;
+      fresh(); return fail('bank_export_unavailable', 0);
+    } finally {
+      controller.abort(); if (reader) void reader.cancel().catch(() => {}); else if (received?.body) void received.body.cancel().catch(() => {});
+      if (timer !== undefined) clearTimeout(timer); controllers.delete(controller); bankExportCancels.delete(cancel); bankExportFlight = false;
+    }
+  }
+  function downloadBank(result: BrowserUsFinancialPilotBankExportResult): void {
+    alive(); if (result !== bankExportResult || !result || pending || state.writing) return fail('invalid_bank_export_response'); bankPair(result);
+    const url = URL.createObjectURL(result.blob); bankUrls.add(url);
+    try { const link = document.createElement('a'); link.href = url; link.download = result.filename; link.rel = 'noopener'; link.click(); }
+    catch { URL.revokeObjectURL(url); bankUrls.delete(url); return fail('bank_export_unavailable', 0); }
+    const timer = setTimeout(() => { URL.revokeObjectURL(url); bankUrls.delete(url); bankUrlTimers.delete(timer); }, 1000); bankUrlTimers.add(timer);
+  }
+  async function send(): Promise<BrowserUsFinancialPilotOperationReceipt | BrowserUsFinancialPilotInvoiceResult | UsFinancialPilotPurchasingReceipt | UsFinancialPilotAccountingReceipt | UsFinancialPilotBankReceipt> {
+    alive(); if (!pending) return fail('no_pending_operation', 409); if (state.writing) return fail('pending_operation', 409);
+    const original = pending, epoch = generation; mutation++; publish({ writing: true, pending: true, pendingKind: original.kind, requiresRefresh: true, error: null }); invalidateBank();
+    try {
+      const path = original.kind === 'bank' ? '/bank/operations' : original.kind === 'accounting' ? '/accounting/operations' : original.kind === 'purchasing' ? '/purchasing/operations' : original.kind === 'invoice_prepare' ? '/invoices/prepare' : original.kind === 'invoice_issue' ? '/invoices/issue' : original.kind === 'commercial' ? '/commercial/operations' : '/operations';
       const body = await response(path, { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' }, body: original.body }, true); alive(epoch);
       const receipt = validate(() => {
+        if (original.kind === 'bank') return validateUsFinancialPilotBankReceipt(body, organizationId, original.request);
         if (original.kind === 'accounting') return validateUsFinancialPilotAccountingReceipt(body, organizationId, original.request);
         if (original.kind === 'purchasing') return validateUsFinancialPilotPurchasingReceipt(body, organizationId, original.request);
         if (original.kind === 'invoice_prepare') return validateUsFinancialPilotInvoicePreview(body, organizationId, original.request);
@@ -279,28 +504,91 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       }, true);
       if (original.kind === 'invoice_prepare') { prepared = frozen({ request: original.request, preview: receipt as UsFinancialPilotInvoicePreview }); publish({ invoiceReview: prepared.preview, requiresRefresh: false }); }
       if (original.kind === 'invoice_issue') { prepared = null; publish({ invoiceReview: null }); }
+      if (original.kind === 'bank') publishBank({ lastReceipt: receipt as UsFinancialPilotBankReceipt, pendingReview: null, error: null });
       pending = null; publish({ pending: false, pendingKind: null, error: null }); return receipt;
     } catch (caught) { if (!pending && (original.kind === 'invoice_prepare' || original.kind === 'invoice_issue')) { prepared = null; publish({ invoiceReview: null }); } notifyError(caught); throw caught; }
     finally {
       mutation++; if (generation === epoch) {
         publish({ writing: false, pending: pending !== null, pendingKind: pending?.kind ?? null });
-        if (!pending && original.kind !== 'invoice_prepare') { const previous = snapshotFlight; void Promise.resolve(previous).catch(() => {}).then(() => { if (generation === epoch) return snapshotLoad(); }).catch(() => {}); }
+        if (!pending && original.kind !== 'invoice_prepare') {
+          const previous = original.kind === 'bank' ? bankRefreshFlight : snapshotFlight;
+          void Promise.resolve(previous).catch(() => {}).then(async () => {
+            if (generation === epoch) { if (original.kind === 'bank') await refreshBank(); else await snapshotLoad(); }
+          }).catch(() => {});
+        }
       }
     }
   }
   function stop(): void {
+    if (stopping) return; stopping = true;
     running = false; generation++; mutation++; if (timer !== undefined) clearTimeout(timer); timer = undefined;
     unsubscribe?.(); unsubscribe = undefined; for (const controller of controllers) controller.abort();
     snapshotFlight = null; refreshFlight = null; pending = null; prepared = null;
-    publish({ status: 'stopped', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error: null });
+    invalidateBank(false); bankRefreshFlight = null; floorF = 0; floorB = 0;
+    publish({ status: 'stopped', snapshot: null, refreshing: false, writing: false, pending: false, pendingKind: null, invoiceReview: null, requiresRefresh: true, error: null, bank: emptyBank() });
+    stopping = false;
   }
   return Object.freeze({
     getState: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    start() { if (disposed || denied) return fail('session_disposed', 0, 'unauthorized'); if (running) return; running = true; if (state.status === 'stopped') publish({ status: 'idle' }); unsubscribe = environment.subscribe(wake); const epoch = generation; if (environment.isVisible() && environment.isOnline()) void snapshotLoad().catch(() => {}).finally(() => { if (generation === epoch) schedule(); }); },
+    start() { if (disposed || denied || stopping) return fail('session_disposed', 0, 'unauthorized'); if (running) return; running = true; if (state.status === 'stopped') publish({ status: 'idle' }); unsubscribe = environment.subscribe(wake); const epoch = generation; if (environment.isVisible() && environment.isOnline()) void (state.bank.active ? poll() : snapshotLoad()).catch(() => {}).finally(() => { if (generation === epoch) schedule(); }); },
     stop,
     dispose() { if (disposed) return; stop(); disposed = true; listeners.clear(); },
-    load: () => snapshotLoad(), refresh,
+    load: () => snapshotLoad(), refresh: () => refresh(),
+    setBankActive(active: boolean) {
+      alive(); if (typeof active !== 'boolean') return fail('bank_input_invalid');
+      if (active === state.bank.active) return;
+      const epoch = generation, changed = mutation;
+      invalidateBank(); alive(epoch); if (changed !== mutation) return fail('stale_read', 0);
+      publishBank({ active });
+      if (active && environment.isVisible() && environment.isOnline()) void Promise.resolve(bankRefreshFlight).catch(() => {}).then(() => { if (!disposed && !denied && state.status !== 'stopped' && state.bank.active) return refreshBank(); }).catch(() => {});
+    },
+    refreshBank,
+    async readBankContext(input?: UsFinancialPilotBankQuery) {
+      const query = bankInput(() => validateUsFinancialPilotBankQuery(input ?? bankPair()));
+      const stamp = bankReadStamp();
+      const result = await bankRead(`/bank/context?${bankParams(query)}`, query, value => validateUsFinancialPilotBankContext(value, organizationId, query));
+      confirmBankRead(stamp); bankContext = result; return result;
+    },
+    readBankStatements(input?: UsFinancialPilotBankListQuery) {
+      const query = bankInput(() => validateUsFinancialPilotBankListQuery(input ?? bankPair())), params = bankParams(query); if (query.cursor != null) params.set('cursor', query.cursor);
+      return bankRead(`/bank/statements?${params}`, query, value => validateUsFinancialPilotBankStatementsPage(value, organizationId, query));
+    },
+    async readBankStatement(input: UsFinancialPilotBankDetailQuery) {
+      const query = bankInput(() => validateUsFinancialPilotBankDetailQuery(input)), params = bankParams(query); params.set('origin', query.origin);
+      if (query.lineCursor != null) params.set('lineCursor', query.lineCursor); if (query.matchCursor != null) params.set('matchCursor', query.matchCursor);
+      const stamp = bankReadStamp();
+      const result = await bankRead(`/bank/statements/${query.statementId}?${params}`, query, value => validateUsFinancialPilotBankStatementDetail(value, organizationId, query));
+      confirmBankRead(stamp); bankPages.set(result, { ...stamp, kind: 'detail', query }); return result;
+    },
+    async readBankMovements(input: UsFinancialPilotBankMovementQuery) {
+      const query = bankInput(() => validateUsFinancialPilotBankMovementQuery(input)), params = bankParams(query); params.set('origin', query.origin); if (query.cursor != null) params.set('cursor', query.cursor);
+      const stamp = bankReadStamp();
+      const result = await bankRead(`/bank/statements/${query.statementId}/movements?${params}`, query, value => validateUsFinancialPilotBankMovementsPage(value, organizationId, query));
+      confirmBankRead(stamp); bankPages.set(result, { ...stamp, kind: 'movements', query }); return result;
+    },
+    reviewBankImport(draft: BankImportDraft) {
+      const head = readyBank();
+      return ownReview(bankInput(() => buildBankImportReview({ scope: { organizationId, requestId: newId(), head, expected: { revision: head.revision, bankRevision: head.bankRevision, statementRevision: null } }, context: bankContext!, draft })));
+    },
+    reviewBank(command: Exclude<UsFinancialPilotBankCommand, { type: 'create_statement' }>, evidence: BrowserUsFinancialPilotBankEvidence) {
+      const head = readyBank();
+      if (!exact(evidence, ['statement', 'linePages', 'movementPages'])) return fail('bank_input_invalid');
+      const ownField = (key: string): unknown => { const d = Object.getOwnPropertyDescriptor(evidence, key); if (!d || !d.enumerable || !('value' in d)) return fail('bank_input_invalid'); return d.value; };
+      const statement = detailEvidence(ownField('statement') as UsFinancialPilotBankStatementDetail);
+      const linePages = evidenceArray(ownField('linePages') as readonly UsFinancialPilotBankStatementDetail[], 39).map(detailEvidence);
+      const movementPages = evidenceArray(ownField('movementPages') as readonly UsFinancialPilotBankMovementsPage[], 40).map(movementEvidence);
+      return ownReview(bankInput(() => buildBankCommandReview({ scope: { organizationId, requestId: newId(), head, expected: { revision: head.revision, bankRevision: head.bankRevision, statementRevision: statement.value.statement.statementRevision } }, context: bankContext!, command, evidence: { statement, linePages, movementPages } })));
+    },
+    submitBank(review: BankReview, approved: boolean) {
+      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected'));
+      const stamp = review && typeof review === 'object' ? bankReviews.get(review) : undefined;
+      if (approved !== true || !stamp || review !== state.bank.pendingReview || stamp.epoch !== bankEpoch || stamp.generation !== generation || stamp.mutation !== mutation) return Promise.reject(new BrowserUsFinancialPilotError('bank_review_changed', 409, 'rejected'));
+      readyBank();
+      pending = frozen({ kind: 'bank', body: review.body, request: review.request, review }); return send() as Promise<UsFinancialPilotBankReceipt>;
+    },
+    retryBank() { if (pending?.kind !== 'bank') return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation', 409, 'rejected')); return send() as Promise<UsFinancialPilotBankReceipt>; },
+    exportBank, downloadBank,
     readInvoices: (cursor?: string, atRevision?: number) => list('invoices', cursor, atRevision) as Promise<UsFinancialPilotPage<UsFinancialPilotInvoiceRow>>,
     readList: list,
     readAccountingContext(atRevision?: number) {
@@ -407,6 +695,6 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     },
     retryInvoice() { if (!pending || !['invoice_prepare', 'invoice_issue'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotInvoiceResult>; },
     clearInvoiceReview() { alive(); if (pending || state.writing) return fail('pending_operation', 409); prepared = null; publish({ invoiceReview: null }); },
-    retry() { if (pending && ['invoice_prepare', 'invoice_issue', 'purchasing', 'accounting'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotOperationReceipt>; }, hasPending: () => pending !== null,
+    retry() { if (pending && ['invoice_prepare', 'invoice_issue', 'purchasing', 'accounting', 'bank'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotOperationReceipt>; }, hasPending: () => pending !== null,
   });
 }

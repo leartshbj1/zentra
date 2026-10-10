@@ -2,6 +2,7 @@ import type { PDFFont, PDFPage } from 'pdf-lib';
 import { formatAddress } from './addresses';
 import { formatDateOnly } from './localization';
 import { formatMoney, money } from './money';
+import { financialPilotCsvDecimal as decimal, financialPilotCsvTextCell as textCell, financialPilotCsvQuoted as quoted } from './us-financial-pilot-csv';
 import { usFinancialPilotExportCopy } from './us-financial-pilot-export-copy';
 import {
   validateUsFinancialPilotExportSnapshot, UsFinancialPilotExportError,
@@ -33,15 +34,6 @@ function displayCell(s: Snapshot, column: Section['columns'][number], value: str
   return value;
 }
 const factValue = (s: Snapshot, fact: Snapshot['facts'][number]) => fact.kind === 'date' ? date(fact.value) : fact.label === 'accountingBasis' && fact.value === 'accrual' ? usFinancialPilotExportCopy[s.language].accrual : fact.value;
-
-function decimal(minor: string): string {
-  const value = BigInt(minor), absolute = value < BigInt(0) ? -value : value;
-  return `${value < BigInt(0) ? '-' : ''}${absolute / BigInt(100)}.${(absolute % BigInt(100)).toString().padStart(2, '0')}`;
-}
-/** Unicode whitespace/format prefixes must not hide a spreadsheet formula.
- * Only validated monetary cells bypass this text guard, retaining exact negatives. */
-function textCell(value: string): string { return /^[\p{White_Space}\p{Cf}]*[=+\-@]/u.test(value) ? `'${value}` : value; }
-const quoted = (value: string) => `"${value.replace(/"/g, '""')}"`;
 
 /** Complete, quoted UTF-8 CSV with BOM and CRLF records; never an ERP1-4 snapshot. */
 export function renderUsFinancialPilotExportCsv(input: unknown): string {
