@@ -1,0 +1,722 @@
+[
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Actualiser",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "Ce qui est traité",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Arrêter la réception",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "fr",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Actualiser",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "Ce qui est traité",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Arrêter la réception",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "fr",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Actualiser",
+        "width": 111.859375
+      },
+      {
+        "height": 56,
+        "text": "Ce qui est traité",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Arrêter la réception",
+        "width": 173.5625
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "fr",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Actualiser",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "Ce qui est traité",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Arrêter la réception",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "fr",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Actualiser",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "Ce qui est traité",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Arrêter la réception",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "fr",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Actualiser",
+        "width": 111.859375
+      },
+      {
+        "height": 56,
+        "text": "Ce qui est traité",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Arrêter la réception",
+        "width": 173.5625
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "fr",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Refresh",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "What is processed",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Stop intake",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "en",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Refresh",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "What is processed",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Stop intake",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "en",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Refresh",
+        "width": 98.5234375
+      },
+      {
+        "height": 56,
+        "text": "What is processed",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Stop intake",
+        "width": 121.0546875
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "en",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Refresh",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "What is processed",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Stop intake",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "en",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Refresh",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "What is processed",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Stop intake",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "en",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Refresh",
+        "width": 98.5234375
+      },
+      {
+        "height": 56,
+        "text": "What is processed",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Stop intake",
+        "width": 121.0546875
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "en",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aktualisieren",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "Was verarbeitet wird",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Empfang stoppen",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "de",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aktualisieren",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "Was verarbeitet wird",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Empfang stoppen",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "de",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aktualisieren",
+        "width": 131.8828125
+      },
+      {
+        "height": 56,
+        "text": "Was verarbeitet wird",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Empfang stoppen",
+        "width": 163.5859375
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "de",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aktualisieren",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "Was verarbeitet wird",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Empfang stoppen",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "de",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aktualisieren",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "Was verarbeitet wird",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Empfang stoppen",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "de",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aktualisieren",
+        "width": 131.8828125
+      },
+      {
+        "height": 56,
+        "text": "Was verarbeitet wird",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Empfang stoppen",
+        "width": 163.5859375
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "de",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aggiorna",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "Cosa viene elaborato",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Ferma la ricezione",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "it",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+    "theme": "light",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aggiorna",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "Cosa viene elaborato",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Ferma la ricezione",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "it",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aggiorna",
+        "width": 106.046875
+      },
+      {
+        "height": 56,
+        "text": "Cosa viene elaborato",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Ferma la ricezione",
+        "width": 169.3828125
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "it",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "bounds": {
+      "width": 265,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aggiorna",
+        "width": 265
+      },
+      {
+        "height": 56,
+        "text": "Cosa viene elaborato",
+        "width": 223
+      },
+      {
+        "height": 45.75,
+        "text": "Ferma la ricezione",
+        "width": 265
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "it",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+    "theme": "dark",
+    "width": 320
+  },
+  {
+    "bounds": {
+      "width": 335,
+      "x": 20
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aggiorna",
+        "width": 335
+      },
+      {
+        "height": 56,
+        "text": "Cosa viene elaborato",
+        "width": 293
+      },
+      {
+        "height": 45.75,
+        "text": "Ferma la ricezione",
+        "width": 335
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "it",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "bounds": {
+      "width": 728,
+      "x": 348.5
+    },
+    "buttons": [
+      {
+        "height": 45.75,
+        "text": "Aggiorna",
+        "width": 106.046875
+      },
+      {
+        "height": 56,
+        "text": "Cosa viene elaborato",
+        "width": 678
+      },
+      {
+        "height": 45.75,
+        "text": "Ferma la ricezione",
+        "width": 169.3828125
+      }
+    ],
+    "documentOverflow": -15,
+    "lang": "it",
+    "outside": [],
+    "sectionOverflow": 0,
+    "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+    "theme": "dark",
+    "width": 1440
+  }
+]

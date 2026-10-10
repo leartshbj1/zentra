@@ -1,0 +1,399 @@
+{
+  "scenarios": [
+    "enable-with-consent",
+    "simulate-cycle-and-refresh",
+    "revoke",
+    "lost-ack-exact-retry",
+    "member-read-only",
+    "identity-purge",
+    "quiet-background-projection-refresh-15s"
+  ],
+  "light": {
+    "details": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nDésactivée\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\n\nLe texte est transmis au service d’analyse configuré. Les pièces jointes ne sont pas analysées. Aucun e-mail n’est envoyé et aucune écriture comptable n’est créée.\n\nSeuls les messages datés à partir de l’activation sont admissibles. Une date du message peut différer de son arrivée réelle ; ce connecteur ne garantit pas une réception exhaustive.\n\nPilote limité à 500 références de messages par espace. Le quota d’analyses reste celui de votre offre.\n\nConfidentialité\nDurée de l’autorisation\n7 jours\n30 jours\n90 jours\nJ’autorise la lecture et l’analyse du texte des messages de cette boîte.\nActiver la réception",
+    "styles": [
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(24, 56, 44)",
+        "font": "16px",
+        "text": "Réception automatiqueActualiserLes messages admissibles deviennent des tickets pour votre équipe, mê"
+      },
+      {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(24, 56, 44)",
+        "font": "15px",
+        "text": "Actualiser"
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(24, 56, 44)",
+        "font": "16px",
+        "text": "Les messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé."
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(24, 56, 44)",
+        "font": "16px",
+        "text": "Désactivée"
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(82, 102, 92)",
+        "font": "13px",
+        "text": "À traiter"
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(24, 56, 44)",
+        "font": "15px",
+        "text": "0"
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(82, 102, 92)",
+        "font": "13px",
+        "text": "À vérifier"
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(24, 56, 44)",
+        "font": "15px",
+        "text": "0"
+      },
+      {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(24, 56, 44)",
+        "font": "15px",
+        "text": "Ce qui est traité"
+      },
+      {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(82, 102, 92)",
+        "font": "15px",
+        "text": "Le texte est transmis au service d’analyse configuré. Les pièces jointes ne sont pas analysées. Aucu"
+      },
+      {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(82, 102, 92)",
+        "font": "15px",
+        "text": "Seuls les messages datés à partir de l’activation sont admissibles. Une date du message peut différe"
+      },
+      {
+        "bg": "rgb(255, 255, 255)",
+        "color": "rgb(82, 102, 92)",
+        "font": "15px",
+        "text": "Pilote limité à 500 références de messages par espace. Le quota d’analyses reste celui de votre offr"
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(24, 56, 44)",
+        "font": "15px",
+        "text": "Durée de l’autorisation7 jours30 jours90 jours"
+      },
+      {
+        "bg": "rgb(242, 245, 243)",
+        "color": "rgb(24, 56, 44)",
+        "font": "15px",
+        "text": "J’autorise la lecture et l’analyse du texte des messages de cette boîte."
+      },
+      {
+        "bg": "rgb(33, 100, 72)",
+        "color": "rgb(255, 255, 255)",
+        "font": "15px",
+        "text": "Activer la réception"
+      }
+    ]
+  },
+  "dark": [
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "Actualiser"
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "16px",
+      "text": "Les messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé."
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "16px",
+      "text": "Tickets préparésAutorisé jusqu’au 9 nov. 2026, 06:14"
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(176, 193, 182)",
+      "font": "13px",
+      "text": "À traiter"
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "0"
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(176, 193, 182)",
+      "font": "13px",
+      "text": "À vérifier"
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "0"
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(176, 193, 182)",
+      "font": "13px",
+      "text": "Dernière lecture"
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "10 oct. 2026, 07:14"
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "Ce qui est traité"
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(176, 193, 182)",
+      "font": "15px",
+      "text": "Le texte est transmis au service d’analyse configuré. Les pièces jointes ne sont pas analysées. Aucu"
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(176, 193, 182)",
+      "font": "15px",
+      "text": "Seuls les messages datés à partir de l’activation sont admissibles. Une date du message peut différe"
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(176, 193, 182)",
+      "font": "15px",
+      "text": "Pilote limité à 500 références de messages par espace. Le quota d’analyses reste celui de votre offr"
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "Arrêter la réception"
+    }
+  ],
+  "lightContrast": [
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(24, 56, 44)",
+      "font": "16px",
+      "text": "Réception automatiqueActualiserLes messages admissibles deviennent des tickets pour votre équipe, mê",
+      "ratio": 11.65877937027054
+    },
+    {
+      "bg": "rgb(255, 255, 255)",
+      "color": "rgb(24, 56, 44)",
+      "font": "15px",
+      "text": "Actualiser",
+      "ratio": 12.798032722081503
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(24, 56, 44)",
+      "font": "16px",
+      "text": "Les messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.",
+      "ratio": 11.65877937027054
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(24, 56, 44)",
+      "font": "16px",
+      "text": "Désactivée",
+      "ratio": 11.65877937027054
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(82, 102, 92)",
+      "font": "13px",
+      "text": "À traiter",
+      "ratio": 5.60381481949548
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(24, 56, 44)",
+      "font": "15px",
+      "text": "0",
+      "ratio": 11.65877937027054
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(82, 102, 92)",
+      "font": "13px",
+      "text": "À vérifier",
+      "ratio": 5.60381481949548
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(24, 56, 44)",
+      "font": "15px",
+      "text": "0",
+      "ratio": 11.65877937027054
+    },
+    {
+      "bg": "rgb(255, 255, 255)",
+      "color": "rgb(24, 56, 44)",
+      "font": "15px",
+      "text": "Ce qui est traité",
+      "ratio": 12.798032722081503
+    },
+    {
+      "bg": "rgb(255, 255, 255)",
+      "color": "rgb(82, 102, 92)",
+      "font": "15px",
+      "text": "Le texte est transmis au service d’analyse configuré. Les pièces jointes ne sont pas analysées. Aucu",
+      "ratio": 6.151399143144108
+    },
+    {
+      "bg": "rgb(255, 255, 255)",
+      "color": "rgb(82, 102, 92)",
+      "font": "15px",
+      "text": "Seuls les messages datés à partir de l’activation sont admissibles. Une date du message peut différe",
+      "ratio": 6.151399143144108
+    },
+    {
+      "bg": "rgb(255, 255, 255)",
+      "color": "rgb(82, 102, 92)",
+      "font": "15px",
+      "text": "Pilote limité à 500 références de messages par espace. Le quota d’analyses reste celui de votre offr",
+      "ratio": 6.151399143144108
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(24, 56, 44)",
+      "font": "15px",
+      "text": "Durée de l’autorisation7 jours30 jours90 jours",
+      "ratio": 11.65877937027054
+    },
+    {
+      "bg": "rgb(242, 245, 243)",
+      "color": "rgb(24, 56, 44)",
+      "font": "15px",
+      "text": "J’autorise la lecture et l’analyse du texte des messages de cette boîte.",
+      "ratio": 11.65877937027054
+    },
+    {
+      "bg": "rgb(33, 100, 72)",
+      "color": "rgb(255, 255, 255)",
+      "font": "15px",
+      "text": "Activer la réception",
+      "ratio": 7.0443533588072995
+    }
+  ],
+  "darkContrast": [
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "Actualiser",
+      "ratio": 13.995541340847312
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "16px",
+      "text": "Les messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.",
+      "ratio": 16.033986086797675
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "16px",
+      "text": "Tickets préparésAutorisé jusqu’au 9 nov. 2026, 06:14",
+      "ratio": 16.033986086797675
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(176, 193, 182)",
+      "font": "13px",
+      "text": "À traiter",
+      "ratio": 9.4083500401574
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "0",
+      "ratio": 16.033986086797675
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(176, 193, 182)",
+      "font": "13px",
+      "text": "À vérifier",
+      "ratio": 9.4083500401574
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "0",
+      "ratio": 16.033986086797675
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(176, 193, 182)",
+      "font": "13px",
+      "text": "Dernière lecture",
+      "ratio": 9.4083500401574
+    },
+    {
+      "bg": "rgb(18, 26, 22)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "10 oct. 2026, 07:14",
+      "ratio": 16.033986086797675
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "Ce qui est traité",
+      "ratio": 13.995541340847312
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(176, 193, 182)",
+      "font": "15px",
+      "text": "Le texte est transmis au service d’analyse configuré. Les pièces jointes ne sont pas analysées. Aucu",
+      "ratio": 8.212240625842007
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(176, 193, 182)",
+      "font": "15px",
+      "text": "Seuls les messages datés à partir de l’activation sont admissibles. Une date du message peut différe",
+      "ratio": 8.212240625842007
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(176, 193, 182)",
+      "font": "15px",
+      "text": "Pilote limité à 500 références de messages par espace. Le quota d’analyses reste celui de votre offr",
+      "ratio": 8.212240625842007
+    },
+    {
+      "bg": "rgb(27, 39, 32)",
+      "color": "rgb(239, 245, 241)",
+      "font": "15px",
+      "text": "Arrêter la réception",
+      "ratio": 13.995541340847312
+    }
+  ]
+}

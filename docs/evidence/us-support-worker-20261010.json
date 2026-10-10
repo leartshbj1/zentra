@@ -1,0 +1,2273 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-10T05:38:47.113Z",
+  "phase": "F / Support H4 autonomous intake",
+  "scope": "local fictitious pilot only",
+  "goalComplete": false,
+  "git": {
+    "branch": "codex/international-runtime",
+    "base": "083d02b2bde51181e61c7217332eeca87df3c093",
+    "implementation": "c7f1b89b0851296c529cf7318425f3ed45929010",
+    "created": [
+      "app/api/international/workspaces/[organizationId]/support-worker/route.ts",
+      "components/account/us-support-worker.css",
+      "components/account/us-support-worker.tsx",
+      "docs/internationalization/US-SUPPORT-WORKER-PLAN-20261010.md",
+      "docs/internationalization/US-SUPPORT-WORKER-RESEARCH-20261010.md",
+      "drizzle/0098_international_us_support_worker.sql",
+      "lib/international/browser-us-support-worker-session.test.ts",
+      "lib/international/browser-us-support-worker-session.ts",
+      "lib/international/us-support-execution-contract.ts",
+      "lib/international/us-support-execution-d1.ts",
+      "lib/international/us-support-intake-provider.test.ts",
+      "lib/international/us-support-intake-provider.ts",
+      "lib/international/us-support-triage-service.test.ts",
+      "lib/international/us-support-triage-service.ts",
+      "lib/international/us-support-worker-bindings.test.ts",
+      "lib/international/us-support-worker-bindings.ts",
+      "lib/international/us-support-worker-composition.test.ts",
+      "lib/international/us-support-worker-contract.test.ts",
+      "lib/international/us-support-worker-contract.ts",
+      "lib/international/us-support-worker-d1.test.ts",
+      "lib/international/us-support-worker-d1.ts",
+      "lib/international/us-support-worker-migration.test.ts",
+      "lib/international/us-support-worker-server.test.ts",
+      "lib/international/us-support-worker-server.ts",
+      "lib/international/us-support-worker-test-fixture.ts",
+      "lib/international/us-support-worker-ui-test-fixture.ts",
+      "lib/international/us-support-worker-ui.test.ts",
+      "lib/international/us-support-worker.test.ts",
+      "lib/international/us-support-worker.ts"
+    ],
+    "modified": [
+      "app/compte/espaces/us/[organizationId]/page.tsx",
+      "components/account/us-erp-workbench.tsx",
+      "components/account/us-support-mailbox-panel.tsx",
+      "components/account/us-support-tickets.tsx",
+      "components/account/us-support-workspace-panel.tsx",
+      "lib/account-workspace-pages.test.ts",
+      "lib/international/us-support-ticket-bindings.test.ts",
+      "lib/international/us-support-ticket-bindings.ts",
+      "lib/international/us-support-ticket-contract.ts",
+      "lib/international/us-support-ticket-d1.ts",
+      "lib/international/us-support-triage-contract.ts",
+      "lib/international/us-support-triage-d1.ts",
+      "lib/international/us-support-triage-policy.ts",
+      "lib/international/us-support-triage-server.ts",
+      "tests/us-supplier-documents-preview.tsx",
+      "worker.ts"
+    ],
+    "sourceFiles": [
+      {
+        "file": "app/api/international/workspaces/[organizationId]/support-worker/route.ts",
+        "sha256WorkingBytes": "2ff63a8dcb45abeb1fb7695f6b7b80e6c1c7c13318ea82263b9e6c092d7e0db7",
+        "gitBlob": "cd680ecfcb9b9c4f4a3d67ebd2f470b112a5e036"
+      },
+      {
+        "file": "app/compte/espaces/us/[organizationId]/page.tsx",
+        "sha256WorkingBytes": "23df3521cbe4bc516a1e39e1c0dbbd0a384a5e705ffc151b8386b70143adde75",
+        "gitBlob": "013f64f1988fd00a63aec308af821c7cec3b294d"
+      },
+      {
+        "file": "components/account/us-erp-workbench.tsx",
+        "sha256WorkingBytes": "dd309fd290f13bc762b4e00432b00143bacd4f712ccb73440ce7dde4d96e1594",
+        "gitBlob": "fdac1834f5c8ed117e54fcd11cbe115ea368c5d6"
+      },
+      {
+        "file": "components/account/us-support-mailbox-panel.tsx",
+        "sha256WorkingBytes": "b72e060f38f57ba2f7e9fe5cf3481300593b6391306c85af3d5e223512e78bb6",
+        "gitBlob": "b23021e36a37cf73d769e819b7e3664641a99e50"
+      },
+      {
+        "file": "components/account/us-support-tickets.tsx",
+        "sha256WorkingBytes": "29d20dfb5011df33b5b5dac489e5c82b2c3074999e1ec8357e77e7ab7fe6ecaf",
+        "gitBlob": "96f70459f5800dd44bea33c1294f938f6beccea3"
+      },
+      {
+        "file": "components/account/us-support-worker.css",
+        "sha256WorkingBytes": "46c718d87426429ebeb6958c802f55d66d0d9f7d23782e660bf6443737afd1a8",
+        "gitBlob": "91c111bb4bcc5900a973aa73ec0e55d4ceb21157"
+      },
+      {
+        "file": "components/account/us-support-worker.tsx",
+        "sha256WorkingBytes": "0b6abc5fb67fe986937a2ae1fdbd0bd5671036f33098f7913370be263dcb8129",
+        "gitBlob": "2c18ebad76f4666f9a20bb33a070ff0cc7da9d08"
+      },
+      {
+        "file": "components/account/us-support-workspace-panel.tsx",
+        "sha256WorkingBytes": "89fcdb03203baeb0665b6ea7a06ceb7aed0f34eba837733371f69e9700e38574",
+        "gitBlob": "3576ebad2f14f40e84c56c6981280429d2ce6c36"
+      },
+      {
+        "file": "docs/internationalization/US-SUPPORT-WORKER-PLAN-20261010.md",
+        "sha256WorkingBytes": "14a933cb24a98765bcbd1f03b852e8f237e248b3937cd200c73ef58349f90a86",
+        "gitBlob": "c0c0a863fc818eae714c557e980dda56c57289de"
+      },
+      {
+        "file": "docs/internationalization/US-SUPPORT-WORKER-RESEARCH-20261010.md",
+        "sha256WorkingBytes": "6d6d01e7c769a29aa299f7fc78b5aba12f27dd9a2a741acce64045b8c2e8e60e",
+        "gitBlob": "f21879aeeefe0b8d3eecb87a9785c43b26b194e9"
+      },
+      {
+        "file": "drizzle/0098_international_us_support_worker.sql",
+        "sha256WorkingBytes": "58fef02c9361c12b44a4ac41fe06842ac99851e0224b9478eaf733c542ff98bc",
+        "gitBlob": "35124ee3ff1217492214183a440fb3f3da35c9e4"
+      },
+      {
+        "file": "lib/account-workspace-pages.test.ts",
+        "sha256WorkingBytes": "db0f74467e88ca777219d3d34627e697242a7468cced1dd72c6cfbf1ad10132f",
+        "gitBlob": "d47f05e0f796d3b617edd13a28a3aed3bc59911a"
+      },
+      {
+        "file": "lib/international/browser-us-support-worker-session.test.ts",
+        "sha256WorkingBytes": "36eef626e7baa37efe4e5941a22f1e5f24697d58bb7becb552bedde6d45714ec",
+        "gitBlob": "561e0ea4e00c6099af91dc42a266bc0a4cc00248"
+      },
+      {
+        "file": "lib/international/browser-us-support-worker-session.ts",
+        "sha256WorkingBytes": "e1223ba294622af5b34748225b830aa20e9f3d55cedb9ef5bd88d035e2669a3b",
+        "gitBlob": "2414f92904b4f4c214abcdfbdb1eadcb9b702b2e"
+      },
+      {
+        "file": "lib/international/us-support-execution-contract.ts",
+        "sha256WorkingBytes": "bec5cedace3dc155ed49f9246ab9fadfe60bbd1880ca4ce1441556f829ca9838",
+        "gitBlob": "333ba0395375877d0ad49769d1dba666199306a3"
+      },
+      {
+        "file": "lib/international/us-support-execution-d1.ts",
+        "sha256WorkingBytes": "ce0bd7f4e069813ec8113d5ea71a9b0de988536ea50ffde0da75c76e52d056bd",
+        "gitBlob": "4a907dceaa14a8afdeb8fe9e4ffe88db95890b94"
+      },
+      {
+        "file": "lib/international/us-support-intake-provider.test.ts",
+        "sha256WorkingBytes": "d7ac64ff26eb26a639b71a5dcb223412b4c820f2a9f9fc36365b76b3bbd5c665",
+        "gitBlob": "d60937777b4d6aed4d1e6f0dd096974668a59a79"
+      },
+      {
+        "file": "lib/international/us-support-intake-provider.ts",
+        "sha256WorkingBytes": "3d27a470f346119a835d3cc62ccd4ce7247945a408011b0566fcdb33fc441bf8",
+        "gitBlob": "e9842772f8f3176bdab1171418f3e84ee5711a59"
+      },
+      {
+        "file": "lib/international/us-support-ticket-bindings.test.ts",
+        "sha256WorkingBytes": "80a78903f0cc310eccc462a355d4ce57a83599c203e9a3c5e98a8f7ca9c85be2",
+        "gitBlob": "8a6adcefe75ed47525c6e1df92aa536395f755a4"
+      },
+      {
+        "file": "lib/international/us-support-ticket-bindings.ts",
+        "sha256WorkingBytes": "2c67bf58344959be669273e86a0e5f66b26e0382f1a8077c3f03227f0614b68f",
+        "gitBlob": "bf229b1e6d2ab4a28bd88cb07ee39d22dd932352"
+      },
+      {
+        "file": "lib/international/us-support-ticket-contract.ts",
+        "sha256WorkingBytes": "34c0a72bcb9f745c8894c5930ceac5e43588244295a93ac201f1db18f142f461",
+        "gitBlob": "b936695ee34be49677d04f3f7d785ea537ade15a"
+      },
+      {
+        "file": "lib/international/us-support-ticket-d1.ts",
+        "sha256WorkingBytes": "8c2c113f74c004055b4b563800aa35554f037b6c92fb4e3041d6365ea896bdb5",
+        "gitBlob": "f132d10bc3e74506c254773b14bdd044ab213851"
+      },
+      {
+        "file": "lib/international/us-support-triage-contract.ts",
+        "sha256WorkingBytes": "1bf477ca516e932128b3d3d3d39702b239e0e9a2679c9786bd7fb3a9c306fc52",
+        "gitBlob": "111830021ba87370a7a7d6a830bcf2464f0b43e9"
+      },
+      {
+        "file": "lib/international/us-support-triage-d1.ts",
+        "sha256WorkingBytes": "6fd39a99249402dd1f796207ea4cc9305011d4d52b4b4509e79d0ce72fde00c1",
+        "gitBlob": "a274bc66a74cd31db75defd93fb0c8659b9e80fc"
+      },
+      {
+        "file": "lib/international/us-support-triage-policy.ts",
+        "sha256WorkingBytes": "0df17ac98706ceb0d41b440cd3f484ea6e0fec0ac4288a4987df7cb652fd16c9",
+        "gitBlob": "c3932d6a75c4a57de3f4b5c17e4c425724f0659b"
+      },
+      {
+        "file": "lib/international/us-support-triage-server.ts",
+        "sha256WorkingBytes": "da22fd77b09d98571784289337e54255e7458e5a98905e107624a3e7897f2c81",
+        "gitBlob": "12cfa35dab62ab1afd228504b8521431d04f702b"
+      },
+      {
+        "file": "lib/international/us-support-triage-service.test.ts",
+        "sha256WorkingBytes": "dca67a6ac52117a2bb4a936cfd25411df67e0024186cea76e2a6f0241d124638",
+        "gitBlob": "b70e78883a35ebc5893810546850b4eb0ad89a5c"
+      },
+      {
+        "file": "lib/international/us-support-triage-service.ts",
+        "sha256WorkingBytes": "99c7ad2cc1926bba820e094dc55c5a6fa4014739fd39ad0a53612a327edd5b93",
+        "gitBlob": "9e394c969963ccf3ee1f3cc530f8f7eddd0ffa80"
+      },
+      {
+        "file": "lib/international/us-support-worker-bindings.test.ts",
+        "sha256WorkingBytes": "8cb8d0a15c2da19ed84c059a42583db09a19d9158b41981a66af7a094af982e1",
+        "gitBlob": "d6ad480312236af7b635fc230d459825ee3119ec"
+      },
+      {
+        "file": "lib/international/us-support-worker-bindings.ts",
+        "sha256WorkingBytes": "bd656f14e79281a0b8ddd9c792390a3110f3ee8c4979622e4c6a470cfa2c9004",
+        "gitBlob": "50bbfa2e8b5c7abdac8defb92fd83e9f1ed223f7"
+      },
+      {
+        "file": "lib/international/us-support-worker-composition.test.ts",
+        "sha256WorkingBytes": "461a0a16d80c229d83e9318527ad0948ec8f7d09febf2f1e8583560bd0c141ff",
+        "gitBlob": "04555e014702d29d2cd73332377620e70524e3c8"
+      },
+      {
+        "file": "lib/international/us-support-worker-contract.test.ts",
+        "sha256WorkingBytes": "b5a99c421c492a4f535fc0754cf9acdf4ac1dfc363b6ac1bc044a2c2cd7f5760",
+        "gitBlob": "169009c6d8ae6e3e47d228f5272cabf25bbf154d"
+      },
+      {
+        "file": "lib/international/us-support-worker-contract.ts",
+        "sha256WorkingBytes": "c3f049f9bb30eb1409421b0e56beff66e9991ddd90cac930b423602fd5d64522",
+        "gitBlob": "2009e55f3570489cba4214ac18e7e284e49bb4a3"
+      },
+      {
+        "file": "lib/international/us-support-worker-d1.test.ts",
+        "sha256WorkingBytes": "0b7a9f594ef0eecf5594ae2a4791e0781e7fa0024564849b350a4e0f208fdc3e",
+        "gitBlob": "06fb3cd05500a0fa3f8f248e10052b656e712944"
+      },
+      {
+        "file": "lib/international/us-support-worker-d1.ts",
+        "sha256WorkingBytes": "01aace2aadb411ee630323444f1252b9f4145d6275cf1c2abb3d962b4f9f5aaf",
+        "gitBlob": "2296aefdc0b7be34ee92bf970f98d41fe9c6f8fe"
+      },
+      {
+        "file": "lib/international/us-support-worker-migration.test.ts",
+        "sha256WorkingBytes": "71257f3aef2f8bffb05621a97ca962b03ea246841bd5aea952c1980dbac7298f",
+        "gitBlob": "adecd6abe14e7663d084001d928e8d33a1f569ff"
+      },
+      {
+        "file": "lib/international/us-support-worker-server.test.ts",
+        "sha256WorkingBytes": "689a90bc483d2f2792cb68fb9e3a60f1e850c13d86dc364fdd7afb20ed166849",
+        "gitBlob": "66a6f896fe577f4ef61bb66e02f97aa3267bfa88"
+      },
+      {
+        "file": "lib/international/us-support-worker-server.ts",
+        "sha256WorkingBytes": "a919147a5310ead5a42e4e240b649b4859a867a880c2cbe9b93c16ba4091be39",
+        "gitBlob": "2e675c788a44a52b30203984e80ef397251f1e69"
+      },
+      {
+        "file": "lib/international/us-support-worker-test-fixture.ts",
+        "sha256WorkingBytes": "a224f136c319095df92d74b37f3044080da7d8cdd0ed1e9062eb692c092fa7fe",
+        "gitBlob": "6721e34b683591fc9ad2c12e4f581cd14d8f2836"
+      },
+      {
+        "file": "lib/international/us-support-worker-ui-test-fixture.ts",
+        "sha256WorkingBytes": "31d6ccb1ae88bf5a76f4a87a14fb744b06e9d6bd5ca8adfb86366af310d76ad1",
+        "gitBlob": "4d8948bda4db5e4f4336b022031c5b1684c51519"
+      },
+      {
+        "file": "lib/international/us-support-worker-ui.test.ts",
+        "sha256WorkingBytes": "9e7043203872e67064636e08e02103b1d90b6a54f9bb21154ff056e425fc3ec4",
+        "gitBlob": "7c1b963a5f52e2d530c4acc901f00f6a3416180c"
+      },
+      {
+        "file": "lib/international/us-support-worker.test.ts",
+        "sha256WorkingBytes": "804529c1f02e9c52b89e8667afb9874fee38bcdc174e43d5d782ee7dbdc0e429",
+        "gitBlob": "9d3e36e748d8c50315c00aeef0786a72dc3fef6d"
+      },
+      {
+        "file": "lib/international/us-support-worker.ts",
+        "sha256WorkingBytes": "39305026543e5b0b1922226701162156c2c27112ce28781bacd8a4addc907dea",
+        "gitBlob": "24ece66de0b67e3f39befafc5708dc1af65074a9"
+      },
+      {
+        "file": "tests/us-supplier-documents-preview.tsx",
+        "sha256WorkingBytes": "a60c6dfffea5908c3cbf444e8eafe91fbfd913684ae464a8afe902e8c7392e79",
+        "gitBlob": "b9d89e4952002a5a4daa5f103d2760fae4be488d"
+      },
+      {
+        "file": "worker.ts",
+        "sha256WorkingBytes": "fa7b7dd3f54906acd7d68ed27b27967a39b15686fbcc215013c1048e9171f55b",
+        "gitBlob": "82585aaa52465f64b877792c4629015f79479958"
+      }
+    ]
+  },
+  "behavior": {
+    "consent": "Owner/admin exact company, mailbox, policy and duration, explicit consent, current membership required, 7/30/90 days, revocable; no automatic activation.",
+    "principal": "Distinct worker identity us-support-intake-v1 with delegation revision and run lease; no invented Auth token or device.",
+    "authority": "Fresh coherent durable SQL snapshot plus pure catalog validation; no authority reused across async boundaries; private vault read joined to current admission.",
+    "discovery": "Read-only fixed-origin Infomaniak adapter, bounded head refresh and offset backfill, durable references/page proof/cursor saved atomically before processing; offset pagination is not exhaustive-delivery proof.",
+    "triage": "Shared H3a preparation/quota/dispatch/result and H3b ticket provenance; a completed job is prioritized and recovered without provider or model key; no automatic inference redispatch after uncertainty.",
+    "reconnection": "Old incomplete A references rejected with connection_replaced under current B authority, before B private message reads; A reserved quota/history retained; B can progress next invocation. Historical completed/uncertain results retain replay priority.",
+    "receivedDate": "Actual message date rechecked before a new reservation and new dispatch against current consent; provider Date is not a verified arrival instant. Prior reservations remain counted if later consent forbids dispatch.",
+    "team": "Same scoped shared ticket store; explicit worker attribution; existing fresh assignment/rule requirements retained. Worker cannot correct, assign or close existing tickets.",
+    "browser": "Compact projection polling nominally every15 seconds visible/online; exact pending mutation in RAM until matching receipt; GET never acknowledges a POST; identity purge and bounded deadline/body reads.",
+    "audit": "Correlated opaque run/organization/workspace identifiers and code/outcome; no subject/body/UID/secret in diagnostic log.",
+    "noEffects": [
+      "outgoing mail",
+      "mark read or delete upstream message",
+      "attachment import",
+      "supplier creation",
+      "accounting posting",
+      "payments",
+      "meeting creation"
+    ],
+    "limits": {
+      "references": 500,
+      "runs": 10000,
+      "pages": 20000,
+      "issues": 2000,
+      "newConsentVersionThreshold": 1000,
+      "maximumConsentDays": 90,
+      "leaseSeconds": 120,
+      "leasesPerInvocation": 1,
+      "messagesPerInvocation": 1,
+      "reset": false,
+      "note": "Stop remains possible at consent-version threshold; lifetime run budget can exhaust in about7 days at one run/minute even idle. No90-day service guarantee."
+    },
+    "gates": {
+      "dedicated": "INTERNATIONAL_US_SUPPORT_WORKER_ENABLED",
+      "default": "closed",
+      "requires": [
+        "Core US",
+        "ERP US",
+        "Support H1",
+        "Mailbox H2a",
+        "Triage H3a",
+        "Tickets H3b"
+      ],
+      "httpRoute": "human read/consent/revoke only",
+      "scheduledExpression": "* * * * *",
+      "deployedCron": false,
+      "nativeProtocol": 4
+    }
+  },
+  "performance": {
+    "measurement": "Real local SQLite adapter/composition statement counts; no hosted latency or provider/model calls.",
+    "correctedInitialDefect": 2667,
+    "normal": 434,
+    "queuedFiveHandlesOne": 432,
+    "combinedHeadBackfillVersionReview": 494,
+    "existingTicketReconciliation": 77,
+    "completedRecoveryWithoutKey": 43,
+    "assertedCompositionStatementCeiling": 800,
+    "platformLimits": {
+      "free": 50,
+      "paid": 1000,
+      "source": "https://developers.cloudflare.com/d1/platform/limits/"
+    },
+    "freeSupported": false,
+    "scale150CompaniesValidated": false,
+    "note": "One global minute invocation shares throughput across workspaces; durable fan-out/queue organization and hosted runtime overhead need validation before scale."
+  },
+  "migration": {
+    "file": "drizzle/0098_international_us_support_worker.sql",
+    "sha256": "58fef02c9361c12b44a4ac41fe06842ac99851e0224b9478eaf733c542ff98bc",
+    "engine": "D1 / SQLite",
+    "newDataAdditive": true,
+    "existingGuardsReplacedVersionedly": true,
+    "oldMigrationFilesRewritten": false,
+    "supabaseChanged": false,
+    "applied": "local fictitious databases only",
+    "chain": {
+      "files": 99,
+      "range": "0000..0098",
+      "nodeSqlite": "passed with empty foreign_key_check",
+      "workerd": "actual statement chunks applied through legacy-country-guard.migrations.test.ts"
+    },
+    "cli": {
+      "command": "wrangler d1 migrations apply --local --persist-to <isolated local directory>",
+      "success": false,
+      "failureMigration": "0094 existing",
+      "message": "incomplete input: SQLITE_ERROR",
+      "notReached": "0098",
+      "fullLogLocal": "C:/Users/alb/AppData/Local/Temp/zentra-h4-d1-verify.log",
+      "fullLogSha256": "61099387deb1ed1e9a7e562805f96710d973df8349c342036c3da78258f21aef"
+    },
+    "rollback": "Close gate; remove any separately approved cron; restore previous application code; retain immutable history/tables. Hosted application and method require explicit approval."
+  },
+  "tests": {
+    "regression": {
+      "success": true,
+      "total": 3978,
+      "passed": 3978,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "failedSuites": 0,
+      "files": 125,
+      "selection": [
+        "lib/account-workspace-entry.test.ts",
+        "lib/account-workspace-navigation.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/account-workspaces.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/deployment-contract.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/browser-us-supplier-documents-session.test.ts",
+        "lib/international/browser-us-supplier-session.test.ts",
+        "lib/international/browser-us-support-worker-session.test.ts",
+        "lib/international/browser-us-team-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-store.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/us-automation-policy.test.ts",
+        "lib/international/us-automation-store.test.ts",
+        "lib/international/us-automation-validation.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-d1.test.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-saas-test-bindings.test.ts",
+        "lib/international/us-saas-test-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "lib/international/us-saas-test-server.test.ts",
+        "lib/international/us-saas-test-stripe.test.ts",
+        "lib/international/us-supplier-analysis-server.test.ts",
+        "lib/international/us-supplier-analysis.test.ts",
+        "lib/international/us-supplier-bindings.test.ts",
+        "lib/international/us-supplier-document-archive.test.ts",
+        "lib/international/us-supplier-document-bindings.test.ts",
+        "lib/international/us-supplier-document-bytes.test.ts",
+        "lib/international/us-supplier-document-contract.test.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-server.test.ts",
+        "lib/international/us-supplier-document-store.test.ts",
+        "lib/international/us-supplier-document-timeout.test.ts",
+        "lib/international/us-supplier-extraction.test.ts",
+        "lib/international/us-supplier-proposal.test.ts",
+        "lib/international/us-supplier-server.test.ts",
+        "lib/international/us-supplier-store.test.ts",
+        "lib/international/us-support-intake-provider.test.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.test.ts",
+        "lib/international/us-support-mailbox-contract.test.ts",
+        "lib/international/us-support-mailbox-d1.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-provider.test.ts",
+        "lib/international/us-support-mailbox-server.test.ts",
+        "lib/international/us-support-mailbox-ui.test.ts",
+        "lib/international/us-support-ticket-bindings.test.ts",
+        "lib/international/us-support-ticket-composition.test.ts",
+        "lib/international/us-support-ticket-contract.test.ts",
+        "lib/international/us-support-ticket-d1.test.ts",
+        "lib/international/us-support-ticket-server.test.ts",
+        "lib/international/us-support-tickets-ui.test.ts",
+        "lib/international/us-support-triage-bindings.test.ts",
+        "lib/international/us-support-triage-composition.test.ts",
+        "lib/international/us-support-triage-contract.test.ts",
+        "lib/international/us-support-triage-d1.test.ts",
+        "lib/international/us-support-triage-policy.test.ts",
+        "lib/international/us-support-triage-provider.test.ts",
+        "lib/international/us-support-triage-server.test.ts",
+        "lib/international/us-support-triage-service.test.ts",
+        "lib/international/us-support-triage-ticket-integration.test.ts",
+        "lib/international/us-support-triage-ui.test.ts",
+        "lib/international/us-support-worker-bindings.test.ts",
+        "lib/international/us-support-worker-composition.test.ts",
+        "lib/international/us-support-worker-contract.test.ts",
+        "lib/international/us-support-worker-d1.test.ts",
+        "lib/international/us-support-worker-migration.test.ts",
+        "lib/international/us-support-worker-server.test.ts",
+        "lib/international/us-support-worker-ui.test.ts",
+        "lib/international/us-support-worker.test.ts",
+        "lib/international/us-support-workspace-bindings.test.ts",
+        "lib/international/us-support-workspace-contract.test.ts",
+        "lib/international/us-support-workspace-d1.test.ts",
+        "lib/international/us-support-workspace-server.test.ts",
+        "lib/international/us-support-workspace-ui.test.ts",
+        "lib/international/us-team-bindings.test.ts",
+        "lib/international/us-team-contract.test.ts",
+        "lib/international/us-team-device-lifecycle.test.ts",
+        "lib/international/us-team-server.test.ts",
+        "lib/international/us-team-store.test.ts",
+        "lib/international/us-team-validation.test.ts",
+        "lib/international/us-team.migrations.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/site-language.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth-http.test.ts",
+        "lib/supabase-auth.test.ts",
+        "lib/support/application-effects.test.ts",
+        "lib/support/billing.test.ts",
+        "lib/support/mail-documents.test.ts",
+        "lib/support/mail-sync-admission.test.ts",
+        "lib/support/reply-transport.test.ts",
+        "lib/support/solicitation-service.test.ts",
+        "lib/support/support.test.ts",
+        "lib/support/workspace-access.test.ts",
+        "lib/support/workspace-selection.test.ts",
+        "lib/support/workspace-state-admission.test.ts"
+      ],
+      "fileResults": [
+        {
+          "file": "lib/account-workspace-entry.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/account-workspace-navigation.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/account-workspace-pages.test.ts",
+          "status": "passed",
+          "total": 77,
+          "passed": 77
+        },
+        {
+          "file": "lib/account-workspaces.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/business-sync-cash-vat.test.ts",
+          "status": "passed",
+          "total": 9,
+          "passed": 9
+        },
+        {
+          "file": "lib/deployment-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/document-number-reservations.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/site-language.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/stripe-contract.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/supabase-auth-http.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/supabase-auth.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/accounting-runtime.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/browser-us-supplier-documents-session.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/browser-us-supplier-session.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/browser-us-support-worker-session.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/browser-us-team-session.test.ts",
+          "status": "passed",
+          "total": 37,
+          "passed": 37
+        },
+        {
+          "file": "lib/international/browser-us-workspace-sync-session.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/legacy-country-guard.migrations.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/legacy-country-guard.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/private-json.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/purchasing-runtime.test.ts",
+          "status": "passed",
+          "total": 63,
+          "passed": 63
+        },
+        {
+          "file": "lib/international/runtime-bindings.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/runtime-response-guards.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/runtime-server-revalidation.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/runtime-server-us-tax.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/runtime-server.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/runtime-store.test.ts",
+          "status": "passed",
+          "total": 83,
+          "passed": 83
+        },
+        {
+          "file": "lib/international/runtime-sync.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/runtime.test.ts",
+          "status": "passed",
+          "total": 36,
+          "passed": 36
+        },
+        {
+          "file": "lib/international/saas-authorities.migrations.test.ts",
+          "status": "passed",
+          "total": 101,
+          "passed": 101
+        },
+        {
+          "file": "lib/international/saas-authority.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-automation-policy.test.ts",
+          "status": "passed",
+          "total": 69,
+          "passed": 69
+        },
+        {
+          "file": "lib/international/us-automation-store.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-automation-validation.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-device-bindings.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-device-capability-v4.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-device-d1.test.ts",
+          "status": "passed",
+          "total": 15,
+          "passed": 15
+        },
+        {
+          "file": "lib/international/us-device-server.test.ts",
+          "status": "passed",
+          "total": 40,
+          "passed": 40
+        },
+        {
+          "file": "lib/international/us-saas-test-bindings.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-saas-test-d1.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-d1.test.ts",
+          "status": "passed",
+          "total": 44,
+          "passed": 44
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-server.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+          "status": "passed",
+          "total": 123,
+          "passed": 123
+        },
+        {
+          "file": "lib/international/us-saas-test-server.test.ts",
+          "status": "passed",
+          "total": 27,
+          "passed": 27
+        },
+        {
+          "file": "lib/international/us-saas-test-stripe.test.ts",
+          "status": "passed",
+          "total": 82,
+          "passed": 82
+        },
+        {
+          "file": "lib/international/us-supplier-analysis-server.test.ts",
+          "status": "passed",
+          "total": 47,
+          "passed": 47
+        },
+        {
+          "file": "lib/international/us-supplier-analysis.test.ts",
+          "status": "passed",
+          "total": 39,
+          "passed": 39
+        },
+        {
+          "file": "lib/international/us-supplier-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-archive.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-supplier-document-bindings.test.ts",
+          "status": "passed",
+          "total": 12,
+          "passed": 12
+        },
+        {
+          "file": "lib/international/us-supplier-document-bytes.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-supplier-document-contract.test.ts",
+          "status": "passed",
+          "total": 29,
+          "passed": 29
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.postgres.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-supplier-document-lookup.test.ts",
+          "status": "passed",
+          "total": 34,
+          "passed": 34
+        },
+        {
+          "file": "lib/international/us-supplier-document-server.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-supplier-document-store.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-supplier-document-timeout.test.ts",
+          "status": "passed",
+          "total": 4,
+          "passed": 4
+        },
+        {
+          "file": "lib/international/us-supplier-extraction.test.ts",
+          "status": "passed",
+          "total": 96,
+          "passed": 96
+        },
+        {
+          "file": "lib/international/us-supplier-proposal.test.ts",
+          "status": "passed",
+          "total": 105,
+          "passed": 105
+        },
+        {
+          "file": "lib/international/us-supplier-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-supplier-store.test.ts",
+          "status": "passed",
+          "total": 77,
+          "passed": 77
+        },
+        {
+          "file": "lib/international/us-support-intake-provider.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-support-mail-import-ui.test.ts",
+          "status": "passed",
+          "total": 57,
+          "passed": 57
+        },
+        {
+          "file": "lib/international/us-support-mailbox-bindings.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-support-mailbox-contract.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/international/us-support-mailbox-d1.test.ts",
+          "status": "passed",
+          "total": 43,
+          "passed": 43
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-bindings.test.ts",
+          "status": "passed",
+          "total": 1,
+          "passed": 1
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-composition.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-contract.test.ts",
+          "status": "passed",
+          "total": 46,
+          "passed": 46
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-d1.test.ts",
+          "status": "passed",
+          "total": 54,
+          "passed": 54
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-provider.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-import-server.test.ts",
+          "status": "passed",
+          "total": 42,
+          "passed": 42
+        },
+        {
+          "file": "lib/international/us-support-mailbox-provider.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-mailbox-server.test.ts",
+          "status": "passed",
+          "total": 28,
+          "passed": 28
+        },
+        {
+          "file": "lib/international/us-support-mailbox-ui.test.ts",
+          "status": "passed",
+          "total": 64,
+          "passed": 64
+        },
+        {
+          "file": "lib/international/us-support-ticket-bindings.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-ticket-composition.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-contract.test.ts",
+          "status": "passed",
+          "total": 35,
+          "passed": 35
+        },
+        {
+          "file": "lib/international/us-support-ticket-d1.test.ts",
+          "status": "passed",
+          "total": 24,
+          "passed": 24
+        },
+        {
+          "file": "lib/international/us-support-ticket-server.test.ts",
+          "status": "passed",
+          "total": 55,
+          "passed": 55
+        },
+        {
+          "file": "lib/international/us-support-tickets-ui.test.ts",
+          "status": "passed",
+          "total": 85,
+          "passed": 85
+        },
+        {
+          "file": "lib/international/us-support-triage-bindings.test.ts",
+          "status": "passed",
+          "total": 3,
+          "passed": 3
+        },
+        {
+          "file": "lib/international/us-support-triage-composition.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-contract.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/us-support-triage-d1.test.ts",
+          "status": "passed",
+          "total": 30,
+          "passed": 30
+        },
+        {
+          "file": "lib/international/us-support-triage-policy.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/international/us-support-triage-provider.test.ts",
+          "status": "passed",
+          "total": 70,
+          "passed": 70
+        },
+        {
+          "file": "lib/international/us-support-triage-server.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-support-triage-service.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-support-triage-ticket-integration.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/international/us-support-triage-ui.test.ts",
+          "status": "passed",
+          "total": 74,
+          "passed": 74
+        },
+        {
+          "file": "lib/international/us-support-worker-bindings.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/us-support-worker-composition.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-contract.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-d1.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-migration.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-support-worker-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-support-worker-ui.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/international/us-support-worker.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        },
+        {
+          "file": "lib/international/us-support-workspace-bindings.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-support-workspace-contract.test.ts",
+          "status": "passed",
+          "total": 7,
+          "passed": 7
+        },
+        {
+          "file": "lib/international/us-support-workspace-d1.test.ts",
+          "status": "passed",
+          "total": 53,
+          "passed": 53
+        },
+        {
+          "file": "lib/international/us-support-workspace-server.test.ts",
+          "status": "passed",
+          "total": 31,
+          "passed": 31
+        },
+        {
+          "file": "lib/international/us-support-workspace-ui.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/international/us-team-bindings.test.ts",
+          "status": "passed",
+          "total": 49,
+          "passed": 49
+        },
+        {
+          "file": "lib/international/us-team-contract.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/international/us-team-device-lifecycle.test.ts",
+          "status": "passed",
+          "total": 11,
+          "passed": 11
+        },
+        {
+          "file": "lib/international/us-team-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-team-store.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/us-team-validation.test.ts",
+          "status": "passed",
+          "total": 89,
+          "passed": 89
+        },
+        {
+          "file": "lib/international/us-team.migrations.test.ts",
+          "status": "passed",
+          "total": 16,
+          "passed": 16
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads-bindings.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        },
+        {
+          "file": "lib/international/us-workspace-sync-heads.test.ts",
+          "status": "passed",
+          "total": 23,
+          "passed": 23
+        },
+        {
+          "file": "lib/international/workspace-creation-d1.test.ts",
+          "status": "passed",
+          "total": 26,
+          "passed": 26
+        },
+        {
+          "file": "lib/international/workspace-server.bindings.test.ts",
+          "status": "passed",
+          "total": 22,
+          "passed": 22
+        },
+        {
+          "file": "lib/support/application-effects.test.ts",
+          "status": "passed",
+          "total": 6,
+          "passed": 6
+        },
+        {
+          "file": "lib/support/billing.test.ts",
+          "status": "passed",
+          "total": 33,
+          "passed": 33
+        },
+        {
+          "file": "lib/support/mail-documents.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/support/mail-sync-admission.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/support/reply-transport.test.ts",
+          "status": "passed",
+          "total": 10,
+          "passed": 10
+        },
+        {
+          "file": "lib/support/solicitation-service.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/support/support.test.ts",
+          "status": "passed",
+          "total": 81,
+          "passed": 81
+        },
+        {
+          "file": "lib/support/workspace-access.test.ts",
+          "status": "passed",
+          "total": 8,
+          "passed": 8
+        },
+        {
+          "file": "lib/support/workspace-selection.test.ts",
+          "status": "passed",
+          "total": 2,
+          "passed": 2
+        },
+        {
+          "file": "lib/support/workspace-state-admission.test.ts",
+          "status": "passed",
+          "total": 14,
+          "passed": 14
+        }
+      ]
+    },
+    "newH4": {
+      "files": [
+        {
+          "file": "lib/international/browser-us-support-worker-session.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-support-intake-provider.test.ts",
+          "status": "passed",
+          "total": 59,
+          "passed": 59
+        },
+        {
+          "file": "lib/international/us-support-triage-service.test.ts",
+          "status": "passed",
+          "total": 21,
+          "passed": 21
+        },
+        {
+          "file": "lib/international/us-support-worker-bindings.test.ts",
+          "status": "passed",
+          "total": 5,
+          "passed": 5
+        },
+        {
+          "file": "lib/international/us-support-worker-composition.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-contract.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-d1.test.ts",
+          "status": "passed",
+          "total": 19,
+          "passed": 19
+        },
+        {
+          "file": "lib/international/us-support-worker-migration.test.ts",
+          "status": "passed",
+          "total": 20,
+          "passed": 20
+        },
+        {
+          "file": "lib/international/us-support-worker-server.test.ts",
+          "status": "passed",
+          "total": 18,
+          "passed": 18
+        },
+        {
+          "file": "lib/international/us-support-worker-ui.test.ts",
+          "status": "passed",
+          "total": 17,
+          "passed": 17
+        },
+        {
+          "file": "lib/international/us-support-worker.test.ts",
+          "status": "passed",
+          "total": 32,
+          "passed": 32
+        }
+      ],
+      "total": 250,
+      "includedInRegression": true
+    },
+    "accountPage": {
+      "total": 77,
+      "new": 12,
+      "includedInRegression": true
+    },
+    "completionBinding": {
+      "total": 10,
+      "newWorkerGateCase": 1,
+      "includedInRegression": true
+    },
+    "postgres": {
+      "module": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+      "suite": "lib/international/us-supplier-document-lookup.postgres.test.ts",
+      "passed": 14,
+      "includedInRegression": true,
+      "hosted": false
+    },
+    "quality": {
+      "typecheck": {
+        "exitCode": 0,
+        "scope": "global"
+      },
+      "lint": {
+        "exitCode": 0,
+        "typeAware": true,
+        "denyWarnings": true,
+        "files": [
+          "app/api/international/workspaces/[organizationId]/support-worker/route.ts",
+          "app/compte/espaces/us/[organizationId]/page.tsx",
+          "components/account/us-erp-workbench.tsx",
+          "components/account/us-support-mailbox-panel.tsx",
+          "components/account/us-support-tickets.tsx",
+          "components/account/us-support-worker.tsx",
+          "components/account/us-support-workspace-panel.tsx",
+          "lib/account-workspace-pages.test.ts",
+          "lib/international/browser-us-support-worker-session.test.ts",
+          "lib/international/browser-us-support-worker-session.ts",
+          "lib/international/us-support-execution-contract.ts",
+          "lib/international/us-support-execution-d1.ts",
+          "lib/international/us-support-intake-provider.test.ts",
+          "lib/international/us-support-intake-provider.ts",
+          "lib/international/us-support-ticket-bindings.test.ts",
+          "lib/international/us-support-ticket-bindings.ts",
+          "lib/international/us-support-ticket-contract.ts",
+          "lib/international/us-support-ticket-d1.ts",
+          "lib/international/us-support-triage-contract.ts",
+          "lib/international/us-support-triage-d1.ts",
+          "lib/international/us-support-triage-policy.ts",
+          "lib/international/us-support-triage-server.ts",
+          "lib/international/us-support-triage-service.test.ts",
+          "lib/international/us-support-triage-service.ts",
+          "lib/international/us-support-worker-bindings.test.ts",
+          "lib/international/us-support-worker-bindings.ts",
+          "lib/international/us-support-worker-composition.test.ts",
+          "lib/international/us-support-worker-contract.test.ts",
+          "lib/international/us-support-worker-contract.ts",
+          "lib/international/us-support-worker-d1.test.ts",
+          "lib/international/us-support-worker-d1.ts",
+          "lib/international/us-support-worker-migration.test.ts",
+          "lib/international/us-support-worker-server.test.ts",
+          "lib/international/us-support-worker-server.ts",
+          "lib/international/us-support-worker-test-fixture.ts",
+          "lib/international/us-support-worker-ui-test-fixture.ts",
+          "lib/international/us-support-worker-ui.test.ts",
+          "lib/international/us-support-worker.test.ts",
+          "lib/international/us-support-worker.ts",
+          "tests/us-supplier-documents-preview.tsx",
+          "worker.ts"
+        ]
+      },
+      "brand": {
+        "exitCode": 0
+      },
+      "build": {
+        "exitCode": 0,
+        "notices": [
+          "existing middleware convention deprecation",
+          "plugin timing notices",
+          "vinext route classification limitations"
+        ]
+      }
+    },
+    "commands": {
+      "regression": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts --maxWorkers=1 <selection-final.json entries> --reporter=json --outputFile=.qa/us-support-worker/regression-final.json",
+      "typecheck": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "lint": "node node_modules/oxlint/bin/oxlint --type-aware --deny-warnings <lint-selection.json entries>",
+      "brand": "node scripts/check-brand-assets.mjs",
+      "build": "node node_modules/vinext/dist/cli.js build",
+      "environment": {
+        "PGLITE_MODULE_DIR": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+        "TEMP": "D:/Codex-Zentra-Temporary/2026-10-08/native-admission-temp",
+        "TMP": "D:/Codex-Zentra-Temporary/2026-10-08/native-admission-temp"
+      }
+    },
+    "reports": [
+      {
+        "file": ".qa/us-support-worker/regression-final.json",
+        "sha256": "c60673c0744bde984651ce455dc7615eb136fcd2329e07f338e5c4638d16208b"
+      },
+      {
+        "file": ".qa/us-support-worker/regression-final.log",
+        "sha256": "495ea97ab1c305df60c1cbdfc3faea9ed080a95876f048e910b921931efe3dec"
+      },
+      {
+        "file": ".qa/us-support-worker/selection-final.json",
+        "sha256": "d9f4eb60cbafc2182ca02c3f03921c814da27983b4c5cb6191f194dc3bbd8c91"
+      },
+      {
+        "file": ".qa/us-support-worker/typecheck-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-support-worker/lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-support-worker/lint-selection.json",
+        "sha256": "a9297323c1ee085129ecdd3c8b3d5dde0486a2f6114c40d6df29374f87fd6ed7"
+      },
+      {
+        "file": ".qa/us-support-worker/brand-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": ".qa/us-support-worker/build-final.log",
+        "sha256": "9c286041fc573a428c8e1d130de37f44f9db681a18c4601ce0a9be00840b20f3"
+      }
+    ],
+    "intermediate": "First regression interrupted for A→B recovery fix. Subsequent broad run found the account-page missing worker mock and old invalid human binding fixture, and review found standalone Support missing worker prop. Both tests and page integration corrected; final125-file run supersedes previous evidence. Targeted/overlapping tests are not added to3978."
+  },
+  "browser": {
+    "fixture": "tests/us-supplier-documents-preview.html?worker=1",
+    "realComponentsAndTransports": true,
+    "authProviderAndPersistence": "synthetic in-memory HTTP fixtures",
+    "layouts": [
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Actualiser",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "Ce qui est traité",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Arrêter la réception",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "fr",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Actualiser",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "Ce qui est traité",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Arrêter la réception",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "fr",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+        "theme": "light",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Actualiser",
+            "width": 111.859375
+          },
+          {
+            "height": 56,
+            "text": "Ce qui est traité",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Arrêter la réception",
+            "width": 173.5625
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "fr",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+        "theme": "light",
+        "width": 1440
+      },
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Actualiser",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "Ce qui est traité",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Arrêter la réception",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "fr",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+        "theme": "dark",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Actualiser",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "Ce qui est traité",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Arrêter la réception",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "fr",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+        "theme": "dark",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Actualiser",
+            "width": 111.859375
+          },
+          {
+            "height": 56,
+            "text": "Ce qui est traité",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Arrêter la réception",
+            "width": 173.5625
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "fr",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Réception automatique\nActualiser\n\nLes messages admissibles deviennent des tickets pour votre équipe, même lorsque Zentra est fermé.\n\nÀ jour\nAutorisé jusqu’au 9 nov. 2026, 06:13\n\nÀ traiter\n0\nÀ vérifier\n0\nCe qui est traité\nArrêter la réception",
+        "theme": "dark",
+        "width": 1440
+      },
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Refresh",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "What is processed",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Stop intake",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "en",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Refresh",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "What is processed",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Stop intake",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "en",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+        "theme": "light",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Refresh",
+            "width": 98.5234375
+          },
+          {
+            "height": 56,
+            "text": "What is processed",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Stop intake",
+            "width": 121.0546875
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "en",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+        "theme": "light",
+        "width": 1440
+      },
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Refresh",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "What is processed",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Stop intake",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "en",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+        "theme": "dark",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Refresh",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "What is processed",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Stop intake",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "en",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+        "theme": "dark",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Refresh",
+            "width": 98.5234375
+          },
+          {
+            "height": 56,
+            "text": "What is processed",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Stop intake",
+            "width": 121.0546875
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "en",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatic intake\nRefresh\n\nEligible messages become tickets for your team, even while Zentra is closed.\n\nUp to date\nAuthorized until Nov 9, 2026, 6:13 AM\n\nPending\n0\nNeeds checking\n0\nWhat is processed\nStop intake",
+        "theme": "dark",
+        "width": 1440
+      },
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aktualisieren",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "Was verarbeitet wird",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Empfang stoppen",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "de",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aktualisieren",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "Was verarbeitet wird",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Empfang stoppen",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "de",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+        "theme": "light",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aktualisieren",
+            "width": 131.8828125
+          },
+          {
+            "height": 56,
+            "text": "Was verarbeitet wird",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Empfang stoppen",
+            "width": 163.5859375
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "de",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+        "theme": "light",
+        "width": 1440
+      },
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aktualisieren",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "Was verarbeitet wird",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Empfang stoppen",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "de",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+        "theme": "dark",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aktualisieren",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "Was verarbeitet wird",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Empfang stoppen",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "de",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+        "theme": "dark",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aktualisieren",
+            "width": 131.8828125
+          },
+          {
+            "height": 56,
+            "text": "Was verarbeitet wird",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Empfang stoppen",
+            "width": 163.5859375
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "de",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Automatischer Empfang\nAktualisieren\n\nGeeignete Nachrichten werden zu Tickets für Ihr Team, auch wenn Zentra geschlossen ist.\n\nAktuell\nErlaubt bis 09.11.2026, 06:13\n\nAusstehend\n0\nZu prüfen\n0\nWas verarbeitet wird\nEmpfang stoppen",
+        "theme": "dark",
+        "width": 1440
+      },
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aggiorna",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "Cosa viene elaborato",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Ferma la ricezione",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "it",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+        "theme": "light",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aggiorna",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "Cosa viene elaborato",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Ferma la ricezione",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "it",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+        "theme": "light",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aggiorna",
+            "width": 106.046875
+          },
+          {
+            "height": 56,
+            "text": "Cosa viene elaborato",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Ferma la ricezione",
+            "width": 169.3828125
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "it",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+        "theme": "light",
+        "width": 1440
+      },
+      {
+        "bounds": {
+          "width": 265,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aggiorna",
+            "width": 265
+          },
+          {
+            "height": 56,
+            "text": "Cosa viene elaborato",
+            "width": 223
+          },
+          {
+            "height": 45.75,
+            "text": "Ferma la ricezione",
+            "width": 265
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "it",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+        "theme": "dark",
+        "width": 320
+      },
+      {
+        "bounds": {
+          "width": 335,
+          "x": 20
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aggiorna",
+            "width": 335
+          },
+          {
+            "height": 56,
+            "text": "Cosa viene elaborato",
+            "width": 293
+          },
+          {
+            "height": 45.75,
+            "text": "Ferma la ricezione",
+            "width": 335
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "it",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+        "theme": "dark",
+        "width": 390
+      },
+      {
+        "bounds": {
+          "width": 728,
+          "x": 348.5
+        },
+        "buttons": [
+          {
+            "height": 45.75,
+            "text": "Aggiorna",
+            "width": 106.046875
+          },
+          {
+            "height": 56,
+            "text": "Cosa viene elaborato",
+            "width": 678
+          },
+          {
+            "height": 45.75,
+            "text": "Ferma la ricezione",
+            "width": 169.3828125
+          }
+        ],
+        "documentOverflow": -15,
+        "lang": "it",
+        "outside": [],
+        "sectionOverflow": 0,
+        "text": "Ricezione automatica\nAggiorna\n\nI messaggi idonei diventano ticket per il team, anche quando Zentra è chiuso.\n\nAggiornata\nAutorizzato fino al 9 nov 2026, 06:13\n\nDa elaborare\n0\nDa verificare\n0\nCosa viene elaborato\nFerma la ricezione",
+        "theme": "dark",
+        "width": 1440
+      }
+    ],
+    "interactiveCases": [
+      "enable-with-consent",
+      "simulate-cycle-and-refresh",
+      "revoke",
+      "lost-ack-exact-retry",
+      "member-read-only",
+      "identity-purge",
+      "quiet-background-projection-refresh-15s"
+    ],
+    "contrastMinimum": {
+      "light": 5.60381481949548,
+      "dark": 8.212240625842007
+    },
+    "contrastCoverage": "sampled FR390px disabled light and active dark states, not every possible state",
+    "focus": "3px outline observed",
+    "consoleErrors": 0,
+    "consoleWarnings": 0,
+    "lateChanges": "Conditional rejected-count label verified by four rendering tests after screenshots; default zero-count captured states unchanged. Server page worker prop subsequently fixed and tested in both Support/Gestion; browser fixture is component-level.",
+    "artifacts": [
+      {
+        "file": "docs/evidence/us-support-worker-20261010/desktop-dark-it.jpg",
+        "sha256": "c3891327f9af1ff7c0b918b95ec6c79c1e0575aa2526eca17c5ea86f15f7880d"
+      },
+      {
+        "file": "docs/evidence/us-support-worker-20261010/functional-and-contrast.json",
+        "sha256": "49f3028cba43b8e5577a16360932401a656710c774ba51cd918949478ff2ab62"
+      },
+      {
+        "file": "docs/evidence/us-support-worker-20261010/mobile-dark-fr.jpg",
+        "sha256": "5116f5a7ccd5822a70bfc9f13b5e585eb30ea16830b04af40407c95bd5dc193e"
+      },
+      {
+        "file": "docs/evidence/us-support-worker-20261010/mobile-light-fr.jpg",
+        "sha256": "6ad451ca23211b64a93cea119016d2c1e4898023133d24aea5cc151f9a61243a"
+      },
+      {
+        "file": "docs/evidence/us-support-worker-20261010/visual-matrix.json",
+        "sha256": "967cd703c9589771f9aad15b5333795447cbc4bc869b42e37492cd607c4ebf1e"
+      }
+    ]
+  },
+  "preserved": {
+    "publicWorktreeHead": "b6e080ba6ad75c825c383ab5ae7282201e7f8a7f",
+    "nativeWorktreeHead": "bbf0985d2df8d9c66445b71fc6d981276b0d65dc",
+    "userCheckoutEdited": false,
+    "hostedMigration": false,
+    "hostedGateActivation": false,
+    "providerCall": false,
+    "customerData": false,
+    "regionChange": false,
+    "subscriptionsCHChanged": false,
+    "push": false,
+    "publish": false,
+    "nativeArtifact": false
+  },
+  "cleanup": {
+    "ownedTabClosed": "9",
+    "viewportOverrideReset": true,
+    "ownedPreviewServerStopped": true,
+    "previewSession": 28707,
+    "previewStop": "Ctrl-C exit1 is interruption, not a failed final build",
+    "otherProcessesStopped": false
+  },
+  "remaining": [
+    "hosted staging and migration application method after explicit approval",
+    "durable scheduling fan-out and load measurements",
+    "real provider/receipt guarantees",
+    "full message content and retention",
+    "persistent authorized customer/meeting workflows",
+    "multi-device native pilot",
+    "complete US commercial/tax/payment cycle and professional validation"
+  ],
+  "delivery": "docs/internationalization/US-SUPPORT-WORKER-DELIVERY-20261010.md"
+}
