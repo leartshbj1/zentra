@@ -2,6 +2,14 @@
 
 10 octobre 2026. Plan préalable arrêté après lecture du code et contrelecture indépendante. Le jalon clients est livré séparément : code `ceaed1c`, documentation `82862ab`, régression sélectionnée 6709/6709. **Implémentation et tests PDF devis à réaliser après ce commit de plan.** Les preuves customer-edit et les documents historiques restent intacts.
 
+## Amendement préalable — lecteur vendeur privé après promotion V5
+
+Le diagnostic PostgreSQL `diagnostic-pg-v2` révèle que le RPC historique `zentra_read_us_seller_profile` est volontairement fermé par le guard `zentra_us_financial_test_require_legacy` après promotion V5 : code `PU008`, « Current financial capability required ». La lecture pays réussit ; l'ancien lecteur vendeur ne peut donc pas être raccordé tel quel au nouveau PDF. Cette correction est arrêtée avant son édition. Les mentions de réemploi de `getUsSellerProfile` ci-dessous décrivent la proposition initiale et sont remplacées par cet amendement pour le binding devis.
+
+Dans le fichier identité déjà prévu, ajouter `readUsFinancialPilotQuoteSeller(store: Pick<SupabaseServerClient, 'select'>, actor: FinancialAuthority): Promise<UsSellerProfileState>`. Ce lecteur privé capture l'acteur et la méthode, sélectionne exclusivement `organization_id,revision,profile,updated_by,updated_at` de `zentra_us_seller_profiles` pour `organization_id=eq.<tenant>` et `limit=1`, puis détache et valide les lignes et leur enveloppe exacte. Zéro ligne signifie profil non configuré ; une ligne impose tenant/révision/profil/audit valides via le validateur fermé existant ; réponse malformée, étrangère ou panne produit503. Aucune donnée cliente ne choisit la table, les colonnes ou le tenant.
+
+Le binding devis utilise ce lecteur dans la séquence C1→S→C2 et ses renouvellements de pleine admission existants : Auth/D1, rôle financier, droits Gestion, gates TEST, opt-in/grant/policy et comparaison au livre courant. La méthode privée ne confère aucun droit à elle seule. Les tests unitaires, binding et la recette cumulative34 doivent exercer ce vrai chemin ; vérifier également que le RPC historique reste refusé après promotion. Ne pas modifier l'ancien service vendeur, le guard `PU008`, les grants/RLS ou les migrations. Aucun nouveau RPC/SQL, fichier hors inventaire21, fournisseur fiscal ou second store. Les lectures successives restent non atomiques entre Auth/D1 et PostgreSQL.
+
 ## Résultat et lacunes vérifiées
 
 Depuis le détail d'un devis enregistré du pilote privé TEST, télécharger son PDF US Letter en FR/DE/IT/EN. Le fichier représente le devis à sa révision E dans le livre courant F, avant détermination de sales tax. Il ne crée ni facture, acceptation, reçu, journal, e-mail ou nouvel historique documentaire.
