@@ -1,0 +1,1034 @@
+{
+  "phase": "private-us-financial-pilot-bank-stage1",
+  "date": "2026-10-10",
+  "scope": "Private local TEST bank persistence/domain/HTTP factories. No mounted route, UI, production, hosted migration, provider, funds, subscription or native distribution change.",
+  "implementationCommit": "1112da34d6a30a12a67924f414da0e345b905acf",
+  "baseCommit": "8452625a66965b9a9af3b1abf08fc53620ee1ee2",
+  "sourceTree": {
+    "baseCommit": "8452625a66965b9a9af3b1abf08fc53620ee1ee2",
+    "headCommit": "1112da34d6a30a12a67924f414da0e345b905acf",
+    "files": 3620,
+    "sha256": "03a138b0ad1e8767e1f5a22778463fef7832a5983a4b85f7d44610764229152a",
+    "status": []
+  },
+  "implementation": [
+    {
+      "file": "lib/international/us-financial-pilot-bank-bindings.test.ts",
+      "sha256": "c1a256726185ba1b910dd3f547a1583b093248a35dd8f9aa7da308432e445845"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank-bindings.ts",
+      "sha256": "8b11de6830031d3d5dc4c46ac73a819ce325a848be21945385bdc890122e53d7"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank-projection.test.ts",
+      "sha256": "b43569797720a89e194e1f55ec3e566520cbacfb562975ffaca9ec7cadfd3786"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank-projection.ts",
+      "sha256": "7a689dc4ae96f98c564e350451f77861b245c78d8b0adf0ed46dce64d618ad13"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank-server.test.ts",
+      "sha256": "4a1c9aa7f841caef283b350d5cb7d3e4d26e36d0673ffd970ffc95767ee2f14d"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank-server.ts",
+      "sha256": "97ad461f2969624adfac8f6fa6240f36431acac46a704a4d0844b48a8c9d176a"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank-store.test.ts",
+      "sha256": "a6579e86124b1b633152a131898ce768d83480a71f45483277558f9e47b2ad3f"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank-store.ts",
+      "sha256": "d888a8d700b16525922146e495f73833e0eccd1baa9499ca9fa499bb1f25d649"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank.postgres.test.ts",
+      "sha256": "82d78e8aed719311e86b16291404e99b20e5c56e280ad8d8f5d2208d94eb6625"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank.test.ts",
+      "sha256": "832ab52ea97db0bcb48648764455728c0bf1777a629f688ccf819cdf924d0834"
+    },
+    {
+      "file": "lib/international/us-financial-pilot-bank.ts",
+      "sha256": "bd17918910d1e3b255f65c1e92b9cf4cfa966606adf1af97e496ca5be7af9023"
+    },
+    {
+      "file": "supabase/migrations/20261010155848_international_us_financial_pilot_bank_test_v1.sql",
+      "sha256": "64bb43677900d945bc16f62308b17157fea7b84d10b944b68b35ea8c3bdfd5b1"
+    }
+  ],
+  "proposedMigrations": [
+    {
+      "file": "supabase/migrations/20261010155848_international_us_financial_pilot_bank_test_v1.sql",
+      "sha256": "64bb43677900d945bc16f62308b17157fea7b84d10b944b68b35ea8c3bdfd5b1",
+      "appliedTo": "local serialized PGlite only",
+      "hosted": false
+    }
+  ],
+  "regression": {
+    "file": ".qa/us-pilot-bank/regression-final.json",
+    "sha256": "05ea047b7c47dc2d1955c02fcdbeed5f41c574c2dd13d8e99c8fbc0642f873a2",
+    "total": 6498,
+    "passed": 6498,
+    "failed": 0,
+    "files": [
+      "lib/account-workspace-entry.test.ts",
+      "lib/account-workspace-navigation.test.ts",
+      "lib/account-workspace-pages.test.ts",
+      "lib/account-workspaces.test.ts",
+      "lib/business-sync-cash-vat.test.ts",
+      "lib/deployment-contract.test.ts",
+      "lib/document-number-reservations.test.ts",
+      "lib/international/accounting-runtime.test.ts",
+      "lib/international/browser-us-financial-pilot-accounting-input.test.ts",
+      "lib/international/browser-us-financial-pilot-accounting.test.ts",
+      "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+      "lib/international/browser-us-financial-pilot-commercial.test.ts",
+      "lib/international/browser-us-financial-pilot-export-session.test.ts",
+      "lib/international/browser-us-financial-pilot-invoice.test.ts",
+      "lib/international/browser-us-financial-pilot-purchasing-input.test.ts",
+      "lib/international/browser-us-financial-pilot-purchasing.test.ts",
+      "lib/international/browser-us-financial-pilot-session.test.ts",
+      "lib/international/browser-us-sales-order-session.test.ts",
+      "lib/international/browser-us-supplier-documents-session.test.ts",
+      "lib/international/browser-us-supplier-session.test.ts",
+      "lib/international/browser-us-support-worker-session.test.ts",
+      "lib/international/browser-us-team-session.test.ts",
+      "lib/international/browser-us-workspace-sync-session.test.ts",
+      "lib/international/legacy-country-guard.migrations.test.ts",
+      "lib/international/legacy-country-guard.test.ts",
+      "lib/international/private-json.test.ts",
+      "lib/international/purchasing-runtime.test.ts",
+      "lib/international/runtime-bindings.test.ts",
+      "lib/international/runtime-response-guards.test.ts",
+      "lib/international/runtime-server-revalidation.test.ts",
+      "lib/international/runtime-server-us-tax.test.ts",
+      "lib/international/runtime-server.test.ts",
+      "lib/international/runtime-store.test.ts",
+      "lib/international/runtime-sync.test.ts",
+      "lib/international/runtime.test.ts",
+      "lib/international/saas-authorities.migrations.test.ts",
+      "lib/international/saas-authority.test.ts",
+      "lib/international/us-automation-policy.test.ts",
+      "lib/international/us-automation-store.test.ts",
+      "lib/international/us-automation-validation.test.ts",
+      "lib/international/us-customer-credit-allocation.test.ts",
+      "lib/international/us-customer-credit-preparation.test.ts",
+      "lib/international/us-device-bindings.test.ts",
+      "lib/international/us-device-capability-v4.test.ts",
+      "lib/international/us-device-d1.test.ts",
+      "lib/international/us-device-server.test.ts",
+      "lib/international/us-financial-invoice-test.test.ts",
+      "lib/international/us-financial-kernel-capability.test.ts",
+      "lib/international/us-financial-kernel-erp-runtime.test.ts",
+      "lib/international/us-financial-kernel-erp.test.ts",
+      "lib/international/us-financial-kernel-runtime.test.ts",
+      "lib/international/us-financial-kernel.test.ts",
+      "lib/international/us-financial-pilot-accounting-bindings.test.ts",
+      "lib/international/us-financial-pilot-accounting-projection.test.ts",
+      "lib/international/us-financial-pilot-accounting-server.test.ts",
+      "lib/international/us-financial-pilot-accounting.postgres.test.ts",
+      "lib/international/us-financial-pilot-accounting.test.ts",
+      "lib/international/us-financial-pilot-bank-bindings.test.ts",
+      "lib/international/us-financial-pilot-bank-projection.test.ts",
+      "lib/international/us-financial-pilot-bank-server.test.ts",
+      "lib/international/us-financial-pilot-bank-store.test.ts",
+      "lib/international/us-financial-pilot-bank.postgres.test.ts",
+      "lib/international/us-financial-pilot-bank.test.ts",
+      "lib/international/us-financial-pilot-bindings.test.ts",
+      "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+      "lib/international/us-financial-pilot-commercial-projection.test.ts",
+      "lib/international/us-financial-pilot-commercial-server.test.ts",
+      "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+      "lib/international/us-financial-pilot-commercial.test.ts",
+      "lib/international/us-financial-pilot-contract.test.ts",
+      "lib/international/us-financial-pilot-export-bindings.test.ts",
+      "lib/international/us-financial-pilot-export-contract.test.ts",
+      "lib/international/us-financial-pilot-export-projection.test.ts",
+      "lib/international/us-financial-pilot-export-renderer.test.ts",
+      "lib/international/us-financial-pilot-export-server.test.ts",
+      "lib/international/us-financial-pilot-exports.postgres.test.ts",
+      "lib/international/us-financial-pilot-invoice-bindings.test.ts",
+      "lib/international/us-financial-pilot-invoice-server.test.ts",
+      "lib/international/us-financial-pilot-invoice-store.postgres.test.ts",
+      "lib/international/us-financial-pilot-invoice-store.test.ts",
+      "lib/international/us-financial-pilot-invoice.test.ts",
+      "lib/international/us-financial-pilot-payment.test.ts",
+      "lib/international/us-financial-pilot-projection.test.ts",
+      "lib/international/us-financial-pilot-purchasing-bindings.test.ts",
+      "lib/international/us-financial-pilot-purchasing-projection.test.ts",
+      "lib/international/us-financial-pilot-purchasing-server.test.ts",
+      "lib/international/us-financial-pilot-purchasing.postgres.test.ts",
+      "lib/international/us-financial-pilot-purchasing.test.ts",
+      "lib/international/us-financial-pilot-reports.test.ts",
+      "lib/international/us-financial-pilot-server.test.ts",
+      "lib/international/us-financial-pilot-store.postgres.test.ts",
+      "lib/international/us-financial-pilot-store.test.ts",
+      "lib/international/us-financial-test-accounting.postgres.test.ts",
+      "lib/international/us-financial-test-accounting.test.ts",
+      "lib/international/us-financial-test-commercial.postgres.test.ts",
+      "lib/international/us-financial-test-commercial.test.ts",
+      "lib/international/us-financial-test-foundation.postgres.test.ts",
+      "lib/international/us-financial-test-foundation.test.ts",
+      "lib/international/us-financial-test-invoicing.postgres.test.ts",
+      "lib/international/us-financial-test-purchasing.postgres.test.ts",
+      "lib/international/us-financial-test-purchasing.test.ts",
+      "lib/international/us-financial-test-settlement.postgres.test.ts",
+      "lib/international/us-financial-test-settlement.test.ts",
+      "lib/international/us-saas-test-bindings.test.ts",
+      "lib/international/us-saas-test-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-d1.test.ts",
+      "lib/international/us-saas-test-lifecycle-server.test.ts",
+      "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+      "lib/international/us-saas-test-server.test.ts",
+      "lib/international/us-saas-test-stripe.test.ts",
+      "lib/international/us-sales-order-bindings.test.ts",
+      "lib/international/us-sales-order-contract.test.ts",
+      "lib/international/us-sales-order-erp-guard.test.ts",
+      "lib/international/us-sales-order-export.test.ts",
+      "lib/international/us-sales-order-server.test.ts",
+      "lib/international/us-sales-order-store.test.ts",
+      "lib/international/us-sales-order.postgres.test.ts",
+      "lib/international/us-supplier-analysis-server.test.ts",
+      "lib/international/us-supplier-analysis.test.ts",
+      "lib/international/us-supplier-bindings.test.ts",
+      "lib/international/us-supplier-document-archive.test.ts",
+      "lib/international/us-supplier-document-bindings.test.ts",
+      "lib/international/us-supplier-document-bytes.test.ts",
+      "lib/international/us-supplier-document-contract.test.ts",
+      "lib/international/us-supplier-document-lookup.postgres.test.ts",
+      "lib/international/us-supplier-document-lookup.test.ts",
+      "lib/international/us-supplier-document-server.test.ts",
+      "lib/international/us-supplier-document-store.test.ts",
+      "lib/international/us-supplier-document-timeout.test.ts",
+      "lib/international/us-supplier-extraction.test.ts",
+      "lib/international/us-supplier-proposal.test.ts",
+      "lib/international/us-supplier-server.test.ts",
+      "lib/international/us-supplier-store.test.ts",
+      "lib/international/us-support-intake-provider.test.ts",
+      "lib/international/us-support-mail-import-ui.test.ts",
+      "lib/international/us-support-mailbox-bindings.test.ts",
+      "lib/international/us-support-mailbox-contract.test.ts",
+      "lib/international/us-support-mailbox-d1.test.ts",
+      "lib/international/us-support-mailbox-import-bindings.test.ts",
+      "lib/international/us-support-mailbox-import-composition.test.ts",
+      "lib/international/us-support-mailbox-import-contract.test.ts",
+      "lib/international/us-support-mailbox-import-d1.test.ts",
+      "lib/international/us-support-mailbox-import-provider.test.ts",
+      "lib/international/us-support-mailbox-import-server.test.ts",
+      "lib/international/us-support-mailbox-provider.test.ts",
+      "lib/international/us-support-mailbox-server.test.ts",
+      "lib/international/us-support-mailbox-ui.test.ts",
+      "lib/international/us-support-ticket-bindings.test.ts",
+      "lib/international/us-support-ticket-composition.test.ts",
+      "lib/international/us-support-ticket-contract.test.ts",
+      "lib/international/us-support-ticket-d1.test.ts",
+      "lib/international/us-support-ticket-server.test.ts",
+      "lib/international/us-support-tickets-ui.test.ts",
+      "lib/international/us-support-triage-bindings.test.ts",
+      "lib/international/us-support-triage-composition.test.ts",
+      "lib/international/us-support-triage-contract.test.ts",
+      "lib/international/us-support-triage-d1.test.ts",
+      "lib/international/us-support-triage-policy.test.ts",
+      "lib/international/us-support-triage-provider.test.ts",
+      "lib/international/us-support-triage-server.test.ts",
+      "lib/international/us-support-triage-service.test.ts",
+      "lib/international/us-support-triage-ticket-integration.test.ts",
+      "lib/international/us-support-triage-ui.test.ts",
+      "lib/international/us-support-worker-bindings.test.ts",
+      "lib/international/us-support-worker-composition.test.ts",
+      "lib/international/us-support-worker-contract.test.ts",
+      "lib/international/us-support-worker-d1.test.ts",
+      "lib/international/us-support-worker-migration.test.ts",
+      "lib/international/us-support-worker-server.test.ts",
+      "lib/international/us-support-worker-ui.test.ts",
+      "lib/international/us-support-worker.test.ts",
+      "lib/international/us-support-workspace-bindings.test.ts",
+      "lib/international/us-support-workspace-contract.test.ts",
+      "lib/international/us-support-workspace-d1.test.ts",
+      "lib/international/us-support-workspace-server.test.ts",
+      "lib/international/us-support-workspace-ui.test.ts",
+      "lib/international/us-team-bindings.test.ts",
+      "lib/international/us-team-contract.test.ts",
+      "lib/international/us-team-device-lifecycle.test.ts",
+      "lib/international/us-team-server.test.ts",
+      "lib/international/us-team-store.test.ts",
+      "lib/international/us-team-validation.test.ts",
+      "lib/international/us-team.migrations.test.ts",
+      "lib/international/us-workspace-sync-heads-bindings.test.ts",
+      "lib/international/us-workspace-sync-heads.test.ts",
+      "lib/international/workspace-creation-d1.test.ts",
+      "lib/international/workspace-server.bindings.test.ts",
+      "lib/site-language.test.ts",
+      "lib/stripe-contract.test.ts",
+      "lib/supabase-auth-http.test.ts",
+      "lib/supabase-auth.test.ts",
+      "lib/support/application-effects.test.ts",
+      "lib/support/billing.test.ts",
+      "lib/support/mail-documents.test.ts",
+      "lib/support/mail-sync-admission.test.ts",
+      "lib/support/reply-transport.test.ts",
+      "lib/support/solicitation-service.test.ts",
+      "lib/support/support.test.ts",
+      "lib/support/workspace-access.test.ts",
+      "lib/support/workspace-selection.test.ts",
+      "lib/support/workspace-state-admission.test.ts"
+    ],
+    "retainedPriorFiles": 195,
+    "selectedTestFiles": 201
+  },
+  "quality": [
+    {
+      "name": "types-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "arguments": [
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--incremental",
+        "false"
+      ],
+      "startedAt": "2026-10-10T16:59:17.151Z",
+      "elapsedMs": 28100,
+      "exitCode": 0
+    },
+    {
+      "name": "lint-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "arguments": [
+        "node_modules/oxlint/bin/oxlint",
+        "--type-aware",
+        "--deny-warnings",
+        "lib/international/us-financial-pilot-bank-bindings.test.ts",
+        "lib/international/us-financial-pilot-bank-bindings.ts",
+        "lib/international/us-financial-pilot-bank-projection.test.ts",
+        "lib/international/us-financial-pilot-bank-projection.ts",
+        "lib/international/us-financial-pilot-bank-server.test.ts",
+        "lib/international/us-financial-pilot-bank-server.ts",
+        "lib/international/us-financial-pilot-bank-store.test.ts",
+        "lib/international/us-financial-pilot-bank-store.ts",
+        "lib/international/us-financial-pilot-bank.postgres.test.ts",
+        "lib/international/us-financial-pilot-bank.test.ts",
+        "lib/international/us-financial-pilot-bank.ts"
+      ],
+      "startedAt": "2026-10-10T16:59:45.843Z",
+      "elapsedMs": 1988,
+      "exitCode": 0
+    },
+    {
+      "name": "brand-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "arguments": [
+        "scripts/check-brand-assets.mjs"
+      ],
+      "startedAt": "2026-10-10T16:59:48.424Z",
+      "elapsedMs": 52,
+      "exitCode": 0
+    },
+    {
+      "name": "build-final",
+      "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "arguments": [
+        "node_modules/vinext/dist/cli.js",
+        "build"
+      ],
+      "startedAt": "2026-10-10T16:59:49.036Z",
+      "elapsedMs": 20994,
+      "exitCode": 0
+    }
+  ],
+  "targeted": {
+    "http": {
+      "file": ".qa/us-pilot-bank/http-final.json",
+      "sha256": "48c0dabd2280f6f9b8fe4d570742af49fe07151a2c6f7776bd45b1c1ba17c310",
+      "total": 67,
+      "passed": 67,
+      "failed": 0,
+      "files": [
+        "lib/international/us-financial-pilot-bank-bindings.test.ts",
+        "lib/international/us-financial-pilot-bank-server.test.ts"
+      ]
+    },
+    "contract": {
+      "failed": 0,
+      "passed": 55,
+      "tests": 55,
+      "files": 2,
+      "finalAttempt": 3
+    },
+    "store": {
+      "file": ".qa/us-pilot-bank/backend-store-eof.json",
+      "sha256": "980828912d5f3e9fa53dd6890fa365849fccc96cfa7c98e97bbf6384ad00f1d1",
+      "total": 30,
+      "passed": 30,
+      "failed": 0,
+      "files": [
+        "lib/international/us-financial-pilot-bank-store.test.ts"
+      ]
+    },
+    "postgres": {
+      "file": ".qa/us-pilot-bank/backend-pg-eof.json",
+      "sha256": "99d3e7d6f6fc1a8d0ea50b4e76b27ef2a197203488c123b41b71b3c2df9bd7a7",
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "files": [
+        "lib/international/us-financial-pilot-bank.postgres.test.ts"
+      ]
+    },
+    "countsOverlapGlobal": true
+  },
+  "postgresRecipe": {
+    "scope": "LOCAL TEST; serialized PGlite; synthetic Auth/D1/tax; clean close/new instance only; no multiconnection/crash/performance claim",
+    "migrations": [
+      "202609140100_company_profiles",
+      "202609140200_company_collaboration",
+      "202609200300_company_content",
+      "20261007194528_international_workspace_country_config",
+      "20261007222349_international_us_erp_persistence",
+      "20261007224820_international_us_erp_delta_stream",
+      "20261007225725_international_us_erp_seller_snapshot",
+      "20261008001726_new_us_workspace_admission",
+      "20261008013200_international_tax_proof_allowlist",
+      "20261008034422_international_us_seller_profile",
+      "20261008044402_international_us_tax_profile",
+      "20261008060826_international_us_tax_operations",
+      "20261008081825_international_us_purchasing_v2",
+      "20261008105120_international_us_projects_v3",
+      "20261008161118_international_us_journal_periods_v4",
+      "20261008172520_international_us_tax_invoice_capability_v2",
+      "20261008184605_international_us_bank_reconciliation",
+      "20261008194930_international_us_supplier_proposals",
+      "20261008210008_international_us_automation_analysis",
+      "20261009215104_international_us_workspace_sync_heads",
+      "20261009222319_international_us_tax_test_merchant",
+      "20261009224607_international_us_tax_invoice_preparation",
+      "20261010005300_international_us_supplier_originals",
+      "20261010024618_international_us_supplier_original_hash_lookup",
+      "20261010054644_international_us_sales_orders",
+      "20261010075840_international_us_financial_test_foundation_v5",
+      "20261010083027_international_us_financial_test_settlement_v5",
+      "20261010085523_international_us_financial_test_commercial_v5",
+      "20261010091729_international_us_financial_test_purchasing_v5",
+      "20261010093930_international_us_financial_test_accounting_v5",
+      "20261010100252_international_us_financial_test_invoicing_v5",
+      "20261010104148_international_us_financial_pilot_dto1",
+      "20261010131903_international_us_financial_pilot_invoice_dto1",
+      "20261010155848_international_us_financial_pilot_bank_test_v1"
+    ],
+    "organizationId": "5d90aac8-f71a-42f9-a095-dc2cff43723c",
+    "revision": 21,
+    "bankRevision": 5,
+    "cleanCloseReopen": true,
+    "dataDir": "C:\\Users\\alb\\AppData\\Local\\Temp\\zentra-financial-pilot-bank-30iyNH"
+  },
+  "previousAccountingEvidence": {
+    "file": "docs/evidence/us-financial-pilot-accounting-20261010.json",
+    "sha256": "ed04bbb79a5111f2164cdf5ac706db6635ea35b23357f679094f8c059f08fc02",
+    "allArtifactAndImplementationHashesPreserved": true
+  },
+  "artifacts": [
+    {
+      "file": ".qa/us-pilot-bank/record-evidence.mjs",
+      "sha256": "f2ff928442d9d7fb87581d80335290c06897804b60d7f99ac7364152b0730ce8"
+    },
+    {
+      "file": ".qa/us-pilot-bank/source-snapshot.mjs",
+      "sha256": "0b2f5673c8aeb9ae1acf37024596fc21144ef88f5f263b84d1bbd6bff0d9843b"
+    },
+    {
+      "file": ".qa/us-pilot-bank/run-quality.mjs",
+      "sha256": "c981a290314e1a1094d56d6075ae35bfdde3e6b0b09692382e022d10fb85cd6f"
+    },
+    {
+      "file": ".qa/us-pilot-bank/run-regression.mjs",
+      "sha256": "26199a9b2cbce85baf3e771864f29c7ac531034fdc3326872e68f13c11e16eaf"
+    },
+    {
+      "file": ".qa/us-pilot-bank/commit-source.mjs",
+      "sha256": "661b325d8e6fa56df97633efcd7e210c2e4381818aeeaf2c9f516b1f149edb46"
+    },
+    {
+      "file": ".qa/us-pilot-bank/implementation-files.json",
+      "sha256": "b560e2a5ed55c9e994764c083b5ce0b50021feeeb59145344895f0743e43ce05"
+    },
+    {
+      "file": ".qa/us-pilot-bank/selection-final.json",
+      "sha256": "0a79cd3aae28c055c9566c4fbc0e32310c721b575fd96e423d297b5a92d140e1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/planned-files-stage1.json",
+      "sha256": "6db050c785d1a89093fb721d891ff93b21a47e73beb7aa07f7bdb5201d448b4f"
+    },
+    {
+      "file": ".qa/us-pilot-bank/quality-commands.json",
+      "sha256": "a4e87e784b410f734fb1c4c46a78694d55f403fb0643f9a3a1db9ec0f8dbd0a1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/regression-command.json",
+      "sha256": "04662e21cbccca816039dd76bfab92313a3b324bf356e9a3f6c8099afba9c198"
+    },
+    {
+      "file": ".qa/us-pilot-bank/regression-final.json",
+      "sha256": "05ea047b7c47dc2d1955c02fcdbeed5f41c574c2dd13d8e99c8fbc0642f873a2"
+    },
+    {
+      "file": ".qa/us-pilot-bank/regression-final.log",
+      "sha256": "8330c1e93e679cdf5b7296cf39e61487da151d01a6e72d2b72c327acb8376a39"
+    },
+    {
+      "file": ".qa/us-pilot-bank/postgres-recipe-regression.json",
+      "sha256": "9d85a43139638d666e0aafbb7df42a9540a7a746f5eb61a9aaef68d9878bcf6c"
+    },
+    {
+      "file": ".qa/us-pilot-bank/accounting-recipe-prior.json",
+      "sha256": "934729e56717358bbf753368dd4083b29529424813ea23a66faf3dfa484577ac"
+    },
+    {
+      "file": ".qa/us-pilot-bank/accounting-recipe-regression.json",
+      "sha256": "fd9539cacd2a61a987247cca53a087469fe128995da9e89aa7c6a6936ef6d591"
+    },
+    {
+      "file": ".qa/us-pilot-bank/accounting-recipe-preservation.json",
+      "sha256": "afa5b919a004bc381769e7a292588f47a90cb19c3156f4ac81881b6191d95cbc"
+    },
+    {
+      "file": ".qa/us-pilot-bank/types-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/brand-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/build-final.log",
+      "sha256": "6946f6b47573cc3fa15daa7972baccf524d88b599c47d64a70815412578cd733"
+    },
+    {
+      "file": ".qa/us-pilot-bank/root-verification.json",
+      "sha256": "6dff960a53a166dda2f0ef6d6f8fe4f4a07faf63730fdbb7cdf381a37904e379"
+    },
+    {
+      "file": ".qa/us-pilot-bank/contract-projection-report.json",
+      "sha256": "65e17c06e3f518a87743a4fef8f55c42e1cb3aefdeb25e8fe0598094c4b339eb"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-verification.json",
+      "sha256": "3c0038a500f40befda9512f927c48bd5816c7a82d595e1998a189ffbf0347546"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-review-final.md",
+      "sha256": "3bc8242612a2168bab792e84903cba57bb323dd452ecf726d84a53d4d82feb1a"
+    },
+    {
+      "file": ".qa/us-pilot-bank/http-review-plan.md",
+      "sha256": "3927928a8f502510eaa241f97935838413d58b5c0791b7fec7b6990a8453ea44"
+    },
+    {
+      "file": ".qa/us-pilot-bank/staged-whitespace-check.json",
+      "sha256": "1a69d17049160c92e03ebc0bc614f33ef799a9e45421b4ba042d7fcde25f9c53"
+    },
+    {
+      "file": ".qa/us-pilot-bank/migration-creation.json",
+      "sha256": "35c9b52e7cb5124a3369b09cb3a76e9043ff77bad5f9257e67bce3a5ce0414b9"
+    },
+    {
+      "file": ".qa/us-pilot-bank/http-final.json",
+      "sha256": "48c0dabd2280f6f9b8fe4d570742af49fe07151a2c6f7776bd45b1c1ba17c310"
+    },
+    {
+      "file": ".qa/us-pilot-bank/http-final.log",
+      "sha256": "5330199113e7db13c890f1bb4dae5468263550121a5d11977a597bafc7aab1eb"
+    },
+    {
+      "file": ".qa/us-pilot-bank/root-lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/run-root-targeted.mjs",
+      "sha256": "30ad7a9e6be9dffbc3f3e9b0350ba6e9b2534ea3e596424821c9ca32d6c77b45"
+    },
+    {
+      "file": ".qa/us-pilot-bank/http-attempt1.json",
+      "sha256": "b11b5f6dfe442bfe1ddbb23d762177be7e1fa3fd0ffc365fd80fc7e4647040d0"
+    },
+    {
+      "file": ".qa/us-pilot-bank/http-attempt1.log",
+      "sha256": "05adc1e3d70202ca43ed5e07b9b7309c4260b3de4f7960f42d34cc5d44b61350"
+    },
+    {
+      "file": ".qa/us-pilot-bank/http-attempt2.json",
+      "sha256": "31e487b73ff362025589e2ce14cee450b6239db03159efdf215c7a0b6c8d5ece"
+    },
+    {
+      "file": ".qa/us-pilot-bank/http-attempt2.log",
+      "sha256": "51b28b8d81dff88f3277cbd3ed74bc2cbbc554e13b40704155673e0d989d4f14"
+    },
+    {
+      "file": ".qa/us-pilot-bank/root-lint-attempt1.log",
+      "sha256": "a42739a7f9058ca15a671252a803caa4952a442de554f198e829231404584c65"
+    },
+    {
+      "file": ".qa/us-pilot-bank/root-lint-attempt2.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/types-attempt1.log",
+      "sha256": "a7a8fb6858e5ba055d0fab390c4e17afaf1049a2b8aa6fd5aa63bc981b0378c7"
+    },
+    {
+      "file": ".qa/us-pilot-bank/bindings-attempt1.json",
+      "sha256": "0adc5c8df64778c1cd549658f55cdbbec44bacbf4bce63e24de11b8d960216be"
+    },
+    {
+      "file": ".qa/us-pilot-bank/bindings-attempt1.log",
+      "sha256": "1375c3cffbbe274f378ea953cdd0e6147c1cc2122fddc06fb3a812780f59ad30"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-attempt1.json",
+      "sha256": "a1014c8b47d55fee80dcfe98823afcc0128275b48970df09336cfe5e306106f5"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-attempt1.log",
+      "sha256": "2fb73949e9e83d491e024577a5e4e458586528ec2f917b44034b92fe3de059bf"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-attempt2.json",
+      "sha256": "b27205402b5efff0be651666b3ead75713c9410ac009e46d45c10d4955600ed4"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-attempt2.log",
+      "sha256": "f2e354268354b367b1e3ab6aa8339ab96c3a7cadc36d57f2278af1ae6521f4ae"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-final.json",
+      "sha256": "ef7eb3236633e8ac84ece0251a40a39be13d64aac160cf5e6b396043a62f98c2"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-final.log",
+      "sha256": "03732ece6bff0e93ad74ed372e71db7f5b728cb6e9600c9f45fcbffe5c3d1a72"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-lint-attempt1.log",
+      "sha256": "231d29a53066fefaf195f4ab07606bcf4b79e0ab2a5114d86170167721c7333b"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-lint-attempt2.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/domain-type-attempt1.log",
+      "sha256": "9fc0aefc66d4e26b772b1cd10306f55b8e2eaafaa02a1b692646c085bbc3eba2"
+    },
+    {
+      "file": ".qa/us-pilot-bank/contract-projection-freeze.json",
+      "sha256": "17eacf2a4afd8e78ccead4c3e8d30b9493eed5eb473c2764dc159c6ab8836d48"
+    },
+    {
+      "file": ".qa/us-pilot-bank/20261010155848_international_us_financial_pilot_bank_test_v1.sql.before-eof",
+      "sha256": "d5a25bb0ebd3289f78c0d6da171e129528f03aba545433e744d4b0cb35a21100"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-lint-eof.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-lint-run1.log",
+      "sha256": "bcd3038210b684a8b2a09292e6cef2ba8d4297ecf5e14cf9e4b2ecb3e48dd0fd"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-lint-run2.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-lint-run3.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-eof.json",
+      "sha256": "99d3e7d6f6fc1a8d0ea50b4e76b27ef2a197203488c123b41b71b3c2df9bd7a7"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-eof.log",
+      "sha256": "d9d48c6f1764e39cb27b2ba3ba1d8b1ecf97e525bd0eb1c3e26d518e84237bee"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run1.json",
+      "sha256": "62224b9b296826db4a3f4da78cf34d94cb3294cbf0f125db2f2b6be1adc9f565"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run1.log",
+      "sha256": "edcb4c2764bdbf6f1d729f81e5b7f4dd8be8f921f7f2e76702e2827d7891478d"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run2.json",
+      "sha256": "46390e65e9325c9ad9ba1020b8cd86cff5d491ebde34649f171f452d96f4985d"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run2.log",
+      "sha256": "52c039ad8b269ff4649bc775d9f8e9ee3a2926293789ccad9979341b94dd168e"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run3.json",
+      "sha256": "3eaad0dd3197b6df77a754da162649d850d6c6f1d9ffa15a63fca3027ddbbdd6"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run3.log",
+      "sha256": "f20e8a763f8a4be08a35d1c07d455529193731ed6105a6699b7219d409cc94f2"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run4.json",
+      "sha256": "1c4a12605587db8db6dcf2b628906ff44fc1093f11d6ad123f5280566334735f"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run4.log",
+      "sha256": "9c726b8bced5e451a2140ca571c0506bdc8be6135f27609897c5396ce79601da"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run5.json",
+      "sha256": "f65f97e670fbd52b302467b1a5a041667e8fbc6efd9a97b229346a4a543496c6"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run5.log",
+      "sha256": "71be2ec642489da44a9859cd27909af5200c6934d5599dd3bc97ba7b50b7d32a"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run6.json",
+      "sha256": "7324e9a1af2c8178a5aaa8d8dd2b628e59e5d18ec7e250fe8230dbd2141c41b3"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run6.log",
+      "sha256": "4e7189b2b000832516577bf1377b591d63728d48bdf36871c060cc1ce4de2bf2"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run7.json",
+      "sha256": "9307457d171668d8a84cfa9caabb493ca479b37e2b87a0b7bbddf0dcb818c8d9"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run7.log",
+      "sha256": "5904f7ea3f037e2fd3c9f0fe290d6a13678d523097e83e0b3236cc1d12471ebc"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run8.json",
+      "sha256": "9d8cd15c6b0c993e6d07d07cffa67fe378d2797b857637f2b49746e671667ea8"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run8.log",
+      "sha256": "ce0ac3f1850cb93e624393f395fed32f89781d8239495edf3c6b6430ce7b98db"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run9.json",
+      "sha256": "2f398879a09c6df9c5fe78988949bce978ced129a81de141bd211c899e2604cf"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-pg-run9.log",
+      "sha256": "739818b6e454d1be76ccc08b3821b6eb2f5b221c4e097ca3bab102f823268314"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-store-eof.json",
+      "sha256": "980828912d5f3e9fa53dd6890fa365849fccc96cfa7c98e97bbf6384ad00f1d1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-store-eof.log",
+      "sha256": "05f07c25b2ea0785a8f1688b729030cf53168e5b813ba2b3a86860ba5358d0c3"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-store-run1.json",
+      "sha256": "145b646e8a7f1e3171344021c0be89da244813c2d0385f2cf1da355c0dce002d"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-store-run1.log",
+      "sha256": "a867c5f3ed6ef7a65a8658e6872e6d394a66947b7f6849d0c24ef495016c8ec1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-store-run2.json",
+      "sha256": "147956a15cf7eba7b93faae345ebc597ee13138dc0c429613bfb27e592efa0d9"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-store-run2.log",
+      "sha256": "2dd0232da5c585c214078980f9b2a95c2ec3051661be7e83ce0a9e7e36f448fb"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-verification-before-eof.json",
+      "sha256": "c1d530ab643126e9bbf33aa3b0b2fe931d387d4555c00a6e73e47f9d22b0a1c0"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-bank-store-test-after.raw",
+      "sha256": "a6579e86124b1b633152a131898ce768d83480a71f45483277558f9e47b2ad3f"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-bank-store-test-before.raw",
+      "sha256": "be39a7ddcf32f75cfc8724fc058d4d7e4993d8c6a9269596e172234ec6353fac"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-migration-after.raw",
+      "sha256": "64bb43677900d945bc16f62308b17157fea7b84d10b944b68b35ea8c3bdfd5b1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-migration-before.raw",
+      "sha256": "d5a25bb0ebd3289f78c0d6da171e129528f03aba545433e744d4b0cb35a21100"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-normalization.json",
+      "sha256": "0b88ad0ed62822607e3843318c0abe61f769d89b347abf3c23b80f36c87d93ca"
+    },
+    {
+      "file": ".qa/us-pilot-bank/postgres-recipe-regression-before-eof.json",
+      "sha256": "41126b225528d1a6273b06808b00a8ee9e561b0d50e5677d6001492694f58c83"
+    },
+    {
+      "file": ".qa/us-pilot-bank/postgres-recipe-targeted-eof.json",
+      "sha256": "6369a6f546e8e08d0ea4f9d61d73fa0be4a7a909446461c482c11672feb05957"
+    },
+    {
+      "file": ".qa/us-pilot-bank/postgres-recipe-targeted-pre-eof.json",
+      "sha256": "123c45e55e0ceb63bb312396aae84d74348e4be36109e3080f5d23e5603d02eb"
+    },
+    {
+      "file": ".qa/us-pilot-bank/postgres-recipe-targeted-run8.json",
+      "sha256": "d64043beb4889d22e0dc7d08b6dddf5335ed34e730eab912f0179eab88ddde2c"
+    },
+    {
+      "file": ".qa/us-pilot-bank/postgres-recipe-targeted.json",
+      "sha256": "123c45e55e0ceb63bb312396aae84d74348e4be36109e3080f5d23e5603d02eb"
+    },
+    {
+      "file": ".qa/us-pilot-bank/us-financial-pilot-bank-store.test.ts.before-eof",
+      "sha256": "be39a7ddcf32f75cfc8724fc058d4d7e4993d8c6a9269596e172234ec6353fac"
+    },
+    {
+      "file": ".qa/us-pilot-bank/regression-final-before-eof.json",
+      "sha256": "b3a09eb8b5675bf621152ab18e721f24daa10aa5146331648828c567831d167c"
+    },
+    {
+      "file": ".qa/us-pilot-bank/regression-final-before-eof.log",
+      "sha256": "8330c1e93e679cdf5b7296cf39e61487da151d01a6e72d2b72c327acb8376a39"
+    },
+    {
+      "file": ".qa/us-pilot-bank/regression-command-before-eof.json",
+      "sha256": "665bdae96d620d181b7798e5797b77de50bbb506a3f6210aa201e5c5fec5a20e"
+    },
+    {
+      "file": ".qa/us-pilot-bank/quality-commands-before-eof.json",
+      "sha256": "bcc9f15a80d885db860fcbd6b17b076d12b24a173cdd920c4b43bfd2c04cace9"
+    },
+    {
+      "file": ".qa/us-pilot-bank/types-final-before-eof.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/lint-final-before-eof.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/brand-final-before-eof.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": ".qa/us-pilot-bank/build-final-before-eof.log",
+      "sha256": "fbea87533f6ebfa723a50050f0d9d6df7ca346966c7183f0bbd15168375701c7"
+    },
+    {
+      "file": ".qa/us-pilot-bank/backend-review-final-before-eof.md",
+      "sha256": "646c7757de849f1370fb1e4f6d5d899d287558343cd93b50671587ad0abf674f"
+    },
+    {
+      "file": ".qa/us-pilot-bank/staged-whitespace-check-before-eof.json",
+      "sha256": "6e68688ba0ce2667316654f73c1cc4c35b21d8a4be214f03070cec20d81812a1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/accounting-recipe-preservation-before-eof.json",
+      "sha256": "393b417e764055b0cf1ab131f6f38782301474b093af12d7fbc9f2b204c91363"
+    },
+    {
+      "file": ".qa/us-pilot-bank/accounting-recipe-regression-before-eof.json",
+      "sha256": "6b28c60031e6d686888df30050c813c00a1eec8476bc36ec7c0ad3fe4daa5ab1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/postgres-recipe-regression-before-eof.json",
+      "sha256": "41126b225528d1a6273b06808b00a8ee9e561b0d50e5677d6001492694f58c83"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-normalization.json",
+      "sha256": "0b88ad0ed62822607e3843318c0abe61f769d89b347abf3c23b80f36c87d93ca"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-bank-store-test-before.raw",
+      "sha256": "be39a7ddcf32f75cfc8724fc058d4d7e4993d8c6a9269596e172234ec6353fac"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-bank-store-test-after.raw",
+      "sha256": "a6579e86124b1b633152a131898ce768d83480a71f45483277558f9e47b2ad3f"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-migration-before.raw",
+      "sha256": "d5a25bb0ebd3289f78c0d6da171e129528f03aba545433e744d4b0cb35a21100"
+    },
+    {
+      "file": ".qa/us-pilot-bank/eof-migration-after.raw",
+      "sha256": "64bb43677900d945bc16f62308b17157fea7b84d10b944b68b35ea8c3bdfd5b1"
+    },
+    {
+      "file": ".qa/us-pilot-bank/write-delivery.mjs",
+      "sha256": "a919fd4623ae7a85e0b2fb43db567a747343ec84a04d96c0a8a8f03dd3bc9cad"
+    },
+    {
+      "file": ".qa/us-pilot-bank/delivery-template.md",
+      "sha256": "0b9cf0843be08922dc2f6ccb9dc347c922a1ad7ee7d24f82c9fe07fd73c6ae6c"
+    },
+    {
+      "file": ".qa/us-pilot-bank/stage2-review-notes.md",
+      "sha256": "5011fa99c6ce68f99db03031ae61282dd06f46a45bdbcba844bffe2d70a57119"
+    },
+    {
+      "file": ".qa/us-pilot-bank/plan-review.md",
+      "sha256": "9d2cb9ea7b461cfb499826716b50fd42c24dc50a766550f41d27085da7dc9b1e"
+    },
+    {
+      "file": ".qa/us-pilot-bank/research-20261010.md",
+      "sha256": "db745ea46b08451a3ec9e67eded7961f7209b84a76cd042188328c471901b162"
+    },
+    {
+      "file": ".qa/us-pilot-bank/supabase-changelog.md",
+      "sha256": "958bf033618a6f7b920e3505f8e1fd2f861f6ceb8c687b4451aeff6c4a04ccd3"
+    },
+    {
+      "file": ".qa/us-pilot-bank/shared-api.md",
+      "sha256": "5eab567d76a5ed1bc879ad6624b487c6084f25f654ebbbdeb1b013e255e6bf41"
+    }
+  ],
+  "limits": [
+    "Serialized PGlite with synthetic Auth/D1/tax: no hosted, multiconnection, load, crash or SLA claim",
+    "Clean close/new NodeFS instance is distinct from crash recovery",
+    "Bank review has separate B/R history and preserves the financial F/L book; it does not post missing transactions or move funds",
+    "No routes mounted or browser integration in this stage; UI/CSV/transport require the next bounded phase",
+    "Capacity is deliberately bounded by record/line/operation and full register capture budgets",
+    "Manual CSV provenance, cash-basis/tax/real bank feed/provider compliance remain outside this scope",
+    "Documentation added after this code snapshot is outside its hash",
+    "The PG mixed/reopen recipe compares five financial CSV export snapshots, not rendered CSV bytes; renderer byte tests are separate suites retained in the global regression. No bank CSV renderer in Stage1."
+  ],
+  "finalLineEndingCleanup": {
+    "schemaVersion": 1,
+    "at": "2026-10-10T16:58:48.787Z",
+    "files": [
+      {
+        "path": "lib/international/us-financial-pilot-bank-store.test.ts",
+        "before": {
+          "bytes": 8875,
+          "sha256": "be39a7ddcf32f75cfc8724fc058d4d7e4993d8c6a9269596e172234ec6353fac",
+          "archive": ".qa/us-pilot-bank/eof-bank-store-test-before.raw"
+        },
+        "after": {
+          "bytes": 8873,
+          "sha256": "a6579e86124b1b633152a131898ce768d83480a71f45483277558f9e47b2ad3f",
+          "archive": ".qa/us-pilot-bank/eof-bank-store-test-after.raw"
+        },
+        "unchangedPrefixBytes": 8872,
+        "removedTrailingBytes": 3,
+        "addedTrailingHex": "0a",
+        "check": {
+          "formula": "strip trailing CRLF/LF line endings + one LF",
+          "expectedBytesEqual": true,
+          "unchangedPrefix": true,
+          "onlyFinalLineEndingsChanged": true
+        }
+      },
+      {
+        "path": "supabase/migrations/20261010155848_international_us_financial_pilot_bank_test_v1.sql",
+        "before": {
+          "bytes": 37581,
+          "sha256": "d5a25bb0ebd3289f78c0d6da171e129528f03aba545433e744d4b0cb35a21100",
+          "archive": ".qa/us-pilot-bank/eof-migration-before.raw"
+        },
+        "after": {
+          "bytes": 37576,
+          "sha256": "64bb43677900d945bc16f62308b17157fea7b84d10b944b68b35ea8c3bdfd5b1",
+          "archive": ".qa/us-pilot-bank/eof-migration-after.raw"
+        },
+        "unchangedPrefixBytes": 37575,
+        "removedTrailingBytes": 6,
+        "addedTrailingHex": "0a",
+        "check": {
+          "formula": "strip trailing CRLF/LF line endings + one LF",
+          "expectedBytesEqual": true,
+          "unchangedPrefix": true,
+          "onlyFinalLineEndingsChanged": true
+        }
+      }
+    ],
+    "untouched": [
+      {
+        "path": "lib/international/us-financial-pilot-bank-store.ts",
+        "sha256": "d888a8d700b16525922146e495f73833e0eccd1baa9499ca9fa499bb1f25d649",
+        "afterSha256": "d888a8d700b16525922146e495f73833e0eccd1baa9499ca9fa499bb1f25d649",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank.postgres.test.ts",
+        "sha256": "82d78e8aed719311e86b16291404e99b20e5c56e280ad8d8f5d2208d94eb6625",
+        "afterSha256": "82d78e8aed719311e86b16291404e99b20e5c56e280ad8d8f5d2208d94eb6625",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank.ts",
+        "sha256": "bd17918910d1e3b255f65c1e92b9cf4cfa966606adf1af97e496ca5be7af9023",
+        "afterSha256": "bd17918910d1e3b255f65c1e92b9cf4cfa966606adf1af97e496ca5be7af9023",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank.test.ts",
+        "sha256": "832ab52ea97db0bcb48648764455728c0bf1777a629f688ccf819cdf924d0834",
+        "afterSha256": "832ab52ea97db0bcb48648764455728c0bf1777a629f688ccf819cdf924d0834",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank-projection.ts",
+        "sha256": "7a689dc4ae96f98c564e350451f77861b245c78d8b0adf0ed46dce64d618ad13",
+        "afterSha256": "7a689dc4ae96f98c564e350451f77861b245c78d8b0adf0ed46dce64d618ad13",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank-projection.test.ts",
+        "sha256": "b43569797720a89e194e1f55ec3e566520cbacfb562975ffaca9ec7cadfd3786",
+        "afterSha256": "b43569797720a89e194e1f55ec3e566520cbacfb562975ffaca9ec7cadfd3786",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank-server.ts",
+        "sha256": "97ad461f2969624adfac8f6fa6240f36431acac46a704a4d0844b48a8c9d176a",
+        "afterSha256": "97ad461f2969624adfac8f6fa6240f36431acac46a704a4d0844b48a8c9d176a",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank-server.test.ts",
+        "sha256": "4a1c9aa7f841caef283b350d5cb7d3e4d26e36d0673ffd970ffc95767ee2f14d",
+        "afterSha256": "4a1c9aa7f841caef283b350d5cb7d3e4d26e36d0673ffd970ffc95767ee2f14d",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank-bindings.ts",
+        "sha256": "8b11de6830031d3d5dc4c46ac73a819ce325a848be21945385bdc890122e53d7",
+        "afterSha256": "8b11de6830031d3d5dc4c46ac73a819ce325a848be21945385bdc890122e53d7",
+        "unchanged": true
+      },
+      {
+        "path": "lib/international/us-financial-pilot-bank-bindings.test.ts",
+        "sha256": "c1a256726185ba1b910dd3f547a1583b093248a35dd8f9aa7da308432e445845",
+        "afterSha256": "c1a256726185ba1b910dd3f547a1583b093248a35dd8f9aa7da308432e445845",
+        "unchanged": true
+      }
+    ],
+    "scope": "Exactly two final line-ending sequences; all preceding bytes and the other ten Stage 1 sources unchanged."
+  }
+}
