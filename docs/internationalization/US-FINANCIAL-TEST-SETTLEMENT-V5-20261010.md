@@ -1,5 +1,7 @@
 # Zentra US — avoirs et encaissements PostgreSQL privés TEST V5
 
+Suite validée le 10 octobre : `US-FINANCIAL-TEST-COMMERCIAL-V5-20261010.md` ajoute clients/devis/acceptation au même livre sous une capacité distincte. La factory settlement conserve son API et ses refus via des mécaniques partagées ; elle refuse une queue ERP avant replay. Les résultats ci-dessous décrivent le jalon settlement d'origine, sans les réécrire.
+
 10 octobre 2026. Jalon local du même ERP international, après la fondation de promotion. Aucun contrat public ERP1–4, client CH, abonnement, route, interface ou installateur n'est activé ou modifié par cette phase. La migration reste locale TEST ; les protections communes de la fondation sont conservées.
 
 ## 1. Modifications
