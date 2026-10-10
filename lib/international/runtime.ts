@@ -43,7 +43,10 @@ export function erpCommit(before: ErpState | null, after: ErpState, receipt: Erp
   const groups = [['customer',before?.customers,after.customers],['estimate',before?.estimates,after.estimates],['invoice',before?.invoices,after.invoices],['vendor',before?.vendors,after.vendors??[]],['vendor_bill',before?.vendorBills,after.vendorBills??[]],['vendor_payment',before?.vendorPayments,after.vendorPayments??[]],['project',before?.projects,after.projects??[]],['journal',before?.ledger.entries,after.ledger.entries]] as const;
   for (const [kind,oldRows,rows] of groups) for (const row of rows) {
     const old = oldRows?.find(old=>old.id===row.id);
-    if (!old || canonical(old)!==canonical(row)) changes.push({kind,id:row.id,payload:row});
+    // Purchasing SQL and delta admission require the exact supplier snapshot,
+    // including an unchanged save. Empty vendor deltas are not that contract.
+    const vendorSave = receipt.action === 'save_vendor' && kind === 'vendor' && row.id === receipt.entityId;
+    if (vendorSave || !old || canonical(old)!==canonical(row)) changes.push({kind,id:row.id,payload:row});
   }
   return {organizationId:after.configuration.organizationId,expectedRevision:before?.revision??0,header:erpHeader(after),changes,ledgerAudit:after.ledger.audit.slice(before?.ledger.audit.length??0),receipt,actor};
 }

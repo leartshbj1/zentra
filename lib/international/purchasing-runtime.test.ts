@@ -116,6 +116,19 @@ async function noMutation(t: ReturnType<typeof fixture>, operation: () => Promis
 }
 
 describe('real purchasing ERP transitions with explicit schema-2 storage capability', () => {
+  it.each(['cash', 'accrual'] as const)('saves an unchanged supplier through the real delta contract and replays it once (%s)', async basis => {
+    const t = fixture(basis); await t.prepare();
+    await t.saveVendor({ ...vendor, id: 'vendor-2', name: 'Second fictitious supplier' });
+    const before = structuredClone(t.store.state!), request = t.request({ type: 'save_vendor', vendor }, 'unchanged-vendor');
+    const result = await executeErp(t.dependencies, request), saved = t.store.commits.at(-1)!;
+    expect(result.replayed).toBe(false); expect(saved.changes).toEqual([{ kind: 'vendor', id: vendor.id, payload: vendor }]);
+    expect(saved.ledgerAudit).toEqual([]); expect(t.store.state!.revision).toBe(before.revision + 1);
+    expect(t.store.state!.vendors).toEqual(before.vendors); expect(t.store.state!.vendorBills).toEqual(before.vendorBills);
+    expect(t.store.state!.vendorPayments).toEqual(before.vendorPayments); expect(t.store.state!.ledger).toEqual(before.ledger);
+    const committed = canonicalErpJson(t.store.state), count = t.store.commits.length;
+    expect((await executeErp(t.dependencies, request)).replayed).toBe(true);
+    expect(canonicalErpJson(t.store.state)).toBe(committed); expect(t.store.commits).toHaveLength(count);
+  });
   it.each(['cash', 'accrual'] as const)('promotes only on purchasing and posts one bill with two exact partial payments (%s)', async basis => {
     const t = fixture(basis); await t.initialize();
     expect(t.store.state?.schemaVersion).toBe(1); expect(t.store.state).not.toHaveProperty('vendors');
