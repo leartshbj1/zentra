@@ -12,6 +12,8 @@ import { snapshotPrivateJson } from './private-json';
 import { validateUsFinancialPilotInvoiceRequest, validateUsFinancialPilotInvoicePreview, validateUsFinancialPilotInvoiceReceipt, validateUsFinancialPilotTaxCatalogue, type UsFinancialPilotInvoiceRequest, type UsFinancialPilotInvoiceChoices, type UsFinancialPilotInvoicePreview, type UsFinancialPilotInvoiceReceipt, type UsFinancialPilotTaxCatalogue } from './us-financial-pilot-invoice';
 import { validateUsFinancialPilotPurchasingRequest, validateUsFinancialPilotPurchasingReceipt, type UsFinancialPilotPurchasingRequest, type UsFinancialPilotPurchasingCommand, type UsFinancialPilotPurchasingReceipt } from './us-financial-pilot-purchasing';
 import { validateUsFinancialPilotVendorDetail, validateUsFinancialPilotVendorBillDetail, validateUsFinancialPilotPurchasingPage, financialPilotPurchasingCursorOffset, type UsFinancialPilotVendorDetail, type UsFinancialPilotVendorBillDetail, type UsFinancialPilotPurchasingPage, type UsFinancialPilotVendorBillRow } from './us-financial-pilot-purchasing-projection';
+import { validateUsFinancialPilotAccountingRequest, validateUsFinancialPilotAccountingReceipt, type UsFinancialPilotAccountingCommand, type UsFinancialPilotAccountingRequest, type UsFinancialPilotAccountingReceipt } from './us-financial-pilot-accounting';
+import { validateUsFinancialPilotAccountingContext, validateUsFinancialPilotJournalDetail, validateUsFinancialPilotPeriodDetail, financialPilotJournalLinesCursorOffset, type UsFinancialPilotAccountingContext, type UsFinancialPilotJournalDetail, type UsFinancialPilotPeriodDetail } from './us-financial-pilot-accounting-projection';
 
 export type BrowserUsFinancialPilotPayment = UsFinancialPilotPaymentRequest['command'];
 export type BrowserUsFinancialPilotReceipt = UsFinancialPilotPaymentReceipt;
@@ -26,7 +28,7 @@ export interface BrowserUsFinancialPilotState {
   readonly status: 'idle' | 'loading' | 'ready' | 'denied' | 'stopped';
   readonly snapshot: UsFinancialPilotOverview | null;
   readonly refreshing: boolean; readonly writing: boolean; readonly pending: boolean; readonly requiresRefresh: boolean;
-  readonly pendingKind: 'payment' | 'commercial' | 'invoice_prepare' | 'invoice_issue' | 'purchasing' | null;
+  readonly pendingKind: 'payment' | 'commercial' | 'invoice_prepare' | 'invoice_issue' | 'purchasing' | 'accounting' | null;
   readonly invoiceReview: UsFinancialPilotInvoicePreview | null;
   readonly error: BrowserUsFinancialPilotError | null;
 }
@@ -54,6 +56,11 @@ export interface BrowserUsFinancialPilotSession {
   commercial(this: void, command: UsFinancialPilotCommercialCommand, expectedRevision?: number): Promise<UsFinancialPilotCommercialReceipt>;
   purchasing(this: void, command: UsFinancialPilotPurchasingCommand, expectedRevision?: number): Promise<UsFinancialPilotPurchasingReceipt>;
   retryPurchasing(this: void): Promise<UsFinancialPilotPurchasingReceipt>;
+  accounting(this: void, command: UsFinancialPilotAccountingCommand, expectedRevision?: number): Promise<UsFinancialPilotAccountingReceipt>;
+  retryAccounting(this: void): Promise<UsFinancialPilotAccountingReceipt>;
+  readAccountingContext(this: void, revision?: number): Promise<UsFinancialPilotAccountingContext>;
+  readJournal(this: void, journalRevision: number, revision?: number, lineCursor?: string): Promise<UsFinancialPilotJournalDetail>;
+  readPeriod(this: void, periodId: string, revision?: number): Promise<UsFinancialPilotPeriodDetail>;
   readVendor(this: void, vendorId: string, revision?: number): Promise<UsFinancialPilotVendorDetail>;
   readVendorBills(this: void, cursor?: string, revision?: number): Promise<UsFinancialPilotPurchasingPage<UsFinancialPilotVendorBillRow>>;
   readVendorBill(this: void, billId: string, revision?: number, paymentCursor?: string): Promise<UsFinancialPilotVendorBillDetail>;
@@ -86,6 +93,7 @@ const rejectedInvoice: Readonly<Record<string, readonly number[]>> = {
   invalid_financial_pilot_request: [422], invalid_request: [400, 413, 415, 422],
 };
 for (const code of Object.keys(rejectedInvoice)) publicErrors.add(code);
+for (const code of ['unknown_account','entry_id_conflict','entry_not_found','invalid_reversal','accounting_period_required','accounting_period_order_conflict','period_already_exists','period_limit_reached','invalid_period','manual_account_forbidden','invalid_financial_pilot_query','invalid_journal','invalid_journal_line','invalid_amount','invalid_date','invalid_account','unbalanced_journal','journal_not_found','journal_already_reversed','manual_journal_required','accounting_period_not_found','accounting_period_already_exists','accounting_period_limit','accounting_period_order','accounting_period_overlap','accounting_period_closed','accounting_period_not_open','cash_flow_classification_required']) publicErrors.add(code);
 for (const code of ['vendor_required','vendor_already_exists','vendor_bill_already_recorded','vendor_bill_not_found','vendor_payment_already_recorded','invalid_amount','invalid_date','purchase_account_required']) publicErrors.add(code);
 for (const code of ['tax_preparation_conflict','unsupported_tax_request','binding_unavailable','tax_binding_changed','tax_configuration_changed','tax_calculation_expired','invoice_already_issued','sales_order_confirmation_required','invalid_tax_date','financial_invoice_fixture_disabled']) publicErrors.add(code);
 for (const code of ['tax_provider_unavailable', 'tax_catalogue_unavailable', 'tax_context_unavailable', 'tax_provider_rejected', 'financial_tax_provider_unavailable', 'financial_tax_catalogue_unavailable', 'tax_nexus_required', 'financial_tax_nexus_required', 'tax_classification_unsupported', 'tax_service_confirmation_required']) publicErrors.add(code);
@@ -130,7 +138,7 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   let disposed = false, running = false, generation = 0, mutation = 0, denied = false;
   let timer: ReturnType<typeof setTimeout> | undefined, unsubscribe: (() => void) | undefined;
   let snapshotFlight: Promise<UsFinancialPilotOverview> | null = null, refreshFlight: Promise<UsFinancialPilotOverview | null> | null = null;
-  let pending: Readonly<{ kind: 'payment'; body: string; request: UsFinancialPilotPaymentRequest }> | Readonly<{ kind: 'commercial'; body: string; request: UsFinancialPilotCommercialRequest }> | Readonly<{ kind: 'invoice_prepare' | 'invoice_issue'; body: string; request: UsFinancialPilotInvoiceRequest }> | Readonly<{ kind: 'purchasing'; body: string; request: UsFinancialPilotPurchasingRequest }> | null = null;
+  let pending: Readonly<{ kind: 'payment'; body: string; request: UsFinancialPilotPaymentRequest }> | Readonly<{ kind: 'commercial'; body: string; request: UsFinancialPilotCommercialRequest }> | Readonly<{ kind: 'invoice_prepare' | 'invoice_issue'; body: string; request: UsFinancialPilotInvoiceRequest }> | Readonly<{ kind: 'purchasing'; body: string; request: UsFinancialPilotPurchasingRequest }> | Readonly<{ kind: 'accounting'; body: string; request: UsFinancialPilotAccountingRequest }> | null = null;
   let prepared: Readonly<{ request: UsFinancialPilotInvoiceRequest; preview: UsFinancialPilotInvoicePreview }> | null = null;
   const publish = (patch: Partial<BrowserUsFinancialPilotState>) => { state = frozen({ ...state, ...patch }); for (const listener of listeners) { try { listener(); } catch { /* A view cannot change admission or transaction outcome. */ } } };
   function alive(epoch = generation): void { if (disposed || state.status === 'stopped' || epoch !== generation) return fail('session_disposed', 0, 'unauthorized'); if (denied) return fail('session_changed', 401, 'unauthorized'); }
@@ -166,8 +174,8 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
         const code = exact(body, ['error']) && typeof body.error === 'string' && publicErrors.has(body.error) ? body.error : 'service_unavailable';
         // Purchasing public errors carry no execution-phase proof, including
         // mapped ledger validation errors. Preserve its exact envelope.
-        const definitive = pending?.kind === 'purchasing' ? false : pending?.kind === 'commercial' ? rejectedCommercial[code]?.includes(result.status) : pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' ? rejectedInvoice[code]?.includes(result.status) : rejectedPayments[code] === result.status;
-        const invoiceWrite = pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' || pending?.kind === 'purchasing';
+        const definitive = pending?.kind === 'purchasing' || pending?.kind === 'accounting' ? false : pending?.kind === 'commercial' ? rejectedCommercial[code]?.includes(result.status) : pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' ? rejectedInvoice[code]?.includes(result.status) : rejectedPayments[code] === result.status;
+        const invoiceWrite = pending?.kind === 'invoice_prepare' || pending?.kind === 'invoice_issue' || pending?.kind === 'purchasing' || pending?.kind === 'accounting';
         if (write && (!invoiceWrite && result.status === 409 && rejectedConflicts.has(code) || definitive)) { pending = null; publish({ pending: false, pendingKind: null, requiresRefresh: true }); return fail(code, result.status); }
         return fail(code, result.status, write ? 'uncertain' : 'rejected');
       }
@@ -254,13 +262,14 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
   function pageBounds(page: UsFinancialPilotPage, offset: number): void {
     if (offset > page.total || page.items.length !== Math.min(25, page.total - offset) || (page.nextCursor === null ? offset + page.items.length !== page.total : financialPilotCursorOffset(page.nextCursor, page.kind, page.revision, page.scope) !== offset + 25)) return fail('invalid_response', 200);
   }
-  async function send(): Promise<BrowserUsFinancialPilotOperationReceipt | BrowserUsFinancialPilotInvoiceResult | UsFinancialPilotPurchasingReceipt> {
+  async function send(): Promise<BrowserUsFinancialPilotOperationReceipt | BrowserUsFinancialPilotInvoiceResult | UsFinancialPilotPurchasingReceipt | UsFinancialPilotAccountingReceipt> {
     alive(); if (!pending) return fail('no_pending_operation', 409); if (state.writing) return fail('pending_operation', 409);
     const original = pending, epoch = generation; mutation++; publish({ writing: true, pending: true, pendingKind: original.kind, requiresRefresh: true, error: null });
     try {
-      const path = original.kind === 'purchasing' ? '/purchasing/operations' : original.kind === 'invoice_prepare' ? '/invoices/prepare' : original.kind === 'invoice_issue' ? '/invoices/issue' : original.kind === 'commercial' ? '/commercial/operations' : '/operations';
+      const path = original.kind === 'accounting' ? '/accounting/operations' : original.kind === 'purchasing' ? '/purchasing/operations' : original.kind === 'invoice_prepare' ? '/invoices/prepare' : original.kind === 'invoice_issue' ? '/invoices/issue' : original.kind === 'commercial' ? '/commercial/operations' : '/operations';
       const body = await response(path, { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' }, body: original.body }, true); alive(epoch);
       const receipt = validate(() => {
+        if (original.kind === 'accounting') return validateUsFinancialPilotAccountingReceipt(body, organizationId, original.request);
         if (original.kind === 'purchasing') return validateUsFinancialPilotPurchasingReceipt(body, organizationId, original.request);
         if (original.kind === 'invoice_prepare') return validateUsFinancialPilotInvoicePreview(body, organizationId, original.request);
         if (original.kind === 'invoice_issue') return validateUsFinancialPilotInvoiceReceipt(body, organizationId, original.request);
@@ -294,6 +303,21 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     load: () => snapshotLoad(), refresh,
     readInvoices: (cursor?: string, atRevision?: number) => list('invoices', cursor, atRevision) as Promise<UsFinancialPilotPage<UsFinancialPilotInvoiceRow>>,
     readList: list,
+    readAccountingContext(atRevision?: number) {
+      const at = currentRevision(atRevision);
+      return detail(`/accounting/context?revision=${at}`, at, value => validateUsFinancialPilotAccountingContext(value, organizationId, at));
+    },
+    readJournal(journalRevision: number, atRevision?: number, lineCursor?: string) {
+      if (!revision(journalRevision)) return Promise.reject(new BrowserUsFinancialPilotError('invalid_request', 422, 'rejected'));
+      const at = currentRevision(atRevision);
+      try { financialPilotJournalLinesCursorOffset(lineCursor, at, journalRevision); } catch { return Promise.reject(new BrowserUsFinancialPilotError('invalid_request', 422, 'rejected')); }
+      return detail(`/journals/${journalRevision}?revision=${at}${lineCursor ? `&lineCursor=${encodeURIComponent(lineCursor)}` : ''}`, at, value => validateUsFinancialPilotJournalDetail(value, organizationId, at, journalRevision, lineCursor));
+    },
+    readPeriod(periodId: string, atRevision?: number) {
+      if (!text(periodId)) return Promise.reject(new BrowserUsFinancialPilotError('invalid_request', 422, 'rejected'));
+      const at = currentRevision(atRevision);
+      return detail(`/periods/${encodeURIComponent(periodId)}?revision=${at}`, at, value => validateUsFinancialPilotPeriodDetail(value, organizationId, at, periodId));
+    },
     readVendor(vendorId: string, atRevision?: number) {
       if (!text(vendorId)) return Promise.reject(new BrowserUsFinancialPilotError('invalid_request',422,'rejected'));
       const at = currentRevision(atRevision); return detail(`/vendors/${encodeURIComponent(vendorId)}?revision=${at}`,at,value => validateUsFinancialPilotVendorDetail(value,organizationId,at,vendorId));
@@ -350,6 +374,15 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
       pending = frozen({ kind:'purchasing',body:JSON.stringify(request),request }); return send() as Promise<UsFinancialPilotPurchasingReceipt>;
     },
     retryPurchasing() { if (pending?.kind !== 'purchasing') return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation',409,'rejected')); return send() as Promise<UsFinancialPilotPurchasingReceipt>; },
+    accounting(command: UsFinancialPilotAccountingCommand, expectedRevision?: number) {
+      alive(); if (pending || state.writing) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected'));
+      if (state.requiresRefresh || !state.snapshot) return Promise.reject(new BrowserUsFinancialPilotError('read_required', 409, 'rejected'));
+      const at = currentRevision(expectedRevision); if (at !== state.snapshot.revision) return Promise.reject(new BrowserUsFinancialPilotError('financial_snapshot_changed', 409, 'rejected'));
+      let request: UsFinancialPilotAccountingRequest;
+      try { request = frozen(validateUsFinancialPilotAccountingRequest({ consumer: 'financial-pilot', schemaVersion: 1, requestId: newId(), expectedRevision: at, command })); } catch { return fail('invalid_financial_pilot_request'); }
+      pending = frozen({ kind: 'accounting', body: JSON.stringify(request), request }); return send() as Promise<UsFinancialPilotAccountingReceipt>;
+    },
+    retryAccounting() { if (pending?.kind !== 'accounting') return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation', 409, 'rejected')); return send() as Promise<UsFinancialPilotAccountingReceipt>; },
     async readTaxCodes(query: Readonly<{ code?: string; cursor?: string }> = {}) {
       alive(); const epoch = generation;
       let saved: Record<string, unknown>;
@@ -374,6 +407,6 @@ export function createBrowserUsFinancialPilotSession(options: BrowserUsFinancial
     },
     retryInvoice() { if (!pending || !['invoice_prepare', 'invoice_issue'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('no_pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotInvoiceResult>; },
     clearInvoiceReview() { alive(); if (pending || state.writing) return fail('pending_operation', 409); prepared = null; publish({ invoiceReview: null }); },
-    retry() { if (pending && ['invoice_prepare', 'invoice_issue', 'purchasing'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotOperationReceipt>; }, hasPending: () => pending !== null,
+    retry() { if (pending && ['invoice_prepare', 'invoice_issue', 'purchasing', 'accounting'].includes(pending.kind)) return Promise.reject(new BrowserUsFinancialPilotError('pending_operation', 409, 'rejected')); return send() as Promise<BrowserUsFinancialPilotOperationReceipt>; }, hasPending: () => pending !== null,
   });
 }
