@@ -1,6 +1,6 @@
 # Livre financier US V5 — plan de persistance des achats
 
-10 octobre 2026. **Plan uniquement, pas une livraison.** Ce document prépare le jalon suivant la continuité commerciale PostgreSQL TEST. Il ne modifie ni moteur, ni migration, ni permission, ni configuration hébergée. Aucun test n'a été exécuté pour sa rédaction. Les preuves du lot commercial courant doivent rester dans sa propre livraison ; ce plan est exclu de son commit et ne lui ajoute aucun résultat.
+10 octobre 2026. **Plan initial, conservé comme contrat proposé.** Le jalon a depuis été implémenté et validé localement : voir `US-FINANCIAL-TEST-PURCHASING-V5-20261010.md` et `docs/evidence/us-financial-purchasing-v5-20261010.json` pour les sources finales et les tests réellement exécutés. Ce plan seul ne constituait ni une livraison ni une modification hébergée ; il n'ajoute aucun résultat au lot commercial précédent.
 
 ## 1. Modifications proposées et contrats privés
 

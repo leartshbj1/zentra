@@ -2,6 +2,8 @@
 
 10 octobre 2026. **Jalon local privé TEST validé.** Ce jalon poursuit le même ERP et le même livre financier. Il ne publie aucune route/interface, ne migre aucune base hébergée et ne change aucun contrat public ERP1–4, client suisse, abonnement ou installateur.
 
+Suite locale validée : `US-FINANCIAL-TEST-PURCHASING-V5-20261010.md` ajoute le cycle fournisseur sous une capacité cumulative distincte. Les résultats ci-dessous restent ceux de ce jalon commercial, non augmentés rétroactivement. Son ancien port refuse désormais toute queue achats avant replay, tandis que le nouveau port conserve la continuité commerciale.
+
 ## 1. Modifications
 
 La capacité distincte `postgres-test-commercial-v5` permet de créer/modifier un client, créer/modifier un devis et accepter un devis après promotion financière. Elle conserve les avoirs et encaissements déjà admis. Fournisseurs, projets nouveaux, achats, journaux manuels, périodes et émission de nouvelles factures restent refusés par ce port, avant tout RPC ou prestataire côté runtime et indépendamment en SQL.
