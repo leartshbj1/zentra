@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type SubmitEvent } from 'react';
+import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type ReactNode, type SubmitEvent } from 'react';
 import type { AccountRole } from '@/lib/account-security';
 import { AUTH_CHANGED_EVENT } from '@/lib/auth-browser-events';
 import type { SiteLanguage } from '@/lib/site-language';
 import { createUsBackgroundSync, type UsBackgroundSync } from '@/lib/international/browser-us-background-sync';
 import { BrowserUsMailboxError, createBrowserUsMailboxSession, type BrowserUsMailboxDraft, type BrowserUsMailboxSession } from '@/lib/international/browser-us-support-mailbox-session';
 import { validateUsMailboxRequest, type UsMailboxProjection } from '@/lib/international/us-support-mailbox-contract';
-import type { UsMailboxMessages } from '@/lib/international/us-support-mailbox-messages';
+import type { UsMailboxMessage, UsMailboxMessages } from '@/lib/international/us-support-mailbox-messages';
+import { UsSupportMailImport, canImportUsMailAttachment, usSupportMailImportCopy, type UsSupportMailImportBinding, type UsSupportMailImportChoice } from './us-support-mail-import';
 import './us-erp-workbench.css';
 
 export const usSupportMailboxCopy = {
@@ -23,14 +24,16 @@ interface MailboxContentProps {
   busy: boolean; loading: boolean; reading: boolean; pending: boolean; terminal: boolean; error: string; saved: boolean;
   onEmail: (value: string) => void; onToken: (value: string) => void; onReview: (event: SubmitEvent<HTMLFormElement>) => void;
   onDisconnect: () => void; onBack: () => void; onConfirm: () => void; onRetry: () => void; onRefresh: () => void; onRead: (offset: number) => void;
+  importEnabled?: boolean; importBlocked?: boolean; importContent?: ReactNode;
+  onImportChoice?: (message: UsMailboxMessage, attachment: UsMailboxMessage['attachments'][number], returnFocus: HTMLButtonElement) => void;
 }
-export function UsSupportMailboxContent({ language, projection, messages, email, token, review, busy, loading, reading, pending, terminal, error, saved, onEmail, onToken, onReview, onDisconnect, onBack, onConfirm, onRetry, onRefresh, onRead }: MailboxContentProps) {
-  const c = usSupportMailboxCopy[language], id = useId(), blocked = busy || loading || reading || pending || terminal;
+export function UsSupportMailboxContent({ language, projection, messages, email, token, review, busy, loading, reading, pending, terminal, error, saved, onEmail, onToken, onReview, onDisconnect, onBack, onConfirm, onRetry, onRefresh, onRead, importEnabled = false, importBlocked = false, importContent, onImportChoice }: MailboxContentProps) {
+  const c = usSupportMailboxCopy[language], i = usSupportMailImportCopy[language], id = useId(), blocked = busy || loading || reading || pending || terminal || importBlocked;
   const message = error === 'invalid_mailbox_request' ? c.invalid : error === 'mailbox_credentials_rejected' ? c.rejected : error === 'access_lost' ? c.denied : ['mailbox_revision_conflict', 'mailbox_idempotency_conflict', 'mailbox_verification_expired', 'configuration_changed', 'stale_messages'].includes(error) ? c.conflict : ['mailbox_connection_required', 'support_workspace_required', 'read_required'].includes(error) ? c.required : c.unavailable;
   const formatDate = (second: number) => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(second * 1000);
   return <section className="us-erp-workbench us-erp-section us-support-mailbox" lang={language} aria-labelledby={`${id}-title`} aria-busy={busy || loading || reading}>
     <div className="us-erp-record-heading"><h2 id={`${id}-title`}>{c.title}</h2><button type="button" className="account-button secondary" disabled={busy || loading || terminal} onClick={onRefresh}>{c.refresh}</button></div>
-    <p>{c.introduction}</p><p className="us-erp-muted">{c.limitation}</p>
+    <p>{c.introduction}</p><p className="us-erp-muted">{importEnabled ? i.limitation : c.limitation}</p>
     {loading && !projection && <output>{c.loading}</output>}
     {projection && (projection.connection ? <dl className="us-erp-facts"><div><dt>{c.connected}</dt><dd><strong>{projection.connection.email}</strong></dd></div></dl> : <p>{c.disconnected}</p>)}
     {projection?.canManage && !pending && !review && <form className="us-erp-form" onSubmit={onReview}>
@@ -43,28 +46,35 @@ export function UsSupportMailboxContent({ language, projection, messages, email,
     {error && <p role="alert">{message}</p>}{saved && <output>{c.saved}</output>}
     {pending && <aside className="us-erp-pending"><p>{c.pending}</p><p>{c.memory}</p><button type="button" className="account-button" disabled={busy || loading || terminal} onClick={onRetry}>{busy ? c.working : c.retry}</button></aside>}
     {projection?.canManage && projection.connection && <div className="us-erp-section"><div className="us-erp-actions"><button type="button" className="account-button secondary" disabled={blocked || review !== null} onClick={() => onRead(0)}>{reading ? c.reading : c.read}</button></div><p className="us-erp-muted">{c.manual}</p>
-      {messages && <><h3>{c.messages}</h3>{!messages.messages.length && <p>{c.empty}</p>}<ul className="us-erp-records">{messages.messages.map(item => <li key={item.uid}><div className="us-erp-record-heading"><h3>{item.subject || c.untitled}</h3></div><p>{item.sender || c.sender}</p><p><time dateTime={new Date(item.receivedAt * 1000).toISOString()}>{formatDate(item.receivedAt)}</time></p>{item.attachments.length > 0 && <><p>{c.attachments}</p><ul>{item.attachments.map(attachment => <li key={attachment.id}>{attachment.name} <span className="us-erp-muted">({new Intl.NumberFormat(language).format(attachment.sizeBytes)} {c.bytes})</span></li>)}</ul></>}</li>)}</ul><div className="us-erp-actions">{messages.offset > 0 && <button type="button" className="account-button secondary" disabled={blocked || review !== null} onClick={() => onRead(messages.offset - 20)}>{c.previous}</button>}{messages.nextOffset !== null && <button type="button" className="account-button secondary" disabled={blocked || review !== null} onClick={() => onRead(messages.nextOffset!)}>{c.next}</button>}</div></>}
+      {messages && <><h3>{c.messages}</h3>{!messages.messages.length && <p>{c.empty}</p>}<ul className="us-erp-records">{messages.messages.map(item => <li key={item.uid}><div className="us-erp-record-heading"><h3>{item.subject || c.untitled}</h3></div><p>{item.sender || c.sender}</p><p><time dateTime={new Date(item.receivedAt * 1000).toISOString()}>{formatDate(item.receivedAt)}</time></p>{item.attachments.length > 0 && <><p>{importEnabled ? i.attachments : c.attachments}</p><ul>{item.attachments.map(attachment => <li key={attachment.id}>{attachment.name} <span className="us-erp-muted">({new Intl.NumberFormat(language).format(attachment.sizeBytes)} {c.bytes})</span>{importEnabled && projection.canManage && (canImportUsMailAttachment(attachment) ? <div className="us-erp-actions"><button type="button" className="account-button secondary" disabled={blocked || review !== null} onClick={event => onImportChoice?.(item, attachment, event.currentTarget)}>{i.choose}</button></div> : <p className="us-erp-muted">{i.unsupported}</p>)}</li>)}</ul></>}</li>)}</ul><div className="us-erp-actions">{messages.offset > 0 && <button type="button" className="account-button secondary" disabled={blocked || review !== null} onClick={() => onRead(messages.offset - 20)}>{c.previous}</button>}{messages.nextOffset !== null && <button type="button" className="account-button secondary" disabled={blocked || review !== null} onClick={() => onRead(messages.nextOffset!)}>{c.next}</button>}</div></>}
     </div>}
+    {importContent}
   </section>;
 }
 
 export interface UsSupportMailboxPanelProps {
   organizationId: string; expectedUserId: string; role: AccountRole; workspaceId: string; language: SiteLanguage; admitted?: boolean; active?: boolean; accessEpoch?: number;
   currentAccessEpoch?: () => number; registerInvalidation?: (invalidate: (() => void) | null) => void; onIdentityLost?: () => void;
+  importEnabled?: boolean; importBinding?: UsSupportMailImportBinding; onImported?: () => void; onOpenDocuments?: () => void; documentsHref?: string;
 }
-export function UsSupportMailboxPanel({ organizationId, expectedUserId, role, workspaceId, language, admitted = true, active = true, accessEpoch = 0, currentAccessEpoch, registerInvalidation, onIdentityLost }: UsSupportMailboxPanelProps) {
+export function UsSupportMailboxPanel({ organizationId, expectedUserId, role, workspaceId, language, admitted = true, active = true, accessEpoch = 0, currentAccessEpoch, registerInvalidation, onIdentityLost, importEnabled = false, importBinding, onImported, onOpenDocuments, documentsHref }: UsSupportMailboxPanelProps) {
   const identity = `${organizationId}:${expectedUserId}:${role}:${workspaceId}:${accessEpoch}`, usable = admitted && accessEpoch === 0;
-  const refs = useRef({ identity, active, currentAccessEpoch, accessEpoch, onIdentityLost }), generation = useRef(0), mutation = useRef(0), mailSequence = useRef(0), busyRef = useRef(false), loadingRef = useRef(false), readingRef = useRef(false), transport = useRef<BrowserUsMailboxSession | null>(null), scheduler = useRef<UsBackgroundSync | null>(null), head = useRef<UsMailboxProjection | null>(null);
+  const refs = useRef({ identity, active, currentAccessEpoch, accessEpoch, onIdentityLost, importBinding }), generation = useRef(0), mutation = useRef(0), mailSequence = useRef(0), busyRef = useRef(false), loadingRef = useRef(false), readingRef = useRef(false), transport = useRef<BrowserUsMailboxSession | null>(null), scheduler = useRef<UsBackgroundSync | null>(null), head = useRef<UsMailboxProjection | null>(null);
+  const importInvalidation = useRef<(() => void) | null>(null), importBusyRef = useRef(false), importPendingRef = useRef(false), importReturnFocus = useRef<HTMLButtonElement | null>(null);
+  const [importChoice, setImportChoice] = useState<UsSupportMailImportChoice | null>(null), [importBusy, setImportBusy] = useState(false), [importPending, setImportPending] = useState(false);
+  const registerImportInvalidation = useCallback((callback: (() => void) | null) => { importInvalidation.current = callback; }, []);
+  const importOtherBusy = useCallback(() => busyRef.current || loadingRef.current || readingRef.current || refs.current.importBinding?.otherBusy() === true, []), importOtherPending = useCallback(() => transport.current?.hasPending() === true || refs.current.importBinding?.otherPending() === true, []);
+  const onImportBusy = useCallback((value: boolean) => { importBusyRef.current = value; setImportBusy(value); refs.current.importBinding?.onBusy(value); }, []), onImportPending = useCallback((value: boolean) => { importPendingRef.current = value; setImportPending(value); refs.current.importBinding?.onPending(value); }, []);
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [read, setRead] = useState<UsMailboxProjection | null>(null), [messages, setMessages] = useState<UsMailboxMessages | null>(null), [email, setEmail] = useState(''), [token, setToken] = useState(''), [review, setReview] = useState<UsMailboxReview | null>(null), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [reading, setReading] = useState(false), [pending, setPending] = useState(false), [terminal, setTerminal] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false);
-  useLayoutEffect(() => { refs.current = { identity, active, currentAccessEpoch, accessEpoch, onIdentityLost }; });
+  useLayoutEffect(() => { refs.current = { identity, active, currentAccessEpoch, accessEpoch, onIdentityLost, importBinding }; });
   const current = (stamp: number, actor: string) => generation.current === stamp && refs.current.identity === actor && (refs.current.currentAccessEpoch?.() ?? refs.current.accessEpoch) === refs.current.accessEpoch;
-  function clearMail() { mailSequence.current++; setMessages(null); readingRef.current = false; setReading(false); }
+  function clearMail() { mailSequence.current++; setMessages(null); setImportChoice(null); importReturnFocus.current = null; readingRef.current = false; setReading(false); }
   function adopt(value: UsMailboxProjection) {
     const previous = head.current;
     if (!previous || previous.revision !== value.revision || previous.connection?.id !== value.connection?.id) { clearMail(); setReview(null); setToken(''); setEmail(''); setSaved(false); }
     head.current = value; setRead(value);
   }
-  function invalidate() { generation.current++; transport.current?.dispose(); transport.current = null; scheduler.current?.dispose(); scheduler.current = null; head.current = null; busyRef.current = false; loadingRef.current = false; clearMail(); setRead(null); setEmail(''); setToken(''); setReview(null); setPending(false); setBusy(false); setLoading(false); setSaved(false); setTerminal(true); setError('access_lost'); }
+  function invalidate() { importInvalidation.current?.(); generation.current++; transport.current?.dispose(); transport.current = null; scheduler.current?.dispose(); scheduler.current = null; head.current = null; busyRef.current = false; loadingRef.current = false; clearMail(); setRead(null); setEmail(''); setToken(''); setReview(null); setPending(false); setBusy(false); setLoading(false); setSaved(false); setTerminal(true); setError('access_lost'); }
   function failure(reason: unknown) {
     if (reason instanceof BrowserUsMailboxError && reason.denied) { invalidate(); if (reason.status === 401) refs.current.onIdentityLost?.(); }
     else setError(reason instanceof BrowserUsMailboxError ? reason.code : 'service_unavailable');
@@ -86,13 +96,13 @@ export function UsSupportMailboxPanel({ organizationId, expectedUserId, role, wo
   useEffect(() => { const changed = (event: Event) => { if (event instanceof StorageEvent && event.key !== AUTH_CHANGED_EVENT && !event.key?.startsWith('sb-') && event.key !== null) return; identityLost(); }; window.addEventListener(AUTH_CHANGED_EVENT, changed); window.addEventListener('storage', changed); return () => { window.removeEventListener(AUTH_CHANGED_EVENT, changed); window.removeEventListener('storage', changed); }; }, []);
   useEffect(() => { if (active) scheduler.current?.wake(); }, [active]);
   function prepare(draft: BrowserUsMailboxDraft) {
-    const value = head.current; if (!value?.canManage || busyRef.current || loadingRef.current || readingRef.current || transport.current?.hasPending() || !current(generation.current, identity)) return;
+    const value = head.current; if (!value?.canManage || busyRef.current || loadingRef.current || readingRef.current || importBusyRef.current || importPendingRef.current || refs.current.importBinding?.otherBusy() || refs.current.importBinding?.otherPending() || transport.current?.hasPending() || !current(generation.current, identity)) return;
     try { const input = validateUsMailboxRequest({ schemaVersion: 1, requestId: '00000000-0000-4000-8000-000000000001', expectedRevision: value.revision, ...draft }); setReview(Object.freeze({ draft: input.action === 'connect' ? { action: input.action, email: input.email, token: input.token } : { action: input.action }, expectedRevision: value.revision })); setToken(''); setError(''); setSaved(false); }
     catch { setError('invalid_mailbox_request'); }
   }
   async function operate(retry: boolean) {
     const session = transport.current, stamp = generation.current, actor = refs.current.identity, captured = review;
-    if (!session || busyRef.current || loadingRef.current || readingRef.current || !current(stamp, actor) || !retry && (session.hasPending() || !captured || captured.expectedRevision !== head.current?.revision)) return;
+    if (!session || busyRef.current || loadingRef.current || readingRef.current || importBusyRef.current || importPendingRef.current || refs.current.importBinding?.otherBusy() || refs.current.importBinding?.otherPending() || !current(stamp, actor) || !retry && (session.hasPending() || !captured || captured.expectedRevision !== head.current?.revision)) return;
     busyRef.current = true; mutation.current++; clearMail(); setBusy(true); setError(''); setSaved(false); setToken(''); setReview(null);
     try { const operation = retry ? session.retry() : session.change(captured!.draft, captured!.expectedRevision); setPending(session.hasPending()); const value = await operation; if (!current(stamp, actor)) return; adopt(value); setSaved(true); }
     catch (reason) { if (current(stamp, actor)) failure(reason); }
@@ -100,12 +110,15 @@ export function UsSupportMailboxPanel({ organizationId, expectedUserId, role, wo
   }
   async function readMessages(offset: number) {
     const session = transport.current, stamp = generation.current, actor = refs.current.identity;
-    if (!session || busyRef.current || loadingRef.current || readingRef.current || session.hasPending() || review || !head.current?.canManage || !head.current.connection || !current(stamp, actor)) return;
+    if (!session || busyRef.current || loadingRef.current || readingRef.current || importBusyRef.current || importPendingRef.current || refs.current.importBinding?.otherBusy() || refs.current.importBinding?.otherPending() || session.hasPending() || review || !head.current?.canManage || !head.current.connection || !current(stamp, actor)) return;
     const sequence = ++mailSequence.current; readingRef.current = true; setReading(true); setError('');
     try { const value = await session.messages(offset); if (current(stamp, actor) && sequence === mailSequence.current) setMessages(value); }
     catch (reason) { if (current(stamp, actor) && sequence === mailSequence.current) { setMessages(null); failure(reason); } }
     finally { if (current(stamp, actor) && sequence === mailSequence.current) { readingRef.current = false; setReading(false); } }
   }
   const owned = usable && ownedIdentity === identity;
-  return <UsSupportMailboxContent language={language} projection={owned ? read : null} messages={owned ? messages : null} email={owned ? email : ''} token={owned ? token : ''} review={owned ? review : null} busy={owned && busy} loading={owned && loading} reading={owned && reading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} onEmail={setEmail} onToken={setToken} onReview={event => { event.preventDefault(); prepare({ action: 'connect', email, token }); }} onDisconnect={() => prepare({ action: 'disconnect' })} onBack={() => { if (review?.draft.action === 'connect') { setEmail(review.draft.email); setToken(review.draft.token); } setReview(null); }} onConfirm={() => { void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} onRead={offset => { void readMessages(offset); }} />;
+  return <UsSupportMailboxContent language={language} projection={owned ? read : null} messages={owned ? messages : null} email={owned ? email : ''} token={owned ? token : ''} review={owned ? review : null} busy={owned && busy} loading={owned && loading} reading={owned && reading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} onEmail={setEmail} onToken={setToken} onReview={event => { event.preventDefault(); prepare({ action: 'connect', email, token }); }} onDisconnect={() => prepare({ action: 'disconnect' })} onBack={() => { if (review?.draft.action === 'connect') { setEmail(review.draft.email); setToken(review.draft.token); } setReview(null); }} onConfirm={() => { void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} onRead={offset => { void readMessages(offset); }}
+    importEnabled={importEnabled} importBlocked={importBusy || importPending || importBinding?.otherBusy() === true || importBinding?.otherPending() === true}
+    onImportChoice={(message, attachment, returnFocus) => { const value = head.current; if (!owned || !importEnabled || !value?.canManage || !value.connection || !messages || messages.connectionId !== value.connection.id || messages.revision !== value.revision || busyRef.current || readingRef.current || loadingRef.current || importBusyRef.current || importPendingRef.current || importOtherPending() || importOtherBusy()) return; importReturnFocus.current = returnFocus; setImportChoice(Object.freeze({ connectionId: value.connection.id, expectedMailboxRevision: value.revision, message, attachment })); }}
+    importContent={owned && !terminal && importEnabled && read?.canManage && <UsSupportMailImport organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={workspaceId} language={language} choice={importChoice} connectionId={read.connection?.id ?? null} mailboxRevision={read.revision} admitted={usable} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} binding={{ otherBusy: importOtherBusy, otherPending: importOtherPending, onBusy: onImportBusy, onPending: onImportPending }} documentsHref={documentsHref} onImported={onImported} onOpenDocuments={onOpenDocuments} onCancel={() => { setImportChoice(null); importReturnFocus.current?.focus(); }} registerInvalidation={registerImportInvalidation} onAccessDenied={reason => { invalidate(); if (reason.status === 401) refs.current.onIdentityLost?.(); }} />} />;
 }

@@ -13,9 +13,9 @@ export interface UsSupplierDocumentsBinding {
   registerInvalidation?: (invalidate: (() => void) | null) => void;
 }
 export interface UsSupplierDocumentsProps {
-  organizationId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion: number; disabled?: boolean; analysisAvailable?: boolean; proposalReviewId?: string; binding: UsSupplierDocumentsBinding;
+  organizationId: string; role: AccountRole; language: SiteLanguage; supportedSchemaVersion: number; disabled?: boolean; analysisAvailable?: boolean; proposalReviewId?: string; refreshToken?: number; binding: UsSupplierDocumentsBinding;
 }
-export function UsSupplierDocuments({ organizationId, role, language, supportedSchemaVersion, disabled = false, analysisAvailable = false, proposalReviewId, binding }: UsSupplierDocumentsProps) {
+export function UsSupplierDocuments({ organizationId, role, language, supportedSchemaVersion, disabled = false, analysisAvailable = false, proposalReviewId, refreshToken = 0, binding }: UsSupplierDocumentsProps) {
   const c = browserUsSupplierDocumentsCopy[language], prefix = useId(), identity = `${organizationId}:${binding.expectedUserId}:${role}:${supportedSchemaVersion}:${binding.accessEpoch()}`;
   const refs = useRef({ binding, identity, disabled }), generation = useRef(0), transport = useRef<BrowserUsSupplierDocumentsSession | null>(null), busyRef = useRef(false), loadingRef = useRef(false), fileInput = useRef<HTMLInputElement>(null), urls = useRef(new Set<string>());
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [documents, setDocuments] = useState<readonly UsSupplierDocument[]>([]), [file, setFile] = useState<File | null>(null), [selected, setSelected] = useState<UsSupplierDocument | null>(null), [consent, setConsent] = useState(false), [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [pending, setPending] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [page, setPage] = useState(0);
@@ -40,6 +40,9 @@ export function UsSupplierDocuments({ organizationId, role, language, supportedS
   const invalidateForEffect = useEffectEvent(() => { invalidate(); });
   const registerInvalidation = binding.registerInvalidation;
   useEffect(() => { registerInvalidation?.(() => invalidateForEffect()); return () => registerInvalidation?.(null); }, [registerInvalidation]);
+  const seenRefresh = useRef(refreshToken);
+  const refreshOriginals = useEffectEvent(() => { if (!busyRef.current && !loadingRef.current && !transport.current?.hasPending() && !refs.current.disabled && !refs.current.binding.otherBusy() && !refs.current.binding.otherPending()) { seenRefresh.current = refreshToken; void load(); } });
+  useEffect(() => { if (refreshToken !== seenRefresh.current && enabled && owned && !disabled && !busy && !loading && !pending) refreshOriginals(); }, [refreshToken, enabled, owned, disabled, busy, loading, pending]);
   async function operate(task: (session: BrowserUsSupplierDocumentsSession) => Promise<BrowserUsSupplierDocumentResult>) {
     const session = transport.current, started = generation.current, actor = currentIdentity(), callbacks = refs.current.binding;
     if (!session || refs.current.disabled || busyRef.current || loadingRef.current || callbacks.otherBusy() || callbacks.otherPending()) return;

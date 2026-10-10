@@ -44,10 +44,11 @@ export function createUsMailboxMember(dependencies: {
   };
 }
 const member = createUsSupportWorkspaceMember({ member: (request, org) => usTeamDependencies.member(request, org), database: async () => (await import('../runtime')).database(), policy: async () => parseUsSaasPolicy(await flags(), now()), now });
+export const usSupportMailboxMember = createUsMailboxMember({ member, registry: async () => d1UsSupportWorkspaceStore((await import('../runtime')).database()), now });
 const provider = createUsMailboxProvider();
 export const usSupportMailboxHandlers = createUsMailboxHandlers({
   enabled: usSupportMailboxEnabled, now,
-  member: createUsMailboxMember({ member, registry: async () => d1UsSupportWorkspaceStore((await import('../runtime')).database()), now }),
+  member: usSupportMailboxMember,
   async store() { return d1UsMailboxStore((await import('../runtime')).database()); },
   async encryptionKey() { return (await import('../runtime')).runtimeValue('SUPPORT_ENCRYPTION_KEY'); },
   verify: (email, token, check) => provider.verify(email, token, check),

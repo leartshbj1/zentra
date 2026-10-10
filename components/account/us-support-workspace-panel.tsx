@@ -7,6 +7,7 @@ import type { SiteLanguage } from '@/lib/site-language';
 import { createUsBackgroundSync, type UsBackgroundSync } from '@/lib/international/browser-us-background-sync';
 import { validateUsSupportWorkspaceProjection, validateUsSupportWorkspaceReceipt, validateUsSupportWorkspaceRequest, type UsSupportWorkspaceProjection, type UsSupportWorkspaceRequest } from '@/lib/international/us-support-workspace-contract';
 import { UsSupportMailboxPanel } from './us-support-mailbox-panel';
+import type { UsSupportMailImportBinding } from './us-support-mail-import';
 import './us-erp-workbench.css';
 
 export const usSupportWorkspaceCopy = {
@@ -21,6 +22,12 @@ const mailboxLimitations = {
   de: 'Das Postfach wird im folgenden Abschnitt nur auf Ihre Anfrage gelesen. Import und Sortierung sind nicht aktiviert.',
   it: 'La casella si consulta solo su tua richiesta nella sezione seguente. Importazione e smistamento non sono attivati.',
   en: 'The mailbox is read only at your request in the next section. Import and sorting are not enabled.',
+} as const;
+const mailImportLimitations = {
+  fr: 'La lecture des messages et la conservation des pièces jointes se font sur demande dans la section suivante. Aucun tri automatique n’est activé.',
+  de: 'Nachrichten werden im folgenden Abschnitt auf Anfrage gelesen und Anhänge nach Bestätigung gespeichert. Automatische Sortierung ist nicht aktiviert.',
+  it: 'Nella sezione seguente i messaggi si leggono su richiesta e gli allegati si conservano dopo conferma. Lo smistamento automatico non è attivato.',
+  en: 'Read messages on request and save attachments after confirmation in the next section. Automatic sorting is not enabled.',
 } as const;
 
 export class BrowserUsSupportWorkspaceError extends Error {
@@ -108,15 +115,15 @@ export function createBrowserUsSupportWorkspaceSession(options: { organizationId
 
 interface SupportContentProps {
   language: SiteLanguage; projection: UsSupportWorkspaceProjection | null; name: string; busy: boolean; loading: boolean; pending: boolean; terminal: boolean; error: string; saved: boolean;
-  mailboxEnabled?: boolean;
+  mailboxEnabled?: boolean; importEnabled?: boolean;
   onName: (value: string) => void; onSubmit: (event: SubmitEvent<HTMLFormElement>) => void; onRetry: () => void; onRefresh: () => void;
 }
-export function UsSupportWorkspaceContent({ language, projection, name, busy, loading, pending, terminal, error, saved, mailboxEnabled = false, onName, onSubmit, onRetry, onRefresh }: SupportContentProps) {
+export function UsSupportWorkspaceContent({ language, projection, name, busy, loading, pending, terminal, error, saved, mailboxEnabled = false, importEnabled = false, onName, onSubmit, onRetry, onRefresh }: SupportContentProps) {
   const c = usSupportWorkspaceCopy[language], id = useId(), blocked = busy || loading || pending || terminal;
   const message = error === 'invalid_support_request' ? c.invalid : error === 'access_lost' ? c.denied : ['support_workspace_conflict', 'support_idempotency_conflict'].includes(error) ? c.conflict : c.unavailable;
   return <section className="us-erp-workbench us-erp-section us-support-workspace" lang={language} aria-labelledby={`${id}-title`} aria-busy={busy || loading}>
     <div className="us-erp-record-heading"><h2 id={`${id}-title`}>{c.title}</h2><button className="account-button secondary" type="button" disabled={busy || loading || terminal} onClick={onRefresh}>{c.refresh}</button></div>
-    <p>{c.introduction}</p><p className="us-erp-muted">{mailboxEnabled && projection?.workspace ? mailboxLimitations[language] : c.limitation}</p>
+    <p>{c.introduction}</p><p className="us-erp-muted">{mailboxEnabled && projection?.workspace ? importEnabled ? mailImportLimitations[language] : mailboxLimitations[language] : c.limitation}</p>
     {loading && !projection && <output>{c.loading}</output>}
     {projection?.workspace ? <dl className="us-erp-facts"><div><dt>{c.prepared}</dt><dd><strong>{projection.workspace.name}</strong></dd></div></dl> : projection && <p>{c.empty}</p>}
     {projection?.canCreate && <form className="us-erp-form" onSubmit={onSubmit}>
@@ -132,9 +139,10 @@ export function UsSupportWorkspaceContent({ language, projection, name, busy, lo
 export interface UsSupportWorkspacePanelProps {
   organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; admitted?: boolean; active?: boolean; accessEpoch?: number;
   mailboxEnabled?: boolean;
+  importEnabled?: boolean; importBinding?: UsSupportMailImportBinding; onImported?: () => void; onOpenDocuments?: () => void; documentsHref?: string;
   currentAccessEpoch?: () => number; registerInvalidation?: (invalidate: (() => void) | null) => void; onIdentityLost?: () => void;
 }
-export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, language, admitted = true, active = true, accessEpoch = 0, mailboxEnabled = false, currentAccessEpoch, registerInvalidation, onIdentityLost }: UsSupportWorkspacePanelProps) {
+export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, language, admitted = true, active = true, accessEpoch = 0, mailboxEnabled = false, importEnabled = false, importBinding, onImported, onOpenDocuments, documentsHref, currentAccessEpoch, registerInvalidation, onIdentityLost }: UsSupportWorkspacePanelProps) {
   const identity = `${organizationId}:${expectedUserId}:${role}:${accessEpoch}`, usable = admitted && accessEpoch === 0;
   const refs = useRef({ identity, active, currentAccessEpoch, accessEpoch, onIdentityLost }), generation = useRef(0), mutation = useRef(0), busyRef = useRef(false), loadingRef = useRef(false), transport = useRef<BrowserUsSupportWorkspaceSession | null>(null), scheduler = useRef<UsBackgroundSync | null>(null), head = useRef<UsSupportWorkspaceProjection | null>(null);
   const mailboxInvalidation = useRef<(() => void) | null>(null);
@@ -172,7 +180,7 @@ export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, 
     finally { if (current(stamp, actor)) { setPending(session.hasPending()); busyRef.current = false; setBusy(false); } }
   }
   const owned = usable && ownedIdentity === identity;
-  return <><UsSupportWorkspaceContent language={language} projection={owned ? read : null} name={owned ? name : ''} busy={owned && busy} loading={owned && loading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} mailboxEnabled={mailboxEnabled} onName={setName} onSubmit={event => { event.preventDefault(); void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} />
-    {owned && !terminal && mailboxEnabled && read?.workspace && <UsSupportMailboxPanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={read.workspace.workspaceId} language={language} admitted={admitted} active={active} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} registerInvalidation={registerMailboxInvalidation} onIdentityLost={() => { invalidate(); refs.current.onIdentityLost?.(); }} />}
+  return <><UsSupportWorkspaceContent language={language} projection={owned ? read : null} name={owned ? name : ''} busy={owned && busy} loading={owned && loading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} mailboxEnabled={mailboxEnabled} importEnabled={importEnabled} onName={setName} onSubmit={event => { event.preventDefault(); void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} />
+    {owned && !terminal && mailboxEnabled && read?.workspace && <UsSupportMailboxPanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={read.workspace.workspaceId} language={language} admitted={admitted} active={active} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} registerInvalidation={registerMailboxInvalidation} onIdentityLost={() => { invalidate(); refs.current.onIdentityLost?.(); }} importEnabled={importEnabled} importBinding={importBinding} onImported={onImported} onOpenDocuments={onOpenDocuments} documentsHref={documentsHref} />}
   </>;
 }
