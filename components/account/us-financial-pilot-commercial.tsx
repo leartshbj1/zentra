@@ -13,6 +13,7 @@ import { US_FINANCIAL_PILOT_COMMERCIAL_MAX_LINES, type UsFinancialPilotCommercia
 import type { UsFinancialPilotEstimateDetail } from '@/lib/international/us-financial-pilot-commercial-projection';
 import { browserUsFinancialPilotCommercialCopy, browserUsFinancialPilotCommercialErrorCopy, browserUsFinancialPilotCommercialLimitCopy } from '@/lib/international/browser-us-financial-pilot-commercial-copy';
 import { browserUsFinancialPilotCopy } from '@/lib/international/browser-us-financial-pilot-copy';
+import { browserUsFinancialPilotInvoiceCopy } from '@/lib/international/browser-us-financial-pilot-invoice-copy';
 import { commercialDiscount, commercialLineNet, commercialMajor, commercialPrice, commercialQuantity, commercialQuantityText } from '@/lib/international/browser-us-financial-pilot-commercial-input';
 import './us-financial-pilot-commercial.css';
 
@@ -20,6 +21,7 @@ interface Props {
   session: BrowserUsFinancialPilotSession; state: BrowserUsFinancialPilotState; snapshot: UsFinancialPilotOverview;
   language: SiteLanguage; tab: string; onTab: (tab: 'customers' | 'estimates') => void;
   recoveredReceipt: UsFinancialPilotCommercialReceipt | null;
+  onInvoice: (source: UsFinancialPilotEstimateDetail) => void;
 }
 type AddressDraft = { country: 'US' | 'CH'; line1: string; line2: string; city: string; subdivision: string; postalCode: string };
 type CustomerDraft = { token: number; revision: number; kind: 'business' | 'individual'; name: string; contactName: string; email: string; phone: string; terms: string; billing: AddressDraft; shipping: AddressDraft | null };
@@ -55,7 +57,7 @@ function AddressFields({ value, onChange, language, legend }: { value: AddressDr
 }
 function PartyAddress({ party }: { party: UsFinancialPilotParty }) { const a = party.billingAddress; return <address>{a.line1}<br/>{a.line2 && <>{a.line2}<br/></>}{a.country === 'US' ? `${a.city}, ${a.subdivision} ${a.postalCode}` : `${a.postalCode} ${a.city}`}<br/>{a.country}</address>; }
 
-export function UsFinancialPilotCommercial({ session, state, snapshot, language, tab, onTab, recoveredReceipt }: Props) {
+export function UsFinancialPilotCommercial({ session, state, snapshot, language, tab, onTab, recoveredReceipt, onInvoice }: Props) {
   const c = browserUsFinancialPilotCommercialCopy[language], sequence = useRef(0), lifetime = useRef(0), detailGeneration = useRef(0);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft | null>(null), [quoteDraft, setQuoteDraft] = useState<QuoteDraft | null>(null);
   const [acceptance, setAcceptance] = useState<AcceptanceDraft | null>(null), [review, setReview] = useState<Review | null>(null);
@@ -207,7 +209,7 @@ export function UsFinancialPilotCommercial({ session, state, snapshot, language,
       <section hidden={tab !== 'estimates'} className="fp-register">
         {selected && !quoteDraft ? <div className="fp-detail"><button type="button" className="fp-back" disabled={state.pending||state.writing} onClick={() => { setSelected(null); setDetail(null); setAcceptance(null); setReview(null); setErrorCode(''); }}><ArrowLeft size={18} aria-hidden/>{c.back}</button>{!currentDetail ? <p className="fp-empty" aria-live="polite">{c.loading}</p> : <>
           <div className="fp-detail-heading"><div><h2>{currentDetail.estimate.number}</h2><p>{currentDetail.customer.name}</p></div><span className="fp-status">{currentDetail.estimate.status === 'accepted' ? c.acceptedStatus : c[currentDetail.estimate.status]}</span></div>
-          <div className="fp-document-actions"><button type="button" className="account-button secondary" disabled={locked || currentDetail.lines.length > US_FINANCIAL_PILOT_COMMERCIAL_MAX_LINES} onClick={editQuote}>{c.editQuote}</button>{currentDetail.estimate.status !== 'accepted' && !acceptance && <button type="button" className="account-button fp-primary" disabled={locked} onClick={() => setAcceptance({ token: ++sequence.current, revision: snapshot.revision, estimateId: currentDetail.estimate.id, estimateRevision: currentDetail.estimate.revision })}>{c.accept}</button>}</div>
+          <div className="fp-document-actions"><button type="button" className="account-button secondary" disabled={locked || currentDetail.lines.length > US_FINANCIAL_PILOT_COMMERCIAL_MAX_LINES} onClick={editQuote}>{c.editQuote}</button>{currentDetail.estimate.status !== 'accepted' && !acceptance && <button type="button" className="account-button fp-primary" disabled={locked} onClick={() => setAcceptance({ token: ++sequence.current, revision: snapshot.revision, estimateId: currentDetail.estimate.id, estimateRevision: currentDetail.estimate.revision })}>{c.accept}</button>}{currentDetail.estimate.status === 'accepted' && <button type="button" className="account-button fp-primary" disabled={locked} onClick={() => onInvoice(currentDetail)}>{browserUsFinancialPilotInvoiceCopy[language].start}</button>}</div>
           {currentDetail.lines.length > US_FINANCIAL_PILOT_COMMERCIAL_MAX_LINES && <p className="fp-context">{lineLimit}</p>}
           {acceptance && <div className="fp-payment"><h3>{c.acceptanceTitle}</h3><p>{c.acceptanceNotice}</p>{draftReview('accept', acceptance.revision)}{reviewPanel('accept')}<div className="fp-actions"><button type="button" className="account-button fp-primary" disabled={locked || draftChanged(acceptance.revision) || currentDetail.estimate.status === 'accepted'} onClick={() => { void submit({ type: 'accept_estimate', estimateId: acceptance.estimateId, expectedEstimateRevision: acceptance.estimateRevision }, acceptance.token, acceptance.revision); }}>{state.writing ? c.saving : c.accept}</button><button type="button" className="account-button secondary" disabled={locked} onClick={() => { setAcceptance(null); setReview(null); }}>{c.cancel}</button></div></div>}
           <article className="fp-document" aria-label={c.details}><div className="fp-parties"><div><h3>{currentDetail.customer.name}</h3><PartyAddress party={currentDetail.customer}/></div><div><h3>{c.terms}</h3><p>{currentDetail.paymentTermsDays}</p>{currentDetail.projectId && <><h3>{c.project}</h3><p>{currentDetail.projectId}</p></>}</div></div><dl className="fp-document-dates"><div><dt>{c.quoteDate}</dt><dd>{date(currentDetail.estimate.date)}</dd></div><div><dt>{c.expiry}</dt><dd>{date(currentDetail.estimate.expiresAt)}</dd></div></dl>
