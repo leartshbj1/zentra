@@ -36,11 +36,10 @@ export interface UsFinancialCommitV5 {
   readonly receipt: UsFinancialReceiptV5;
   readonly actor: FinancialAuthority;
 }
-/** Deliberately separate from ErpStore/public ERP1–4. The private PostgreSQL
- * settlement capability supports credits/payments only, not mixed ERP events.
- * Its transaction independently admits the event, receipt and CAS. */
+/** Deliberately separate from ErpStore/public ERP1–4. PostgreSQL TEST
+ * capabilities each admit a closed command set, never every memory operation. */
 export interface UsFinancialKernelStoreV5 {
-  readonly capability: 'memory-test-v5' | 'postgres-test-settlement-v5';
+  readonly capability: 'memory-test-v5' | 'postgres-test-settlement-v5' | 'postgres-test-commercial-v5';
   read(this: void, organizationId: string): Promise<unknown>;
   receipt(this: void, organizationId: string, key: string): Promise<unknown>;
   commit(this: void, input: UsFinancialCommitV5): Promise<UsFinancialReceiptV5>;
@@ -105,8 +104,11 @@ export function validateUsFinancialRequestV5(value: unknown, organizationId?: st
   } else return fail('invalid_financial_request');
   return Object.freeze({ idempotencyKey: text(input.idempotencyKey, 200), expectedRevision: input.expectedRevision as number, command: Object.freeze(command) });
 }
+export function isUsFinancialCommercialCommandV5(command: UsFinancialErpCommandV5): boolean {
+  return command.type === 'save_customer' || command.type === 'save_estimate' || command.type === 'accept_estimate';
+}
 function financialRequest(request: UsFinancialRequestV5): boolean {
-  return request.command.type !== 'erp_command' || !['save_customer', 'save_estimate', 'accept_estimate'].includes(request.command.request.type);
+  return request.command.type !== 'erp_command' || !isUsFinancialCommercialCommandV5(request.command.request);
 }
 function authority(value: unknown, organizationId: string, financial = true): FinancialAuthority {
   const actor = exact(snapshot(value, 'service_unavailable', 503), ['organizationId', 'userId', 'role', 'managementEntitled', 'timestamp'], 'service_unavailable', 503) as unknown as FinancialAuthority;
@@ -152,18 +154,19 @@ function eventRequest(book: UsFinancialBookV5): UsFinancialRequestV5 {
     return validateUsFinancialRequestV5({ idempotencyKey, expectedRevision: event.revision - 1, command });
   } catch { return fail('invalid_financial_book', 503); }
 }
-/** Private TEST transitions only. PostgreSQL settlement explicitly excludes
- * mixed ERP commands. No production gate, browser route or provider write. */
+/** Private TEST transitions only. Each PostgreSQL capability is explicitly
+ * bounded. No production gate, browser route or provider write. */
 export async function executeUsFinancialKernelV5(deps: UsFinancialRuntimeDependenciesV5, input: unknown): Promise<UsFinancialReceiptV5> {
   const rawActor = snapshot(deps.actor, 'service_unavailable', 503) as FinancialAuthority;
   const request = validateUsFinancialRequestV5(input, rawActor?.organizationId);
-  const financial = financialRequest(request);
+  const admittedCapability = deps.store.capability;
+  if (!['memory-test-v5', 'postgres-test-settlement-v5', 'postgres-test-commercial-v5'].includes(admittedCapability)) return fail('financial_capability_unavailable', 503);
+  if (request.command.type === 'erp_command' && (admittedCapability === 'postgres-test-settlement-v5' || (admittedCapability === 'postgres-test-commercial-v5' && !isUsFinancialCommercialCommandV5(request.command.request)))) return fail('financial_append_unavailable', 409);
+  // The first SQL TEST grants remain financial roles even for commercial work.
+  const financial = financialRequest(request) || admittedCapability !== 'memory-test-v5';
   const actor = authority(rawActor, rawActor?.organizationId, financial);
   const config = configuration(deps.configuration, actor.organizationId);
   const policy = snapshot(deps.policy, 'service_unavailable', 503) as UsFinancialPolicyV5;
-  const admittedCapability = deps.store.capability;
-  if (admittedCapability !== 'memory-test-v5' && admittedCapability !== 'postgres-test-settlement-v5') return fail('financial_capability_unavailable', 503);
-  if (admittedCapability === 'postgres-test-settlement-v5' && request.command.type === 'erp_command') return fail('financial_append_unavailable', 409);
   let lastActor = actor;
   async function current() {
     let raw: unknown;
