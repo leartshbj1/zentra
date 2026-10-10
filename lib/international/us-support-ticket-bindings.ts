@@ -2,7 +2,7 @@ import { usSupportWorkspacesEnabled } from './us-support-workspace-bindings';
 import { usSupportMailboxMember } from './us-support-mailbox-bindings';
 import { d1UsSupportTicketStore } from './us-support-ticket-d1';
 import { UsSupportTicketError } from './us-support-ticket-contract';
-import { sameUsMailboxContext, validateUsMailboxContext, type UsMailboxContext } from './us-support-mailbox-contract';
+import { isUsSupportWorkerContext, sameUsSupportExecutionContext, validateUsSupportExecutionContext, type UsSupportExecutionContext } from './us-support-execution-contract';
 import { createUsSupportTicketHandlers } from './us-support-ticket-server';
 import { sha256Hex } from './canonical-hash';
 
@@ -33,11 +33,14 @@ export async function usSupportTicketCompletionRequestId(jobId: string): Promise
 }
 /** No new model/provider call. A failed confirmation keeps the completed H3a
  * result durable; its exact HTTP retry can finish this separately gated step. */
-export async function recordUsSupportTicketCompletion(context: UsMailboxContext, jobId: string, revalidate: () => Promise<UsMailboxContext>): Promise<void> {
-  if (!await usSupportTicketsEnabled()) return;
-  const initial = validateUsMailboxContext(context);
+export async function recordUsSupportTicketCompletion(context: UsSupportExecutionContext, jobId: string, revalidate: () => Promise<UsSupportExecutionContext>): Promise<void> {
+  const initial = validateUsSupportExecutionContext(context);
+  if (!await usSupportTicketsEnabled()) {
+    if (isUsSupportWorkerContext(initial)) throw new UsSupportTicketError('feature_unavailable', 404);
+    return;
+  }
   const current = async () => {
-    const next = validateUsMailboxContext(await revalidate()); sameUsMailboxContext(initial, next);
+    const next = validateUsSupportExecutionContext(await revalidate()); sameUsSupportExecutionContext(initial, next);
     if (!await usSupportTicketsEnabled()) throw new UsSupportTicketError('feature_unavailable', 404);
     return next;
   };

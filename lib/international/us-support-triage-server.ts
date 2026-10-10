@@ -1,27 +1,19 @@
 import { AccountPublicError, requireAccountSameOrigin } from '../account-security';
 import { readJsonObjectWithinLimit, RequestBodyError } from '../request-body';
-import { decryptSecret } from '../support/crypto';
-import { canonicalErpJson } from './erp-contract';
-import { sha256Hex } from './canonical-hash';
 import { erpClientSchemaVersion } from './erp-schema-capability';
 import { creationUuid } from './workspace-creation';
 import { UsSupportWorkspaceError } from './us-support-workspace-contract';
-import { UsMailboxError, sameUsMailboxContext, usMailboxEncryptionContext, validateUsMailboxContext, validateUsMailboxState, type UsMailboxConnection, type UsMailboxContext, type UsMailboxStore } from './us-support-mailbox-contract';
-import { UsSupportTriageError, hashUsSupportTriageRequest, validateUsSupportTriageRequest, validateUsSupportTriageResult, validateUsSupportTriageSource, validateUsSupportTriageDecision, type UsSupportTriageGrant, type UsSupportTriageDecision, type UsSupportTriageRequest, type UsSupportTriageResult, type UsSupportTriageSource, type UsSupportTriageStore } from './us-support-triage-contract';
-import { createUsSupportTriageGrant, parseUsSupportTriagePolicy, type UsSupportTriagePolicy } from './us-support-triage-policy';
+import { UsMailboxError, sameUsMailboxContext, validateUsMailboxContext, type UsMailboxContext, type UsMailboxStore } from './us-support-mailbox-contract';
+import { UsSupportTriageError, validateUsSupportTriageRequest } from './us-support-triage-contract';
+import { createUsSupportTriageService, type UsSupportTriageServiceDependencies } from './us-support-triage-service';
 
-export interface UsSupportTriageMessage { readonly source: UsSupportTriageSource; readonly subject: string; readonly body: string }
-export interface UsSupportTriageDependencies {
-  enabled(this: void): Promise<boolean>; now(this: void): number;
+export type { UsSupportTriageMessage } from './us-support-triage-service';
+export interface UsSupportTriageDependencies extends Omit<UsSupportTriageServiceDependencies, 'mailbox' | 'mailboxStore' | 'recordTicket'> {
+  enabled(this: void): Promise<boolean>;
   member(this: void, request: Request, organizationId: string): Promise<UsMailboxContext>;
-  store(this: void): Promise<UsSupportTriageStore>; mailboxStore(this: void): Promise<UsMailboxStore>;
-  policy(this: void): Promise<UsSupportTriagePolicy>; providerReady(this: void): Promise<boolean>; encryptionKey(this: void): Promise<string>;
-  message(this: void, connection: UsMailboxConnection, token: string, request: UsSupportTriageRequest, check: () => Promise<unknown>): Promise<UsSupportTriageMessage>;
-  classify(this: void, message: UsSupportTriageMessage, grant: UsSupportTriageGrant, check: () => Promise<unknown>): Promise<UsSupportTriageDecision>;
-  /** Optional separately gated body-free Support lifecycle; never a provider,
-   * mail send or financial effect. Exact completed-result retries recover it. */
+  mailboxStore(this: void): Promise<UsMailboxStore>;
+  /** Optional separately gated body-free Support lifecycle. */
   recordTicket?(this: void, context: UsMailboxContext, jobId: string, revalidate: () => Promise<UsMailboxContext>): Promise<void>;
-  newId?(this: void): string;
   rateLimit?(this: void, request: Request, operation: 'read' | 'triage', key: string): Promise<void>;
   diagnostic?(this: void, event: Readonly<{ operation: 'read' | 'triage'; code: string; status: number }>): void;
 }
@@ -36,7 +28,7 @@ const codes: Readonly<Record<string, number>> = {
   invalid_triage_request:422,triage_source_unavailable:422,mailbox_credentials_rejected:422,
   rate_limited:429,service_unavailable:503,triage_provider_unavailable:503,triage_budget_unavailable:503,
   invalid_triage_record:503,invalid_triage_policy:503,invalid_mailbox_record:503,invalid_mailbox_context:503,
-  invalid_support_context:503,invalid_support_record:503,
+  invalid_support_context:503,invalid_support_record:503,invalid_support_execution:503,
 };
 function denied(code: string, status = 503): never { throw new UsSupportTriageError(code,status); }
 function failure(error: unknown) {
@@ -51,13 +43,12 @@ function expected(request: Request, c: UsMailboxContext) {
   if (erpClientSchemaVersion(request) !== 4 || c.authority.credential.kind === 'device' && c.authority.credential.supportedSchemaVersion !== 4) denied('client_upgrade_required',409);
   if (!['owner','admin'].includes(c.authority.role)) denied('support_management_required',403);
 }
-/** Text classification with an optional durable internal ticket hook. No mail
- * acknowledgement, reply, supplier, appointment or financial command port. */
+/** Human HTTP admission remains separate from delegated worker authority. Both
+ * call the same source/quota/dispatch service without synthetic HTTP sessions. */
 export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
   function handler(operation: 'read' | 'triage') {
     return async (request: Request, organizationId: string): Promise<Response> => {
-      let admitted: UsMailboxContext | undefined, capturedPolicy: UsSupportTriagePolicy | undefined, capturedGrant: UsSupportTriageGrant | undefined;
-      let store: UsSupportTriageStore | undefined, input: UsSupportTriageRequest | undefined, requestHash: string | undefined, dispatchId: string | undefined;
+      let admitted: UsMailboxContext | undefined;
       const now = () => { const n = d.now(); if (!Number.isSafeInteger(n) || n <= 0) return denied('service_unavailable'); return n; };
       async function current() {
         if (!admitted) return denied('unauthorized',401);
@@ -69,31 +60,6 @@ export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
         if (gateError !== undefined) throw gateError;
         return fresh;
       }
-      async function inferenceCurrent() {
-        let changed: unknown, latest: UsSupportTriagePolicy | undefined;
-        try { latest = parseUsSupportTriagePolicy(await d.policy()); }
-        catch (error) { changed = error; }
-        const fresh = await current();
-        if (changed !== undefined) throw changed;
-        if (!latest || !capturedPolicy || !capturedGrant || canonicalErpJson(latest) !== canonicalErpJson(capturedPolicy)
-          || canonicalErpJson(createUsSupportTriageGrant(fresh,latest)) !== canonicalErpJson(capturedGrant)) denied('triage_policy_changed',409);
-        return fresh;
-      }
-      function result(value: unknown) {
-        const r = validateUsSupportTriageResult(value,organizationId,admitted!.workspaceId);
-        if (!input || r.requestId !== input.requestId || r.requestHash !== requestHash || r.job.organizationId !== organizationId || r.job.workspaceId !== admitted!.workspaceId
-          || r.job.source.uid !== input.uid || r.job.source.messageVersion !== input.expectedMessageVersion) return denied('invalid_triage_record');
-        return r;
-      }
-      async function respond(r: UsSupportTriageResult) {
-        const c = await current(), job = r.job;
-        if (job.state === 'completed' && d.recordTicket) { await d.recordTicket(c, job.id, current); await current(); }
-        // Another first request may still be completing. An observed dispatch
-        // is never permission for this HTTP request to repeat provider I/O.
-        return Response.json({schemaVersion:1,organizationId,userId:c.authority.userId,role:c.authority.role,workspaceId:c.workspaceId,
-          requestId:r.requestId,requestHash:r.requestHash,replayed:r.replayed,
-          state:job.state === 'dispatched' ? 'uncertain' : job.state,jobId:job.id,createdAt:job.createdAt,result:job.result},{headers});
-      }
       try {
         try { creationUuid(organizationId); } catch { denied('invalid_triage_request',422); }
         if (request.method !== (operation === 'read' ? 'GET' : 'POST') || new URL(request.url).search) denied('invalid_triage_request',422);
@@ -101,70 +67,27 @@ export function createUsSupportTriageHandlers(d: UsSupportTriageDependencies) {
         admitted = validateUsMailboxContext(await d.member(request,organizationId),organizationId,now()); expected(request,admitted);
         if (operation === 'triage' && admitted.authority.credential.kind === 'browser') requireAccountSameOrigin(request);
         await d.rateLimit?.(request,operation,organizationId+':'+admitted.authority.userId); await current();
-        store = await d.store(); await current();
-        if (operation === 'triage') {
-          input = validateUsSupportTriageRequest(await readJsonObjectWithinLimit(request,8192));
-          requestHash = await hashUsSupportTriageRequest(organizationId,admitted.workspaceId,admitted.authority.userId,input);
-          const saved = await store.find(await current(),input.requestId,requestHash); await current();
-          if (saved && result(saved).job.state !== 'reserved') return await respond(result(saved));
-        }
-        capturedPolicy = parseUsSupportTriagePolicy(await d.policy());
-        capturedGrant = createUsSupportTriageGrant(await current(),capturedPolicy); await inferenceCurrent();
-        const providerReady = await d.providerReady(); await inferenceCurrent();
-        if (!providerReady) denied('triage_provider_unavailable');
+        const service = createUsSupportTriageService({
+          now:() => d.now(), store:() => d.store(), mailboxStore:() => d.mailboxStore(), policy:() => d.policy(),
+          providerReady:() => d.providerReady(), encryptionKey:() => d.encryptionKey(),
+          message:(connection,token,input,check) => d.message(connection,token,input,check), classify:(message,grant,check) => d.classify(message,grant,check),
+          ...(d.newId ? {newId:() => d.newId!()} : {}),
+          ...(d.recordTicket ? {recordTicket:async (context,jobId,check) => { await d.recordTicket!(validateUsMailboxContext(context),jobId,async () => validateUsMailboxContext(await check())); }} : {}),
+        });
         if (operation === 'read') {
-          const usage = await store.usage(await inferenceCurrent(),capturedGrant); const c = await inferenceCurrent();
-          if (!usage || usage.limit !== capturedGrant.limit || !Number.isSafeInteger(usage.used) || usage.used < 0 || !Number.isSafeInteger(usage.remaining) || usage.remaining !== Math.max(0,usage.limit-usage.used)) denied('invalid_triage_record');
-          return Response.json({schemaVersion:1,organizationId,userId:c.authority.userId,role:c.authority.role,workspaceId:c.workspaceId,
-            processingPolicyVersion:capturedGrant.processingPolicyVersion,recipeVersion:capturedGrant.recipeVersion,usage},{headers});
+          const budget = await service.readBudget(await current(), current), c = await current();
+          return Response.json({schemaVersion:1,organizationId,userId:c.authority.userId,role:c.authority.role,workspaceId:c.workspaceId,...budget},{headers});
         }
-        if (!input || !requestHash) return denied('invalid_triage_record');
-        if (input.processingPolicyVersion !== capturedGrant.processingPolicyVersion) denied('triage_policy_changed',409);
-        const mailbox = await d.mailboxStore(); await inferenceCurrent();
-        let connection: UsMailboxConnection | undefined;
-        async function connected() {
-          const c = await inferenceCurrent(), state = validateUsMailboxState(await mailbox.read(c),organizationId); await inferenceCurrent();
-          if (state.workspaceId !== c.workspaceId) denied('invalid_mailbox_record');
-          if (state.revision !== input!.expectedMailboxRevision) denied('mailbox_revision_conflict',409);
-          if (!state.currentConnection || state.currentConnection.id !== input!.connectionId) denied('mailbox_connection_required',409);
-          if (connection && canonicalErpJson(connection) !== canonicalErpJson(state.currentConnection)) denied('mailbox_revision_conflict',409);
-          connection = state.currentConnection; return c;
-        }
-        await connected();
-        const key = await d.encryptionKey(); await connected();
-        if (!connection?.credentialsCiphertext) denied('mailbox_connection_required',409);
-        const token = await decryptSecret(key,connection.credentialsCiphertext,usMailboxEncryptionContext(admitted,connection.id,connection.revision)); await connected();
-        if (await sha256Hex(token) !== connection.tokenSha256) denied('invalid_mailbox_record');
-        const message = await d.message(connection,token,input,connected); await connected();
-        const source = validateUsSupportTriageSource(message.source);
-        if (source.provider !== connection.provider || source.mailboxId !== connection.mailboxId || source.folderId !== connection.folderId || source.uid !== input.uid || source.messageVersion !== input.expectedMessageVersion) denied('triage_source_conflict',409);
-        const reserved = result(await store.claim(await connected(),{request:input,source,grant:capturedGrant},connected)); await connected();
-        if (reserved.job.state !== 'reserved') return await respond(reserved);
-        if (canonicalErpJson(reserved.job.grant) !== canonicalErpJson(capturedGrant)) denied('triage_policy_changed',409);
-        const candidateDispatchId = (d.newId ?? (() => crypto.randomUUID()))();
-        const dispatched = await store.dispatch(await connected(),{requestId:input.requestId,requestHash,dispatchId:candidateDispatchId},connected);
-        // Capture attempted durable dispatch before any further await. Even a
-        // gate/Auth failure here cannot release a possibly emitted operation.
-        const fenced = result(dispatched.result);
-        if (!dispatched.mayDispatch) return await respond(fenced);
-        dispatchId = candidateDispatchId;
-        if (fenced.job.state !== 'dispatched' || fenced.job.dispatchId !== dispatchId) denied('invalid_triage_record');
-        await inferenceCurrent();
-        const decision = validateUsSupportTriageDecision(await d.classify(message,capturedGrant,connected),{source,grant:capturedGrant}); await connected();
-        const completed = result(await store.complete(await inferenceCurrent(),{requestId:input.requestId,requestHash,dispatchId,decision},inferenceCurrent)); await inferenceCurrent();
-        if (completed.job.state !== 'completed' || canonicalErpJson(completed.job.result) !== canonicalErpJson(decision)) denied('invalid_triage_record');
-        return await respond(completed);
+        const input = validateUsSupportTriageRequest(await readJsonObjectWithinLimit(request,8192));
+        const r = await service.triage(await current(), input, current), c = await current(), job = r.job;
+        return Response.json({schemaVersion:1,organizationId,userId:c.authority.userId,role:c.authority.role,workspaceId:c.workspaceId,
+          requestId:r.requestId,requestHash:r.requestHash,replayed:r.replayed,
+          state:job.state === 'dispatched' ? 'uncertain' : job.state,jobId:job.id,createdAt:job.createdAt,result:job.result},{headers});
       } catch (error) {
         let outgoing = failure(error);
-        // Auth/gate loss outranks a simultaneous private provider/store error.
+        // Auth/gate loss still outranks a simultaneous private service error.
         if (admitted) { try { await current(); } catch (late) { const f = failure(late); if ([401,402,403,404].includes(f.status)) outgoing = f; } }
-        if (dispatchId && store && input && requestHash && admitted && ![401,402,403,404].includes(outgoing.status)) {
-          try { await store.uncertain(await current(),{requestId:input.requestId,requestHash,dispatchId},current); }
-          catch { /* A persisted dispatch is already a fence if this marker fails. */ }
-          if (outgoing.status === 422) outgoing = {code:'triage_provider_unavailable',status:503};
-          try { await current(); } catch (late) { const f = failure(late); if ([401,402,403,404].includes(f.status)) outgoing = f; }
-        }
-        try { d.diagnostic?.({operation,...outgoing}); } catch { /* Diagnostics never replace the confirmed public failure. */ }
+        try { d.diagnostic?.({operation,...outgoing}); } catch { /* Diagnostics never replace the public failure. */ }
         return Response.json({error:outgoing.code},{status:outgoing.status,headers});
       }
     };

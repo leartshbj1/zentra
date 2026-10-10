@@ -4,14 +4,14 @@ import { canonicalErpJson } from './erp-contract';
 import { snapshotPrivateJson } from './private-json';
 import { sha256Hex } from './canonical-hash';
 import { validateUsSupportTriageDecision, type UsSupportTriageDecision } from './us-support-triage-contract';
-import type { UsMailboxContext } from './us-support-mailbox-contract';
+import { isUsSupportWorkerContext, type UsSupportExecutionContext } from './us-support-execution-contract';
 
 export const US_SUPPORT_TICKETS_PAGE_SIZE = 25;
 export const US_SUPPORT_TICKET_AUDIT_LIMIT = 100;
 export const US_SUPPORT_TICKET_AUDIT_PAGE_SIZE = 20;
 /** Local pilot storage limit, independent of any commercial allowance. */
 export const US_SUPPORT_TICKET_COMMAND_LIMIT = 52_000;
-export type UsSupportTicketContext = UsMailboxContext;
+export type UsSupportTicketContext = UsSupportExecutionContext;
 export type UsSupportTicketStatus = 'open' | 'in_progress' | 'resolved';
 export type UsSupportTicketLanguage = UsSupportTriageDecision['language'];
 export type UsSupportTicketAction = 'create' | 'correct' | 'assign' | 'set_status';
@@ -37,6 +37,7 @@ export interface UsSupportTicketAssignee {
 }
 export interface UsSupportTicketAudit {
   readonly revision: number; readonly ticketRevision: number; readonly action: UsSupportTicketAction; readonly actorUserId: string; readonly createdAt: number;
+  readonly actorKind?:'worker'; readonly delegationId?:string; readonly delegationRevision?:number; readonly runId?:string;
   readonly category: Category; readonly priority: Priority; readonly language: UsSupportTicketLanguage;
   readonly assigneeMembershipId: string|null; readonly status: UsSupportTicketStatus; readonly humanCorrection: boolean;
 }
@@ -106,7 +107,7 @@ export function validateUsSupportRoutingRequest(input:unknown):UsSupportRoutingR
   try{const v=exact(input,['schemaVersion','requestId','expectedRevision','enabled','threshold','routes']);if(v.schemaVersion!==1||!id(v.requestId)||!integer(v.expectedRevision)||typeof v.enabled!=='boolean'||!unit(v.threshold))return fail();return {...v,routes:routes(v.routes)} as unknown as UsSupportRoutingRequest;}catch{return fail();}
 }
 export function validateUsSupportRouting(input:unknown):UsSupportRouting{return privateValue(()=>{const v=exact(input,['schemaVersion','revision','enabled','threshold','routes']);if(v.schemaVersion!==1||!integer(v.revision)||typeof v.enabled!=='boolean'||!unit(v.threshold))return fail();return {...v,routes:routes(v.routes)} as unknown as UsSupportRouting;});}
-export function validateUsSupportTicketAudit(input:unknown):UsSupportTicketAudit{return privateValue(()=>{const v=exact(input,['revision','ticketRevision','action','actorUserId','createdAt','category','priority','language','assigneeMembershipId','status','humanCorrection']);if(!integer(v.revision,1)||!integer(v.ticketRevision,1)||!['create','correct','assign','set_status'].includes(String(v.action))||!id(v.actorUserId)||!second(v.createdAt)||!category(v.category)||!priority(v.priority)||!language(v.language)||v.assigneeMembershipId!==null&&!id(v.assigneeMembershipId)||!status(v.status)||typeof v.humanCorrection!=='boolean')return fail();return v as unknown as UsSupportTicketAudit;});}
+export function validateUsSupportTicketAudit(input:unknown):UsSupportTicketAudit{return privateValue(()=>{const copied=snapshotPrivateJson(input) as Record<string,unknown>,worker=copied&&Object.hasOwn(copied,'actorKind'),v=exact(copied,['revision','ticketRevision','action','actorUserId','createdAt','category','priority','language','assigneeMembershipId','status','humanCorrection',...(worker?['actorKind','delegationId','delegationRevision','runId']:[])]);if(!integer(v.revision,1)||!integer(v.ticketRevision,1)||!['create','correct','assign','set_status'].includes(String(v.action))||!id(v.actorUserId)||!second(v.createdAt)||!category(v.category)||!priority(v.priority)||!language(v.language)||v.assigneeMembershipId!==null&&!id(v.assigneeMembershipId)||!status(v.status)||typeof v.humanCorrection!=='boolean'||worker&&(v.actorKind!=='worker'||v.action!=='create'||!id(v.delegationId)||!integer(v.delegationRevision,1)||!id(v.runId)))return fail();return v as unknown as UsSupportTicketAudit;});}
 export function validateUsSupportTicket(input:unknown,organizationId?:string,workspaceId?:string):UsSupportTicket{return privateValue(()=>{
   const v=exact(input,['schemaVersion','id','organizationId','workspaceId','originJobId','uid','createdAt','revision','category','priority','language','originalDecision','reviewReasons','needsReview','humanCorrection','correctedBy','assigneeMembershipId','assigneeActive','status','updatedAt','audit']);
   if(v.schemaVersion!==1||![v.id,v.organizationId,v.workspaceId,v.originJobId].every(id)||organizationId!==undefined&&v.organizationId!==organizationId||workspaceId!==undefined&&v.workspaceId!==workspaceId||typeof v.uid!=='string'||!/^\d{1,20}$/.test(v.uid)||!second(v.createdAt)||!integer(v.revision,1)||!category(v.category)||!priority(v.priority)||!language(v.language)||typeof v.humanCorrection!=='boolean'||(v.humanCorrection?!id(v.correctedBy):v.correctedBy!==null))return fail();
@@ -133,3 +134,4 @@ export function validateUsSupportRoutingMutationResult(input:unknown,organizatio
 async function hash(organizationId:string,workspaceId:string,userId:string,kind:string,request:unknown){if(![organizationId,workspaceId,userId].every(id))return fail();return sha256Hex(canonicalErpJson({domain:'zentra:us-support-ticket:v1',organizationId,workspaceId,userId,kind,request}));}
 export function hashUsSupportTicketRequest(org:string,ws:string,user:string,input:UsSupportTicketRequest):Promise<string>{return hash(org,ws,user,'ticket',validateUsSupportTicketRequest(input));}
 export function hashUsSupportRoutingRequest(org:string,ws:string,user:string,input:UsSupportRoutingRequest):Promise<string>{return hash(org,ws,user,'routing',validateUsSupportRoutingRequest(input));}
+export function hashUsSupportTicketExecutionRequest(c:UsSupportExecutionContext,input:UsSupportTicketRequest):Promise<string>{return isUsSupportWorkerContext(c)?hash(c.authority.organizationId,c.workspaceId,c.authority.userId,'worker-ticket:'+c.authority.credential.workerId,validateUsSupportTicketRequest(input)):hashUsSupportTicketRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,input);}

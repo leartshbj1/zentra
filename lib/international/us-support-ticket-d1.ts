@@ -3,11 +3,13 @@ import { snapshotPrivateJson } from './private-json';
 import { sha256Hex } from './canonical-hash';
 import { d1UsSupportWorkspaceStore } from './us-support-workspace-d1';
 import { UsSupportWorkspaceError } from './us-support-workspace-contract';
-import { UsMailboxError, sameUsMailboxContext, validateUsMailboxContext } from './us-support-mailbox-contract';
+import { UsMailboxError } from './us-support-mailbox-contract';
+import { sameUsSupportExecutionContext, validateUsSupportExecutionContext, isUsSupportWorkerContext } from './us-support-execution-contract';
+import { assertUsSupportWorkerExecution } from './us-support-execution-d1';
 import { hashUsSupportTriageSource, validateUsSupportTriageSource, validateUsSupportTriageGrant, validateUsSupportTriageDecision, US_SUPPORT_TRIAGE_MODEL, US_SUPPORT_TRIAGE_RECIPE_VERSION } from './us-support-triage-contract';
 import { UsSupportTicketError, US_SUPPORT_TICKETS_PAGE_SIZE, validateUsSupportTicketRequest, validateUsSupportRoutingRequest, validateUsSupportTicket,
   validateUsSupportRouting, validateUsSupportTicketsHead, validateUsSupportTicketsProjection, validateUsSupportTicketReceipt,
-  validateUsSupportTicketMutationResult, validateUsSupportRoutingMutationResult, hashUsSupportTicketRequest, hashUsSupportRoutingRequest,
+  validateUsSupportTicketMutationResult, validateUsSupportRoutingMutationResult, hashUsSupportTicketExecutionRequest, hashUsSupportRoutingRequest,
   type UsSupportTicketStore, type UsSupportTicketContext, type UsSupportTicket, type UsSupportRouting, type UsSupportTicketRequest,
   type UsSupportTicketStoredResult } from './us-support-ticket-contract';
 
@@ -33,8 +35,8 @@ function snapshot(ticket:UsSupportTicket):Snapshot{const {assigneeActive:_active
  * no mailbox/provider port or outbound action is available here. */
 export function d1UsSupportTicketStore(database:Database,options:{now?:()=>number}={}):UsSupportTicketStore{
   const now=options.now??(()=>Math.floor(Date.now()/1000)),registry=d1UsSupportWorkspaceStore(database,{now});
-  async function context(input:unknown){const c=validateUsMailboxContext(input,undefined,now());const workspace=await registry.read(c.authority);if(!workspace||workspace.workspaceId!==c.workspaceId)return fail('forbidden',403);if(c.authority.credential.kind==='device'&&c.authority.credential.supportedSchemaVersion!==4)return fail('client_upgrade_required',409);return c;}
-  async function admitted(input:UsSupportTicketContext,revalidate:()=>Promise<UsSupportTicketContext>){const first=await context(input);return async()=>{const next=validateUsMailboxContext(await revalidate(),first.authority.organizationId,now());sameUsMailboxContext(first,next);return context(next);};}
+  async function context(input:unknown){const c=validateUsSupportExecutionContext(input,undefined,now());if(isUsSupportWorkerContext(c))return assertUsSupportWorkerExecution(database,c,now());const workspace=await registry.read(c.authority);if(!workspace||workspace.workspaceId!==c.workspaceId)return fail('forbidden',403);if(c.authority.credential.kind==='device'&&c.authority.credential.supportedSchemaVersion!==4)return fail('client_upgrade_required',409);return c;}
+  async function admitted(input:UsSupportTicketContext,revalidate:()=>Promise<UsSupportTicketContext>){const first=await context(input);return async()=>{const next=validateUsSupportExecutionContext(await revalidate(),first.authority.organizationId,now());sameUsSupportExecutionContext(first,next);return context(next);};}
   function manage(c:UsSupportTicketContext){if(!['owner','admin'].includes(c.authority.role))return fail('support_management_required',403);}
   async function heads(c:UsSupportTicketContext){const saved=await database.prepare(`SELECT COALESCE((SELECT revision FROM international_us_support_ticket_heads WHERE organization_id=? AND workspace_id=?),0) AS revision,COALESCE((SELECT revision FROM international_us_team_heads WHERE organization_id=?),0) AS teamRevision`).bind(c.authority.organizationId,c.workspaceId,c.authority.organizationId).first();const h=row(saved);return validateUsSupportTicketsHead({schemaVersion:1,organizationId:c.authority.organizationId,userId:c.authority.userId,role:c.authority.role,workspaceId:c.workspaceId,revision:h.revision,teamRevision:h.teamRevision});}
   async function routing(c:UsSupportTicketContext){const saved=await database.prepare('SELECT snapshot_json FROM international_us_support_ticket_routing WHERE organization_id=? AND workspace_id=? ORDER BY revision DESC LIMIT 1').bind(c.authority.organizationId,c.workspaceId).first();return saved?validateUsSupportRouting(json(row(saved).snapshot_json)):initialRouting();}
@@ -64,8 +66,8 @@ export function d1UsSupportTicketStore(database:Database,options:{now?:()=>numbe
     const saved=await database.prepare('SELECT c.*,a.command_id AS audited FROM international_us_support_ticket_commands c JOIN international_us_support_ticket_audit a ON a.organization_id=c.organization_id AND a.workspace_id=c.workspace_id AND a.command_id=c.command_id WHERE c.organization_id=? AND c.workspace_id=? AND c.actor_user_id=? AND c.request_id=?').bind(c.authority.organizationId,c.workspaceId,c.authority.userId,requestId).first();
     if(!saved)return null;const r=row(saved);if(r.request_hash!==requestHash)return fail('ticket_idempotency_conflict',409);
     const q=r.action==='save_routing'?validateUsSupportRoutingRequest(json(r.request_json)):validateUsSupportTicketRequest(json(r.request_json));
-    const expectedHash=r.action==='save_routing'?await hashUsSupportRoutingRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,q as never):await hashUsSupportTicketRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,q as UsSupportTicketRequest);
-    const captured=validateUsMailboxContext(json(r.context_json),c.authority.organizationId);
+    const captured=validateUsSupportExecutionContext(json(r.context_json),c.authority.organizationId);
+    const expectedHash=r.action==='save_routing'?await hashUsSupportRoutingRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,q as never):await hashUsSupportTicketExecutionRequest(captured,q as UsSupportTicketRequest);
     if(expectedHash!==requestHash||q.requestId!==requestId||captured.authority.userId!==c.authority.userId||captured.workspaceId!==c.workspaceId||captured.authority.checkedAt!==r.created_at)return fail();
     const received=validateUsSupportTicketReceipt({schemaVersion:1,organizationId:c.authority.organizationId,workspaceId:c.workspaceId,requestId,actorUserId:c.authority.userId,action:r.action,entityId:r.entity_id,revision:r.entity_revision,headRevision:r.revision,createdAt:r.created_at});
     if(r.action==='save_routing')return {kind:'routing',...validateUsSupportRoutingMutationResult({routing:await routing(c),receipt:received,replayed:true},c.authority.organizationId,c.workspaceId)};
@@ -94,7 +96,7 @@ export function d1UsSupportTicketStore(database:Database,options:{now?:()=>numbe
     }catch(error){throw mapped(error);}},
     async find(input,requestId,requestHash){try{const c=await context(input),saved=await receipt(c,requestId,requestHash);await context(c);return saved;}catch(error){throw mapped(error);}},
     async commit(input,requestInput,revalidate){try{
-      const q=validateUsSupportTicketRequest(requestInput),fresh=await admitted(input,revalidate);let c=await fresh();const hash=await hashUsSupportTicketRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,q);
+      const q=validateUsSupportTicketRequest(requestInput),fresh=await admitted(input,revalidate);let c=await fresh();if(isUsSupportWorkerContext(c)&&q.action!=='create')return fail('forbidden',403);const hash=await hashUsSupportTicketExecutionRequest(c,q);
       for(let attempt=0;attempt<3;attempt++){
         const existing=await receipt(c,q.requestId,hash);if(existing){await fresh();if(existing.kind!=='ticket')return fail('ticket_idempotency_conflict',409);const {kind:_kind,...r}=existing;return r;}
         if(q.action!=='set_status')manage(c);
@@ -121,7 +123,7 @@ export function d1UsSupportTicketStore(database:Database,options:{now?:()=>numbe
         c=await fresh();const commandId=crypto.randomUUID(),statements=[ensureHead(c),commandStatement(c,q,hash,{commandId,action:q.action,entityId:next.id,expectedRevision:q.action==='create'?0:q.expectedRevision,entityRevision:next.revision,applied,jobId:originJobId??undefined,sourceHash:sourceHash??undefined,routingRevision:routingRevision??undefined})];
         if(q.action==='create'&&applied)statements.push(database.prepare('INSERT INTO international_us_support_tickets(id,organization_id,workspace_id,source_hash,origin_job_id,created_command_id,created_at) VALUES(?,?,?,?,?,?,?)').bind(next.id,c.authority.organizationId,c.workspaceId,sourceHash,originJobId,commandId,next.createdAt));
         if(applied)statements.push(database.prepare('INSERT INTO international_us_support_ticket_revisions(organization_id,workspace_id,ticket_id,revision,command_id,snapshot_json)VALUES(?,?,?,?,?,?)').bind(c.authority.organizationId,c.workspaceId,next.id,next.revision,commandId,canonicalErpJson(next)));
-        const event={ticketRevision:next.revision,action:q.action,actorUserId:c.authority.userId,createdAt:c.authority.checkedAt,category:next.category,priority:next.priority,language:next.language,assigneeMembershipId:next.assigneeMembershipId,status:next.status,humanCorrection:next.humanCorrection};
+        const event={ticketRevision:next.revision,action:q.action,actorUserId:c.authority.userId,createdAt:c.authority.checkedAt,category:next.category,priority:next.priority,language:next.language,assigneeMembershipId:next.assigneeMembershipId,status:next.status,humanCorrection:next.humanCorrection,...(isUsSupportWorkerContext(c)?{actorKind:'worker',delegationId:c.authority.credential.delegationId,delegationRevision:c.authority.credential.delegationRevision,runId:c.authority.credential.runId}:{})};
         statements.push(auditStatement(c,commandId,event));
         try{await runBatch(statements);}catch(error){c=await fresh();const saved=await receipt(c,q.requestId,hash);if(saved?.kind==='ticket'){const {kind:_kind,...r}=saved;await fresh();return r;}if(q.action==='create'&&attempt<2&&(error instanceof Error)&&(/UNIQUE|us_ticket_revision_conflict|us_ticket_source_conflict/.test(error.message)))continue;throw error;}
         const saved=await receipt(await fresh(),q.requestId,hash);await fresh();if(saved?.kind!=='ticket')return fail();const {kind:_kind,...r}=saved;return {...r,replayed:!applied};
@@ -129,7 +131,7 @@ export function d1UsSupportTicketStore(database:Database,options:{now?:()=>numbe
       return fail('ticket_revision_conflict',409);
     }catch(error){throw mapped(error);}},
     async saveRouting(input,requestInput,revalidate){try{
-      const q=validateUsSupportRoutingRequest(requestInput),fresh=await admitted(input,revalidate);let c=await fresh();const hash=await hashUsSupportRoutingRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,q),existing=await receipt(c,q.requestId,hash);
+      const q=validateUsSupportRoutingRequest(requestInput),fresh=await admitted(input,revalidate);let c=await fresh();if(isUsSupportWorkerContext(c))return fail('forbidden',403);const hash=await hashUsSupportRoutingRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,q),existing=await receipt(c,q.requestId,hash);
       if(existing){await fresh();if(existing.kind!=='routing')return fail('ticket_idempotency_conflict',409);const {kind:_kind,...r}=existing;return r;}manage(c);
       const previous=await routing(c);if(previous.revision!==q.expectedRevision)return fail('ticket_revision_conflict',409);for(const route of q.routes)if(!await active(c,route.membershipId))return fail('ticket_assignee_unavailable',409);
       const next=validateUsSupportRouting({schemaVersion:1,revision:q.expectedRevision+1,enabled:q.enabled,threshold:q.threshold,routes:q.routes}),commandId=crypto.randomUUID();c=await fresh();

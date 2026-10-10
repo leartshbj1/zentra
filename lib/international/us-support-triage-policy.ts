@@ -1,4 +1,4 @@
-import { validateUsMailboxContext, type UsMailboxContext } from './us-support-mailbox-contract';
+import { validateUsSupportExecutionContext, type UsSupportExecutionContext } from './us-support-execution-contract';
 import { snapshotPrivateJson } from './private-json';
 import { US_SUPPORT_TRIAGE_RECIPE_VERSION, UsSupportTriageError, validateUsSupportTriageGrant, type UsSupportTriageGrant } from './us-support-triage-contract';
 
@@ -29,8 +29,8 @@ export function parseUsSupportTriagePolicy(input: unknown): UsSupportTriagePolic
     return Object.freeze({...v,entries:Object.freeze(entries)}) as unknown as UsSupportTriagePolicy;
   } catch { return fail(); }
 }
-export function createUsSupportTriageGrant(context: UsMailboxContext, input: UsSupportTriagePolicy): UsSupportTriageGrant {
-  const c = validateUsMailboxContext(context), policy = parseUsSupportTriagePolicy(input), a = c.authority;
+export function createUsSupportTriageGrant(context: UsSupportExecutionContext, input: UsSupportTriagePolicy): UsSupportTriageGrant {
+  const c = validateUsSupportExecutionContext(context), policy = parseUsSupportTriagePolicy(input), a = c.authority;
   if (!['owner','admin'].includes(a.role)) throw new UsSupportTriageError('support_management_required',403);
   const entry = policy.entries.find(e => e.catalogVersion === a.catalogVersion && e.priceId === a.priceId);
   if (!entry) throw new UsSupportTriageError('triage_budget_unavailable',503);

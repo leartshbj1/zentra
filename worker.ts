@@ -2,7 +2,12 @@ import handler from 'vinext/server/fetch-handler';
 import { withoutCallerScriptPolicy } from './lib/page-csp';
 import { assertDeploymentRuntime, deploymentBindingReader } from './lib/deployment-contract';
 
-export default {
+const zentraWorker = {
+  async scheduled(controller: ScheduledController, env: unknown) {
+    // The existing CH mail relay remains independent. No cron is provisioned
+    // here; an approved US deployment must explicitly opt in to this handler.
+    return (await import('./lib/international/us-support-worker-bindings')).runUsSupportScheduled(controller, env);
+  },
   fetch(request: Request, env: unknown, context: ExecutionContext) {
     try {
       assertDeploymentRuntime(deploymentBindingReader(env), request);
@@ -12,3 +17,4 @@ export default {
     return handler.fetch(withoutCallerScriptPolicy(request), env, context);
   },
 };
+export default zentraWorker;

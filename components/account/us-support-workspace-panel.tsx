@@ -10,6 +10,7 @@ import { UsSupportMailboxPanel } from './us-support-mailbox-panel';
 import type { UsSupportMailImportBinding } from './us-support-mail-import';
 import { usSupportTriageCopy } from './us-support-triage';
 import { UsSupportTickets } from './us-support-tickets';
+import { UsSupportWorker } from './us-support-worker';
 import './us-erp-workbench.css';
 
 export const usSupportWorkspaceCopy = {
@@ -31,6 +32,7 @@ const mailImportLimitations = {
   it: 'Nella sezione seguente i messaggi si leggono su richiesta e gli allegati si conservano dopo conferma. Lo smistamento automatico non è attivato.',
   en: 'Read messages on request and save attachments after confirmation in the next section. Automatic sorting is not enabled.',
 } as const;
+const workerLimitations = { fr: 'Configurez la réception automatique ci-dessous. Les tickets et leurs affectations restent partagés avec votre équipe.', de: 'Richten Sie unten den automatischen Empfang ein. Tickets und Zuweisungen bleiben mit Ihrem Team geteilt.', it: 'Configura qui sotto la ricezione automatica. I ticket e le assegnazioni restano condivisi con il team.', en: 'Configure automatic intake below. Tickets and assignments remain shared with your team.' } as const;
 const ticketLimitations = {
   fr: 'Les messages sont analysés sur demande. Le suivi et les affectations sont partagés avec votre équipe.',
   de: 'Nachrichten werden auf Anfrage analysiert. Tickets und Zuweisungen werden mit Ihrem Team geteilt.',
@@ -123,15 +125,15 @@ export function createBrowserUsSupportWorkspaceSession(options: { organizationId
 
 interface SupportContentProps {
   language: SiteLanguage; projection: UsSupportWorkspaceProjection | null; name: string; busy: boolean; loading: boolean; pending: boolean; terminal: boolean; error: string; saved: boolean;
-  mailboxEnabled?: boolean; importEnabled?: boolean; triageEnabled?: boolean; ticketsEnabled?: boolean;
+  mailboxEnabled?: boolean; importEnabled?: boolean; triageEnabled?: boolean; ticketsEnabled?: boolean; workerEnabled?: boolean;
   onName: (value: string) => void; onSubmit: (event: SubmitEvent<HTMLFormElement>) => void; onRetry: () => void; onRefresh: () => void;
 }
-export function UsSupportWorkspaceContent({ language, projection, name, busy, loading, pending, terminal, error, saved, mailboxEnabled = false, importEnabled = false, triageEnabled = false, ticketsEnabled = false, onName, onSubmit, onRetry, onRefresh }: SupportContentProps) {
+export function UsSupportWorkspaceContent({ language, projection, name, busy, loading, pending, terminal, error, saved, mailboxEnabled = false, importEnabled = false, triageEnabled = false, ticketsEnabled = false, workerEnabled = false, onName, onSubmit, onRetry, onRefresh }: SupportContentProps) {
   const c = usSupportWorkspaceCopy[language], id = useId(), blocked = busy || loading || pending || terminal;
   const message = error === 'invalid_support_request' ? c.invalid : error === 'access_lost' ? c.denied : ['support_workspace_conflict', 'support_idempotency_conflict'].includes(error) ? c.conflict : c.unavailable;
   return <section className="us-erp-workbench us-erp-section us-support-workspace" lang={language} aria-labelledby={`${id}-title`} aria-busy={busy || loading}>
     <div className="us-erp-record-heading"><h2 id={`${id}-title`}>{c.title}</h2><button className="account-button secondary" type="button" disabled={busy || loading || terminal} onClick={onRefresh}>{c.refresh}</button></div>
-    <p>{c.introduction}</p><p className="us-erp-muted">{ticketsEnabled && projection?.workspace ? ticketLimitations[language] : mailboxEnabled && projection?.workspace ? triageEnabled ? usSupportTriageCopy[language].limitation : importEnabled ? mailImportLimitations[language] : mailboxLimitations[language] : c.limitation}</p>
+    <p>{c.introduction}</p><p className="us-erp-muted">{workerEnabled && projection?.workspace ? workerLimitations[language] : ticketsEnabled && projection?.workspace ? ticketLimitations[language] : mailboxEnabled && projection?.workspace ? triageEnabled ? usSupportTriageCopy[language].limitation : importEnabled ? mailImportLimitations[language] : mailboxLimitations[language] : c.limitation}</p>
     {loading && !projection && <output>{c.loading}</output>}
     {projection?.workspace ? <dl className="us-erp-facts"><div><dt>{c.prepared}</dt><dd><strong>{projection.workspace.name}</strong></dd></div></dl> : projection && <p>{c.empty}</p>}
     {projection?.canCreate && <form className="us-erp-form" onSubmit={onSubmit}>
@@ -146,21 +148,23 @@ export function UsSupportWorkspaceContent({ language, projection, name, busy, lo
 
 export interface UsSupportWorkspacePanelProps {
   organizationId: string; expectedUserId: string; role: AccountRole; language: SiteLanguage; admitted?: boolean; active?: boolean; accessEpoch?: number;
-  mailboxEnabled?: boolean; triageEnabled?: boolean; ticketsEnabled?: boolean;
+  mailboxEnabled?: boolean; triageEnabled?: boolean; ticketsEnabled?: boolean; workerEnabled?: boolean;
   importEnabled?: boolean; importBinding?: UsSupportMailImportBinding; onImported?: () => void; onOpenDocuments?: () => void; documentsHref?: string;
   currentAccessEpoch?: () => number; registerInvalidation?: (invalidate: (() => void) | null) => void; onIdentityLost?: () => void;
 }
-export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, language, admitted = true, active = true, accessEpoch = 0, mailboxEnabled = false, importEnabled = false, triageEnabled = false, ticketsEnabled = false, importBinding, onImported, onOpenDocuments, documentsHref, currentAccessEpoch, registerInvalidation, onIdentityLost }: UsSupportWorkspacePanelProps) {
+export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, language, admitted = true, active = true, accessEpoch = 0, mailboxEnabled = false, importEnabled = false, triageEnabled = false, ticketsEnabled = false, workerEnabled = false, importBinding, onImported, onOpenDocuments, documentsHref, currentAccessEpoch, registerInvalidation, onIdentityLost }: UsSupportWorkspacePanelProps) {
   const identity = `${organizationId}:${expectedUserId}:${role}:${accessEpoch}`, usable = admitted && accessEpoch === 0;
   const refs = useRef({ identity, active, currentAccessEpoch, accessEpoch, onIdentityLost }), generation = useRef(0), mutation = useRef(0), busyRef = useRef(false), loadingRef = useRef(false), transport = useRef<BrowserUsSupportWorkspaceSession | null>(null), scheduler = useRef<UsBackgroundSync | null>(null), head = useRef<UsSupportWorkspaceProjection | null>(null);
   const mailboxInvalidation = useRef<(() => void) | null>(null);
+  const workerInvalidation = useRef<(() => void) | null>(null);
+  const registerWorkerInvalidation = useCallback((callback: (() => void) | null) => { workerInvalidation.current = callback; }, []);
   const ticketsInvalidation = useRef<(() => void) | null>(null);
   const registerMailboxInvalidation = useCallback((callback: (() => void) | null) => { mailboxInvalidation.current = callback; }, []);
   const registerTicketsInvalidation = useCallback((callback: (() => void) | null) => { ticketsInvalidation.current = callback; }, []);
   const [ownedIdentity, setOwnedIdentity] = useState(identity), [read, setRead] = useState<UsSupportWorkspaceProjection | null>(null), [name, setName] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [pending, setPending] = useState(false), [terminal, setTerminal] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false);
   useLayoutEffect(() => { refs.current = { identity, active, currentAccessEpoch, accessEpoch, onIdentityLost }; });
   const current = (stamp: number, actor: string) => generation.current === stamp && refs.current.identity === actor && (refs.current.currentAccessEpoch?.() ?? refs.current.accessEpoch) === refs.current.accessEpoch;
-  function invalidate() { mailboxInvalidation.current?.(); ticketsInvalidation.current?.(); generation.current++; transport.current?.dispose(); transport.current = null; scheduler.current?.dispose(); scheduler.current = null; head.current = null; busyRef.current = false; loadingRef.current = false; setRead(null); setName(''); setPending(false); setBusy(false); setLoading(false); setSaved(false); setTerminal(true); setError('access_lost'); }
+  function invalidate() { mailboxInvalidation.current?.(); ticketsInvalidation.current?.(); workerInvalidation.current?.(); generation.current++; transport.current?.dispose(); transport.current = null; scheduler.current?.dispose(); scheduler.current = null; head.current = null; busyRef.current = false; loadingRef.current = false; setRead(null); setName(''); setPending(false); setBusy(false); setLoading(false); setSaved(false); setTerminal(true); setError('access_lost'); }
   function failure(reason: unknown) {
     if (reason instanceof BrowserUsSupportWorkspaceError && reason.denied) { invalidate(); if (reason.status === 401) refs.current.onIdentityLost?.(); }
     else setError(reason instanceof BrowserUsSupportWorkspaceError ? reason.code : 'service_unavailable');
@@ -190,8 +194,9 @@ export function UsSupportWorkspacePanel({ organizationId, expectedUserId, role, 
     finally { if (current(stamp, actor)) { setPending(session.hasPending()); busyRef.current = false; setBusy(false); } }
   }
   const owned = usable && ownedIdentity === identity;
-  return <><UsSupportWorkspaceContent language={language} projection={owned ? read : null} name={owned ? name : ''} busy={owned && busy} loading={owned && loading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} mailboxEnabled={mailboxEnabled} importEnabled={importEnabled} triageEnabled={triageEnabled} ticketsEnabled={ticketsEnabled} onName={setName} onSubmit={event => { event.preventDefault(); void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} />
+  return <><UsSupportWorkspaceContent language={language} projection={owned ? read : null} name={owned ? name : ''} busy={owned && busy} loading={owned && loading} pending={owned && pending} terminal={!owned || terminal} error={!owned ? 'access_lost' : error} saved={owned && saved} mailboxEnabled={mailboxEnabled} importEnabled={importEnabled} triageEnabled={triageEnabled} ticketsEnabled={ticketsEnabled} workerEnabled={workerEnabled} onName={setName} onSubmit={event => { event.preventDefault(); void operate(false); }} onRetry={() => { void operate(true); }} onRefresh={() => { void load(); }} />
+    {owned && !terminal && workerEnabled && read?.workspace && <UsSupportWorker organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={read.workspace.workspaceId} language={language} admitted={admitted} active={active} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} registerInvalidation={registerWorkerInvalidation} onIdentityLost={() => { invalidate(); refs.current.onIdentityLost?.(); }} />}
     {owned && !terminal && ticketsEnabled && read?.workspace && <UsSupportTickets organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={read.workspace.workspaceId} language={language} admitted={admitted} active={active} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} registerInvalidation={registerTicketsInvalidation} onIdentityLost={() => { invalidate(); refs.current.onIdentityLost?.(); }} />}
-    {owned && !terminal && mailboxEnabled && read?.workspace && <UsSupportMailboxPanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={read.workspace.workspaceId} language={language} admitted={admitted} active={active} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} triageEnabled={triageEnabled} registerInvalidation={registerMailboxInvalidation} onIdentityLost={() => { invalidate(); refs.current.onIdentityLost?.(); }} importEnabled={importEnabled} importBinding={importBinding} onImported={onImported} onOpenDocuments={onOpenDocuments} documentsHref={documentsHref} />}
+    {owned && !terminal && mailboxEnabled && read?.workspace && <UsSupportMailboxPanel organizationId={organizationId} expectedUserId={expectedUserId} role={role} workspaceId={read.workspace.workspaceId} language={language} admitted={admitted} active={active} accessEpoch={accessEpoch} currentAccessEpoch={currentAccessEpoch} triageEnabled={triageEnabled} workerEnabled={workerEnabled} registerInvalidation={registerMailboxInvalidation} onIdentityLost={() => { invalidate(); refs.current.onIdentityLost?.(); }} importEnabled={importEnabled} importBinding={importBinding} onImported={onImported} onOpenDocuments={onOpenDocuments} documentsHref={documentsHref} />}
   </>;
 }

@@ -3,7 +3,7 @@ import { TRIAGE_POLICY_VERSION } from '../support/jev';
 import { canonicalErpJson } from './erp-contract';
 import { snapshotPrivateJson } from './private-json';
 import { sha256Hex } from './canonical-hash';
-import type { UsMailboxContext } from './us-support-mailbox-contract';
+import { isUsSupportWorkerContext, type UsSupportExecutionContext } from './us-support-execution-contract';
 
 export const US_SUPPORT_TRIAGE_MODEL = 'jev-1.13.0' as const;
 export const US_SUPPORT_TRIAGE_RECIPE_VERSION = `us-support-text:${TRIAGE_POLICY_VERSION}`;
@@ -47,15 +47,15 @@ export interface UsSupportTriageJob {
 }
 export interface UsSupportTriageResult { readonly job: UsSupportTriageJob; readonly requestId: string; readonly requestHash: string; readonly replayed: boolean }
 export interface UsSupportTriageUsage { readonly limit: number; readonly used: number; readonly remaining: number }
-type Revalidate = () => Promise<UsMailboxContext>;
+type Revalidate = () => Promise<UsSupportExecutionContext>;
 type Reference = { readonly requestId: string; readonly requestHash: string; readonly dispatchId: string };
 export interface UsSupportTriageStore {
-  find(this: void, context: UsMailboxContext, requestId: string, requestHash: string): Promise<UsSupportTriageResult | null>;
-  claim(this: void, context: UsMailboxContext, input: { readonly request: UsSupportTriageRequest; readonly source: UsSupportTriageSource; readonly grant: UsSupportTriageGrant }, revalidate: Revalidate): Promise<UsSupportTriageResult>;
-  dispatch(this: void, context: UsMailboxContext, input: Reference, revalidate: Revalidate): Promise<{ readonly result: UsSupportTriageResult; readonly mayDispatch: boolean }>;
-  complete(this: void, context: UsMailboxContext, input: Reference & { readonly decision: UsSupportTriageDecision }, revalidate: Revalidate): Promise<UsSupportTriageResult>;
-  uncertain(this: void, context: UsMailboxContext, input: Reference, revalidate: Revalidate): Promise<UsSupportTriageResult>;
-  usage(this: void, context: UsMailboxContext, grant: UsSupportTriageGrant): Promise<UsSupportTriageUsage>;
+  find(this: void, context: UsSupportExecutionContext, requestId: string, requestHash: string): Promise<UsSupportTriageResult | null>;
+  claim(this: void, context: UsSupportExecutionContext, input: { readonly request: UsSupportTriageRequest; readonly source: UsSupportTriageSource; readonly grant: UsSupportTriageGrant }, revalidate: Revalidate): Promise<UsSupportTriageResult>;
+  dispatch(this: void, context: UsSupportExecutionContext, input: Reference, revalidate: Revalidate): Promise<{ readonly result: UsSupportTriageResult; readonly mayDispatch: boolean }>;
+  complete(this: void, context: UsSupportExecutionContext, input: Reference & { readonly decision: UsSupportTriageDecision }, revalidate: Revalidate): Promise<UsSupportTriageResult>;
+  uncertain(this: void, context: UsSupportExecutionContext, input: Reference, revalidate: Revalidate): Promise<UsSupportTriageResult>;
+  usage(this: void, context: UsSupportExecutionContext, grant: UsSupportTriageGrant): Promise<UsSupportTriageUsage>;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const fail = (code = 'invalid_triage_request', status = 422): never => { throw new UsSupportTriageError(code,status); };
@@ -139,6 +139,7 @@ export async function hashUsSupportTriageRequest(organizationId: string, workspa
   if (![organizationId,workspaceId,actorUserId].every(id)) return fail();
   return sha256Hex(canonicalErpJson({domain:'zentra:us-support-triage:request:v1',organizationId,workspaceId,actorUserId,request:validateUsSupportTriageRequest(input)}));
 }
+export async function hashUsSupportTriageExecutionRequest(context:UsSupportExecutionContext,input:UsSupportTriageRequest):Promise<string>{const a=context.authority;if(!isUsSupportWorkerContext(context))return hashUsSupportTriageRequest(a.organizationId,context.workspaceId,a.userId,input);const k=context.authority.credential;return sha256Hex(canonicalErpJson({domain:'zentra:us-support-triage:worker-request:v1',organizationId:a.organizationId,workspaceId:context.workspaceId,delegatorUserId:a.userId,workerId:k.workerId,request:validateUsSupportTriageRequest(input)}));}
 /** Stable locator. Changed content/version for the same UID must conflict. */
 export async function hashUsSupportTriageSource(organizationId: string, workspaceId: string, input: UsSupportTriageSource): Promise<string> {
   if (![organizationId,workspaceId].every(id)) return fail(); const s = validateUsSupportTriageSource(input);

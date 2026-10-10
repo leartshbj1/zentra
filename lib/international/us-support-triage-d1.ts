@@ -3,8 +3,10 @@ import { snapshotPrivateJson } from './private-json';
 import { sha256Hex } from './canonical-hash';
 import { d1UsSupportWorkspaceStore } from './us-support-workspace-d1';
 import { UsSupportWorkspaceError } from './us-support-workspace-contract';
-import { UsMailboxError, sameUsMailboxContext, validateUsMailboxContext, type UsMailboxContext } from './us-support-mailbox-contract';
-import { UsSupportTriageError, hashUsSupportTriageRequest, hashUsSupportTriageSource, validateUsSupportTriageRequest, validateUsSupportTriageSource,
+import { UsMailboxError } from './us-support-mailbox-contract';
+import { validateUsSupportExecutionContext, sameUsSupportExecutionContext, isUsSupportWorkerContext, type UsSupportExecutionContext } from './us-support-execution-contract';
+import { assertUsSupportWorkerExecution } from './us-support-execution-d1';
+import { UsSupportTriageError, hashUsSupportTriageExecutionRequest, hashUsSupportTriageSource, validateUsSupportTriageRequest, validateUsSupportTriageSource,
   validateUsSupportTriageGrant, validateUsSupportTriageDecision, validateUsSupportTriageJob, validateUsSupportTriageResult,
   type UsSupportTriageStore, type UsSupportTriageResult } from './us-support-triage-contract';
 
@@ -36,12 +38,12 @@ export function d1UsSupportTriageStore(database: Database, options: {now?: () =>
   const now = options.now ?? (() => Math.floor(Date.now()/1000));
   const registry = d1UsSupportWorkspaceStore(database,{now});
   async function context(input: unknown) {
-    const c = validateUsMailboxContext(input,undefined,now()), workspace = await registry.read(c.authority);
+    const c = validateUsSupportExecutionContext(input,undefined,now());if(isUsSupportWorkerContext(c))return assertUsSupportWorkerExecution(database,c,now());const workspace = await registry.read(c.authority);
     if (!workspace || workspace.workspaceId !== c.workspaceId || !['owner','admin'].includes(c.authority.role)) return fail('forbidden',403);
     if (c.authority.credential.kind === 'device' && c.authority.credential.supportedSchemaVersion !== 4) return fail('client_upgrade_required',409);
     return c;
   }
-  async function lookup(c: UsMailboxContext, requestId: string, requestHash: string): Promise<UsSupportTriageResult | null> {
+  async function lookup(c: UsSupportExecutionContext, requestId: string, requestHash: string): Promise<UsSupportTriageResult | null> {
     const raw = await database.prepare(`SELECT r.*,j.source_json,j.source_hash,j.grant_json,j.actor_user_id AS first_actor,j.request_id AS first_request,j.created_at AS first_created,
       j.request_json AS first_request_json,j.context_json AS first_context_json,d.dispatch_id,d.created_at AS dispatched_at,
       x.decision_json,x.result_sha256,x.created_at AS completed_at
@@ -51,10 +53,10 @@ export function d1UsSupportTriageStore(database: Database, options: {now?: () =>
       WHERE r.organization_id=? AND r.workspace_id=? AND r.actor_user_id=? AND r.request_id=?`).bind(c.authority.organizationId,c.workspaceId,c.authority.userId,requestId).first();
     if (!raw) return null; const r = row(raw);
     if (r.request_hash !== requestHash) return fail('triage_idempotency_conflict',409);
-    const request = validateUsSupportTriageRequest(json(r.request_json)), captured = validateUsMailboxContext(json(r.context_json),c.authority.organizationId);
-    const first = validateUsMailboxContext(json(r.first_context_json),c.authority.organizationId), firstRequest = validateUsSupportTriageRequest(json(r.first_request_json));
+    const request = validateUsSupportTriageRequest(json(r.request_json)), captured = validateUsSupportExecutionContext(json(r.context_json),c.authority.organizationId);
+    const first = validateUsSupportExecutionContext(json(r.first_context_json),c.authority.organizationId), firstRequest = validateUsSupportTriageRequest(json(r.first_request_json));
     if (captured.workspaceId !== c.workspaceId || captured.authority.userId !== c.authority.userId || captured.authority.checkedAt !== r.created_at || request.requestId !== requestId
-      || await hashUsSupportTriageRequest(c.authority.organizationId,c.workspaceId,c.authority.userId,request) !== requestHash || first.workspaceId !== c.workspaceId
+      || await hashUsSupportTriageExecutionRequest(captured,request) !== requestHash || await hashUsSupportTriageExecutionRequest(c,request)!==requestHash || first.workspaceId !== c.workspaceId
       || first.authority.userId !== r.first_actor || first.authority.checkedAt !== r.first_created || firstRequest.requestId !== r.first_request) return fail();
     const source = validateUsSupportTriageSource(json(r.source_json)), grant = validateUsSupportTriageGrant(json(r.grant_json),c.authority.organizationId,c.workspaceId);
     if (await hashUsSupportTriageSource(c.authority.organizationId,c.workspaceId,source) !== r.source_hash || request.uid !== source.uid || request.expectedMessageVersion !== source.messageVersion) return fail();
@@ -65,11 +67,12 @@ export function d1UsSupportTriageStore(database: Database, options: {now?: () =>
       state:decision ? 'completed' : r.dispatch_id ? 'uncertain' : 'reserved',dispatchId:r.dispatch_id,result:decision,completedAt:r.completed_at},c.authority.organizationId,c.workspaceId);
     return validateUsSupportTriageResult({job,requestId,requestHash,replayed:true},c.authority.organizationId,c.workspaceId);
   }
-  async function admitted(input: UsMailboxContext, revalidate: () => Promise<UsMailboxContext>) {
+  async function admitted(input: UsSupportExecutionContext, revalidate: () => Promise<UsSupportExecutionContext>) {
     const initial = await context(input);
-    const fresh = async () => { const next = validateUsMailboxContext(await revalidate(),initial.authority.organizationId,now()); sameUsMailboxContext(initial,next); return context(next); };
+    const fresh = async () => { const next = validateUsSupportExecutionContext(await revalidate(),initial.authority.organizationId,now()); sameUsSupportExecutionContext(initial,next); return context(next); };
     return {initial,fresh};
   }
+  async function workerSource(c:UsSupportExecutionContext,receivedAt:number){if(!isUsSupportWorkerContext(c))return;const d=await database.prepare('SELECT json_extract(snapshot_json,\'$.startsAt\') AS starts_at FROM international_us_support_worker_delegations WHERE organization_id=? AND workspace_id=? AND delegation_id=? AND revision=?').bind(c.authority.organizationId,c.workspaceId,c.authority.credential.delegationId,c.authority.credential.delegationRevision).first<Row>();if(!d||typeof d.starts_at!=='number'||receivedAt<d.starts_at)return fail('triage_source_conflict',409);}
   return {
     async find(input,requestId,requestHash) {
       try { reference({requestId,requestHash}); const c = await context(input), result = await lookup(c,requestId,requestHash); await context(c); return result; } catch (error) { throw mapped(error); }
@@ -79,13 +82,15 @@ export function d1UsSupportTriageStore(database: Database, options: {now?: () =>
         const command = row(commandInput); if (Object.keys(command).length !== 3 || !['request','source','grant'].every(k => Object.hasOwn(command,k))) return fail();
         const q = validateUsSupportTriageRequest(command.request), source = validateUsSupportTriageSource(command.source);
         const {initial,fresh} = await admitted(input,revalidate), org = initial.authority.organizationId, ws = initial.workspaceId;
-        const requestHash = await hashUsSupportTriageRequest(org,ws,initial.authority.userId,q);
+        const requestHash = await hashUsSupportTriageExecutionRequest(initial,q);
         const historical = await lookup(await fresh(),q.requestId,requestHash);
         if (historical) { if (canonicalErpJson(historical.job.source) !== canonicalErpJson(source)) return fail('triage_source_conflict',409); await fresh(); return historical; }
+        await workerSource(await fresh(),source.receivedAt);
         const grant = validateUsSupportTriageGrant(command.grant,org,ws,now());
         if (grant.environment !== initial.authority.environment || grant.catalogVersion !== initial.authority.catalogVersion || grant.priceId !== initial.authority.priceId || q.processingPolicyVersion !== grant.processingPolicyVersion
           || q.uid !== source.uid || q.expectedMessageVersion !== source.messageVersion) return fail('triage_source_conflict',409);
         const sourceHash = await hashUsSupportTriageSource(org,ws,source), c = await fresh(), commandId = crypto.randomUUID(), jobId = crypto.randomUUID();
+        if(isUsSupportWorkerContext(c)){const prior=await database.prepare('SELECT source_json,recipe_version FROM international_us_support_triage_jobs WHERE organization_id=? AND workspace_id=? AND source_hash=? ORDER BY created_at,id LIMIT 1').bind(org,ws,sourceHash).first<Row>();if(prior&&(prior.recipe_version!==grant.recipeVersion||prior.source_json!==canonicalErpJson(source)))return fail('triage_source_conflict',409);}
         const statements = [database.prepare(`INSERT INTO international_us_support_triage_jobs(id,organization_id,workspace_id,first_command_id,actor_user_id,request_id,connection_id,mailbox_revision,
           source_hash,recipe_version,environment,period_id,source_json,grant_json,request_json,context_json,created_at)
           SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM international_us_support_triage_jobs WHERE organization_id=? AND workspace_id=? AND source_hash=? AND recipe_version=?)`)
@@ -105,6 +110,7 @@ export function d1UsSupportTriageStore(database: Database, options: {now?: () =>
         const q = reference(commandInput), command = row(commandInput); if (Object.keys(command).length !== 3 || typeof command.dispatchId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(command.dispatchId)) return fail('invalid_triage_request',422);
         const {fresh} = await admitted(input,revalidate), c = await fresh(), prior = await lookup(c,q.requestId,q.requestHash); if (!prior) return fail('triage_not_reserved',409);
         if (prior.job.dispatchId) { await fresh(); return {result:prior,mayDispatch:false}; }
+        await workerSource(c,prior.job.source.receivedAt);
         const statement = database.prepare(`INSERT INTO international_us_support_triage_dispatches(organization_id,workspace_id,job_id,dispatch_id,command_id,actor_user_id,context_json,created_at)
           SELECT organization_id,workspace_id,job_id,?,command_id,actor_user_id,?,? FROM international_us_support_triage_requests r WHERE organization_id=? AND workspace_id=? AND actor_user_id=? AND request_id=? AND request_hash=?
           AND NOT EXISTS(SELECT 1 FROM international_us_support_triage_dispatches d WHERE d.organization_id=r.organization_id AND d.workspace_id=r.workspace_id AND d.job_id=r.job_id)`)

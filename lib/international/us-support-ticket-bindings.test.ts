@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { recordUsSupportTicketCompletion, usSupportTicketCompletionRequestId, usSupportTicketHandlers, usSupportTicketsEnabled } from './us-support-ticket-bindings';
 import type { UsMailboxContext } from './us-support-mailbox-contract';
+import { US_SUPPORT_WORKER_ID, type UsSupportWorkerContext } from './us-support-execution-contract';
 
 const runtime = vi.hoisted(() => ({ env: {} as Record<string, string> }));
+const context: UsMailboxContext = { schemaVersion: 1, workspaceId: '22222222-2222-4222-8222-222222222222', authority: {
+  schemaVersion: 1, organizationId: '11111111-1111-4111-8111-111111111111', userId: '33333333-3333-4333-8333-333333333333',
+  role: 'owner', ownerUserId: '33333333-3333-4333-8333-333333333333', subscriptionId: 'sub_BindingFixture', environment: 'TEST',
+  catalogVersion: 'binding_fixture', priceId: 'price_BindingFixture', authorityReference: 'in_BindingFixture',
+  validStartsAt: 1_799_999_940, validEndsAt: 1_800_003_600, seatLimit: 8, checkedAt: 1_800_000_000, credential: { kind: 'browser' },
+} };
 vi.mock('cloudflare:workers', () => ({ env: runtime.env }));
 afterEach(() => { for (const key of Object.keys(runtime.env)) delete runtime.env[key]; });
 
@@ -47,6 +54,15 @@ describe('US Support ticket bindings, closed local capability', () => {
   });
   it('closed completion gate performs no revalidation or runtime database lookup', async () => {
     const check = vi.fn(async () => { throw new Error('closed sink must never touch Auth or runtime'); });
-    await recordUsSupportTicketCompletion({} as UsMailboxContext, 'invalid-before-gate', check); expect(check).not.toHaveBeenCalled();
+    await recordUsSupportTicketCompletion(context, 'invalid-before-gate', check); expect(check).not.toHaveBeenCalled();
+  });
+  it('closed completion gate refuses a worker without revalidation or runtime database lookup', async () => {
+    const worker: UsSupportWorkerContext = { ...context, authority: { ...context.authority, credential: {
+      kind: 'worker', workerId: US_SUPPORT_WORKER_ID, delegationId: '44444444-4444-4444-8444-444444444444',
+      delegationRevision: 1, runId: '55555555-5555-4555-8555-555555555555',
+    } } };
+    const check = vi.fn(async () => { throw new Error('closed worker sink must never touch Auth or runtime'); });
+    await expect(recordUsSupportTicketCompletion(worker, 'invalid-before-gate', check)).rejects.toMatchObject({ code: 'feature_unavailable', status: 404 });
+    expect(check).not.toHaveBeenCalled();
   });
 });
