@@ -5,6 +5,9 @@ import { ArrowLeft, ChevronRight, Check } from 'lucide-react';
 import type { CompanyAddress } from '@/lib/international/types';
 import type { AccountRole } from '@/lib/account-security';
 import { UsFinancialPilotExportActions } from './us-financial-pilot-export-actions';
+import { UsFinancialPilotCommercial } from './us-financial-pilot-commercial';
+import type { UsFinancialPilotCommercialReceipt } from '@/lib/international/us-financial-pilot-commercial';
+import { browserUsFinancialPilotCommercialCopy, browserUsFinancialPilotCommercialErrorCopy } from '@/lib/international/browser-us-financial-pilot-commercial-copy';
 import { AUTH_CHANGED_EVENT } from '@/lib/auth-browser-events';
 import type { SiteLanguage } from '@/lib/site-language';
 import { createBrowserUsFinancialPilotSession, type BrowserUsFinancialPilotSession } from '@/lib/international/browser-us-financial-pilot-session';
@@ -12,7 +15,7 @@ import { browserUsFinancialPilotCopy, browserUsFinancialPilotErrorCopy } from '@
 import { formatMoney, money } from '@/lib/international/money';
 import { parseUsFinancialPilotPaymentAmount } from '@/lib/international/us-financial-pilot-payment';
 import { formatDateOnly } from '@/lib/international/localization';
-import type { UsFinancialPilotEstimateRow, UsFinancialPilotInvoiceDetail, UsFinancialPilotInvoiceRow, UsFinancialPilotJournalRow, UsFinancialPilotListKind, UsFinancialPilotPage, UsFinancialPilotParty, UsFinancialPilotPeriodRow, UsFinancialPilotReports } from '@/lib/international/us-financial-pilot-contract';
+import type { UsFinancialPilotInvoiceDetail, UsFinancialPilotInvoiceRow, UsFinancialPilotJournalRow, UsFinancialPilotListKind, UsFinancialPilotPage, UsFinancialPilotParty, UsFinancialPilotPeriodRow, UsFinancialPilotReports } from '@/lib/international/us-financial-pilot-contract';
 import './us-financial-pilot.css';
 
 interface Props {organizationId:string;expectedUserId:string;name:string;role:AccountRole;language:SiteLanguage}
@@ -25,7 +28,7 @@ function AddressLines({address,language}:{address:CompanyAddress;language:SiteLa
 function quantity(units:string,scale:number):string{const digits=units.padStart(scale+1,'0');return scale?`${digits.slice(0,-scale)}.${digits.slice(-scale)}`:digits;}
 export function UsFinancialPilot(props:Props){return <FinancialPilotWorkspace key={`${props.organizationId}:${props.expectedUserId}`} {...props}/>;}
 function FinancialPilotWorkspace({organizationId,expectedUserId,name,language}:Props){
-  const c=browserUsFinancialPilotCopy[language],locale='en-US';
+  const c=browserUsFinancialPilotCopy[language],commercialCopy=browserUsFinancialPilotCommercialCopy[language],locale='en-US';
   const usd=(minor:string)=>formatMoney(money('USD',minor),locale),date=(value:string)=>formatDateOnly(value,locale);
   const sessionRef=useRef<BrowserUsFinancialPilotSession|null>(null);
   const [state,setState]=useState(()=>createBrowserUsFinancialPilotSession({organizationId,expectedUserId}).getState()),[tab,setTab]=useState<typeof tabs[number]>('invoices');
@@ -33,9 +36,11 @@ function FinancialPilotWorkspace({organizationId,expectedUserId,name,language}:P
   const [draft,setDraft]=useState<PaymentDraft|null>(null),[message,setMessage]=useState(''),[localError,setLocalError]=useState(''),[busy,setBusy]=useState(false),[accountChanged,setAccountChanged]=useState(false);
   const [rangeDraft,setRangeDraft]=useState<{from:string;to:string;asOf:string}|null>(null),[reports,setReports]=useState<UsFinancialPilotReports|null>(null);
   const [reportAccount,setReportAccount]=useState('');
+  const [commercialReceipt,setCommercialReceipt]=useState<UsFinancialPilotCommercialReceipt|null>(null);
+  const [commercialSession,setCommercialSession]=useState<BrowserUsFinancialPilotSession|null>(null);
   const [detailRetry,setDetailRetry]=useState(0),[historyLoading,setHistoryLoading]=useState(false);
   const [historyCursors,setHistoryCursors]=useState<{revision:number;paymentCursor?:string;creditCursor?:string}>({revision:0});
-  const generation=useRef(0),detailGeneration=useRef(0),snapshot=state.snapshot;
+  const generation=useRef(0),detailGeneration=useRef(0),identityGeneration=useRef(0),snapshot=state.snapshot;
   const revision=snapshot?.revision,defaultPeriod=snapshot?.periods.items[0];
   const reportRange=rangeDraft??{from:defaultPeriod?.start??'',to:defaultPeriod?.end??'',asOf:defaultPeriod?.end??''};
   useEffect(()=>{
@@ -43,10 +48,10 @@ function FinancialPilotWorkspace({organizationId,expectedUserId,name,language}:P
     // must not reuse the terminally disposed session from the first setup.
     const active=createBrowserUsFinancialPilotSession({organizationId,expectedUserId});
     sessionRef.current=active;
-    const invalidate=()=>{generation.current++;detailGeneration.current++;};
-    const clear=()=>{setDraft(null);setDetail(null);setReports(null);setExtraPage(null);setSelected(null);setRangeDraft(null);setReportAccount('');setHistoryCursors({revision:0});setMessage('');setBusy(false);setHistoryLoading(false);};
+    const invalidate=()=>{generation.current++;detailGeneration.current++;identityGeneration.current++;};
+    const clear=()=>{setDraft(null);setDetail(null);setReports(null);setExtraPage(null);setSelected(null);setRangeDraft(null);setReportAccount('');setCommercialReceipt(null);setHistoryCursors({revision:0});setMessage('');setBusy(false);setHistoryLoading(false);};
     const unsubscribe=active.subscribe(()=>{
-      const next=active.getState();setState(next);
+      const next=active.getState();setState(next);setCommercialSession(active);
       if(next.status==='denied'||next.status==='stopped'){invalidate();clear();}
     });
     const changed=()=>{invalidate();active.dispose();setAccountChanged(true);clear();setLocalError('');};
@@ -74,12 +79,12 @@ function FinancialPilotWorkspace({organizationId,expectedUserId,name,language}:P
     setDraft({invoiceId:row.id,revision:snapshot.revision,amount:amountDecimal(row.outstandingMinor),paymentDate:now,accountingDate:now,periodId:period?.id??'',reference:''});setMessage('');setLocalError('');
   }
   async function savePayment(event:SubmitEvent){
-    event.preventDefault();const session=sessionRef.current;if(!session||!draft||state.writing||state.pending)return;const at=++generation.current;setLocalError('');setMessage('');
+    event.preventDefault();const session=sessionRef.current;if(!session||!draft||state.writing||state.pending)return;const at=identityGeneration.current,submitted=draft;setLocalError('');setMessage('');
     try{
       const minor=parseUsFinancialPilotPaymentAmount(draft.amount);
       await session.recordPayment({type:'customer_payment',invoiceId:draft.invoiceId,amountMinor:minor,paymentDate:draft.paymentDate,accountingDate:draft.accountingDate,periodId:draft.periodId,reference:draft.reference.trim()},draft.revision);
-      if(at===generation.current){setDraft(null);setMessage(c.saved);}
-    }catch(error){if(at===generation.current)setLocalError(browserUsFinancialPilotErrorCopy(language,(error as {code?:string}).code??'invalid_request'));}
+      if(at===identityGeneration.current){setDraft(old=>old?.invoiceId===submitted.invoiceId&&old.revision===submitted.revision?null:old);setMessage(c.saved);}
+    }catch(error){if(at===identityGeneration.current)setLocalError(browserUsFinancialPilotErrorCopy(language,(error as {code?:string}).code??'invalid_request'));}
   }
   async function reviewBalance(){
     const session=sessionRef.current;if(!session)return;const at=++generation.current;setBusy(true);setLocalError('');
@@ -87,13 +92,13 @@ function FinancialPilotWorkspace({organizationId,expectedUserId,name,language}:P
     catch(error){if(at===generation.current)setLocalError(browserUsFinancialPilotErrorCopy(language,(error as {code?:string}).code??''));}
     finally{if(at===generation.current)setBusy(false);}
   }
-  async function retryPayment(){const session=sessionRef.current;if(!session)return;const at=++generation.current;try{await session.retry();if(at===generation.current){setDraft(null);setLocalError('');setMessage(c.saved);}}catch(error){if(at===generation.current)setLocalError(browserUsFinancialPilotErrorCopy(language,(error as {code?:string}).code??''));}}
+  async function retryPayment(){const session=sessionRef.current;if(!session)return;const at=identityGeneration.current,kind=state.pendingKind;try{const receipt=await session.retry();if(at===identityGeneration.current){setLocalError('');if(receipt.action==='customer_payment'){setDraft(null);setMessage(c.saved);}else{setCommercialReceipt(receipt);setMessage('');}}}catch(error){if(at===identityGeneration.current)setLocalError((kind==='commercial'?browserUsFinancialPilotCommercialErrorCopy:browserUsFinancialPilotErrorCopy)(language,(error as {code?:string}).code??''));}}
   async function loadReports(cursor?:string){const session=sessionRef.current;if(!session||!snapshot||busy)return;const at=++generation.current;setBusy(true);setLocalError('');try{const value=await session.readReports({revision:snapshot.revision,...reportRange,...(reportAccount?{accountId:reportAccount}:{}),...(cursor?{cursor}:{})});if(at===generation.current)setReports(value);}catch(error){if(at===generation.current)setLocalError(browserUsFinancialPilotErrorCopy(language,(error as {code?:string}).code??''));}finally{if(at===generation.current)setBusy(false);}}
   function calculate(event:SubmitEvent){event.preventDefault();void loadReports();}
   function exportDenied(){sessionRef.current?.dispose();setAccountChanged(true);}
   const currentDetail=detail&&detail.revision===snapshot?.revision&&detail.invoice.id===selected?detail:null;
   const currentReports=reports&&reports.revision===snapshot?.revision&&reports.from===reportRange.from&&reports.to===reportRange.to&&reports.asOf===reportRange.asOf&&(reports.generalLedger?.account.accountId??'')===reportAccount;
-  const errorText=localError||(!state.pending&&state.error?browserUsFinancialPilotErrorCopy(language,state.error.code):'');
+  const errorText=localError||(!state.pending&&state.error&&tab!=='customers'&&tab!=='estimates'?browserUsFinancialPilotErrorCopy(language,state.error.code):'');
   const page=snapshot&&tab!=='reports'?(extraPage?.kind===tab&&extraPage.revision===snapshot.revision?extraPage:snapshot[tab]):null;
   return <section className="us-financial-pilot" aria-label={c.title}>
     <header className="fp-heading"><div><h1>{name}</h1><p>{c.title}</p></div><span className="fp-test">{c.test}</span></header>
@@ -102,7 +107,7 @@ function FinancialPilotWorkspace({organizationId,expectedUserId,name,language}:P
       <div className="fp-balance"><dl>{(['outstanding','received','credited'] as const).map(key=><div key={key}><dt>{c[key]}</dt><dd>{usd(snapshot.summary[`${key}Minor`])}</dd></div>)}</dl><span className="fp-sync" aria-live="off">{state.refreshing?c.refreshing:c.current}</span></div>
       <nav className="fp-tabs" aria-label={c.title}>{tabs.map(item=><button key={item} type="button" aria-current={tab===item?'page':undefined} onClick={()=>{generation.current++;setBusy(false);setTab(item);setSelected(null);setLocalError('');setExtraPage(null);}}>{c[item]}</button>)}</nav>
       {message&&<p className="fp-success" aria-live="polite"><Check size={18} aria-hidden/>{message}</p>}
-      {state.pending?<div className="fp-notice" aria-live="polite"><p>{c.pending}</p><button className="account-button secondary" disabled={state.writing} onClick={()=>{void retryPayment();}}>{state.writing?c.saving:c.retry}</button></div>:errorText&&<div className="fp-notice" role="alert"><p>{errorText}</p><button className="account-button secondary" disabled={busy} onClick={()=>{void reviewBalance();}}>{draft?c.review:c.refresh}</button></div>}
+      {state.pending?(state.pendingKind!=='commercial'||!state.writing)&&<div className="fp-notice" aria-live="polite"><p>{state.pendingKind==='commercial'?commercialCopy.pending:c.pending}</p><button className="account-button secondary" disabled={state.writing} onClick={()=>{void retryPayment();}}>{state.writing?(state.pendingKind==='commercial'?commercialCopy.saving:c.saving):(state.pendingKind==='commercial'?commercialCopy.retry:c.retry)}</button></div>:errorText&&<div className="fp-notice" role="alert"><p>{errorText}</p><button className="account-button secondary" disabled={busy} onClick={()=>{void reviewBalance();}}>{draft?c.review:c.refresh}</button></div>}
       {draft&&draft.invoiceId!==selected&&<div className="fp-notice" aria-live="polite"><p>{c.draftElsewhere}</p><div className="fp-actions"><button className="account-button secondary" type="button" onClick={()=>{setTab('invoices');setSelected(draft.invoiceId);setHistoryCursors({revision:0});setExtraPage(null);setLocalError('');}}>{c.resumeDraft}</button><button className="fp-link" type="button" disabled={state.pending||state.writing} onClick={()=>setDraft(null)}>{c.cancel}</button></div></div>}
       {tab==='invoices'&&selected?<div className="fp-detail"><button type="button" className="fp-back" onClick={()=>{setSelected(null);setDetail(null);setLocalError('');}}><ArrowLeft size={18} aria-hidden/>{c.back}</button>{!currentDetail?<p className="fp-empty" aria-live="polite">{c.loading}</p>:<>
         <div className="fp-detail-heading"><div><h2>{currentDetail.invoice.number}</h2><p>{currentDetail.invoice.customerName}</p></div><span className="fp-status">{status(currentDetail.invoice)}</span></div>
@@ -119,7 +124,8 @@ function FinancialPilotWorkspace({organizationId,expectedUserId,name,language}:P
         <section className="fp-report-section"><h3>{c.balance}</h3><details className="fp-account-rows"><summary>{c.accountDetails}</summary><dl className="fp-report-facts">{reports.balanceSheet.rows.map(row=><div key={row.accountId}><dt>{row.name}</dt><dd>{usd(row.amountMinor)}</dd></div>)}</dl></details><dl className="fp-report-facts">{([{label:c.assets,minor:reports.balanceSheet.assetsMinor},{label:c.liabilities,minor:reports.balanceSheet.liabilitiesMinor},{label:c.equity,minor:reports.balanceSheet.equityMinor},{label:c.earnings,minor:reports.balanceSheet.unclosedEarningsMinor}]).map(row=><div key={row.label}><dt>{row.label}</dt><dd>{usd(row.minor)}</dd></div>)}</dl></section>
         <section className="fp-report-section"><h3>{c.cash}</h3>{reports.cashFlow.status==='unavailable'?<p>{c.cashUnavailable}</p>:<dl className="fp-report-facts">{([{label:c.opening,minor:reports.cashFlow.openingMinor},{label:c.operating,minor:reports.cashFlow.operatingMinor},{label:c.investing,minor:reports.cashFlow.investingMinor},{label:c.financing,minor:reports.cashFlow.financingMinor},{label:c.closing,minor:reports.cashFlow.closingMinor}]).map(row=><div key={row.label}><dt>{row.label}</dt><dd>{usd(row.minor)}</dd></div>)}</dl>}</section><section className="fp-report-section"><h3>{c.currentReceivables}</h3><dl className="fp-report-facts"><div><dt>{c.outstanding}</dt><dd>{usd(reports.currentReceivables.summary.outstandingMinor)}</dd></div></dl></section>
         {reports.generalLedger&&<section className="fp-report-section"><h3>{c.generalLedger} · {reports.generalLedger.account.code}</h3><p>{reports.generalLedger.account.name}</p><dl className="fp-report-facts"><div><dt>{c.openingBalance}</dt><dd>{usd(reports.generalLedger.openingMinor)}</dd></div><div><dt>{c.closingBalance}</dt><dd>{usd(reports.generalLedger.closingMinor)}</dd></div></dl><div className="fp-table-scroll"><table><thead><tr><th scope="col">{c.journalDate}</th><th scope="col">{c.debit}</th><th scope="col">{c.credit}</th><th scope="col">{c.runningBalance}</th></tr></thead><tbody>{reports.generalLedger.movements.items.map(row=><tr key={row.journalRevision}><th scope="row">{date(row.accountingDate)}</th><td>{usd(row.debitMinor)}</td><td>{usd(row.creditMinor)}</td><td>{usd(row.balanceMinor)}</td></tr>)}</tbody></table></div><div className="fp-pagination"><button className="fp-link" disabled={busy} onClick={()=>{void loadReports();}}>{c.firstPage}</button>{reports.generalLedger.movements.nextCursor&&<button className="account-button secondary" disabled={busy} onClick={()=>{void loadReports(reports.generalLedger!.movements.nextCursor!);}}>{c.more}</button>}</div></section>}
-      </>}</section>:page&&<section className="fp-register"><div className="fp-register-title"><h2>{c[tab]}</h2><span>{page.total}</span></div>{page.items.length===0?<p className="fp-empty">{c.empty}</p>:<ul className="fp-records">{tab==='invoices'?(page.items as readonly UsFinancialPilotInvoiceRow[]).map(row=><li key={row.id}><button className="fp-invoice-row" onClick={()=>{setSelected(row.id);setHistoryCursors({revision:0});setLocalError('');setMessage('');}}><div><strong>{row.number}</strong><span>{row.customerName}</span><small>{date(row.date)} · {status(row)}</small></div><div className="fp-row-amount"><strong>{usd(row.outstandingMinor)}</strong><span>{c.outstanding}</span></div><ChevronRight size={18} aria-hidden/></button></li>):tab==='customers'||tab==='vendors'?(page.items as readonly UsFinancialPilotParty[]).map(row=><li className="fp-record" key={row.id}><div><strong>{row.name}</strong><span>{row.contactName||row.billingAddress.city}</span>{row.email&&<a href={`mailto:${encodeURIComponent(row.email)}`}>{row.email}</a>}</div><span>{row.billingAddress.subdivision}</span></li>):tab==='estimates'?(page.items as readonly UsFinancialPilotEstimateRow[]).map(row=><li className="fp-record" key={row.id}><div><strong>{row.number}</strong><span>{row.customerName}</span><small>{date(row.date)} · {c[row.status]}</small></div><div className="fp-row-amount"><strong>{usd(row.netMinor)}</strong><span>{c.netQuote}</span></div></li>):tab==='journals'?(page.items as readonly UsFinancialPilotJournalRow[]).map(row=><li className="fp-record" key={row.journalRevision}><div><strong>{row.description}</strong><span>{date(row.accountingDate)} · {row.source.reference??''}</span></div><div className="fp-row-amount"><strong>{usd(row.debitMinor)}</strong><span>{c.debit} = {c.credit}</span></div></li>):(page.items as readonly UsFinancialPilotPeriodRow[]).map(row=><li className="fp-record" key={row.id}><strong>{date(row.start)} – {date(row.end)}</strong><span>{row.status==='open'?c.openStatus:c.closedStatus}</span></li>)}</ul>}<div className="fp-pagination">{extraPage?.kind===tab&&extraPage.revision===snapshot.revision&&<button type="button" className="fp-link" onClick={()=>setExtraPage(null)}><ArrowLeft size={17} aria-hidden/>{c.firstPage}</button>}{page.nextCursor&&<button type="button" className="account-button secondary" disabled={busy} onClick={()=>{void pageMore(page);}}>{c.more}</button>}</div></section>}
+      </>}</section>:page&&tab!=='customers'&&tab!=='estimates'&&<section className="fp-register"><div className="fp-register-title"><h2>{c[tab]}</h2><span>{page.total}</span></div>{page.items.length===0?<p className="fp-empty">{c.empty}</p>:<ul className="fp-records">{tab==='invoices'?(page.items as readonly UsFinancialPilotInvoiceRow[]).map(row=><li key={row.id}><button className="fp-invoice-row" onClick={()=>{setSelected(row.id);setHistoryCursors({revision:0});setLocalError('');setMessage('');}}><div><strong>{row.number}</strong><span>{row.customerName}</span><small>{date(row.date)} · {status(row)}</small></div><div className="fp-row-amount"><strong>{usd(row.outstandingMinor)}</strong><span>{c.outstanding}</span></div><ChevronRight size={18} aria-hidden/></button></li>):tab==='vendors'?(page.items as readonly UsFinancialPilotParty[]).map(row=><li className="fp-record" key={row.id}><div><strong>{row.name}</strong><span>{row.contactName||row.billingAddress.city}</span>{row.email&&<a href={`mailto:${encodeURIComponent(row.email)}`}>{row.email}</a>}</div><span>{row.billingAddress.subdivision}</span></li>):tab==='journals'?(page.items as readonly UsFinancialPilotJournalRow[]).map(row=><li className="fp-record" key={row.journalRevision}><div><strong>{row.description}</strong><span>{date(row.accountingDate)} · {row.source.reference??''}</span></div><div className="fp-row-amount"><strong>{usd(row.debitMinor)}</strong><span>{c.debit} = {c.credit}</span></div></li>):(page.items as readonly UsFinancialPilotPeriodRow[]).map(row=><li className="fp-record" key={row.id}><strong>{date(row.start)} – {date(row.end)}</strong><span>{row.status==='open'?c.openStatus:c.closedStatus}</span></li>)}</ul>}<div className="fp-pagination">{extraPage?.kind===tab&&extraPage.revision===snapshot.revision&&<button type="button" className="fp-link" onClick={()=>setExtraPage(null)}><ArrowLeft size={17} aria-hidden/>{c.firstPage}</button>}{page.nextCursor&&<button type="button" className="account-button secondary" disabled={busy} onClick={()=>{void pageMore(page);}}>{c.more}</button>}</div></section>}
+      {commercialSession&&<UsFinancialPilotCommercial session={commercialSession} state={state} snapshot={snapshot} language={language} tab={tab} onTab={setTab} recoveredReceipt={commercialReceipt}/>}
     </>}
   </section>;
 }
