@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { accountWorkspacesForUser, accountWorkspaceDiscoveryEnabled, type AccountWorkspaceReadDatabase } from './account-workspaces';
 import { createOrResumeUsWorkspace } from './international/workspace-creation';
 import { d1WorkspaceCreationStore } from './international/workspace-creation-d1';
-import { d1UsAuthorityStore } from './international/saas-authority-d1';
+import { d1UsAuthorityStore as currentUsAuthorityStore } from './international/saas-authority-d1';
+// Historical discovery fixture deliberately stops before recurring rights.
+// Actual0092/lifecycle integration is tested by the full-chain lifecycle suite.
+const d1UsAuthorityStore = (db: Parameters<typeof currentUsAuthorityStore>[0]) => currentUsAuthorityStore(db, { authoritySource: 'initial_admission' });
 import { prepareUsAuthorityAdmission, type UsSaasPolicy } from './international/saas-authority';
 import type { SaasSubscriptionAuthority, SaasSubscriptionOffer, ServerStripePrice } from './international/subscriptions';
 

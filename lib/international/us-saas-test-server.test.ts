@@ -31,6 +31,17 @@ beforeEach(() => {
 async function start() { const response = await createUsTestBillingHandlers(deps).POST(request(checkout())); expect(response.status).toBe(200); return response; }
 const webhook = () => new Request(origin+'/api/international/billing/test/webhook', { method:'POST', headers:{ 'Stripe-Signature':'fixture_signature' }, body:'{"id":"evt_fixture"}' });
 describe('US initial TEST billing HTTP boundary', () => {
+  it('dispatches lifecycle only AFTER signature verification and avoids initial-only renewal checks', async () => {
+    deps.lifecycle = vi.fn(async () => ({ received: true as const, disposition: 'paid_period' }));
+    const response = await createUsTestBillingHandlers(deps).WEBHOOK(webhook());
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ received: true, disposition: 'paid_period' });
+    expect(vi.mocked(deps.verifyEvent).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(deps.lifecycle).mock.invocationCallOrder[0]);
+    expect(deps.gateway).not.toHaveBeenCalled(); expect(deps.purchases).not.toHaveBeenCalled();
+  });
+  it('does not process lifecycle when a webhook signature is invalid', async () => {
+    deps.lifecycle = vi.fn(); vi.mocked(deps.verifyEvent).mockRejectedValue(new UsTestBillingError('invalid_signature', 400));
+    expect((await createUsTestBillingHandlers(deps).WEBHOOK(webhook())).status).toBe(400); expect(deps.lifecycle).not.toHaveBeenCalled();
+  });
   it('reserves before external create; Checkout return does not grant access', async () => {
     const gateway = await deps.gateway(); vi.mocked(gateway.create).mockImplementationOnce(async p => { expect(purchase?.purchaseId).toBe(p.purchaseId); return { session:verifiedUsTestSession(p,{ purchaseId:p.purchaseId, sessionId:'cs_test_fixture', customerId:null, subscriptionId:null, createdAt:now, expiresAt:p.expiresAt }), url:'https://checkout.stripe.com/c/pay/cs_test_fixture' }; });
     const response = await start(); const body = await response.json() as UsTestPublicState; expect(body.purchase.state).toBe('checkout_pending'); expect(intent.state).toBe('postgres_confirmed'); expect((await deps.purchases()).admit).not.toHaveBeenCalled();

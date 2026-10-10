@@ -125,6 +125,32 @@ describe('US native HTTP with actual full SQLite D1 schema (synthetic Auth/PG/pa
   it('bounds a long paid TEST entitlement to exactly thirty days, never its full duration',async()=>{
     const f=await fixture('owner',1,40*86400),{metadata}=await connected(f);expect(metadata.expiresAt).toBe(f.now()+30*86400);expect(metadata.entitlementValidUntil).toBe(f.now()+40*86400);
   });
+  it.each([3,4] as const)('keeps captured capability%s metadata and exact exchange replay unchanged after a compatible current renewal',async schema=>{
+    const f=await fixture(),h=createUsDeviceHandlers({...f.deps,maxSchemaVersion:()=>4});
+    const started=await h.START(f.request('start',{protocol:US_DEVICE_PROTOCOL,installationId:f.installationId,sessionTokenHash:f.sessionTokenHash,supportedSchemaVersion:schema})),c=await started.json() as {deviceCode:string;userCode:string};
+    expect((await f.approve(c.userCode)).status).toBe(200);const original=await(await f.exchange(c.deviceCode)).json() as UsDeviceSession;
+    const snapshot=f.sql.prepare('SELECT * FROM '+(schema===4?'international_us_device_v4_sessions':'international_us_device_sessions')).all();
+    const admission=await f.deps.access(f.intent.organizationId,f.actor),renewed=createUsDeviceHandlers({...f.deps,access:async()=>({...admission,entitlementValidUntil:f.authority.evidence!.endsAt+86400})});
+    expect(await(await renewed.ME(f.request('me',undefined,true))).json()).toEqual(original);
+    expect(await(await renewed.EXCHANGE(f.request('exchange',{protocol:US_DEVICE_PROTOCOL,deviceCode:c.deviceCode,installationId:f.installationId,sessionToken:f.sessionToken}))).json()).toEqual(original);
+    expect(f.sql.prepare('SELECT * FROM '+(schema===4?'international_us_device_v4_sessions':'international_us_device_sessions')).all()).toEqual(snapshot);
+    f.sql.function('unixepoch',()=>f.now());f.setNow(original.expiresAt);
+    expect((await renewed.ME(f.request('me',undefined,true))).status).toBe(401);
+    expect((await renewed.EXCHANGE(f.request('exchange',{protocol:US_DEVICE_PROTOCOL,deviceCode:c.deviceCode,installationId:f.installationId,sessionToken:f.sessionToken}))).status).toBe(401);
+  });
+  it('permits a monotonic renewal during awaited admission without changing an approved challenge or its new token bounds',async()=>{
+    const f=await fixture(),c=await f.start();expect((await f.approve(c.userCode)).status).toBe(200);
+    const captured=f.authority.evidence!.endsAt;let reads=0;
+    const renewed=createUsDeviceHandlers({...f.deps,access:async(...args)=>({...await f.deps.access(...args),entitlementValidUntil:++reads===1?captured:captured+86400})});
+    const response=await renewed.EXCHANGE(f.request('exchange',{protocol:US_DEVICE_PROTOCOL,deviceCode:c.deviceCode,installationId:f.installationId,sessionToken:f.sessionToken}));
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({expiresAt:captured,entitlementValidUntil:captured});
+    expect(f.sql.prepare('SELECT entitlement_valid_until FROM international_us_device_challenges').get()).toEqual({entitlement_valid_until:captured});
+  });
+  it('rejects a current entitlement shorter than the captured credential even while both dates are future',async()=>{
+    const f=await fixture();await connected(f);
+    const shortened=createUsDeviceHandlers({...f.deps,access:async(...args)=>({...await f.deps.access(...args),entitlementValidUntil:f.authority.evidence!.endsAt-1})});
+    expect((await shortened.ME(f.request('me',undefined,true))).status).toBe(403);expect(f.sql.prepare('SELECT revoked_at FROM international_us_device_sessions').get()).toEqual({revoked_at:null});
+  });
   it.each(['role','configuration'] as const)('does not disclose connected state after fresh %s changes',async what=>{
     const f=await fixture();await connected(f);let reads=0;
     const handler=createUsDeviceHandlers({...f.deps,access:async(...args)=>{const a=await f.deps.access(...args);return ++reads>1?{...a,...(what==='role'?{role:'read_only' as const}:{configurationStamp:'changed'})}:a;}});

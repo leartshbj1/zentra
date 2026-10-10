@@ -5,7 +5,10 @@ import { beforeAll,afterAll,describe,it,expect } from 'vitest';
 import { createOrResumeUsWorkspace,canonicalCreationJson,type WorkspaceCreationIntent } from './workspace-creation';
 import { d1WorkspaceCreationStore } from './workspace-creation-d1';
 import { prepareUsAuthorityAdmission,type UsSaasPolicy } from './saas-authority';
-import { d1UsAuthorityStore } from './saas-authority-d1';
+import { d1UsAuthorityStore as currentUsAuthorityStore } from './saas-authority-d1';
+// This optional workerd suite exercises the original admission migration chain.
+// It does not claim to validate recurring0092 rights or hosted lifecycle.
+const d1UsAuthorityStore = (db: Parameters<typeof currentUsAuthorityStore>[0]) => currentUsAuthorityStore(db, { authoritySource: 'initial_admission' });
 import type { SaasSubscriptionAuthority,SaasSubscriptionOffer,ServerStripePrice } from './subscriptions';
 import { createUsAutomationGrant, parseUsAutomationBudgetPolicy } from './us-automation-policy';
 

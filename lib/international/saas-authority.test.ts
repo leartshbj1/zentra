@@ -5,10 +5,13 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createOrResumeUsWorkspace, canonicalCreationJson, type WorkspaceCreationIntent, type WorkspaceCreationPorts } from './workspace-creation';
 import { d1WorkspaceCreationStore } from './workspace-creation-d1';
 import { prepareUsAuthorityAdmission, usWorkspaceAccess, parseUsSubscriptionAuthority, type UsAuthorityRecord, type UsSaasPolicy } from './saas-authority';
-import { d1UsAuthorityStore, parseUsSaasPolicy } from './saas-authority-d1';
+import { d1UsAuthorityStore as createAuthorityStore, parseUsSaasPolicy } from './saas-authority-d1';
 import type { SaasSubscriptionAuthority, SaasSubscriptionOffer, ServerStripePrice } from './subscriptions';
 
 const actor='11111111-1111-4111-8111-111111111111',requestId='22222222-2222-4222-8222-222222222222',org='33333333-3333-4333-8333-333333333333',creationId='44444444-4444-4444-8444-444444444444';
+// This suite deliberately verifies the original0000..0087 admission contract.
+// Lifecycle tests exercise the default effective reader with the real0092 chain.
+const d1UsAuthorityStore=(database:Parameters<typeof createAuthorityStore>[0])=>createAuthorityStore(database,{authoritySource:'initial_admission'});
 const input={requestId,confirmationVersion:1 as const,companyName:'Fictitious US Company',configuration:{schemaVersion:1 as const,country:'US' as const,currency:'USD' as const,language:'en' as const,timeZone:'America/New_York',address:{country:'US' as const,line1:'10 Example St',city:'New York',subdivision:'NY',postalCode:'10001'},accountingBasis:'accrual' as const,invoiceNumberPrefix:'INV',taxConfiguration:{status:'unconfigured' as const}}};
 // Fixture-only approved USD price. No real Stripe product or price is created.
 const offer:SaasSubscriptionOffer={kind:'saas_subscription',catalogVersion:'fixture_US_1',country:'US',currency:'USD',module:'gestion',plan:'fixture_US_plan',priceId:'price_fictitious_US',productId:'prod_fictitious_US',environment:'TEST',unitAmountMinor:'1000',interval:'month',intervalCount:1,taxBehavior:'exclusive'};

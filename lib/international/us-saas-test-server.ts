@@ -29,6 +29,8 @@ export interface UsTestBillingDependencies {
   gateway(this: void): UsTestGateway | Promise<UsTestGateway>;
   confirmCreation(this: void, intent: WorkspaceCreationIntent, revalidate: () => Promise<void>): Promise<WorkspaceCreationIntent>;
   verifyEvent(this: void, rawBody: string, signature: string): Promise<unknown>;
+  /** Internal signed-event composition. Missing/disabled keeps initial-only behavior. */
+  lifecycle?(this: void, request: Request, event: unknown): Promise<{ received: true; disposition: string } | null>;
   rateLimit(this: void, request: Request, userId: string, operation: 'read' | 'checkout' | 'recover'): Promise<void>;
   now(this: void): number;
   allocateId(this: void): string;
@@ -190,6 +192,8 @@ export function createUsTestBillingHandlers(dependencies: UsTestBillingDependenc
         const signature = request.headers.get('Stripe-Signature');
         if (!signature || signature.length > 4096) throw new UsTestBillingError('invalid_signature', 400);
         const event = await dependencies.verifyEvent(await readTextBodyWithinLimit(request, 1_048_576), signature);
+        const lifecycle = await dependencies.lifecycle?.(request, event);
+        if (lifecycle) return json(lifecycle);
         const locator = await (await dependencies.gateway()).locate(event);
         if (!locator) return json({ received: true, disposition: 'ignored' });
         const purchases = await dependencies.purchases(), creations = await dependencies.creations();

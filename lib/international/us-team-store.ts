@@ -38,7 +38,7 @@ export function d1UsTeamStore(database: TeamDatabase, options: {now?:()=>number}
     const c=validateUsTeamContext(input,undefined,now());
     const saved=await database.prepare(`SELECT a.subscription_id,a.environment,a.catalog_version,a.seat_limit,json_extract(a.offer_json,'$.priceId') AS price_id,
       json_extract(a.authority_json,'$.evidence.startsAt') AS starts_at,json_extract(a.authority_json,'$.evidence.endsAt') AS ends_at
-      FROM international_saas_authorities a JOIN international_workspace_creation_intents i ON i.creation_id=a.creation_id AND i.organization_id=a.organization_id
+      FROM international_effective_saas_authorities a JOIN international_workspace_creation_intents i ON i.creation_id=a.creation_id AND i.organization_id=a.organization_id
       JOIN international_workspace_members owner ON owner.organization_id=a.organization_id AND owner.user_id=a.owner_user_id AND owner.role='owner' AND owner.revoked_at IS NULL
       WHERE a.organization_id=? AND i.state='ready' AND i.own_subscription_id=a.subscription_id AND a.country='US' AND a.currency='USD' AND a.revoked_at IS NULL
       AND json_extract(a.authority_json,'$.status')='active' AND json_extract(a.authority_json,'$.evidence.revoked')=0

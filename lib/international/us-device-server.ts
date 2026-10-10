@@ -30,8 +30,10 @@ function failure(error:unknown):Response {
   if(error instanceof RequestBodyError)return json({error:'invalid_request'},error.status);
   return json({error:'service_unavailable'},503);
 }
-function same(a:UsDeviceAdmission,b:UsDeviceAdmission):boolean {return a.organizationId===b.organizationId&&a.organizationName===b.organizationName&&a.userId===b.userId&&a.role===b.role&&a.subscriptionId===b.subscriptionId&&a.entitlementValidUntil===b.entitlementValidUntil&&a.configurationStamp===b.configurationStamp;}
-function approved(c:UsDeviceChallenge,a:UsDeviceAdmission):boolean {return c.organization_id===a.organizationId&&c.approved_user_id===a.userId&&c.approved_role===a.role&&c.subscription_id===a.subscriptionId&&c.entitlement_valid_until===a.entitlementValidUntil;}
+// A verified renewal can extend current rights during an awaited check. It
+// never changes the original challenge/session bounds or credential identity.
+function same(a:UsDeviceAdmission,b:UsDeviceAdmission):boolean {return a.organizationId===b.organizationId&&a.organizationName===b.organizationName&&a.userId===b.userId&&a.role===b.role&&a.subscriptionId===b.subscriptionId&&a.entitlementValidUntil<=b.entitlementValidUntil&&a.configurationStamp===b.configurationStamp;}
+function approved(c:UsDeviceChallenge,a:UsDeviceAdmission):boolean {return c.organization_id===a.organizationId&&c.approved_user_id===a.userId&&c.approved_role===a.role&&c.subscription_id===a.subscriptionId&&c.entitlement_valid_until!==null&&c.entitlement_valid_until<=a.entitlementValidUntil;}
 function cleanRow(row:UsDeviceSessionRow):UsDeviceSessionRow {
   try {
     const v=usDeviceExact(row,['session_id','device_code_hash','token_hash','installation_id','organization_id','user_id','role','subscription_id','supported_schema_version','created_at','expires_at','entitlement_valid_until','revoked_at']);
@@ -74,7 +76,7 @@ export function createUsDeviceHandlers(deps:UsDeviceDependencies) {
   }
   function metadata(row:UsDeviceSessionRow,a:UsDeviceAdmission):UsDeviceSession {
     if(row.revoked_at!==null||row.expires_at<=now())throw new UsDeviceError('unauthorized',401);
-    if(row.organization_id!==a.organizationId||row.user_id!==a.userId||row.role!==a.role||row.subscription_id!==a.subscriptionId||row.entitlement_valid_until!==a.entitlementValidUntil)throw new UsDeviceError('forbidden',403);
+    if(row.organization_id!==a.organizationId||row.user_id!==a.userId||row.role!==a.role||row.subscription_id!==a.subscriptionId||row.entitlement_valid_until>a.entitlementValidUntil)throw new UsDeviceError('forbidden',403);
     return Object.freeze({protocol:US_DEVICE_PROTOCOL,edition:'us_experimental',status:'connected',sessionId:row.session_id,organizationId:row.organization_id,organizationName:a.organizationName,userId:row.user_id,installationId:row.installation_id,role:row.role,subscriptionId:row.subscription_id,country:'US',currency:'USD',expiresAt:row.expires_at,entitlementValidUntil:row.entitlement_valid_until,supportedSchemaVersion:row.supported_schema_version});
   }
   async function retained(store:UsDeviceStore,tokenHash:string,a:UsDeviceAdmission){
@@ -111,6 +113,7 @@ export function createUsDeviceHandlers(deps:UsDeviceDependencies) {
       const v=validateUsDeviceApprove(await readJsonObjectWithinLimit(request,2048)),store=await deps.store();
       const a=await access(v.organizationId,userId);await fresh(a,request);
       const rawBefore=await store.challenge('user',v.userCode),before=rawBefore?cleanChallenge(rawBefore):null;if(!before||before.expires_at<=now())throw new UsDeviceError('authorization_expired',410);
+      if(before.status!=='pending'&&before.entitlement_valid_until!==null&&before.entitlement_valid_until<=now())throw new UsDeviceError('authorization_expired',410);
       if(before.status!=='pending'&&!approved(before,a))throw new UsDeviceError('authorization_conflict',409);
       if(before.status==='pending'){
         await fresh(a,request);
@@ -129,6 +132,7 @@ export function createUsDeviceHandlers(deps:UsDeviceDependencies) {
       if(!c||c.device_code_hash!==codeHash||c.installation_id!==v.installationId||c.session_token_hash!==tokenHash)throw new UsDeviceError('unauthorized',401);
       if(c.status!=='consumed'&&c.expires_at<=now())throw new UsDeviceError('authorization_expired',410);
       if(c.status==='pending'){await enabled();if(c.expires_at<=now())throw new UsDeviceError('authorization_expired',410);return json({protocol:US_DEVICE_PROTOCOL,status:'authorization_pending'},202);}
+      if(c.entitlement_valid_until!==null&&c.entitlement_valid_until<=now())throw new UsDeviceError(c.status==='consumed'?'unauthorized':'authorization_expired',c.status==='consumed'?401:410);
       if(!c.organization_id||!c.approved_user_id)throw new UsDeviceError('service_unavailable',503);
       const a=await access(c.organization_id,c.approved_user_id);if(!approved(c,a))throw new UsDeviceError('forbidden',403);await fresh(a);
       if(c.status==='approved'){

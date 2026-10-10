@@ -23,7 +23,7 @@ async function access(organizationId:string,userId:string):Promise<UsDeviceAdmis
   const db=(await import('../runtime')).database();
   const row=await db.prepare(`SELECT i.company_name,a.subscription_id,json_extract(a.authority_json,'$.evidence.endsAt') AS ends_at,
     m.role,a.seat_limit,(SELECT count(*) FROM international_workspace_members seats WHERE seats.organization_id=a.organization_id AND seats.revoked_at IS NULL) AS active_seats
-    FROM international_workspace_creation_intents i JOIN international_saas_authorities a ON a.creation_id=i.creation_id AND a.organization_id=i.organization_id AND a.subscription_id=i.own_subscription_id
+    FROM international_workspace_creation_intents i JOIN international_effective_saas_authorities a ON a.creation_id=i.creation_id AND a.organization_id=i.organization_id AND a.subscription_id=i.own_subscription_id
     JOIN international_workspace_members m ON m.organization_id=a.organization_id AND m.user_id=? AND m.revoked_at IS NULL
     JOIN international_workspace_members owner ON owner.organization_id=a.organization_id AND owner.user_id=a.owner_user_id AND owner.role='owner' AND owner.revoked_at IS NULL
     WHERE i.organization_id=? AND i.state='ready' AND a.revoked_at IS NULL AND a.country='US' AND a.currency='USD'`).bind(userId,organizationId).first<{company_name:string;subscription_id:string;ends_at:number;role:AccountRole;seat_limit:number;active_seats:number}>();

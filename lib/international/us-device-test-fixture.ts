@@ -16,6 +16,10 @@ export const usDeviceMigrationFiles=readdirSync(new URL('../../drizzle/',import.
 export const usDeviceMigrationSources=usDeviceMigrationFiles.map(name=>readFileSync(new URL('../../drizzle/'+name,import.meta.url),'utf8'));
 export function sqliteUsDeviceDatabase(maxMigration=89){
   const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');for(let i=0;i<usDeviceMigrationSources.length;i++)if(Number(usDeviceMigrationFiles[i].slice(0,4))<=maxMigration)sql.exec(usDeviceMigrationSources[i]);
+  // Historical device/migration fixtures deliberately stop at0089. This
+  // initial-only projection keeps those consumer tests explicit; renewal tests
+  // replace it with the actual0092 migration and never use this alias as proof.
+  if(maxMigration>=87)sql.exec('CREATE VIEW international_effective_saas_authorities AS SELECT * FROM international_saas_authorities');
   const database={
     prepare(text:string){let values:SQLInputValue[]=[];const statement={bind(...bound:SQLInputValue[]){values=bound;return statement;},async first(){return sql.prepare(text).get(...values)??null;},async all(){return {success:true,results:sql.prepare(text).all(...values)};},async run(){const result=sql.prepare(text).run(...values);return {success:true,meta:{changes:Number(result.changes)}};}};return statement;},
     async batch(statements:{run():Promise<unknown>}[]){sql.exec('BEGIN');try{const results=[];for(const statement of statements)results.push(await statement.run());sql.exec('COMMIT');return results;}catch(error){sql.exec('ROLLBACK');throw error;}},
@@ -37,7 +41,7 @@ export async function seedUsDeviceFixture(database:D1Database,role:'owner'|'admi
   const policy:UsSaasPolicy={catalog:[{offer,seatLimit}],environment:'TEST',now:timestamp};
   const subscriptionId='sub_us_device_'+randomUUID();
   const authority:SaasSubscriptionAuthority={kind:'saas_subscription_authority',organizationId:intent.organizationId,subscriptionId,offer,status:'active',evidence:{kind:'verified_payment',referenceId:'in_us_device_'+randomUUID(),organizationId:intent.organizationId,subscriptionId,environment:'TEST',catalogVersion:offer.catalogVersion,priceId:offer.priceId,currency:'USD',startsAt:timestamp-60,endsAt:timestamp+validFor,revoked:false}};
-  const authorityStore=d1UsAuthorityStore(database);await authorityStore.admit(intent,prepareUsAuthorityAdmission(intent,{authority,seatLimit},policy,price),async()=>{});
+  const authorityStore=d1UsAuthorityStore(database,{authoritySource:'initial_admission'});await authorityStore.admit(intent,prepareUsAuthorityAdmission(intent,{authority,seatLimit},policy,price),async()=>{});
   if(role!=='owner')await database.prepare('INSERT INTO international_workspace_members(membership_id,organization_id,user_id,role,joined_at)VALUES(?,?,?,?,?)').bind('member_'+randomUUID(),intent.organizationId,actor,role,timestamp).run();
   const store=d1UsDeviceStore(database);let flags=true,configurationStamp=canonicalCreationJson({revision:1,configuration:intent.configuration});let user:string=actor;
   const deps:UsDeviceDependencies={enabled:()=>flags,user:async()=>({userId:user}),now:()=>timestamp,store:()=>store,rateLimit:async()=>{},

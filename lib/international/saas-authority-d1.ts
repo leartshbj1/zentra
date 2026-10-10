@@ -2,7 +2,7 @@ import { type AccountRole } from '../account-security';
 import { canonicalCreationJson, creationUuid, type WorkspaceCreationIntent } from './workspace-creation';
 import { d1WorkspaceCreationStore } from './workspace-creation-d1';
 import { assertUsAuthorityAdmission, parseUsSubscriptionAuthority, usWorkspaceAccess, usWorkspaceAutomationAuthority, UsAuthorityError, type UsAuthorityAdmission, type UsAuthorityRecord, type UsMembership, type UsSaasPolicy, type UsWorkspaceAutomationAuthority } from './saas-authority';
-import { validateSubscriptionOffer, type SaasModule, type SaasSubscriptionOffer, type SubscriptionEnvironment } from './subscriptions';
+import { validateSubscriptionOffer, type SaasModule, type SaasSubscriptionAuthority, type SaasSubscriptionOffer, type SubscriptionEnvironment } from './subscriptions';
 import { snapshotPrivateJson } from './private-json';
 import { assertUsTestPaidProof, validateUsTestPurchase, type UsTestPaidProof, type UsTestPurchase, type UsTestSession } from './us-saas-test-contract';
 
@@ -39,15 +39,19 @@ function fromRow(row: AuthorityRow): UsAuthorityRecord {
 function sameAdmission(record: UsAuthorityRecord, candidate: UsAuthorityAdmission): boolean {
   return record.organizationId === candidate.organizationId && record.creationId === candidate.creationId && record.ownerUserId === candidate.ownerUserId && record.seatLimit === candidate.seatLimit && record.revision === candidate.revision && canonicalCreationJson(record.authority) === canonicalCreationJson(candidate.authority);
 }
-export function d1UsAuthorityStore(database: AuthorityDatabase) {
+export interface UsAuthorityStoreOptions { readonly authoritySource?: 'initial_admission' }
+export function d1UsAuthorityStore(database: AuthorityDatabase, options: UsAuthorityStoreOptions = {}) {
+  // Runtime always uses the effective projection. The explicit historical mode
+  // is for fixtures of migrations preceding0092, never a missing-schema fallback.
+  const source = options.authoritySource === 'initial_admission' ? 'international_saas_authorities' : 'international_effective_saas_authorities';
   const creationStore = d1WorkspaceCreationStore(database);
-  async function stored(organizationId: string): Promise<UsAuthorityRecord | null> {
-    try { const row = await database.prepare('SELECT * FROM international_saas_authorities WHERE organization_id=?').bind(organizationId).first<AuthorityRow>(); return row ? fromRow(row) : null; }
+  async function stored(organizationId: string, table = source): Promise<UsAuthorityRecord | null> {
+    try { const row = await database.prepare(`SELECT * FROM ${table} WHERE organization_id=?`).bind(organizationId).first<AuthorityRow>(); return row ? fromRow(row) : null; }
     catch (error) { if (error instanceof UsAuthorityError) throw error; throw new UsAuthorityError('service_unavailable', 503); }
   }
   async function replay(intent: WorkspaceCreationIntent, candidate: UsAuthorityAdmission) {
     const current = await creationStore.find(candidate.ownerUserId, intent.requestId);
-    const record = await stored(candidate.organizationId);
+    const record = await stored(candidate.organizationId, 'international_saas_authorities');
     if (!current || current.state !== 'ready') return null;
     if (!record || current.ownSubscriptionId !== candidate.authority.subscriptionId || !sameAdmission(record, candidate)) throw new UsAuthorityError('admission_conflict', 409);
     if (record.revokedAt !== null) throw new UsAuthorityError('subscription_required', 402);
@@ -55,7 +59,7 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
   }
   return {
     automationAuthority(organizationId: string, userId: string, policy: UsSaasPolicy): Promise<UsWorkspaceAutomationAuthority> {
-      return d1UsWorkspaceAutomationAuthority(database, organizationId, userId, policy);
+      return d1UsWorkspaceAutomationAuthority(database, organizationId, userId, policy, options);
     },
     /** Only server-created branded admission DTOs can reach this internal sink. */
     async admit(intent: WorkspaceCreationIntent, candidate: UsAuthorityAdmission, revalidate: () => Promise<void>, testBinding?: UsTestAdmissionBinding): Promise<WorkspaceCreationIntent> {
@@ -99,11 +103,11 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
       if (testBinding && !(await testBindingReplayed(database, candidate, testBinding))) throw new UsAuthorityError('admission_conflict', 409);
       return completed;
     },
-    async access(organizationId: string, userId: string, policy: UsSaasPolicy, module: SaasModule = 'gestion') {
+    async access(organizationId: string, userId: string, policy: UsSaasPolicy, module: SaasModule = 'gestion', expectedAuthority?: SaasSubscriptionAuthority) {
       try {
         // Scope to the caller before parsing or revealing a company's authority.
         const member = await database.prepare(`SELECT m.membership_id,m.organization_id,m.user_id,m.role,m.joined_at,m.revoked_at,a.owner_user_id,i.request_id
-          FROM international_workspace_members m JOIN international_saas_authorities a ON a.organization_id=m.organization_id
+          FROM international_workspace_members m JOIN ${source} a ON a.organization_id=m.organization_id
           JOIN international_workspace_creation_intents i ON i.creation_id=a.creation_id AND i.organization_id=a.organization_id
           JOIN international_workspace_members owner ON owner.organization_id=a.organization_id AND owner.user_id=a.owner_user_id AND owner.role='owner' AND owner.revoked_at IS NULL
           WHERE m.organization_id=? AND m.user_id=? AND m.revoked_at IS NULL AND i.state='ready' LIMIT 1`).bind(organizationId,userId).first<{membership_id:string;organization_id:string;user_id:string;role:AccountRole;joined_at:number;revoked_at:number|null;owner_user_id:string;request_id:string}>();
@@ -111,19 +115,23 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
         const intent = await creationStore.find(member.owner_user_id, member.request_id);
         const record = await stored(organizationId);
         if (!intent || !record || member.organization_id !== organizationId || member.user_id !== userId) throw new UsAuthorityError('service_unavailable', 503);
+        // Automation provenance must refer to the same effective invoice/period
+        // captured before awaiting these independent fresh rights reads.
+        if (expectedAuthority && canonicalCreationJson(record.authority) !== canonicalCreationJson(expectedAuthority)) throw new UsAuthorityError('service_unavailable', 503);
         const membership: UsMembership = { membershipId:member.membership_id, organizationId:member.organization_id, userId:member.user_id, role:member.role, joinedAt:member.joined_at, revokedAt:member.revoked_at };
         const access = usWorkspaceAccess(intent, record, membership, policy, module);
         // Revocation between the separate intent/authority reads must not return
         // a stale membership. No cached membership or subscription grant exists.
         const fresh = await database.prepare(`SELECT m.role,m.revoked_at AS member_revoked_at,a.revoked_at AS authority_revoked_at,owner.revoked_at AS owner_revoked_at,unixepoch() AS checked_at,
-          json_extract(a.authority_json,'$.evidence.startsAt') AS starts_at,json_extract(a.authority_json,'$.evidence.endsAt') AS ends_at
-          FROM international_workspace_members m JOIN international_saas_authorities a ON a.organization_id=m.organization_id
+          json_extract(a.authority_json,'$.evidence.startsAt') AS starts_at,json_extract(a.authority_json,'$.evidence.endsAt') AS ends_at,a.authority_json
+          FROM international_workspace_members m JOIN ${source} a ON a.organization_id=m.organization_id
           JOIN international_workspace_members owner ON owner.organization_id=a.organization_id AND owner.user_id=a.owner_user_id AND owner.role='owner'
-          WHERE m.organization_id=? AND m.user_id=?`).bind(organizationId,userId).first<{role:AccountRole;member_revoked_at:number|null;authority_revoked_at:number|null;owner_revoked_at:number|null;checked_at:number;starts_at:number;ends_at:number}>();
+          WHERE m.organization_id=? AND m.user_id=?`).bind(organizationId,userId).first<{role:AccountRole;member_revoked_at:number|null;authority_revoked_at:number|null;owner_revoked_at:number|null;checked_at:number;starts_at:number;ends_at:number;authority_json:string}>();
         if (!fresh || fresh.role !== access.role || fresh.member_revoked_at !== null || fresh.owner_revoked_at !== null) throw new UsAuthorityError('forbidden', 403);
         if (![fresh.checked_at,fresh.starts_at,fresh.ends_at].every(Number.isSafeInteger)) throw new UsAuthorityError('service_unavailable', 503);
         const checkedAt = Math.max(policy.now, fresh.checked_at);
         if (fresh.authority_revoked_at !== null || fresh.starts_at > checkedAt || fresh.ends_at <= checkedAt) throw new UsAuthorityError('subscription_required', 402);
+        if (canonicalCreationJson(JSON.parse(fresh.authority_json)) !== canonicalCreationJson(record.authority)) throw new UsAuthorityError('service_unavailable', 503);
         return access;
       } catch (error) { if (error instanceof UsAuthorityError) throw error; throw new UsAuthorityError('service_unavailable', 503); }
     },
@@ -132,11 +140,12 @@ export function d1UsAuthorityStore(database: AuthorityDatabase) {
 
 /** Scope before reading private provenance, then re-read the EXISTING US rights
  * after that provenance was constructed. No CH tables, grant cache or writes. */
-export async function d1UsWorkspaceAutomationAuthority(database: AuthorityDatabase, organizationId: string, userId: string, policy: UsSaasPolicy): Promise<UsWorkspaceAutomationAuthority> {
+export async function d1UsWorkspaceAutomationAuthority(database: AuthorityDatabase, organizationId: string, userId: string, policy: UsSaasPolicy, options: UsAuthorityStoreOptions = {}): Promise<UsWorkspaceAutomationAuthority> {
   try {
     policy = snapshotPrivateJson(policy) as UsSaasPolicy;
+    const table = options.authoritySource === 'initial_admission' ? 'international_saas_authorities' : 'international_effective_saas_authorities';
     const source = await database.prepare(`SELECT a.*,m.membership_id,m.user_id,m.role,m.joined_at,m.revoked_at AS member_revoked_at,i.request_id,unixepoch() AS checked_at
-      FROM international_workspace_members m JOIN international_saas_authorities a ON a.organization_id=m.organization_id
+      FROM international_workspace_members m JOIN ${table} a ON a.organization_id=m.organization_id
       JOIN international_workspace_creation_intents i ON i.creation_id=a.creation_id AND i.organization_id=a.organization_id
       JOIN international_workspace_members owner ON owner.organization_id=a.organization_id AND owner.user_id=a.owner_user_id AND owner.role='owner' AND owner.revoked_at IS NULL
       WHERE m.organization_id=? AND m.user_id=? AND m.revoked_at IS NULL AND i.state='ready' LIMIT 1`).bind(organizationId,userId).first<AuthorityRow & {membership_id:string;user_id:string;role:AccountRole;joined_at:number;member_revoked_at:number|null;request_id:string;checked_at:number}>();
@@ -147,7 +156,7 @@ export async function d1UsWorkspaceAutomationAuthority(database: AuthorityDataba
     if (!intent || row.organization_id !== organizationId || row.user_id !== userId) throw new UsAuthorityError('service_unavailable', 503);
     const currentPolicy = { ...policy, now: Math.max(policy.now, row.checked_at) };
     const value = usWorkspaceAutomationAuthority(intent, record, { membershipId:row.membership_id, organizationId:row.organization_id, userId:row.user_id, role:row.role, joinedAt:row.joined_at, revokedAt:row.member_revoked_at }, currentPolicy);
-    const fresh = await d1UsAuthorityStore(database).access(organizationId,userId,currentPolicy,'automation');
+    const fresh = await d1UsAuthorityStore(database,options).access(organizationId,userId,currentPolicy,'automation',record.authority);
     if (fresh.organizationId !== value.organizationId || fresh.userId !== value.userId || fresh.role !== value.role || fresh.subscriptionId !== value.subscriptionId) throw new UsAuthorityError('forbidden', 403);
     return value;
   } catch (error) {

@@ -77,6 +77,19 @@ describe('Actual US Team bindings/routes with mock Auth, D1, catalog and session
     expect(f.user).toHaveBeenCalledWith({ offerAccess: false, refreshSession: true });
     expect(f.access).toHaveBeenCalledWith(org, userId, expect.objectContaining({ environment: 'TEST', catalog: [{ offer, seatLimit: 3 }], now: stamp }), 'gestion');
     expect(f.bind).toHaveBeenCalledWith(org); expect(f.batch).not.toHaveBeenCalled(); expect(f.rpc).not.toHaveBeenCalled(); expect(f.ch).not.toHaveBeenCalled();
+    expect(f.prepare.mock.calls.every(([query]) => String(query).includes('international_effective_saas_authorities'))).toBe(true);
+  });
+  it('takes the renewed effective period for members and matched recipients', async () => {
+    const renewed = { ...source(), starts_at: stamp - 30, ends_at: stamp + 86400 };
+    f.first.mockResolvedValue(renewed);
+    expect(await binding.member(request(), org)).toMatchObject({ validStartsAt: renewed.starts_at, validEndsAt: renewed.ends_at });
+    expect(await binding.recipient(request(), invitation())).toMatchObject({ context: { validStartsAt: renewed.starts_at, validEndsAt: renewed.ends_at } });
+    expect(f.batch).not.toHaveBeenCalled(); expect(f.ch).not.toHaveBeenCalled();
+  });
+  it('withholds a Team read if its effective period changes while the roster is awaited', async () => {
+    f.store.read.mockImplementation(async (c: UsTeamContext) => { f.first.mockResolvedValue({ ...source(), ends_at: stamp + 86400 }); return projection(c); });
+    const response = await readTeam(request(), routeContext());
+    expect(response.status).toBe(409); expect(await response.json()).toEqual({ error: 'configuration_changed' }); expect(f.store.commit).not.toHaveBeenCalled();
   });
   it.each([null, { ...auth(), provider: 'sites' }, { ...auth(), emailConfirmed: false }])('rejects missing, foreign-provider or unconfirmed browser Auth before SQL', async user => {
     f.user.mockResolvedValue(user); await expect(binding.member(request(), org)).rejects.toMatchObject({ status: user?.emailConfirmed === false ? 403 : 401 });
