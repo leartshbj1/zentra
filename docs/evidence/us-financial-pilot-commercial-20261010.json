@@ -1,0 +1,762 @@
+{
+  "phase": "financial-pilot-commercial-dto1",
+  "date": "2026-10-10",
+  "environment": "local-private-test-only",
+  "baseCommit": "e890018882b17b024292fb083cd921ac1a3f6f92",
+  "implementationCommit": "2d98aaa82bf1d131722b4ce4d14dac8bba22f93f",
+  "sourceTree": {
+    "baseCommit": "e890018882b17b024292fb083cd921ac1a3f6f92",
+    "headCommit": "2d98aaa82bf1d131722b4ce4d14dac8bba22f93f",
+    "files": 3538,
+    "sha256": "d8ac0d5104cfbbe55137682ecf77cab4b4d7fd8a26c79841c2b685fb0284dd56",
+    "status": []
+  },
+  "implementationFiles": {
+    "app/api/international/workspaces/[organizationId]/financial-pilot/commercial/operations/route.ts": "ce03d823523bd2a3d31bbb8901a122530062e67843d54b9baa9feab525531b43",
+    "app/api/international/workspaces/[organizationId]/financial-pilot/estimates/[estimateId]/route.ts": "2517b91643a6f5b44aa0883d74fabd0af62589aae041d4a6ad55337fea229b5e",
+    "components/account/us-financial-pilot-commercial.css": "a9147ee77c74e4dee2b126e67b49e96a1c888a4d9d449d5620c0e9c477c2e568",
+    "components/account/us-financial-pilot-commercial.tsx": "2289045362e2633b6d2e86ef7eb7733061837ee4eedc472b22dd41e604d59c39",
+    "components/account/us-financial-pilot.tsx": "f376f969540f7a4657f992aa68acd6a45f91fd3698bbe95bbc2c7e23ac377fdf",
+    "lib/international/browser-us-financial-pilot-commercial-copy.ts": "50462b4e4fca8f5548c8473c0c731c3062172cb6ff53aed6bd11890e9faa1345",
+    "lib/international/browser-us-financial-pilot-commercial-input.test.ts": "e1f775be0e98c6c6556beefd59a7a27e8cc81e8f67698d95ec96f26569aedd5d",
+    "lib/international/browser-us-financial-pilot-commercial-input.ts": "95132ec73d3adb167d0ccde5f4920350e92033026e0ba9b2480b56b4d3aa398a",
+    "lib/international/browser-us-financial-pilot-commercial.test.ts": "53777fd780dd9f1d8493d6a2814378ced1f44bdb50beafed2c5cdd9ad9aad3f2",
+    "lib/international/browser-us-financial-pilot-session.ts": "980a5f096f79789661f8877d9d61c1649c7377df37b87616fc80e6522d5aa4b9",
+    "lib/international/us-financial-pilot-commercial-bindings.test.ts": "2f598d5779568a55740b5e0e0ecbe111fb9b4006c8db85e71ea9f6e40e9b3ab9",
+    "lib/international/us-financial-pilot-commercial-bindings.ts": "8277162fce04b5ea5183307a2e0d7bd13c995faaeca5cd8c4cae5059eeab70b4",
+    "lib/international/us-financial-pilot-commercial-projection.test.ts": "948a708bc2c87a45d63cd88cd4c70fd366b0a979ab23a82c36e9fe5f88e1a0c8",
+    "lib/international/us-financial-pilot-commercial-projection.ts": "b45a92e2fa087a2e0cc221caa144e0c802b8db376b3e073ea3733a42f3a7fcd8",
+    "lib/international/us-financial-pilot-commercial-server.test.ts": "9afe81c730b10866ec54a4b60f92ab8a3a4e5c4c66b22198014e822a0f7f310a",
+    "lib/international/us-financial-pilot-commercial-server.ts": "71661670e553207a896b20a895efa37e472a89e46af41316c1fc8e360ee8a332",
+    "lib/international/us-financial-pilot-commercial.postgres.test.ts": "e9e2840f1fa24a4fb27af0a5a3d5a5fbcac4abe40f35ff588fb1ba22c8376884",
+    "lib/international/us-financial-pilot-commercial.test.ts": "ea876dd7bc0307ec34f440264e1ab772f70259314d99705bd8bc35aa2c856c0f",
+    "lib/international/us-financial-pilot-commercial.ts": "c26e72b596735bbbb8c599b158cb54bc9230724de97b760f87cf2a35866ff064"
+  },
+  "validation": {
+    "quality": [
+      {
+        "name": "types-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "startedAt": "2026-10-10T13:03:35.908Z",
+        "elapsedMs": 28338,
+        "exitCode": 0
+      },
+      {
+        "name": "lint-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/oxlint/bin/oxlint",
+          "--type-aware",
+          "--deny-warnings",
+          "app/api/international/workspaces/[organizationId]/financial-pilot/commercial/operations/route.ts",
+          "app/api/international/workspaces/[organizationId]/financial-pilot/estimates/[estimateId]/route.ts",
+          "components/account/us-financial-pilot-commercial.tsx",
+          "components/account/us-financial-pilot.tsx",
+          "lib/international/browser-us-financial-pilot-commercial-copy.ts",
+          "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+          "lib/international/browser-us-financial-pilot-commercial-input.ts",
+          "lib/international/browser-us-financial-pilot-commercial.test.ts",
+          "lib/international/browser-us-financial-pilot-session.ts",
+          "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+          "lib/international/us-financial-pilot-commercial-bindings.ts",
+          "lib/international/us-financial-pilot-commercial-projection.test.ts",
+          "lib/international/us-financial-pilot-commercial-projection.ts",
+          "lib/international/us-financial-pilot-commercial-server.test.ts",
+          "lib/international/us-financial-pilot-commercial-server.ts",
+          "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+          "lib/international/us-financial-pilot-commercial.test.ts",
+          "lib/international/us-financial-pilot-commercial.ts"
+        ],
+        "startedAt": "2026-10-10T13:04:04.843Z",
+        "elapsedMs": 1370,
+        "exitCode": 0
+      },
+      {
+        "name": "brand-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "scripts/check-brand-assets.mjs"
+        ],
+        "startedAt": "2026-10-10T13:04:06.829Z",
+        "elapsedMs": 52,
+        "exitCode": 0
+      },
+      {
+        "name": "build-final",
+        "executable": "C:\\Users\\alb\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+        "arguments": [
+          "node_modules/vinext/dist/cli.js",
+          "build"
+        ],
+        "startedAt": "2026-10-10T13:04:07.445Z",
+        "elapsedMs": 22116,
+        "exitCode": 0
+      }
+    ],
+    "regression": {
+      "total": 5819,
+      "passed": 5819,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "files": 175,
+      "retainedPriorFiles": 168,
+      "selection": [
+        "lib/account-workspace-entry.test.ts",
+        "lib/account-workspace-navigation.test.ts",
+        "lib/account-workspace-pages.test.ts",
+        "lib/account-workspaces.test.ts",
+        "lib/business-sync-cash-vat.test.ts",
+        "lib/deployment-contract.test.ts",
+        "lib/document-number-reservations.test.ts",
+        "lib/international/accounting-runtime.test.ts",
+        "lib/international/browser-us-financial-pilot-commercial-input.test.ts",
+        "lib/international/browser-us-financial-pilot-commercial.test.ts",
+        "lib/international/browser-us-financial-pilot-export-session.test.ts",
+        "lib/international/browser-us-financial-pilot-session.test.ts",
+        "lib/international/browser-us-sales-order-session.test.ts",
+        "lib/international/browser-us-supplier-documents-session.test.ts",
+        "lib/international/browser-us-supplier-session.test.ts",
+        "lib/international/browser-us-support-worker-session.test.ts",
+        "lib/international/browser-us-team-session.test.ts",
+        "lib/international/browser-us-workspace-sync-session.test.ts",
+        "lib/international/legacy-country-guard.migrations.test.ts",
+        "lib/international/legacy-country-guard.test.ts",
+        "lib/international/private-json.test.ts",
+        "lib/international/purchasing-runtime.test.ts",
+        "lib/international/runtime-bindings.test.ts",
+        "lib/international/runtime-response-guards.test.ts",
+        "lib/international/runtime-server-revalidation.test.ts",
+        "lib/international/runtime-server-us-tax.test.ts",
+        "lib/international/runtime-server.test.ts",
+        "lib/international/runtime-store.test.ts",
+        "lib/international/runtime-sync.test.ts",
+        "lib/international/runtime.test.ts",
+        "lib/international/saas-authorities.migrations.test.ts",
+        "lib/international/saas-authority.test.ts",
+        "lib/international/us-automation-policy.test.ts",
+        "lib/international/us-automation-store.test.ts",
+        "lib/international/us-automation-validation.test.ts",
+        "lib/international/us-customer-credit-allocation.test.ts",
+        "lib/international/us-customer-credit-preparation.test.ts",
+        "lib/international/us-device-bindings.test.ts",
+        "lib/international/us-device-capability-v4.test.ts",
+        "lib/international/us-device-d1.test.ts",
+        "lib/international/us-device-server.test.ts",
+        "lib/international/us-financial-invoice-test.test.ts",
+        "lib/international/us-financial-kernel-capability.test.ts",
+        "lib/international/us-financial-kernel-erp-runtime.test.ts",
+        "lib/international/us-financial-kernel-erp.test.ts",
+        "lib/international/us-financial-kernel-runtime.test.ts",
+        "lib/international/us-financial-kernel.test.ts",
+        "lib/international/us-financial-pilot-bindings.test.ts",
+        "lib/international/us-financial-pilot-commercial-bindings.test.ts",
+        "lib/international/us-financial-pilot-commercial-projection.test.ts",
+        "lib/international/us-financial-pilot-commercial-server.test.ts",
+        "lib/international/us-financial-pilot-commercial.postgres.test.ts",
+        "lib/international/us-financial-pilot-commercial.test.ts",
+        "lib/international/us-financial-pilot-contract.test.ts",
+        "lib/international/us-financial-pilot-export-bindings.test.ts",
+        "lib/international/us-financial-pilot-export-contract.test.ts",
+        "lib/international/us-financial-pilot-export-projection.test.ts",
+        "lib/international/us-financial-pilot-export-renderer.test.ts",
+        "lib/international/us-financial-pilot-export-server.test.ts",
+        "lib/international/us-financial-pilot-exports.postgres.test.ts",
+        "lib/international/us-financial-pilot-payment.test.ts",
+        "lib/international/us-financial-pilot-projection.test.ts",
+        "lib/international/us-financial-pilot-reports.test.ts",
+        "lib/international/us-financial-pilot-server.test.ts",
+        "lib/international/us-financial-pilot-store.postgres.test.ts",
+        "lib/international/us-financial-pilot-store.test.ts",
+        "lib/international/us-financial-test-accounting.postgres.test.ts",
+        "lib/international/us-financial-test-accounting.test.ts",
+        "lib/international/us-financial-test-commercial.postgres.test.ts",
+        "lib/international/us-financial-test-commercial.test.ts",
+        "lib/international/us-financial-test-foundation.postgres.test.ts",
+        "lib/international/us-financial-test-foundation.test.ts",
+        "lib/international/us-financial-test-invoicing.postgres.test.ts",
+        "lib/international/us-financial-test-purchasing.postgres.test.ts",
+        "lib/international/us-financial-test-purchasing.test.ts",
+        "lib/international/us-financial-test-settlement.postgres.test.ts",
+        "lib/international/us-financial-test-settlement.test.ts",
+        "lib/international/us-saas-test-bindings.test.ts",
+        "lib/international/us-saas-test-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-d1.test.ts",
+        "lib/international/us-saas-test-lifecycle-server.test.ts",
+        "lib/international/us-saas-test-lifecycle-stripe.test.ts",
+        "lib/international/us-saas-test-server.test.ts",
+        "lib/international/us-saas-test-stripe.test.ts",
+        "lib/international/us-sales-order-bindings.test.ts",
+        "lib/international/us-sales-order-contract.test.ts",
+        "lib/international/us-sales-order-erp-guard.test.ts",
+        "lib/international/us-sales-order-export.test.ts",
+        "lib/international/us-sales-order-server.test.ts",
+        "lib/international/us-sales-order-store.test.ts",
+        "lib/international/us-sales-order.postgres.test.ts",
+        "lib/international/us-supplier-analysis-server.test.ts",
+        "lib/international/us-supplier-analysis.test.ts",
+        "lib/international/us-supplier-bindings.test.ts",
+        "lib/international/us-supplier-document-archive.test.ts",
+        "lib/international/us-supplier-document-bindings.test.ts",
+        "lib/international/us-supplier-document-bytes.test.ts",
+        "lib/international/us-supplier-document-contract.test.ts",
+        "lib/international/us-supplier-document-lookup.postgres.test.ts",
+        "lib/international/us-supplier-document-lookup.test.ts",
+        "lib/international/us-supplier-document-server.test.ts",
+        "lib/international/us-supplier-document-store.test.ts",
+        "lib/international/us-supplier-document-timeout.test.ts",
+        "lib/international/us-supplier-extraction.test.ts",
+        "lib/international/us-supplier-proposal.test.ts",
+        "lib/international/us-supplier-server.test.ts",
+        "lib/international/us-supplier-store.test.ts",
+        "lib/international/us-support-intake-provider.test.ts",
+        "lib/international/us-support-mail-import-ui.test.ts",
+        "lib/international/us-support-mailbox-bindings.test.ts",
+        "lib/international/us-support-mailbox-contract.test.ts",
+        "lib/international/us-support-mailbox-d1.test.ts",
+        "lib/international/us-support-mailbox-import-bindings.test.ts",
+        "lib/international/us-support-mailbox-import-composition.test.ts",
+        "lib/international/us-support-mailbox-import-contract.test.ts",
+        "lib/international/us-support-mailbox-import-d1.test.ts",
+        "lib/international/us-support-mailbox-import-provider.test.ts",
+        "lib/international/us-support-mailbox-import-server.test.ts",
+        "lib/international/us-support-mailbox-provider.test.ts",
+        "lib/international/us-support-mailbox-server.test.ts",
+        "lib/international/us-support-mailbox-ui.test.ts",
+        "lib/international/us-support-ticket-bindings.test.ts",
+        "lib/international/us-support-ticket-composition.test.ts",
+        "lib/international/us-support-ticket-contract.test.ts",
+        "lib/international/us-support-ticket-d1.test.ts",
+        "lib/international/us-support-ticket-server.test.ts",
+        "lib/international/us-support-tickets-ui.test.ts",
+        "lib/international/us-support-triage-bindings.test.ts",
+        "lib/international/us-support-triage-composition.test.ts",
+        "lib/international/us-support-triage-contract.test.ts",
+        "lib/international/us-support-triage-d1.test.ts",
+        "lib/international/us-support-triage-policy.test.ts",
+        "lib/international/us-support-triage-provider.test.ts",
+        "lib/international/us-support-triage-server.test.ts",
+        "lib/international/us-support-triage-service.test.ts",
+        "lib/international/us-support-triage-ticket-integration.test.ts",
+        "lib/international/us-support-triage-ui.test.ts",
+        "lib/international/us-support-worker-bindings.test.ts",
+        "lib/international/us-support-worker-composition.test.ts",
+        "lib/international/us-support-worker-contract.test.ts",
+        "lib/international/us-support-worker-d1.test.ts",
+        "lib/international/us-support-worker-migration.test.ts",
+        "lib/international/us-support-worker-server.test.ts",
+        "lib/international/us-support-worker-ui.test.ts",
+        "lib/international/us-support-worker.test.ts",
+        "lib/international/us-support-workspace-bindings.test.ts",
+        "lib/international/us-support-workspace-contract.test.ts",
+        "lib/international/us-support-workspace-d1.test.ts",
+        "lib/international/us-support-workspace-server.test.ts",
+        "lib/international/us-support-workspace-ui.test.ts",
+        "lib/international/us-team-bindings.test.ts",
+        "lib/international/us-team-contract.test.ts",
+        "lib/international/us-team-device-lifecycle.test.ts",
+        "lib/international/us-team-server.test.ts",
+        "lib/international/us-team-store.test.ts",
+        "lib/international/us-team-validation.test.ts",
+        "lib/international/us-team.migrations.test.ts",
+        "lib/international/us-workspace-sync-heads-bindings.test.ts",
+        "lib/international/us-workspace-sync-heads.test.ts",
+        "lib/international/workspace-creation-d1.test.ts",
+        "lib/international/workspace-server.bindings.test.ts",
+        "lib/site-language.test.ts",
+        "lib/stripe-contract.test.ts",
+        "lib/supabase-auth-http.test.ts",
+        "lib/supabase-auth.test.ts",
+        "lib/support/application-effects.test.ts",
+        "lib/support/billing.test.ts",
+        "lib/support/mail-documents.test.ts",
+        "lib/support/mail-sync-admission.test.ts",
+        "lib/support/reply-transport.test.ts",
+        "lib/support/solicitation-service.test.ts",
+        "lib/support/support.test.ts",
+        "lib/support/workspace-access.test.ts",
+        "lib/support/workspace-selection.test.ts",
+        "lib/support/workspace-state-admission.test.ts"
+      ],
+      "reportSha256": "ef8a86c33d2b84aa305cf2b3af3bbb3faab0c0e84e52a1d4d4438dd427bd8b5e"
+    },
+    "targetedBackend": {
+      "schemaVersion": 1,
+      "recordedAt": "2026-10-10T12:52:00.1583117Z",
+      "scope": "LOCAL TEST only; actual PostgreSQL/PGlite and Request/Response HTTP handlers; synthetic Auth/D1/fiscal observations; no provider/live/hosted/native actions",
+      "sourceFiles": {
+        "lib/international/us-financial-pilot-commercial-server.ts": "71661670e553207a896b20a895efa37e472a89e46af41316c1fc8e360ee8a332",
+        "lib/international/us-financial-pilot-commercial-server.test.ts": "9afe81c730b10866ec54a4b60f92ab8a3a4e5c4c66b22198014e822a0f7f310a",
+        "lib/international/us-financial-pilot-commercial-bindings.ts": "8277162fce04b5ea5183307a2e0d7bd13c995faaeca5cd8c4cae5059eeab70b4",
+        "lib/international/us-financial-pilot-commercial-bindings.test.ts": "2f598d5779568a55740b5e0e0ecbe111fb9b4006c8db85e71ea9f6e40e9b3ab9",
+        "lib/international/us-financial-pilot-commercial.postgres.test.ts": "e9e2840f1fa24a4fb27af0a5a3d5a5fbcac4abe40f35ff588fb1ba22c8376884",
+        "app/api/international/workspaces/[organizationId]/financial-pilot/commercial/operations/route.ts": "ce03d823523bd2a3d31bbb8901a122530062e67843d54b9baa9feab525531b43",
+        "app/api/international/workspaces/[organizationId]/financial-pilot/estimates/[estimateId]/route.ts": "2517b91643a6f5b44aa0883d74fabd0af62589aae041d4a6ad55337fea229b5e"
+      },
+      "validation": {
+        "pending": 0,
+        "passed": 84,
+        "exitCode": 0,
+        "reportSha256": "c9d46de89308572ad68aff84756d04702145db73a23509050b97d2919234be78",
+        "bindings": 26,
+        "success": true,
+        "lint": {
+          "exitCode": 0,
+          "log": ".qa/us-financial-commercial/lint-final.log",
+          "typeAware": true,
+          "files": 7,
+          "denyWarnings": true
+        },
+        "httpUnit": 43,
+        "report": ".qa/us-financial-commercial/server-pg-final.json",
+        "failed": 0,
+        "postgres": 15,
+        "files": 3
+      },
+      "pglite": {
+        "dataDir": "D:/Codex-Zentra-Temporary/2026-10-08/native-admission-temp/zentra-financial-pilot-commercial-zRGIbn",
+        "priorMigrations": 32,
+        "module": "D:/Codex-Zentra-Temporary/2026-10-04/quality-followup/runtime/pglite-0.5.8/package",
+        "cleanCloseReopen": true,
+        "recipe": {
+          "scope": "LOCAL TEST only; serialized PGlite, synthetic Auth/D1/fiscal observations; Request/Response handlers, not two visual browsers",
+          "migrations": 32,
+          "organizationId": "196e8e3d-8f63-463c-b7da-709f0c6b143f",
+          "revision": 11,
+          "cleanCloseReopen": true
+        },
+        "limitations": "Serialized WASM PostgreSQL; two synthetic HTTP handler sessions are not two visual browsers, a multi-connection load proof, crash recovery or hosted SLA",
+        "recipeSha256": "c9c867b2a54655887853803c77761a18ebf2ccab1d45ce51996a15942e99c5e7",
+        "newMigrations": 0
+      },
+      "previousAttempts": [
+        {
+          "failed": 24,
+          "reason": "Initial owned store capture used capabilities instead of the existing singular capability; fixed before passing unit/PG runs",
+          "report": ".qa/us-financial-commercial/http-unit-initial.json",
+          "passed": 35
+        },
+        {
+          "failed": 0,
+          "report": ".qa/us-financial-commercial/http-unit-second.json",
+          "passed": 59,
+          "finalSource": false
+        },
+        {
+          "failed": 0,
+          "report": ".qa/us-financial-commercial/postgres-initial.json",
+          "passed": 12,
+          "finalSource": false
+        }
+      ],
+      "review": {
+        "status": "No further actionable backend/privacy/idempotency/rounding issue found after line-ID, late-admission and bounded receipt-recovery fixes",
+        "agent": "commercial_backend_review",
+        "executedByReviewer": "178/178 across5 contract/projection/browser/bindings files; not added to84owned count"
+      },
+      "proofSha256": "53bc47168d8a4f5f3210b0077d9f3e2e75383abe39731d95429fc2aad152bf47",
+      "independentReviewSha256": "6b96cb296a36a8fc7d1078ad5d84df4d313433a402117123d4296412b0970e1d",
+      "overlapsRegression": true
+    }
+  },
+  "visual": {
+    "rounds": 2,
+    "captures": [
+      {
+        "name": "de-dark-390-customer",
+        "language": "de",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/de-dark-390-customer.png",
+        "sha256": "f0b71dbe78a6f0b971272f18ba535a3002a597907d6f98470d6b7dd6d82f9b71",
+        "dimensions": [
+          375,
+          6107
+        ]
+      },
+      {
+        "name": "de-dark-390-quote-detail",
+        "language": "de",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/de-dark-390-quote-detail.png",
+        "sha256": "18bc70a3cb4b415036ab746376de9d9873bbbc726f1d47463f21395d343bd1ef",
+        "dimensions": [
+          375,
+          2041
+        ]
+      },
+      {
+        "name": "de-dark-390-quote-form",
+        "language": "de",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/de-dark-390-quote-form.png",
+        "sha256": "6bd38d93e6c073ef4e6708b8ae014b93df4eac74d0f1ac92beba98c65c8032aa",
+        "dimensions": [
+          375,
+          3153
+        ]
+      },
+      {
+        "name": "de-light-1440-customer",
+        "language": "de",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/de-light-1440-customer.png",
+        "sha256": "014e834dc07efe35ee15bf6aa7da8239ddc1c689a91ec41bd5237e79634c3089",
+        "dimensions": [
+          1425,
+          3968
+        ]
+      },
+      {
+        "name": "de-light-1440-quote-form",
+        "language": "de",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/de-light-1440-quote-form.png",
+        "sha256": "f09686ab411b101e1895036d2183da78bc9c52e260c5506deb79a16ee19667f8",
+        "dimensions": [
+          1425,
+          2447
+        ]
+      },
+      {
+        "name": "de-light-320-quote-form",
+        "language": "de",
+        "theme": "light",
+        "width": 320,
+        "file": ".impeccable/review/financial-commercial/de-light-320-quote-form.png",
+        "sha256": "3aa2699b8104a0bccfa7b31ab3606fd8a7987bb23eb26c19530324f3503a6e9e",
+        "dimensions": [
+          305,
+          3265
+        ]
+      },
+      {
+        "name": "en-dark-1440-customer",
+        "language": "en",
+        "theme": "dark",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-dark-1440-customer.png",
+        "sha256": "811f1d86ad303a15a4398d005aac3786e527add765d0b88180081f873b24f8f1",
+        "dimensions": [
+          1425,
+          3968
+        ]
+      },
+      {
+        "name": "en-dark-1440-denied",
+        "language": "en",
+        "theme": "dark",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-dark-1440-denied.png",
+        "sha256": "05ac8d9a87a0d7d7cfb28a023ddadb3b934fd86076d6365f0aa432493b024658",
+        "dimensions": [
+          1440,
+          1000
+        ]
+      },
+      {
+        "name": "en-dark-390-customer",
+        "language": "en",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/en-dark-390-customer.png",
+        "sha256": "97d9d590d7de011d7588cefef8ca9b94ad27f5430dbe4077b79517c7d48b1f2b",
+        "dimensions": [
+          375,
+          6107
+        ]
+      },
+      {
+        "name": "en-dark-390-quote-detail",
+        "language": "en",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/en-dark-390-quote-detail.png",
+        "sha256": "4e696ad4643195964c230de9835c02e64e915fcf8c58cab7cb084d4441e1fa46",
+        "dimensions": [
+          375,
+          2041
+        ]
+      },
+      {
+        "name": "en-dark-390-quote-form",
+        "language": "en",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/en-dark-390-quote-form.png",
+        "sha256": "76ca6e393ee23567b714f9746c66db2ac4817564cac008c284cd956e00caa999",
+        "dimensions": [
+          375,
+          3132
+        ]
+      },
+      {
+        "name": "en-light-1440-acceptance",
+        "language": "en",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-light-1440-acceptance.png",
+        "sha256": "ad92af62526c06a9c87b0f9c8efa72944ad22204c3c150a9c3a3754bc90c77ee",
+        "dimensions": [
+          1425,
+          1845
+        ]
+      },
+      {
+        "name": "en-light-1440-customer",
+        "language": "en",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-light-1440-customer.png",
+        "sha256": "dcb9a865a358f94cbe3d5ca428174cf8aec578442202fb83c635f7f472824599",
+        "dimensions": [
+          1425,
+          3968
+        ]
+      },
+      {
+        "name": "en-light-1440-draft-review",
+        "language": "en",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-light-1440-draft-review.png",
+        "sha256": "5a7cd773189730c08a5bb609035524f79c38f6823180ba03704052e09cb81967",
+        "dimensions": [
+          1425,
+          2507
+        ]
+      },
+      {
+        "name": "en-light-1440-quote-detail",
+        "language": "en",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-light-1440-quote-detail.png",
+        "sha256": "a7e4bffe713c2ba5f1711693e0f5d72d0e0d593b6cb6d4deb962fbf9c0ce9d93",
+        "dimensions": [
+          1425,
+          1637
+        ]
+      },
+      {
+        "name": "en-light-1440-quote-form",
+        "language": "en",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-light-1440-quote-form.png",
+        "sha256": "46277a4a19fafcf58a405bb4030887c67deef9d7c1bf3844b6a44ec1324d27a6",
+        "dimensions": [
+          1425,
+          2447
+        ]
+      },
+      {
+        "name": "en-light-1440-uncertain",
+        "language": "en",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/en-light-1440-uncertain.png",
+        "sha256": "97a82be412fe8add8013c70bbe9b2d645fccdf91e44be12f6b24f128bce2aacd",
+        "dimensions": [
+          1425,
+          2481
+        ]
+      },
+      {
+        "name": "en-light-390-shipping",
+        "language": "en",
+        "theme": "light",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/en-light-390-shipping.png",
+        "sha256": "6e6219b319f6b038279b0085af6e343f0fe44e274326f02941082b197b3f0685",
+        "dimensions": [
+          375,
+          6729
+        ]
+      },
+      {
+        "name": "fr-dark-390-customer",
+        "language": "fr",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/fr-dark-390-customer.png",
+        "sha256": "e9057108ae749c49c230fc33c4dc0fdf784c2f4904990093617b1e4ecd067132",
+        "dimensions": [
+          375,
+          6107
+        ]
+      },
+      {
+        "name": "fr-dark-390-quote-detail",
+        "language": "fr",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/fr-dark-390-quote-detail.png",
+        "sha256": "b495ccb9ab365f06c8bed55900f27f71b6bfe612cff4d0a0ea8d8944ed49eaa8",
+        "dimensions": [
+          375,
+          2041
+        ]
+      },
+      {
+        "name": "fr-dark-390-quote-form",
+        "language": "fr",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/fr-dark-390-quote-form.png",
+        "sha256": "67dbc0efdd933b7a5c6332d92fbf36a13f1187256b6b4fc058827f471f20c5af",
+        "dimensions": [
+          375,
+          3132
+        ]
+      },
+      {
+        "name": "fr-light-1440-customer",
+        "language": "fr",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/fr-light-1440-customer.png",
+        "sha256": "7fb84f1173a14a4fe7aaa3dc549814901297fe30907c190d884975457bd2c9b2",
+        "dimensions": [
+          1425,
+          3968
+        ]
+      },
+      {
+        "name": "fr-light-1440-quote-form",
+        "language": "fr",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/fr-light-1440-quote-form.png",
+        "sha256": "2af2a8367430ea72d688fad0fef1b34c9620122a7a24d8cf99913b9b9055f546",
+        "dimensions": [
+          1425,
+          2447
+        ]
+      },
+      {
+        "name": "it-dark-390-customer",
+        "language": "it",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/it-dark-390-customer.png",
+        "sha256": "e21ff77b03f5b9df5680cc04ff6672be5c4b839881935990768a7e4e1952fdb6",
+        "dimensions": [
+          375,
+          6107
+        ]
+      },
+      {
+        "name": "it-dark-390-quote-detail",
+        "language": "it",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/it-dark-390-quote-detail.png",
+        "sha256": "ad495ea143f7d3bb8312cc2b6bb287173713980f11fabcd28a3206c811194fe8",
+        "dimensions": [
+          375,
+          2041
+        ]
+      },
+      {
+        "name": "it-dark-390-quote-form",
+        "language": "it",
+        "theme": "dark",
+        "width": 390,
+        "file": ".impeccable/review/financial-commercial/it-dark-390-quote-form.png",
+        "sha256": "60b5d26c68602dc04c60e7591e486046baa0f5aeab81ffa62adc3132d9c7bd1e",
+        "dimensions": [
+          375,
+          3132
+        ]
+      },
+      {
+        "name": "it-light-1440-customer",
+        "language": "it",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/it-light-1440-customer.png",
+        "sha256": "449af08a9a393ef495ad439a153737e7641210894aad85ebfe04df5fa19975c7",
+        "dimensions": [
+          1425,
+          3968
+        ]
+      },
+      {
+        "name": "it-light-1440-quote-form",
+        "language": "it",
+        "theme": "light",
+        "width": 1440,
+        "file": ".impeccable/review/financial-commercial/it-light-1440-quote-form.png",
+        "sha256": "4828a3f3f1cb1edec78f252e5bca88e083b72fc798300d4564a2469c8ae65e03",
+        "dimensions": [
+          1425,
+          2447
+        ]
+      }
+    ],
+    "behaviorProof": {
+      "createEditAccept": true,
+      "secondClientAutomatic": true,
+      "lostReplyRetry": true,
+      "draftPreserved": true,
+      "customerAfterFirstPage": true,
+      "accessDeniedClears": true
+    },
+    "recipeEvidence": {
+      "create-edit-accept-proof.json": "3534c0cf1db9c7fafbbc640639ff69b02019be6cac2c1943c7724c565ef51796",
+      "second-client-automatic.json": "2fe0c22bbb103d38f10e711df3d2391cd65f61f21e274a33e56a9bb7776113e7",
+      "draft-review-proof.json": "453199ba23d2d035b70cb6c9ca695719832be1c0d9dea0d8c4d49bafe18ea3b0",
+      "denied-proof.json": "22d82f650de03547df7407a184b510f26585c336da8144871722dc403f7bb9a1"
+    },
+    "observations": [
+      "Actual memory V5 kernel with fictitious data and synthetic Auth/D1; independent PGlite suite validates storage.",
+      "Actual responsive widths measured: 1440, 390 and 320; screenshots may exclude a 15px scrollbar.",
+      "Browser screenshot source bytes decoded and saved as PNG with identical RGB pixels; see capture-format-proof.json.",
+      "One grouped visual pass, one checkbox-specific correction and one confirmation pass. Initial captures retained separately.",
+      "Lost-reply recipe commits an actual command, then substitutes an HTTP503; no real network outage or hosted authentication claim."
+    ],
+    "reviewSha256": "34a6e687521fb84b493b862c01261230abec4f6164fdceb2840dc5160b1260a5",
+    "formatProofSha256": "abe53f6620c5861e031c65ae89f917af2c19aa7c0e0c65349046e09230c4442e",
+    "detector": {
+      "runs": 1,
+      "report": ".qa/us-commercial-pilot/ui-detector-final.json",
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+      "result": []
+    }
+  },
+  "migrations": {
+    "new": [],
+    "existing": 32,
+    "hostedApplied": false
+  },
+  "boundaries": {
+    "country": "US",
+    "currency": "USD",
+    "basis": "accrual",
+    "consumer": "financial-pilot",
+    "publicSchemaVersion": 1,
+    "privateEngineVersion": 5,
+    "productionChanged": false,
+    "nativePublished": false,
+    "swissBusinessSourceChanged": false,
+    "realTaxProviderCalled": false
+  },
+  "limitations": [
+    "PGlite PostgreSQL WASM is serialized: no multi-connection/load/crash/SLA claim.",
+    "Browser interaction recipe uses synthetic Auth/D1 with the real memory V5 kernel; separate PostgreSQL suites validate storage.",
+    "Acceptance records internal confirmation, not a customer signature.",
+    "Quote totals are before sales tax; invoice issuance remains a subsequent tranche.",
+    "No hosted migration, public US activation or native installer publication."
+  ]
+}
