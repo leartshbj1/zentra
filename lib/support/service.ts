@@ -1,4 +1,5 @@
 import { SUPPORT_WORKSPACES_SQL } from './workspace-access';
+import { apiSenderIdentity } from './api-source';
 import { connectorSenderName } from '@/lib/action-engine/source-envelope';
 import { senderAddress, senderPolicies, applySenderPolicies, saveSenderPolicy, deleteSenderPolicy, protectTicket } from './sender-policies';
 import { productivityState } from './productivity';
@@ -1564,6 +1565,7 @@ export async function receiveHook(request: Request, connectionId: string) {
           groupId: null,
           agentId: null,
           closed: false,
+          ...apiSenderIdentity(body),
         }
       : await readProviderTicket(c, await secretFor(c), external);
   const ticket = await ingest(c, source);

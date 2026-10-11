@@ -644,6 +644,79 @@ describe('Parcours complet dans une vraie base SQLite', () => {
     sql.close();
     vi.unstubAllGlobals();
   });
+  it('persiste seulement l’identité structurée fournie au connecteur API authentifié', async () => {
+    const response = await hook({
+      ticketId: 'api-identity', subject: 'Devis', body: 'Installer trois radiateurs.',
+      senderEmail: '  CAMILLE@EXAMPLE.TEST  ', senderName: 'Camille Müller 🛠',
+      organizationId: 'forged-company', userId: 'forged-user', role: 'owner',
+    });
+    expect(response.status).toBe(200);
+    const result = await json(response);
+    const persisted = sql.prepare('SELECT workspace_id,source_json FROM support_tickets WHERE id=?').get(result.ticket.id)!;
+    expect(persisted.workspace_id).toBe(workspace);
+    expect(JSON.parse(String(persisted.source_json))).toEqual({
+      externalId: 'api-identity', subject: 'Devis', body: 'Installer trois radiateurs.',
+      version: '', groupId: null, agentId: null, closed: false,
+      senderEmail: 'camille@example.test', senderName: 'Camille Müller 🛠',
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('reste compatible avec les anciens appels API sans déduire l’expéditeur du texte', async () => {
+    const result = await json(await hook({
+      ticketId: 'api-no-identity', subject: 'Devis',
+      body: 'From: Invented Name <body@example.test>\nInstaller trois radiateurs.',
+    }));
+    const persisted = sql.prepare('SELECT source_json FROM support_tickets WHERE id=?').get(result.ticket.id)!;
+    expect(JSON.parse(String(persisted.source_json))).toEqual({
+      externalId: 'api-no-identity', subject: 'Devis',
+      body: 'From: Invented Name <body@example.test>\nInstaller trois radiateurs.',
+      version: '', groupId: null, agentId: null, closed: false,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('rafraîchit la même source quand seule l’identité API change, sans réanalyser son rejeu normalisé', async () => {
+    const input = { ticketId: 'api-identity-change', subject: 'Devis', body: 'Installer trois radiateurs.' };
+    const first = await json(await hook({ ...input, senderEmail: 'first@example.test', senderName: 'First' }));
+    const before = sql.prepare('SELECT fingerprint,revision FROM support_tickets WHERE id=?').get(first.ticket.id)!;
+    const second = await json(await hook({ ...input, senderEmail: 'second@example.test', senderName: 'Second' }));
+    const after = sql.prepare('SELECT fingerprint,revision,source_json FROM support_tickets WHERE id=?').get(first.ticket.id)!;
+    expect(second.ticket.id).toBe(first.ticket.id);
+    expect(after.fingerprint).not.toBe(before.fingerprint);
+    expect(Number(after.revision)).toBeGreaterThan(Number(before.revision));
+    expect(JSON.parse(String(after.source_json))).toMatchObject({ subject: input.subject, body: input.body, externalId: input.ticketId, senderEmail: 'second@example.test', senderName: 'Second' });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const replay = await json(await hook({ ...input, senderEmail: ' SECOND@EXAMPLE.TEST ', senderName: 'Second' }));
+    expect(replay.ticket.id).toBe(first.ticket.id);
+    expect(replay.ticket.revision).toBe(second.ticket.revision);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it('conserve une ambiguïté explicite et change le fingerprint sans changer le corps API', async () => {
+    const input = { ticketId: 'api-ambiguous', subject: 'Devis', body: 'Installer trois radiateurs.', senderEmail: 'client@example.test', senderName: 'Client' };
+    const first = await json(await hook(input));
+    const before = sql.prepare('SELECT fingerprint FROM support_tickets WHERE id=?').get(first.ticket.id)!;
+    const second = await json(await hook({ ...input, senderIdentityAmbiguous: true }));
+    const after = sql.prepare('SELECT fingerprint,source_json FROM support_tickets WHERE id=?').get(first.ticket.id)!;
+    expect(second.ticket.id).toBe(first.ticket.id);
+    expect(after.fingerprint).not.toBe(before.fingerprint);
+    expect(JSON.parse(String(after.source_json))).toMatchObject({ senderIdentityAmbiguous: true, body: input.body });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it.each([
+    { senderEmail: null }, { senderEmail: 'first@example.test,second@example.test' },
+    { senderName: '' }, { senderName: { name: 'Client' } },
+    { senderIdentityAmbiguous: 'false' },
+  ])('refuse une identité API explicite invalide avant persistance et classification: %j', async (identity) => {
+    await expect(hook({ ticketId: 'api-invalid', subject: 'Devis', body: 'Installer trois radiateurs.', ...identity }))
+      .rejects.toMatchObject({ status: 400 });
+    expect(sql.prepare('SELECT count(*) n FROM support_tickets').get()?.n).toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('ne prend aucune identité de source avant l’authentification de la connexion API', async () => {
+    await expect(hook({ ticketId: 'api-unauthorized', subject: 'Devis', body: 'Installer trois radiateurs.', senderEmail: 'client@example.test', senderName: 'Client' }, 'zsup_' + 'x'.repeat(43)))
+      .rejects.toMatchObject({ status: 401 });
+    expect(sql.prepare('SELECT count(*) n FROM support_tickets').get()?.n).toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it('retrouve le même espace lors de deux créations simultanées depuis deux appareils', async () => {
     state.user={...state.user,userId:'first-connection-owner',email:'first-connection@example.test'};
     const responses=await Promise.all([

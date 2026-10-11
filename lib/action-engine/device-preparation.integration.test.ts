@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import type { DecisionInput, ProviderResult } from '@/lib/automation/types';
+import type { DeviceSessionContext } from '@/lib/account';
 import type { DeviceQuoteAuthority } from './production-admission';
 import type {
   ActionActor,
@@ -11,8 +12,9 @@ import type {
 
 // Actual local D1/workerd runs the unmodified A1/A2/publication SQL and the real
 // preparation/intake/ledger/source/historical/published-fence composition.
-// QA authority rows, the published-context loader and provider are explicit
-// synthetic boundaries: no commercial admission, PG/archive or JEV claim.
+// QA account session/rate limiter, authority rows, the published-context loader
+// and provider are explicit synthetic boundaries: no real authentication,
+// commercial admission, PG/archive or JEV claim.
 const state = vi.hoisted(() => ({
   db: null as Pick<D1Database, 'prepare' | 'batch'> | null,
   enabled: true,
@@ -23,6 +25,17 @@ const state = vi.hoisted(() => ({
   decide: vi.fn(),
   preflight: vi.fn(),
   preflightCas: vi.fn(),
+  session: vi.fn(),
+  rateLimit: vi.fn(),
+}));
+vi.mock('@/lib/account', () => ({
+  requireDeviceSession: state.session,
+  enforceSyncRateLimit: state.rateLimit,
+  accountNoStoreHeaders: () => ({
+    'Cache-Control': 'no-store, max-age=0',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+  }),
 }));
 vi.mock('@/lib/runtime', () => ({
   database: () => {
@@ -49,6 +62,7 @@ import { readPreparedDeviceQuote } from './device-proposal-recovery';
 import { readSupportQuoteSource } from './support-source';
 import { createPublicationLedger } from './publication-ledger';
 import { ActionEngineError } from './types';
+import { handleDeviceQuoteWork } from './device-work-handler';
 
 type Runtime = {
   getD1Database(name: string): Promise<D1Database>;
@@ -72,6 +86,18 @@ function request() {
       Authorization: 'Bearer synthetic-device-session-not-a-real-token',
       Origin: 'tauri://localhost',
     },
+  });
+}
+
+function workRequest(body: unknown) {
+  return new Request('http://localhost/private-quote-work', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer synthetic-device-session-not-a-real-token',
+      Origin: 'tauri://localhost',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
   });
 }
 
@@ -121,6 +147,7 @@ async function applyMigration(name: string) {
     trigger = false;
   for (const line of sql.split(/\r?\n/)) {
     statement += line + '\n';
+    if (/^\s*--/.test(line)) continue;
     if (/^CREATE TRIGGER\b/.test(line)) trigger = true;
     if (trigger ? line === 'END;' : /;\s*$/.test(line)) {
       await db.prepare(statement).run();
@@ -179,7 +206,9 @@ async function seed() {
       .prepare("INSERT INTO support_connections VALUES(?,?,1,100,'infomaniak')")
       .bind(connectionId, workspaceId),
     db
-      .prepare('INSERT INTO support_tickets VALUES(?,?,?,?,?,?,?,?,1)')
+      .prepare(`INSERT INTO support_tickets
+        (id,workspace_id,connection_id,external_id,subject,body,source_json,fingerprint,revision,created_at,state,decision_json)
+        VALUES(?,?,?,?,?,?,?,?,1,100,'ready','{"category":"quote"}')`)
       .bind(
         sourceId,
         workspaceId,
@@ -401,10 +430,16 @@ beforeAll(async () => {
     'CREATE TABLE organization_members(organization_id TEXT,user_id TEXT,role TEXT,email TEXT,revoked_at INTEGER)',
     'CREATE TABLE support_gestion_links(workspace_id TEXT PRIMARY KEY,organization_id TEXT,enabled INTEGER,connected_by TEXT,created_at INTEGER)',
     'CREATE TABLE support_connections(id TEXT PRIMARY KEY,workspace_id TEXT,active INTEGER,created_at INTEGER,provider TEXT)',
-    'CREATE TABLE support_tickets(id TEXT PRIMARY KEY,workspace_id TEXT,connection_id TEXT,external_id TEXT,subject TEXT,body TEXT,source_json TEXT,fingerprint TEXT,revision INTEGER)',
+    'CREATE TABLE support_tickets(id TEXT PRIMARY KEY,workspace_id TEXT,connection_id TEXT,external_id TEXT,subject TEXT,body TEXT,source_json TEXT,fingerprint TEXT,revision INTEGER,created_at INTEGER,state TEXT,decision_json TEXT)',
     'CREATE TABLE international_workspace_creation_intents(organization_id TEXT,country_code TEXT)',
   ])
     await db.prepare(sql).run();
+  for (const name of [
+    '0103_action_engine_quote_publication_evidence.sql',
+    '0104_action_engine_quote_evidence_preconfirmation.sql',
+    '0105_action_engine_support_work_index.sql',
+  ])
+    await applyMigration(name);
 }, 20000);
 beforeEach(async () => {
   vi.resetAllMocks();
@@ -426,6 +461,19 @@ beforeEach(async () => {
     },
   );
   fixture = await seed();
+  // The handler sees this exact synthetic account; durable permission checks
+  // still use the real D1 predicates constructed by the QA authority above.
+  const session: DeviceSessionContext = {
+    ...fixture.actor,
+    organizationName: 'QA preparation company',
+    subscriptionId: 'qa-subscription',
+    role: 'owner',
+    sessionId: 'qa-session',
+    installationId,
+    entitlementValidUntil: 4102444800,
+  };
+  state.session.mockResolvedValue(session);
+  state.rateLimit.mockResolvedValue(undefined);
 });
 afterAll(async () => {
   if (runtime) await runtime.dispose();
@@ -684,3 +732,299 @@ it('rechecks delegated source access after the real historical ledger batch retu
   expectNoNewPreparation();
   expect(await counts()).toEqual(original);
 });
+
+it('discovers then prepares through the real work handler with a closed summary and no reservation', async () => {
+  const discovered = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'discover',
+      limit: 20,
+      cursor: null,
+    }),
+  );
+  expect(discovered.status).toBe(200);
+  expect(discovered.headers.get('Cache-Control')).toBe('no-store, max-age=0');
+  expect(await discovered.json()).toEqual({
+    schemaVersion: 1,
+    state: 'discovered',
+    sourceIds: [fixture.sourceId],
+    nextCursor: null,
+  });
+  expectNoNewPreparation();
+
+  const prepared = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  expect(prepared.status).toBe(200);
+  const stored = await db
+    .prepare(`SELECT id,fingerprint
+    FROM action_engine_quote_proposals WHERE organization_id=? AND source_id=?`)
+    .bind(fixture.actor.organizationId, fixture.sourceId)
+    .first<{ id: string; fingerprint: string }>();
+  expect(stored).not.toBeNull();
+  // Exact equality excludes the source body, plan, customer and price fields.
+  expect(await prepared.json()).toEqual({
+    schemaVersion: 1,
+    state: 'prepared',
+    sourceId: fixture.sourceId,
+    proposalId: stored!.id,
+    fingerprint: stored!.fingerprint,
+    disposition: 'ready',
+    reasons: [],
+    requiresHumanValidation: true,
+  });
+  expect(state.decide).toHaveBeenCalledTimes(1);
+  expect(state.session).toHaveBeenCalledTimes(2);
+  expect(state.rateLimit).toHaveBeenCalledTimes(2);
+  expect(state.rateLimit.mock.calls[0].slice(1)).toEqual([
+    'action-engine-device-work',
+    fixture.actor.organizationId + ':' + installationId,
+    500,
+  ]);
+  expect(await counts()).toEqual({
+    proposals: 1,
+    intakes: 1,
+    saved: 1,
+    finished: 1,
+    reservations: 0,
+    assertions: 0,
+  });
+});
+
+it('replays the handler summary after the real proposal commit loses its ACK without another decision', async () => {
+  loseAcknowledgement(/INSERT\s+INTO\s+action_engine_quote_proposals\b/i);
+  const lost = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  expect(lost.status).toBe(503);
+  expect(await lost.json()).toEqual({
+    schemaVersion: 1,
+    state: 'error',
+    code: 'service_unavailable',
+    message:
+      'Automation est momentanément indisponible. Vos données sont conservées.',
+  });
+  expect(state.decide).toHaveBeenCalledTimes(1);
+  const saved = await db
+    .prepare(`SELECT id,fingerprint
+    FROM action_engine_quote_proposals WHERE organization_id=? AND source_id=?`)
+    .bind(fixture.actor.organizationId, fixture.sourceId)
+    .first<{ id: string; fingerprint: string }>();
+  expect(saved).not.toBeNull();
+  const original = await counts();
+  await advanceHead();
+  state.db = db;
+  state.load.mockRejectedValue(new ActionEngineError('stale_plan'));
+  state.key.mockRejectedValue(Error('Synthetic key removed after commit'));
+  clearWorkCalls();
+  const recovered = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  expect(recovered.status).toBe(200);
+  expect(await recovered.json()).toEqual({
+    schemaVersion: 1,
+    state: 'prepared',
+    sourceId: fixture.sourceId,
+    proposalId: saved!.id,
+    fingerprint: saved!.fingerprint,
+    disposition: 'ready',
+    reasons: [],
+    requiresHumanValidation: true,
+  });
+  expectNoNewPreparation();
+  expect(await counts()).toEqual(original);
+  expect(original).toEqual({
+    proposals: 1,
+    intakes: 1,
+    saved: 1,
+    finished: 1,
+    reservations: 0,
+    assertions: 0,
+  });
+});
+
+it('does not disclose discovery selectors or a saved handler summary after delegated access is revoked', async () => {
+  const prepared = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  expect(prepared.status).toBe(200);
+  const original = await counts();
+  await db
+    .prepare('UPDATE support_gestion_links SET enabled=0 WHERE workspace_id=?')
+    .bind(fixture.workspaceId)
+    .run();
+  clearWorkCalls();
+  const discovery = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'discover',
+    }),
+  );
+  expect(discovery.status).toBe(403);
+  expect(await discovery.json()).toEqual({
+    schemaVersion: 1,
+    state: 'error',
+    code: 'forbidden',
+    message:
+      'Reconnectez votre compte ou vérifiez vos accès à cette entreprise.',
+  });
+  const replay = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  expect(replay.status).toBe(409);
+  expect(await replay.json()).toEqual({
+    schemaVersion: 1,
+    state: 'error',
+    code: 'review_required',
+    message: 'Cette demande doit être vérifiée. Vos données sont conservées.',
+  });
+  expectNoNewPreparation();
+  expect(await counts()).toEqual(original);
+});
+
+it('hides unprepared work while Support is paused and refuses preparation before an intake or decision', async () => {
+  await db
+    .prepare("UPDATE support_workspaces SET mode='paused' WHERE id=?")
+    .bind(fixture.workspaceId)
+    .run();
+  const discovery = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'discover',
+    }),
+  );
+  expect(discovery.status).toBe(200);
+  expect(await discovery.json()).toEqual({
+    schemaVersion: 1,
+    state: 'discovered',
+    sourceIds: [],
+    nextCursor: null,
+  });
+  expectNoNewPreparation();
+  const prepared = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  expect(prepared.status).toBe(403);
+  expect(await prepared.json()).toEqual({
+    schemaVersion: 1,
+    state: 'error',
+    code: 'forbidden',
+    message:
+      'Reconnectez votre compte ou vérifiez vos accès à cette entreprise.',
+  });
+  expect(state.decide).not.toHaveBeenCalled();
+  expect(state.key).not.toHaveBeenCalled();
+  expect(await counts()).toEqual({
+    proposals: 0,
+    intakes: 0,
+    saved: 0,
+    finished: 0,
+    reservations: 0,
+    assertions: 0,
+  });
+});
+
+it('holds a concurrent handler preparation on the real D1 intake and later replays one proposal', async () => {
+  let entered!: () => void, release!: () => void;
+  const providerEntered = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const providerRelease = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  state.decide.mockImplementation(async (input: DecisionInput) => {
+    entered();
+    await providerRelease;
+    return decision(input);
+  });
+  const first = handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  try {
+    await Promise.race([
+      providerEntered,
+      first.then(() => {
+        throw Error(
+          'First preparation returned before reaching the synthetic provider',
+        );
+      }),
+    ]);
+    const concurrent = await handleDeviceQuoteWork(
+      workRequest({
+        schemaVersion: 1,
+        operation: 'prepare',
+        sourceId: fixture.sourceId,
+      }),
+    );
+    expect(concurrent.status).toBe(409);
+    expect(await concurrent.json()).toEqual({
+      schemaVersion: 1,
+      state: 'error',
+      code: 'busy',
+      message: 'Cette demande est déjà en cours de préparation.',
+    });
+    expect(state.decide).toHaveBeenCalledTimes(1);
+    expect(await counts()).toEqual({
+      proposals: 0,
+      intakes: 1,
+      saved: 0,
+      finished: 0,
+      reservations: 0,
+      assertions: 0,
+    });
+  } finally {
+    release();
+  }
+  const completed = await first;
+  expect(completed.status).toBe(200);
+  const summary: unknown = await completed.json();
+  const original = await counts();
+  clearWorkCalls();
+  const replay = await handleDeviceQuoteWork(
+    workRequest({
+      schemaVersion: 1,
+      operation: 'prepare',
+      sourceId: fixture.sourceId,
+    }),
+  );
+  expect(replay.status).toBe(200);
+  expect(await replay.json()).toEqual(summary);
+  expectNoNewPreparation();
+  expect(await counts()).toEqual(original);
+  expect(original).toEqual({
+    proposals: 1,
+    intakes: 1,
+    saved: 1,
+    finished: 1,
+    reservations: 0,
+    assertions: 0,
+  });
+}, 10000);
