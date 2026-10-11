@@ -5,6 +5,9 @@ use crate::action_engine_quote_publication::{ActionEngineQuoteConfirmation, Acti
 use crate::database::query_all;
 use serde_json::Value;
 
+#[path = "action_engine_license_fixture_tests.rs"]
+mod test_license;
+
 struct Fixture {
     directory: tempfile::TempDir,
     store: LocalStore,
@@ -13,10 +16,12 @@ struct Fixture {
 }
 fn fixture(existing: bool) -> Fixture {
     let directory = tempfile::tempdir().unwrap();
-    let store = LocalStore::initialize(directory.path().join("profile")).unwrap();
+    let mut store = LocalStore::initialize(directory.path().join("profile")).unwrap();
+    test_license::configure(&mut store);
     store
         .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
         .unwrap();
+    test_license::install(&store);
     let client_id = Uuid::new_v4().to_string();
     let article_id = Uuid::new_v4().to_string();
     let db = store.connect().unwrap();
@@ -1911,7 +1916,8 @@ fn simultaneous_native_connections_publish_one_draft_for_the_same_reserved_reque
     let f = fixture(false);
     let request = input(&f, false);
     let a = f.store.clone();
-    let b = LocalStore::initialize(f.directory.path().join("profile")).unwrap();
+    let mut b = LocalStore::initialize(f.directory.path().join("profile")).unwrap();
+    test_license::configure(&mut b);
     let meet = std::sync::Arc::new(std::sync::Barrier::new(2));
     let other = meet.clone();
     let retry = request.clone();
@@ -1950,7 +1956,8 @@ fn actual_store_close_reopen_returns_the_original_receipt_after_a_lost_reply() {
     let before = snapshot(&f.store);
     let directory = f.directory;
     drop(f.store);
-    let reopened = LocalStore::initialize(directory.path().join("profile")).unwrap();
+    let mut reopened = LocalStore::initialize(directory.path().join("profile")).unwrap();
+    test_license::configure(&mut reopened);
     assert_eq!(
         reopened.commit_action_engine_quote_draft(request).unwrap(),
         receipt
@@ -2068,7 +2075,8 @@ fn additive_v61_migration_preserves_records_then_reopen_has_schema62_receipts() 
     let clients = query_all(&db, "SELECT * FROM clients", []).unwrap();
     let catalog = query_all(&db, "SELECT * FROM catalog_items", []).unwrap();
     drop(db);
-    let reopened = LocalStore::initialize(f.directory.path().join("profile")).unwrap();
+    let mut reopened = LocalStore::initialize(f.directory.path().join("profile")).unwrap();
+    test_license::configure(&mut reopened);
     let db = reopened.connect().unwrap();
     assert_eq!(
         db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))

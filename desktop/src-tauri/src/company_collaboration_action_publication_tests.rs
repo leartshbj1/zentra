@@ -18,6 +18,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+#[path = "action_engine_license_fixture_tests.rs"]
+mod test_license;
+
 const ORGANIZATION: &str = "synthetic-publication-company";
 
 struct Fixture {
@@ -28,10 +31,12 @@ struct Fixture {
 
 fn fixture() -> Fixture {
     let directory = tempfile::tempdir().unwrap();
-    let store = LocalStore::initialize(directory.path().join("local")).unwrap();
+    let mut store = LocalStore::initialize(directory.path().join("local")).unwrap();
+    test_license::configure(&mut store);
     store
         .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
         .unwrap();
+    test_license::install(&store);
     let db = store.connect().unwrap();
     db.execute("INSERT INTO company_local_identity VALUES(1,?,'synthetic-owner','Synthetic owner','owner')", [ORGANIZATION]).unwrap();
     db.execute("UPDATE settings SET vat_registered=1,default_vat_bp=810,updated_at='2026-10-11T00:00:00Z' WHERE id=1", []).unwrap();

@@ -6,6 +6,9 @@ use crate::action_engine_quote::{
 use crate::action_engine_resources::{article_revision, customer_revision, export_resources, resource_hash};
 use sha2::{Digest, Sha256};
 
+#[path = "action_engine_license_fixture_tests.rs"]
+mod test_license;
+
 const ORG: &str = "synthetic-action-company";
 const SNAPSHOT: &str = "52bbc724-29c0-4760-9a3b-6c4d529050bb";
 const CLIENT: &str = "257968c5-fb8b-498a-92fe-7a86165ccc97";
@@ -154,7 +157,9 @@ fn action_archive_has_positional_stored_projection_of_the_actual_frozen_database
     let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK
         .lock()
         .unwrap();
-    let (temporary, store) = fixture();
+    let (temporary, mut store) = fixture();
+    test_license::configure(&mut store);
+    test_license::install(&store);
     let request = quote_input(&store);
     // Both manifests describe actual local archives. The committed publication
     // context below is explicitly synthetic; no PostgreSQL authority is claimed.

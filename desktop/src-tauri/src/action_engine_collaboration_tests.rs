@@ -14,6 +14,9 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use uuid::Uuid;
 
+#[path = "action_engine_license_fixture_tests.rs"]
+mod test_license;
+
 const ORGANIZATION: &str = "synthetic-action-company";
 
 struct Fixture {
@@ -24,10 +27,12 @@ struct Fixture {
 
 fn fixture() -> Fixture {
     let directory = tempfile::tempdir().unwrap();
-    let store = LocalStore::initialize(directory.path().join("local")).unwrap();
+    let mut store = LocalStore::initialize(directory.path().join("local")).unwrap();
+    test_license::configure(&mut store);
     store
         .complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION"))
         .unwrap();
+    test_license::install(&store);
     let article_id = Uuid::new_v4().to_string();
     let db = store.connect().unwrap();
     db.execute(
