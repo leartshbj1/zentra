@@ -43,10 +43,35 @@ $shaText = [IO.File]::ReadAllText((Join-Path $repo 'desktop/tests/fixtures/actio
 $fixture = Get-ZentraNativeProfileFixture $json $shaText
 Assert-Behavior ($fixture.Sha256.Length -eq 64 -and $fixture.Json -ceq $json) 'prepared public inputs preserve exact JSON and full SHA'
 Assert-Behavior ((Get-ZentraNativeProfileFixture $json ("`n" + $shaText + "`n")).Sha256 -ceq $fixture.Sha256) 'only external LF can be trimmed'
-foreach ($bad in @($fixture.Sha256 + "`r`n", ' ' + $fixture.Sha256, $fixture.Sha256 + ' ',
+foreach ($bad in @(($fixture.Sha256 + "`r`n"), (' ' + $fixture.Sha256), ($fixture.Sha256 + ' '),
     $fixture.Sha256.ToUpperInvariant(), ([char]0xfeff + $fixture.Sha256), $fixture.Sha256.Substring(0,63), ('0' * 64))) {
     Assert-Refused { Get-ZentraNativeProfileFixture $json $bad } 'nonexact or mismatched full manifest SHA refuses'
 }
+
+$bootstrapPlan = Get-ZentraNativeProfileRustupBootstrapPlan -ApplicationCount 0
+Assert-Behavior $bootstrapPlan.Required 'an actually absent Rustup application requires the official bootstrap'
+Assert-Behavior (-not (Get-ZentraNativeProfileRustupBootstrapPlan -ApplicationCount 1).Required) 'one present candidate never triggers repair'
+Assert-Behavior (-not (Get-ZentraNativeProfileRustupBootstrapPlan -ApplicationCount 2).Required) 'multiple present candidates retain first-candidate validation without bootstrap'
+Assert-Refused { Get-ZentraNativeProfileRustupBootstrapPlan -ApplicationCount -1 } 'negative candidate counts refuse'
+Assert-Refused { Get-ZentraNativeProfileRustupBootstrapPlan -ApplicationCount 4097 } 'unbounded candidate counts refuse'
+Assert-Behavior ($bootstrapPlan.InstallerUri -ceq 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' -and
+    $bootstrapPlan.ChecksumUri -ceq 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe.sha256') 'only the exact historical official Rustup installer and checksum origins are allowed'
+Assert-Behavior ($bootstrapPlan.RequestTimeoutSeconds -eq 120 -and $bootstrapPlan.MaximumRedirections -eq 0 -and
+    $bootstrapPlan.MaximumInstallerBytes -eq 67108864 -and $bootstrapPlan.MaximumChecksumBytes -eq 1024 -and $bootstrapPlan.InstallerTimeoutSeconds -eq 1800) 'bootstrap downloads, sizes, redirects and installer time are bounded'
+Assert-Behavior (($bootstrapPlan.InstallerArguments -join '|') -ceq '-y|--profile|minimal|--default-toolchain|stable-x86_64-pc-windows-msvc') 'bootstrap preserves the historical minimal MSVC installer arguments'
+$installerSha = 'a' * 64
+foreach ($document in @($installerSha, ($installerSha + "`n"), ($installerSha + "`r`n"), ($installerSha + '  rustup-init.exe'), ($installerSha + ' *rustup-init.exe'))) {
+    Assert-Behavior ((Get-ZentraNativeProfileRustupChecksum $document) -ceq $installerSha) 'one exact official checksum document is accepted'
+}
+foreach ($document in @('', $installerSha.Substring(0,63), $installerSha.ToUpperInvariant(), (' ' + $installerSha),
+    ([char]0xfeff + $installerSha), ($installerSha + '  other.exe'), ($installerSha + "`nextra"), ($installerSha + "`n" + $installerSha), ($installerSha + ' '))) {
+    Assert-Refused { Get-ZentraNativeProfileRustupChecksum $document } 'malformed, ambiguous or foreign checksum documents refuse'
+}
+$null = Assert-ZentraNativeProfileRustupChecksum -Expected $installerSha -Actual $installerSha
+Assert-Behavior $true 'matching exact installer bytes SHA is accepted'
+Assert-Refused { Assert-ZentraNativeProfileRustupChecksum -Expected $installerSha -Actual ('b' * 64) } 'divergent installer bytes refuse'
+Assert-Refused { Assert-ZentraNativeProfileRustupChecksum -Expected $installerSha -Actual $installerSha.ToUpperInvariant() } 'noncanonical actual installer hash refuses'
+Assert-Refused { Assert-ZentraNativeProfileRustupChecksum -Expected 'invalid' -Actual $installerSha } 'noncanonical expected installer hash refuses'
 
 # Corroborate the reviewed names against source declarations without compiling.
 $profileNames = @()
@@ -162,13 +187,51 @@ Assert-Behavior ($guard.Count -eq 1) 'runner has one pure admission guard'
 $mutations = @($runnerAst.FindAll({param($n)
     ($n -is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text.StartsWith('$env:')) -or
     ($n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -cin @('SetEnvironmentVariable','CreateDirectory','WriteAllText')) -or
-    ($n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -cin @('Invoke-ZentraHarnessTool','Initialize-ZentraVerificationHarness','Invoke-ZentraVerificationSuite','Save-ZentraHarnessProof'))
+    ($n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -cin @('Invoke-WebRequest','Invoke-ZentraHarnessTool','Initialize-ZentraVerificationHarness','Invoke-ZentraVerificationSuite','Save-ZentraHarnessProof'))
 },$true))
 Assert-Behavior ($mutations.Count -gt 0 -and @($mutations | Where-Object {$_.Extent.StartOffset -lt $guard[0].Extent.EndOffset}).Count -eq 0) 'admission precedes every environment mutation, directory, bootstrap and harness action'
 $runnerText = [IO.File]::ReadAllText($runnerPath)
 $headGuard = @($runnerAst.FindAll({param($n) $n -is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.Contains('HEAD to equal the exact CircleCI source')},$true))
 Assert-Behavior ($headGuard.Count -eq 1 -and @($mutations | Where-Object {$_.Extent.StartOffset -lt $headGuard[0].Extent.EndOffset}).Count -eq 0) 'source equality refuses before mutation and bootstrap'
-Assert-Behavior (@($calls | Where-Object {$_.GetCommandName() -cin @('cargo','Invoke-WebRequest','Start-Process','cloud-release-windows.ps1','npm','npm.cmd','pnpm','pnpm.cmd')}).Count -eq 0) 'runner has no direct Cargo, HTTP, release or frontend invocation'
+Assert-Behavior (@($calls | Where-Object {$_.GetCommandName() -cin @('cargo','Start-Process','cloud-release-windows.ps1','npm','npm.cmd','pnpm','pnpm.cmd')}).Count -eq 0) 'runner has no direct Cargo, process, release or frontend invocation'
+$bootstrapBranches = @($runnerAst.FindAll({param($n) $n -is [Management.Automation.Language.IfStatementAst] -and $n.Clauses[0].Item1.Extent.Text -ceq '$bootstrapPlan.Required'},$true))
+Assert-Behavior ($bootstrapBranches.Count -eq 1 -and $bootstrapBranches[0].ElseClause -eq $null) 'only the pure absent-candidate plan permits a bootstrap branch'
+$bootstrapBranch = $bootstrapBranches[0]
+$downloads = @($calls | Where-Object {$_.GetCommandName() -ceq 'Invoke-WebRequest'})
+Assert-Behavior ($downloads.Count -eq 2 -and @($downloads | Where-Object {$_.Extent.StartOffset -lt $bootstrapBranch.Clauses[0].Item2.Extent.StartOffset -or $_.Extent.EndOffset -gt $bootstrapBranch.Clauses[0].Item2.Extent.EndOffset}).Count -eq 0) 'both and only vendor downloads occur inside the absent Rustup branch'
+foreach ($spec in @(
+    @{Index=0;Text=@'
+Invoke-WebRequest -UseBasicParsing -Uri $bootstrapPlan.InstallerUri -OutFile $installer `
+                -TimeoutSec $bootstrapPlan.RequestTimeoutSeconds -MaximumRedirection $bootstrapPlan.MaximumRedirections
+'@},
+    @{Index=1;Text=@'
+Invoke-WebRequest -UseBasicParsing -Uri $bootstrapPlan.ChecksumUri -OutFile $checksumPath `
+                -TimeoutSec $bootstrapPlan.RequestTimeoutSeconds -MaximumRedirection $bootstrapPlan.MaximumRedirections
+'@}
+)) {
+    # Match the exact closed call shape, including both bounds and no redirect,
+    # provider endpoint, runtime URL or fallback parameter.
+    $actualDownload = $downloads[$spec.Index].Extent.Text.Replace("`r`n","`n")
+    Assert-Behavior ($actualDownload -ceq $spec.Text.Replace("`r`n","`n")) 'vendor download calls have exact planned URL, fixed artifact and limits'
+}
+$checksumAssertions = @($calls | Where-Object {$_.GetCommandName() -ceq 'Assert-ZentraNativeProfileRustupChecksum'})
+$installerCalls = @($calls | Where-Object {$_.GetCommandName() -ceq 'Invoke-ZentraHarnessTool' -and $_.CommandElements[1].Extent.Text -ceq '$installer'})
+Assert-Behavior ($checksumAssertions.Count -eq 1 -and $installerCalls.Count -eq 1 -and
+    $checksumAssertions[0].Extent.EndOffset -lt $installerCalls[0].Extent.StartOffset -and
+    $installerCalls[0].Extent.StartOffset -gt $bootstrapBranch.Clauses[0].Item2.Extent.StartOffset -and
+    $installerCalls[0].Extent.EndOffset -lt $bootstrapBranch.Clauses[0].Item2.Extent.EndOffset) 'exact checksum equality is asserted before the sole bounded installer execution'
+Assert-Behavior ($installerCalls[0].Extent.Text.Contains('-TimeoutSeconds $bootstrapPlan.InstallerTimeoutSeconds') -and
+    $installerCalls[0].Extent.Text.Contains("'rustup-install.log'") -and $installerCalls[0].Extent.Text.Contains("'rustup-install-errors.log'")) 'installer execution uses harness timeout and distinct raw logs'
+$candidateAssignments = @($runnerAst.FindAll({param($n) $n -is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -ceq '$rustupCandidates'},$true))
+Assert-Behavior ($candidateAssignments.Count -eq 2 -and $candidateAssignments[1].Extent.StartOffset -gt $installerCalls[0].Extent.EndOffset -and
+    $candidateAssignments[1].Extent.EndOffset -lt $bootstrapBranch.Clauses[0].Item2.Extent.EndOffset) 'successful installation is followed by fresh PATH resolution rather than fabricated metadata'
+Assert-Behavior ($runnerText.Contains('if ($bootstrapProof.installerExit -ne 0) { throw') -and
+    $runnerText.Contains('$rustup = Select-ZentraHarnessApplication $rustupCandidates') -and
+    $runnerText.Contains("[IO.Path]::GetFileName(`$rustup) -cne 'rustup.exe'")) 'installer failure and invalid installed resolver refuse before toolchain compilation'
+Assert-Behavior ($runnerText.Contains('$bootstrapProof.installerBytes -gt $bootstrapPlan.MaximumInstallerBytes') -and
+    $runnerText.Contains('$bootstrapProof.checksumBytes -gt $bootstrapPlan.MaximumChecksumBytes')) 'both raw download sizes are checked before installation'
+$bootstrapTry = @($runnerAst.FindAll({param($n) $n -is [Management.Automation.Language.TryStatementAst] -and $null -ne $n.Finally -and $n.Finally.Extent.Text.Contains("'native-profile-bootstrap-proof.json'")},$true))
+Assert-Behavior ($bootstrapTry.Count -eq 1 -and $bootstrapTry[0].Finally.Extent.Text.Contains('$proof.bootstrap = $bootstrapProof')) 'bootstrap raw hashes, state and result are saved independently even on refusal'
 Assert-Behavior ($runnerText.Contains("foreach (`$context in @('absent','sandbox','partial'))") -and $runnerText.Contains('-IncludeActionEngine:($context -ceq ''absent'')')) 'only absent context selects legacy tests'
 $topTry = @($runnerAst.EndBlock.Statements | Where-Object {$_ -is [Management.Automation.Language.TryStatementAst]})
 Assert-Behavior ($topTry.Count -eq 1 -and $null -ne $topTry[0].Finally -and $topTry[0].Finally.Extent.Text.Contains('[Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],''Process'')')) 'process environment is restored in the outer finally'

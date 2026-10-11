@@ -42,6 +42,36 @@ function Get-ZentraNativeProfileFixture {
     }
 }
 
+function Get-ZentraNativeProfileRustupBootstrapPlan {
+    param([Parameter(Mandatory=$true)][ValidateRange(0,4096)][int]$ApplicationCount)
+    # A present but invalid candidate is refused by the existing harness;
+    # only an actually absent vendor resolver permits installation.
+    return [pscustomobject]@{
+        Required=($ApplicationCount -eq 0)
+        InstallerUri='https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe'
+        ChecksumUri='https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe.sha256'
+        RequestTimeoutSeconds=120; MaximumRedirections=0
+        MaximumInstallerBytes=67108864; MaximumChecksumBytes=1024
+        InstallerTimeoutSeconds=1800
+        InstallerArguments=[string[]]@('-y','--profile','minimal','--default-toolchain','stable-x86_64-pc-windows-msvc')
+    }
+}
+
+function Get-ZentraNativeProfileRustupChecksum {
+    param([Parameter(Mandatory=$true)][AllowEmptyString()][string]$Text)
+    $document = $Text.Trim([char[]]@([char]10,[char]13))
+    $match = [regex]::Match($document, '\A([0-9a-f]{64})(?:[ \t]+\*?rustup-init\.exe)?\z')
+    if (-not $match.Success) { throw 'The official Rustup checksum must contain one exact lowercase SHA-256 for rustup-init.exe.' }
+    return $match.Groups[1].Value
+}
+
+function Assert-ZentraNativeProfileRustupChecksum {
+    param([Parameter(Mandatory=$true)][string]$Expected, [Parameter(Mandatory=$true)][string]$Actual)
+    if ($Expected -cnotmatch '^[0-9a-f]{64}$' -or $Actual -cnotmatch '^[0-9a-f]{64}$' -or $Expected -cne $Actual) {
+        throw 'The official Rustup installer checksum does not match.'
+    }
+}
+
 function Get-ZentraNativeProfileVerificationPlan {
     param([Parameter(Mandatory=$true)][AllowEmptyCollection()][string[]]$TestNames, [switch]$IncludeActionEngine)
     $catalogue = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
