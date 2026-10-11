@@ -1,0 +1,690 @@
+{
+  "phase": "A14",
+  "recordedAt": "2026-10-11T06:07:06.711Z",
+  "status": "private_native_recovery_first_work_round_sources_uncompiled",
+  "server": {
+    "root": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site",
+    "branch": "codex/international-runtime",
+    "sourceCommit": "50d9e3816254b49b5890fdfd318ad7cd6b5c4984",
+    "created": [
+      {
+        "path": "lib/action-engine/native-work-recovery-sql.test.ts",
+        "bytes": 15174,
+        "sha256": "2d650e47fde569602ba057ee39810ca66c9b8627db6d86c73d7816aba8895cef"
+      }
+    ],
+    "modified": [],
+    "runtimeChanges": false,
+    "publicRouteAdded": false
+  },
+  "native": {
+    "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+    "branch": "codex/action-engine-native",
+    "sourceCommit": "52e507e6abb93aa31214c795dae54ee8e5eb88cc",
+    "version": "1.90.15",
+    "sharedSchema": 62,
+    "sidecarSchema": 62,
+    "created": [],
+    "modified": [
+      {
+        "path": "desktop/src-tauri/src/account_cloud_action_engine.rs",
+        "bytes": 25213,
+        "sha256": "16db76c5b4500c8d5e4661700b37182c5c211ed3a9ed1b39ebbe4ab5f8cc9f6c"
+      },
+      {
+        "path": "desktop/src-tauri/src/account_cloud_action_engine_tests.rs",
+        "bytes": 55114,
+        "sha256": "05e90ba1f1c9f5c9f29d230f25e882ec83be3652d8346f04ea6ca65b8ae98e3d"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_device_protocol.rs",
+        "bytes": 27969,
+        "sha256": "6d8f6bd755376f05ae8d8e68dc71a531c35bb33624b20c3217797c8633f1b464"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_device_protocol_tests.rs",
+        "bytes": 35827,
+        "sha256": "05173faa2bdf9a59384e5cab600b2bf8ea9faaf1379d414ced205e69b8e91e74"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote.rs",
+        "bytes": 66776,
+        "sha256": "2705b9455c80f952629dd69cd624c3b587313b95181f9e7d5b335196adeedfaa"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote_publication.rs",
+        "bytes": 43265,
+        "sha256": "9141f1468012d6c84f037376dff9a6b2201f8964dc701c1ff7c739e60a9bafe7"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote_tests.rs",
+        "bytes": 90046,
+        "sha256": "41bdf9882c07611d72cdbc33598fe1f6e74f08228b7e08a0f86bb04a54940a6c"
+      }
+    ],
+    "tests": {
+      "writtenPreviously": 136,
+      "addedTestFunctions": 45,
+      "writtenTotal": 181,
+      "executed": 0,
+      "files": [
+        {
+          "path": "desktop/src-tauri/src/account_cloud_action_engine_tests.rs",
+          "previouslyWritten": 14,
+          "writtenNow": 28,
+          "addedNames": [
+            "work_round_empty_completion_is_memory_only_and_refuses_another_advance",
+            "work_round_review_summary_never_reserves_or_executes_a_quote",
+            "work_round_ready_forwards_same_origin_selectors_and_digest_without_claiming_confirmation",
+            "work_round_advances_complete_pages_then_a_new_round_starts_without_a_watermark",
+            "work_round_rejects_repeated_cursor_or_source_before_any_page_preparation",
+            "work_round_refuses_account_change_during_preparation_on_success_and_failure",
+            "work_round_rechecks_original_after_executor_wait_before_interpreting_its_result",
+            "work_round_partial_page_failure_keeps_original_cursor_for_a_safe_retry",
+            "work_round_real_pending_receipt_always_precedes_discovery_even_on_repeated_held_result",
+            "work_round_external_corruption_is_not_an_empty_queue_or_a_permission_to_discover",
+            "work_round_cancelled_preparation_does_not_advance_the_continuation_or_execute",
+            "work_round_invalid_summary_requires_review_without_effect_or_cursor_progress",
+            "work_round_source_budget_rejects_new_page_before_preparation",
+            "private_work_round_futures_are_send_without_polling_or_starting_transport"
+          ]
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_device_protocol_tests.rs",
+          "previouslyWritten": 15,
+          "writtenNow": 33,
+          "addedNames": [
+            "work_paths_and_selector_only_requests_are_exact_without_a10_changes",
+            "work_request_limits_and_cursor_character_bounds_are_enforced",
+            "work_source_selectors_use_ascii_ids_and_do_not_require_uuids",
+            "work_discovery_accepts_empty_partial_and_complete_pages",
+            "work_discovery_largest_valid_page_fits_its_separate_response_budget",
+            "work_discovery_requires_explicit_next_cursor_and_every_closed_field",
+            "work_discovery_rejects_duplicate_ids_overfull_pages_and_bad_ids",
+            "work_discovery_cursor_requires_full_page_and_bounded_base64url_characters",
+            "work_discovery_rejects_duplicate_json_keys_including_escaped_names",
+            "work_summary_decoders_reject_bad_utf8_json_extra_data_and_oversized_responses",
+            "work_summary_schema_and_state_are_not_coerced_or_cross_decoded",
+            "work_prepared_is_correlated_to_source_and_lowercase_plan_fingerprint",
+            "work_prepared_requires_all_fields_and_rejects_plan_price_and_authority_leaks",
+            "work_prepared_requires_literal_human_validation_and_closed_disposition",
+            "work_prepared_review_reasons_match_all_thirteen_server_literals_in_order",
+            "work_prepared_rejects_empty_review_duplicate_unknown_or_inconsistent_reasons",
+            "work_prepared_rejects_duplicate_json_keys_even_when_identical_or_escaped",
+            "work_error_responses_never_become_empty_discovery_or_prepared_success"
+          ]
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_quote_tests.rs",
+          "previouslyWritten": 41,
+          "writtenNow": 54,
+          "addedNames": [
+            "strict_recovery_first_writer_creates_the_first_real_draft_and_matching_local_receipt_once",
+            "strict_recovery_first_writer_atomically_refuses_a_second_draft_behind_pending_or_uncertain_history",
+            "strict_recovery_first_writer_replays_an_exact_historical_receipt_even_with_other_pending_intentions",
+            "strict_recovery_first_writer_does_not_treat_another_organizations_local_row_as_its_own_pending_work",
+            "recovery_work_empty_queue_requires_a_real_origin_and_returns_only_selectors",
+            "recovery_work_does_not_treat_invalid_empty_origin_or_onboarding_as_an_empty_success",
+            "recovery_work_requires_closed_bounded_origin_and_limit_one_through_fifty",
+            "recovery_work_orders_two_real_creations_bounds_the_page_and_keeps_pending_uncertain_only",
+            "recovery_work_keeps_historical_intentions_after_current_quote_catalogue_or_client_changes",
+            "recovery_work_refuses_orphan_corrupt_or_foreign_rows_instead_of_skipping_them",
+            "recovery_work_checks_the_extra_has_more_row_before_returning_any_page",
+            "recovery_work_checks_original_origin_after_waiting_for_the_local_mutex",
+            "recovery_work_missing_schema_is_an_error_without_implicit_installation_or_repair"
+          ]
+        }
+      ]
+    },
+    "parseOnly": {
+      "report": {
+        "path": ".qa/action-engine-native-work-round/native-rustfmt-parse.json",
+        "bytes": 4846,
+        "sha256": "aea8d14ad99ad582c1efab5647c72b26400d5e134df87c3311a2e92eb1408a5b"
+      },
+      "compilation": false,
+      "cargoAttempted": false,
+      "results": [
+        {
+          "path": "desktop/src-tauri/src/account_cloud_action_engine.rs",
+          "sourceSha256": "16db76c5b4500c8d5e4661700b37182c5c211ed3a9ed1b39ebbe4ab5f8cc9f6c",
+          "bytes": 25213,
+          "exitCode": 0,
+          "durationMs": 62,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/account_cloud_action_engine.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "c6f6305c507c08d77e23d91eae82a7bf1a946f7d88affa4e1cfededeb6161554",
+          "sourceUnchanged": true,
+          "testsWritten": 0
+        },
+        {
+          "path": "desktop/src-tauri/src/account_cloud_action_engine_tests.rs",
+          "sourceSha256": "05e90ba1f1c9f5c9f29d230f25e882ec83be3652d8346f04ea6ca65b8ae98e3d",
+          "bytes": 55114,
+          "exitCode": 0,
+          "durationMs": 70,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/account_cloud_action_engine_tests.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "501e996c14c0df74d0ad6a85129203c8ae95488fe41a571e6310e9bc039149f1",
+          "sourceUnchanged": true,
+          "testsWritten": 28
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_device_protocol.rs",
+          "sourceSha256": "6d8f6bd755376f05ae8d8e68dc71a531c35bb33624b20c3217797c8633f1b464",
+          "bytes": 27969,
+          "exitCode": 0,
+          "durationMs": 58,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/action_engine_device_protocol.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "d1bb6633c88d88fb53eb7eb56642aa95e9671b67527843de66efe305a37a0cb5",
+          "sourceUnchanged": true,
+          "testsWritten": 0
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_device_protocol_tests.rs",
+          "sourceSha256": "05173faa2bdf9a59384e5cab600b2bf8ea9faaf1379d414ced205e69b8e91e74",
+          "bytes": 35827,
+          "exitCode": 0,
+          "durationMs": 61,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/action_engine_device_protocol_tests.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "233e770eeb603f9c1ca84f5f9e4652d09ba8fb1125e84a86be57a7095a54d49a",
+          "sourceUnchanged": true,
+          "testsWritten": 33
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_quote.rs",
+          "sourceSha256": "2705b9455c80f952629dd69cd624c3b587313b95181f9e7d5b335196adeedfaa",
+          "bytes": 66776,
+          "exitCode": 0,
+          "durationMs": 79,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/action_engine_quote.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "a59838549a7815c4073200406b7d92bccc8967056833f85cd5eae3b15f93a64c",
+          "sourceUnchanged": true,
+          "testsWritten": 0
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_quote_publication.rs",
+          "sourceSha256": "9141f1468012d6c84f037376dff9a6b2201f8964dc701c1ff7c739e60a9bafe7",
+          "bytes": 43265,
+          "exitCode": 0,
+          "durationMs": 68,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/action_engine_quote_publication.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "f5f10d50c6ee8e6c3a45425e1426053c8b4f35314af58c067bf4286d106972fa",
+          "sourceUnchanged": true,
+          "testsWritten": 0
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_quote_tests.rs",
+          "sourceSha256": "41bdf9882c07611d72cdbc33598fe1f6e74f08228b7e08a0f86bb04a54940a6c",
+          "bytes": 90046,
+          "exitCode": 0,
+          "durationMs": 79,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/action_engine_quote_tests.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "4a93eedd153abf5b513e52102e493c5418b9e190a09eadcb81c52ce720447e38",
+          "sourceUnchanged": true,
+          "testsWritten": 54
+        }
+      ]
+    }
+  },
+  "validation": {
+    "cohorts": [
+      {
+        "name": "regression",
+        "report": {
+          "path": ".qa/action-engine-native-work-round/regression.json",
+          "bytes": 606946,
+          "sha256": "a46aced7f1c197c5a3a4caee83cbd8c61a1e7fa46f179a3794f8330b12be4778"
+        },
+        "log": {
+          "path": ".qa/action-engine-native-work-round/regression.log",
+          "bytes": 494,
+          "sha256": "d83342a3920ce31419ac6475f57e22695eeb379ea9649b0bb1f56989fe80702e"
+        },
+        "files": [
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/canonical-quote.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/confirmation-publication.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/confirmation-records.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-confirmation.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-execution-contract.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-execution-handler.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-preparation.integration.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-preparation.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-reservation-budget.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-reservation.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-work-discovery.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/device-work-handler.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/engine.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/historical-quote-fences.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/intake-d1.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/intake.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/ledger-d1.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/ledger.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/money.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/native-confirmation-schema.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/native-publication-schema.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/native-schema.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/native-work-recovery-sql.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/planner.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/production-admission.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/provider.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/publication-coordination.postgres.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/publication-coordinator.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/publication-gateway.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/publication-ledger.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/publication-recovery.integration.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/publication-recovery.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/publication-stack.integration.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/published-context.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/published-fences.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/published-resources.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/quote-archive.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/quote-publication-evidence.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/reservation-state.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/source-ingestion.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/sqlite-reader.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/sqlite-worker-plugin.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/support-source.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/action-engine/validation.test.ts"
+        ],
+        "fileCount": 44,
+        "total": 1619,
+        "passed": 1619,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "adjacent-regression",
+        "report": {
+          "path": ".qa/action-engine-native-work-round/adjacent-regression.json",
+          "bytes": 217453,
+          "sha256": "350bc2fd7cba33a153606a86b615e237a12a83db84a5db0fcbc4d3738dafec7e"
+        },
+        "log": {
+          "path": ".qa/action-engine-native-work-round/adjacent-regression.log",
+          "bytes": 2369,
+          "sha256": "1287697171086e4a8e8334a3094eab402e56150130120aec6893f090b6147251"
+        },
+        "files": [
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/company-collaboration-route.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/company-collaboration.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/legacy-cloud-transport.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/activity.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/billing-lifecycle.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/billing.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/checkout.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/entitlement-flow.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/mail-summary.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/provider.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/service.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/webhook-setup.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/workflows.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/international/legacy-transport-routes.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/api-source.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/infomaniak-imap-lifetime.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/infomaniak-imap.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/infomaniak.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/mail-documents.test.ts",
+          "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/support.test.ts"
+        ],
+        "fileCount": 20,
+        "total": 576,
+        "passed": 576,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "distinctTests": 2195,
+    "distinctFiles": 64,
+    "targeted": [
+      {
+        "report": {
+          "path": ".qa/action-engine-native-work-round/native-work-recovery-sql-node-20261011T055241230Z.json",
+          "bytes": 5419,
+          "sha256": "9a5632f509c1a5756562635c57cb12091885600524437ed78a0eb7f5aa9afad7"
+        },
+        "log": {
+          "path": ".qa/action-engine-native-work-round/native-work-recovery-sql-node-20261011T055241230Z.log",
+          "bytes": 1253,
+          "sha256": "5318deb51b00801563eeb7aa86f63994ffa803b3c43d86691f9aa2ad30963831"
+        },
+        "total": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "overlapWithRegression": true
+      },
+      {
+        "report": {
+          "path": ".qa/action-engine-native-work-round/native-work-recovery-sql-node-20261011T060034829Z.json",
+          "bytes": 8591,
+          "sha256": "9bbac1366df34e02f21eec2b480364aad949ff8b9136ee43e97658d4941670be"
+        },
+        "log": {
+          "path": ".qa/action-engine-native-work-round/native-work-recovery-sql-node-20261011T060034829Z.log",
+          "bytes": 1523,
+          "sha256": "78c409255ffca5e50f460ee289c2e835457a88dd6e33a4c343063bcaeeaca23b"
+        },
+        "total": 22,
+        "passed": 22,
+        "failed": 0,
+        "skipped": 0,
+        "overlapWithRegression": true
+      }
+    ],
+    "finalFormattedTarget": {
+      "report": {
+        "path": ".qa/action-engine-native-work-round/targeted.json",
+        "bytes": 8591,
+        "sha256": "117b75df04ccc29f6f8fd39bbe446b6f72eb1c6b86b0cbed7a176db6519b7563"
+      },
+      "log": {
+        "path": ".qa/action-engine-native-work-round/targeted.log",
+        "bytes": 518,
+        "sha256": "a378834148ce7d491a086c00ae8de72311ee013c2a48465a2afa82677c2bc167"
+      },
+      "passed": 22,
+      "overlapWithRegression": true
+    },
+    "commands": [
+      {
+        "path": {
+          "path": ".qa/action-engine-native-work-round/regression-commands.json",
+          "bytes": 2932,
+          "sha256": "7a2a96f91946f7538c08ae92b83492e662cf2647cd2c1836280cf48584dfa1cf"
+        },
+        "values": [
+          {
+            "name": "regression",
+            "command": [
+              "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "--config",
+              "vitest.config.ts",
+              "--maxWorkers=4",
+              "lib/action-engine",
+              "--reporter=json",
+              "--outputFile=.qa/action-engine-native-work-round/regression.json"
+            ],
+            "exitCode": 0,
+            "durationMs": 123417,
+            "error": null
+          },
+          {
+            "name": "adjacent-regression",
+            "command": [
+              "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "--config",
+              "vitest.config.ts",
+              "--maxWorkers=4",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/company-collaboration-route.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/company-collaboration.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/legacy-cloud-transport.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/activity.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/billing-lifecycle.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/billing.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/checkout.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/entitlement-flow.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/mail-summary.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/provider.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/service.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/webhook-setup.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/automation/workflows.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/international/legacy-transport-routes.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/api-source.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/infomaniak-imap-lifetime.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/infomaniak-imap.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/infomaniak.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/mail-documents.test.ts",
+              "D:/Codex-Zentra-Temporary/2026-10-08/international-site/lib/support/support.test.ts",
+              "--reporter=json",
+              "--outputFile=.qa/action-engine-native-work-round/adjacent-regression.json"
+            ],
+            "exitCode": 0,
+            "durationMs": 9833,
+            "error": null
+          }
+        ],
+        "logs": [
+          {
+            "path": ".qa/action-engine-native-work-round/regression.log",
+            "bytes": 494,
+            "sha256": "d83342a3920ce31419ac6475f57e22695eeb379ea9649b0bb1f56989fe80702e"
+          },
+          {
+            "path": ".qa/action-engine-native-work-round/adjacent-regression.log",
+            "bytes": 2369,
+            "sha256": "1287697171086e4a8e8334a3094eab402e56150130120aec6893f090b6147251"
+          }
+        ]
+      },
+      {
+        "path": {
+          "path": ".qa/action-engine-native-work-round/checks-commands.json",
+          "bytes": 1293,
+          "sha256": "1437f6c2ff50ed146fb7dc2b29b23b1fdcdc425dc9ea74f9998da47413c273e9"
+        },
+        "values": [
+          {
+            "name": "typecheck",
+            "command": [
+              "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+              "node_modules/typescript/bin/tsc",
+              "--noEmit",
+              "--incremental",
+              "false"
+            ],
+            "exitCode": 0,
+            "durationMs": 30357,
+            "error": null
+          },
+          {
+            "name": "lint",
+            "command": [
+              "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+              "node_modules/oxlint/bin/oxlint",
+              "lib/action-engine/native-work-recovery-sql.test.ts"
+            ],
+            "exitCode": 0,
+            "durationMs": 733,
+            "error": null
+          },
+          {
+            "name": "format",
+            "command": [
+              "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+              "node_modules/oxfmt/bin/oxfmt",
+              "--check",
+              "lib/action-engine/native-work-recovery-sql.test.ts"
+            ],
+            "exitCode": 0,
+            "durationMs": 242,
+            "error": null
+          },
+          {
+            "name": "build",
+            "command": [
+              "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+              "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pnpm/bin/pnpm.mjs",
+              "build"
+            ],
+            "exitCode": 0,
+            "durationMs": 20403,
+            "error": null
+          }
+        ],
+        "logs": [
+          {
+            "path": ".qa/action-engine-native-work-round/typecheck.log",
+            "bytes": 239,
+            "sha256": "6fe71a19028a2d9f0599a7376119cc0b04695f94b214a0d17d29c92a2949f93a"
+          },
+          {
+            "path": ".qa/action-engine-native-work-round/lint.log",
+            "bytes": 249,
+            "sha256": "f78191be13a4b10fc6a68abbe9148d7f712e3433c465d9cf23dd8f882a6d1fd6"
+          },
+          {
+            "path": ".qa/action-engine-native-work-round/format.log",
+            "bytes": 372,
+            "sha256": "19ff29b77864d6add6087e62f0dd5cfa8698bbb14e9aec79fcb68cd5db1e5a35"
+          },
+          {
+            "path": ".qa/action-engine-native-work-round/build.log",
+            "bytes": 27514,
+            "sha256": "5a296b60c0b787099b4cd9f524d46b4f0ad7b5dc2ec3321fae2961218453d237"
+          }
+        ]
+      }
+    ],
+    "initialCheckFailure": {
+      "kind": "format_only",
+      "commands": {
+        "path": ".qa/action-engine-native-work-round/initial-checks/checks-commands.json",
+        "bytes": 951,
+        "sha256": "3d265814b06a1e95db8e31fafed54df61e12c14f75c814e229f1cc8d7b067043"
+      },
+      "formatLog": {
+        "path": ".qa/action-engine-native-work-round/initial-checks/format.log",
+        "bytes": 456,
+        "sha256": "edddb49702eb582e87a26f53896cd3a9efb1d2d2be17b2ae2f36161af2501085"
+      },
+      "resolution": "oxfmt --write changed formatting only, then the 22 SQL tests and all checks were rerun. Full disjoint regression ran before the final formatting-only change.",
+      "testSourceSha256BeforeFormatting": "7715e915945f791209e96b32b624769bb407b21bffaade9463797388393ccaf7"
+    },
+    "scripts": [
+      {
+        "path": ".qa/action-engine-native-work-round/run-validation.mjs",
+        "bytes": 2743,
+        "sha256": "1eec2ff5ec3fed89d01cb397573438b09cda78e03505b450f05ec5672e2944b1"
+      },
+      {
+        "path": ".qa/action-engine-native-work-round/parse-native.mjs",
+        "bytes": 1875,
+        "sha256": "a36a6ccf9705354bd6ec9ce8d43ed016a24908dd4c41e87723ea406d0c20fa22"
+      },
+      {
+        "path": ".qa/action-engine-native-work-round/record-evidence.mjs",
+        "bytes": 7621,
+        "sha256": "b0984674204c7f11d3a75a07dee58a04a2d3f7ca6a5298a8498c2195956e512f"
+      }
+    ]
+  },
+  "proofLimits": [
+    "Node SQLite executes the actual recovery selection and guard SQL extracted from native Rust on the actual native SQL schema; it does not execute the Rust reader/writer or prove guard placement.",
+    "The 14 new native round tests inject HTTP/executor futures. They seed actual local writer fixtures but do not establish HTTPS, remote admission, canonical confirmation, or ACK interoperability.",
+    "Rustfmt parses/formats source only; Rust has not been compiled or tested. Windows App Control 4551 was not retried or bypassed.",
+    "No live JEV/provider, customer data, mail, native archive interoperability, hosted staging, multi-device validation, notification or deployment."
+  ],
+  "reviews": [
+    {
+      "source": "quote_pdf_contract",
+      "issue": "Concurrent preparation could pass a stale empty-queue check before another local draft was created.",
+      "resolution": "Production writer atomically checks RECOVERY_PENDING_SQL after exact replay under its IMMEDIATE transaction; uncoordinated wrapper is cfg(test) only."
+    },
+    {
+      "source": "journal_backend",
+      "issue": "Synthetic corruption setup tried to change a payload protected by an immutable SQL trigger.",
+      "resolution": "The disposable native test explicitly drops that trigger before modelling external corruption; no production guard is weakened."
+    },
+    {
+      "source": "journal_backend and quote_pdf_contract",
+      "scope": "Static original-stamp/hash/locks/cursor/bounded recovery and Rust async capture review; no compiler proof."
+    }
+  ],
+  "migrations": {
+    "newNative": [],
+    "d1": [],
+    "postgres": [],
+    "deployed": false,
+    "destructive": false
+  },
+  "activation": {
+    "endpoint": false,
+    "ipc": false,
+    "scheduler": false,
+    "supportTrigger": false,
+    "notification": false,
+    "pilotOptIn": false,
+    "productionDeploy": false,
+    "goalComplete": false
+  }
+}
