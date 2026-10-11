@@ -49,6 +49,7 @@ const sourceFiles = [
 ];
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 let stage = 'source_guard';
+let safeClusterComparison = { queryCompleted: false };
 
 function childEnvironment(environment) {
   const allowed = /^(?:PATH|HOME|TMPDIR|TMP|TEMP|CI|CIRCLECI|CIRCLE_SHA1)$/;
@@ -153,12 +154,26 @@ export function installG3CiDependencies(environment = process.env) {
 }
 
 async function attestFreshCluster(client) {
-  stage = 'cluster_attestation';
+  stage = 'cluster_identity';
+  safeClusterComparison = { queryCompleted: false };
   const identity = (
     await client.query(
       "select current_database() as database,current_user as owner,inet_server_addr()::text as host,inet_client_addr()::text as client,inet_server_port() as port,current_setting('server_version_num') as version,current_setting('default_transaction_read_only') as read_only",
     )
   ).rows[0];
+  safeClusterComparison = {
+    queryCompleted: true,
+    databaseMatches: identity?.database === 'postgres',
+    ownerMatches: identity?.owner === 'postgres',
+    hostMatches: identity?.host === '127.0.0.1',
+    clientMatches: identity?.client === '127.0.0.1',
+    portMatches: identity?.port === 5432,
+    versionMatches: identity?.version === '170006',
+    versionNumeric: /^[0-9]{6}$/.test(identity?.version || '')
+      ? Number(identity.version)
+      : null,
+    readOnlyMatches: identity?.read_only === 'on',
+  };
   assert.deepEqual(identity, {
     database: 'postgres',
     owner: 'postgres',
@@ -168,15 +183,37 @@ async function attestFreshCluster(client) {
     version: '170006',
     read_only: 'on',
   });
+  stage = 'cluster_password';
+  safeClusterComparison = { queryCompleted: false };
   const passwordEncryption = (
     await client.query(
       "select current_setting('password_encryption') as method",
     )
   ).rows[0].method;
+  safeClusterComparison = {
+    queryCompleted: true,
+    methodMatches: passwordEncryption === 'scram-sha-256',
+  };
   assert.equal(passwordEncryption, 'scram-sha-256');
+  stage = 'cluster_hba';
+  safeClusterComparison = { queryCompleted: false };
   const authenticationRules = (
     await client.query('select type,auth_method,error from pg_hba_file_rules')
   ).rows;
+  safeClusterComparison = {
+    queryCompleted: true,
+    ruleCount: authenticationRules.length,
+    errorCount: authenticationRules.filter((rule) => rule.error !== null)
+      .length,
+    hostRuleCount: authenticationRules.filter((rule) =>
+      String(rule.type).startsWith('host'),
+    ).length,
+    hostMethodMismatchCount: authenticationRules.filter(
+      (rule) =>
+        String(rule.type).startsWith('host') &&
+        rule.auth_method !== 'scram-sha-256',
+    ).length,
+  };
   assert.ok(authenticationRules.every((rule) => rule.error === null));
   const hostRules = authenticationRules.filter((rule) =>
     String(rule.type).startsWith('host'),
@@ -187,21 +224,57 @@ async function attestFreshCluster(client) {
       (rule) => rule.auth_method === 'scram-sha-256' && rule.error === null,
     ),
   );
+  stage = 'cluster_databases';
+  safeClusterComparison = { queryCompleted: false };
   const databases = (
     await client.query(
       'select datname,datistemplate,pg_get_userbyid(datdba) as owner from pg_database order by datname',
     )
   ).rows;
+  safeClusterComparison = {
+    queryCompleted: true,
+    databaseCount: databases.length,
+    expectedNames: databases.every((row) =>
+      ['postgres', 'template0', 'template1'].includes(row.datname),
+    ),
+    expectedOwners: databases.every((row) => row.owner === 'postgres'),
+    expectedTemplateFlags: databases.every(
+      (row) =>
+        row.datistemplate ===
+        (row.datname === 'template0' || row.datname === 'template1'),
+    ),
+    expectedOrder: ['postgres', 'template0', 'template1'].every(
+      (name, index) => databases[index]?.datname === name,
+    ),
+  };
   assert.deepEqual(databases, [
     { datname: 'postgres', datistemplate: false, owner: 'postgres' },
     { datname: 'template0', datistemplate: true, owner: 'postgres' },
     { datname: 'template1', datistemplate: true, owner: 'postgres' },
   ]);
+  stage = 'cluster_roles';
+  safeClusterComparison = { queryCompleted: false };
   const roles = (
     await client.query(
       "select rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolbypassrls from pg_roles where rolname !~ '^pg_' order by rolname",
     )
   ).rows;
+  safeClusterComparison = {
+    queryCompleted: true,
+    roleCount: roles.length,
+    expectedName: roles[0]?.rolname === 'postgres',
+    ...Object.fromEntries(
+      [
+        'rolsuper',
+        'rolinherit',
+        'rolcreaterole',
+        'rolcreatedb',
+        'rolcanlogin',
+        'rolreplication',
+        'rolbypassrls',
+      ].map((field) => [`${field}Matches`, roles[0]?.[field] === true]),
+    ),
+  };
   assert.deepEqual(roles, [
     {
       rolname: 'postgres',
@@ -214,32 +287,50 @@ async function attestFreshCluster(client) {
       rolbypassrls: true,
     },
   ]);
-  assert.equal(
+  stage = 'cluster_clients';
+  safeClusterComparison = { queryCompleted: false };
+  const otherClientCount = (
+    await client.query(
+      "select pid from pg_stat_activity where backend_type='client backend' and pid<>pg_backend_pid()",
+    )
+  ).rows.length;
+  safeClusterComparison = {
+    queryCompleted: true,
+    otherClientCount,
+    expectedZero: otherClientCount === 0,
+  };
+  assert.equal(otherClientCount, 0);
+  stage = 'cluster_memberships';
+  safeClusterComparison = { queryCompleted: false };
+  const membershipCount = (
+    await client.query(
+      "select 1 from pg_auth_members m join pg_roles member on member.oid=m.member where member.rolname !~ '^pg_'",
+    )
+  ).rows.length;
+  safeClusterComparison = {
+    queryCompleted: true,
+    membershipCount,
+    expectedZero: membershipCount === 0,
+  };
+  assert.equal(membershipCount, 0);
+  stage = 'cluster_objects';
+  safeClusterComparison = { queryCompleted: false };
+  const objectCount = Number(
     (
       await client.query(
-        "select pid from pg_stat_activity where backend_type='client backend' and pid<>pg_backend_pid()",
+        "select (select count(*) from pg_namespace where nspname !~ '^pg_' and nspname not in ('public','information_schema'))+(select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public')+(select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public')+(select count(*) from pg_type t join pg_namespace n on n.oid=t.typnamespace where n.nspname='public')+(select count(*) from pg_extension where extname<>'plpgsql') as count",
       )
-    ).rows.length,
-    0,
+    ).rows[0].count,
   );
-  assert.equal(
-    (
-      await client.query(
-        "select 1 from pg_auth_members m join pg_roles member on member.oid=m.member where member.rolname !~ '^pg_'",
-      )
-    ).rows.length,
-    0,
-  );
-  assert.equal(
-    Number(
-      (
-        await client.query(
-          "select (select count(*) from pg_namespace where nspname !~ '^pg_' and nspname not in ('public','information_schema'))+(select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public')+(select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public')+(select count(*) from pg_type t join pg_namespace n on n.oid=t.typnamespace where n.nspname='public')+(select count(*) from pg_extension where extname<>'plpgsql') as count",
-        )
-      ).rows[0].count,
-    ),
-    0,
-  );
+  safeClusterComparison = {
+    queryCompleted: true,
+    objectCount:
+      Number.isSafeInteger(objectCount) && objectCount >= 0
+        ? objectCount
+        : null,
+    expectedZero: objectCount === 0,
+  };
+  assert.equal(objectCount, 0);
   return {
     identity,
     databases,
@@ -434,6 +525,10 @@ if (
     process.stderr.write(
       `Isolated G3 CI refused at ${stage}; no successful verification is claimed.\n`,
     );
+    if (stage.startsWith('cluster_'))
+      process.stderr.write(
+        `Safe cluster comparisons: ${JSON.stringify(safeClusterComparison)}\n`,
+      );
     process.exitCode = 1;
   }
 }
