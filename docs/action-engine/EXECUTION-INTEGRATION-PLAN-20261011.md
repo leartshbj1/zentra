@@ -1,6 +1,6 @@
-# Action Engine — frontière d'exécution A8/A12
+# Action Engine — frontière d'exécution A8/A13
 
-État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif authentifié A11 et découverte/reprise de préparation serveur A12 codés. Les essais et limites figurent dans leurs rapports, dont `DEVICE-CONSUMER-VALIDATION-20261011.md` et `SUPPORT-DISCOVERY-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 136 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 066 tests serveur réussis ne remplacent pas la validation native et staging.
+État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif authentifié A11, découverte/reprise de préparation serveur A12 et contrat privé de travail A13 codés. Les essais et limites figurent dans leurs rapports, dont `DEVICE-CONSUMER-VALIDATION-20261011.md`, `SUPPORT-DISCOVERY-VALIDATION-20261011.md` et `SUPPORT-WORK-BRIDGE-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 136 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 173 tests serveur réussis ne remplacent pas la validation native et staging.
 
 ## Réservation distante avant toute écriture native
 
@@ -50,10 +50,20 @@ La catégorie `quote` est seulement un présélecteur ; le préparateur distingu
 
 La migration D1 0105 ajoute uniquement l'index `(workspace_id, created_at, id)`, vérifié avec le vrai EXPLAIN SQLite local. Aucun nouveau schéma Supabase/natif ni changement de production. L'index et les pages bornées ne prouvent pas une limite stricte de scan/CPU ou une charge de 150 entreprises. La compilation native et le staging restent des prérequis à toute exposition du raccord.
 
+## Contrat de travail A13 et origine de la future ronde
+
+`handleDeviceQuoteWork` compose A12 depuis deux demandes fermées : `discover` avec taille/curseur facultatifs, et `prepare` avec un ID source. Session et quota appareil actuels précèdent lecture/dispatch. Le résumé de préparation vérifie entreprise/source/CHF/SHA sans attente supplémentaire et ne contient ni plan métier ni permission A8. Le JSON de travail accepte 8 KiB pour le curseur A12 ; le handler d'exécution garde son plafond 2 KiB. Aucun endpoint ou décodeur/caller natif n'est ajouté. Le connecteur Support API persiste maintenant les métadonnées expéditeur facultatives ; leur absence/ambiguïté reste un motif de revue.
+
+Le prochain raccord natif doit capturer son `ActionStamp` avant toute découverte et le conserver pour préparation, réservation, effets locaux, publication, A7 et ACK. Ne pas appeler naïvement `execute_quote_draft` après préparation s'il recapture alors une nouvelle origine : extraire une composition interne liée au stamp, conserver le wrapper existant et vérifier l'origine après chaque attente/sur rejet. Les gardes de tâche/worker A11 restent nécessaires pendant l'annulation.
+
+Il manque un lecteur borné des sélecteurs d'intentions locales : les primitives actuelles attendent déjà des IDs connus. Le lecteur devra recorroborer outbox/reçu/audit sous origine et transaction locales, sans reconstruire un brouillon depuis un état incertain. Les intentions déjà canoniquement confirmées avec ACK local perdu ne sont pas récupérées par la découverte serveur : outbox d'abord.
+
+Le consommateur `Confirmed` ne distingue pas à lui seul nouvelle confirmation et rejeu. L'activité utilisateur doit dériver du marqueur durable de confirmation A10, avec clé stable entreprise/proposition et référence au vrai document courant. Un push éventuel suit l'ACK local et ne remplace pas cette projection après crash. Ni `prepared`, ni l'ACK de transport, ni chaque retour historique `Confirmed` ne déclenche une nouvelle notification. Compiler, exécuter les tests natifs et valider l'archive/staging avant toute exposition.
+
 ## Fichiers à examiner au prochain lot
 
 - Serveur : `lib/action-engine/device-reservation.ts` et son classifieur sont implémentés en A8 ; conserver leurs contrats et tests lors de la future exposition. `ledger.ts`, `published-fences.ts`, `confirmation-records.ts`, `historical-quote-fences.ts`, `device-confirmation.ts` restent les frontières de référence.
-- Découverte/préparation : `device-work-discovery.ts`, `device-proposal-recovery.ts`, `device-preparation.ts`, avec tests de composition D1 et migration 0105. Ils restent privés ; aucun hook Support ou ordonnanceur ne peut fabriquer l'identité appareil à leur place.
+- Découverte/préparation : `device-work-contract.ts`, `device-work-handler.ts`, `device-work-discovery.ts`, `device-proposal-recovery.ts`, `device-preparation.ts`, avec tests de composition D1 et migration 0105 existante. Ils restent privés ; aucun hook Support ou ordonnanceur ne peut fabriquer l'identité appareil à leur place.
 - Native : `account_cloud_action_engine.rs` et `action_engine_device_protocol.rs` créés en A11, avec leurs tests. Examiner aussi `account_cloud.rs`, `action_engine_quote.rs`, `action_engine_quote_publication.rs`, `company_collaboration.rs` et leurs tests dans `desktop/src-tauri/src/`. Journal privé A9 réutilisé, schéma partagé inchangé.
 - Exposition seulement après validation : `commands.rs`, `lib.rs`, contrat HTTP fermé et consommateurs UI. La route collaboration reste un transport, sans plan métier ni autorisation déclarée par l'appelant.
 
