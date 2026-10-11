@@ -549,7 +549,7 @@ suite('quote reservation binding, real cumulative D1 SQL', () => {
     );
     expect(f.count('action_engine_atomic_assertions')).toBe(0);
     expect(f.migrations.at(-1)).toBe(
-      '0103_action_engine_quote_publication_evidence.sql',
+      '0104_action_engine_quote_evidence_preconfirmation.sql',
     );
   });
   it('replays the exact bound reservation across two connections without another binding/audit', async () => {
@@ -704,6 +704,95 @@ suite('quote reservation binding, real cumulative D1 SQL', () => {
 });
 
 suite('sealed canonical creation evidence, real SQLite journal', () => {
+  it('first proof refuses a receipt concurrently committed before its insertion batch', async () => {
+    const f = current();
+    f.seed();
+    const client = f.create(),
+      other = f.connect(),
+      verified = await f.native.verify();
+    client.beforeNext(() => {
+      other
+        .prepare(
+          'UPDATE action_engine_quote_reservations SET receipt_json=?,confirmed_at=? WHERE id=?',
+        )
+        .run(
+          JSON.stringify(f.native.receipt),
+          f.native.reservation.createdAt + 1,
+          f.native.reservation.id,
+        );
+    });
+    await expect(
+      client.evidence.append(f.actor, verified),
+    ).rejects.toMatchObject({
+      code: 'invalid_record',
+    });
+    expect(f.count('action_engine_quote_publication_evidence')).toBe(0);
+    expect(f.count('action_engine_atomic_assertions')).toBe(0);
+    expect(
+      JSON.parse(
+        f.sql
+          .prepare('SELECT receipt_json FROM action_engine_quote_reservations')
+          .get()?.receipt_json as string,
+      ),
+    ).toEqual(f.native.receipt);
+  });
+  it('additive SQL trigger independently refuses a direct first-proof INSERT after a receipt', async () => {
+    const f = current();
+    f.seed();
+    const verified = await f.native.verify();
+    f.sql
+      .prepare(
+        'UPDATE action_engine_quote_reservations SET receipt_json=?,confirmed_at=? WHERE id=?',
+      )
+      .run(
+        JSON.stringify(f.native.receipt),
+        f.native.reservation.createdAt + 1,
+        f.native.reservation.id,
+      );
+    expect(() => f.insertEvidence(verified)).toThrow(
+      'action_engine_quote_evidence_after_receipt',
+    );
+    expect(f.count('action_engine_quote_publication_evidence')).toBe(0);
+    expect(f.count('action_engine_atomic_assertions')).toBe(0);
+  });
+  it('exact existing proof replays after genuine confirmation without another INSERT or changed history', async () => {
+    const f = current();
+    f.seed();
+    const client = f.create(),
+      verified = await f.native.verify(),
+      saved = await client.evidence.append(f.actor, verified);
+    expect(
+      await client.ledger.confirmExecution(
+        f.actor,
+        verified.proposalId,
+        verified.installationId,
+        verified.reservationId,
+        verified.receipt,
+      ),
+    ).toEqual(verified.receipt);
+    const before = f.sql
+      .prepare('SELECT * FROM action_engine_quote_publication_evidence')
+      .get();
+    const reopened = f.create(f.connect());
+    expect(await reopened.evidence.append(f.actor, verified)).toEqual(saved);
+    expect(
+      await reopened.evidence.read(f.actor, verified.reservationId),
+    ).toEqual(saved);
+    expect(
+      f.sql
+        .prepare('SELECT * FROM action_engine_quote_publication_evidence')
+        .get(),
+    ).toEqual(before);
+    expect(f.count('action_engine_quote_publication_evidence')).toBe(1);
+    expect(f.count('action_engine_atomic_assertions')).toBe(0);
+    expect(
+      f.sql
+        .prepare(
+          "SELECT count(*) n FROM action_engine_quote_events WHERE event_type='receipt_confirmed'",
+        )
+        .get()?.n,
+    ).toBe(1);
+  });
   it('writes and reads a real verified quote, never a copied DTO, with metadata only', async () => {
     const f = current();
     f.seed();

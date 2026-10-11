@@ -21,7 +21,13 @@ export function createHistoricalQuoteFences(
   const actor = captureActor(authority.actor),
     installationId = authority.installationId;
   const current = () =>
-    combineQuotePredicates(authority.predicate('read'), access.predicate());
+    combineQuotePredicates(authority.predicate('read'), access.predicate(), {
+      // The native business store currently supports CH only. Historical
+      // recovery does not bypass a US creation intention, even if its
+      // entitlement/source predicates would otherwise admit this tenant.
+      sql: "NOT EXISTS(SELECT 1 FROM international_workspace_creation_intents WHERE organization_id=? AND country_code='US')",
+      bindings: [actor.organizationId],
+    });
   const matches = (candidate: typeof actor) => {
     const found = captureActor(candidate);
     if (
