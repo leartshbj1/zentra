@@ -1,0 +1,689 @@
+{
+  "phase": "A15",
+  "recordedAt": "2026-10-11T06:40:56.196Z",
+  "status": "private_confirmed_activity_sources_not_activated",
+  "server": {
+    "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+    "branch": "codex/international-runtime",
+    "sourceCommit": "4f3a453d34720698112755099179a33810de48d7",
+    "created": [
+      {
+        "path": "lib/action-engine/confirmed-quote-activity.ts",
+        "bytes": 14237,
+        "sha256": "72b9395083a6124b27129e4bf99ffd37145cb78c8783702e035c9a36cbbee513"
+      },
+      {
+        "path": "lib/action-engine/confirmed-quote-activity.test.ts",
+        "bytes": 29273,
+        "sha256": "d1a2a1c9c66a564e03584c10b499b94f9072117c89b694323b07c61ab7dced41"
+      },
+      {
+        "path": "lib/action-engine/native-confirmed-activity-sql.test.ts",
+        "bytes": 11197,
+        "sha256": "fd746ac66515fefc7f8d9bb54d99b9852e669f7d690c36fd4846acd36cf150ab"
+      }
+    ],
+    "modified": [],
+    "runtimeChanges": true,
+    "publicRouteAdded": false
+  },
+  "native": {
+    "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+    "branch": "codex/action-engine-native",
+    "sourceCommit": "e0597c7c7aad451964d6cefe7025ebb896681d75",
+    "version": "1.90.15",
+    "sharedSchema": 62,
+    "sidecarSchema": 62,
+    "modified": [
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote_publication.rs",
+        "bytes": 50280,
+        "sha256": "25bf4961ae45290f0882e60c9e2f58e62e5b57971d95620a718568edae466db6"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote_tests.rs",
+        "bytes": 106074,
+        "sha256": "ecd3ad3d656db892aed31a30b722b540c1499ff85dcb79578614b9e1b755b924"
+      },
+      {
+        "path": "desktop/src/AutomationJournal.tsx",
+        "bytes": 11274,
+        "sha256": "e4b9bdc5ff2666f0b13f2e1a1cd58bf19da3e1a54b827d8b01406ae1bcac545c"
+      },
+      {
+        "path": "desktop/src/automation-design.css",
+        "bytes": 20879,
+        "sha256": "357bbb4e6e5dcd5723b17490835b4f53989a4f4eab7edd53560f9b3116db2158"
+      }
+    ],
+    "created": [
+      {
+        "path": "desktop/src/confirmedQuoteActivity.ts",
+        "bytes": 5349,
+        "sha256": "3a2462902a2a9fc9bf8eb082f72b1eebb1d8a44714d77c9b62b9d7fffc7d312c"
+      },
+      {
+        "path": "desktop/src/confirmedQuoteActivity.test.ts",
+        "bytes": 5009,
+        "sha256": "c204e06ab55f3e135cb0c1170f4c48cc6b0912b676b322b44521803e9e462efc"
+      },
+      {
+        "path": "desktop/src/confirmedQuoteActivity.test.tsx",
+        "bytes": 9176,
+        "sha256": "e6461047556033a3cf27c8f15f29a952a811ea384a1487633e73c7f310b67230"
+      },
+      {
+        "path": "desktop/tests/confirmedQuoteActivity.preview.html",
+        "bytes": 322,
+        "sha256": "120f8e4f82159971d3b89c99377c89c0656e01b5a5363ae52b7c47b690927341"
+      },
+      {
+        "path": "desktop/tests/confirmedQuoteActivity.preview.tsx",
+        "bytes": 4305,
+        "sha256": "f398b3ef661c4571982c5909145907801ed03d487b36633ed666930064bbb50e"
+      }
+    ],
+    "rustTests": {
+      "writtenPreviously": 181,
+      "added": 8,
+      "writtenTotal": 189,
+      "executed": 0,
+      "addedNames": [
+        "confirmed_activity_empty_page_checks_origin_onboarding_and_closed_bounds_without_writing",
+        "confirmed_activity_starts_only_after_exact_a7_ack_and_replay_reopen_keeps_one_historical_entry",
+        "confirmed_activity_pages_in_binary_proposal_order_with_verified_lookahead_not_timestamp_watermark",
+        "confirmed_activity_excludes_other_actor_installation_and_company_markers_from_this_local_feed",
+        "confirmed_activity_remains_the_original_draft_fact_after_current_business_changes_issue_or_deletion",
+        "confirmed_activity_refuses_missing_or_contradictory_evidence_without_repairing_it",
+        "confirmed_activity_corrupt_lookahead_refuses_the_whole_page_instead_of_hiding_the_error",
+        "confirmed_activity_missing_or_open_schema_is_an_error_and_never_an_empty_or_repaired_page"
+      ]
+    },
+    "rustfmtParseOnly": {
+      "recordedAt": "2026-10-11T06:24:08.294Z",
+      "kind": "rustfmt_parse_only_stdout",
+      "compilation": false,
+      "rustTestsExecuted": 0,
+      "cargoAttempted": false,
+      "results": [
+        {
+          "path": "desktop/src-tauri/src/action_engine_quote_publication.rs",
+          "sourceSha256": "25bf4961ae45290f0882e60c9e2f58e62e5b57971d95620a718568edae466db6",
+          "bytes": 50280,
+          "exitCode": 0,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/action_engine_quote_publication.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "72986ef0073fadc984ced6b15f1b470f06bbc8ec5fa41313563311ba04d29834",
+          "sourceUnchanged": true
+        },
+        {
+          "path": "desktop/src-tauri/src/action_engine_quote_tests.rs",
+          "sourceSha256": "ecd3ad3d656db892aed31a30b722b540c1499ff85dcb79578614b9e1b755b924",
+          "bytes": 106074,
+          "exitCode": 0,
+          "command": [
+            "rustfmt.exe",
+            "--edition",
+            "2021",
+            "--emit",
+            "stdout",
+            "--config",
+            "skip_children=true",
+            "desktop/src-tauri/src/action_engine_quote_tests.rs"
+          ],
+          "error": null,
+          "stderr": "",
+          "outputSha256": "df2101ef52ed3c1079c0c70e13279e41bbf35f0100c4e2adc7065c54e2cf9fea",
+          "sourceUnchanged": true
+        }
+      ]
+    },
+    "compiled": false,
+    "cargoAttempted": false,
+    "securityBypassAttempted": false
+  },
+  "tests": {
+    "server": {
+      "totalDistinct": 2242,
+      "filesDistinct": 66,
+      "cohorts": [
+        {
+          "path": ".qa/action-engine-confirmed-activity/regression.json",
+          "bytes": 626324,
+          "sha256": "1d778ffdcf318b311842df707e5fdd1b64eb8e59f5db571c6d06f466f654e370",
+          "total": 1666,
+          "passed": 1666,
+          "failed": 0,
+          "pending": 0,
+          "files": 46,
+          "success": true
+        },
+        {
+          "path": ".qa/action-engine-confirmed-activity/adjacent-regression.json",
+          "bytes": 217368,
+          "sha256": "9422154c50eca88cb36bd3a60ef43368ee9362ed1cbe003c9a818645cab166eb",
+          "total": 576,
+          "passed": 576,
+          "failed": 0,
+          "pending": 0,
+          "files": 20,
+          "success": true
+        }
+      ],
+      "targetedOverlaps": [
+        {
+          "path": ".qa/action-engine-confirmed-quote-activity/targeted-final.json",
+          "bytes": 15563,
+          "sha256": "eec4b6b0c123f61e57c5b1822b2740f8784cbb2912be39e723ce87b1824eae75",
+          "total": 36,
+          "passed": 36,
+          "failed": 0,
+          "pending": 0,
+          "files": 1,
+          "success": true
+        },
+        {
+          "path": ".qa/action-engine-confirmed-activity/native-sql-final.json",
+          "bytes": 4719,
+          "sha256": "e8a2962120885ca843e2b4d6e04be30ffe60ca4d06da8913e50feb4929e945ff",
+          "total": 11,
+          "passed": 11,
+          "failed": 0,
+          "pending": 0,
+          "files": 1,
+          "success": true
+        }
+      ],
+      "checks": [
+        {
+          "name": "typecheck",
+          "command": [
+            "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+            "node_modules/typescript/bin/tsc",
+            "--noEmit",
+            "--incremental",
+            "false"
+          ],
+          "exitCode": 0,
+          "durationMs": 32934,
+          "error": null
+        },
+        {
+          "name": "lint",
+          "command": [
+            "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+            "node_modules/oxlint/bin/oxlint",
+            "lib/action-engine/confirmed-quote-activity.ts",
+            "lib/action-engine/confirmed-quote-activity.test.ts",
+            "lib/action-engine/native-confirmed-activity-sql.test.ts"
+          ],
+          "exitCode": 0,
+          "durationMs": 880,
+          "error": null
+        },
+        {
+          "name": "format",
+          "command": [
+            "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+            "node_modules/oxfmt/bin/oxfmt",
+            "--check",
+            "lib/action-engine/confirmed-quote-activity.ts",
+            "lib/action-engine/confirmed-quote-activity.test.ts",
+            "lib/action-engine/native-confirmed-activity-sql.test.ts"
+          ],
+          "exitCode": 0,
+          "durationMs": 353,
+          "error": null
+        },
+        {
+          "name": "build",
+          "command": [
+            "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+            "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pnpm/bin/pnpm.mjs",
+            "build"
+          ],
+          "exitCode": 0,
+          "durationMs": 22159,
+          "error": null
+        }
+      ]
+    },
+    "ui": {
+      "regression": {
+        "path": "desktop/.qa/action-engine-confirmed-activity/ui-regression.json",
+        "bytes": 73715,
+        "sha256": "2edf41f3fad9ad09f959f88eaff78672c1b7ea80de10bd25176de87544cd7292",
+        "total": 203,
+        "passed": 203,
+        "failed": 0,
+        "pending": 0,
+        "files": 13,
+        "success": true
+      },
+      "targetedOverlaps": {
+        "path": ".qa/action-engine-confirmed-quote-activity-ui/targeted-final.json",
+        "bytes": 28546,
+        "sha256": "0eb9417b29f2ceb120fe1e0df6670352b782b1d6b422831ce27dd84f5b7af49b",
+        "total": 53,
+        "passed": 53,
+        "failed": 0,
+        "pending": 0,
+        "files": 2,
+        "success": true
+      },
+      "webBuild": [
+        {
+          "name": "web-build",
+          "command": [
+            "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe",
+            "C:/Users/alb/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pnpm/bin/pnpm.mjs",
+            "build:web"
+          ],
+          "exitCode": 0,
+          "durationMs": 28451,
+          "error": null
+        }
+      ]
+    },
+    "nativeSqlScope": "Actual native ACTIVITY_SQL and three schemas executed with Node SQLite; Rust origin/semantic validation not executed.",
+    "serverCompositionScope": "Local real SQL/migrations/auth/delegation/ledger/canonical modules, synthetic archive and D1/clock ports; no Rust archive or hosted provider.",
+    "browser": {
+      "path": "desktop/.impeccable/review/action-engine-a15/browser-proof.json",
+      "bytes": 30109,
+      "sha256": "ce5e65cadf10cefdfedf934a1014e0d654fea7ee9f42efc741da90f6e0120079",
+      "cases": 18,
+      "captures": [
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-de-dark.png",
+          "bytes": 37229,
+          "sha256": "0a0db55803c255f681ad353821b2d026a97abe7adf14374d19aeb329e4decaef"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-de-light.png",
+          "bytes": 37165,
+          "sha256": "d5f7c4366de474b961ae7d4b567fd8aeacd4604a0ababd4b6649e113cb8516cc"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-en-dark.png",
+          "bytes": 33856,
+          "sha256": "f810d89615a3bd781bf602fd71c07eae7eee8868947359b2f4e72e259520dcf1"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-en-light.png",
+          "bytes": 33794,
+          "sha256": "bb97a55f17371e4495e86899594797b15f09b27557b9f96745b367ebfa2ab11a"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-fr-dark.png",
+          "bytes": 37962,
+          "sha256": "ad4febb4512eae172daa5bfd84541204ca2dfded056a5e397e373423190092fb"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-fr-light.png",
+          "bytes": 37845,
+          "sha256": "6d99a2fb39468ae2dd18e3334572a641eac4a4469c53483e1c1b4c7bede6c764"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-it-dark.png",
+          "bytes": 38122,
+          "sha256": "1b1f18277cd2e7027df45478ce9326207e2497fc55383131529ac7bd59c419c5"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/1440-it-light.png",
+          "bytes": 38072,
+          "sha256": "b7eabdfe35d53d990f035b1a184a4441935c4b517986558dedb0cf2d8a8c5d98"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/320-de-dark.png",
+          "bytes": 25975,
+          "sha256": "ccf4a809f4176c52c23c2b5f043204a84dbc635386cae696a7f98affe58d7e40"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/320-de-light.png",
+          "bytes": 25940,
+          "sha256": "58cfff8901077e9d0d0c8ea1f3f65ae291e8d081d13a0d9d8c32e541d48e6a40"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-de-dark.png",
+          "bytes": 27498,
+          "sha256": "525bd472544df1ad15a558a6b1b423102855ee8901b83acceda62a66b30348dd"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-de-light.png",
+          "bytes": 27307,
+          "sha256": "db9f4bd8363109505747ae353795a631bdb6754e98de11509dfc238dc08f4829"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-en-dark.png",
+          "bytes": 24766,
+          "sha256": "05d20b9bb945041b0e3115e81514a8c7cdaa25186faf16e3c9217e0be84b1479"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-en-light.png",
+          "bytes": 24600,
+          "sha256": "9c71ca8e10457741994410c9e4d6b3591b4a5563602a64d95358de0ca1f15cae"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-fr-dark.png",
+          "bytes": 28118,
+          "sha256": "bb01bf24d7b20827e9d29f1cb60e58a496a1aa5c47fa4e8b11cea7377c060322"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-fr-light.png",
+          "bytes": 27790,
+          "sha256": "0be5905e06ea4f9937b90d70ccc56398cba639ca3ec9ea040b74fdbb33587d36"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-it-dark.png",
+          "bytes": 28101,
+          "sha256": "6b23725210f5fb22a1365c9764aee838290dd716f729c4adf3f63c33ffaab438"
+        },
+        {
+          "path": "desktop/.impeccable/review/action-engine-a15/390-it-light.png",
+          "bytes": 27863,
+          "sha256": "cbb922b13f5e69259976a9b47deae55c8d548ff3ac83303401faf5612a8ff36c"
+        }
+      ],
+      "assertions": [
+        "no horizontal overflow",
+        "two expected quote rows",
+        "journal button heights >=44px",
+        "exact quoteId callback by Enter",
+        "foreign workspace removes old rows"
+      ],
+      "scope": "Synthetic isolated web harness only; not real native document opening, iPhone/WebKit or end-to-end Support workflow.",
+      "cleanup": {
+        "temporaryTabClosed": true,
+        "viewportOverrideCleared": true,
+        "localViteStopped": true
+      }
+    }
+  },
+  "review": {
+    "disposition": "ship",
+    "scope": "Dormant optional A15 UI extension only",
+    "report": {
+      "path": "desktop/.qa/action-engine-confirmed-activity/finish-review.md",
+      "bytes": 5272,
+      "sha256": "8ab71e329c5e521cb896cf7643fcddcb9cc2bed325299fcbd0fa182307550495"
+    },
+    "documentation": {
+      "path": "desktop/.qa/action-engine-confirmed-activity/design-documentation.md",
+      "bytes": 4951,
+      "sha256": "b9014c431065a716d4efe34197751be102ecc1c7a83b3921a7fa7b922fc9dd0b"
+    },
+    "detector": {
+      "path": "desktop/.qa/action-engine-confirmed-activity/design-detector.json",
+      "bytes": 4044,
+      "sha256": "746f72627f808d278b61a539f49f8ecece70011df8755a0b46f4379a2c5827e9"
+    },
+    "detectorAdvisories": "Seven 5/9px radii in unchanged pre-existing CSS; none in three added rules.",
+    "preservedSystem": true,
+    "preExistingDrift": [
+      "design.json stale relative to DESIGN.md",
+      "orphan workspacepersonalization surface brief"
+    ]
+  },
+  "evidence": {
+    "server": [
+      {
+        "path": ".qa/action-engine-confirmed-activity/adjacent-regression.json",
+        "bytes": 217368,
+        "sha256": "9422154c50eca88cb36bd3a60ef43368ee9362ed1cbe003c9a818645cab166eb"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/adjacent-regression.log",
+        "bytes": 2372,
+        "sha256": "90ad9acff82e5bab0a596b611a53d1257879bb6b75828f1da6368c005388cf7f"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/build.log",
+        "bytes": 27842,
+        "sha256": "8ba46dc5e1f44c412c10d5d244a43085c26a8757156ffaf71d647f2255f9162e"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/checks-commands.json",
+        "bytes": 1533,
+        "sha256": "9b53add598538dd210e3cead5f53b6a24719fb3bd37682ee5021f9dd8c4b04fb"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/format.log",
+        "bytes": 478,
+        "sha256": "95401abc3c814eb91a10fa3a6bff06a2a9b7e647bfb451a92da474c75260a9fb"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/freeze-delivery.mjs",
+        "bytes": 11298,
+        "sha256": "222b1f761269bb7838832e2700cf9ad647d5b51ca01fbc2d3c1e1c850992aee6"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/lint.log",
+        "bytes": 355,
+        "sha256": "d1ac3822a0893f884450f67ca7da68e99223b3b9fb4c2df59b04ae71fd717c36"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/native-rustfmt-parse.json",
+        "bytes": 1415,
+        "sha256": "7d918c97ac6cdea5b2cc649c9fbe1ecdc7a265bfd683938b468d42a7eef2392e"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/native-sql-final.json",
+        "bytes": 4719,
+        "sha256": "e8a2962120885ca843e2b4d6e04be30ffe60ca4d06da8913e50feb4929e945ff"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/native-sql-initial-foreign-key.json",
+        "bytes": 6374,
+        "sha256": "14b33d1b95dad5847e09ea394aaf522cc72d62e23c83586a86c922fb6aaa4aef"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/native-sql-targeted.json",
+        "bytes": 6378,
+        "sha256": "25c746c1d2f39699b3340f662f0eb5075e48049088cc555e05b4b3d65e1cd60c"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/parse-native.mjs",
+        "bytes": 1353,
+        "sha256": "9d90c10c0a90eb7f810f883e35e4dc2cb74a41616579325d26540d24454f333b"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/regression-commands.json",
+        "bytes": 2935,
+        "sha256": "d509d15de5e6cdac2944e750a853a0ce921cc42dd4767db3935f31f389bfb9ab"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/regression.json",
+        "bytes": 626324,
+        "sha256": "1d778ffdcf318b311842df707e5fdd1b64eb8e59f5db571c6d06f466f654e370"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/regression.log",
+        "bytes": 496,
+        "sha256": "3a318249c0a13904ec6edb7a54299534d7457f0367244b7070465adc24bf241d"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/run-validation.mjs",
+        "bytes": 2855,
+        "sha256": "b2284e815020f1409c52ce8dbf8ffe87b8749039ef622769865e0b9392a0da63"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-activity/typecheck.log",
+        "bytes": 239,
+        "sha256": "6173cd035ceb11286c3c3573ed3dd7abdc7ed8de31ddb624a41414f476fd036c"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/format-owned-final.log",
+        "bytes": 117,
+        "sha256": "6182dbd10c0f457dfea152768ada9c3272f3b7787c617ecf44b1396d834e27de"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/format-owned.log",
+        "bytes": 48,
+        "sha256": "fe5ea463978319df5d78e80e2cd8339937391cd079fd5018b2b4fcca986309e5"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/owner-report.json",
+        "bytes": 3573,
+        "sha256": "a12650ec5f890602e8b1ef6ae5d8d741aa8668776df05b80d5fa44ea3afb7688"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/targeted-attempt1.json",
+        "bytes": 17282,
+        "sha256": "2adedd86e5b5697c6d20ad604b7159316fa84f561b64d3bd937c209093b90705"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/targeted-attempt1.log",
+        "bytes": 34258,
+        "sha256": "152d2a38f0295b44008581f6d6e58426c1f6996f1dbb1a2601752a594c6606c9"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/targeted-attempt2.json",
+        "bytes": 16382,
+        "sha256": "00ba4a5f40885a78e92a1f905c337857cde7e9ccac824619407381afd1297197"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/targeted-attempt2.log",
+        "bytes": 4836,
+        "sha256": "9dcc63c519ac158b2111d377c323a74eb54af904a83337ca159ea3b1da1081a4"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/targeted-final.json",
+        "bytes": 15563,
+        "sha256": "eec4b6b0c123f61e57c5b1822b2740f8784cbb2912be39e723ce87b1824eae75"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity/targeted-final.log",
+        "bytes": 1168,
+        "sha256": "5493d91b3d15d424db31252fa022d5a63fdecb7258c653acd3f29bb68e13415c"
+      }
+    ],
+    "nativeUi": [
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/build-commands.json",
+        "bytes": 353,
+        "sha256": "54e04bf7bc3cf13a8ee3e3fc3ffa77d5b6de89d7f8d2ba7023db4890dc2e41c6"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/design-detector.json",
+        "bytes": 4044,
+        "sha256": "746f72627f808d278b61a539f49f8ecece70011df8755a0b46f4379a2c5827e9"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/design-documentation.md",
+        "bytes": 4951,
+        "sha256": "b9014c431065a716d4efe34197751be102ecc1c7a83b3921a7fa7b922fc9dd0b"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/finish-review.md",
+        "bytes": 5272,
+        "sha256": "8ab71e329c5e521cb896cf7643fcddcb9cc2bed325299fcbd0fa182307550495"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/generated-dark-build-drift.patch",
+        "bytes": 3224,
+        "sha256": "e4ab73418765a539f67968ca8c7cc89d892bc3e46d9fa6befd0586e7eb05c765"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/run-validation.mjs",
+        "bytes": 1868,
+        "sha256": "655802ccc291a5053d5545f41dc0b0043e1de6dc160ec8b3cbae718f05d2e4d3"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/tests-commands.json",
+        "bytes": 950,
+        "sha256": "cae4fcc73c1a1adae092a023c8def0997be1808d0c6e91d249570b94ecb6c8c6"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/ui-regression.json",
+        "bytes": 73715,
+        "sha256": "2edf41f3fad9ad09f959f88eaff78672c1b7ea80de10bd25176de87544cd7292"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/ui-regression.log",
+        "bytes": 923,
+        "sha256": "8e5fded15929f5138aabec209730e865a23f02db9134c69b57a618e8f85378cd"
+      },
+      {
+        "path": "desktop/.qa/action-engine-confirmed-activity/web-build.log",
+        "bytes": 17681,
+        "sha256": "8afc41d8c70c10dec06114060f595b70c4e82feb58364a6fdfa3f4ae1042fe97"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity-ui/targeted-final.json",
+        "bytes": 28546,
+        "sha256": "0eb9417b29f2ceb120fe1e0df6670352b782b1d6b422831ce27dd84f5b7af49b"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity-ui/targeted-final.log",
+        "bytes": 151,
+        "sha256": "7c675c70fd123b00dd2e5e71cf3b46190d97ee130904265b49171617eb07b4e8"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity-ui/targeted.json",
+        "bytes": 28253,
+        "sha256": "810e0cb71d93843d122d407f9bb611408d1704bee6943412b0ba3feed1180153"
+      },
+      {
+        "path": ".qa/action-engine-confirmed-quote-activity-ui/targeted.log",
+        "bytes": 2605,
+        "sha256": "3df4200120a90a2b97b70a631d4846f8a537d86dbae9a51ae20901809c5b570f"
+      }
+    ]
+  },
+  "attemptedFailures": {
+    "serverProjection": [
+      "32/36 initial fixture mismatch",
+      "35/36 subsequent fixture mismatch"
+    ],
+    "nativeSql": [
+      "10/11 immutable deletion trigger prevented corruption fixture",
+      "10/11 foreign key prevented corruption fixture"
+    ],
+    "resolution": "QA fixture-only changes; immutable triggers/FK disabled only in disposable corruption DB; production guards unchanged.",
+    "uiDependencyMaterialization": "Initial pnpm exec installed JS dependencies/postinstalls, no package/lockfile source change.",
+    "generatedDarkPalette": "Unrelated Notes rule removal from generator saved as QA patch then tracked file restored exactly to HEAD.",
+    "devHarness": "Vite HMR reported duplicate React root during harness source edit before final fresh navigation/capture; no zero-console-error claim."
+  },
+  "activation": {
+    "productionDeployed": false,
+    "hostedMigrationApplied": false,
+    "newMigrationProposed": false,
+    "ipcAdded": false,
+    "routeAdded": false,
+    "schedulerAdded": false,
+    "supportCallerAdded": false,
+    "workspaceAppHookAdded": false,
+    "systemNotificationAdded": false,
+    "providerCalled": false,
+    "realCustomerDataChanged": false,
+    "blocker": "Known Windows App Control4551 prevents native validation; not retried or bypassed.",
+    "requiredBeforeActivation": [
+      "Authorized native compilation +189 Rust tests",
+      "Real synthetic Rust archive to TS interoperability",
+      "Approved multi-connection PostgreSQL/gateway staging",
+      "Explicit adapter and authorized current quote lookup",
+      "Durable notification semantics and two-device end-to-end validation"
+    ]
+  },
+  "limitations": [
+    "Server historical activity does not assert A10 local ACK.",
+    "Native history is actor/installation-local, not shared company activity.",
+    "Source deleted: shared feed omits row without deleting canonical records.",
+    "Cursors are temporary read selectors, never permanent notification watermarks.",
+    "Historical creation is not current document or review status.",
+    "UI callback is ID dispatch only; actual WorkspaceApp lookup remains gated.",
+    "No persisted notification read/deduplication store added.",
+    "Browser matrix did not prove text 200%, theme roundtrip, native OS gestures or real network scalability.",
+    "Existing auth may update device_sessions.last_seen_at; no business/activity writes."
+  ]
+}

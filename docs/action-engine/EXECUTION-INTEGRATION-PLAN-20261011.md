@@ -1,6 +1,12 @@
-# Action Engine — frontière d'exécution A8/A14
+# Action Engine — frontière d'exécution A8/A15
 
-État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif A11, découverte serveur A12, contrat A13 et ronde native privée A14 codés. Les essais et limites figurent dans leurs rapports, dont `NATIVE-WORK-ROUND-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 181 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 195 tests serveur réussis ne remplacent pas la validation native et staging.
+État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif A11, découverte serveur A12, contrat A13, ronde native privée A14 et projections d'activité A15 codés. Les essais et limites figurent dans leurs rapports, dont `CONFIRMED-ACTIVITY-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 189 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 242 tests serveur et 203 tests UI réussis ne remplacent pas la validation native et staging.
+
+## Activité historique A15, raccord toujours désactivé
+
+Le serveur dérive une page depuis l'événement immuable de confirmation et les preuves/publications concordantes, sous autorité actuelle et délégation exacte de la source Support. Il ne connaît pas l'ACK local A10. Le lecteur natif, lui, corrobore les marqueurs locaux pour l'acteur et l'installation courants ; ce n'est pas une activité partagée. Les DTO et leurs curseurs diffèrent : un adaptateur explicite reste requis, sans watermark permanent ou conversion implicite des dates.
+
+Le Journal accepte facultativement le DTO serveur et un callback `quoteId`. Il conserve le fonctionnement existant sans ces props, retire les données d'une entreprise précédente et refuse une page incohérente. L'aperçu web prouve le rendu et l'ID transmis, pas l'ouverture d'un vrai devis. Ne pas ajouter fetch, IPC, scheduler ou caller tant que compilation native, vraie archive interopérable et staging ne sont pas validés. Ensuite seulement, résoudre le devis dans l'espace autorisé et prévoir notification/état lu dédupliqués après confirmation et marqueur approprié.
 
 ## Ronde native privée A14
 
