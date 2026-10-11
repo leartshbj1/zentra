@@ -1,0 +1,312 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-11T01:46:22.324Z",
+  "objective": "Zentra Action Engine",
+  "phase": "A4-private-publication-coordination-and-composed-preparation",
+  "status": "local-server-validation-passed-native-and-production-integration-pending",
+  "productionChanges": false,
+  "liveProviderCalls": false,
+  "customerDataUsed": false,
+  "nativeTestsExecuted": false,
+  "nativeTestsWritten": 50,
+  "activation": {
+    "route": false,
+    "ipc": false,
+    "supportTrigger": false,
+    "ui": false,
+    "remoteMigrations": false,
+    "publicationAllowlistDefault": "empty",
+    "consentDefault": "disabled",
+    "confirmationPredicate": "SQL 0"
+  },
+  "server": {
+    "workspace": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+    "branch": "codex/international-runtime",
+    "codeCommit": "a5c75c9830e9a291928447ba11deee22e3c9a664",
+    "parentCommit": "6e775677aa57ddeee56a6dc9c8834b9f5c2d4c5f",
+    "sources": [
+      {
+        "path": "db/action-engine-schema.ts",
+        "bytes": 7645,
+        "sha256": "6a9168dc9e164eed8e3fa52a5b89b34adaba8579edfb14673a9cfc5bbbe10b9d"
+      },
+      {
+        "path": "docs/action-engine/PUBLISHED-CONTEXT-CONTRACT.md",
+        "bytes": 13110,
+        "sha256": "1a531ff04d2251e4bd3e8c8cd9b16b14116be7bc59c1725a8674376550bd463b"
+      },
+      {
+        "path": "drizzle/0102_action_engine_publication_ledger.sql",
+        "bytes": 10001,
+        "sha256": "8aafc4445622c0b4bd9fbfc24456bf44f202a2b4c736c3b46a137c0b42ef9005"
+      },
+      {
+        "path": "lib/action-engine/README.md",
+        "bytes": 13174,
+        "sha256": "a15d99cacbd471a6fbfaae165cc1c0dd652a708b800de427707b61717f7c8e0f"
+      },
+      {
+        "path": "lib/action-engine/device-preparation.test.ts",
+        "bytes": 15705,
+        "sha256": "93d580860caceeee9ae2346d8df7d2aa904c3f165f66527223d71cefe0aecfe5"
+      },
+      {
+        "path": "lib/action-engine/device-preparation.ts",
+        "bytes": 2719,
+        "sha256": "ad3675435e5b7fa34c88d52d62fe1f035a91f81a6b1c84fd7b91a837f755db69"
+      },
+      {
+        "path": "lib/action-engine/production-admission.test.ts",
+        "bytes": 31331,
+        "sha256": "a50eb243740470c9a9db4085ff70daa5c0b716858cbd94d0ff6e2bfb1b0b7a4c"
+      },
+      {
+        "path": "lib/action-engine/production-admission.ts",
+        "bytes": 12968,
+        "sha256": "f69ded463930f73771f9a6d732a16d8f64af8308059b67295a92e5261955def7"
+      },
+      {
+        "path": "lib/action-engine/publication-coordination.postgres.test.ts",
+        "bytes": 28266,
+        "sha256": "683fd3a510362ba36a7fc3a95db3914029b24f058ba6f3b9bc1b032c49c56076"
+      },
+      {
+        "path": "lib/action-engine/publication-coordinator.test.ts",
+        "bytes": 11048,
+        "sha256": "3b3f8c342b6df2325aacfbf28bfa061ecfc65a319b46445716832c00fc3c45ec"
+      },
+      {
+        "path": "lib/action-engine/publication-coordinator.ts",
+        "bytes": 6595,
+        "sha256": "ddc77574f6b2916079594cbada7cdf63ec001dab459a400a42ff90fa1da412e7"
+      },
+      {
+        "path": "lib/action-engine/publication-gateway.test.ts",
+        "bytes": 14305,
+        "sha256": "d6ba90c66c24a0d6f0027bd09095e22589dcf2b9f07c4ba6737a7191069d9312"
+      },
+      {
+        "path": "lib/action-engine/publication-gateway.ts",
+        "bytes": 10965,
+        "sha256": "58e0501f3a2dd88308cf57d21c3a6dbb59a11de6bb1708f92951012d4e704bee"
+      },
+      {
+        "path": "lib/action-engine/publication-ledger-types.ts",
+        "bytes": 1864,
+        "sha256": "54819efb0751cf9a95a846a5975a93b99cb48c70e619423abd61590101975f33"
+      },
+      {
+        "path": "lib/action-engine/publication-ledger.test.ts",
+        "bytes": 44047,
+        "sha256": "411a9954d583f169280780e7b8a1c2c01c71602d1f3810ac229231d0cd079aa6"
+      },
+      {
+        "path": "lib/action-engine/publication-ledger.ts",
+        "bytes": 17358,
+        "sha256": "21fbd54a873b4aa415fbad69cf189a3da5b7269bb4b027b4c0d38d131fd07401"
+      },
+      {
+        "path": "lib/action-engine/publication-stack.integration.test.ts",
+        "bytes": 21458,
+        "sha256": "1a3653ce9a84051235e78e9e0d00decf6b614c32f2d42b210933ea79ab4caa10"
+      },
+      {
+        "path": "lib/action-engine/published-context.ts",
+        "bytes": 5176,
+        "sha256": "0ff6c4bdd2506a6c1f4c7a5b8bcb67a632279b1e71b8259a8b6822e46ccae9d5"
+      },
+      {
+        "path": "lib/action-engine/published-fences.test.ts",
+        "bytes": 6505,
+        "sha256": "0de4e5f357143d1e676048e0fd4f7043a82f67a3521f006c08f899f046d32ef8"
+      },
+      {
+        "path": "lib/action-engine/published-fences.ts",
+        "bytes": 5340,
+        "sha256": "35b3c4d01699ca80228a66473e1d26f52d8db9ebdcfc44c73a0f6812203b8dc8"
+      },
+      {
+        "path": "lib/action-engine/support-source.test.ts",
+        "bytes": 13945,
+        "sha256": "258012ba0cc59e50a71eb3221ea640321e06b8c78b7db106a38fb4c68b53a086"
+      },
+      {
+        "path": "lib/action-engine/support-source.ts",
+        "bytes": 10695,
+        "sha256": "a1d8d14b398f2f7103ec6aa1afb7546c66200bad420ffd38e9f05dff85506e8c"
+      },
+      {
+        "path": "lib/company-collaboration.test.ts",
+        "bytes": 10054,
+        "sha256": "bd54ef1719c0486ac13e4b2e7d5d261e1068cca348dcd8a094757354f83ce18a"
+      },
+      {
+        "path": "lib/company-collaboration.ts",
+        "bytes": 13034,
+        "sha256": "d3cdee323381f4a6a7fb2292cb059c0ae21cecf5b9443886298d4f4d25f0be61"
+      },
+      {
+        "path": "lib/runtime.ts",
+        "bytes": 4512,
+        "sha256": "640fdd8d2919946ceb8b21164cdd271f38ac024b5501594d4d6a0553352575bd"
+      },
+      {
+        "path": "supabase/migrations/20261011011348_action_engine_publication_coordination.sql",
+        "bytes": 25163,
+        "sha256": "78f2c9dcdb2f2221dd2fa1cbe3e4642052c4b830636a518f543ec007bce82f10"
+      }
+    ],
+    "artifacts": [
+      {
+        "path": ".qa/action-engine-publication/regression.json",
+        "bytes": 438193,
+        "sha256": "7704cc77650a3fa3bf45f9fa76942576d26487c7592d5dd3b6bbe079ff973ec8"
+      },
+      {
+        "path": ".qa/action-engine-publication/recovery-final.json",
+        "bytes": 26062,
+        "sha256": "5af40ad0c1538f4853a52206854df2df3ea4c5177e6fb01b7ca53c86769f1b33"
+      },
+      {
+        "path": ".qa/action-engine-publication/device-final.json",
+        "bytes": 6307,
+        "sha256": "bdbbced24e309cbfbbfa0136f354d2f0531832e24410e455bac8d7ff95677db2"
+      },
+      {
+        "path": ".qa/action-engine-publication/recovery-final.log",
+        "bytes": 668,
+        "sha256": "50a71308998793c954ce03376fb74b2d03a95e814d8fab4d7103dc8191a6d78c"
+      },
+      {
+        "path": ".qa/action-engine-publication/device-final.log",
+        "bytes": 445,
+        "sha256": "5810338d951bec49314de47fcef16e7dc8cf815d1f1114b43d2043221bd98ad2"
+      },
+      {
+        "path": ".qa/action-engine-publication/build-final.log",
+        "bytes": 27768,
+        "sha256": "226765b89a85b92a9ac89710d1937bb211cf05f3308c8a525997eb00ec14baf4"
+      },
+      {
+        "path": ".qa/action-engine-publication/typecheck-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-publication/lint-format-final.log",
+        "bytes": 118,
+        "sha256": "8aa1a3ce091e01ff105099c0242397e28151e49ad5acf86d2388cbc9a0d09b1e"
+      }
+    ]
+  },
+  "native": {
+    "workspace": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+    "codeCommit": "e7ae48848a529a368b238ac57f724f1c8aff10df",
+    "desktopVersion": "1.90.15",
+    "changesInA4": false,
+    "blocker": "Windows App Control 4551 blocks dependency build scripts before project compilation. Not retried or bypassed."
+  },
+  "checks": {
+    "reports": [
+      {
+        "path": ".qa/action-engine-publication/regression.json",
+        "passed": 1256,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "files": 40,
+        "startedAt": "2026-10-11T01:37:12.240Z"
+      },
+      {
+        "path": ".qa/action-engine-publication/recovery-final.json",
+        "passed": 72,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "files": 4,
+        "startedAt": "2026-10-11T01:40:21.190Z"
+      },
+      {
+        "path": ".qa/action-engine-publication/device-final.json",
+        "passed": 14,
+        "failed": 0,
+        "pending": 0,
+        "todo": 0,
+        "files": 1,
+        "startedAt": "2026-10-11T01:44:08.237Z"
+      }
+    ],
+    "distinctPassedCases": 1270,
+    "typecheck": {
+      "exitCode": 0,
+      "incremental": false
+    },
+    "coreLint": {
+      "exitCode": 0,
+      "scope": [
+        "lib/action-engine",
+        "db/action-engine-schema.ts"
+      ]
+    },
+    "format": {
+      "exitCode": 0,
+      "scope": "19 A4 TypeScript files"
+    },
+    "brandAssets": {
+      "exitCode": 0
+    },
+    "productionBuild": {
+      "exitCode": 0,
+      "deployment": false
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "commands": [
+      "node node_modules/vitest/vitest.mjs run lib/action-engine lib/automation lib/support/infomaniak.test.ts lib/support/infomaniak-imap.test.ts lib/support/infomaniak-imap-lifetime.test.ts lib/support/support.test.ts lib/support/mail-documents.test.ts lib/company-collaboration.test.ts lib/company-collaboration-route.test.ts lib/legacy-cloud-transport.test.ts lib/international/legacy-transport-routes.test.ts --maxWorkers=4 --reporter=default --reporter=json --outputFile=.qa/action-engine-publication/regression.json",
+      "node node_modules/vitest/vitest.mjs run lib/action-engine/publication-coordination.postgres.test.ts lib/action-engine/publication-stack.integration.test.ts lib/action-engine/publication-gateway.test.ts lib/company-collaboration.test.ts --maxWorkers=3 --reporter=default --reporter=json --outputFile=.qa/action-engine-publication/recovery-final.json",
+      "node node_modules/vitest/vitest.mjs run lib/action-engine/device-preparation.test.ts --reporter=default --reporter=json --outputFile=.qa/action-engine-publication/device-final.json",
+      "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "node node_modules/oxlint/bin/oxlint lib/action-engine db/action-engine-schema.ts",
+      "node node_modules/oxfmt/bin/oxfmt --check <19 A4 TypeScript files>",
+      "node scripts/check-brand-assets.mjs",
+      "node node_modules/vinext/dist/cli.js build",
+      "git diff --check"
+    ],
+    "environment": {
+      "node": "v24.19.0",
+      "PGLITE_MODULE_DIR": "D:/Codex-Zentra-Temporary/2026-10-07/international/postgres-tests/node_modules/@electric-sql/pglite",
+      "ZENTRA_NATIVE_SOURCE_ROOT": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections"
+    },
+    "diagnosticHistory": [
+      "Two early typechecks found fixture tuple/accessor typing errors, corrected before passing checks.",
+      "Initial build invocation used a non-existent dist/cli/index.js; package.json bin was inspected and actual dist/cli.js build passed. This was an invocation failure, not a project compilation failure.",
+      "Legacy historical replay under removed opt-in was found by independent review after the main regression; fixed in the A4 SQL wrapper and real PostgreSQL/SQLite affected tests rerun.",
+      "Opt-in is rechecked before provider authorization after asynchronous waits; tests are unit composition with mocked dependencies."
+    ]
+  },
+  "migrations": [
+    {
+      "path": "drizzle/0102_action_engine_publication_ledger.sql",
+      "creation": "Wrangler migrations create",
+      "appliedRemotely": false,
+      "tested": "ephemeral SQLite complete D1 migration chain"
+    },
+    {
+      "path": "supabase/migrations/20261011011348_action_engine_publication_coordination.sql",
+      "creation": "Supabase migration new",
+      "appliedRemotely": false,
+      "tested": "ephemeral PGlite, four real parent migrations plus A4"
+    }
+  ],
+  "limitations": [
+    "No distributed transaction or exactly-once guarantee.",
+    "PGlite has a single serialized connection; no multi-connection PostgreSQL race, PostgREST, deployed Supabase parity or hosted D1 proof.",
+    "Permanent PostgreSQL guard requires compatible v2 gateway after opt-in; removing allowlist does not allow old transport rollback.",
+    "Runtime binding recheck is local to its deployment context; persistent D1 rights and consent remain the mutation authority.",
+    "Server commit receipt survives transport pruning; native prepare-before-commit replay remains to be adapted.",
+    "Resource catalogue is not canonical quote/line/receipt/audit proof; confirmation is deliberately denied.",
+    "Native compilation, 50 Rust tests, real Rust archive interop and physical multi-device testing remain unexecuted.",
+    "No endpoint, native IPC, Support trigger, notification, live model, email, Stripe, customer data or production activation."
+  ]
+}

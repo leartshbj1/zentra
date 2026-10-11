@@ -41,14 +41,25 @@ Objectif actif : un ERP qui prépare le travail administratif, avec contrôle ut
 - Livraison : `NATIVE-PROJECTION-VALIDATION-20261011.md` et `docs/evidence/action-engine-native-projection-20261011.json`.
 - Aucun IPC, endpoint Action Engine, déclenchement, notification ou déploiement activé. Une vraie archive produite par Rust n'a pas encore été passée au codec TS.
 
-## Suite : composition et premier vrai brouillon confirmé
+## Lot A4 codé et testé localement, désactivé
+
+- Registre D1 permanent des publications, garde PostgreSQL permanente opt-in, CAS et fait service-only corroboré avant settlement. Une tentative pending bloque la progression Action Engine ; une clôture prouvée remplace une libération par simple expiration.
+- Admission, source Support déléguée et publication composées dans les mutations D1 de préparation ; composition privée de l'intake et du fournisseur, sans route, déclenchement ou IPC.
+- Reprises couvertes : accusé PG perdu, même opération, clôture/tombstone, ancienne copie de transport purgée côté commit serveur, retrait du flag et refus legacy même historique. Le `prepare` préalable natif reste à adapter.
+- Régression : **1 256/1 256 tests**, 40 fichiers. Après correction finale du wrapper, **72/72** ciblés dont 14 PostgreSQL et cinq compositions PostgreSQL/SQLite ; ces cas recouvrent la régression. **14/14** tests unitaires supplémentaires du préparateur : **1 270 cas distincts** dans 41 fichiers. Typage, lint du noyau, format et assets réussis.
+- Migrations additives D1 0102 et Supabase `20261011011348_action_engine_publication_coordination.sql` proposées et testées sur bases éphémères seulement. Allowlist vide ; consentement spécifique désactivé par défaut.
+- Livraison : `PUBLICATION-VALIDATION-20261011.md` et `docs/evidence/action-engine-publication-20261011.json`.
+- Code serveur : `a5c75c9830e9a291928447ba11deee22e3c9a664`. Build de production réussi, sans déploiement.
+- La confirmation métier reste explicitement refusée : un catalogue publié ne prouve pas la présence d'un devis/reçu canonique. Les 50 tests natifs A3 restent non exécutés ; Windows App Control n'a pas été contourné ou retenté.
+
+## Suite : premier vrai brouillon confirmé
 
 1. Reprendre `AUDIT.md` et les contrats de `lib/action-engine/README.md`.
 2. Valider les sources natives A3 sur un hôte autorisé : compiler, exécuter les 50 tests et les régressions de restauration/fusion, puis vérifier l'interopérabilité d'une vraie archive synthétique. Ne pas retenter/bypasser Windows App Control en boucle.
-3. Composer le nouveau prédicat d'autorité avec la délégation Support/Gestion et les versions source/catalogue/client ; `mayPrepareQuote` couvre création client éventuelle + devis brouillon, pas seulement lecture Automation. Les branches commerciales non corroborées restent refusées.
-4. Raccorder l'intake durable, puis réconcilier les tickets reçus mais non dispatchés et les analyses incertaines. La course avant modèle est fermée dans le noyau ; le déclenchement depuis Support n'est pas encore intégré.
+3. Valider le protocole A4 sur un environnement de staging approuvé, notamment avec plusieurs connexions PG et le gateway complet ; la composition locale ne prouve pas une transaction distribuée. Tous les writers d'une entreprise protégée doivent suivre ce protocole, y compris après retrait de son flag.
+4. Raccorder le préparateur privé à Support, puis réconcilier les tickets non dispatchés et les analyses incertaines. La course avant modèle et les gardes de persistance sont composées localement ; le déclenchement depuis Support n'est pas encore intégré.
 5. Raccorder le writer privé validé à une commande native unique dans le desktop **1.90.15** de `app-current-corrections`, sous origine entreprise et contexte membre, admission/réservation/source distantes corroborées. Ne pas exposer directement l'input privé à la WebView.
-6. Corroborer la confirmation avec une archive Gestion publiée via Supabase (voir `PUBLISHED-CONTEXT-CONTRACT.md`), puis tester les commits perdus, les modifications en cours, deux appareils et le changement de compte avant de déclarer l'exécution autonome fonctionnelle.
+6. Ajouter une projection canonique devis/lignes/reçu/audit à une vraie archive native, puis corroborer la confirmation via la publication protégée (voir `PUBLISHED-CONTEXT-CONTRACT.md`). Corriger la reprise `prepare` avant `commit` après purge ; tester les commits perdus, les modifications en cours, deux appareils et le changement de compte avant de déclarer l'exécution autonome fonctionnelle.
 7. Réutiliser l’interface Activité / À suivre / Réglages, ouvrir le véritable devis existant et notifier seulement après reçu métier confirmé.
 
 Ne pas publier le desktop 1.46.1 de la copie serveur. Aucun changement de production n’a été effectué. Les ports abstraits ne constituent pas une intégration en ligne. L’objectif global reste en cours.
