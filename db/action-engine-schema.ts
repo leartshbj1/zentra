@@ -5,6 +5,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { organizations } from './schema';
 
 // SQL migration 0099 adds the CHECKs, compound FKs and append-only triggers.
 // No route is exposed until the production admission and publication fences exist.
@@ -90,4 +91,89 @@ export const actionEngineQuoteEvents = sqliteTable(
       t.createdAt,
     ),
   ],
+);
+
+// 0100 is authoritative for immutable identities, transitions and audit guards.
+export const actionEngineQuoteIntake = sqliteTable(
+  'action_engine_quote_intake',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    sourceId: text('source_id').notNull(),
+    actionKind: text('action_kind').notNull(),
+    engineVersion: text('engine_version').notNull(),
+    sourceRevision: text('source_revision').notNull(),
+    contextRevision: text('context_revision').notNull(),
+    contextHash: text('context_hash').notNull(),
+    inputHash: text('input_hash').notNull(),
+    inputJson: text('input_json').notNull(),
+    state: text('state').notNull(),
+    ownerUserId: text('owner_user_id').notNull(),
+    ownerToken: text('owner_token').notNull(),
+    leaseUntil: integer('lease_until').notNull(),
+    startedAt: integer('started_at'),
+    finishedAt: integer('finished_at'),
+    resultJson: text('result_json'),
+    resultFingerprint: text('result_fingerprint'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('action_engine_quote_intake_source').on(
+      t.organizationId,
+      t.sourceId,
+      t.actionKind,
+    ),
+    uniqueIndex('action_engine_quote_intake_identity').on(
+      t.id,
+      t.organizationId,
+      t.inputHash,
+    ),
+    index('action_engine_quote_intake_due').on(
+      t.state,
+      t.leaseUntil,
+      t.updatedAt,
+      t.id,
+    ),
+  ],
+);
+export const actionEngineQuoteIntakeEvents = sqliteTable(
+  'action_engine_quote_intake_events',
+  {
+    id: text('id').primaryKey(),
+    intakeId: text('intake_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    inputHash: text('input_hash').notNull(),
+    eventType: text('event_type').notNull(),
+    ownerToken: text('owner_token').notNull(),
+    actorUserId: text('actor_user_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('action_engine_quote_intake_events_identity').on(
+      t.intakeId,
+      t.ownerToken,
+      t.eventType,
+    ),
+    index('action_engine_quote_intake_events_company').on(
+      t.organizationId,
+      t.createdAt,
+    ),
+  ],
+);
+
+// 0101 creates a separate opt-in; no seed or endpoint enables it in this phase.
+export const actionEngineQuoteSettings = sqliteTable(
+  'action_engine_quote_settings',
+  {
+    organizationId: text('organization_id')
+      .primaryKey()
+      .references(() => organizations.organizationId, { onDelete: 'cascade' }),
+    revision: integer('revision').notNull().default(1),
+    enabled: integer('enabled').notNull().default(0),
+    consentVersion: text('consent_version'),
+    grantedBy: text('granted_by'),
+    grantedAt: integer('granted_at'),
+    updatedAt: integer('updated_at').notNull(),
+  },
 );

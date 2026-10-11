@@ -20,6 +20,7 @@ import type {
   ReviewReason,
 } from './types';
 import { validatePlanningContext } from './validation';
+import { QuotePreparationError } from './intake-types';
 
 const MAX_LINES = 8;
 const MAX_CANDIDATES = 20;
@@ -348,7 +349,10 @@ export async function planQuoteDraft(
   let answers: Readonly<Record<string, ChoiceAnswer>> | null;
   try {
     answers = captureAnswers(await provider.decide(input), input);
-  } catch {
+  } catch (error) {
+    // Busy/uncertain durable intake is not a semantic decision. Persisting it
+    // as a review plan would permanently freeze a transient infrastructure gap.
+    if (error instanceof QuotePreparationError) throw error;
     addReason('provider_unavailable');
     return finish();
   }

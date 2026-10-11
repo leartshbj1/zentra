@@ -14,7 +14,7 @@ Dans une transaction SQLite IMMEDIATE unique :
 4. Créer, si nécessaire, le client avec l'ID réservé ; insérer le devis avec l'ID réservé, statut `brouillon`, numéro NULL et lignes détaillées. Ne pas émettre, envoyer, payer ou comptabiliser.
 5. Recalculer chaque ligne en entiers `i128`, quantités en millièmes et cents bornés, avec les mêmes arrondis que le noyau TypeScript. Conserver la quantité exacte dans la preuve. Éviter le chemin existant qui recalcule en `f64` et sature silencieusement.
 6. Écrire provenance, acteur, reçu, audit et outbox SQL privé d'acquittement dans la même transaction. Aucun bearer ou secret dans l'outbox.
-7. Commit, puis laisser le mécanisme existant publier les données. Confirmer le registre central seulement après corroboration d'une publication business-sync canonique.
+7. Commit, puis publication par le mécanisme Supabase existant. Le rapprochement serveur du reçu avec une publication métier vérifiée reste à implémenter : les archives/chunks ne fournissent pas encore de projection serveur clients/catalogue ni de preuve canonique Action Engine. Le prototype D1 business-sync de l'ancien desktop est une piste distincte, pas le raccord livré de cette baseline.
 
 ## Détails du modèle actuel
 
@@ -27,7 +27,7 @@ Dans une transaction SQLite IMMEDIATE unique :
 
 ## Reprise entre appareils
 
-La réservation D1 n'expire pas et ne change pas d'installation automatiquement. Un délai réseau ne prouve pas l'absence de commit local. Après une réponse perdue, le même appareil rapproche d'abord son reçu/outbox et la publication canonique. Une autre installation reste en attente tant que cette situation n'est pas résolue ; elle ne reçoit pas de nouveaux IDs pour recommencer.
+La réservation D1 n'expire pas et ne change pas d'installation automatiquement. Un délai réseau ne prouve pas l'absence de commit local. Après une réponse perdue, le même appareil rapproche d'abord son reçu/outbox et la version Supabase publiée correspondante, avec corroboration métier encore à développer. Une autre installation reste en attente tant que cette situation n'est pas résolue ; elle ne reçoit pas de nouveaux IDs pour recommencer.
 
 Avant une nouvelle écriture, l'admission et les versions sont revalidées. La récupération d'un reçu confirmé reste possible après modification du catalogue. L'ouverture du devis doit relire le document dans son état actuel : un reçu historique de création ne signifie pas qu'il est encore brouillon aujourd'hui.
 

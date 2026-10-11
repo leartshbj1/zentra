@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DecisionInput } from '@/lib/automation/types';
 import {
+  quotePreparationInput,
+  quotePreparationInputFingerprint,
+} from './intake';
+import {
+  QuotePreparationError,
+  type QuotePreparationIntake,
+} from './intake-types';
+import {
   executeQuoteProposal,
   prepareQuoteProposal,
   quotePlanFingerprint,
@@ -141,6 +149,27 @@ function preparation(
   prior: StoredQuoteProposal | null = null,
 ): QuotePreparationPorts {
   return {
+    intake: {
+      read: vi.fn(async () => null),
+      claim: vi.fn(async (a, input) => ({
+        state: 'owned' as const,
+        claim: {
+          id: '00000000-0000-4000-8000-000000000001',
+          input,
+          inputHash: await quotePreparationInputFingerprint(input),
+          userId: a.userId,
+          ownerToken: '00000000-0000-4000-8000-000000000002',
+          leaseUntil: 1800000000,
+        },
+      })),
+      start: vi.fn(async () => undefined),
+      finish: vi.fn(async (_a, claim, plan, fingerprint) => ({
+        inputHash: claim.inputHash,
+        plan,
+        fingerprint,
+      })),
+      uncertain: vi.fn(async () => undefined),
+    },
     authorize: vi.fn(async () => admission()),
     loadContext: vi.fn(async () => context()),
     findProposal: vi.fn(async () => prior),
@@ -183,6 +212,174 @@ function preparation(
 }
 
 describe('Action Engine authorization and durable port contract', () => {
+  it('commits the started marker before invoking the provider', async () => {
+    const ports = preparation(),
+      order: string[] = [];
+    const decide = ports.provider.decide;
+    ports.intake.start = vi.fn(async () => {
+      order.push('started');
+    });
+    ports.provider = {
+      decide: vi.fn(async (input) => {
+        order.push('provider');
+        return decide(input);
+      }),
+    };
+    await prepareQuoteProposal(actor, 'ticket-a', ports);
+    expect(order).toEqual(['started', 'provider']);
+    expect(ports.intake.finish).toHaveBeenCalledTimes(1);
+  });
+  it.each(['held', 'uncertain'] as const)(
+    'does not freeze an %s intake as a review proposal',
+    async (state) => {
+      const ports = preparation();
+      ports.intake.claim = vi.fn(async () => ({ state, sourceId: 'ticket-a' }));
+      await expect(
+        prepareQuoteProposal(actor, 'ticket-a', ports),
+      ).rejects.toThrow(state);
+      expect(ports.provider.decide).not.toHaveBeenCalled();
+      expect(ports.intake.start).not.toHaveBeenCalled();
+      expect(ports.intake.finish).not.toHaveBeenCalled();
+      expect(ports.saveProposal).not.toHaveBeenCalled();
+    },
+  );
+  it('does not call the provider after an ambiguous start acknowledgement', async () => {
+    const ports = preparation();
+    ports.intake.start = vi.fn(async () => {
+      throw new QuotePreparationError('service_unavailable');
+    });
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).rejects.toThrow('service_unavailable');
+    expect(ports.provider.decide).not.toHaveBeenCalled();
+    expect(ports.intake.finish).not.toHaveBeenCalled();
+    expect(ports.saveProposal).not.toHaveBeenCalled();
+  });
+  it('keeps a failed provider call uncertain instead of persisting provider_unavailable forever', async () => {
+    const ports = preparation();
+    ports.provider = {
+      decide: vi.fn(async () => {
+        throw Error('private network failure');
+      }),
+    };
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).rejects.toThrow('uncertain');
+    expect(ports.intake.uncertain).toHaveBeenCalledTimes(1);
+    expect(ports.intake.finish).not.toHaveBeenCalled();
+    expect(ports.saveProposal).not.toHaveBeenCalled();
+  });
+  it('does not disguise an uncertain call when its state notification also fails', async () => {
+    const ports = preparation();
+    ports.provider = {
+      decide: vi.fn(async () => {
+        throw Error('private timeout');
+      }),
+    };
+    ports.intake.uncertain = vi.fn(async () => {
+      throw Error('private SQL failure');
+    });
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).rejects.toThrow(/^uncertain$/);
+    expect(ports.intake.finish).not.toHaveBeenCalled();
+    expect(ports.saveProposal).not.toHaveBeenCalled();
+  });
+  it('finishes a deterministic review with no provider call and no started marker', async () => {
+    const ports = preparation();
+    ports.loadContext = vi.fn(async () => ({
+      ...context(),
+      customers: [],
+      source: { ...context().source, senderName: '' },
+    }));
+    const result = await prepareQuoteProposal(actor, 'ticket-a', ports);
+    expect(result.plan.reasons).toContain('missing_customer_name');
+    expect(ports.provider.decide).not.toHaveBeenCalled();
+    expect(ports.intake.start).not.toHaveBeenCalled();
+    expect(ports.intake.finish).toHaveBeenCalledTimes(1);
+  });
+  it('recovers a finished plan after a failed ledger save without another model call', async () => {
+    const ports = preparation();
+    const finish = ports.intake.finish;
+    ports.intake.finish = vi.fn<QuotePreparationIntake['finish']>(
+      async (...args) => {
+        const result = await finish(...args);
+        ports.intake.claim = vi.fn(async () => ({
+          state: 'finished' as const,
+          result,
+        }));
+        return result;
+      },
+    );
+    const save = ports.saveProposal;
+    ports.saveProposal = vi
+      .fn()
+      .mockRejectedValueOnce(Error('lost proposal save response'))
+      .mockImplementation(save);
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).rejects.toThrow('lost proposal save response');
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).resolves.toMatchObject({ plan: { status: 'ready' } });
+    expect(ports.provider.decide).toHaveBeenCalledTimes(1);
+    expect(ports.intake.start).toHaveBeenCalledTimes(1);
+    expect(ports.intake.finish).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a forged stored input hash before granting a provider attempt', async () => {
+    const ports = preparation();
+    const claim = ports.intake.claim;
+    ports.intake.claim = vi.fn<QuotePreparationIntake['claim']>(
+      async (...args) => {
+        const claimed = await claim(...args);
+        if (claimed.state !== 'owned') throw Error('fixture');
+        return {
+          ...claimed,
+          claim: { ...claimed.claim, inputHash: '0'.repeat(64) },
+        };
+      },
+    );
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).rejects.toThrow('invalid_record');
+    expect(ports.intake.start).not.toHaveBeenCalled();
+    expect(ports.provider.decide).not.toHaveBeenCalled();
+  });
+  it('rejects a stored result whose fingerprint does not match its plan', async () => {
+    const ports = preparation(),
+      input = await quotePreparationInput(context());
+    ports.intake.claim = vi.fn(async () => ({
+      state: 'finished' as const,
+      result: {
+        inputHash: await quotePreparationInputFingerprint(input),
+        plan: plan(),
+        fingerprint: '0'.repeat(64),
+      },
+    }));
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).rejects.toThrow('invalid_record');
+    expect(ports.saveProposal).not.toHaveBeenCalled();
+    expect(ports.provider.decide).not.toHaveBeenCalled();
+  });
+  it('does not invoke a getter while capturing a claim outcome', async () => {
+    const ports = preparation(),
+      getter = vi.fn(() => 'held');
+    ports.intake.claim = vi.fn(
+      async () =>
+        ({
+          get state() {
+            return getter();
+          },
+          sourceId: 'ticket-a',
+        }) as Awaited<ReturnType<QuotePreparationIntake['claim']>>,
+    );
+    await expect(
+      prepareQuoteProposal(actor, 'ticket-a', ports),
+    ).rejects.toThrow('invalid_record');
+    expect(getter).not.toHaveBeenCalled();
+    expect(ports.provider.decide).not.toHaveBeenCalled();
+  });
   it('prepares a real typed proposal, without issue/send/payment capabilities', async () => {
     const ports = preparation();
     const result = await prepareQuoteProposal(actor, 'ticket-a', ports);
@@ -190,7 +387,7 @@ describe('Action Engine authorization and durable port contract', () => {
     expect(result.plan.requiresHumanValidation).toBe(true);
     expect(result.plan.lines[0].unitPriceCents).toBe(19900);
     expect(ports.provider.decide).toHaveBeenCalledTimes(1);
-    expect(ports.authorize).toHaveBeenCalledTimes(4);
+    expect(ports.authorize).toHaveBeenCalledTimes(5);
     expect(ports.saveProposal).toHaveBeenCalledWith(
       actor,
       result.plan,
@@ -234,6 +431,7 @@ describe('Action Engine authorization and durable port contract', () => {
     const ports = preparation();
     ports.authorize = vi
       .fn()
+      .mockResolvedValueOnce(admission())
       .mockResolvedValueOnce(admission())
       .mockResolvedValueOnce(admission())
       .mockResolvedValueOnce(admission())
@@ -291,6 +489,27 @@ describe('Action Engine authorization and durable port contract', () => {
     });
     const result = await prepareQuoteProposal(mutable, 'ticket-a', ports);
     expect(result.organizationId).toBe('org-a');
+  });
+  it('captures each adapter once even when a port is supplied by a getter', async () => {
+    const ports = preparation(),
+      originalProvider = ports.provider,
+      originalIntake = ports.intake;
+    const providerGetter = vi.fn(() => {
+      if (providerGetter.mock.calls.length > 1) throw Error('provider swapped');
+      return originalProvider;
+    });
+    const intakeGetter = vi.fn(() => {
+      if (intakeGetter.mock.calls.length > 1) throw Error('intake swapped');
+      return originalIntake;
+    });
+    Object.defineProperty(ports, 'provider', { get: providerGetter });
+    Object.defineProperty(ports, 'intake', { get: intakeGetter });
+    const result = await prepareQuoteProposal(actor, 'ticket-a', ports);
+    expect(result.plan.status).toBe('ready');
+    expect(providerGetter).toHaveBeenCalledTimes(1);
+    expect(intakeGetter).toHaveBeenCalledTimes(1);
+    expect(originalProvider.decide).toHaveBeenCalledTimes(1);
+    expect(originalIntake.finish).toHaveBeenCalledTimes(1);
   });
   it('commits only a valid server-stored plan and captures the draft receipt', async () => {
     const ports = await execution();

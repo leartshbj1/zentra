@@ -17,7 +17,7 @@ Audit effectué dans `international-site` (serveur, HEAD `e9096df`) et dans `app
 | Décisions fermées JEV | `lib/automation/provider.ts` ; réponses bornées et vérifiées, aucun JSON métier libre |
 | Extraction avec preuve | `lib/supplier-inbox/extraction.ts:61–193` ; candidats littéraux puis sélection et validation |
 | Écriture métier native | 1.90.15 : `database.rs` création client et `save_document_with_items_once`, `commands.rs`, `bridge.ts` |
-| Synchronisation | SQLite locale, archives Supabase, protocole business-sync ; clients, devis et lignes figurent dans `business_sync_tables.json` |
+| Synchronisation | 1.90.15 : SQLite locale et archives `.zentra` partagées via `/api/account/collaboration`, tête/révision Supabase, chunks fixes ou content-defined. Séparément, le desktop 1.46.1 de `international-site` contient un prototype D1 `business_sync_*` (contrat schéma 60, `business_sync_tables.json`), absent de la baseline 1.90.15 ; ce prototype ne prouve pas un raccord livré. |
 | Supervision | `AutomationHub`, `AutomationJournal`, `AutomationDailySummary` ; activité, à suivre, réglages ; origine entreprise et membre |
 
 ## Ce qui manque réellement

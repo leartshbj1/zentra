@@ -1,4 +1,5 @@
 import type { DecisionInput, ProviderResult } from '@/lib/automation/types';
+import type { QuotePreparationIntake } from './intake-types';
 
 /** All context is loaded by an authenticated repository, never accepted from an email/model. */
 export type ActionActor = Readonly<{ organizationId: string; userId: string }>;
@@ -103,6 +104,8 @@ export type StoredQuoteProposal = Readonly<{
   plan: QuotePlan;
 }>;
 export interface QuotePreparationPorts {
+  /** Mandatory durable claim/result store; no in-memory production fallback. */
+  intake: QuotePreparationIntake;
   authorize: (actor: ActionActor) => Promise<ActionAdmission>;
   loadContext: (
     actor: ActionActor,
@@ -124,6 +127,7 @@ export interface QuotePreparationPorts {
     admission: ActionAdmission,
   ) => Promise<StoredQuoteProposal>;
   provider: Readonly<{
+    /** Use createQuoteDecisionProvider: one HTTP attempt, no transport retry. */
     decide: (input: DecisionInput) => Promise<ProviderResult>;
   }>;
 }
