@@ -19,6 +19,11 @@ export type SupportQuoteSourceCapability = Readonly<{
   /** Private server capability, not an HTTP DTO or an authorization by itself. */
   predicate: (purpose: SupportQuoteSourcePurpose) => QuoteLedgerPredicate;
 }>;
+export type SupportQuoteAccessCapability = Readonly<{
+  sourceId: string;
+  workspaceId: string;
+  predicate: () => QuoteLedgerPredicate;
+}>;
 
 type SourceRow = {
   id: string;
@@ -65,6 +70,38 @@ const MAX_PREDICATE_SQL = 16000;
 const invalid = (): never => {
   throw new ActionEngineError('invalid_context');
 };
+
+/** Current delegated access to a historical source, without reinterpreting its
+ * edited/closed body or requiring its connector to remain active. This grants
+ * no device/business permission; compose it with fresh device authority. */
+export async function readSupportQuoteAccess(
+  rawActor: ActionActor,
+  rawSourceId: string,
+): Promise<SupportQuoteAccessCapability> {
+  const actor = captureActor(rawActor),
+    sourceId = actionIdentifier(rawSourceId);
+  const from = `FROM support_tickets t JOIN support_gestion_links l ON l.workspace_id=t.workspace_id AND l.enabled=1 ${DELEGATION}`;
+  const row = ownRecord(
+    await database()
+      .prepare(
+        `SELECT t.id,t.workspace_id ${from} WHERE t.id=? AND l.organization_id=? AND ${SUPPORT_PERMISSION}`,
+      )
+      .bind(sourceId, actor.organizationId)
+      .first(),
+  );
+  if (Object.keys(row).length !== 2 || row.id?.value !== sourceId)
+    return invalid();
+  const workspaceId = actionIdentifier(row.workspace_id?.value);
+  return Object.freeze({
+    sourceId,
+    workspaceId,
+    predicate: () =>
+      combineQuotePredicates({
+        sql: `EXISTS(SELECT 1 ${from} WHERE t.id=? AND t.workspace_id=? AND l.organization_id=? AND ${SUPPORT_PERMISSION})`,
+        bindings: [sourceId, workspaceId, actor.organizationId],
+      }),
+  });
+}
 
 function ownRecord(raw: unknown): Record<string, PropertyDescriptor> {
   try {

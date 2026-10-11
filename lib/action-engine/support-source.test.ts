@@ -12,6 +12,7 @@ vi.mock('@/lib/runtime', () => ({ database: () => state.db }));
 import {
   combineQuotePredicates,
   readSupportQuoteSource,
+  readSupportQuoteAccess,
 } from './support-source';
 
 let db: DatabaseSync;
@@ -79,6 +80,27 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   db.close();
+});
+
+it('reads historical access after source edits/closure and connector disconnection, with fresh delegation fencing', async () => {
+  updateEnvelope({ closed: true, incomplete: true, body: 'changed' });
+  db.exec(
+    "UPDATE support_connections SET active=0; UPDATE support_tickets SET revision=2,body='changed'",
+  );
+  const cap = await readSupportQuoteAccess(actor, 'source-a');
+  expect(cap.sourceId).toBe('source-a');
+  expect(allowed(cap.predicate())).toBe(1);
+  expect(JSON.stringify(cap)).not.toContain('changed');
+  db.exec('UPDATE organization_members SET revoked_at=1');
+  expect(allowed(cap.predicate())).toBe(0);
+});
+it('never admits historical source access from another tenant or a changed source workspace', async () => {
+  await expect(
+    readSupportQuoteAccess({ ...actor, organizationId: 'other' }, 'source-a'),
+  ).rejects.toThrow();
+  const cap = await readSupportQuoteAccess(actor, 'source-a');
+  db.exec("UPDATE support_tickets SET workspace_id='other'");
+  expect(allowed(cap.predicate())).toBe(0);
 });
 
 it('keeps the existing action-source-v1 revision and exposes only a detached private capability', async () => {

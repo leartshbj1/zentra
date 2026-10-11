@@ -1,4 +1,5 @@
 import { quotePlanFingerprint } from './engine';
+import { captureQuoteReservationBinding } from './reservation-binding';
 import {
   ActionEngineError,
   type ActionActor,
@@ -23,6 +24,7 @@ import {
   type QuoteLedgerPredicate,
   type QuoteProposalLedger,
   type QuoteReservationResult,
+  type QuoteReservationBinding,
 } from './ledger-types';
 
 type LedgerDatabase = Pick<D1Database, 'prepare' | 'batch'>;
@@ -268,12 +270,48 @@ function receiptClaim(raw: DraftQuoteReceipt): DraftQuoteReceipt {
 export function createD1QuoteLedger(
   database: LedgerDatabase,
   rawFence: QuoteLedgerFence,
-  options: { nowSeconds?: () => number; newUuid?: () => string } = {},
+  options: {
+    nowSeconds?: () => number;
+    newUuid?: () => string;
+    reservationBinding?: QuoteReservationBinding;
+  } = {},
 ): QuoteProposalLedger {
   if (typeof rawFence !== 'function') throw new QuoteLedgerError('forbidden');
+  if (
+    !options ||
+    typeof options !== 'object' ||
+    ![Object.prototype, null].includes(Object.getPrototypeOf(options))
+  )
+    return invalid();
+  const optionFields = Object.getOwnPropertyDescriptors(options);
+  if (
+    Reflect.ownKeys(options).some(
+      (key) =>
+        typeof key !== 'string' ||
+        !['nowSeconds', 'newUuid', 'reservationBinding'].includes(key) ||
+        !optionFields[key]?.enumerable ||
+        !('value' in optionFields[key]),
+    )
+  )
+    return invalid();
+  for (const key of ['nowSeconds', 'newUuid'])
+    if (
+      optionFields[key] &&
+      optionFields[key].value !== undefined &&
+      typeof optionFields[key].value !== 'function'
+    )
+      return invalid();
+  const reservationBinding =
+    optionFields.reservationBinding?.value === undefined
+      ? null
+      : captureQuoteReservationBinding(optionFields.reservationBinding.value);
   const fence = rawFence.bind(undefined),
-    nowSeconds = options.nowSeconds ?? (() => Math.floor(Date.now() / 1000)),
-    newUuid = options.newUuid ?? (() => crypto.randomUUID());
+    nowSeconds =
+      (optionFields.nowSeconds?.value as (() => number) | undefined) ??
+      (() => Math.floor(Date.now() / 1000)),
+    newUuid =
+      (optionFields.newUuid?.value as (() => string) | undefined) ??
+      (() => crypto.randomUUID());
   const nextId = () => {
     try {
       return uuid(newUuid());
@@ -340,8 +378,27 @@ export function createD1QuoteLedger(
   }
   const reservationSelect = (stored: StoredQuoteProposal) =>
     prepare(
-      'SELECT * FROM action_engine_quote_reservations WHERE organization_id=? AND proposal_id=? AND fingerprint=?',
+      reservationBinding
+        ? `SELECT r.*,(SELECT json_object('resourcesSha256',b.resources_sha256,'sourceCanonicalSha256',b.source_canonical_sha256,'planningPublication',json_object('organizationId',b.organization_id,'snapshotId',b.planning_snapshot_id,'revision',b.planning_revision,'baseRevision',b.planning_base_revision,'archiveSha256',b.planning_archive_sha256,'manifestSha256',b.planning_manifest_sha256)) FROM action_engine_quote_reservation_bindings b WHERE b.reservation_id=r.id AND b.organization_id=r.organization_id AND b.proposal_id=r.proposal_id AND b.fingerprint=r.fingerprint) AS reservation_binding_json FROM action_engine_quote_reservations r WHERE r.organization_id=? AND r.proposal_id=? AND r.fingerprint=?`
+        : 'SELECT * FROM action_engine_quote_reservations WHERE organization_id=? AND proposal_id=? AND fingerprint=?',
     ).bind(stored.organizationId, stored.id, stored.fingerprint);
+  function requireBinding(raw: unknown) {
+    if (!reservationBinding) return;
+    const field =
+      raw && typeof raw === 'object'
+        ? Object.getOwnPropertyDescriptor(raw, 'reservation_binding_json')
+        : undefined;
+    if (!field || !('value' in field) || typeof field.value !== 'string')
+      throw new QuoteLedgerError('conflict');
+    let binding: QuoteReservationBinding;
+    try {
+      binding = captureQuoteReservationBinding(JSON.parse(field.value));
+    } catch {
+      return invalid();
+    }
+    if (JSON.stringify(binding) !== JSON.stringify(reservationBinding))
+      throw new QuoteLedgerError('conflict');
+  }
   function audit(
     stored: StoredQuoteProposal,
     actor: ActionActor,
@@ -379,6 +436,7 @@ export function createD1QuoteLedger(
       0,
     );
     if (rows.length > 1) return invalid();
+    if (rows.length) requireBinding(rows[0]);
     return rows.length
       ? reservationFromRow(rows[0] as ReservationRow, stored)
       : null;
@@ -467,6 +525,12 @@ export function createD1QuoteLedger(
       const actor = captureActor(rawActor),
         proposalId = actionIdentifier(rawProposalId),
         installationId = actionIdentifier(rawInstallationId);
+      if (
+        reservationBinding &&
+        reservationBinding.planningPublication.organizationId !==
+          actor.organizationId
+      )
+        return invalid();
       const stored = await readProposal(actor, null, proposalId);
       if (!stored) return invalid();
       if (stored.plan.status !== 'ready')
@@ -491,6 +555,7 @@ export function createD1QuoteLedger(
           0,
         );
         if (replayRows.length !== 1) return invalid();
+        requireBinding(replayRows[0]);
         const replay = reservationFromRow(
           replayRows[0] as ReservationRow,
           stored,
@@ -528,12 +593,30 @@ export function createD1QuoteLedger(
             at,
             stored.id,
           ),
+          ...(reservationBinding
+            ? [
+                prepare(`INSERT INTO action_engine_quote_reservation_bindings(reservation_id,organization_id,proposal_id,fingerprint,resources_sha256,source_canonical_sha256,planning_snapshot_id,planning_revision,planning_base_revision,planning_archive_sha256,planning_manifest_sha256,created_at)
+            SELECT r.id,r.organization_id,r.proposal_id,r.fingerprint,?,?,?,?,?,?,?,r.created_at FROM action_engine_quote_reservations r WHERE r.id=? AND r.organization_id=? AND r.proposal_id=?`).bind(
+                  reservationBinding.resourcesSha256,
+                  reservationBinding.sourceCanonicalSha256,
+                  reservationBinding.planningPublication.snapshotId,
+                  reservationBinding.planningPublication.revision,
+                  reservationBinding.planningPublication.baseRevision,
+                  reservationBinding.planningPublication.archiveSha256,
+                  reservationBinding.planningPublication.manifestSha256,
+                  id,
+                  actor.organizationId,
+                  stored.id,
+                ),
+              ]
+            : []),
           audit(stored, actor, 'execution_reserved', at, id),
           reservationSelect(stored),
         ],
-        2,
+        reservationBinding ? 3 : 2,
       );
       if (rows.length !== 1) return invalid();
+      requireBinding(rows[0]);
       const reservation = reservationFromRow(rows[0] as ReservationRow, stored);
       if (reservation.receipt)
         return Object.freeze({

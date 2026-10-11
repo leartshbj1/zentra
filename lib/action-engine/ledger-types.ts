@@ -19,6 +19,22 @@ export type QuoteExecutionReservation = Readonly<{
   receipt: DraftQuoteReceipt | null;
 }>;
 
+/** Private server context captured when a NEW execution reservation is made. */
+export type QuoteHistoricalPublication = Readonly<{
+  organizationId: string;
+  snapshotId: string;
+  revision: number;
+  baseRevision: number;
+  archiveSha256: string;
+  manifestSha256: string;
+}>;
+
+export type QuoteReservationBinding = Readonly<{
+  resourcesSha256: string;
+  sourceCanonicalSha256: string;
+  planningPublication: QuoteHistoricalPublication;
+}>;
+
 export type QuoteReservationResult =
   | Readonly<{ state: 'reserved'; reservation: QuoteExecutionReservation }>
   | Readonly<{ state: 'held'; proposalId: string }>

@@ -1,4 +1,6 @@
 import { quotePreparationInput } from './intake';
+import { sha256Hex } from '@/lib/account-security';
+import { captureQuoteReservationBinding } from './reservation-binding';
 import type {
   QuotePreparationFence,
   QuotePreparationInput,
@@ -54,6 +56,18 @@ export async function createPublishedQuoteFences(
   )
     throw new ActionEngineError('stale_plan');
   const input = await quotePreparationInput(context);
+  const reservationBinding = captureQuoteReservationBinding({
+    resourcesSha256: loaded.publication.resourcesHash,
+    sourceCanonicalSha256: await sha256Hex(JSON.stringify(context.source)),
+    planningPublication: {
+      organizationId: loaded.publication.organizationId,
+      snapshotId: loaded.publication.snapshotId,
+      revision: loaded.publication.revision,
+      baseRevision: loaded.publication.baseRevision,
+      archiveSha256: loaded.publication.archiveSha256,
+      manifestSha256: loaded.publication.manifestSha256,
+    },
+  });
   // Copy the expectation, excluding resource/projection fields not in its closed DTO.
   const publication = publicationPredicate({
     organizationId: loaded.publication.organizationId,
@@ -138,5 +152,6 @@ export async function createPublishedQuoteFences(
     input,
     context,
     admission,
+    reservationBinding,
   });
 }
