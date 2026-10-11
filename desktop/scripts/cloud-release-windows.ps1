@@ -8,7 +8,7 @@ $diagnosticSelection = if ([string]::IsNullOrEmpty($env:ZENTRA_DIAGNOSTICS_NATIV
 } else {
     $env:ZENTRA_DIAGNOSTICS_NATIVE_SET
 }
-if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment')) {
+if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment', 'action-engine')) {
     throw 'Unknown diagnostics native verification set.'
 }
 if ($diagnosticSelection -cne 'full' -and
@@ -31,6 +31,10 @@ if ($diagnosticPhase -cne 'all' -and
 }
 if ($diagnosticPhase -cne 'all' -and $diagnosticSelection -cne 'full') {
     throw 'Targeted native and benchmark selections require the all phase.'
+}
+if ($diagnosticSelection -ceq 'action-engine' -and
+    ($env:CIRCLECI -cne 'true' -or $env:OS -cne 'Windows_NT' -or $env:CIRCLE_BRANCH -cne 'codex/action-engine-native')) {
+    throw 'Action Engine verification requires the dedicated CircleCI Windows branch.'
 }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Set-Location -LiteralPath $repo
@@ -110,6 +114,37 @@ try {
             . (Join-Path $PSScriptRoot 'windows-verification-harness.ps1')
             & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
             $diagnosticHarness = Initialize-ZentraVerificationHarness $repo $artifacts $diagnosticSource
+        }
+        if ($diagnosticSelection -ceq 'action-engine') {
+            . (Join-Path $PSScriptRoot 'action-engine-verification.ps1')
+            $actionEnginePlan = Get-ZentraActionEngineVerificationPlan -TestNames $diagnosticHarness.TestNames
+            foreach ($filter in $actionEnginePlan.Filters) {
+                Invoke-ZentraVerificationSuite $diagnosticHarness $filter.Name $filter.Arguments
+            }
+            $actionEngineCorroboration = Assert-ZentraActionEngineVerificationProof -Plan $actionEnginePlan -SuiteExecutions $diagnosticHarness.Proof.suiteExecutions
+            $actionEngineProof = [ordered]@{
+                source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1; branch = $env:CIRCLE_BRANCH
+                selection = $diagnosticSelection; verificationOnly = $true
+                target = 'x86_64-pc-windows-msvc'; nativeProfile = 'release'
+                data = 'synthetic'; nativeExecution = 'compiled-library-harness'
+                nativeFilters = @($actionEnginePlan.Filters | ForEach-Object { $_.Name })
+                expectedCoreCount = $actionEnginePlan.ExpectedCoreCount
+                coreTestNames = $actionEnginePlan.CoreTestNames; regressionTestNames = $actionEnginePlan.RegressionTestNames
+                selectedNames = $actionEnginePlan.SelectedTestNames; runtimePassed = $actionEngineCorroboration.TotalPassed
+                corroboration = $actionEngineCorroboration; suiteExecutions = $diagnosticHarness.Proof.suiteExecutions
+                nativeHarnessProof = 'windows-test-harness-proof.json'
+                testOnlyManifestTransformation = $diagnosticHarness.Proof.testOnlyManifestTransformation
+                loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
+                harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
+                selectedNativeSuitesPassed = $true; nativeExecuted = $true
+                fullFunctionalExecuted = $false; frontendExecuted = $false; mobileExecuted = $false
+                frontendBuildExecuted = $false; benchmarksExecuted = $false
+                packagingExecuted = $false; signingExecuted = $false
+                publishesInstaller = $false; publishesRelease = $false; installsApplication = $false
+                startedAt = $diagnosticStartedAt; completedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            }
+            [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-action-engine-proof.json'), ($actionEngineProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+            return
         }
         if ($diagnosticSelection -ceq 'native-mail-payroll') {
             $targetedFilters = @(

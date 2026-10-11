@@ -57,7 +57,7 @@ Assert-Contract ($statements[3] -eq $selection) 'selection precedes repository/t
 # execution of extracted PowerShell or a second implementation of the guard.
 $unknownGuard = $statements[4]
 $expectedUnknownGuard = @'
-if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment')) {
+if ($diagnosticSelection -cnotin @('full', 'native-mail-payroll', 'benchmark-payment', 'benchmark-public-payment', 'action-engine')) {
     throw 'Unknown diagnostics native verification set.'
 }
 '@
@@ -74,7 +74,16 @@ if ($diagnosticSelection -cne 'full' -and
 '@
 Assert-Contract ((Normalize-ContractText $modeGuard.Extent.Text) -ceq (Normalize-ContractText $expectedModeGuard)) 'all nonfull selectors require both guards exactly true; full preserves the existing mode'
 Assert-Contract ($modeGuard.Clauses[0].Item2.Statements.Count -eq 1 -and $modeGuard.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.ThrowStatementAst]) 'missing, false or differently cased guard fails before bootstrap'
-Assert-Contract ($statements[6].Left.VariablePath.UserPath -ceq 'diagnosticPhase' -and $statements[10] -is [System.Management.Automation.Language.AssignmentStatementAst] -and $statements[10].Left.VariablePath.UserPath -ceq 'repo') 'both refusal guards precede even repository setup'
+Assert-Contract ($statements[6].Left.VariablePath.UserPath -ceq 'diagnosticPhase' -and $statements[11] -is [System.Management.Automation.Language.AssignmentStatementAst] -and $statements[11].Left.VariablePath.UserPath -ceq 'repo') 'both refusal guards precede even repository setup'
+$expectedActionEngineAdmission = @'
+if ($diagnosticSelection -ceq 'action-engine' -and
+    ($env:CIRCLECI -cne 'true' -or $env:OS -cne 'Windows_NT' -or $env:CIRCLE_BRANCH -cne 'codex/action-engine-native')) {
+    throw 'Action Engine verification requires the dedicated CircleCI Windows branch.'
+}
+'@
+$actionEngineAdmission = $statements[10]
+Assert-Contract ((Normalize-ContractText $actionEngineAdmission.Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineAdmission)) 'Action Engine requires the existing CircleCI Windows branch before any bootstrap'
+Assert-Contract ($actionEngineAdmission.Clauses[0].Item2.Statements.Count -eq 1 -and $actionEngineAdmission.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.ThrowStatementAst]) 'Action Engine admission refusal cannot run a command or fall back'
 
 $targetedBranches = @($releaseAst.FindAll({
     param($node)
@@ -136,6 +145,71 @@ Assert-Contract ($harnessInit.Extent.EndOffset -lt $targetedBranch.Extent.StartO
 $circleGuardOffset = $releaseText.IndexOf("if (`$env:CIRCLE_SHA1 -cne `$diagnosticSource)")
 Assert-Contract ($circleGuardOffset -ge 0 -and $circleGuardOffset -lt $harnessInit.Extent.StartOffset -and $releaseText.Contains("`$diagnosticSource -notmatch '^[0-9a-f]{40}$'")) 'exact source SHA is checked before harness preparation'
 Assert-Contract ($releaseText.Contains("'diagnostics-validation-proof.json'") -and $releaseText.Contains('database::workspace_payment_projection_tests::benchmark_real_payment_workspace_densities') -and $releaseText.Contains('database::workspace_payment_projection_tests::payment_read_projection_tests::benchmark_public_payment_workspace_densities')) 'full proof and both existing benchmarks remain available'
+
+$actionEngineBranches = @($releaseAst.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.IfStatementAst] -and
+    (Normalize-ContractText $node.Clauses[0].Item1.Extent.Text) -ceq "`$diagnosticSelection -ceq 'action-engine'"
+}, $true))
+Assert-Contract ($actionEngineBranches.Count -eq 1) 'one explicit Action Engine execution branch'
+$actionEngineBranch = $actionEngineBranches[0]
+$actionEngineBody = $actionEngineBranch.Clauses[0].Item2
+$actionEngineStatements = @($actionEngineBody.Statements)
+Assert-Contract ($actionEngineStatements.Count -eq 7) 'Action Engine branch contains only helper import, plan, suites, corroboration, proof, proof write and return'
+Assert-Contract ($harnessInit.Extent.EndOffset -lt $actionEngineBranch.Extent.StartOffset -and $actionEngineBranch.Extent.EndOffset -lt $fullSuites.Extent.StartOffset) 'Action Engine uses the prepared harness and exits before full validation'
+$expectedActionEngineImport = ". (Join-Path `$PSScriptRoot 'action-engine-verification.ps1')"
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[0].Extent.Text) -ceq $expectedActionEngineImport -and [regex]::Matches($releaseText, 'action-engine-verification\.ps1').Count -eq 1) 'pure Action Engine helper is imported only inside its explicit branch after harness initialization'
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[1].Extent.Text) -ceq '$actionEnginePlan = Get-ZentraActionEngineVerificationPlan -TestNames $diagnosticHarness.TestNames') 'plan is built from the compiled libtest catalogue before suite execution'
+$expectedActionEngineLoop = @'
+foreach ($filter in $actionEnginePlan.Filters) {
+    Invoke-ZentraVerificationSuite $diagnosticHarness $filter.Name $filter.Arguments
+}
+'@
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[2].Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineLoop)) 'Action Engine dispatches only the helper fixed plan through the existing verified harness'
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[3].Extent.Text) -ceq '$actionEngineCorroboration = Assert-ZentraActionEngineVerificationProof -Plan $actionEnginePlan -SuiteExecutions $diagnosticHarness.Proof.suiteExecutions') 'every runtime result is corroborated before a success proof is assembled'
+$actionEngineCommands = @($actionEngineBody.FindAll({param($node) $node -is [System.Management.Automation.Language.CommandAst]}, $true))
+Assert-Contract (@($actionEngineCommands | Where-Object {
+    -not ($_.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot -and (Normalize-ContractText $_.Extent.Text) -ceq $expectedActionEngineImport) -and
+    $_.GetCommandName() -cnotin @('Join-Path', 'Get-ZentraActionEngineVerificationPlan', 'Invoke-ZentraVerificationSuite', 'Assert-ZentraActionEngineVerificationProof', 'ForEach-Object', 'ConvertTo-Json')
+}).Count -eq 0) 'Action Engine branch has no frontend, benchmark, bootstrap, packaging or arbitrary command'
+$actionEngineProofAssignment = Find-Assignment $actionEngineBody 'actionEngineProof'
+$actionEngineProofTables = @($actionEngineProofAssignment.FindAll({param($node) $node -is [System.Management.Automation.Language.HashtableAst]}, $true))
+Assert-Contract ($actionEngineProofTables.Count -eq 1) 'one distinct Action Engine proof map'
+$actionEngineProofTable = $actionEngineProofTables[0]
+foreach ($entry in @(
+    @{ Name = 'source'; Value = '$diagnosticSource' },
+    @{ Name = 'circleSource'; Value = '$env:CIRCLE_SHA1' },
+    @{ Name = 'branch'; Value = '$env:CIRCLE_BRANCH' },
+    @{ Name = 'selection'; Value = '$diagnosticSelection' },
+    @{ Name = 'verificationOnly'; Value = '$true' },
+    @{ Name = 'target'; Value = "'x86_64-pc-windows-msvc'" },
+    @{ Name = 'nativeProfile'; Value = "'release'" },
+    @{ Name = 'data'; Value = "'synthetic'" },
+    @{ Name = 'nativeExecution'; Value = "'compiled-library-harness'" },
+    @{ Name = 'nativeFilters'; Value = '@($actionEnginePlan.Filters | ForEach-Object { $_.Name })' },
+    @{ Name = 'expectedCoreCount'; Value = '$actionEnginePlan.ExpectedCoreCount' },
+    @{ Name = 'coreTestNames'; Value = '$actionEnginePlan.CoreTestNames' },
+    @{ Name = 'regressionTestNames'; Value = '$actionEnginePlan.RegressionTestNames' },
+    @{ Name = 'selectedNames'; Value = '$actionEnginePlan.SelectedTestNames' },
+    @{ Name = 'runtimePassed'; Value = '$actionEngineCorroboration.TotalPassed' },
+    @{ Name = 'corroboration'; Value = '$actionEngineCorroboration' },
+    @{ Name = 'suiteExecutions'; Value = '$diagnosticHarness.Proof.suiteExecutions' },
+    @{ Name = 'nativeHarnessProof'; Value = "'windows-test-harness-proof.json'" },
+    @{ Name = 'testOnlyManifestTransformation'; Value = '$diagnosticHarness.Proof.testOnlyManifestTransformation' },
+    @{ Name = 'loaderHypothesisConfirmed'; Value = '$diagnosticHarness.Proof.loaderHypothesisConfirmed' },
+    @{ Name = 'harnessManifestRepairValidated'; Value = '$diagnosticHarness.Proof.harnessManifestRepairValidated' },
+    @{ Name = 'selectedNativeSuitesPassed'; Value = '$true' },
+    @{ Name = 'nativeExecuted'; Value = '$true' }
+)) { Assert-Contract ((Read-StaticHashEntry $actionEngineProofTable $entry.Name) -ceq $entry.Value) "Action Engine proof corroborates $($entry.Name)" }
+foreach ($name in @('fullFunctionalExecuted', 'frontendExecuted', 'mobileExecuted', 'frontendBuildExecuted', 'benchmarksExecuted', 'packagingExecuted', 'signingExecuted', 'publishesInstaller', 'publishesRelease', 'installsApplication')) {
+    Assert-Contract ((Read-StaticHashEntry $actionEngineProofTable $name) -ceq '$false') "Action Engine proof excludes $name"
+}
+Assert-Contract (@($actionEngineProofTable.KeyValuePairs | Where-Object { $_.Item1.Value -cin @('allCheckedSuitesPassed', 'functionalValidationPassed', 'frontendBuildPassed', 'paymentBenchmarkPassed', 'publicPaymentBenchmarkPassed') }).Count -eq 0) 'Action Engine proof cannot claim full or benchmark validation'
+$expectedActionEngineWrite = @'
+[IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-action-engine-proof.json'), ($actionEngineProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+'@
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[5].Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineWrite)) 'distinct Action Engine proof is written only after runtime corroboration'
+Assert-Contract ($actionEngineStatements[6] -is [System.Management.Automation.Language.ReturnStatementAst] -and $null -eq $actionEngineStatements[6].Pipeline) 'Action Engine returns unconditionally before full validation and packaging'
 foreach ($appendix in @(
     "`$diagnosticNativeSuites += @('commands::payroll_import_worker_tests::', 'payroll_import::tests::')",
     "`$diagnosticFrontendSuites += @('src/payrollImportScopeBridge.test.ts', 'src/PayrollImportWizardLifecycle.test.tsx')",
@@ -209,11 +283,11 @@ foreach ($appendix in @(
     "`$diagnosticMobileSuites += @('src/attachmentMutationScope.test.ts', 'src/bankFileMutationBridge.test.ts')"
 )) { Assert-Contract ($releaseText.Contains($appendix)) 'functional full retains both new scoped-mutation test appendices' }
 
-$parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n    type: enum\r?\n    enum: \[full, native-mail-payroll, benchmark-payment, benchmark-public-payment\]\r?\n    default: full\r?$')
-Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum admits full or three explicit allowlisted opt-ins and defaults full'
+$parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n    type: enum\r?\n    enum: \[full, native-mail-payroll, benchmark-payment, benchmark-public-payment, action-engine\]\r?\n    default: full\r?$')
+Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum adds only the explicit Action Engine opt-in and still defaults full'
 $job = [regex]::Match($circleText, '(?ms)^  windows-drafts-diagnostics-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
 Assert-Contract ($job.Success -and $job.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $job.Value.Contains('ZENTRA_VERIFY_ONLY: "true"')) 'only diagnostic job supplies both hardcoded guards'
-Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 1 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 3) 'selector is not transmitted to release or installer jobs'
+Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 1 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 57) 'selector is transmitted only to the diagnostic job; workflow references are closed gates'
 $expectedFunctionalWorkflow = @'
   drafts-errors-diagnostics-verification:
     when:
@@ -221,6 +295,8 @@ $expectedFunctionalWorkflow = @'
         - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - equal: [full, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-drafts-diagnostics-tests:
           name: windows-drafts-diagnostics-native-tests
@@ -237,10 +313,105 @@ $expectedTargetedWorkflow = @'
         - not: << pipeline.parameters.release >>
         - not:
             equal: [full, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-drafts-diagnostics-tests
 '@
 Assert-Contract ((Normalize-ContractText $circleText).Contains((Normalize-ContractText $expectedFunctionalWorkflow)) -and (Normalize-ContractText $circleText).Contains((Normalize-ContractText $expectedTargetedWorkflow))) 'full phases and targeted all retain branch and non-release gates with mutually exclusive closed selections'
+$expectedActionEngineWorkflow = @'
+  action-engine-native-verification:
+    when:
+      and:
+        - equal: [codex/action-engine-native, << pipeline.git.branch >>]
+        - << pipeline.parameters.verify-only >>
+        - not: << pipeline.parameters.release >>
+        - equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - equal: [0, << pipeline.parameters.smoke-windows-job >>]
+        - equal: [0, << pipeline.parameters.smoke-apple-job >>]
+    jobs:
+      - windows-drafts-diagnostics-tests:
+          name: windows-action-engine-native-tests
+'@
+$actionEngineWorkflow = [regex]::Match($circleText, '(?ms)^  action-engine-native-verification:\r?\n.*?(?=^  [^ ].*:\r?\n|\z)')
+Assert-Contract ($actionEngineWorkflow.Success -and (Normalize-ContractText $actionEngineWorkflow.Value) -ceq (Normalize-ContractText $expectedActionEngineWorkflow)) 'dedicated Action Engine workflow requires exact branch, verify-only, non-release, explicit selector and zero smoke jobs'
+Assert-Contract ([regex]::Matches($circleText, '(?m)^  action-engine-native-verification:').Count -eq 1 -and -not $actionEngineWorkflow.Value.Contains('diagnostics-phase:')) 'one Action Engine job reuses the diagnostic harness with the all phase'
+$verifyOnlyParameter = [regex]::Match($circleText, '(?m)^  verify-only:\r?\n    type: boolean\r?\n    default: false\r?$')
+Assert-Contract ($verifyOnlyParameter.Success) 'Action Engine remains an explicit opt-in with verify-only false by default'
+foreach ($spec in @(
+    @{ Name = 'android-release-candidate'; Platform = 'android'; Jobs = "      - android:`n          build-mode: release" },
+    @{ Name = 'windows-release-candidate'; Platform = 'windows'; Jobs = '      - windows' },
+    @{ Name = 'apple-release-candidate'; Platform = 'apple'; Jobs = '      - apple' }
+)) {
+    $workflow = [regex]::Match($circleText, "(?ms)^  $($spec.Name):\r?\n.*?(?=^  [^ ].*:\r?\n|\z)")
+    $expectedWorkflow = @"
+  $($spec.Name):
+    when:
+      and:
+        - << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [codex/action-engine-native, << pipeline.git.branch >>]
+        - or:
+            - equal: [all, << pipeline.parameters.platform >>]
+            - equal: [$($spec.Platform), << pipeline.parameters.platform >>]
+    jobs:
+$($spec.Jobs)
+"@
+    Assert-Contract ($workflow.Success -and (Normalize-ContractText $workflow.Value) -ceq (Normalize-ContractText $expectedWorkflow)) "$($spec.Name) excludes Action Engine selector and branch even with combined release flags; other packaging gates are unchanged"
+}
+foreach ($spec in @(
+    @{ Name = 'verify-windows-package'; Platform = 'windows' },
+    @{ Name = 'verify-apple-package'; Platform = 'apple' }
+)) {
+    $workflow = [regex]::Match($circleText, "(?ms)^  $($spec.Name):\r?\n.*?(?=^  [^ ].*:\r?\n|\z)")
+    $expectedWorkflow = @"
+  $($spec.Name):
+    when:
+      and:
+        - not:
+            equal: [0, << pipeline.parameters.smoke-$($spec.Platform)-job >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [codex/action-engine-native, << pipeline.git.branch >>]
+    jobs:
+      - $($spec.Platform)-package-smoke
+"@
+    Assert-Contract ($workflow.Success -and (Normalize-ContractText $workflow.Value) -ceq (Normalize-ContractText $expectedWorkflow)) "$($spec.Name) excludes Action Engine selector and branch even with nonzero smoke flags; other smoke gates are unchanged"
+}
+# Every historical workflow has its own compile-time exclusion: Apple/Android
+# jobs do not consume the Windows diagnostic selector or its runtime guards.
+$workflowsSection = [regex]::Match($circleText, '(?ms)^workflows:\r?\n(?<body>.*)\z')
+Assert-Contract ($workflowsSection.Success) 'one explicit workflows section'
+$workflowBlocks = @([regex]::Matches($workflowsSection.Groups['body'].Value, '(?ms)^  (?<name>[^ :\r\n]+):\r?\n.*?(?=^  [^ :\r\n]+:\r?\n|\z)'))
+$legacyWorkflows = @($workflowBlocks | Where-Object { $_.Groups['name'].Value -cne 'action-engine-native-verification' })
+Assert-Contract ($workflowBlocks.Count -eq 54 -and $legacyWorkflows.Count -eq 53 -and @($workflowBlocks | ForEach-Object { $_.Groups['name'].Value } | Select-Object -Unique).Count -eq 54) 'exactly the 53 historical workflows and one dedicated Action Engine workflow'
+$actionEngineExclusionPattern = '(?m)^        - not:\r?\n            equal: \[action-engine, << pipeline\.parameters\.diagnostics-native-set >>\]\r?\n'
+$reservedBranchExclusionPattern = '(?m)^        - not:\r?\n            equal: \[codex/action-engine-native, << pipeline\.git\.branch >>\]\r?\n'
+$reservedGenericWorkflows = @('android-release-candidate', 'verify-windows-package', 'verify-apple-package', 'windows-release-candidate', 'apple-release-candidate')
+$canonicalLegacyWorkflows = @()
+foreach ($legacyWorkflow in $legacyWorkflows) {
+    $name = $legacyWorkflow.Groups['name'].Value
+    $condition = [regex]::Match($legacyWorkflow.Value, '(?ms)\A  [^ :\r\n]+:\r?\n    when:\r?\n(?<body>.*?)^    jobs:\r?\n')
+    Assert-Contract ($condition.Success -and [regex]::IsMatch($condition.Groups['body'].Value, '\A      and:\r?\n')) "$name uses an explicit top-level conjunction"
+    Assert-Contract ([regex]::Matches($condition.Groups['body'].Value, $actionEngineExclusionPattern).Count -eq 1) "$name explicitly refuses the Action Engine selector before its jobs"
+    $canonical = [regex]::Replace($legacyWorkflow.Value, $actionEngineExclusionPattern, '')
+    if ($name -cin $reservedGenericWorkflows) {
+        $canonical = [regex]::Replace($canonical, $reservedBranchExclusionPattern, '')
+    }
+    # Removing a top-level and wrapper and its list markers canonicalizes the
+    # old single-equal workflows without changing any remaining condition/job.
+    $canonical = [regex]::Replace($canonical, '(?m)^      and:\r?\n', '')
+    $canonical = [regex]::Replace($canonical, '(?m)^        - ', '      ')
+    $canonicalLegacyWorkflows += (Normalize-ContractText $canonical)
+}
+$legacyHashAlgorithm = [Security.Cryptography.SHA256]::Create()
+try {
+    $legacyWorkflowHash = [BitConverter]::ToString($legacyHashAlgorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes([string]::Join("`n", $canonicalLegacyWorkflows)))).Replace('-', '').ToLowerInvariant()
+} finally { $legacyHashAlgorithm.Dispose() }
+Assert-Contract ($legacyWorkflowHash -ceq 'c784d60e1d91989cd3d806be68df4512e5b688a3f35807ae44bef1f287c84b8d') 'historical workflow names, conditions, order and jobs remain unchanged outside the explicit Action Engine exclusions'
 Assert-Contract ($releaseText.Contains("& (Join-Path `$PSScriptRoot 'diagnostics-native-selection.contract-tests.ps1')")) 'diagnostic CI invokes these static contracts before harness preparation'
 # Phase policy is verified by AST/text only. Never execute an extracted guard,
 # bootstrap, suite, harness, release script or proof writer in these tests.
@@ -275,7 +446,7 @@ if ($diagnosticPhase -cne 'all' -and $diagnosticSelection -cne 'full') {
     $phaseGuard = $statements[$guard.Index]
     Assert-Contract ((Normalize-ContractText $phaseGuard.Extent.Text) -ceq (Normalize-ContractText $guard.Text)) "exact phase admission guard at $($guard.Index)"
     Assert-Contract ($phaseGuard -is [System.Management.Automation.Language.IfStatementAst] -and $phaseGuard.Clauses[0].Item2.Statements.Count -eq 1 -and $phaseGuard.Clauses[0].Item2.Statements[0] -is [System.Management.Automation.Language.ThrowStatementAst]) 'phase refusal never falls back or runs a command'
-    Assert-Contract ($phaseGuard.Extent.EndOffset -lt $statements[10].Extent.StartOffset) 'phase guard precedes repository and all bootstrap operations'
+    Assert-Contract ($phaseGuard.Extent.EndOffset -lt $statements[11].Extent.StartOffset) 'phase guard precedes repository and all bootstrap operations'
 }
 function Is-InPhaseGuard {
     param([System.Management.Automation.Language.Ast]$Node, [string]$Condition)

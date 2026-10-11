@@ -9,7 +9,7 @@ parameters:
     default: false
   diagnostics-native-set:
     type: enum
-    enum: [full, native-mail-payroll, benchmark-payment, benchmark-public-payment]
+    enum: [full, native-mail-payroll, benchmark-payment, benchmark-public-payment, action-engine]
     default: full
   release:
     type: boolean
@@ -489,11 +489,25 @@ jobs:
           destination: apple
 
 workflows:
+  action-engine-native-verification:
+    when:
+      and:
+        - equal: [codex/action-engine-native, << pipeline.git.branch >>]
+        - << pipeline.parameters.verify-only >>
+        - not: << pipeline.parameters.release >>
+        - equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - equal: [0, << pipeline.parameters.smoke-windows-job >>]
+        - equal: [0, << pipeline.parameters.smoke-apple-job >>]
+    jobs:
+      - windows-drafts-diagnostics-tests:
+          name: windows-action-engine-native-tests
   user-clarity-release-1914:
     when:
       and:
         - equal: [codex/release-1.90.14-20261006, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-release-1913
       - apple
@@ -504,6 +518,8 @@ workflows:
       and:
         - equal: [codex/quality-continuity-20261004, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-drafts-diagnostics-tests:
           name: windows-quality-continuity-native-tests
@@ -513,6 +529,8 @@ workflows:
       and:
         - equal: [codex/release-1.90.13-20261004, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-release-1913
       - apple
@@ -524,6 +542,8 @@ workflows:
         - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - equal: [full, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-drafts-diagnostics-tests:
           name: windows-drafts-diagnostics-native-tests
@@ -538,6 +558,8 @@ workflows:
         - not: << pipeline.parameters.release >>
         - not:
             equal: [full, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-drafts-diagnostics-tests
   apple-design-release-1912:
@@ -545,6 +567,8 @@ workflows:
       and:
         - equal: [codex/apple-design-app-20261001, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -555,6 +579,8 @@ workflows:
       and:
         - equal: [codex/notes-release-1.90.11-20260930, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -565,6 +591,8 @@ workflows:
       and:
         - equal: [codex/first-client-release-1910, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -575,6 +603,8 @@ workflows:
       and:
         - equal: [codex/release-1.90.9-windows-volume, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-volume-1909
   android-package-1909:
@@ -582,6 +612,8 @@ workflows:
       and:
         - equal: [codex/release-1.90.9-android-smoke, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - android-package-smoke-1909
   first-client-package-1909:
@@ -589,6 +621,8 @@ workflows:
       and:
         - equal: [codex/release-1.90.9-windows-smoke, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-smoke-1909
   first-client-1909:
@@ -596,6 +630,8 @@ workflows:
       and:
         - equal: [codex/first-client-release-1909, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -603,12 +639,18 @@ workflows:
           build-mode: release
   android-package-1908:
     when:
-      equal: [codex/release-1.90.8-android-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.8-android-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - android-package-smoke-1908
   windows-package-1908:
     when:
-      equal: [codex/release-1.90.8-windows-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.8-windows-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-smoke-1908
   first-client-1908:
@@ -616,6 +658,8 @@ workflows:
       and:
         - equal: [codex/first-client-release-1908, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -623,17 +667,26 @@ workflows:
           build-mode: release
   android-package-1907:
     when:
-      equal: [codex/release-1.90.7-android-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.7-android-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - android-optimized-payload-smoke
   first-client-package-1907:
     when:
-      equal: [codex/release-1.90.7-windows-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.7-windows-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-smoke-1907
   first-client-1907:
     when:
-      equal: [codex/first-client-release-1907, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-release-1907, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -641,135 +694,207 @@ workflows:
           build-mode: release
   first-client-android-payload-smoke:
     when:
-      equal: [codex/first-client-android-smoke-20260928, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-android-smoke-20260928, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - android-optimized-payload-smoke
   first-client-android-release:
     when:
-      equal: [codex/first-client-android-release-20260927, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-android-release-20260927, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - android:
           build-mode: release
   iphone-brand-1906:
     when:
-      equal: [codex/release-1.90.6-iphone-icons, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.6-iphone-icons, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - iphone-brand-1906
   first-client-package-1906:
     when:
-      equal: [codex/release-1.90.6-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.6-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-smoke-1906
   first-client-1906:
     when:
-      equal: [codex/first-client-release-1906, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-release-1906, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
       - android
   first-client-package-1905:
     when:
-      equal: [codex/release-1.90.5-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.5-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-smoke-1905
   first-client-1905:
     when:
-      equal: [codex/first-client-release-1905, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-release-1905, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
       - android
   updater-channel-verification:
     when:
-      equal: [codex/updater-channel-verification-20260927, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/updater-channel-verification-20260927, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-updater-channel-tests
   first-client-backup-verification:
     when:
-      equal: [codex/backup-verification-20260927, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/backup-verification-20260927, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-backup-tests
   first-client-shared-mail-verification:
     when:
-      equal: [codex/shared-mail-verification-20260927, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/shared-mail-verification-20260927, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-mail-tests
   first-client-package-1904:
     when:
-      equal: [codex/release-1.90.4-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.90.4-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-smoke-1904
   first-client-1904:
     when:
-      equal: [codex/first-client-release-1904, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-release-1904, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
       - android
   first-client-pdf-pagination:
     when:
-      equal: [codex/first-client-pdf-pagination-20260927, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-pdf-pagination-20260927, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-pdf-pagination-tests
   first-client-project-reports:
     when:
-      equal: [codex/first-client-project-reports-20260927, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-project-reports-20260927, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-project-report-tests
   first-client-apple-1903:
     when:
-      equal: [codex/first-client-apple-1903, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-apple-1903, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - apple
   first-client-1903:
     when:
-      equal: [codex/first-client-release-1903, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/first-client-release-1903, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
       - android
   mail-logo-1902:
     when:
-      equal: [codex/mail-logo-1902, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/mail-logo-1902, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
       - android
   brand-icon-1901:
     when:
-      equal: [codex/brand-icon-1901, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/brand-icon-1901, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
       - android
   bexio-import-190:
     when:
-      equal: [codex/bexio-import-190, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/bexio-import-190, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
   mail-connection-1891:
     when:
-      equal: [codex/mail-connection-1891, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/mail-connection-1891, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
   fixed-assets-scan-validation:
     when:
-      equal: [codex/fixed-assets-invoice-scan, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/fixed-assets-invoice-scan, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
   release-189-windows:
     when:
-      equal: [codex/release-1.89.0-windows, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.89.0-windows, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
   outgoing-mail-validation:
     when:
-      equal: [codex/company-outgoing-mail, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/company-outgoing-mail, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-mail-tests
   smoke-1881:
     when:
-      equal: [codex/release-1.88.1-smoke, << pipeline.git.branch >>]
+      and:
+        - equal: [codex/release-1.88.1-smoke, << pipeline.git.branch >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-package-smoke-1881
   release-1881:
@@ -777,6 +902,8 @@ workflows:
       and:
         - equal: [codex/release-1.88.1, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -786,6 +913,8 @@ workflows:
       and:
         - equal: [codex/release-1.88.0, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows
       - apple
@@ -795,6 +924,8 @@ workflows:
       and:
         - equal: [codex/release-1.87.0, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - apple
       - android
@@ -803,6 +934,8 @@ workflows:
       and:
         - equal: [codex/release-1.86.1, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - apple
       - android
@@ -811,6 +944,8 @@ workflows:
       and:
         - equal: [codex/release-1.86.0-apple, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - apple
   mobile-release-186:
@@ -818,6 +953,8 @@ workflows:
       and:
         - equal: [codex/release-1.86.0, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - apple
       - android
@@ -825,6 +962,10 @@ workflows:
     when:
       and:
         - << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [codex/action-engine-native, << pipeline.git.branch >>]
         - or:
             - equal: [all, << pipeline.parameters.platform >>]
             - equal: [android, << pipeline.parameters.platform >>]
@@ -833,20 +974,34 @@ workflows:
           build-mode: release
   verify-windows-package:
     when:
-      not:
-        equal: [0, << pipeline.parameters.smoke-windows-job >>]
+      and:
+        - not:
+            equal: [0, << pipeline.parameters.smoke-windows-job >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [codex/action-engine-native, << pipeline.git.branch >>]
     jobs:
       - windows-package-smoke
   verify-apple-package:
     when:
-      not:
-        equal: [0, << pipeline.parameters.smoke-apple-job >>]
+      and:
+        - not:
+            equal: [0, << pipeline.parameters.smoke-apple-job >>]
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [codex/action-engine-native, << pipeline.git.branch >>]
     jobs:
       - apple-package-smoke
   windows-release-candidate:
     when:
       and:
         - << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [codex/action-engine-native, << pipeline.git.branch >>]
         - or:
             - equal: [all, << pipeline.parameters.platform >>]
             - equal: [windows, << pipeline.parameters.platform >>]
@@ -856,6 +1011,10 @@ workflows:
     when:
       and:
         - << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - not:
+            equal: [codex/action-engine-native, << pipeline.git.branch >>]
         - or:
             - equal: [all, << pipeline.parameters.platform >>]
             - equal: [apple, << pipeline.parameters.platform >>]
