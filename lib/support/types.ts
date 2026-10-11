@@ -71,6 +71,10 @@ export type Decision = {
 export type SourceTicket = {
   /** Address supplied by the connector envelope, never extracted from message text. */
   senderEmail?: string;
+  /** Display name from the connector envelope/profile, never inferred from message text. */
+  senderName?: string;
+  /** Connector cannot bind the entire request to one corroborated sender. */
+  senderIdentityAmbiguous?: boolean;
   mail?: {
     sender: string;
     calendarText?: string;

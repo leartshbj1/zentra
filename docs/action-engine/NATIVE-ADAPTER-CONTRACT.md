@@ -1,36 +1,47 @@
-# Premier adaptateur Gestion — contrat à implémenter
+# Adaptateur Gestion A3 — sources privées, validation native en attente
 
-Ce document décrit le prochain lot. Aucune commande native Action Engine n'est encore livrée. Base inspectée : `app-current-corrections`, desktop 1.90.15, schéma local 61, commit `56daec734529c06bae6dd73729c74b3a655edb86`.
+## Portée
 
-## Une commande, une transaction
+Le desktop 1.90.15 de app-current-corrections possède les sources d'un writer privé LocalStore::commit_action_engine_quote_draft, d'une projection et d'une migration additive 61→62. Aucun IPC, accès réseau, contrôle WebView ou déclenchement Support n'est ajouté. Ce writer n'est pas utilisable depuis l'application publiée.
 
-Le chemin sera une commande Rust dédiée, sous le verrou existant de l'entreprise et le contexte membre capturé avant toute attente (`commands.rs:1949`, `workspaceMemberOrigin.ts:26`). Les commandes génériques client puis document ouvrent deux transactions distinctes : ne pas les enchaîner.
+La tentative cargo check --locked --lib est bloquée par Windows App Control sur des build scripts de dépendances, avant compilation de ces modules. Rustfmt lit la syntaxe, et les tests serveur exécutent le SQL62 avec SQLite réel ; cela ne remplace ni la compilation Rust ni les tests LocalStore.
 
-Dans une transaction SQLite IMMEDIATE unique :
+## Entrée fermée
 
-1. Vérifier l'origine locale, l'entreprise liée, l'utilisateur, la capacité de créer un client et un brouillon, le contrat de réservation serveur et son empreinte. Aucun ID d'installation déclaré par la WebView ne vaut identité authentifiée.
-2. Rechercher le reçu historique de cette réservation avant toute nouvelle écriture. Un reçu trouvé renvoie le résultat sans écraser les modifications ultérieures.
-3. Relire et corroborer source, client et catalogue. Le client existant doit rester actif et unique par e-mail ; un nouveau client ne doit pas avoir été créé entre-temps. Contrôler révisions et génération, unités, prix, devise et taux configurés.
-4. Créer, si nécessaire, le client avec l'ID réservé ; insérer le devis avec l'ID réservé, statut `brouillon`, numéro NULL et lignes détaillées. Ne pas émettre, envoyer, payer ou comptabiliser.
-5. Recalculer chaque ligne en entiers `i128`, quantités en millièmes et cents bornés, avec les mêmes arrondis que le noyau TypeScript. Conserver la quantité exacte dans la preuve. Éviter le chemin existant qui recalcule en `f64` et sature silencieusement.
-6. Écrire provenance, acteur, reçu, audit et outbox SQL privé d'acquittement dans la même transaction. Aucun bearer ou secret dans l'outbox.
-7. Commit, puis publication par le mécanisme Supabase existant. Le rapprochement serveur du reçu avec une publication métier vérifiée reste à implémenter : les archives/chunks ne fournissent pas encore de projection serveur clients/catalogue ni de preuve canonique Action Engine. Le prototype D1 business-sync de l'ancien desktop est une piste distincte, pas le raccord livré de cette baseline.
+Plan TypeScript canonique transmis en chaîne UTF-8, SHA-256, proposition, réservation centrale, source complète, acteur, installation, origine locale, génération de contexte membre, hash ressources, révision de contexte et IDs client/devis réservés. Serde refuse les champs inconnus/dupliqués. Le fingerprint porte sur les octets TS d'origine, jamais sur une re-sérialisation Rust.
 
-## Détails du modèle actuel
+Le futur caller authentifié doit revalider l'admission distante, la réservation permanente et la source/publication actuelle. Cet input privé ne constitue pas une permission. L'installation est corroborée avec LocalStore, organisation/utilisateur/rôle avec company_local_identity, origine/génération avec les protections existantes. Un token de WebView ne vaut pas authentification serveur.
 
-- Catalogue : `schema.rs:303–319`, prix en cents, taux en points de base, `updated_at`. Aucune devise par article : utiliser la devise d'entreprise capturée, jamais celle du mail.
-- Clients : `schema.rs:284–301`, pays par défaut CH. Ne pas l'appliquer aveuglément à une autre édition et ne pas déduire un pays de la langue de l'expéditeur.
-- Brouillons : `quotes.number` nullable (`schema.rs:367–369`). La numérotation se fait à l'émission ; un numéro artificiel activerait les protections d'un document finalisé.
-- Document/lignes/reçu actuels : `database.rs:3031`, `5794` ; réutiliser leurs invariants, sans appeler deux fonctions qui ouvrent chacune une transaction.
-- Créateur et horloge de synchronisation : `company_collaboration.rs:144` et triggers locaux. Le `pending` d'archive est construit hors transaction (`:887–896`) : ce fichier de préférences ne constitue pas l'outbox atomique requis.
-- Audit append-only : `audit.rs:13`. Ne pas utiliser un simple message de journal comme preuve d'un commit métier.
+## Transaction codée
 
-## Reprise entre appareils
+Sous mutex local unique, droit d'écriture/licence locale et transaction SQLite IMMEDIATE :
 
-La réservation D1 n'expire pas et ne change pas d'installation automatiquement. Un délai réseau ne prouve pas l'absence de commit local. Après une réponse perdue, le même appareil rapproche d'abord son reçu/outbox et la version Supabase publiée correspondante, avec corroboration métier encore à développer. Une autre installation reste en attente tant que cette situation n'est pas résolue ; elle ne reçoit pas de nouveaux IDs pour recommencer.
+1. Onboarding, origine et contexte membre frais.
+2. Reçu historique avant ressources actuelles. Le même contrat retourne le fait original sans modifier, écraser ou recréer un devis ensuite édité/émis/supprimé. Une autre empreinte/réservation/installation donne un conflit.
+3. Hash de toutes les ressources relues, révisions client/article et identité unique par e-mail. Un client archivé seul ou plusieurs actifs imposent une revue ; créer un client exige l'absence de toute correspondance.
+4. Corroboration des lignes : nom, unité, prix/taux configurés, archive, quantité littérale bornée. Le parseur Rust peut refuser des formulations plus larges acceptées par le préparateur ; il ne devine pas.
+5. Client conditionnel et vrai devis brouillon, numéro NULL, lignes à IDs stables. Aucune émission, réservation de numéro, facture, paiement, mouvement de stock ou écriture comptable.
+6. Calculs cents/millièmes/i128, arrondi positif half-up. Taux effectif zéro pour non-assujetti. La colonne REAL de quantité sert à l'affichage ; preuve et calculs restent entiers.
+7. Reçu partagé, audit, provenance via triggers existants et outbox privée atomiques ; rollback si une étape échoue.
 
-Avant une nouvelle écriture, l'admission et les versions sont revalidées. La récupération d'un reçu confirmé reste possible après modification du catalogue. L'ouverture du devis doit relire le document dans son état actuel : un reçu historique de création ne signifie pas qu'il est encore brouillon aujourd'hui.
+La date du brouillon suit le calendrier local de l'appareil, comme le parcours CH actuel. Sa validité utilise le délai de l'entreprise. L'utilisateur doit relire avant émission. Aucune règle fiscale nouvelle n'est annoncée.
 
-## Essais à réaliser
+## Reçu et outbox
 
-Crash avant commit, après commit et avant publication, perte d'accusé, réouverture du même appareil, second appareil concurrent, changement d'entreprise/compte pendant HTTP, révocation/abonnement expiré, restauration locale sans reçu, article ou client modifié/archivé, même e-mail créé simultanément, collisions d'IDs, devis émis après création et nouvelle tentative. Ces essais natifs ne sont pas remplacés par les tests du registre D1.
+action_engine_quote_receipts est append-only, WITHOUT ROWID, unique par entreprise/source/type, proposition, réservation et devis. Les gardes BEFORE INSERT empêchent aussi REPLACE/IGNORE. Pas de FK au devis/client : supprimer un brouillon ne supprime pas la preuve historique. Le reçu reste quoteNumber:null, status:draft, validation humaine requise, même après émission ultérieure.
+
+company_local_action_engine_quote_outbox contient seulement IDs, empreintes et hash du reçu. FK et trigger exigent le reçu correspondant. Identité/payload immuables ; état/compteurs/horodatages progressent sans retour d'un état confirmé. Aucun nom, e-mail, corps, prix, nonce ou bearer enregistré.
+
+strip_private retire l'outbox des archives. La réception conserve l'outbox locale ; rejoindre une autre entreprise la vide. Les reçus restent partagés. Avant remplacement reçu/fusionné, chaque reçu local doit être retrouvé identique ; sinon la restauration est annulée avec explication et les données précédentes sont rétablies. Une preuve incertaine n'est pas purgée pour permettre une nouvelle création.
+
+Les références de fusion v60/v61 sont normalisées additivement vers 62 dans des copies temporaires validées, jamais dans les archives sources. La fusion intermédiaire retire le descripteur de ressources absent ; la republication le reconstruit sur sa nouvelle copie figée.
+
+## Validation restante avant exposition
+
+- Compiler et exécuter les 50 nouveaux tests natifs : ressources 20, writer 22, archives 4, réception 3, fusion 1 (deux versions anciennes).
+- Produire une vraie archive synthétique native et la passer au codec TS. Les ZIP manuels des tests serveur ne constituent pas cette preuve.
+- Exécuter les régressions natives de restauration/fusion, doubles connexions, arrêts/reprises et changement d'entreprise/compte.
+- Raccorder admission/réservation/source distantes, preuve métier canonique publiée et acquittement durable. Ni un reçu déclaré par le client ni un SHA du sidecar ne suffisent.
+- Exposer ensuite une commande unique, intégrer Activité/À suivre et ouvrir le vrai devis courant. Notifier uniquement après confirmation métier corroborée.
+
+Aucune garantie distribuée « exactly once », conformité fiscale, création en ligne ou synchronisation entre appareils physiques n'est revendiquée par ce lot.

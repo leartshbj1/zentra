@@ -1,5 +1,5 @@
 import { ImapFlow } from 'imapflow';
-import PostalMime from 'postal-mime';
+import PostalMime, { addressParser } from 'postal-mime';
 import { SupportError, type SourceTicket } from './types';
 import { MAIL_PAGE_SIZE, mailExternalId, plainMail, type MailReference } from './infomaniak';
 
@@ -106,9 +106,17 @@ export async function openImapMailbox(email: string, password: string, expectedF
             attachmentCache.set(id, bytes);
           }
           const sender = (parsed.from?.address || '').slice(0, 254).toLowerCase();
+          // PostalMime exposes only one `from`; corroborate the complete header
+          // before allowing Action Engine to bind a request to that identity.
+          const fromHeaders = parsed.headers.filter(header => header.key === 'from');
+          const senders = fromHeaders.flatMap(header => addressParser(header.value));
+          const senderIdentityAmbiguous = fromHeaders.length !== 1 || senders.length !== 1
+            || !senders[0].address || senders[0].address.toLowerCase() !== sender;
           const subject = (parsed.subject || 'Mail sans objet').slice(0, 300);
           return {
             externalId: await mailExternalId(mailboxId, folderId, ref.uid),
+            ...(parsed.from?.name ? { senderName: parsed.from.name } : {}),
+            ...(senderIdentityAmbiguous ? { senderIdentityAmbiguous: true } : {}),
             mail: { sender, uid: ref.uid, attachments, attachmentCount: parsed.attachments.filter(file => file.mimeType?.toLowerCase() === 'text/calendar' || /\.ics$/i.test(file.filename || '') || file.disposition !== 'inline' && !file.related).length, bodyIncomplete: body.length > 23000 }, subject,
             body: `${sender ? `De : ${sender}\n\n` : ''}${body || subject}`.slice(0, 24000),
             version: String(ref.date ?? ''), groupId: null, agentId: null, closed: false,

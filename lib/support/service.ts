@@ -1,4 +1,5 @@
 import { SUPPORT_WORKSPACES_SQL } from './workspace-access';
+import { connectorSenderName } from '@/lib/action-engine/source-envelope';
 import { senderAddress, senderPolicies, applySenderPolicies, saveSenderPolicy, deleteSenderPolicy, protectTicket } from './sender-policies';
 import { productivityState } from './productivity';
 import { createFollowup, completeFollowup } from './followups';
@@ -1096,7 +1097,18 @@ export async function ingest(connection: Connection, source: SourceTicket) {
       'Ce ticket ne contient pas encore de texte à analyser.',
     );
   const db = database(),
-    hash = await digest(JSON.stringify([source.subject, mailAnalysisBody(source), !!source.incomplete]));
+    // A new connector identity is a new source even when its text is unchanged.
+    // Do not include provider updated_at/version: assigning a ticket commonly
+    // changes that value and must not trigger another analysis at every poll.
+    hash = await digest(JSON.stringify([
+      source.subject,
+      mailAnalysisBody(source),
+      !!source.incomplete,
+      senderAddress(source),
+      connectorSenderName(source.senderName) ?? '',
+      source.closed,
+      Boolean(source.senderIdentityAmbiguous),
+    ]));
   await db
     .prepare(
       `INSERT INTO support_tickets(id,workspace_id,connection_id,external_id,subject,body,source_json,fingerprint,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(connection_id,external_id) DO NOTHING`,

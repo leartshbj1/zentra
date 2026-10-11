@@ -339,6 +339,9 @@ export async function readMail(
   const subject = text(m.subject, 300) || 'Mail sans objet';
   return {
     externalId: await mailExternalId(mailboxId, folderId, ref.uid),
+    ...(Array.isArray(m.from) && m.from.length === 1 && typeof record(m.from[0]).name === 'string'
+      ? { senderName: record(m.from[0]).name as string } : {}),
+    ...(Array.isArray(m.from) && m.from.length === 1 ? {} : { senderIdentityAmbiguous: true }),
     mail: { sender: Array.isArray(m.from) ? text(record(m.from[0]).email,254).toLowerCase() : '', uid: ref.uid,
       attachmentCount: Array.isArray(m.attachments) ? m.attachments.map(record).filter(a => !a.is_inline || /\.ics$/i.test(text(a.name))).length || Number(!!m.has_attachments) : Number(!!m.has_attachments),
       bodyIncomplete: body.length > 23000,

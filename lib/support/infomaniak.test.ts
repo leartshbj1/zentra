@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { listMail, mailRequest, normalizeMailToken, readMail, verifyMailbox } from './infomaniak';
 
 describe('API Infomaniak', () => {
+  it.each([
+    [[{ email: 'client@example.test', name: 'Client' }], false],
+    [[{ email: 'client@example.test', name: 'Client' }, { email: 'other@example.test' }], true],
+    [[], true],
+  ])('keeps literal sender evidence and marks ambiguous From lists', async (from, ambiguous) => {
+    const source = await readMail('synthetic', 'box', 'inbox', { uid: '42', date: null },
+      async () => Response.json({ result: 'success', data: { subject: 'Quote', body: 'Three radiators', from } }));
+    expect(source.senderIdentityAmbiguous === true).toBe(ambiguous);
+    expect(source.senderName).toBe(ambiguous ? undefined : 'Client');
+  });
   it('distingue une boîte reconnue et une erreur interne persistante des dossiers', async () => {
     const fetcher=vi.fn(async(url:string|URL|Request)=>String(url).includes('/mailbox?')
       ?Response.json({result:'success',data:[{uuid:'box',email:'info@example.test'}]})

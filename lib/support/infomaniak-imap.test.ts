@@ -25,6 +25,21 @@ beforeEach(() => {
 });
 
 describe('Connexion Infomaniak IMAP', () => {
+  it.each([
+    ['From: Client <client@example.test>', false],
+    ['From: Client <client@example.test>, Other <other@example.test>', true],
+    ['From: Client <client@example.test>\r\nFrom: Other <other@example.test>', true],
+    ['', true],
+  ])('corroborates the complete MIME From identity before quote planning', async (from, ambiguous) => {
+    const raw = Buffer.from([from, 'Subject: Quote', 'Content-Type: text/plain; charset=utf-8', '', 'Please quote three radiators.'].filter((line, index) => line || index > 0).join('\r\n'));
+    mock.fetchOne.mockResolvedValueOnce({ size: raw.length }).mockResolvedValueOnce({ source: raw });
+    const mail = await openImapMailbox('a@example.test', 'synthetic');
+    try {
+      const source = await mail.read({ uid: '104', date: null });
+      expect(source.senderIdentityAmbiguous === true).toBe(ambiguous);
+      if (!ambiguous) expect(source.senderName).toBe('Client');
+    } finally { mail.close(); }
+  });
   it('impose TLS, le serveur officiel, une lecture seule et aucune journalisation', async () => {
     const mail = await openImapMailbox('inbox@example.test', ' space preserved ');
     expect(mock.options).toMatchObject({ host: 'mail.infomaniak.com', port: 993, secure: true, auth: { user: 'inbox@example.test', pass: ' space preserved ' }, logger: false, emitLogs: false, logRaw: false, tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' } });

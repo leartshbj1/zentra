@@ -10,6 +10,11 @@ import {
   type Provider,
   type SourceTicket,
 } from './types';
+import { senderAddress } from './sender-policies';
+
+function envelopeAddress(raw: unknown): string {
+  return senderAddress({ senderEmail: typeof raw === 'string' ? raw : '' } as SourceTicket);
+}
 
 export function providerDomain(provider: Provider, input: string) {
   if (provider === 'api') return '';
@@ -261,6 +266,8 @@ export async function readProviderTicket(
     ),
     incomplete = false;
   let senderEmail = '';
+  let senderName: string | undefined;
+  let senderIdentityAmbiguous = false;
   if (connection.provider === 'gorgias') {
     const messages = record(
       await providerRequest(
@@ -278,8 +285,16 @@ export async function readProviderTicket(
         502,
       );
     incomplete = !!record(messages.meta).next_cursor;
-    const incoming=messages.data.map(record).find(m=>m.from_agent===false && m.channel==='email');
-    if(incoming) senderEmail=text(record(record(incoming.source).from).address,254);
+    const incomingMessages = messages.data.map(record).filter(m => m.from_agent === false);
+    const incoming = incomingMessages.find(m => m.channel === 'email');
+    if(incoming) {
+      const from = record(record(incoming.source).from);
+      senderEmail=text(from.address,254);
+      if (typeof from.name === 'string') senderName=from.name;
+    }
+    const identity = envelopeAddress(senderEmail);
+    senderIdentityAmbiguous = !identity || incomingMessages.some(m =>
+      m.channel !== 'email' || envelopeAddress(record(record(m.source).from).address) !== identity);
     body =
       messages.data
         .map(record)
@@ -310,7 +325,10 @@ export async function readProviderTicket(
     if(ticket.requester_id) {
       try {
         const requester=record(await providerRequest(connection,secret,`/api/v2/users/${numericId(ticket.requester_id)}.json`,'GET',undefined,fetcher));
-        if(String(record(requester.user).id)===String(ticket.requester_id)) senderEmail=text(record(requester.user).email,254);
+        if(String(record(requester.user).id)===String(ticket.requester_id)) {
+          senderEmail=text(record(requester.user).email,254);
+          if (typeof record(requester.user).name === 'string') senderName=record(requester.user).name as string;
+        }
       } catch { /* Sender-specific rules remain unavailable until the provider permits reading it. */ }
     }
     body =
@@ -339,6 +357,11 @@ export async function readProviderTicket(
     incomplete = comments.length >= 30;
     const incoming=comments.map(record).find(m=>m.incoming===true && m.private!==true);
     senderEmail=text(record(ticket.requester).email || incoming?.from_email || ticket.email,254);
+    if (record(ticket.requester).email && typeof record(ticket.requester).name === 'string') senderName=record(ticket.requester).name as string;
+    const identity = envelopeAddress(senderEmail);
+    senderIdentityAmbiguous = !identity || comments.map(record)
+      .filter(m => m.incoming === true && m.private !== true)
+      .some(m => envelopeAddress(m.from_email) !== identity);
     body = [
       body,
       ...comments
@@ -361,6 +384,8 @@ export async function readProviderTicket(
   return {
     externalId: id,
     ...(senderEmail ? {senderEmail} : {}),
+    ...(senderName ? {senderName} : {}),
+    ...(senderIdentityAmbiguous ? { senderIdentityAmbiguous: true } : {}),
     subject: text(ticket.subject, 300) || 'Ticket sans objet',
     body: body.slice(0, 24000),
     incomplete: incomplete || body.length > 24000,
