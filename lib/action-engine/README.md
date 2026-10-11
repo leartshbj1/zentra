@@ -111,6 +111,12 @@ Le natif refuse les liens et ACK transport dont les vrais instants RFC3339 sont 
 
 **251 tests UI passent**, dont 48 nouveaux cas inclus ; typage application réussi. **194 tests Rust écrits, zéro exécuté**, cinq nouveaux ; Rustfmt parse seulement. Serveur inchangé, aucune relance des 2 242 cas A15 ou nouvelle migration. Audit CircleCI arrêté à la vérification GitHub 2FA, crédits actuels inconnus ; aucun job, push ou contournement. Voir `docs/action-engine/CONFIRMATION-DESTINATION-VALIDATION-20261011.md` et son manifeste pour les fichiers, revues, preuves et limites.
 
+## Validation CI A17 préparée, non lancée
+
+Le checkout natif possède un profil explicite `action-engine` : branche réservée, verify-only, sans release ni smoke. Tous les 53 anciens workflows l'excluent ; les cinq génériques excluent aussi la branche. Le vrai catalogue libtest compilé devra corroborer 194 tests moteur et 44 régressions actives, 33 filtres disjoints, deux process-kill ignorés exclus. Une preuve complète vérifie les suites/arguments/compteurs puis retourne avant packaging. Aucun push, job, Rust ou publication exécuté dans A17.
+
+**37 comportements purs synthétiques, 450 contrats AST et 16 000 combinaisons du YAML** passent localement. PS5.1 parse seulement ; comportements PS7.6.5. Ces contrôles ne remplacent ni compilation native, ni archive Rust complète, ni staging. Runtime, version 1.90.15 et schémas62 inchangés. Rapport : `docs/action-engine/NATIVE-CI-VERIFICATION-20261011.md` et manifeste associé. L'activation demeure désactivée en attendant l'hôte autorisé ; ne pas élargir des raccords dormants pour contourner cette validation.
+
 ## Protocole de publication A4
 
 Le serveur active d'abord le garde PostgreSQL sous verrou de tête, puis enregistre la tentative D1 `pending` avant d'appeler le CAS PostgreSQL coordonné. Ce garde permanent empêche un ancien chemin de faire avancer la tête hors protocole. Avant de passer D1 à `committed` ou `cancelled`, le gateway corrobore le fait conservé dans PostgreSQL : opération, entreprise, snapshot, installation, acteur, révision de base et résultat ; pour un commit, il compare également le manifeste normalisé, son SHA, le SHA d'archive et la taille, et exige une version de contenu admissible. Ce sont des faits de transport, pas une inspection du contenu SQLite.

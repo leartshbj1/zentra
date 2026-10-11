@@ -1,6 +1,10 @@
-# Action Engine — frontière d'exécution A8/A16
+# Action Engine — frontière d'exécution A8/A17
 
 État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif A11, découverte serveur A12, contrat A13, ronde native privée A14, projections d'activité A15 et correctifs de chronologie/destination A16 codés. Les essais et limites figurent dans leurs rapports, dont `CONFIRMATION-DESTINATION-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 194 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 242 tests serveur historiques A15 et 251 tests UI A16 réussis ne remplacent pas la validation native et staging. La reconnexion CircleCI attend la vérification GitHub 2FA ; crédits et capacité de compilation restent inconnus.
+
+## Validation native A17 préparée, non exécutée
+
+Le profil CircleCI `action-engine` n'est consommable que sur la branche native réservée avec verify-only, release désactivé et smoke IDs nuls. Les 53 anciens workflows l'excluent ; les chemins génériques excluent aussi cette branche. Une poussée ordinaire n'active aucun job. Le futur job utilisera le catalogue du vrai harness compilé et refusera un écart aux 194 tests moteur et 44 régressions actives ; deux process-kill ignorés sont exclus. Résultats/arguments/ordre sont corroborés avant preuve distincte et retour avant packaging. Aucun job n'a été lancé, crédits inconnus et vérification GitHub 2FA toujours attendue. Les contrôles locaux purs/source/YAML ne lèvent aucun gate natif ou staging ; voir `NATIVE-CI-VERIFICATION-20261011.md`.
 
 ## Chronologie et destination A16
 

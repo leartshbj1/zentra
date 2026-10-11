@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "lot": "A17",
+  "recordedAt": "2026-10-11T10:54:57.342Z",
+  "status": "native_ci_profile_prepared_not_executed",
+  "sourceCommit": "3adcb83018280ef3d21953225cf72dada1659c94",
+  "sourceParent": "b39daac0a88e580e907b8bd79ce1b5c320cd5aac",
+  "serverHeadBeforeDocumentation": "0035634a24b627c8d04a224b6f110308f1847551",
+  "version": "1.90.15",
+  "sharedSchema": 62,
+  "sidecarSchema": 62,
+  "tests": {
+    "pureSelectionBehaviors": {
+      "passed": 37,
+      "failed": 0,
+      "runtime": "PowerShell 7.6.5",
+      "syntheticOnly": true
+    },
+    "sourceAstContracts": {
+      "passed": 450,
+      "failed": 0,
+      "releaseOrHarnessEvaluated": false
+    },
+    "workflowPolicy": {
+      "kind": "local-parsed-yaml-policy-evaluation",
+      "nativeExecution": false,
+      "ciValidation": false,
+      "sourceBaseline": "b39daac0",
+      "configurationSha256": "8f56f1bb082f0e590dbc5ad918e3022570d937fa975b941d17f2388cf08f6c2b",
+      "cases": 16000,
+      "actionCases": 3200,
+      "compatibilityCases": 12544,
+      "reservedCases": 256,
+      "eligibleCases": 4,
+      "branches": 50,
+      "defaultsUnchanged": true,
+      "jobDefinitionsUnchanged": true,
+      "operatorScope": [
+        "and",
+        "or",
+        "not",
+        "equal"
+      ],
+      "failures": 0,
+      "limitation": "Local evaluation of parsed workflow conditions against documented logic; not the hosted CircleCI config compiler or a job execution."
+    },
+    "sourceInventory": {
+      "core": 194,
+      "activeRegression": 44,
+      "excludedProcessKill": 2,
+      "selectedUnique": 238,
+      "filters": 33,
+      "compiledCatalogue": false
+    },
+    "windowsPowerShell51": {
+      "parsedFiles": 4,
+      "behaviorExecuted": false,
+      "initialPureScriptExecution": "refused by ExecutionPolicy",
+      "policyBypass": false
+    },
+    "native": {
+      "newWritten": 0,
+      "cumulativeWritten": 194,
+      "compiled": false,
+      "executed": 0,
+      "complementaryRegressionExecuted": 0
+    },
+    "historicalUiA16": {
+      "passed": 251,
+      "rerunThisLot": false
+    },
+    "historicalServerA15": {
+      "passed": 2242,
+      "rerunThisLot": false
+    },
+    "hostedConfigValidated": false,
+    "nativeOrHostedEndToEnd": false,
+    "archiveInteropValidated": false
+  },
+  "reviews": {
+    "independentInventoryAndHelper": 1,
+    "independentCiAndPolicy": 1,
+    "scope": "static_only",
+    "historicalPackagingFinding": "corrected and re-reviewed",
+    "finalBlockingFindings": 0
+  },
+  "deployment": {
+    "productionChanged": false,
+    "migrationsApplied": false,
+    "newMigrations": 0,
+    "publicRouteAdded": false,
+    "ipcAdded": false,
+    "appCallerWired": false,
+    "notificationEnabled": false,
+    "realCustomerDataUsed": false,
+    "providerCalled": false,
+    "ciJobStarted": false,
+    "pushed": false,
+    "packaged": false,
+    "signed": false,
+    "installed": false
+  },
+  "blockers": [
+    "Windows App Control 4551 known: not retried or bypassed",
+    "CircleCI login user 2FA verification remains pending; no recheck this lot; credits unknown",
+    "Native compilation/execution, full real Rust archive interoperability and coordinated staging unvalidated"
+  ],
+  "sources": [
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".circleci/config.yml",
+      "bytes": 37370,
+      "sha256": "8f56f1bb082f0e590dbc5ad918e3022570d937fa975b941d17f2388cf08f6c2b"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/scripts/cloud-release-windows.ps1",
+      "bytes": 49807,
+      "sha256": "524bd16193c60b9420fc3cc3090c5e5eb9d6bbea018eabefe03a7fac5aa55f46"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/scripts/diagnostics-native-selection.contract-tests.ps1",
+      "bytes": 48859,
+      "sha256": "153a1da8f820c710e8aa994a4fa3c5656374273428a23a557fefabd12928809c"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/scripts/action-engine-verification.ps1",
+      "bytes": 7390,
+      "sha256": "5f8a67a6782c3eb24dce7e6014a627437f2e3f4c9d84fec2175e8a3d6c52f031"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/scripts/action-engine-verification.tests.ps1",
+      "bytes": 8173,
+      "sha256": "ee2199b89bc178152a4df2653d645b8fe679f81df1ede7401da91d7de01970d8"
+    }
+  ],
+  "documentation": [
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "docs/action-engine/NATIVE-CI-VERIFICATION-20261011.md",
+      "bytes": 10304,
+      "sha256": "5ae12928700618a394329d46c3ec37c2d1075dced4a10f21202f73c50b811551"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "docs/action-engine/NATIVE-CI-VERIFICATION-20261011.md",
+      "bytes": 10304,
+      "sha256": "5ae12928700618a394329d46c3ec37c2d1075dced4a10f21202f73c50b811551"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "docs/action-engine/STATUS.md",
+      "bytes": 30361,
+      "sha256": "7679bfac5a13e2ea1ff259f7c97edcc368fcdd8db1af476fbd0c67f65ff0a34f"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "docs/action-engine/EXECUTION-INTEGRATION-PLAN-20261011.md",
+      "bytes": 21278,
+      "sha256": "81945817af43873dbefa1827d5d2dd76d58b56936496ee455fdbabb531e0f35b"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "lib/action-engine/README.md",
+      "bytes": 33990,
+      "sha256": "4ea39732fbb32812857d747a09930942c7aa94f319daea99e12f115944c649ec"
+    }
+  ],
+  "evidence": [
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/run-validation.mjs",
+      "bytes": 2166,
+      "sha256": "74ab54f27fb9c165f1c6d85033dffd6b0aaab41f4863bcd9524dff634c643412"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/commands.json",
+      "bytes": 2498,
+      "sha256": "29026f423e08d78d4cc756ace5a0f2a53c3116a8a11bcc2aa5d5603a75fcb8ca"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/pure-behaviors.log",
+      "bytes": 103,
+      "sha256": "12da697228c3b8e2d59f4bc7bfa333771f6de7afbe4490187c16ad17ec6123ad"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/source-contracts.log",
+      "bytes": 124,
+      "sha256": "00be816f463491f72123f4eb0077d9a792ce1f93f0e459b9d4f14dba49392508"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/workflow-policy.mjs",
+      "bytes": 5691,
+      "sha256": "5f3523cb3aec903ad300a3ff19c7d6c7b7438123dd6bab93ba8f084d5271ab7d"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/workflow-policy.json",
+      "bytes": 669,
+      "sha256": "adfe719b6a54efc9a592ea9a55267bcdbbe87a0d5b32514dfb069f7d2058f583"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/workflow-policy.log",
+      "bytes": 581,
+      "sha256": "9a49233179b67da124555ef80755778ce186518b178f3dc9a2eb529c4e68905e"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/source-inventory.mjs",
+      "bytes": 2721,
+      "sha256": "43f679d42a95df08c34f2c14f1486ab6b739e1e28318ccfe6c7a5a07a8525a18"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/source-inventory.json",
+      "bytes": 64021,
+      "sha256": "9c7bda49ff2a2ca9f8ca0396d5866c9412f1f12a9213f24b76f1828161bc9e31"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/source-inventory.log",
+      "bytes": 122,
+      "sha256": "96dc458f2bf82a9417b6af8f22bf3f8b0a47ac966d07e133127d9c5ae2ad8d8e"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/static-plan.ps1",
+      "bytes": 1377,
+      "sha256": "009291b22bc47c0841c8caa7a7266e441b93b40ed8cc657862870fba6029aecf"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/static-plan.json",
+      "bytes": 7290,
+      "sha256": "88f6381991f6b089b56958d7719a6a26343c184d5ade25c189f4af560b71bb6b"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/static-plan.log",
+      "bytes": 107,
+      "sha256": "a1ff5569b79d738cff1ad3a464d9ed796c8bd788e4cc2eef3256dfb98aadee7a"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/windows-powershell-parse-only.log",
+      "bytes": 86,
+      "sha256": "ceced316d2fe35bd185f6a17bab0983dda3cda37f40850ff54eeeb7866523e61"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/static-review.md",
+      "bytes": 2035,
+      "sha256": "6bf9091a2930633782608824573555c05f8353a5e60ae01fe0426f16e1fc7f9d"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": ".qa/action-engine-ci-verification/freeze-evidence.mjs",
+      "bytes": 4981,
+      "sha256": "d57acd17ba5b4dfd15aba6f7c99320bf661390f627ee28e217bc239fbab701bd"
+    }
+  ]
+}
