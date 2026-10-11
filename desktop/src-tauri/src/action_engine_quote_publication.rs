@@ -1,19 +1,26 @@
 //! Private local transport journal, not business evidence or remote authority.
-//! Callers already own LocalStore's mutex/origin gate. No IPC or network here.
+//! Preparation hooks already own LocalStore's mutex/origin gate. The A10 read
+//! and confirmation methods below own their mutex and transaction. No IPC/net.
 use crate::{
-    action_engine_quote::{frozen_quote_publication_matches, ActionEngineQuoteReceipt},
+    action_engine_quote::{
+        frozen_quote_publication_matches, recover_action_engine_quote_receipt_in_transaction,
+        ActionEngineLocalQuoteOutboxState, ActionEngineQuoteReceipt, ActionEngineQuoteRecoverySelection,
+        ActionEngineRecoveredQuote,
+    },
     cloud_backup::Manifest,
     database::{now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
 };
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, path::Path};
 
 const SQL: &str = include_str!("action_engine_quote_publication_schema.sql");
+const CONFIRMATION_SQL: &str = include_str!("action_engine_quote_confirmation_schema.sql");
 const TABLE: &str = "company_local_action_engine_quote_publications";
+const CONFIRMATIONS: &str = "company_local_action_engine_quote_confirmations";
 const MARKER: &str = "company_local_action_engine_publication_schema";
 const MAX_CANDIDATES: usize = 1000;
 const MAX_RETAINED_LINKS: usize = 10000;
@@ -46,13 +53,15 @@ pub(crate) fn ensure_schema(connection: &Connection) -> AppResult<()> {
     if version != 1 {
         return Err(invalid());
     }
+    // Additive private housekeeping; A9's marker and shared schema stay put.
+    connection.execute_batch(CONFIRMATION_SQL)?;
     Ok(())
 }
 
 /// Called on outgoing snapshots and incoming archives, before private rows are
 /// restored from THIS installation. Foreign/local recovery links never travel.
 pub(crate) fn strip_private(connection: &Connection) -> AppResult<()> {
-    for table in [TABLE, MARKER] {
+    for table in [CONFIRMATIONS, TABLE, MARKER] {
         let exists: bool = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)",
             [table],
@@ -373,28 +382,347 @@ pub(crate) fn mark_published(
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct ActionEngineQuotePublicationCandidate {
+    pub(crate) snapshot_id: String,
+    pub(crate) base_revision: u64,
+    pub(crate) manifest_sha256: String,
+    pub(crate) manifest: Manifest,
+    pub(crate) local_clock: i64,
+    pub(crate) published_revision: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActionEngineQuotePublicationRecovery {
+    pub(crate) recovered: ActionEngineRecoveredQuote,
+    pub(crate) candidates: Vec<ActionEngineQuotePublicationCandidate>,
+    pub(crate) canonical_snapshot_id: Option<String>,
+}
+
+/// A successful, authenticated A7 response only; transport publication replies
+/// have a different shape and cannot deserialize as this closed confirmation.
+/// The private caller must corroborate the real server response, never a model,
+/// IPC argument or local transport ACK. These functions establish no admission.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct ActionEngineQuoteConfirmation {
+    pub(crate) schema_version: u32,
+    pub(crate) state: String,
+    pub(crate) source_id: String,
+    pub(crate) proposal_id: String,
+    pub(crate) reservation_id: String,
+    pub(crate) publication_snapshot_id: String,
+    #[serde(deserialize_with = "confirmation_receipt")]
+    pub(crate) receipt: ActionEngineQuoteReceipt,
+}
+
+fn confirmation_receipt<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<ActionEngineQuoteReceipt, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct RequiredReceipt {
+        organization_id: String, proposal_id: String, fingerprint: String,
+        customer_id: String, quote_id: String, quote_number: Value,
+        status: String, requires_human_validation: bool,
+    }
+    let receipt = RequiredReceipt::deserialize(deserializer)?;
+    if !receipt.quote_number.is_null() {
+        return Err(serde::de::Error::custom("A7 draft receipt requires explicit null quoteNumber"));
+    }
+    Ok(ActionEngineQuoteReceipt {
+        organization_id: receipt.organization_id, proposal_id: receipt.proposal_id,
+        fingerprint: receipt.fingerprint, customer_id: receipt.customer_id,
+        quote_id: receipt.quote_id, quote_number: None, status: receipt.status,
+        requires_human_validation: receipt.requires_human_validation,
+    })
+}
+
+fn text<'a>(row: &'a Value, key: &str, limit: usize) -> AppResult<&'a str> {
+    let value = row.get(key).and_then(Value::as_str).ok_or_else(invalid)?;
+    if value.is_empty() || value.len() > limit || value.chars().any(char::is_control) { return Err(invalid()); }
+    Ok(value)
+}
+fn integer(row: &Value, key: &str, maximum: u64) -> AppResult<u64> {
+    let value = row.get(key).and_then(Value::as_u64).ok_or_else(invalid)?;
+    if value > maximum { return Err(invalid()); }
+    Ok(value)
+}
+fn sha_field<'a>(row: &'a Value, key: &str) -> AppResult<&'a str> {
+    let value = text(row, key, 64)?;
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+        return Err(invalid());
+    }
+    Ok(value)
+}
+fn instant(value: &str) -> AppResult<chrono::DateTime<chrono::FixedOffset>> {
+    chrono::DateTime::parse_from_rfc3339(value).map_err(|_| invalid())
+}
+struct StoredCandidate {
+    candidate: ActionEngineQuotePublicationCandidate,
+    created_at: String,
+}
+fn bounded_record(raw: &rusqlite::Row<'_>) -> AppResult<Value> {
+    let mut object = serde_json::Map::new();
+    for (index, column) in raw.as_ref().column_names().iter().enumerate() {
+        let value = match raw.get_ref(index)? {
+            rusqlite::types::ValueRef::Null => Value::Null,
+            rusqlite::types::ValueRef::Integer(value) => json!(value),
+            rusqlite::types::ValueRef::Text(value) => {
+                if value.len() > 65536 { return Err(invalid()); }
+                Value::String(std::str::from_utf8(value).map_err(|_| invalid())?.to_owned())
+            },
+            _ => return Err(invalid()),
+        };
+        object.insert((*column).to_owned(), value);
+    }
+    Ok(Value::Object(object))
+}
+fn retained_text(raw: &rusqlite::Row<'_>, index: usize, maximum: usize, nullable: bool) -> AppResult<Option<String>> {
+    match raw.get_ref(index)? {
+        rusqlite::types::ValueRef::Null if nullable => Ok(None),
+        rusqlite::types::ValueRef::Text(value) if value.len() <= maximum =>
+            Ok(Some(std::str::from_utf8(value).map_err(|_| invalid())?.to_owned())),
+        _ => Err(invalid()),
+    }
+}
+fn capture_candidate(row: &Value) -> AppResult<StoredCandidate> {
+    if row.as_object().is_none_or(|fields| fields.len() != 21) { return Err(invalid()); }
+    let snapshot = text(row,"snapshot_id",36)?;
+    crate::cloud_backup::validate_id(snapshot)?;
+    let base = integer(row,"base_revision",9_007_199_254_740_990)?;
+    let local_clock = integer(row,"local_clock",9_007_199_254_740_991)?;
+    let manifest_json = text(row,"manifest_json",65536)?;
+    let manifest: Manifest = serde_json::from_str(manifest_json).map_err(|_| invalid())?;
+    manifest.validate().map_err(|_| invalid())?;
+    if serde_json::to_string(&manifest)? != manifest_json
+        || hash(manifest_json.as_bytes()) != sha_field(row,"manifest_sha256")?
+        || manifest.sha256 != sha_field(row,"archive_sha256")?
+        || manifest.size_bytes != integer(row,"size_bytes",536_870_912)? {
+        return Err(invalid());
+    }
+    let created_at = text(row,"created_at",40)?;
+    let created = instant(created_at)?;
+    let published_revision = if row["published_revision"].is_null() {
+        if !row["published_at"].is_null() { return Err(invalid()); }
+        None
+    } else {
+        let revision = integer(row,"published_revision",9_007_199_254_740_991)?;
+        if revision != base + 1 || instant(text(row,"published_at",40)?)? < created { return Err(invalid()); }
+        Some(revision)
+    };
+    Ok(StoredCandidate {
+        candidate: ActionEngineQuotePublicationCandidate {
+            snapshot_id: snapshot.to_owned(), base_revision: base,
+            manifest_sha256: sha_field(row,"manifest_sha256")?.to_owned(), manifest,
+            local_clock: local_clock as i64, published_revision,
+        }, created_at: created_at.to_owned(),
+    })
+}
+fn same_execution(row: &Value, selection: &ActionEngineQuoteRecoverySelection, recovered: &ActionEngineRecoveredQuote) -> AppResult<()> {
+    for (key, expected) in [
+        ("organization_id", selection.actor.organization_id.as_str()), ("source_id", selection.source_id.as_str()),
+        ("action_kind", "prepare_quote_draft"), ("proposal_id", selection.proposal_id.as_str()),
+        ("reservation_id", selection.reservation_id.as_str()), ("fingerprint", selection.fingerprint.as_str()),
+        ("actor_user_id", selection.actor.user_id.as_str()), ("installation_id", selection.installation_id.as_str()),
+        ("customer_id", recovered.receipt.customer_id.as_str()), ("quote_id", recovered.receipt.quote_id.as_str()),
+        ("receipt_sha256", recovered.receipt_sha256.as_str()),
+    ] {
+        if text(row, key, 160)? != expected { return Err(invalid()); }
+    }
+    Ok(())
+}
+fn recovery_candidates(connection: &Connection, selection: &ActionEngineQuoteRecoverySelection, recovered: &ActionEngineRecoveredQuote) -> AppResult<Vec<StoredCandidate>> {
+    let mut statement = connection.prepare("SELECT * FROM company_local_action_engine_quote_publications
+        WHERE organization_id=? AND proposal_id=? ORDER BY snapshot_id COLLATE BINARY LIMIT 1001")?;
+    let mut rows = statement.query(params![selection.actor.organization_id,selection.proposal_id])?;
+    let mut result = Vec::new();
+    let mut manifest_bytes = 0_usize;
+    while let Some(raw) = rows.next()? {
+        if result.len() >= MAX_CANDIDATES { return Err(invalid()); }
+        // Capture only bounded, closed SQLite scalars before publishing facts.
+        let row = bounded_record(raw)?;
+        same_execution(&row, selection, recovered)?;
+        let manifest_json = text(&row,"manifest_json",65536)?;
+        manifest_bytes = manifest_bytes.checked_add(manifest_json.len()).ok_or_else(invalid)?;
+        if manifest_bytes > 2 * 1024 * 1024 { return Err(invalid()); }
+        result.push(capture_candidate(&row)?);
+    }
+    Ok(result)
+}
+fn canonical_snapshot(connection: &Connection, selection: &ActionEngineQuoteRecoverySelection, recovered: &ActionEngineRecoveredQuote, candidates: &[StoredCandidate]) -> AppResult<Option<String>> {
+    let rows = query_all(connection,"SELECT * FROM company_local_action_engine_quote_confirmations WHERE organization_id=? AND proposal_id=? LIMIT 2",
+        params![selection.actor.organization_id,selection.proposal_id])?;
+    if rows.is_empty() {
+        if recovered.local_outbox_state == ActionEngineLocalQuoteOutboxState::Confirmed { return Err(invalid()); }
+        return Ok(None);
+    }
+    if rows.len() != 1 || rows[0].as_object().is_none_or(|fields| fields.len() != 13)
+        || recovered.local_outbox_state != ActionEngineLocalQuoteOutboxState::Confirmed { return Err(invalid()); }
+    let row = &rows[0];
+    same_execution(row,selection,recovered)?;
+    let id = text(row,"snapshot_id",36)?;
+    let candidate = candidates.iter().find(|candidate| candidate.candidate.snapshot_id == id).ok_or_else(invalid)?;
+    if instant(text(row,"confirmed_at",40)?)? < instant(&candidate.created_at)? { return Err(invalid()); }
+    require_confirmed_candidate(connection,&selection.actor.organization_id,&selection.proposal_id,id)?;
+    Ok(Some(id.to_owned()))
+}
+
+/// Cleanup is not an authenticated recovery read, but may release an archive
+/// only after validating the same closed candidate and real timestamps. SQL's
+/// structural/lexical guards alone are not a date or canonical-manifest parser.
+fn require_confirmed_candidate(connection: &Connection, organization: &str, proposal: &str, snapshot: &str) -> AppResult<()> {
+    let mut statement = connection.prepare("SELECT * FROM company_local_action_engine_quote_publications
+        WHERE organization_id=? AND proposal_id=? AND snapshot_id=? LIMIT 2")?;
+    let mut rows = statement.query(params![organization,proposal,snapshot])?;
+    let row = bounded_record(rows.next()?.ok_or_else(invalid)?)?;
+    if rows.next()?.is_some() { return Err(invalid()); }
+    capture_candidate(&row)?;
+    let mut statement = connection.prepare("SELECT p.* FROM company_local_action_engine_quote_publications p
+        JOIN company_local_action_engine_quote_confirmations c ON c.organization_id=p.organization_id
+          AND c.proposal_id=p.proposal_id AND c.snapshot_id=p.snapshot_id
+        WHERE c.organization_id=? AND c.proposal_id=? LIMIT 2")?;
+    let mut rows = statement.query(params![organization,proposal])?;
+    let canonical = bounded_record(rows.next()?.ok_or_else(invalid)?)?;
+    if rows.next()?.is_some() { return Err(invalid()); }
+    let candidate = capture_candidate(&canonical)?;
+    let mut statement = connection.prepare("SELECT c.*,o.created_at AS outbox_created_at,o.updated_at AS outbox_updated_at
+        FROM company_local_action_engine_quote_confirmations c
+        JOIN company_local_action_engine_quote_outbox o ON o.organization_id=c.organization_id AND o.proposal_id=c.proposal_id
+        WHERE c.organization_id=? AND c.proposal_id=? AND o.state='confirmed' LIMIT 2")?;
+    let mut rows = statement.query(params![organization,proposal])?;
+    let confirmation = bounded_record(rows.next()?.ok_or_else(invalid)?)?;
+    if rows.next()?.is_some() || confirmation.as_object().is_none_or(|fields| fields.len()!=15) { return Err(invalid()); }
+    for key in ["organization_id","source_id","action_kind","proposal_id","reservation_id","fingerprint",
+        "actor_user_id","installation_id","customer_id","quote_id","receipt_sha256"] {
+        let expected = text(&canonical,key,160)?;
+        if text(&row,key,160)? != expected || text(&confirmation,key,160)? != expected { return Err(invalid()); }
+    }
+    if text(&confirmation,"snapshot_id",36)? != candidate.candidate.snapshot_id { return Err(invalid()); }
+    for key in ["reservation_id","installation_id","quote_id"] { crate::cloud_backup::validate_id(text(&canonical,key,36)?)?; }
+    for key in ["fingerprint","receipt_sha256"] { sha_field(&canonical,key)?; }
+    let created = instant(&candidate.created_at)?;
+    let confirmed = instant(text(&confirmation,"confirmed_at",40)?)?;
+    let outbox_created = instant(text(&confirmation,"outbox_created_at",40)?)?;
+    let outbox_updated = instant(text(&confirmation,"outbox_updated_at",40)?)?;
+    if created < outbox_created || confirmed < created || confirmed > outbox_updated || outbox_updated < outbox_created { return Err(invalid()); }
+    Ok(())
+}
+
+impl LocalStore {
+    /// Historical, bounded candidate facts. No archive, current catalogue or
+    /// current draft is needed; absence grants no permission to recreate.
+    pub(crate) fn read_action_engine_quote_publication_candidates(&self, selection: ActionEngineQuoteRecoverySelection) -> AppResult<ActionEngineQuotePublicationRecovery> {
+        let _lock = self.lock()?;
+        let mut connection = self.connect()?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let recovered = recover_action_engine_quote_receipt_in_transaction(&tx,self,&selection)?;
+        let candidates = recovery_candidates(&tx,&selection,&recovered)?;
+        let canonical_snapshot_id = canonical_snapshot(&tx,&selection,&recovered,&candidates)?;
+        tx.commit()?;
+        Ok(ActionEngineQuotePublicationRecovery { recovered,
+            candidates: candidates.into_iter().map(|candidate| candidate.candidate).collect(), canonical_snapshot_id })
+    }
+
+    /// Only a private authenticated caller holding a real A7 success may use
+    /// this method. It owns its mutex; callers must not already hold it. Receipt,
+    /// exact candidate and immutable local marker are committed with outbox.
+    pub(crate) fn acknowledge_action_engine_quote_confirmation(&self, selection: ActionEngineQuoteRecoverySelection, confirmation: ActionEngineQuoteConfirmation) -> AppResult<ActionEngineRecoveredQuote> {
+        let _lock = self.lock()?;
+        let mut connection = self.connect()?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let recovered = recover_action_engine_quote_receipt_in_transaction(&tx,self,&selection)?;
+        if confirmation.schema_version != 1 || confirmation.state != "confirmed"
+            || confirmation.source_id != selection.source_id || confirmation.proposal_id != selection.proposal_id
+            || confirmation.reservation_id != selection.reservation_id || confirmation.receipt != recovered.receipt {
+            return Err(invalid());
+        }
+        crate::cloud_backup::validate_id(&confirmation.publication_snapshot_id).map_err(|_| invalid())?;
+        let candidates = recovery_candidates(&tx,&selection,&recovered)?;
+        let prior = canonical_snapshot(&tx,&selection,&recovered,&candidates)?;
+        let candidate = candidates.iter().find(|candidate| candidate.candidate.snapshot_id == confirmation.publication_snapshot_id).ok_or_else(invalid)?;
+        if let Some(prior) = prior {
+            if prior != confirmation.publication_snapshot_id { return Err(invalid()); }
+            tx.commit()?;
+            return Ok(recovered);
+        }
+        let at = now_iso();
+        if instant(&at)? < instant(&candidate.created_at)? { return Err(invalid()); }
+        tx.execute("INSERT INTO company_local_action_engine_quote_confirmations
+            (organization_id,source_id,action_kind,proposal_id,reservation_id,fingerprint,actor_user_id,installation_id,customer_id,quote_id,receipt_sha256,snapshot_id,confirmed_at)
+            VALUES(?,?,'prepare_quote_draft',?,?,?,?,?,?,?,?,?,?)",
+            params![selection.actor.organization_id,selection.source_id,selection.proposal_id,selection.reservation_id,
+                selection.fingerprint,selection.actor.user_id,selection.installation_id,recovered.receipt.customer_id,
+                recovered.receipt.quote_id,recovered.receipt_sha256,confirmation.publication_snapshot_id,at])?;
+        let changed = tx.execute("UPDATE company_local_action_engine_quote_outbox SET state='confirmed',updated_at=?
+            WHERE organization_id=? AND proposal_id=? AND state IN ('pending','uncertain')",
+            params![at,selection.actor.organization_id,selection.proposal_id])?;
+        if changed != 1 { return Err(invalid()); }
+        let confirmed = recover_action_engine_quote_receipt_in_transaction(&tx,self,&selection)?;
+        if confirmed.local_outbox_state != ActionEngineLocalQuoteOutboxState::Confirmed { return Err(invalid()); }
+        tx.commit()?;
+        Ok(confirmed)
+    }
+}
+
 /// Pin every exact candidate until canonical confirmation, regardless of which
 /// snapshot preferences currently call pending or which newer head was received.
 pub(crate) fn retained_snapshot_ids(connection: &Connection) -> AppResult<Vec<String>> {
-    let mut q = connection.prepare("SELECT p.snapshot_id,o.state FROM company_local_action_engine_quote_publications p
+    let unlinked_confirmation: bool = connection.query_row("SELECT EXISTS(
+        SELECT 1 FROM company_local_action_engine_quote_outbox o WHERE o.state='confirmed'
+        AND NOT EXISTS(SELECT 1 FROM company_local_action_engine_quote_publications p
+          WHERE p.organization_id=o.organization_id AND p.proposal_id=o.proposal_id))", [], |row| row.get(0))?;
+    if unlinked_confirmation { return Err(invalid()); }
+    let mut q = connection.prepare("SELECT p.snapshot_id,o.state,
+        EXISTS(SELECT 1 FROM company_local_action_engine_quote_confirmations c
+          JOIN company_local_action_engine_quote_publications cp ON cp.organization_id=c.organization_id AND cp.proposal_id=c.proposal_id AND cp.snapshot_id=c.snapshot_id
+          JOIN action_engine_quote_receipts r ON r.organization_id=c.organization_id AND r.proposal_id=c.proposal_id
+          WHERE c.organization_id=p.organization_id AND c.proposal_id=p.proposal_id
+            AND c.source_id=p.source_id AND c.action_kind=p.action_kind AND c.reservation_id=p.reservation_id
+            AND c.fingerprint=p.fingerprint AND c.actor_user_id=p.actor_user_id AND c.installation_id=p.installation_id
+            AND c.customer_id=p.customer_id AND c.quote_id=p.quote_id AND c.receipt_sha256=p.receipt_sha256
+            AND cp.source_id=c.source_id AND cp.action_kind=c.action_kind AND cp.reservation_id=c.reservation_id
+            AND cp.fingerprint=c.fingerprint AND cp.actor_user_id=c.actor_user_id AND cp.installation_id=c.installation_id
+            AND cp.customer_id=c.customer_id AND cp.quote_id=c.quote_id AND cp.receipt_sha256=c.receipt_sha256
+            AND r.source_id=c.source_id AND r.action_kind=c.action_kind AND r.reservation_id=c.reservation_id
+            AND r.fingerprint=c.fingerprint AND r.actor_user_id=c.actor_user_id AND r.installation_id=c.installation_id
+            AND r.customer_id=c.customer_id AND r.quote_id=c.quote_id AND r.receipt_sha256=c.receipt_sha256
+            AND o.quote_id=c.quote_id AND o.fingerprint=c.fingerprint
+            AND json_extract(o.payload_json,'$.reservationId')=c.reservation_id
+            AND json_extract(o.payload_json,'$.customerId')=c.customer_id
+            AND json_extract(o.payload_json,'$.receiptSha256')=c.receipt_sha256
+            AND c.confirmed_at>=cp.created_at AND c.confirmed_at<=o.updated_at),
+        o.payload_json,o.payload_sha256,
+        (SELECT receipt_json FROM action_engine_quote_receipts r WHERE r.organization_id=p.organization_id AND r.proposal_id=p.proposal_id),p.receipt_sha256,
+        p.organization_id,p.proposal_id
+        FROM company_local_action_engine_quote_publications p
         LEFT JOIN company_local_action_engine_quote_outbox o ON o.organization_id=p.organization_id AND o.proposal_id=p.proposal_id
         ORDER BY p.snapshot_id COLLATE BINARY LIMIT 10001")?;
-    let rows = q
-        .query_map([], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    if rows.len() > MAX_RETAINED_LINKS {
-        return Err(invalid());
+    let mut pending = q.query([])?;
+    let mut rows = Vec::new();
+    while let Some(raw) = pending.next()? {
+        if rows.len() >= MAX_RETAINED_LINKS { return Err(invalid()); }
+        rows.push((retained_text(raw,0,36,false)?.ok_or_else(invalid)?,retained_text(raw,1,9,true)?,raw.get::<_,i64>(2)?,
+            retained_text(raw,3,4096,true)?,retained_text(raw,4,64,true)?,retained_text(raw,5,4096,true)?,
+            retained_text(raw,6,64,false)?.ok_or_else(invalid)?,retained_text(raw,7,160,false)?.ok_or_else(invalid)?,
+            retained_text(raw,8,160,false)?.ok_or_else(invalid)?));
     }
     let mut ids = BTreeSet::new();
-    for (id, state) in rows {
+    for (id, state, valid_confirmation, payload, payload_sha, receipt, receipt_sha, organization, proposal) in rows {
         crate::cloud_backup::validate_id(&id)?;
         match state.as_deref() {
             Some("pending" | "uncertain") => {
                 ids.insert(id);
             }
-            Some("confirmed") => {}
+            Some("confirmed") => {
+                let payload = payload.ok_or_else(invalid)?;
+                let receipt = receipt.ok_or_else(invalid)?;
+                if valid_confirmation != 1 || payload.len()>4096 || receipt.len()>4096
+                    || Some(hash(payload.as_bytes())) != payload_sha || hash(receipt.as_bytes()) != receipt_sha {
+                    return Err(invalid());
+                }
+                require_confirmed_candidate(connection,&organization,&proposal,&id)?;
+            }
             _ => return Err(invalid()), // An orphan/failure must never erase a pin.
         }
     }

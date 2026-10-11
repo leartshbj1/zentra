@@ -1455,6 +1455,7 @@ const PRIVATE_ROWS: &[&str] = &[
     "company_local_notes_scope",
     "company_local_action_engine_quote_outbox",
     "company_local_action_engine_quote_publications",
+    "company_local_action_engine_quote_confirmations",
     "device_number_ranges",
     "active_timers",
     "project_sync_binding",
@@ -1475,6 +1476,7 @@ fn private_rows(store: &LocalStore) -> AppResult<Vec<(String, Vec<Value>)>> {
 fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResult<()> {
     let mut db = store.connect()?;
     let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let mut confirmed_action_outboxes = Vec::new();
     // Children first on delete, parents first on insert. Publication links own
     // an FK to the outbox and cannot survive a parent DELETE/INSERT interleave.
     for (table, _) in rows.iter().rev() {
@@ -1488,6 +1490,17 @@ fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResu
             let mut object = row
                 .as_object()
                 .ok_or_else(|| invalid("Données privées illisibles."))?.clone();
+            // A first confirmation INSERT always requires pending/uncertain.
+            // Restore its exact historical marker before the terminal outbox
+            // state, without weakening that global SQL guard. Old confirmed
+            // rows without a marker remain ambiguous and cannot release pins.
+            if table == "company_local_action_engine_quote_outbox" && object.get("state").and_then(Value::as_str) == Some("confirmed") {
+                confirmed_action_outboxes.push((
+                    object.get("organization_id").and_then(Value::as_str).ok_or_else(|| invalid("Entreprise privée invalide."))?.to_owned(),
+                    object.get("proposal_id").and_then(Value::as_str).ok_or_else(|| invalid("Proposition privée invalide."))?.to_owned(),
+                ));
+                object.insert("state".into(), Value::String("pending".into()));
+            }
             // Public inserts must begin unacknowledged. Restore a published
             // private link via its same guarded transition, in this transaction.
             let published = if table == "company_local_action_engine_quote_publications" {
@@ -1533,6 +1546,11 @@ fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResu
                 } else if !at.is_null() { return Err(invalid("Publication privée incohérente.")); }
             }
         }
+    }
+    for (organization, proposal) in confirmed_action_outboxes {
+        let changed = tx.execute("UPDATE company_local_action_engine_quote_outbox SET state='confirmed' WHERE organization_id=? AND proposal_id=? AND state='pending'",
+            params![organization,proposal])?;
+        if changed != 1 { return Err(invalid("Reprise privée incohérente.")); }
     }
     crate::work_notes::ensure_workspace_scope(&tx)?;
     // Ordinary receives restore the saved nonce after identity. Opening another
@@ -1590,7 +1608,8 @@ fn apply(
     if joining {
         for (table, rows) in &mut private {
             if table == "company_local_notes_scope" || table == "company_local_action_engine_quote_outbox"
-                || table == "company_local_action_engine_quote_publications" { rows.clear(); }
+                || table == "company_local_action_engine_quote_publications"
+                || table == "company_local_action_engine_quote_confirmations" { rows.clear(); }
         }
     }
     // Keep a named recovery copy before an explicit conflict decision. Ordinary

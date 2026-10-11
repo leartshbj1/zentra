@@ -177,6 +177,67 @@ fn replace_recovery_audit(db: &rusqlite::Connection, quote: &str, payload_json: 
 }
 
 #[test]
+fn recovery_transaction_helper_reuses_the_callers_snapshot_without_locking_or_committing() {
+    let f=fixture(true);
+    let request=input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let selection=recovery_selection(&request);
+    let original=f.store.recover_action_engine_quote_receipt(selection.clone()).unwrap();
+    let before=snapshot(&f.store);
+    {
+        let _caller_lock=f.store.lock().unwrap();
+        let mut connection=f.store.connect().unwrap();
+        let tx=connection.transaction_with_behavior(TransactionBehavior::Immediate).unwrap();
+        tx.execute("UPDATE company_local_action_engine_quote_outbox SET state='uncertain',attempt_count=1,updated_at=created_at",[]).unwrap();
+        // The helper must read this same uncommitted transaction and remain
+        // independent of today's business rows, like the public recovery.
+        tx.execute("DELETE FROM quote_items WHERE quote_id=?",[&request.quote_id]).unwrap();
+        tx.execute("DELETE FROM quotes WHERE id=?",[&request.quote_id]).unwrap();
+        let recovered=recover_action_engine_quote_receipt_in_transaction(&tx,&f.store,&selection).unwrap();
+        assert_eq!(recovered.receipt,original.receipt);
+        assert_eq!(recovered.receipt_sha256,original.receipt_sha256);
+        assert_eq!(recovered.local_outbox_state,ActionEngineLocalQuoteOutboxState::Uncertain);
+        assert_eq!(recovered.attempt_count,1);
+        assert!(!tx.is_autocommit(),"only the caller may close its transaction");
+        tx.rollback().unwrap();
+    }
+    assert_eq!(snapshot(&f.store),before,"helper must not escape the caller's rollback");
+    assert_eq!(f.store.recover_action_engine_quote_receipt(selection).unwrap(),original);
+}
+
+#[test]
+fn recovery_transaction_helper_keeps_selector_origin_and_missing_outbox_refusals() {
+    let f=fixture(true);
+    let request=input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let selection=recovery_selection(&request);
+    let before=snapshot(&f.store);
+    {
+        let _caller_lock=f.store.lock().unwrap();
+        let mut connection=f.store.connect().unwrap();
+        let tx=connection.transaction_with_behavior(TransactionBehavior::Immediate).unwrap();
+        let mut malformed=selection.clone(); malformed.fingerprint.clear();
+        assert!(recover_action_engine_quote_receipt_in_transaction(&tx,&f.store,&malformed)
+            .unwrap_err().to_string().contains("action_engine:invalid_record"));
+        let mut stale=selection.clone(); stale.expected_member_context_nonce="0".repeat(32);
+        assert!(recover_action_engine_quote_receipt_in_transaction(&tx,&f.store,&stale)
+            .unwrap_err().to_string().contains("action_engine:forbidden"));
+        tx.execute("DELETE FROM company_local_action_engine_quote_outbox",[]).unwrap();
+        assert!(recover_action_engine_quote_receipt_in_transaction(&tx,&f.store,&selection)
+            .unwrap_err().to_string().contains("action_engine:recovery_uncertain"));
+        assert_eq!(tx.query_row::<i64,_,_>("SELECT count(*) FROM company_local_action_engine_quote_outbox",[],|r|r.get(0)).unwrap(),0,
+            "missing private history must never be backfilled");
+        tx.execute("UPDATE company_local_identity SET user_id='different-member'",[]).unwrap();
+        assert!(recover_action_engine_quote_receipt_in_transaction(&tx,&f.store,&selection)
+            .unwrap_err().to_string().contains("action_engine:forbidden"),"origin is checked before absence");
+        assert!(!tx.is_autocommit());
+        tx.rollback().unwrap();
+    }
+    assert_eq!(snapshot(&f.store),before);
+    assert!(f.store.recover_action_engine_quote_receipt(selection).is_ok());
+}
+
+#[test]
 fn selector_recovery_reads_both_customer_branches_without_reusing_the_mail_or_plan() {
     for existing in [false, true] {
         let f = fixture(existing);

@@ -1203,6 +1203,91 @@ pub(crate) fn frozen_quote_publication_matches(
     checked.map_err(|_| recovery_uncertain())
 }
 
+fn validate_recovery_selection(selection: &ActionEngineQuoteRecoverySelection) -> AppResult<()> {
+    if [&selection.source_id, &selection.proposal_id, &selection.actor.organization_id,
+        &selection.actor.user_id].iter().any(|value| !valid_id(value))
+        || !canonical_uuid(&selection.reservation_id) || !valid_hash(&selection.fingerprint)
+        || !canonical_uuid(&selection.installation_id)
+        || !canonical_uuid(&selection.expected_workspace_scope)
+        || selection.expected_member_context_nonce.len() != 32
+        || !selection.expected_member_context_nonce.bytes()
+            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+        return Err(reject("invalid_record"));
+    }
+    Ok(())
+}
+
+/// The caller owns this LocalStore's mutex and its IMMEDIATE transaction.
+/// Reuse the exact historical recovery checks within an ACK/list transaction;
+/// never acquire another lock, commit, write, repair, or consult current facts.
+/// No canonical confirmation or remote authority is established by this read.
+pub(crate) fn recover_action_engine_quote_receipt_in_transaction(
+    tx: &Transaction<'_>,
+    store: &LocalStore,
+    selection: &ActionEngineQuoteRecoverySelection,
+) -> AppResult<ActionEngineRecoveredQuote> {
+    validate_recovery_selection(selection)?;
+    store.require_onboarding(tx)?;
+    require_local_quote_origin(tx, store, &selection.actor, &selection.installation_id,
+        &selection.expected_workspace_scope, &selection.expected_member_context_nonce)?;
+    let recovered = (|| -> AppResult<ActionEngineRecoveredQuote> {
+        let record = read_recovery_record(tx, &selection.actor.organization_id, &selection.proposal_id)?
+            .ok_or_else(recovery_uncertain)?;
+        if record.organization_id != selection.actor.organization_id || record.source_id != selection.source_id
+            || record.proposal_id != selection.proposal_id || record.reservation_id != selection.reservation_id
+            || record.fingerprint != selection.fingerprint || record.actor_user_id != selection.actor.user_id
+            || record.installation_id != selection.installation_id {
+            return Err(recovery_uncertain());
+        }
+        let history = verify_recovery_record(tx, &record)?;
+        let mut statement = tx.prepare(
+            "SELECT organization_id,proposal_id,quote_id,fingerprint,payload_json,payload_sha256,
+             state,attempt_count,created_at,updated_at FROM company_local_action_engine_quote_outbox
+             WHERE organization_id=? AND proposal_id=? LIMIT 2",
+        )?;
+        let mut rows = statement.query(params![record.organization_id, record.proposal_id])?;
+        let row = rows.next()?.ok_or_else(recovery_uncertain)?;
+        let organization_id = recovery_text(row, 0, 160)?;
+        let proposal_id = recovery_text(row, 1, 160)?;
+        let quote_id = recovery_text(row, 2, 36)?;
+        let fingerprint = recovery_text(row, 3, 64)?;
+        let payload_json = recovery_text(row, 4, 4096)?;
+        let payload_sha256 = recovery_text(row, 5, 64)?;
+        let state = match recovery_text(row, 6, 16)?.as_str() {
+            "pending" => ActionEngineLocalQuoteOutboxState::Pending,
+            "uncertain" => ActionEngineLocalQuoteOutboxState::Uncertain,
+            "confirmed" => ActionEngineLocalQuoteOutboxState::Confirmed,
+            _ => return Err(recovery_uncertain()),
+        };
+        let attempt_count = match row.get_ref(7)? {
+            rusqlite::types::ValueRef::Integer(value) if (0..=1_000_000).contains(&value) => value,
+            _ => return Err(recovery_uncertain()),
+        };
+        let created_at = recovery_text(row, 8, 128)?;
+        let updated_at = recovery_text(row, 9, 128)?;
+        if rows.next()?.is_some() || organization_id != record.organization_id
+            || proposal_id != record.proposal_id || quote_id != record.quote_id
+            || fingerprint != record.fingerprint || !valid_hash(&payload_sha256)
+            || sha(payload_json.as_bytes()) != payload_sha256 || created_at != record.created_at
+            || recovery_time(&updated_at)? < recovery_time(&created_at)? {
+            return Err(recovery_uncertain());
+        }
+        let payload: RecoveryOutboxPayload = serde_json::from_str(&payload_json)
+            .map_err(|_| recovery_uncertain())?;
+        if payload.organization_id != record.organization_id || payload.proposal_id != record.proposal_id
+            || payload.reservation_id != record.reservation_id || payload.fingerprint != record.fingerprint
+            || payload.customer_id != record.customer_id || payload.quote_id != record.quote_id
+            || payload.receipt_sha256 != record.receipt_sha256 {
+            return Err(recovery_uncertain());
+        }
+        Ok(ActionEngineRecoveredQuote {
+            receipt: history.receipt, reservation_id: record.reservation_id,
+            receipt_sha256: record.receipt_sha256, local_outbox_state: state, attempt_count,
+        })
+    })().map_err(|_| recovery_uncertain())?;
+    Ok(recovered)
+}
+
 impl LocalStore {
     /// Recover an already-engaged execution using selectors only. Owns the
     /// mutex and an IMMEDIATE read transaction, so identity and receipt/outbox
@@ -1211,77 +1296,12 @@ impl LocalStore {
         &self,
         selection: ActionEngineQuoteRecoverySelection,
     ) -> AppResult<ActionEngineRecoveredQuote> {
-        if [&selection.source_id, &selection.proposal_id, &selection.actor.organization_id,
-            &selection.actor.user_id].iter().any(|value| !valid_id(value))
-            || !canonical_uuid(&selection.reservation_id) || !valid_hash(&selection.fingerprint)
-            || !canonical_uuid(&selection.installation_id)
-            || !canonical_uuid(&selection.expected_workspace_scope)
-            || selection.expected_member_context_nonce.len() != 32
-            || !selection.expected_member_context_nonce.bytes()
-                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
-            return Err(reject("invalid_record"));
-        }
+        // Preserve malformed-selector rejection before any lock/database work.
+        validate_recovery_selection(&selection)?;
         let _guard = self.lock()?;
         let mut connection = self.connect()?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        self.require_onboarding(&tx)?;
-        require_local_quote_origin(&tx, self, &selection.actor, &selection.installation_id,
-            &selection.expected_workspace_scope, &selection.expected_member_context_nonce)?;
-        let recovered = (|| -> AppResult<ActionEngineRecoveredQuote> {
-            let record = read_recovery_record(&tx, &selection.actor.organization_id, &selection.proposal_id)?
-                .ok_or_else(recovery_uncertain)?;
-            if record.organization_id != selection.actor.organization_id || record.source_id != selection.source_id
-                || record.proposal_id != selection.proposal_id || record.reservation_id != selection.reservation_id
-                || record.fingerprint != selection.fingerprint || record.actor_user_id != selection.actor.user_id
-                || record.installation_id != selection.installation_id {
-                return Err(recovery_uncertain());
-            }
-            let history = verify_recovery_record(&tx, &record)?;
-            let mut statement = tx.prepare(
-                "SELECT organization_id,proposal_id,quote_id,fingerprint,payload_json,payload_sha256,
-                 state,attempt_count,created_at,updated_at FROM company_local_action_engine_quote_outbox
-                 WHERE organization_id=? AND proposal_id=? LIMIT 2",
-            )?;
-            let mut rows = statement.query(params![record.organization_id, record.proposal_id])?;
-            let row = rows.next()?.ok_or_else(recovery_uncertain)?;
-            let organization_id = recovery_text(row, 0, 160)?;
-            let proposal_id = recovery_text(row, 1, 160)?;
-            let quote_id = recovery_text(row, 2, 36)?;
-            let fingerprint = recovery_text(row, 3, 64)?;
-            let payload_json = recovery_text(row, 4, 4096)?;
-            let payload_sha256 = recovery_text(row, 5, 64)?;
-            let state = match recovery_text(row, 6, 16)?.as_str() {
-                "pending" => ActionEngineLocalQuoteOutboxState::Pending,
-                "uncertain" => ActionEngineLocalQuoteOutboxState::Uncertain,
-                "confirmed" => ActionEngineLocalQuoteOutboxState::Confirmed,
-                _ => return Err(recovery_uncertain()),
-            };
-            let attempt_count = match row.get_ref(7)? {
-                rusqlite::types::ValueRef::Integer(value) if (0..=1_000_000).contains(&value) => value,
-                _ => return Err(recovery_uncertain()),
-            };
-            let created_at = recovery_text(row, 8, 128)?;
-            let updated_at = recovery_text(row, 9, 128)?;
-            if rows.next()?.is_some() || organization_id != record.organization_id
-                || proposal_id != record.proposal_id || quote_id != record.quote_id
-                || fingerprint != record.fingerprint || !valid_hash(&payload_sha256)
-                || sha(payload_json.as_bytes()) != payload_sha256 || created_at != record.created_at
-                || recovery_time(&updated_at)? < recovery_time(&created_at)? {
-                return Err(recovery_uncertain());
-            }
-            let payload: RecoveryOutboxPayload = serde_json::from_str(&payload_json)
-                .map_err(|_| recovery_uncertain())?;
-            if payload.organization_id != record.organization_id || payload.proposal_id != record.proposal_id
-                || payload.reservation_id != record.reservation_id || payload.fingerprint != record.fingerprint
-                || payload.customer_id != record.customer_id || payload.quote_id != record.quote_id
-                || payload.receipt_sha256 != record.receipt_sha256 {
-                return Err(recovery_uncertain());
-            }
-            Ok(ActionEngineRecoveredQuote {
-                receipt: history.receipt, reservation_id: record.reservation_id,
-                receipt_sha256: record.receipt_sha256, local_outbox_state: state, attempt_count,
-            })
-        })().map_err(|_| recovery_uncertain())?;
+        let recovered = recover_action_engine_quote_receipt_in_transaction(&tx, self, &selection)?;
         tx.commit()?;
         Ok(recovered)
     }
