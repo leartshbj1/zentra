@@ -16,6 +16,10 @@ use std::{
     path::Path,
 };
 
+#[cfg(test)]
+#[path = "action_engine_license_fixture_tests.rs"]
+mod test_license;
+
 type Row = Vec<Value>;
 #[derive(Clone)]
 struct Table {
@@ -601,10 +605,12 @@ mod tests {
             drop(db);
             let base = directory.path().join("actual-older-reference.zentra");
             common.create_backup_at(&base, env!("CARGO_PKG_VERSION")).unwrap();
-            let local = LocalStore::initialize(directory.path().join("local")).unwrap();
-            let remote = LocalStore::initialize(directory.path().join("remote")).unwrap();
-            for store in [&local, &remote] {
+            let mut local = LocalStore::initialize(directory.path().join("local")).unwrap();
+            let mut remote = LocalStore::initialize(directory.path().join("remote")).unwrap();
+            for store in [&mut local, &mut remote] {
+                test_license::configure(store);
                 store.restore_company_snapshot(&base.to_string_lossy(), || Ok(())).unwrap();
+                test_license::install(store);
                 assert_eq!(store.connect().unwrap().pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), 62);
             }
             let local_client = local.create_record("clients", json!({"name":"Local independent client"})).unwrap();
