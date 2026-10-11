@@ -135,7 +135,7 @@ struct PendingExchange {
 
 // A private, in-memory admission stamp. None of its credentials, references or
 // workspace identity are serialized or written to the diagnostic journal.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct InboxReadStamp {
     session: CloudSession,
     references: [Option<Vec<u8>>; 3],
@@ -1569,6 +1569,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | crate::company_collaboration::PATH
             | crate::supplier_inbox::PATH
             | crate::appointment_inbox::PATH
+            | crate::action_engine_device_protocol::PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
@@ -1582,6 +1583,9 @@ fn endpoint(path: &str) -> AppResult<Url> {
     }
     Ok(url)
 }
+
+#[path = "account_cloud_action_engine.rs"]
+pub(crate) mod action_engine;
 
 async fn account_request(
     method: Method,

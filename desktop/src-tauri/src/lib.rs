@@ -5,6 +5,7 @@ mod automation;
 mod action_engine_resources;
 mod action_engine_quote;
 mod action_engine_quote_publication;
+mod action_engine_device_protocol;
 mod app_reset;
 mod appearance;
 mod macos_navigation;

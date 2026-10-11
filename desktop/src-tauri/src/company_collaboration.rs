@@ -929,11 +929,30 @@ async fn prepare_for_send_worker(
     organization: &str,
     activate: bool,
 ) -> AppResult<(Pending, LocalTransferOrigin)> {
+    prepare_for_send_origin_worker(store, organization, activate, None, None).await
+}
+
+async fn prepare_for_send_origin_worker(
+    store: &LocalStore,
+    organization: &str,
+    activate: bool,
+    expected_origin: Option<LocalTransferOrigin>,
+    expected_state: Option<(u64,Option<Pending>)>,
+) -> AppResult<(Pending, LocalTransferOrigin)> {
     let owned = store.clone();
     let organization = organization.to_owned();
     tauri::async_runtime::spawn_blocking(move || {
         let _local = owned.lock()?;
-        let origin = LocalTransferOrigin::capture(&owned, &organization)?;
+        let origin = match expected_origin {
+            Some(origin) => { origin.require_unchanged(&owned)?; origin },
+            None => LocalTransferOrigin::capture(&owned, &organization)?,
+        };
+        if let Some((revision,pending))=expected_state {
+            let current=load(&owned)?;
+            if current.revision!=revision || current.pending!=pending || current.conflict || current.received.is_some() {
+                return Err(invalid("L’envoi local a changé. Vos données sont conservées."));
+            }
+        }
         let pending = prepare_locked(&owned, &organization, activate)?;
         Ok((pending, origin))
     })
@@ -1151,8 +1170,63 @@ async fn send(
     activate: bool,
     supports_content: bool,
 ) -> AppResult<bool> {
+    send_with_origin(store, session, activate, supports_content, None).await
+}
+
+struct PublicationUploadRequest {
+    method: Method,
+    query: Vec<(String, String)>,
+    body: Option<Vec<u8>>,
+}
+
+async fn publication_upload(session: &ProjectSyncSession, packet: PublicationUploadRequest) -> AppResult<Value> {
+    let query = packet.query.iter().map(|(key, value)| (key.as_str(), value.as_str())).collect::<Vec<_>>();
+    let is_upload = packet.method == Method::PUT;
+    let headers = if is_upload { Vec::new() } else { vec![("Content-Type", "application/json".into())] };
+    let (_, bytes) = session.request(packet.method, PATH, &query, &headers, packet.body, false).await?;
+    if is_upload { Ok(Value::Null) } else { Ok(serde_json::from_slice(&bytes)?) }
+}
+
+async fn send_with_origin(
+    store: &LocalStore,
+    session: &ProjectSyncSession,
+    activate: bool,
+    supports_content: bool,
+    origin: Option<LocalTransferOrigin>,
+) -> AppResult<bool> {
+    send_with(store, &session.organization_id, activate, supports_content, origin, None,
+        |packet| publication_upload(session, packet),
+        |id| async move {
+            let current = project_sync_session(store).await?
+                .ok_or_else(|| invalid("Reconnectez votre compte pour terminer l’envoi."))?;
+            if current.organization_id != session.organization_id {
+                return Err(invalid("Le compte a changé pendant l’envoi."));
+            }
+            request(&current,Method::POST,&[],Some(json!({"action":"commit","id":id}))).await
+        }).await
+}
+
+/// The exact existing prepare/upload/commit pipeline, with only its HTTP edge
+/// injectable for closed native tests. This is not another transport protocol.
+async fn send_with<F, Fut, C, CommitFuture>(
+    store: &LocalStore,
+    organization: &str,
+    activate: bool,
+    supports_content: bool,
+    expected_origin: Option<LocalTransferOrigin>,
+    expected_state: Option<(u64,Option<Pending>)>,
+    mut transport: F,
+    mut commit: C,
+) -> AppResult<bool>
+where
+    F: FnMut(PublicationUploadRequest) -> Fut,
+    Fut: std::future::Future<Output = AppResult<Value>>,
+    C: FnMut(String) -> CommitFuture,
+    CommitFuture: std::future::Future<Output = AppResult<Value>>,
+{
     store.require_usable_profile()?;
-    let (mut p, origin) = prepare_for_send_worker(store, &session.organization_id, activate).await?;
+    let (mut p, origin) = prepare_for_send_origin_worker(store, organization, activate, expected_origin, expected_state).await?;
+    require_pending_recovery_origin(store,origin.clone(),p.clone(),false).await?;
     let numbers = crate::shared_numbering::active_series(
         store,
         chrono::Datelike::year(&chrono::Local::now()) as i64,
@@ -1170,7 +1244,7 @@ async fn send(
         prefs.pending = Some(p.clone());
         save(store, &prefs)?;
     }
-    let cache = crate::company_content::directory(&store.data_dir, &session.organization_id)?;
+    let cache = crate::company_content::directory(&store.data_dir, organization)?;
     let entries = if p.content_version == 1 {
         let path = file_path(store, &p.id)?;
         let directory = cache.clone();
@@ -1184,7 +1258,10 @@ async fn send(
     } else {
         None
     };
-    let response=request(session,Method::POST,&[],Some(json!({"action":if entries.is_some(){"prepare-content"}else{"prepare"},"entries":entries,"id":p.id,"baseRevision":p.base_revision,"manifest":p.manifest,"confirmFullAccess":activate,"numbers":numbers}))).await?;
+    require_pending_recovery_origin(store,origin.clone(),p.clone(),true).await?;
+    let response=transport(PublicationUploadRequest { method:Method::POST,query:Vec::new(),body:Some(serde_json::to_vec(&json!({"action":if entries.is_some(){"prepare-content"}else{"prepare"},"entries":entries,"id":p.id,"baseRevision":p.base_revision,"manifest":p.manifest,"confirmFullAccess":activate,"numbers":numbers}))?) }).await;
+    require_pending_recovery_origin(store,origin.clone(),p.clone(),false).await?;
+    let response=response?;
     if response["conflict"] == true {
         let mut prefs = load(store)?;
         prefs.conflict = true;
@@ -1213,16 +1290,10 @@ async fn send(
             }
             let bytes = crate::company_content::cached(&cache, part)?
                 .ok_or_else(|| invalid("Le cache d’envoi doit être préparé à nouveau."))?;
-            session
-                .request(
-                    Method::PUT,
-                    PATH,
-                    &[("id", &p.id), ("blob", hash)],
-                    &[],
-                    Some(bytes),
-                    false,
-                )
-                .await?;
+            let uploaded=transport(PublicationUploadRequest {method:Method::PUT,
+                query:vec![("id".into(),p.id.clone()),("blob".into(),hash.to_owned())],body:Some(bytes)}).await;
+            require_pending_recovery_origin(store,origin.clone(),p.clone(),false).await?;
+            uploaded?;
         }
     } else {
         let received = response["received"]
@@ -1240,31 +1311,16 @@ async fn send(
             if received.iter().any(|v| v.as_u64() == Some(index as u64)) {
                 continue;
             }
-            session
-                .request(
-                    Method::PUT,
-                    PATH,
-                    &[("id", &p.id), ("index", &index.to_string())],
-                    &[],
-                    Some(bytes),
-                    false,
-                )
-                .await?;
+            let uploaded=transport(PublicationUploadRequest {method:Method::PUT,
+                query:vec![("id".into(),p.id.clone()),("index".into(),index.to_string())],body:Some(bytes)}).await;
+            require_pending_recovery_origin(store,origin.clone(),p.clone(),false).await?;
+            uploaded?;
         }
     }
-    let current = project_sync_session(store)
-        .await?
-        .ok_or_else(|| invalid("Reconnectez votre compte pour terminer l’envoi."))?;
-    if current.organization_id != session.organization_id {
-        return Err(invalid("Le compte a changé pendant l’envoi."));
-    }
-    let result = request(
-        &current,
-        Method::POST,
-        &[],
-        Some(json!({"action":"commit","id":p.id})),
-    )
-    .await?;
+    require_pending_recovery_origin(store,origin.clone(),p.clone(),true).await?;
+    let result = commit(p.id.clone()).await;
+    require_pending_recovery_origin(store,origin.clone(),p.clone(),false).await?;
+    let result = result?;
     if result["committed"] == true && result["snapshotId"].as_str() == Some(&p.id) {
         confirm_sent_worker(
             store,
@@ -1288,6 +1344,178 @@ async fn send(
     ))
 }
 
+#[derive(Clone)]
+struct ActionPublicationOrigin {
+    local: LocalTransferOrigin,
+    user_id: String,
+    role: String,
+    installation_id: String,
+}
+
+fn action_publication_identity(store: &LocalStore, organization: &str, role: &str) -> AppResult<String> {
+    if !matches!(role,"owner"|"admin"|"accountant"|"member") {
+        return Err(invalid("Ce compte ne peut pas publier un brouillon Automation."));
+    }
+    let identity: Option<(String,String,String)> = store.connect()?.query_row(
+        "SELECT organization_id,user_id,role FROM company_local_identity WHERE id=1",[],
+        |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional()?;
+    let Some((bound,user,current_role))=identity else { return Err(invalid("Reconnectez votre compte avant de publier ce brouillon.")); };
+    if bound!=organization || current_role!=role || user.is_empty() || user.len()>160 || user.chars().any(char::is_control) {
+        return Err(invalid("Le compte ou ses droits ont changé. Ce brouillon reste conservé."));
+    }
+    crate::cloud_backup::validate_id(&store.installation_id)?;
+    Ok(user)
+}
+
+async fn action_publication_state_worker(
+    store: &LocalStore, organization: &str, role: &str,
+    expected: Option<ActionPublicationOrigin>, allow_pending: bool,
+) -> AppResult<(ActionPublicationOrigin,Preferences)> {
+    let owned=store.clone();
+    let organization=organization.to_owned();
+    let role=role.to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _local=owned.lock()?;
+        let user=action_publication_identity(&owned,&organization,&role)?;
+        let origin=match expected {
+            Some(origin) => {
+                origin.local.require_unchanged(&owned)?;
+                if origin.user_id!=user || origin.role!=role || origin.installation_id!=owned.installation_id {
+                    return Err(invalid("Le contexte du brouillon Automation a changé. Vos données sont conservées."));
+                }
+                origin
+            },
+            None => ActionPublicationOrigin {local:LocalTransferOrigin::capture(&owned,&organization)?,
+                user_id:user,role,installation_id:owned.installation_id.clone()},
+        };
+        origin.local.require_unchanged(&owned)?;
+        let prefs=load(&owned)?;
+        // Enabled is represented by this exact binding, never inferred from an
+        // account, a server head or an earlier consent on another workspace.
+        if prefs.organization_id.as_deref()!=Some(organization.as_str()) || prefs.conflict || prefs.received.is_some()
+            || prefs.base_clock<0 || (!allow_pending && prefs.pending.is_some()) {
+            return Err(invalid("Terminez la synchronisation de cette entreprise avant de continuer ce brouillon Automation. Vos données sont conservées."));
+        }
+        Ok((origin,prefs))
+    }).await.map_err(|_| invalid("La vérification de l’envoi Automation a été interrompue."))?
+}
+
+async fn action_publication_upload_with<F,Fut>(
+    store:&LocalStore, origin:&ActionPublicationOrigin,
+    transport:&Mutex<F>, packet:PublicationUploadRequest,
+) -> AppResult<Value>
+where F:FnMut(PublicationUploadRequest)->Fut+Send,
+    Fut:std::future::Future<Output=AppResult<Value>>+Send,
+{
+    action_publication_state_worker(store,&origin.local.organization,&origin.role,Some(origin.clone()),true).await?;
+    let future={
+        let mut transport=transport.lock().map_err(|_| invalid("L’envoi Automation est indisponible."))?;
+        transport(packet)
+    };
+    let outcome=future.await;
+    // Even a failed transport must not return into an obsolete workspace.
+    action_publication_state_worker(store,&origin.local.organization,&origin.role,Some(origin.clone()),true).await?;
+    outcome
+}
+
+async fn action_publication_transport(store:&LocalStore,session:&ProjectSyncSession,packet:PublicationUploadRequest)->AppResult<Value> {
+    let is_commit=packet.method==Method::POST && packet.body.as_deref().map(serde_json::from_slice::<Value>).transpose()?
+        .is_some_and(|value| value["action"]=="commit");
+    if is_commit {
+        let current=project_sync_session(store).await?.ok_or_else(|| invalid("Reconnectez votre compte pour terminer l’envoi."))?;
+        if current.organization_id!=session.organization_id || current.role!=session.role {
+            return Err(invalid("Le compte ou ses droits ont changé pendant l’envoi."));
+        }
+        publication_upload(&current,packet).await
+    } else { publication_upload(session,packet).await }
+}
+
+/// Private consumer only: its caller already holds the account operation lock
+/// (including cancellation-safe worker lifetime) and corroborates its original
+/// remote admission stamp before/after this helper. No State/IPC or nested lock.
+/// This helper never enables sharing, accepts a remote branch or merges data.
+pub(crate) async fn recover_action_engine_publication(store:&LocalStore,session:&ProjectSyncSession)->AppResult<()> {
+    let _transfer=crate::cloud_backup::TransferGuard::take()?;
+    let _sync=crate::project_sync::pause_for_workspace_change()?;
+    recover_action_engine_publication_with(store,&session.organization_id,&session.role,
+        |packet| action_publication_transport(store,session,packet)).await
+}
+
+async fn recover_action_engine_publication_with<F,Fut>(store:&LocalStore,organization:&str,role:&str,transport:F)->AppResult<()>
+where F:FnMut(PublicationUploadRequest)->Fut+Send,
+    Fut:std::future::Future<Output=AppResult<Value>>+Send,
+{
+    let (origin,prefs)=action_publication_state_worker(store,organization,role,None,true).await?;
+    let Some(original)=prefs.pending else { return Ok(()); };
+    if original.base_revision>9_007_199_254_740_990 || prefs.revision>9_007_199_254_740_991 {
+        return Err(invalid("La version de l’ancien envoi est invalide. Vos données sont conservées."));
+    }
+    let transport=Mutex::new(transport);
+    let outcome=recover_pending_publication_with(store,organization,|body| {
+        action_publication_upload_with(store,&origin,&transport,PublicationUploadRequest {
+            method:Method::POST,query:Vec::new(),body:Some(body.to_string().into_bytes()),
+        })
+    }).await;
+    let (_,current)=action_publication_state_worker(store,organization,role,Some(origin.clone()),true).await?;
+    let known=outcome?;
+    if current.pending.is_none() { return Ok(()); }
+    // Cancelled/known-but-unresolved receipts require explicit review. Unknown
+    // means a crash may precede prepare: resume this same archive only when its
+    // original base is still the actual server head, never replace its ID.
+    if known || current.pending.as_ref()!=Some(&original) {
+        return Err(invalid("L’ancien envoi doit être vérifié avant de préparer un nouveau devis. Vos données sont conservées."));
+    }
+    let head=action_publication_upload_with(store,&origin,&transport,PublicationUploadRequest {
+        method:Method::GET,query:Vec::new(),body:None,
+    }).await?;
+    if head["organizationId"].as_str()!=Some(organization) || head["revision"].as_u64()!=Some(original.base_revision) {
+        return Err(invalid("L’équipe a enregistré une autre version. Vérifiez la synchronisation avant ce brouillon."));
+    }
+    let sent=send_with(store,organization,false,head["contentTransfer"]==1,Some(origin.local.clone()),Some((original.base_revision,Some(original))),
+        |packet| action_publication_upload_with(store,&origin,&transport,packet),
+        |id| action_publication_upload_with(store,&origin,&transport,PublicationUploadRequest {
+            method:Method::POST,query:Vec::new(),body:Some(json!({"action":"commit","id":id}).to_string().into_bytes()),
+        })).await;
+    action_publication_state_worker(store,organization,role,Some(origin),false).await?;
+    if !sent? { return Err(invalid("L’ancien envoi est en conflit. Vos données sont conservées.")); }
+    Ok(())
+}
+
+/// Publish only after the private consumer has recovered candidates and made
+/// its exact draft commit. A preexisting pending is never uploaded here; the
+/// separate recovery helper must resolve it BEFORE any new business write.
+pub(crate) async fn publish_action_engine_quote(store:&LocalStore,session:&ProjectSyncSession)->AppResult<()> {
+    let _transfer=crate::cloud_backup::TransferGuard::take()?;
+    let _sync=crate::project_sync::pause_for_workspace_change()?;
+    publish_action_engine_quote_with(store,&session.organization_id,&session.role,
+        |packet| action_publication_transport(store,session,packet)).await
+}
+
+async fn publish_action_engine_quote_with<F,Fut>(store:&LocalStore,organization:&str,role:&str,transport:F)->AppResult<()>
+where F:FnMut(PublicationUploadRequest)->Fut+Send,
+    Fut:std::future::Future<Output=AppResult<Value>>+Send,
+{
+    let (origin,prefs)=action_publication_state_worker(store,organization,role,None,false).await?;
+    let transport=Mutex::new(transport);
+    let head=action_publication_upload_with(store,&origin,&transport,PublicationUploadRequest {
+        method:Method::GET,query:Vec::new(),body:None,
+    }).await?;
+    if head["organizationId"].as_str()!=Some(organization) || head["revision"].as_u64()!=Some(prefs.revision)
+        || prefs.revision>9_007_199_254_740_990 {
+        return Err(invalid("La version partagée a changé. Vérifiez la synchronisation avant de publier ce brouillon."));
+    }
+    let (_,current)=action_publication_state_worker(store,organization,role,Some(origin.clone()),false).await?;
+    if current.revision!=prefs.revision { return Err(invalid("La version de référence a changé. Vos données sont conservées.")); }
+    let sent=send_with(store,organization,false,head["contentTransfer"]==1,Some(origin.local.clone()),Some((prefs.revision,None)),
+        |packet| action_publication_upload_with(store,&origin,&transport,packet),
+        |id| action_publication_upload_with(store,&origin,&transport,PublicationUploadRequest {
+            method:Method::POST,query:Vec::new(),body:Some(json!({"action":"commit","id":id}).to_string().into_bytes()),
+        })).await;
+    action_publication_state_worker(store,organization,role,Some(origin),false).await?;
+    if !sent? { return Err(invalid("La publication est en conflit. Vos données sont conservées.")); }
+    Ok(())
+}
+
 #[cfg(test)]
 #[path = "company_collaboration_reference_worker_tests.rs"]
 mod reference_worker_tests;
@@ -1295,6 +1523,10 @@ mod reference_worker_tests;
 #[cfg(test)]
 #[path = "company_collaboration_publication_recovery_tests.rs"]
 mod publication_recovery_tests;
+
+#[cfg(test)]
+#[path = "company_collaboration_action_execution_tests.rs"]
+mod action_execution_tests;
 
 #[cfg(test)]
 #[path = "company_collaboration_content_version_compat_tests.rs"]
