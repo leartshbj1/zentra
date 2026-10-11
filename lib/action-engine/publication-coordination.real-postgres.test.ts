@@ -323,7 +323,7 @@ async function preflight(session: Session) {
   const row = (
     await sql(
       session,
-      "select pg_catalog.current_database() as database,current_user as owner,pg_catalog.inet_server_addr()::text as host,pg_catalog.inet_server_port() as port,pg_catalog.inet_client_addr()::text as client_host,pg_catalog.current_setting('server_version') as version,pg_catalog.current_setting('server_version_num') as version_number,pg_catalog.current_setting('default_transaction_read_only') as read_only",
+      "select pg_catalog.current_database() as database,current_user as owner,pg_catalog.host(pg_catalog.inet_server_addr()) as host,pg_catalog.inet_server_port() as port,pg_catalog.host(pg_catalog.inet_client_addr()) as client_host,pg_catalog.current_setting('server_version') as version,pg_catalog.current_setting('server_version_num') as version_number,pg_catalog.current_setting('default_transaction_read_only') as read_only",
     )
   )[0];
   if (

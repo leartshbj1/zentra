@@ -158,7 +158,7 @@ async function attestFreshCluster(client) {
   safeClusterComparison = { queryCompleted: false };
   const identity = (
     await client.query(
-      "select current_database() as database,current_user as owner,inet_server_addr()::text as host,inet_client_addr()::text as client,inet_server_port() as port,current_setting('server_version_num') as version,current_setting('default_transaction_read_only') as read_only",
+      "select current_database() as database,current_user as owner,pg_catalog.host(pg_catalog.inet_server_addr()) as host,pg_catalog.host(pg_catalog.inet_client_addr()) as client,inet_server_port() as port,current_setting('server_version_num') as version,current_setting('default_transaction_read_only') as read_only",
     )
   ).rows[0];
   safeClusterComparison = {
