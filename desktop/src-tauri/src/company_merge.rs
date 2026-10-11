@@ -596,12 +596,21 @@ mod tests {
                 [&article_id]).unwrap();
             // Construct the actual older layout, not merely older metadata on a
             // v62 database. No creation receipt exists in this common ancestor.
-            db.execute_batch("DROP TABLE company_local_action_engine_quote_outbox;
+            // Later private publication/confirmation tables never existed in
+            // either legacy layout. Remove children before their outbox parent
+            // so restore's real foreign-key validation still applies normally.
+            db.execute_batch("DROP TABLE company_local_action_engine_quote_confirmations;
+                DROP TABLE company_local_action_engine_quote_publications;
+                DROP TABLE company_local_action_engine_publication_schema;
+                DROP TABLE company_local_action_engine_quote_outbox;
                 DROP TABLE action_engine_quote_receipts;").unwrap();
             if version == 60 {
                 db.execute_batch("DROP TABLE work_notes; DROP TABLE company_local_notes_scope;").unwrap();
             }
             db.pragma_update(None, "user_version", version).unwrap();
+            assert_eq!(db.query_row::<i64, _, _>("SELECT count(*) FROM sqlite_master WHERE type='table' AND
+                (name LIKE 'company_local_action_engine_%' OR name='action_engine_quote_receipts')", [], |r| r.get(0)).unwrap(), 0);
+            assert_eq!(db.query_row::<i64, _, _>("SELECT count(*) FROM pragma_foreign_key_check", [], |r| r.get(0)).unwrap(), 0);
             drop(db);
             let base = directory.path().join("actual-older-reference.zentra");
             common.create_backup_at(&base, env!("CARGO_PKG_VERSION")).unwrap();
