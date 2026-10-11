@@ -45,7 +45,7 @@ jobs:
       - run:
           name: Refuse any source or invocation outside the isolated G3 gate
           command: |
-            node --input-type=module <<'NODE'
+            node --input-type=module \<<'NODE'
             import { spawnSync } from 'node:child_process';
             const source = process.env.ZENTRA_ACTION_PG_EXPECTED_SOURCE;
             const allowed = /^(?:PATH|HOME|TMPDIR|TMP|TEMP|CI|CIRCLECI|CIRCLE_SHA1)$/;
