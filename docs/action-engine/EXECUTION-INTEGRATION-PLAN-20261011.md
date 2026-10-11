@@ -1,6 +1,6 @@
-# Action Engine — frontière d'exécution A8
+# Action Engine — frontière d'exécution A8/A9
 
-État : plan initial après A7, réservation serveur privée implémentée dans A8 ; les essais et limites sont consignés dans `DEVICE-RESERVATION-VALIDATION-20261011.md`. Les sections natives ci-dessous restent un contrat à implémenter et à tester. Aucun endpoint, IPC ou writer supplémentaire n'est exposé par ce document. Le writer Rust et ses 68 tests restent non compilés/non exécutés sous le blocage Windows App Control 4551. Ne pas retenter ni contourner ce blocage.
+État : réservation serveur privée implémentée dans A8, primitives de reprise et journal de publication natifs ajoutés dans A9. Les essais et limites sont consignés dans `DEVICE-RESERVATION-VALIDATION-20261011.md` et `NATIVE-RECOVERY-VALIDATION-20261011.md`. Le consommateur natif reste à composer et à tester. Aucun endpoint, IPC ou writer supplémentaire n'est exposé par ce document. Les 89 tests Rust restent non compilés/non exécutés sous le blocage Windows App Control 4551. Ne pas retenter ni contourner ce blocage.
 
 ## Réservation distante avant toute écriture native
 
@@ -24,21 +24,32 @@ Le writer privé `commit_action_engine_quote_draft` possède déjà son mutex `L
 
 L'autorisation distante et le commit SQLite ne forment pas une transaction distribuée. Définir explicitement le point d'acceptation de l'opération et les fenêtres de révocation ; ne pas annoncer une révocation instantanément atomique entre deux services ou après une réponse serveur déjà délivrée.
 
-## Trois conditions de reprise indispensables
+## Trois conditions de reprise codées en A9, à composer et valider
 
-1. **Retrouver la création locale sans ticket actuel.** `read_receipt` exige actuellement l'input historique complet, alors que l'outbox garde seulement des identifiants/empreintes. Prévoir une lecture privée bornée outbox + reçu et/ou une reprise authentifiée des faits réservés. Un ticket modifié après une création réussie ne doit jamais conduire à recréer le client/devis.
-2. **Résoudre le pending antérieur avant une nouvelle création.** `prepare_locked` peut retourner un snapshot déjà en attente. Celui-ci doit être récupéré ou refusé avant le nouveau brouillon ; publier cette ancienne archive après création ne prouverait pas que le devis s'y trouve.
-3. **Lier durablement la création à sa publication.** L'outbox n'a pas de `snapshotId` et `confirm_sent` supprime le pending puis nettoie ses copies de transport. Conserver une association locale proposition/réservation → snapshot/base/SHA avant upload et nettoyage. Son payload immuable ne doit pas être réécrit : utiliser un lien additif distinct, versionné et testé avec restauration/fusion. Définir la conservation, l'exclusion du partage des faits privés et le nettoyage uniquement après preuve/confirmation acquises.
+1. **Retrouver la création locale sans ticket actuel.** A9 ajoute `recover_action_engine_quote_receipt` : sélecteurs fermés, origine fraîche capturée, reçu/outbox/audit vérifiés dans le même snapshot SQLite. L'ancien input complet n'est plus nécessaire à cette API privée. Une absence reste `recovery_uncertain`, jamais une permission de recréer.
+2. **Résoudre le pending antérieur avant une nouvelle création.** Le writer retrouve d'abord un reçu historique, puis sa nouvelle garde refuse pending, réception, conflit ou entreprise étrangère avant toute écriture. Le futur consommateur doit résoudre l'envoi sous son origine capturée avant de réessayer ; `prepare_locked` ne peut toujours pas être interprété comme une nouvelle archive par défaut.
+3. **Lier durablement la création à sa publication.** A9 ajoute un journal privé version1 distinct du payload immuable : proposition/réservation → snapshot/base/SHA/manifeste/clock, écrit avant transport après vérification de l'archive figée. Les hooks de prepare, reprise pending, fusion et ACK conservent les candidats et leurs octets. Réception/restauration locale préserve les liens ; partage/import/changement d'entreprise ne les transporte pas. Une panne de lecture des liens bloque le nettoyage. Le futur consommateur doit encore obtenir A7 avant de confirmer l'outbox et libérer la conservation.
+
+Ces sources A9 ne sont ni compilées ni exécutées. Le SQL privé est vérifié par Node SQLite sans changer le schéma partagé62. Voir `NATIVE-RECOVERY-VALIDATION-20261011.md` pour les résultats et la distinction entre reprise locale, ACK de transport et preuve canonique.
 
 La première archive doit figer le brouillon complet avant édition/émission. Si cette première preuve est déjà impossible, conserver le reçu, afficher une revue requise et ne pas recréer. Après preuve durable, A7 peut confirmer le fait historique sans relire le transport ancien.
 
 ## Fichiers à examiner au prochain lot
 
 - Serveur : `lib/action-engine/device-reservation.ts` et son classifieur sont implémentés en A8 ; conserver leurs contrats et tests lors de la future exposition. `ledger.ts`, `published-fences.ts`, `confirmation-records.ts`, `historical-quote-fences.ts`, `device-confirmation.ts` restent les frontières de référence.
-- Native : module d'orchestration privé à créer ; `desktop/src-tauri/src/account_cloud.rs`, `action_engine_quote.rs`, `company_collaboration.rs` et leurs tests ; migration locale additive pour l'association de publication si nécessaire.
+- Native : module d'orchestration privé à créer ; `desktop/src-tauri/src/account_cloud.rs`, `action_engine_quote.rs`, `action_engine_quote_publication.rs`, `company_collaboration.rs` et leurs tests. Réutiliser le journal privé local v1 A9, sans nouvelle version du schéma partagé pour cette association.
 - Exposition seulement après validation : `commands.rs`, `lib.rs`, contrat HTTP fermé et consommateurs UI. La route collaboration reste un transport, sans plan métier ni autorisation déclarée par l'appelant.
 
 Utiliser uniquement le checkout natif `app-current-corrections`, version 1.90.15/schema 62, et non le desktop 1.46.1 de la copie serveur. Ne pas modifier les anciennes migrations ni distribuer un client exigeant des schémas hébergés absents.
+
+## Ordre concret du consommateur A10
+
+1. Dans `account_cloud.rs`, étendre le principe d'`InboxReadStamp` avec le nonce membre et `company_local_identity.user_id` : `CloudSession` ne contient pas l'utilisateur. Capturer session, références protégées, générations, workspace, identité et nonce sous verrou compte → mutex LocalStore. Relâcher les verrous pendant HTTP et recorroborer après succès **et rejet**, avant tout effet local. `project_sync_session` seul n'autorise pas une écriture.
+2. Appeler réellement A8 avec les deux sélecteurs source/proposition. `held` reste sans effet, `recovery_required` n'utilise que la reprise locale à sélecteurs, et seul `reserved` fournit l'input neuf. Comparer acteur/installation serveur à l'origine locale ; le worker du writer ne doit pas être entouré d'un second mutex LocalStore.
+3. Résoudre l'ancien transfert via `recover_pending_publication_with`, puis réutiliser le chemin prepare → lien A9 → upload → ACK. Ajouter une lecture privée bornée du candidat exact ; ne pas remplacer son snapshot par la tête distante courante.
+4. Appeler A7 avec source/proposition/réservation/snapshot lié. Il reste à coder l'acquittement local transactionnel de son reçu sous origine inchangée : reçu retourné identique au reçu historique, puis outbox `confirmed`, sans modification du client/devis. Un ACK transport ne peut appeler cette opération. La rétention reste volontairement permanente tant que cette preuve n'est pas acquise.
+
+Le handler serveur authentifié, le consommateur Rust et cet acquittement sont encore absents. Aucun port abstrait ne doit être présenté comme un raccord effectif ; aucun IPC ni déclencheur ne doit précéder les validations natives et staging.
 
 ## Essais discriminants avant activation
 
