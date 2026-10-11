@@ -1,6 +1,7 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 vi.mock('./international/legacy-country-guard',()=>({requireLegacyCountryTransport:vi.fn(async()=>undefined)}));
-const mock=vi.hoisted(()=>({session:vi.fn(),limit:vi.fn(),head:vi.fn(),download:vi.fn(),prepare:vi.fn(),commit:vi.fn(),receive:vi.fn(),watch:vi.fn()}));
+const mock=vi.hoisted(()=>({session:vi.fn(),limit:vi.fn(),head:vi.fn(),download:vi.fn(),prepare:vi.fn(),commit:vi.fn(),receive:vi.fn(),watch:vi.fn(),recover:vi.fn()}));
+vi.mock('./action-engine/publication-recovery',()=>({recoverCoordinatedPublication:mock.recover}));
 vi.mock('./account',()=>({
  requireDeviceSession:mock.session,enforceSyncRateLimit:mock.limit,
  accountNoStoreHeaders:()=>new Headers({'Cache-Control':'no-store','Pragma':'no-cache'}),
@@ -44,5 +45,27 @@ describe('company collaboration HTTP boundary',()=>{
   mock.commit.mockResolvedValue({committed:true,revision:1});
   const response=await POST(new Request('https://zentra.example/api/account/collaboration',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'commit',id:'snapshot',organizationId:'forged',userId:'forged'})}));
   expect(response.status).toBe(200);expect(mock.commit).toHaveBeenCalledWith(actor,'snapshot');
+ });
+ it('binds recovery to the authenticated device and retains no-store and rate limits',async()=>{
+  const body={action:'recover-publication',id:'snapshot',baseRevision:0,manifest:{}};
+  mock.recover.mockResolvedValue({known:true,pending:true});
+  const request=new Request('https://zentra.example/api/account/collaboration?organizationId=forged',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const response=await POST(request);
+  expect(response.status).toBe(200);expect(await response.json()).toEqual({known:true,pending:true});
+  expect(response.headers.get('cache-control')).toBe('no-store');expect(response.headers.get('pragma')).toBe('no-cache');
+  expect(mock.recover).toHaveBeenCalledExactlyOnceWith(actor,body);
+  expect(mock.limit).toHaveBeenCalledExactlyOnceWith(request,'collaboration-write',`${actor.organizationId}:${actor.installationId}`,500);
+  expect(mock.prepare).not.toHaveBeenCalled();expect(mock.commit).not.toHaveBeenCalled();expect(mock.receive).not.toHaveBeenCalled();
+ });
+ it('does not probe recovery before authentication or after a rate-limit refusal',async()=>{
+  const request=()=>new Request('https://zentra.example/api/account/collaboration',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'recover-publication'})});
+  mock.session.mockRejectedValueOnce(new Error('revoked'));
+  expect((await POST(request())).status).toBe(401);
+  mock.limit.mockRejectedValueOnce(new Error('limit'));
+  expect((await POST(request())).status).toBe(401);expect(mock.recover).not.toHaveBeenCalled();
+ });
+ it('bounds recovery request bytes before calling the helper',async()=>{
+  const response=await POST(new Request('https://zentra.example/api/account/collaboration',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'recover-publication',padding:'x'.repeat(1024*1024)})}));
+  expect(response.status).toBe(401);expect(mock.recover).not.toHaveBeenCalled();
  });
 });

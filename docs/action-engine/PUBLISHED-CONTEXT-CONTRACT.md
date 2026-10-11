@@ -71,9 +71,24 @@ Un timeout ou une réponse incertaine conserve la barrière D1. Le rejeu garde l
 
 Le délai seul ne libère rien et ne prouve jamais l'absence de commit. D1 n'est clôturé qu'après vérification du fait terminal PostgreSQL ; une erreur laisse la barrière intacte. Aucune expiration de bail ni attribution automatique d'un commit incertain à une autre installation n'est fournie.
 
-Les faits terminaux PostgreSQL et D1 permettent de rejouer un commit après purge de sa copie de transport sans faire avancer une tête plus récente ni reconstruire un ancien témoin de catalogue courant. **Le parcours natif qui refait `prepare`/`prepare-content` avant d'appeler `commit` reste à adapter et valider** : le rejeu serveur seul ne garantit donc pas encore cette reprise complète sur l'appareil.
+Les faits terminaux PostgreSQL et D1 permettent de rejouer un commit après purge de sa copie de transport sans faire avancer une tête plus récente ni reconstruire un ancien témoin de catalogue courant. A5 ajoute le parcours de reprise avant fusion/préparation décrit ci-dessous. Ses sources natives sont écrites, mais leur compilation et leur exécution restent à valider ; le rejeu serveur seul ne prouve pas la reprise complète sur l'appareil.
 
 Retirer une entreprise de l'allowlist ferme ses nouvelles préparations Action Engine dans le contexte runtime qui fournit ce réglage, sans retirer son garde permanent. Le préparateur le relit aussi avant l'autorisation fournisseur ; un ancien déploiement peut conserver ses propres bindings, tandis que le CAS D1 vérifie les consentements et droits persistants actuels. Le transport d'une entreprise déjà gardée reste coordonné ; le wrapper legacy prend le verrou de tête et refuse `PA103` avant tout retour, même historique. Seul ce refus définitif permet de changer de chemin, jamais un timeout ambigu. Les entreprises non gardées conservent le chemin de collaboration existant.
+
+### Reprise avant fusion A5
+
+Le POST collaboration existant accepte une action fermée `recover-publication` avec `id`, `baseRevision` et `manifest`. L'entreprise, l'acteur, le rôle et l'installation viennent exclusivement de la session appareil. Les valeurs sont copiées avant toute attente ; le serveur compare les SHA du manifeste normalisé et de l'archive, sa taille, sa base et l'identité complète avec la tentative D1 immuable. Cette sonde ne modifie pas les contrats `prepare`/`prepare-content` et ne prétend pas prouver le digest des entrées, absent du registre PG après purge.
+
+- `{known:false}` : absence réelle de tentative D1 pour cette entreprise et ce snapshot. Aucun appel PG ni écriture ; le pending local reste intact et conserve son parcours existant.
+- `{known:true,pending:true}` : tentative D1 pending et fait PG absent, ou annulation PG corroborée pas encore settled. La sonde ne libère rien. Le client reprend **le commit existant du même ID**, sans préparation, upload, nouvel ID ou clôture, avant toute fusion. Cela permet de résoudre un crash entre réservation D1 et premier appel PG.
+- `{known:true,committed:true,revision,snapshotId}` : fait PG exact committed corroboré ; si nécessaire, settlement D1 réussi avant réponse. La révision est celle d'origine, exactement base + 1, même si une tête plus récente existe et si l'ancienne archive serveur a été purgée.
+- `{known:true,committed:false,revision,snapshotId}` : annulation terminale D1/PG concordante. Ce résultat ne confirme aucune archive et ne nettoie pas le pending local ; le client relit la tête avant son parcours de résolution existant.
+
+Les pannes, schémas absents, faits malformés et contradictions ne deviennent jamais `known:false`. Un état PG pending durable avec résultat null est un défaut de protocole (503) : les RPC A4 normaux terminent cet état dans leur transaction. La sonde n'appelle ni `enableGuard`, `begin`, `commit`, `close`, stockage, annonce ou purge. Elle ignore l'allowlist pour permettre une reprise historique après retrait du pilote ; les droits transport et le garde pays actuels restent nécessaires.
+
+Le code natif A5 utilise sa propre archive figée comme référence après confirmation, sans réimporter ses données métier. Le `base_clock` vient du snapshot d'origine ; les modifications locales ultérieures restent à publier. La génération du compte, l'origine entreprise, le pending et les octets locaux sont revérifiés avant reprise du commit et avant confirmation. Après résultat connu, préférences et tête sont relues avant toute décision de fusion. Lecture seule et acceptation explicite d'une version distante gardent leur voie existante ; ce lot ne résout pas les limites préexistantes d'un premier partage jamais publié, sans référence historique.
+
+Déployer les schémas A4 et le serveur A5 avant ce client est un prérequis obligatoire. Aucun schéma manquant ou ancien serveur ne doit être interprété comme une preuve négative autorisant une nouvelle publication. Aucun déploiement de ce lot n'a été fait.
 
 ## Gardes D1 composées
 

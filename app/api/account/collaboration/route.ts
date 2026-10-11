@@ -6,6 +6,7 @@ import { watchCompanyRevision } from '@/lib/company-realtime';
 import { supabaseRealtimeConfiguration } from '@/lib/supabase-server-runtime';
 import { readBytesBodyWithinLimit,readJsonObjectWithinLimit } from '@/lib/request-body';
 import { requireLegacyCountryTransport } from '@/lib/international/legacy-country-guard';
+import { recoverCoordinatedPublication } from '@/lib/action-engine/publication-recovery';
 export const dynamic='force-dynamic';
 export async function GET(request:Request) {
   const diagnostic={request,operation:new URL(request.url).searchParams.has('watch')?'company.watch':'company.read',startedAt:Date.now()};
@@ -65,6 +66,7 @@ export async function POST(request:Request) {
     await requireLegacyCountryTransport(actor.organizationId);
     await enforceSyncRateLimit(request,'collaboration-write',`${actor.organizationId}:${actor.installationId}`,500);
     const body=await readJsonObjectWithinLimit(request,1024*1024);
+    if(body.action==='recover-publication')return Response.json(await recoverCoordinatedPublication(actor,body),{headers:accountNoStoreHeaders()});
     if(body.action==='commit')return Response.json(await commitCollaboration(actor,body.id),{headers:accountNoStoreHeaders()});
     if(body.action==='prepare-content')return Response.json(await prepareCompanyContent(actor,body),{headers:accountNoStoreHeaders()});
     if(body.action!=='prepare')throw new AccountPublicError('Action de synchronisation invalide.');
