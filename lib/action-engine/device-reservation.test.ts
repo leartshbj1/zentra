@@ -10,7 +10,11 @@ const ports = vi.hoisted(() => ({
   enabled: true,
 }));
 vi.mock('@/lib/runtime', () => ({ database: ports.database }));
-vi.mock('@/lib/account', () => ({ requireDeviceSession: ports.session }));
+vi.mock('@/lib/account', () => ({
+  requireDeviceSession: ports.session,
+  enforceSyncRateLimit: async () => undefined,
+  accountNoStoreHeaders: () => ({ 'Cache-Control': 'no-store' }),
+}));
 vi.mock('@/lib/supabase-server-runtime', () => ({
   supabaseServerClient: () => {
     throw Error('External PG is forbidden in this reservation fixture');
@@ -43,6 +47,8 @@ import {
   type DeviceQuoteReservationInput,
 } from './device-reservation';
 import { makeDeviceReservationFixture } from './device-reservation.fixture';
+import { handleDeviceQuoteExecution } from './device-execution-handler';
+import type { DeviceExecutionReservedResponse } from './device-execution-contract';
 
 // Real migrations/SQLite batches/ledgers/published and historical fences/A7.
 // Authentication and source/catalogue loader are explicitly synthetic ports.
@@ -172,6 +178,101 @@ afterEach(() => {
 });
 
 suite('private authenticated draft execution reservation', () => {
+  function handlerRequest(body: unknown, device = 'first') {
+    const base = request(device);
+    const headers = new Headers(base.headers);
+    headers.set('Content-Type', 'application/json');
+    return new Request(base.url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+  }
+  it('composes the real handler, A8, fences and ledger into a closed native write response', async () => {
+    const x = setup();
+    const body = { schemaVersion: 1, operation: 'reserve', ...x.input };
+    const response = await handleDeviceQuoteExecution(handlerRequest(body));
+    expect(response.status).toBe(200);
+    const result = (await response.json()) as DeviceExecutionReservedResponse;
+    expect(result).toMatchObject({
+      schemaVersion: 1,
+      state: 'reserved',
+      actor: x.fixture.actor,
+      installationId: x.fixture.installationIds[0],
+      expectedResourcesHash: x.fixture.publication.resourcesHash,
+      expectedContextRevision: x.fixture.context.revision,
+    });
+    expect(hash(result.canonicalPlanJson)).toBe(result.fingerprint);
+    expect(Object.keys(result)).not.toContain('expectedWorkspaceScope');
+    expect(Object.keys(result)).not.toContain('expectedMemberContextNonce');
+    expect(count('action_engine_quote_reservations')).toBe(1);
+    const replay = await handleDeviceQuoteExecution(handlerRequest(body));
+    expect(await replay.json()).toEqual(result);
+    expect(count('action_engine_quote_reservations')).toBe(1);
+    expect(observedFirstReads.at(-1)).toContain('r.receipt_json IS NULL');
+  });
+  it('returns held through the real handler without leaking another device execution IDs', async () => {
+    const x = setup();
+    await x.run();
+    const response = await handleDeviceQuoteExecution(
+      handlerRequest(
+        {
+          schemaVersion: 1,
+          operation: 'reserve',
+          ...x.input,
+        },
+        'second',
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      schemaVersion: 1,
+      state: 'held',
+      proposalId: x.input.proposalId,
+    });
+    expect(count('action_engine_quote_reservations')).toBe(1);
+  });
+  it('confirms through the real handler/A7 after durable canonical evidence and replays a lost response', async () => {
+    const x = setup(false);
+    const history = await x.fixture.seedConfirmedEvidence(false);
+    const body = {
+      schemaVersion: 1,
+      operation: 'confirm',
+      ...x.input,
+      reservationId: history.reservation.id,
+      publicationSnapshotId: history.evidence.snapshotId,
+    };
+    const wrong = await handleDeviceQuoteExecution(
+      handlerRequest({
+        ...body,
+        publicationSnapshotId: '00000000-0000-4000-8000-000000009999',
+      }),
+    );
+    expect(wrong.status).toBe(409);
+    expect(
+      x.fixture.sql
+        .prepare('SELECT receipt_json FROM action_engine_quote_reservations')
+        .get()?.receipt_json,
+    ).toBeNull();
+    const response = await handleDeviceQuoteExecution(handlerRequest(body));
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result).toEqual({
+      schemaVersion: 1,
+      state: 'confirmed',
+      sourceId: body.sourceId,
+      proposalId: body.proposalId,
+      reservationId: body.reservationId,
+      publicationSnapshotId: body.publicationSnapshotId,
+      receipt: history.receipt,
+    });
+    const events = count('action_engine_quote_events');
+    const replay = await handleDeviceQuoteExecution(handlerRequest(body));
+    expect(await replay.json()).toEqual(result);
+    expect(count('action_engine_quote_events')).toBe(events);
+    expect(count('action_engine_quote_publication_evidence')).toBe(1);
+    expect(ports.load).not.toHaveBeenCalled();
+  });
   it('reserves server-owned IDs and the exact plan/source/binding in one actual batch', async () => {
     const x = setup(),
       result = await x.run();
