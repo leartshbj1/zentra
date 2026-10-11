@@ -1,6 +1,6 @@
-# Action Engine — frontière d'exécution A8/A10
+# Action Engine — frontière d'exécution A8/A11
 
-État : réservation serveur privée implémentée dans A8, primitives de reprise et journal de publication natifs ajoutés dans A9, contrat appareil/handler interne et acquittement natif ajoutés dans A10. Les essais et limites sont consignés dans `DEVICE-RESERVATION-VALIDATION-20261011.md`, `NATIVE-RECOVERY-VALIDATION-20261011.md` et `DEVICE-BRIDGE-VALIDATION-20261011.md`. Le consommateur natif reste à composer et à tester. Aucun endpoint, IPC ou writer supplémentaire n'est exposé par ce document. Les 99 tests Rust restent non compilés/non exécutés sous le blocage Windows App Control 4551. Ne pas retenter ni contourner ce blocage.
+État : réservation privée A8, reprise/journal A9, contrat/ACK A10 et consommateur natif authentifié A11 codés. Les essais et limites figurent dans leurs rapports, dont `DEVICE-CONSUMER-VALIDATION-20261011.md`. Le consommateur est composé dans les sources mais n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 136 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 1 982 tests serveur réussis ne remplacent pas la validation native et staging.
 
 ## Réservation distante avant toute écriture native
 
@@ -24,7 +24,7 @@ Le writer privé `commit_action_engine_quote_draft` possède déjà son mutex `L
 
 L'autorisation distante et le commit SQLite ne forment pas une transaction distribuée. Définir explicitement le point d'acceptation de l'opération et les fenêtres de révocation ; ne pas annoncer une révocation instantanément atomique entre deux services ou après une réponse serveur déjà délivrée.
 
-## Trois conditions de reprise codées en A9, à composer et valider
+## Trois conditions de reprise A9, composées en A11 et à valider
 
 1. **Retrouver la création locale sans ticket actuel.** A9 ajoute `recover_action_engine_quote_receipt` : sélecteurs fermés, origine fraîche capturée, reçu/outbox/audit vérifiés dans le même snapshot SQLite. L'ancien input complet n'est plus nécessaire à cette API privée. Une absence reste `recovery_uncertain`, jamais une permission de recréer.
 2. **Résoudre le pending antérieur avant une nouvelle création.** Le writer retrouve d'abord un reçu historique, puis sa nouvelle garde refuse pending, réception, conflit ou entreprise étrangère avant toute écriture. Le futur consommateur doit résoudre l'envoi sous son origine capturée avant de réessayer ; `prepare_locked` ne peut toujours pas être interprété comme une nouvelle archive par défaut.
@@ -37,19 +37,19 @@ La première archive doit figer le brouillon complet avant édition/émission. S
 ## Fichiers à examiner au prochain lot
 
 - Serveur : `lib/action-engine/device-reservation.ts` et son classifieur sont implémentés en A8 ; conserver leurs contrats et tests lors de la future exposition. `ledger.ts`, `published-fences.ts`, `confirmation-records.ts`, `historical-quote-fences.ts`, `device-confirmation.ts` restent les frontières de référence.
-- Native : module d'orchestration privé à créer ; `desktop/src-tauri/src/account_cloud.rs`, `action_engine_quote.rs`, `action_engine_quote_publication.rs`, `company_collaboration.rs` et leurs tests. Réutiliser le journal privé local v1 A9, sans nouvelle version du schéma partagé pour cette association.
+- Native : `account_cloud_action_engine.rs` et `action_engine_device_protocol.rs` créés en A11, avec leurs tests. Examiner aussi `account_cloud.rs`, `action_engine_quote.rs`, `action_engine_quote_publication.rs`, `company_collaboration.rs` et leurs tests dans `desktop/src-tauri/src/`. Journal privé A9 réutilisé, schéma partagé inchangé.
 - Exposition seulement après validation : `commands.rs`, `lib.rs`, contrat HTTP fermé et consommateurs UI. La route collaboration reste un transport, sans plan métier ni autorisation déclarée par l'appelant.
 
 Utiliser uniquement le checkout natif `app-current-corrections`, version 1.90.15/schema 62, et non le desktop 1.46.1 de la copie serveur. Ne pas modifier les anciennes migrations ni distribuer un client exigeant des schémas hébergés absents.
 
-## Ordre concret du consommateur A11
+## Ordre concret codé en A11, non exécuté
 
-1. Dans `account_cloud.rs`, étendre le principe d'`InboxReadStamp` avec le nonce membre et `company_local_identity.user_id` : `CloudSession` ne contient pas l'utilisateur. Capturer session, références protégées, générations, workspace, identité et nonce sous verrou compte → mutex LocalStore. Relâcher les verrous pendant HTTP et recorroborer après succès **et rejet**, avant tout effet local. `project_sync_session` seul n'autorise pas une écriture.
-2. Appeler réellement A8 avec les deux sélecteurs source/proposition. `held` reste sans effet, `recovery_required` n'utilise que la reprise locale à sélecteurs, et seul `reserved` fournit l'input neuf. Comparer acteur/installation serveur à l'origine locale ; le worker du writer ne doit pas être entouré d'un second mutex LocalStore.
-3. Résoudre l'ancien transfert via `recover_pending_publication_with`, puis réutiliser le chemin prepare → lien A9 → upload → ACK. A10 fournit `read_action_engine_quote_publication_candidates` : reprendre le candidat exact sous la même origine ; ne pas remplacer son snapshot par la tête distante courante.
-4. Appeler A7 avec source/proposition/réservation/snapshot lié via le contrat A10. A10 fournit `acknowledge_action_engine_quote_confirmation` sous origine inchangée : reçu retourné identique au reçu historique, marqueur canonique privé puis outbox `confirmed` dans la même transaction, sans modification du client/devis. Le futur consommateur doit lui transmettre uniquement la réponse authentifiée réelle A7. Un ACK transport ou un reçu historique A8 sans snapshot ne peut appeler cette opération. La rétention reste volontairement permanente tant que cette preuve n'est pas acquise.
+1. Capturer l'origine via `ActionStamp` dans `account_cloud_action_engine.rs` : session, références protégées, générations, workspace, identité SQL et nonce sous verrou compte → mutex LocalStore. `CloudSession` ne contient pas l'utilisateur ; `project_sync_session` seul n'autorise pas une écriture. Conserver le stamp original jusqu'à l'ACK final.
+2. Résoudre l'ancien transfert sous cette origine avant A8/writer. `known:false` conserve archive et ID uniquement à base serveur exacte. Appeler A8 avec les deux sélecteurs ; relâcher les verrous pendant cet HTTP et recorroborer après succès **et rejet**. `held` reste sans effet, `recovery_required` ne recrée rien ; seul `reserved` fournit l'input neuf après comparaison acteur/installation.
+3. Appeler le vrai writer sous garde compte, sans mutex LocalStore externe. Relire les candidats A10 après commit/rejeu. Avant une nouvelle publication, les relire encore sous le même verrou compte acquis pour fermer la course entre consommateurs. Réutiliser prepare → lien A9 → upload → ACK ; ne pas inférer le snapshot depuis une tête courante. La tâche de publication conserve la garde compte même si le caller annule son attente.
+4. Appeler A7 avec source/proposition/réservation/snapshot exact. Revalider succès/rejet sous origine inchangée puis appeler `acknowledge_action_engine_quote_confirmation` : marqueur privé et outbox terminale dans la même transaction, sans modifier client/devis. Le `confirmed` historique A8 peut aussi transmettre les quatre sélecteurs de son vrai A7 à cet ACK. Un ACK transport ou reçu sans snapshot ne suffit pas. La conservation des candidats reste permanente jusqu'à cette preuve.
 
-Le handler serveur authentifié et les codecs sont codés et testés localement en A10, sans route exposée ni appel applicatif. Les primitives natives de candidat/acquittement sont codées mais non compilées. Le consommateur compte Rust complet reste absent : aucun port abstrait ne doit être présenté comme un raccord effectif ; aucun IPC ni déclencheur ne doit précéder les validations natives et staging.
+Le handler serveur et ses codecs sont testés localement. A11 compose dans les sources le consommateur natif et les primitives existantes, avec vérifications de contexte sur succès/rejet et durée de garde protégée contre l'annulation. Le `confirmed` historique A8 transporte les quatre sélecteurs réellement corroborés par A7 ; l'ancien reçu seul reste refusé. Tout ce comportement natif demeure non compilé/non exécuté : aucun IPC, endpoint public ou déclencheur ne doit précéder les validations native et staging.
 
 ## Essais discriminants avant activation
 
