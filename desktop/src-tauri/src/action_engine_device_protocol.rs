@@ -373,13 +373,27 @@ fn selection(selection: &QuoteExecutionSelection) -> AppResult<()> {
     }
     Ok(())
 }
-fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> AppResult<T> {
-    if bytes.is_empty() || bytes.len() > MAX_RESPONSE_BYTES {
+fn object_shape(bytes: &[u8], maximum: usize) -> AppResult<serde_json::Value> {
+    if bytes.is_empty() || bytes.len() > maximum {
         return Err(invalid());
     }
-    // Neither replacement decoding nor a serde Value map may erase malformed
-    // bytes or duplicate struct fields before the typed, closed parse.
     std::str::from_utf8(bytes).map_err(|_| invalid())?;
+    let shape: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| invalid())?;
+    if !shape.is_object() {
+        return Err(invalid());
+    }
+    Ok(shape)
+}
+
+fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> AppResult<T> {
+    // Serde structs also accept positional arrays. Inspect representation only;
+    // the original bytes still own the required-field/duplicate/unknown checks.
+    let shape = object_shape(bytes, MAX_RESPONSE_BYTES)?;
+    for field in ["source", "actor", "receipt"] {
+        if shape.get(field).is_some_and(|value| !value.is_object()) {
+            return Err(invalid());
+        }
+    }
     serde_json::from_slice(bytes).map_err(|_| invalid())
 }
 impl WireReceipt {
@@ -433,6 +447,14 @@ fn validate_reserved(quote: &ReservedQuote) -> AppResult<()> {
     {
         return Err(invalid());
     }
+    let shape = object_shape(quote.canonical_plan_json.as_bytes(), MAX_PLAN_BYTES)?;
+    let lines = shape.get("lines").and_then(serde_json::Value::as_array).ok_or_else(invalid)?;
+    if !shape.get("customer").is_some_and(serde_json::Value::is_object)
+        || lines.len() > 8 || !lines.iter().all(serde_json::Value::is_object)
+    {
+        return Err(invalid());
+    }
+    // Keep the original plan bytes/fingerprint and the typed closed decoder.
     let plan: WirePlan = serde_json::from_str(&quote.canonical_plan_json).map_err(|_| invalid())?;
     let units: Vec<u16> = trimmed(&quote.source.subject)
         .encode_utf16()

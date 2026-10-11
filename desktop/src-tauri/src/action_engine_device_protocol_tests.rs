@@ -107,6 +107,10 @@ fn bytes(value: &Value) -> Vec<u8> {
     serde_json::to_vec(value).unwrap()
 }
 
+fn positional(value: &Value, fields: &[&str]) -> Value {
+    Value::Array(fields.iter().map(|field| value.get(*field).unwrap().clone()).collect())
+}
+
 fn parsed_reserved(value: &Value) -> ReservedQuote {
     match parse_reservation_response(&bytes(value), &selected()).unwrap() {
         ReservationResponse::Reserved(value) => value,
@@ -255,6 +259,16 @@ fn confirmation_parser_binds_all_four_selectors_and_rejects_transport_ack() {
         parse_confirmation_response(&bytes(&value), &selected(), RESERVATION, SNAPSHOT).unwrap();
     assert_eq!(parsed.publication_snapshot_id, SNAPSHOT);
     assert_eq!(parsed.receipt.quote_id, QUOTE);
+    // Every positional value is valid and in ConfirmationWire declaration order.
+    rejects_confirmation(&positional(&value, &[
+        "schemaVersion", "state", "sourceId", "proposalId", "reservationId",
+        "publicationSnapshotId", "receipt",
+    ]));
+    // TaggedContentVisitor also accepts a sequence, with the tag first.
+    rejects_reservation(&positional(&value, &[
+        "state", "schemaVersion", "sourceId", "proposalId", "reservationId",
+        "publicationSnapshotId", "receipt",
+    ]));
     for key in [
         "sourceId",
         "proposalId",
@@ -299,6 +313,13 @@ fn original_receipt_requires_present_null_draft_and_human_validation() {
         .remove("quoteNumber");
     rejects_confirmation(&missing);
     rejects_reservation(&missing);
+    let mut positional_receipt = value.clone();
+    positional_receipt["receipt"] = positional(&value["receipt"], &[
+        "organizationId", "proposalId", "fingerprint", "customerId", "quoteId",
+        "quoteNumber", "status", "requiresHumanValidation",
+    ]);
+    rejects_confirmation(&positional_receipt);
+    rejects_reservation(&positional_receipt);
     for number in [
         json!(""),
         json!("D-001"),
@@ -410,6 +431,42 @@ fn unknown_fields_remain_errors_in_every_wire_level() {
     let mut value = confirmation();
     value["receipt"]["permission"] = json!(true);
     rejects_confirmation(&value);
+
+    // Use declaration order, not serde_json::Map's sorted values, so these
+    // arrays would otherwise deserialize to coherent, valid typed structs.
+    for (field, fields) in [
+        ("actor", &["organizationId", "userId"][..]),
+        ("source", &["id", "revision", "organizationId", "senderEmail",
+            "senderName", "subject", "body"][..]),
+    ] {
+        let mut value = reserved();
+        value[field] = positional(&value[field], fields);
+        rejects_reservation(&value);
+    }
+    for level in ["root", "line", "customer"] {
+        let mut value = reserved();
+        edit_plan(&mut value, |plan| match level {
+            "root" => *plan = positional(plan, &[
+                "schemaVersion", "engineVersion", "kind", "organizationId",
+                "contextRevision", "sourceId", "sourceRevision", "status", "reasons",
+                "customer", "title", "currency", "lines", "netCents", "confidence",
+                "requiresHumanValidation",
+            ]),
+            "line" => plan["lines"][0] = positional(&plan["lines"][0], &[
+                "articleId", "articleRevision", "description", "unit", "quantityMilli",
+                "unitPriceCents", "taxRateBp", "netCents", "evidence",
+            ]),
+            "customer" => plan["customer"] = positional(&plan["customer"], &[
+                "kind", "name", "email",
+            ]),
+            _ => unreachable!(),
+        });
+        rejects_reservation(&value);
+        let mut owned = parsed_reserved(&reserved());
+        owned.canonical_plan_json = value["canonicalPlanJson"].as_str().unwrap().to_owned();
+        owned.fingerprint = value["fingerprint"].as_str().unwrap().to_owned();
+        assert!(owned.into_input(SCOPE.into(), NONCE.into()).is_err());
+    }
 }
 
 #[test]
@@ -711,6 +768,10 @@ fn work_discovery_largest_valid_page_fits_its_separate_response_budget() {
 
 #[test]
 fn work_discovery_requires_explicit_next_cursor_and_every_closed_field() {
+    let positional_page = positional(&discovered(), &[
+        "schemaVersion", "state", "sourceIds", "nextCursor",
+    ]);
+    assert!(parse_discovery_response(&bytes(&positional_page), &work_selected(2)).is_err());
     for key in ["schemaVersion", "state", "sourceIds", "nextCursor"] {
         let mut value = discovered();
         value.as_object_mut().unwrap().remove(key);
@@ -827,6 +888,11 @@ fn work_prepared_is_correlated_to_source_and_lowercase_plan_fingerprint() {
 
 #[test]
 fn work_prepared_requires_all_fields_and_rejects_plan_price_and_authority_leaks() {
+    let positional_summary = positional(&prepared(), &[
+        "schemaVersion", "state", "sourceId", "proposalId", "fingerprint",
+        "disposition", "reasons", "requiresHumanValidation",
+    ]);
+    assert!(parse_preparation_response(&bytes(&positional_summary), "source:1").is_err());
     for key in ["schemaVersion", "state", "sourceId", "proposalId", "fingerprint", "disposition", "reasons", "requiresHumanValidation"] {
         let mut value = prepared();
         value.as_object_mut().unwrap().remove(key);
