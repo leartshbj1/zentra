@@ -18,6 +18,9 @@ mod files;
 #[cfg(test)]
 #[path = "backup/recovery_tests.rs"]
 mod recovery_tests;
+#[cfg(test)]
+#[path = "action_engine_archive_tests.rs"]
+mod action_engine_archive_tests;
 #[path = "backup/recovery_journal.rs"]
 mod recovery_journal;
 #[cfg(test)]
@@ -567,14 +570,24 @@ impl LocalStore {
     }
 
     pub(crate) fn create_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
-        self.write_backup_at(destination, app_version, false)
+        self.write_backup_at(destination, app_version, false, None)
     }
 
     pub(crate) fn create_verified_backup_at(&self, destination: &Path, app_version: &str) -> AppResult<()> {
-        self.write_backup_at(destination, app_version, true)
+        self.write_backup_at(destination, app_version, true, None)
     }
 
-    fn write_backup_at(&self, destination: &Path, app_version: &str, verify_files: bool) -> AppResult<()> {
+    /// Called under the collaboration origin lock with the pending snapshot ID.
+    /// Projection failure disables Action Engine for this archive, never ordinary sync.
+    pub(crate) fn create_collaboration_backup_at(
+        &self, destination: &Path, app_version: &str,
+        organization: &str, snapshot: &str, base_revision: u64,
+    ) -> AppResult<()> {
+        self.write_backup_at(destination, app_version, false, Some((organization, snapshot, base_revision)))
+    }
+
+    fn write_backup_at(&self, destination: &Path, app_version: &str, verify_files: bool,
+        projection: Option<(&str, &str, u64)>) -> AppResult<()> {
         self.require_usable_profile()?;
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent)?;
@@ -595,6 +608,18 @@ impl LocalStore {
             files::validate_files(&snapshot_database, &self.attachments_dir)?;
         }
 
+        // Read only the frozen SQLite copy; never a later live catalogue.
+        let sidecar = projection.and_then(|(organization, snapshot, base_revision)| {
+            let connection = Connection::open_with_flags(&snapshot_database, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+            let resources = crate::action_engine_resources::export_resources(&connection).ok()?;
+            crate::action_engine_resources::encode_sidecar(&resources, organization, snapshot, i64::try_from(base_revision).ok()?).ok()
+        });
+        let action_engine_resources = sidecar.as_ref().map(|encoded| crate::models::ActionEngineResourcesDescriptor {
+            format: "zentra-action-resources".into(), version: 1,
+            path: "automation/resources.v1.json".into(), sha256: encoded.sha256.clone(),
+            size_bytes: encoded.bytes.len(), customer_count: encoded.customer_count,
+            article_count: encoded.article_count,
+        });
         let manifest = BackupManifest {
             format: BACKUP_FORMAT.into(),
             format_version: BACKUP_FORMAT_VERSION,
@@ -602,6 +627,7 @@ impl LocalStore {
             created_at: now_iso(),
             database_file: DATABASE_ENTRY.into(),
             attachments_prefix: ATTACHMENTS_PREFIX.into(),
+            action_engine_resources,
         };
 
         // Keep partial archives private and remove them on every error path.
@@ -615,8 +641,15 @@ impl LocalStore {
             .compression_method(CompressionMethod::Deflated)
             .unix_permissions(0o600);
 
-        archive.start_file("manifest.json", options)?;
+        let prefix_options = if projection.is_some() {
+            options.compression_method(CompressionMethod::Stored)
+        } else { options };
+        archive.start_file("manifest.json", prefix_options)?;
         archive.write_all(serde_json::to_string_pretty(&manifest)?.as_bytes())?;
+        if let Some(encoded) = sidecar {
+            archive.start_file("automation/resources.v1.json", prefix_options)?;
+            archive.write_all(&encoded.bytes)?;
+        }
         add_file_to_archive(&mut archive, &snapshot_database, DATABASE_ENTRY, options)?;
         for entry in WalkDir::new(&self.attachments_dir)
             .follow_links(false)

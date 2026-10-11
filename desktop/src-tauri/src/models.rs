@@ -366,6 +366,21 @@ pub struct BackupManifest {
     pub created_at: String,
     pub database_file: String,
     pub attachments_prefix: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action_engine_resources: Option<ActionEngineResourcesDescriptor>,
+}
+
+/// Additive internal archive metadata; the cloud transport manifest is unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActionEngineResourcesDescriptor {
+    pub format: String,
+    pub version: u32,
+    pub path: String,
+    pub sha256: String,
+    pub size_bytes: usize,
+    pub customer_count: usize,
+    pub article_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

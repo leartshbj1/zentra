@@ -1594,7 +1594,7 @@ impl LocalStore {
         if current == SCHEMA_VERSION {
             let transaction=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             crate::work_notes::ensure_workspace_scope(&transaction)?;
-            // A schema-61 installation predates this private connection context.
+            // Older installations predate this private connection context.
             // Repair it in the same migration transaction, including after restore.
             crate::member_context::migrate(&transaction)?;
             crate::company_collaboration::upgrade_tracking(&transaction)?;
@@ -1883,6 +1883,14 @@ impl LocalStore {
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 61)?;
+        }
+        if current < 62 {
+            transaction.execute_batch(crate::schema::MIGRATION_V62_SQL)?;
+            // The shared receipt joins the ordinary company clock/write gate;
+            // its private outbox is excluded by the company_local_ namespace.
+            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
+            crate::company_collaboration::migrate(&transaction)?;
+            transaction.pragma_update(None, "user_version", 62)?;
         }
         workspace_read_indexes::ensure(&transaction)?;
         transaction.commit()?;

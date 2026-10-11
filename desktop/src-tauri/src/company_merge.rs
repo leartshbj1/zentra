@@ -271,17 +271,21 @@ fn text(row: &Row, table: &Table, column: &str) -> Option<String> {
         })
 }
 fn read(db: &Connection) -> AppResult<Data> {
-    // The v61 addition is an empty shared notes table. Upgrade only disposable,
-    // already validated archive copies before comparing branches, so two
-    // devices' first independent notes can merge against their v60 reference.
+    // Only these two additive migrations are admitted on disposable, already
+    // validated archive copies: empty notes (v61) and creation receipts (v62).
+    // Existing v60/v61 references must compare with upgraded branches without
+    // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if version == 60 {
+    if matches!(version, 60 | 61) {
         let tx = db.unchecked_transaction()?;
-        tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
+        if version == 60 {
+            tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
+        }
+        tx.execute_batch(crate::schema::MIGRATION_V62_SQL)?;
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
-        tx.pragma_update(None, "user_version", 61)?;
+        tx.pragma_update(None, "user_version", 62)?;
         tx.commit()?;
     }
     let mut result = Data::new();
@@ -510,6 +514,160 @@ mod tests {
             fs::read(b.attachments_dir.join("plan.txt")).unwrap(),
             b"remote"
         );
+    }
+
+    // Synthetic private native inputs establish only a local committed draft.
+    // They are not proof of a hosted reservation, entitlement or routed API.
+    fn commit_merge_fixture_quote(
+        store: &LocalStore,
+        customer_id: &str,
+        article_id: &str,
+        source_id: &str,
+    ) -> crate::action_engine_quote::ActionEngineQuoteReceipt {
+        use crate::action_engine_quote::{
+            ActionEngineQuoteActor, ActionEngineQuoteInput, ActionEngineQuoteSource,
+        };
+        use crate::action_engine_resources::{
+            article_revision, customer_revision, export_resources, resource_hash,
+        };
+        let db = store.connect().unwrap();
+        db.execute(
+            "INSERT INTO company_local_identity VALUES(1,'company-merge','owner-merge','Synthetic owner','owner')",
+            [],
+        )
+        .unwrap();
+        let resources = export_resources(&db).unwrap();
+        let customer = resources.customers.iter().find(|c| c.id == customer_id).unwrap();
+        let article = resources.articles.iter().find(|a| a.id == article_id).unwrap();
+        let plan = json!({
+            "schemaVersion":1,"engineVersion":"action-engine-quote-v1","kind":"prepare_quote_draft",
+            "organizationId":"company-merge","contextRevision":"synthetic-merge-context",
+            "sourceId":source_id,"sourceRevision":"synthetic-mail-v1","status":"ready","reasons":[],
+            "customer":{"kind":"existing","id":customer_id,"revision":customer_revision(customer),"name":customer.name},
+            "title":"Devis radiateurs","currency":"CHF",
+            "lines":[{"articleId":article_id,"articleRevision":article_revision(article),"description":"Radiateur",
+                "unit":"pièce","quantityMilli":3000,"unitPriceCents":19900,"taxRateBp":810,
+                "netCents":59700,"evidence":"3 radiateurs"}],
+            "netCents":59700,"confidence":0.99,"requiresHumanValidation":true
+        });
+        let canonical_plan_json = serde_json::to_string(&plan).unwrap();
+        let input = ActionEngineQuoteInput {
+            fingerprint: format!("{:x}", Sha256::digest(canonical_plan_json.as_bytes())),
+            canonical_plan_json,
+            proposal_id: uuid::Uuid::new_v4().to_string(),
+            reservation_id: uuid::Uuid::new_v4().to_string(),
+            source: ActionEngineQuoteSource {
+                id: source_id.into(), revision: "synthetic-mail-v1".into(),
+                organization_id: "company-merge".into(), sender_email: "camille@example.ch".into(),
+                sender_name: "Camille Exemple".into(), subject: "Devis radiateurs".into(), body: "3 radiateurs".into(),
+            },
+            actor: ActionEngineQuoteActor { organization_id: "company-merge".into(), user_id: "owner-merge".into() },
+            installation_id: store.installation_id.clone(),
+            expected_workspace_scope: crate::work_notes::workspace_scope(&db).unwrap(),
+            expected_member_context_nonce: crate::member_context::read(&db).unwrap(),
+            expected_resources_hash: resource_hash(&resources),
+            expected_context_revision: "synthetic-merge-context".into(),
+            customer_id: customer_id.into(), quote_id: uuid::Uuid::new_v4().to_string(),
+        };
+        drop(db);
+        store.commit_action_engine_quote_draft(input).unwrap()
+    }
+
+    #[test]
+    fn actual_v60_and_v61_references_merge_v62_branches_receipts_and_republish_fresh_resources() {
+        let _transfer = crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+        for version in [60_i64, 61] {
+            let directory = tempfile::tempdir().unwrap();
+            let common = LocalStore::initialize(directory.path().join("common")).unwrap();
+            common.complete_onboarding(crate::tests::test_onboarding(), env!("CARGO_PKG_VERSION")).unwrap();
+            let customer = common.create_record("clients", json!({
+                "name":"Camille Exemple","email":"camille@example.ch"
+            })).unwrap();
+            let customer_id = customer["id"].as_str().unwrap();
+            let article_id = uuid::Uuid::new_v4().to_string();
+            let db = common.connect().unwrap();
+            db.execute("UPDATE settings SET vat_registered=1,default_vat_bp=810 WHERE id=1", []).unwrap();
+            db.execute("INSERT INTO catalog_items(id,kind,sku,name,description,unit,sales_price_cents,vat_bp,created_at,updated_at)
+                VALUES(?,'product','RAD-A','Radiateur','radiateurs','pièce',19900,810,'2026-10-11T00:00:00Z','2026-10-11T00:00:00Z')",
+                [&article_id]).unwrap();
+            // Construct the actual older layout, not merely older metadata on a
+            // v62 database. No creation receipt exists in this common ancestor.
+            db.execute_batch("DROP TABLE company_local_action_engine_quote_outbox;
+                DROP TABLE action_engine_quote_receipts;").unwrap();
+            if version == 60 {
+                db.execute_batch("DROP TABLE work_notes; DROP TABLE company_local_notes_scope;").unwrap();
+            }
+            db.pragma_update(None, "user_version", version).unwrap();
+            drop(db);
+            let base = directory.path().join("actual-older-reference.zentra");
+            common.create_backup_at(&base, env!("CARGO_PKG_VERSION")).unwrap();
+            let local = LocalStore::initialize(directory.path().join("local")).unwrap();
+            let remote = LocalStore::initialize(directory.path().join("remote")).unwrap();
+            for store in [&local, &remote] {
+                store.restore_company_snapshot(&base.to_string_lossy(), || Ok(())).unwrap();
+                assert_eq!(store.connect().unwrap().pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), 62);
+            }
+            let local_client = local.create_record("clients", json!({"name":"Local independent client"})).unwrap();
+            let remote_client = remote.create_record("clients", json!({"name":"Remote independent client"})).unwrap();
+            let local_receipt = commit_merge_fixture_quote(&local, customer_id, &article_id, "ticket-local");
+            let remote_receipt = commit_merge_fixture_quote(&remote, customer_id, &article_id, "ticket-remote");
+            let local_path = directory.path().join("local.zentra");
+            let remote_path = directory.path().join("remote.zentra");
+            for (store, path) in [(&local, &local_path), (&remote, &remote_path)] {
+                store.create_collaboration_backup_at(path, env!("CARGO_PKG_VERSION"), "company-merge", &uuid::Uuid::new_v4().to_string(), 1).unwrap();
+            }
+            {
+                let mut zip = zip::ZipArchive::new(File::open(&remote_path).unwrap()).unwrap();
+                let manifest: crate::models::BackupManifest = serde_json::from_reader(zip.by_name("manifest.json").unwrap()).unwrap();
+                assert!(manifest.action_engine_resources.is_some(), "the copied remote manifest really declares a projection");
+                assert!(zip.by_name("automation/resources.v1.json").is_ok());
+            }
+            let inputs_before = [&base, &local_path, &remote_path].map(|path| crate::cloud_backup::file_manifest(path).unwrap());
+            let live_before = crate::company_sync_digest::local(&local).unwrap();
+            let output = directory.path().join("merged.zentra");
+            merge(&local, &base, &local_path, &remote_path, &output).unwrap();
+            assert_eq!([&base, &local_path, &remote_path].map(|path| crate::cloud_backup::file_manifest(path).unwrap()), inputs_before);
+            assert_eq!(crate::company_sync_digest::local(&local).unwrap(), live_before);
+            assert_eq!(common.connect().unwrap().pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), version);
+            {
+                let mut zip = zip::ZipArchive::new(File::open(&output).unwrap()).unwrap();
+                let manifest: crate::models::BackupManifest = serde_json::from_reader(zip.by_name("manifest.json").unwrap()).unwrap();
+                assert!(manifest.action_engine_resources.is_none(), "an intermediate ZIP must not claim an absent sidecar");
+                assert!(zip.by_name("automation/resources.v1.json").is_err());
+            }
+            let extracted = directory.path().join("merged-data");
+            local.extract_company_copy(&output, &extracted).unwrap();
+            let merged = Connection::open(extracted.join("database.sqlite3")).unwrap();
+            assert_eq!(merged.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), 62);
+            for id in [customer_id, local_client["id"].as_str().unwrap(), remote_client["id"].as_str().unwrap()] {
+                assert_eq!(merged.query_row::<i64, _, _>("SELECT count(*) FROM clients WHERE id=?", [id], |r| r.get(0)).unwrap(), 1);
+            }
+            assert_eq!(merged.query_row::<i64, _, _>("SELECT count(*) FROM action_engine_quote_receipts", [], |r| r.get(0)).unwrap(), 2);
+            for receipt in [&local_receipt, &remote_receipt] {
+                let saved: String = merged.query_row("SELECT receipt_json FROM action_engine_quote_receipts WHERE quote_id=?", [&receipt.quote_id], |r| r.get(0)).unwrap();
+                assert_eq!(serde_json::from_str::<serde_json::Value>(&saved).unwrap(), serde_json::to_value(receipt).unwrap());
+                assert_eq!(merged.query_row::<String, _, _>("SELECT status FROM quotes WHERE id=?", [&receipt.quote_id], |r| r.get(0)).unwrap(), "brouillon");
+            }
+            assert_eq!(merged.query_row::<i64, _, _>("SELECT count(*) FROM company_local_action_engine_quote_outbox", [], |r| r.get(0)).unwrap(), 0);
+            assert_eq!(crate::audit::verify_audit_chain(&merged).unwrap()["valid"], true);
+            drop(merged);
+            // The actual apply_merged path uses this same collaboration writer
+            // after installation. The intermediate archive itself is never an
+            // Action Engine publication proof.
+            let publisher = LocalStore::initialize(directory.path().join("publisher")).unwrap();
+            publisher.restore_company_snapshot(&output.to_string_lossy(), || Ok(())).unwrap();
+            let published = directory.path().join("republished.zentra");
+            let snapshot = uuid::Uuid::new_v4().to_string();
+            publisher.create_collaboration_backup_at(&published, env!("CARGO_PKG_VERSION"), "company-merge", &snapshot, 2).unwrap();
+            let mut zip = zip::ZipArchive::new(File::open(&published).unwrap()).unwrap();
+            let manifest: crate::models::BackupManifest = serde_json::from_reader(zip.by_name("manifest.json").unwrap()).unwrap();
+            let descriptor = manifest.action_engine_resources.unwrap();
+            assert_eq!((descriptor.customer_count, descriptor.article_count), (3, 1));
+            let sidecar: serde_json::Value = serde_json::from_reader(zip.by_name("automation/resources.v1.json").unwrap()).unwrap();
+            assert_eq!(sidecar["snapshotId"], snapshot);
+            assert_eq!(sidecar["baseRevision"], 2);
+            assert_eq!(sidecar["resourcesHash"], crate::action_engine_resources::resource_hash(&crate::action_engine_resources::export_resources(&publisher.connect().unwrap()).unwrap()));
+        }
     }
 }
 fn changes(base: &Data, branch: &Data) -> BTreeSet<(String, String)> {
@@ -1028,10 +1186,17 @@ pub(crate) fn merge_confirmed(
         }
     }
     let mut original = zip::ZipArchive::new(File::open(remote_path)?)?;
-    let mut manifest = Vec::new();
-    original
-        .by_name("manifest.json")?
-        .read_to_end(&mut manifest)?;
+    let mut manifest: serde_json::Value =
+        serde_json::from_reader(original.by_name("manifest.json")?)?;
+    // This intermediate ZIP contains a newly merged database, not the remote
+    // sidecar. Never leave a descriptor claiming evidence that is absent or no
+    // longer describes its database. apply_merged creates a fresh collaboration
+    // archive and projection before publishing the merged company.
+    manifest
+        .as_object_mut()
+        .ok_or_else(|| invalid("Manifeste de copie fusionnée invalide."))?
+        .remove("action_engine_resources");
+    let manifest = serde_json::to_vec_pretty(&manifest)?;
     let mut out = zip::ZipWriter::new(
         fs::OpenOptions::new()
             .write(true)

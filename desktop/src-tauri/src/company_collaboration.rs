@@ -181,6 +181,9 @@ pub(crate) fn migrate(connection: &Connection) -> AppResult<()> {
 #[cfg(test)]
 #[path = "member_context_private_tests.rs"]
 mod member_context_private_tests;
+#[cfg(test)]
+#[path = "action_engine_collaboration_tests.rs"]
+mod action_engine_collaboration_tests;
 
 pub(crate) fn local_table(table: &str) -> bool {
     table.starts_with("sqlite_")
@@ -561,6 +564,10 @@ pub(crate) fn strip_private(connection: &Connection) -> AppResult<()> {
     if has_notes_scope {
         connection.execute("DELETE FROM company_local_notes_scope", [])?;
     }
+    let has_action_outbox:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_action_engine_quote_outbox')",[],|r|r.get(0))?;
+    if has_action_outbox {
+        connection.execute("DELETE FROM company_local_action_engine_quote_outbox", [])?;
+    }
     Ok(())
 }
 pub(crate) fn set_identity(
@@ -877,7 +884,7 @@ fn prepare_locked(store: &LocalStore, organization: &str, activate: bool) -> App
     let id = uuid::Uuid::new_v4().to_string();
     let path = file_path(store, &id)?;
     let before = clock(store)?;
-    store.create_backup_at(&path, env!("CARGO_PKG_VERSION"))?;
+    store.create_collaboration_backup_at(&path, env!("CARGO_PKG_VERSION"), organization, &id, prefs.revision)?;
     let manifest = crate::cloud_backup::file_manifest(&path)?;
     if before != clock(store)? {
         return Err(invalid(
@@ -1275,6 +1282,7 @@ const PRIVATE_ROWS: &[&str] = &[
     // Restore this AFTER identity: its insert/delete triggers rotate the nonce.
     "company_local_member_context",
     "company_local_notes_scope",
+    "company_local_action_engine_quote_outbox",
     "device_number_ranges",
     "active_timers",
     "project_sync_binding",
@@ -1334,6 +1342,26 @@ fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResu
     tx.commit()?;
     Ok(())
 }
+fn action_receipts(store: &LocalStore) -> AppResult<Vec<Value>> {
+    query_all(&store.connect()?, "SELECT * FROM action_engine_quote_receipts", [])
+}
+/// A received branch may not erase a committed creation fact, including when
+/// the user chooses the remote branch. Keep its local outbox and recovery copy;
+/// do not recreate the document or declare an uncertain commit unpublished.
+fn require_action_receipts_preserved(store: &LocalStore, expected: &[Value]) -> AppResult<()> {
+    let db = store.connect()?;
+    for receipt in expected {
+        let key = |field: &str| receipt.get(field).and_then(Value::as_str)
+            .ok_or_else(|| invalid("Le reçu Automation local doit être vérifié. Vos données sont conservées."));
+        let current = query_all(&db,
+            "SELECT * FROM action_engine_quote_receipts WHERE organization_id=? AND source_id=? AND action_kind=?",
+            params![key("organization_id")?, key("source_id")?, key("action_kind")?])?;
+        if current.as_slice() != std::slice::from_ref(receipt) {
+            return Err(invalid("Cette copie ne contient pas le même devis préparé par Automation. Vos données sont conservées. Réunissez les changements avant de remplacer la copie locale."));
+        }
+    }
+    Ok(())
+}
 fn apply(
     store: &LocalStore,
     path: &Path,
@@ -1359,9 +1387,10 @@ fn apply(
         ));
     }
     let mut private = private_rows(store)?;
+    let action_receipts = action_receipts(store)?;
     if joining {
         for (table, rows) in &mut private {
-            if table == "company_local_notes_scope" { rows.clear(); }
+            if table == "company_local_notes_scope" || table == "company_local_action_engine_quote_outbox" { rows.clear(); }
         }
     }
     // Keep a named recovery copy before an explicit conflict decision. Ordinary
@@ -1376,6 +1405,7 @@ fn apply(
     prefs.conflict = false;
     prefs.last_synced_at = Some(now_iso());
     store.restore_company_snapshot(&path.to_string_lossy(), || {
+        require_action_receipts_preserved(store, &action_receipts)?;
         restore_private(store, &private)?;
         crate::backup::validate_database(&store.database_path)?;
         prefs.base_clock = clock(store)?;
@@ -1739,14 +1769,16 @@ fn apply_merged(store: &LocalStore, received: &Received, path: &Path) -> AppResu
         "La copie de référence reçue a changé. Vos données sont conservées.")?;
     let mut prefs = load(store)?;
     let private = private_rows(store)?;
+    let action_receipts = action_receipts(store)?;
     // Recovery copy retains the entire original branch, including its audit chain.
     store.create_backup(None, env!("CARGO_PKG_VERSION"))?;
     store.restore_company_snapshot(&path.to_string_lossy(), || {
+        require_action_receipts_preserved(store, &action_receipts)?;
         restore_private(store, &private)?;
         crate::backup::validate_database(&store.database_path)?;
         let id = uuid::Uuid::new_v4().to_string();
         let upload = file_path(store, &id)?;
-        store.create_backup_at(&upload, env!("CARGO_PKG_VERSION"))?;
+        store.create_collaboration_backup_at(&upload, env!("CARGO_PKG_VERSION"), &received.organization, &id, received.revision)?;
         let clock = clock(store)?;
         prefs.organization_id = Some(received.organization.clone());
         prefs.revision = received.revision;
