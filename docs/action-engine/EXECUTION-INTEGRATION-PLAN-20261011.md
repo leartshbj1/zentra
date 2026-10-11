@@ -1,6 +1,12 @@
-# Action Engine — frontière d'exécution A8/A15
+# Action Engine — frontière d'exécution A8/A16
 
-État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif A11, découverte serveur A12, contrat A13, ronde native privée A14 et projections d'activité A15 codés. Les essais et limites figurent dans leurs rapports, dont `CONFIRMED-ACTIVITY-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 189 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 242 tests serveur et 203 tests UI réussis ne remplacent pas la validation native et staging.
+État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif A11, découverte serveur A12, contrat A13, ronde native privée A14, projections d'activité A15 et correctifs de chronologie/destination A16 codés. Les essais et limites figurent dans leurs rapports, dont `CONFIRMATION-DESTINATION-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 194 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 242 tests serveur historiques A15 et 251 tests UI A16 réussis ne remplacent pas la validation native et staging. La reconnexion CircleCI attend la vérification GitHub 2FA ; crédits et capacité de compilation restent inconnus.
+
+## Chronologie et destination A16
+
+La création/relecture d'un lien exige un instant candidat postérieur ou égal à la création locale. L'ACK transport vérifie de vrais instants avant sa première écriture ; son rejeu conserve les dates historiques sans les comparer à une horloge courante éventuellement reculée. L'ACK canonique appelle le corroborateur historique dans sa transaction avant commit. Ne jamais réparer une incohérence en inventant une date ou supprimant un reçu.
+
+`confirmedQuoteDestination.ts` est un helper privé non raccordé : origine locale et organisation actuelles, scope physique présent, ID exact dans les devis actuellement chargés, absence/doublons refusés, consultation en lecture seule ou après sortie du statut brouillon. Le futur caller devra le résoudre juste avant ouverture sous sa durée de vie actuelle ; ce résultat ne remplace pas les permissions natives/serveur et ne prouve pas une actualisation distante. Aucun ancien objet `suppliedItem` ne doit servir de repli pour cette entrée Action Engine. Le raccord reste soumis aux preuves native et staging.
 
 ## Activité historique A15, raccord toujours désactivé
 

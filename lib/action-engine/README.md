@@ -105,6 +105,12 @@ Le Journal React accepte la page serveur et un callback optionnels, déduplique 
 
 **2 242 tests serveur et 203 UI passent ; 189 tests Rust écrits, zéro exécuté.** Les 47 nouveaux tests serveur (36 projection + 11 SQL réel extrait) et les 53 UI ciblés sont déjà inclus dans ces totaux. Les 18 captures web couvrent quatre langues, deux thèmes et mobile ; aucune preuve native/iPhone réelle. Rapport et limites : `docs/action-engine/CONFIRMED-ACTIVITY-VALIDATION-20261011.md`. Aucune migration nouvelle, version/schémas inchangés.
 
+## Chronologie et destination A16, privées
+
+Le natif refuse les liens et ACK transport dont les vrais instants RFC3339 sont incohérents, conserve les dates historiques au rejeu et recorroborre le candidat confirmé avant commit de l'ACK canonique. Le helper TypeScript `confirmedQuoteDestination.ts` retrouve seulement le devis courant sous organisation/scope/nonce admis, refuse absence et doublons, et impose la consultation en lecture seule ou pour un document non brouillon. Aucun raccord applicatif, ouverture effective, fetch ou IPC n'est ajouté.
+
+**251 tests UI passent**, dont 48 nouveaux cas inclus ; typage application réussi. **194 tests Rust écrits, zéro exécuté**, cinq nouveaux ; Rustfmt parse seulement. Serveur inchangé, aucune relance des 2 242 cas A15 ou nouvelle migration. Audit CircleCI arrêté à la vérification GitHub 2FA, crédits actuels inconnus ; aucun job, push ou contournement. Voir `docs/action-engine/CONFIRMATION-DESTINATION-VALIDATION-20261011.md` et son manifeste pour les fichiers, revues, preuves et limites.
+
 ## Protocole de publication A4
 
 Le serveur active d'abord le garde PostgreSQL sous verrou de tête, puis enregistre la tentative D1 `pending` avant d'appeler le CAS PostgreSQL coordonné. Ce garde permanent empêche un ancien chemin de faire avancer la tête hors protocole. Avant de passer D1 à `committed` ou `cancelled`, le gateway corrobore le fait conservé dans PostgreSQL : opération, entreprise, snapshot, installation, acteur, révision de base et résultat ; pour un commit, il compare également le manifeste normalisé, son SHA, le SHA d'archive et la taille, et exige une version de contenu admissible. Ce sont des faits de transport, pas une inspection du contenu SQLite.
@@ -117,7 +123,7 @@ Le reçu de création décrit un vrai brouillon non numéroté : `status: 'draft
 
 ## Raccord restant avant activation
 
-1. Valider le code natif sur un hôte autorisé : les 189 tests A3/A5/A6/A9/A10/A11/A14/A15 restent non exécutés. La baseline 1.90.15 utilise les archives `.zentra` et les révisions Supabase ; le prototype D1 de l'ancien desktop 1.46.1 n'est pas ce protocole. L'ancien serveur sans les schémas A4 n'est pas un rollback compatible d'une entreprise déjà gardée.
+1. Valider le code natif sur un hôte autorisé : les 194 tests A3/A5/A6/A9/A10/A11/A14/A15/A16 restent non exécutés. La baseline 1.90.15 utilise les archives `.zentra` et les révisions Supabase ; le prototype D1 de l'ancien desktop 1.46.1 n'est pas ce protocole. L'ancien serveur sans les schémas A4 n'est pas un rollback compatible d'une entreprise déjà gardée.
 2. Préparer et valider le déploiement coordonné D1/PostgreSQL avant tout opt-in permanent. Le pilote reste désactivé et les migrations ne sont pas appliquées à une base hébergée dans ce lot.
 3. Raccorder la réservation centrale permanente à une commande native dédiée et authentifiée. Le writer privé prévoit client éventuel, brouillon, lignes, reçu, audit et outbox en transaction IMMEDIATE après recorroboration locale ; il ne prouve pas l'admission distante et n'est pas exposé à la WebView. Les propositions à vérifier n'autorisent aucun commit.
 4. Exposer seulement après validation le raccord privé A7 : garde pays D1, fait PG committed, chunks authentifiés et archive entière, journal canonique puis confirmation. Un reçu legacy sans preuve A6 reste insuffisant ; avec preuve durable, aucun ancien transport n'est relu. Même entreprise/source/type et empreinte retrouvent le résultat d'origine, jamais un second devis silencieux. Les essais locaux de composition ne remplacent pas une validation hébergée ou native.

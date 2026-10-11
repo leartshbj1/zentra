@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "lot": "A16",
+  "recordedAt": "2026-10-11T10:33:49.082Z",
+  "status": "local_sources_validated_frontend_native_uncompiled",
+  "sourceCommit": "2851723ef4d5ddf0c0b76fa0938f2f55ecdc8f00",
+  "sourceParent": "b5c1fd0ecd9f7d42f83409dd4cb92c9f0a523a40",
+  "serverHeadBeforeDocumentation": "007e545995e56a7864cf10aea0ef805cdb34a43f",
+  "version": "1.90.15",
+  "sharedSchema": 62,
+  "sidecarSchema": 62,
+  "tests": {
+    "ui": {
+      "total": 251,
+      "passed": 251,
+      "failed": 0,
+      "skipped": 0,
+      "files": 14,
+      "newTargetedIncluded": 48
+    },
+    "typescriptApplication": "passed",
+    "rustfmt": {
+      "parsedFiles": 2,
+      "sourceUnchanged": true,
+      "compilation": false
+    },
+    "native": {
+      "newWritten": 5,
+      "cumulativeWritten": 194,
+      "compiled": false,
+      "executed": 0
+    },
+    "historicalServerA15": {
+      "passed": 2242,
+      "rerunThisLot": false
+    },
+    "freshWebBuild": false,
+    "freshBrowserCapture": false,
+    "nativeOrHostedEndToEnd": false
+  },
+  "reviews": {
+    "nativeIndependentReviewers": 2,
+    "frontendIndependentReviewers": 1,
+    "blockingFindings": 0,
+    "scope": "static_only",
+    "corruptionFixturesDisableTemporaryDatabaseTriggers": true
+  },
+  "deployment": {
+    "productionChanged": false,
+    "migrationsApplied": false,
+    "newMigrations": 0,
+    "publicRouteAdded": false,
+    "ipcAdded": false,
+    "appCallerWired": false,
+    "notificationEnabled": false,
+    "realCustomerDataUsed": false,
+    "providerCalled": false,
+    "ciJobStarted": false,
+    "pushed": false
+  },
+  "blockers": [
+    "Windows App Control 4551: no repeat or bypass",
+    "CircleCI GitHub login requires user 2FA verification; current credits unknown",
+    "Native compilation/tests and real Rust archive interoperability not validated",
+    "Coordinated staging not validated"
+  ],
+  "sources": [
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/src-tauri/src/action_engine_quote_publication.rs",
+      "bytes": 51500,
+      "sha256": "af660b2f0b3488ced4161d2dbe5cf0963e9e9059127e849bc922e0e9740ff168"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/src-tauri/src/action_engine_quote_tests.rs",
+      "bytes": 114128,
+      "sha256": "39f4c30a9c0981dd348b139da59585c6e7c1649e29e08df94bed1067d6ce78db"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/src/confirmedQuoteDestination.ts",
+      "bytes": 2469,
+      "sha256": "bc88eb5d548c981e307e146f8f83b9a924ddbd23301e13b4e40aea66c5f8f5bb"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "desktop/src/confirmedQuoteDestination.test.ts",
+      "bytes": 8668,
+      "sha256": "d12f0b79776e6db3ab2c623c4fbf70fb4dad45eb91f69d4ec6dfcd3cf1ecfd69"
+    }
+  ],
+  "documentation": [
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "docs/action-engine/CONFIRMATION-DESTINATION-VALIDATION-20261011.md",
+      "bytes": 8159,
+      "sha256": "3a73f88d1a335d934d7e0ccb62a0b1fd6940f29247c8125a0b2854df836d08ca"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "docs/action-engine/STATUS.md",
+      "bytes": 28752,
+      "sha256": "76ead18022060832c79c69b712c8739bf8f327ebd1c10e87cf640e252bd2d279"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "docs/action-engine/EXECUTION-INTEGRATION-PLAN-20261011.md",
+      "bytes": 20458,
+      "sha256": "e983f7e30b3c72b5dab5d5c08c6f37507e345850cd8a270e7440bfe790e24286"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+      "path": "lib/action-engine/README.md",
+      "bytes": 32900,
+      "sha256": "452031ad950829eb8daa6a74ce64d7ca5dc543739626bf1eda782cb0d09c25d6"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "path": "docs/action-engine/CONFIRMATION-DESTINATION-VALIDATION-20261011.md",
+      "bytes": 8159,
+      "sha256": "3a73f88d1a335d934d7e0ccb62a0b1fd6940f29247c8125a0b2854df836d08ca"
+    }
+  ],
+  "evidence": [
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "run-validation.mjs",
+      "bytes": 2664,
+      "sha256": "594fc095f2c757adc021e98e7b46800f8829c9c29bf7b20bfd38f41cd2f41e12"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "freeze-evidence.mjs",
+      "bytes": 4915,
+      "sha256": "262c220b19aac9918f596dc1a70016120eda023c3e2971965f5569930eb771a3"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "build-host-audit.json",
+      "bytes": 1371,
+      "sha256": "d3121583e081d2904912b5e4ee1abff66887c672f8cdeb0dab722feeff223315"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "static-review.md",
+      "bytes": 1861,
+      "sha256": "52851e35aecc8821c7034d863dca2b22b4d6e573b7f63ba3f322fb2d48bc8d11"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "ui-regression.json",
+      "bytes": 98709,
+      "sha256": "0fd0aeba48f7ef4c77b72b623b077032372642e887ef32f2993894f584e69925"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "ui-regression.log",
+      "bytes": 2050,
+      "sha256": "50648081d4378b25c1108a9be9a6df4022c6d71aee3d7fb2c2ba36179aab0d5f"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "ui-commands.json",
+      "bytes": 2249,
+      "sha256": "a0984bca70f15e39ff1410c6dc0fc80868059a9b752e943900288f7dd4746e5f"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "typecheck.log",
+      "bytes": 334,
+      "sha256": "f7f0045eff0699531adcaa74a8c82b00a5a1f25495c632616084c20b9452af8e"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "typecheck-commands.json",
+      "bytes": 533,
+      "sha256": "334f6af67f777cb264a36a71d86fdac69b747ac78d9e5797213525514b6ed694"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "parse-commands.json",
+      "bytes": 1564,
+      "sha256": "c844d712c4eed53441d164531f1aabc7a0d396bcd21b7d1c0a291e056d422ef2"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "parse-action_engine_quote_publication.rs.log",
+      "bytes": 55467,
+      "sha256": "c949c50929eabc25775a5ef6ca8b1f3ccd5942ba3bea5996d2f4df56b5004ac1"
+    },
+    {
+      "root": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections/.qa/action-engine-confirmation-destination",
+      "path": "parse-action_engine_quote_tests.rs.log",
+      "bytes": 133266,
+      "sha256": "2dca8518c2050027318b71d68a7231f0023710177406c29b0e32815fc320ee49"
+    }
+  ]
+}
