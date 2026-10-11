@@ -56,13 +56,9 @@ export type DeviceExecutionReservationResponse =
       reservationId: string;
       fingerprint: string;
     }>
-  // A8 historical confirmation has no publication/reservation selectors.
-  // Rust must recover its local candidate and call A7 before local ACK.
-  | Readonly<{
-      schemaVersion: 1;
-      state: 'confirmed';
-      receipt: DraftQuoteReceipt;
-    }>;
+  // The real A8 historical path has already completed A7 for these EXACT
+  // selectors. No snapshot is inferred from the current head or local order.
+  | DeviceExecutionConfirmationResponse;
 export type DeviceExecutionConfirmationResponse = Readonly<
   QuoteConfirmationInput & {
     schemaVersion: 1;
@@ -207,12 +203,16 @@ export function encodeReservation(
       });
     }
     if (v.state === 'confirmed') {
-      bindingExact(v, ['state', 'receipt']);
-      return Object.freeze({
-        schemaVersion: 1,
-        state: 'confirmed',
-        receipt: captureWireReceipt(v.receipt),
-      });
+      bindingExact(v, ['state', ...confirmationKeys, 'receipt']);
+      return encodeConfirmation(
+        {
+          sourceId: v.sourceId,
+          proposalId: v.proposalId,
+          reservationId: v.reservationId,
+          publicationSnapshotId: v.publicationSnapshotId,
+        } as QuoteConfirmationInput,
+        v.receipt as DraftQuoteReceipt,
+      );
     }
     if (v.state !== 'reserved') return invalid();
     bindingExact(v, [

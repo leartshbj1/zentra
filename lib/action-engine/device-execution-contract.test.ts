@@ -657,15 +657,17 @@ describe('private A8 reservation wire projection', () => {
     });
     const historical = encodeReservation({
       state: 'confirmed',
+      ...confirmation(),
       receipt: receipt(f),
     });
     expect(historical).toStrictEqual({
       schemaVersion: 1,
       state: 'confirmed',
+      ...confirmation(),
       receipt: receipt(f),
     });
-    expect(historical).not.toHaveProperty('reservationId');
-    expect(historical).not.toHaveProperty('publicationSnapshotId');
+    expect(historical).toHaveProperty('reservationId', reservationId);
+    expect(historical).toHaveProperty('publicationSnapshotId', snapshotId);
     expect(historical).not.toHaveProperty('source');
     invalid(() =>
       encode({ state: 'held', proposalId: f.proposal.id, actor: f.actor }),
@@ -754,7 +756,9 @@ describe('private A7 confirmation wire projection', () => {
     const raw = change(receipt()) as DraftQuoteReceipt;
     invalid(() => encodeConfirmation(confirmation(), raw));
     if (_name !== 'foreign proposal')
-      invalid(() => encode({ state: 'confirmed', receipt: raw }));
+      invalid(() =>
+        encode({ state: 'confirmed', ...confirmation(), receipt: raw }),
+      );
   });
 
   it('rejects forged selector context and a wire body supplied as confirmation input', () => {
@@ -777,5 +781,23 @@ describe('private A7 confirmation wire projection', () => {
       });
     invalid(() => encodeConfirmation(confirmation(), raw));
     expect(getter).not.toHaveBeenCalled();
+  });
+  it.each([
+    'sourceId',
+    'proposalId',
+    'reservationId',
+    'publicationSnapshotId',
+  ] as const)(
+    'requires the corroborated historical %s rather than guessing from a receipt',
+    (field) => {
+      const selected = { ...confirmation() } as Record<string, unknown>;
+      delete selected[field];
+      invalid(() =>
+        encode({ state: 'confirmed', ...selected, receipt: receipt() }),
+      );
+    },
+  );
+  it('refuses the old private receipt-only result rather than creating or guessing a candidate', () => {
+    invalid(() => encode({ state: 'confirmed', receipt: receipt() }));
   });
 });

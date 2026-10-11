@@ -273,6 +273,60 @@ suite('private authenticated draft execution reservation', () => {
     expect(count('action_engine_quote_publication_evidence')).toBe(1);
     expect(ports.load).not.toHaveBeenCalled();
   });
+  it('recovers a lost A7 reply through A8 with the original canonical snapshot despite a later publication', async () => {
+    const x = setup(false);
+    const history = await x.fixture.seedConfirmedEvidence(false);
+    const confirm = {
+      schemaVersion: 1,
+      operation: 'confirm',
+      ...x.input,
+      reservationId: history.reservation.id,
+      publicationSnapshotId: history.evidence.snapshotId,
+    };
+    // The device loses this response; the actual A7 handler has committed it.
+    const lost = await handleDeviceQuoteExecution(handlerRequest(confirm));
+    expect(lost.status).toBe(200);
+    const laterSnapshot = '00000000-0000-4000-8000-000000009998';
+    const publication = x.fixture.native.publication;
+    x.fixture.seedPublication({
+      ...publication,
+      id: x.fixture.nextId(),
+      snapshotId: laterSnapshot,
+      baseRevision: publication.baseRevision + 1,
+      result: {
+        committed: true,
+        snapshotId: laterSnapshot,
+        revision: publication.baseRevision + 2,
+      },
+      createdAt: publication.createdAt + 60,
+      settledAt: publication.createdAt + 61,
+    });
+    ports.load.mockRejectedValue(
+      Error('Do not infer historical evidence from a new head'),
+    );
+    const events = count('action_engine_quote_events');
+    const replay = await handleDeviceQuoteExecution(
+      handlerRequest({
+        schemaVersion: 1,
+        operation: 'reserve',
+        ...x.input,
+      }),
+    );
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual({
+      schemaVersion: 1,
+      state: 'confirmed',
+      sourceId: x.input.sourceId,
+      proposalId: x.input.proposalId,
+      reservationId: history.reservation.id,
+      publicationSnapshotId: history.evidence.snapshotId,
+      receipt: history.receipt,
+    });
+    expect(ports.load).not.toHaveBeenCalled();
+    expect(count('action_engine_quote_reservations')).toBe(1);
+    expect(count('action_engine_quote_publication_evidence')).toBe(1);
+    expect(count('action_engine_quote_events')).toBe(events);
+  });
   it('reserves server-owned IDs and the exact plan/source/binding in one actual batch', async () => {
     const x = setup(),
       result = await x.run();
@@ -391,6 +445,10 @@ suite('private authenticated draft execution reservation', () => {
       ports.load.mockRejectedValue(Error('Old context must not be loaded'));
       expect(await x.run()).toEqual({
         state: 'confirmed',
+        sourceId: x.input.sourceId,
+        proposalId: x.input.proposalId,
+        reservationId: seeded.reservation.id,
+        publicationSnapshotId: seeded.evidence.snapshotId,
         receipt: seeded.receipt,
       });
       expect(ports.load).not.toHaveBeenCalled();

@@ -43,7 +43,14 @@ export type DeviceQuoteReservationInput = Readonly<{
 }>;
 export type DeviceQuoteReservationResult =
   | Readonly<{ state: 'held'; proposalId: string }>
-  | Readonly<{ state: 'confirmed'; receipt: DraftQuoteReceipt }>
+  | Readonly<{
+      state: 'confirmed';
+      sourceId: string;
+      proposalId: string;
+      reservationId: string;
+      publicationSnapshotId: string;
+      receipt: DraftQuoteReceipt;
+    }>
   | Readonly<{
       state: 'recovery_required';
       proposalId: string;
@@ -204,6 +211,10 @@ export async function reserveDeviceSupportQuote(
       );
       return Object.freeze({
         state: 'confirmed',
+        sourceId: input.sourceId,
+        proposalId: input.proposalId,
+        reservationId: state.reservationId,
+        publicationSnapshotId: state.evidenceSnapshotId,
         receipt: captureReceipt(receipt, record.proposal),
       });
     }
