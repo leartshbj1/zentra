@@ -73,14 +73,25 @@ Objectif actif : un ERP qui prépare le travail administratif, avec contrôle ut
 - Migration D1 additive 0103 proposée/testée localement ; aucune nouvelle migration PG. Aucun endpoint, IPC, déclencheur, notification ou déploiement.
 - Livraison : `CANONICAL-QUOTE-VALIDATION-20261011.md` et `docs/evidence/action-engine-canonical-quote-20261011.json`. Bornes du pilote, dépendance sql.js épinglée et absence de limite CPU stricte documentées.
 
+## Lot A7 codé et testé côté serveur, raccord appareil privé
+
+- Composition authentifiée privée : proposition/réservation/provenance relues, fait PG committed exact, métadonnées et tous les chunks/SHA vérifiés, vraie SQLite canonique puis journal de preuve avant confirmation du reçu.
+- Reprise après accusé perdu sans ancien transport ni doublon. La preuve reste obligatoire avant tout rejeu de reçu ; révocation, intention US ou document altéré avant première preuve sont refusés.
+- Course legacy fermée dans l'INSERT atomique et par la migration additive D1 0104 : aucune première preuve après un reçu concurrent, avec conservation du rejeu des preuves déjà acquises.
+- **1 641/1 641 tests serveur**, 52 fichiers, aucun ignoré ; **117 nouveaux cas** par rapport à A6. Typage, lint ciblé, format, assets et build de production réussis. Le vrai plugin SQLite et son WASM sont également testés dans un contexte Node VM isolé.
+- Code serveur : `d0f9a4cd5341882322378c8a7c22a7ff3832808c`. Aucune source native modifiée ; les **68 tests natifs restent non exécutés**, sans nouvelle tentative Cargo/App Control.
+- Livraison : `DEVICE-CONFIRMATION-VALIDATION-20261011.md` et `docs/evidence/action-engine-device-confirmation-20261011.json`. Auth/PG/Storage explicitement synthétiques dans la composition locale : aucune preuve hébergée ou Rust revendiquée.
+- Aucun endpoint, IPC, déclencheur Support, notification, appel JEV ou déploiement. Migration 0104 testée sur bases locales seulement ; aucun nouveau schéma Supabase.
+
 ## Suite : premier vrai brouillon confirmé
 
 1. Reprendre `AUDIT.md` et les contrats de `lib/action-engine/README.md`.
+   Le prochain raccord d'exécution et ses cas de reprise sont détaillés dans `EXECUTION-INTEGRATION-PLAN-20261011.md` ; ce plan est une revue statique, pas un lot déjà implémenté.
 2. Valider les sources natives A3/A5/A6 sur un hôte autorisé : compiler, exécuter les 68 tests et les régressions de restauration/fusion, puis vérifier l'interopérabilité d'une vraie archive synthétique. Ne pas retenter/bypasser Windows App Control en boucle.
 3. Valider le protocole A4 sur un environnement de staging approuvé, notamment avec plusieurs connexions PG et le gateway complet ; la composition locale ne prouve pas une transaction distribuée. Tous les writers d'une entreprise protégée doivent suivre ce protocole, y compris après retrait de son flag.
 4. Raccorder le préparateur privé à Support, puis réconcilier les tickets non dispatchés et les analyses incertaines. La course avant modèle et les gardes de persistance sont composées localement ; le déclenchement depuis Support n'est pas encore intégré.
 5. Raccorder le writer privé validé à une commande native unique dans le desktop **1.90.15** de `app-current-corrections`, sous origine entreprise et contexte membre, admission/réservation/source distantes corroborées. Ne pas exposer directement l'input privé à la WebView.
-6. Raccorder les vérificateurs privés A6 au parcours appareil : réservation/liaison authentifiées, garde pays D1, fait PG committed exact, tous les chunks/SHA complets, preuve SQLite, journal durable puis confirmation. Exiger la preuve A6 même si un reçu legacy existe ; avec preuve durable, ne pas relire l'ancien transport. Valider aussi la reprise A5 avant fusion/préparation avec commits perdus, modifications en cours, deux appareils et changement de compte.
+6. Le parcours privé de confirmation A7 est testé ; restent la réservation/liaison d'exécution authentifiées et leur raccord natif validé avant toute exposition. Conserver un lien local durable proposition/réservation → snapshot avant upload et nettoyage du pending ; l'outbox actuelle ne le contient pas. Résoudre un ancien pending avant de publier un nouveau brouillon pour éviter de confirmer une archive qui ne le contient pas. La reprise doit relire les faits historiques réservés, pas le ticket courant, après une création locale déjà réussie. Valider les commits perdus, modifications en cours, deux appareils et changements de compte.
 7. Réutiliser l’interface Activité / À suivre / Réglages, ouvrir le véritable devis existant et notifier seulement après reçu métier confirmé.
 
 Ne pas publier le desktop 1.46.1 de la copie serveur. Aucun changement de production n’a été effectué. Les ports abstraits ne constituent pas une intégration en ligne. L’objectif global reste en cours.

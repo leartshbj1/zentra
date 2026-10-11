@@ -108,7 +108,17 @@ A6 ajoute un autre lecteur, distinct du codec de planification à deux positions
 
 La première preuve exige le brouillon complet inchangé ; modification, émission ou suppression impose une revue, jamais une recréation. La capacité serveur scellée autorise l'append du journal immuable D1 0103. Après preuve durable, `historical-quote-fences.ts` peut confirmer le fait initial sous permissions actuelles, sans catalogue/tête/archive anciens. La provenance initiale est liée à la nouvelle réservation dans le même batch ; aucun backfill legacy.
 
-Ce sont encore des composants privés : pas de route, commande IPC ou orchestration appareil → PG/chunks → preuve → confirmation. `published-fences.ts` refuse toujours la confirmation d'un simple contexte de catalogue. Le futur raccord doit ajouter le garde pays D1, exiger la preuve A6 même sur replay d'un reçu legacy et valider tous les chunks authentifiés. Les limites CPU/mémoire, dépendances et tests exacts sont décrits dans `CANONICAL-QUOTE-VALIDATION-20261011.md`.
+Ce sont encore des composants privés, sans route ni commande IPC. `published-fences.ts` refuse toujours la confirmation d'un simple contexte de catalogue. A7 compose maintenant les vérificateurs dans le parcours privé appareil → PG/chunks → preuve → confirmation. Les limites CPU/mémoire, dépendances et tests A6 sont décrits dans `CANONICAL-QUOTE-VALIDATION-20261011.md`.
+
+## Confirmation appareil privée A7
+
+`confirmDeviceSupportQuote` n'accepte que les identifiants source/proposition/réservation/snapshot. Les identités viennent du véritable authentificateur ; les enregistrements et leur provenance sont relus dans D1 sous autorité et délégation actuelles. Le chemin natif suisse refuse aussi une intention d'entreprise US dans ses prédicats D1. Le contenu historique du ticket et la tête actuelle du catalogue ne sont pas requis pour confirmer le fait de création.
+
+Sans preuve durable, le chargeur corrobore le fait PostgreSQL committed exact, règle si nécessaire la tentative D1 pending, valide les métadonnées du snapshot puis télécharge chaque chunk authentifié. Chaque taille/SHA, le SHA de l'archive entière, le ZIP complet et les faits métier SQLite sont vérifiés. Un fait PG conservé sans archive disponible ne suffit pas. Les permissions sont revérifiées après chaque attente, y compris les rejets réseau, et atomiquement dans les mutations D1.
+
+La première insertion de preuve exige une réservation sans reçu dans la même requête SQL ; la migration additive locale 0104 impose aussi cet ordre aux écritures DML directes. Un reçu legacy apparu pendant le chargement ne peut donc pas être rétroactivement corroboré. Une preuve déjà enregistrée reste rejouable après confirmation : aucun ancien transport, modèle ou catalogue n'est relu, aucun second devis n'est créé. La confirmation n'émet ni ne transmet le devis.
+
+Les essais de composition utilisent de vraies migrations D1, transactions SQLite, archives ZIP, WASM et registres, avec des ports Auth/PG/Storage explicitement synthétiques. Ils ne prouvent ni un déploiement hébergé ni l'exécution du writer Rust. `DEVICE-CONFIRMATION-VALIDATION-20261011.md` consigne le périmètre et les résultats. L'endpoint, la commande native, le déclenchement Support et la notification restent absents.
 
 ## Ce qui n'est pas prouvé par le chargeur de planification
 
@@ -117,7 +127,7 @@ Ce sont encore des composants privés : pas de route, commande IPC ou orchestrat
 - Un hash de sidecar ne prouve pas son égalité avec SQLite face à un producteur malveillant. Le writer natif recorroborera ses faits locaux avant commit ; la confirmation distante devra corroborer les faits métier publiés.
 - Le sidecar actuel ne contient pas de projection des devis/reçus créés. Il ne peut pas confirmer une création dans D1.
 - Les gardes et le protocole de publication imposent un ordre entre des transactions locales ; ils ne constituent pas une transaction distribuée D1/PostgreSQL/SQLite. Une barrière peut rester durablement `pending` lorsque le rapprochement ne dispose pas d'un résultat certain.
-- L'autorité distante, la réservation centrale et la recorroboration du writer natif doivent encore être raccordées à une commande dédiée. A6 fournit les vérificateurs privés du reçu métier publié, mais pas le parcours authentifié complet. Aucune émission ni transmission n'est autorisée.
+- L'autorité distante, la réservation centrale et la recorroboration du writer natif doivent encore être raccordées à une commande dédiée. A7 compose la confirmation privée du reçu métier publié ; le parcours exposé, le writer effectivement exécuté et la notification restent à valider. Aucune émission ni transmission n'est autorisée.
 - Les migrations proposées, le garde permanent et l'allowlist nécessitent un déploiement coordonné explicitement validé avant toute activation ; aucun hôte client ni base hébergée n'a reçu ce lot.
 
 Les reçus natifs prévus sont partagés et immuables ; l'outbox est privée à l'installation, purgée des archives et conservée lors d'une réception ordinaire. Rejoindre une autre entreprise la vide. Une copie reçue qui perd ou modifie un reçu local est refusée avec restauration des données précédentes ; aucun devis n'est recréé pour résoudre cette situation.
