@@ -132,6 +132,169 @@ fn refuses(store: &LocalStore, input: ActionEngineQuoteInput, code: &str) {
     assert_eq!(snapshot(store), before);
 }
 
+fn creation_event(store: &LocalStore, quote_id: &str) -> (String, Value) {
+    let rows = query_all(&store.connect().unwrap(),
+        "SELECT id,payload_json FROM audit_log WHERE action='create' AND entity_type='action_engine_quote' AND entity_id=?",
+        [quote_id]).unwrap();
+    assert_eq!(rows.len(), 1, "one immutable creation event per quote");
+    (rows[0]["id"].as_str().unwrap().into(),
+        serde_json::from_str(rows[0]["payload_json"].as_str().unwrap()).unwrap())
+}
+
+#[test]
+fn creation_evidence_is_read_from_real_customer_quote_and_lines_for_both_customer_branches() {
+    for existing in [false, true] {
+        let f = fixture(existing);
+        let request = input(&f, existing);
+        let receipt = f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let (_, payload) = creation_event(&f.store, &request.quote_id);
+        let raw = payload["creationJson"].as_str().unwrap();
+        let creation: QuoteCreation = serde_json::from_str(raw).unwrap();
+        assert_eq!(sha(raw.as_bytes()), payload["creationSha256"].as_str().unwrap());
+        assert_eq!(serde_json::to_string(&creation).unwrap(), raw, "typed compact serialization has a fixed field order");
+        assert_eq!(creation.version, 1);
+        assert_eq!(creation.customer_created, !existing);
+        assert_eq!(creation.source_canonical_sha256, sha(&serde_json::to_vec(&request.source).unwrap()));
+        assert_eq!(payload["receipt"], serde_json::to_value(receipt).unwrap());
+        let current = snapshot(&f.store);
+        let customer = &current["clients"][0];
+        let quote = &current["quotes"][0];
+        let line = &current["quote_items"][0];
+        assert_eq!(creation.customer.id, customer["id"].as_str().unwrap());
+        assert_eq!(creation.customer.name, customer["name"].as_str().unwrap());
+        assert_eq!(creation.customer.email.as_deref(), customer["email"].as_str());
+        assert_eq!(creation.customer.country, customer["country"].as_str().unwrap());
+        assert_eq!(creation.customer.created_at, customer["created_at"].as_str().unwrap());
+        assert_eq!(creation.customer.updated_at, customer["updated_at"].as_str().unwrap());
+        assert!(creation.customer.archived_at.is_none());
+        assert_eq!(creation.quote.id, quote["id"].as_str().unwrap());
+        assert_eq!(creation.quote.client_id, quote["client_id"].as_str().unwrap());
+        assert_eq!(creation.quote.title, quote["title"].as_str().unwrap());
+        assert_eq!(creation.quote.issue_date, quote["issue_date"].as_str().unwrap());
+        assert_eq!(creation.quote.valid_until, quote["valid_until"].as_str().unwrap());
+        assert_eq!(creation.quote.subtotal_cents, quote["subtotal_cents"].as_i64().unwrap());
+        assert_eq!(creation.quote.vat_cents, quote["vat_cents"].as_i64().unwrap());
+        assert_eq!(creation.quote.total_cents, quote["total_cents"].as_i64().unwrap());
+        assert_eq!(creation.quote.created_at, quote["created_at"].as_str().unwrap());
+        assert_eq!(creation.quote.updated_at, quote["updated_at"].as_str().unwrap());
+        assert!(creation.quote.number.is_none() && creation.quote.project_id.is_none()
+            && creation.quote.notes.is_none() && creation.quote.terms.is_none() && creation.quote.snapshot_json.is_none());
+        assert_eq!(creation.lines.len(), 1);
+        assert_eq!(creation.lines[0].id, line["id"].as_str().unwrap());
+        assert_eq!(creation.lines[0].catalog_item_id, line["catalog_item_id"].as_str().unwrap());
+        assert_eq!(creation.lines[0].quantity_milli, 3000);
+        assert_eq!(creation.lines[0].quantity_milli as f64 / 1000.0, line["quantity"].as_f64().unwrap());
+        assert_eq!(creation.lines[0].line_net_cents, line["line_net_cents"].as_i64().unwrap());
+        assert_eq!(creation.lines[0].line_vat_cents, line["line_vat_cents"].as_i64().unwrap());
+        assert_eq!(creation.lines[0].line_total_cents, line["line_total_cents"].as_i64().unwrap());
+        assert_eq!(creation.lines[0].created_at, line["created_at"].as_str().unwrap());
+        assert_eq!(creation.lines[0].updated_at, line["updated_at"].as_str().unwrap());
+        assert_eq!(f.store.verify_audit_log().unwrap()["valid"], true);
+    }
+}
+
+#[test]
+fn typed_creation_json_preserves_unicode_nulls_and_order_without_source_mail_or_local_secrets() {
+    let f = fixture(false);
+    let mut request = input(&f, false);
+    request.source.sender_name = "Équipe 🚀 \"Léman\" \\ \u{2028} Deuxième\nligne".into();
+    request.source.subject = "Offre 🚀 \"Léman\" \\ \u{2028} fin".into();
+    request.source.body.push_str("\nRAW_MAIL_PRIVATE_SENTINEL");
+    let customer_name = request.source.sender_name.clone();
+    let quote_title = request.source.subject.clone();
+    change_plan(&mut request, |plan| {
+        plan["customer"]["name"] = json!(customer_name);
+        plan["title"] = json!(quote_title);
+    });
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let (_, payload) = creation_event(&f.store, &request.quote_id);
+    let raw = payload["creationJson"].as_str().unwrap();
+    let creation: QuoteCreation = serde_json::from_str(raw).unwrap();
+    assert_eq!(creation.customer.name, request.source.sender_name);
+    assert_eq!(creation.quote.title, request.source.subject);
+    assert!(raw.starts_with("{\"version\":1,\"sourceCanonicalSha256\":"));
+    assert!(raw.contains(",\"customerCreated\":true,\"customer\":{\"id\":"));
+    assert!(raw.contains(",\"projectId\":null,\"number\":null,\"title\":"));
+    assert!(raw.contains(",\"description\":\"Radiateur\",\"quantityMilli\":3000,\"unit\":"));
+    assert_eq!(raw, serde_json::to_string(&creation).unwrap());
+    assert_eq!(sha(raw.as_bytes()), payload["creationSha256"].as_str().unwrap());
+    for private in ["RAW_MAIL_PRIVATE_SENTINEL", request.expected_workspace_scope.as_str(),
+        request.expected_member_context_nonce.as_str(), request.installation_id.as_str(), "senderEmail", "senderName"] {
+        assert!(!raw.contains(private), "private source/origin value was copied into creation evidence: {private}");
+    }
+    let mut unknown: Value = serde_json::from_str(raw).unwrap();
+    unknown["unexpected"] = json!(true);
+    assert!(serde_json::from_value::<QuoteCreation>(unknown).is_err());
+    let duplicate = raw.replacen("{\"version\":1,", "{\"version\":1,\"version\":1,", 1);
+    assert!(serde_json::from_str::<QuoteCreation>(&duplicate).is_err());
+}
+
+#[test]
+fn creation_evidence_remains_historical_after_human_edits_and_deletion_without_recreation() {
+    let f = fixture(true);
+    let request = input(&f, true);
+    let receipt = f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let original_event = creation_event(&f.store, &request.quote_id);
+    f.store.update_record("quotes", &request.quote_id, json!({"title":"Human edited after creation"})).unwrap();
+    f.store.update_record("clients", &request.customer_id, json!({"name":"Human changed client name"})).unwrap();
+    f.store.update_record("quote_items", &line_id(&request, 0), json!({"quantity":4})).unwrap();
+    assert_eq!(creation_event(&f.store, &request.quote_id), original_event);
+    assert_eq!(f.store.commit_action_engine_quote_draft(request.clone()).unwrap(), receipt);
+    f.store.delete_record("quotes", &request.quote_id).unwrap();
+    let deleted = snapshot(&f.store);
+    assert_eq!(f.store.commit_action_engine_quote_draft(request.clone()).unwrap(), receipt);
+    assert_eq!(snapshot(&f.store), deleted);
+    assert_eq!(creation_event(&f.store, &request.quote_id), original_event);
+    let creation: QuoteCreation = serde_json::from_str(original_event.1["creationJson"].as_str().unwrap()).unwrap();
+    assert_eq!(creation.quote.title, "Devis radiateurs");
+    assert_eq!(creation.lines[0].quantity_milli, 3000);
+    assert_eq!(creation.customer.name, "Camille Exemple");
+    // This local historical receipt is not authorization for first central
+    // confirmation after those edits/deletion. That server proof stays closed.
+    assert_eq!(f.store.verify_audit_log().unwrap()["valid"], true);
+}
+
+#[test]
+fn issuance_does_not_rewrite_the_initial_unnumbered_creation_evidence_or_receipt() {
+    let f = fixture(true);
+    let request = input(&f, true);
+    let receipt = f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let original_event = creation_event(&f.store, &request.quote_id);
+    let db = f.store.connect().unwrap();
+    db.execute("UPDATE settings SET vat_number='CHE-123.456.789 TVA' WHERE id=1", []).unwrap();
+    db.execute("UPDATE clients SET address_line1='Rue fictive 1',postal_code='1200',city='Genève' WHERE id=?", [&request.customer_id]).unwrap();
+    drop(db);
+    let issued = f.store.issue_quote(&request.quote_id, Some("2026-10-11".into()), Some("2026-11-10".into())).unwrap();
+    assert_eq!(issued["status"], "emis");
+    assert!(issued["number"].as_str().is_some_and(|number| !number.is_empty()));
+    assert_eq!(creation_event(&f.store, &request.quote_id), original_event);
+    assert_eq!(f.store.commit_action_engine_quote_draft(request).unwrap(), receipt);
+    assert!(receipt.quote_number.is_none());
+    assert_eq!(receipt.status, "draft");
+    // An issued current quote must not be mistaken for an initial draft by the
+    // future first-confirmation verifier; this test proves only local history.
+    assert_eq!(f.store.verify_audit_log().unwrap()["valid"], true);
+}
+
+#[test]
+fn changed_stored_values_before_creation_readback_roll_back_every_native_effect() {
+    for mutation in ["quantity", "money", "title", "customer"] {
+        let f = fixture(false);
+        let request = input(&f, false);
+        let sql = match mutation {
+            "quantity" => "CREATE TRIGGER qa_corrupt_creation AFTER INSERT ON quote_items BEGIN UPDATE quote_items SET quantity=quantity+0.001 WHERE id=NEW.id; END;",
+            "money" => "CREATE TRIGGER qa_corrupt_creation AFTER INSERT ON quote_items BEGIN UPDATE quote_items SET unit_price_cents=unit_price_cents+0.5 WHERE id=NEW.id; END;",
+            "title" => "CREATE TRIGGER qa_corrupt_creation AFTER INSERT ON quotes BEGIN UPDATE quotes SET title='Changed by synthetic trigger' WHERE id=NEW.id; END;",
+            "customer" => "CREATE TRIGGER qa_corrupt_creation AFTER INSERT ON clients BEGIN UPDATE clients SET name='Changed by synthetic trigger' WHERE id=NEW.id; END;",
+            _ => unreachable!(),
+        };
+        f.store.connect().unwrap().execute_batch(sql).unwrap();
+        let before = snapshot(&f.store);
+        assert!(f.store.commit_action_engine_quote_draft(request).is_err(), "{mutation}");
+        assert_eq!(snapshot(&f.store), before, "readback failure must roll back customer/quote/receipt/audit/outbox: {mutation}");
+    }
+}
+
 #[test]
 fn existing_customer_and_unnumbered_draft_lines_receipt_audit_outbox_commit_together_once() {
     let f = fixture(true);
@@ -495,12 +658,18 @@ fn milli_quantities_and_tax_half_up_are_proved_with_integer_amounts() {
         p["netCents"] = json!(2488);
         p["lines"][0]["evidence"] = json!("0.125 radiateurs");
     });
+    let quote_id = request.quote_id.clone();
     f.store.commit_action_engine_quote_draft(request).unwrap();
     let data = snapshot(&f.store);
     assert_eq!(data["quote_items"][0]["quantity"], 0.125);
     assert_eq!(data["quote_items"][0]["line_net_cents"], 2488);
     assert_eq!(data["quote_items"][0]["line_vat_cents"], 202);
     assert_eq!(data["quotes"][0]["total_cents"], 2690);
+    let (_, evidence) = creation_event(&f.store, &quote_id);
+    let creation: QuoteCreation = serde_json::from_str(evidence["creationJson"].as_str().unwrap()).unwrap();
+    assert_eq!(creation.lines[0].quantity_milli, 125);
+    assert_eq!(creation.lines[0].line_net_cents, 2488);
+    assert_eq!(creation.lines[0].line_vat_cents, 202);
 }
 
 #[test]
@@ -841,6 +1010,7 @@ fn actual_backup_preserves_shared_receipt_strips_outbox_and_restore_replay_is_re
         .store
         .commit_action_engine_quote_draft(request.clone())
         .unwrap();
+    let creation = creation_event(&f.store, &request.quote_id);
     let backup = f
         .store
         .create_backup(None, env!("CARGO_PKG_VERSION"))
@@ -854,6 +1024,14 @@ fn actual_backup_preserves_shared_receipt_strips_outbox_and_restore_replay_is_re
         std::io::copy(&mut db_entry, &mut file).unwrap();
     }
     let copied = rusqlite::Connection::open(&db_path).unwrap();
+    let (copied_id, copied_payload): (String, String) = copied.query_row(
+        "SELECT id,payload_json FROM audit_log WHERE action='create' AND entity_type='action_engine_quote' AND entity_id=?",
+        [&request.quote_id], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+    assert_eq!(copied_id, creation.0);
+    let copied_payload: Value = serde_json::from_str(&copied_payload).unwrap();
+    assert_eq!(copied_payload, creation.1);
+    assert_eq!(sha(copied_payload["creationJson"].as_str().unwrap().as_bytes()),
+        copied_payload["creationSha256"].as_str().unwrap());
     assert_eq!(
         copied
             .query_row::<i64, _, _>(
@@ -891,5 +1069,6 @@ fn actual_backup_preserves_shared_receipt_strips_outbox_and_restore_replay_is_re
         receipt
     );
     assert_eq!(snapshot(&f.store), restored);
+    assert_eq!(creation_event(&f.store, &receipt.quote_id), creation);
     assert_eq!(f.store.verify_audit_log().unwrap()["valid"], true);
 }

@@ -122,6 +122,77 @@ struct PlannedLine {
     evidence: String,
 }
 
+/// Canonical creation evidence is serialized directly from these typed structs,
+/// in declaration order, with compact serde JSON. Its exact UTF-8 bytes are
+/// stored as creationJson in the append-only audit event, never reserialized
+/// through a Value/map to produce creationSha256. Only this allowlist is shared;
+/// no private notes, bank data, local generation or raw source mail is included.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QuoteCreation {
+    version: u8,
+    source_canonical_sha256: String,
+    customer_created: bool,
+    customer: CreationCustomer,
+    quote: CreationQuote,
+    lines: Vec<CreationLine>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreationCustomer {
+    id: String,
+    name: String,
+    email: Option<String>,
+    country: String,
+    archived_at: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreationQuote {
+    id: String,
+    client_id: String,
+    project_id: Option<String>,
+    number: Option<String>,
+    title: String,
+    status: String,
+    issue_date: String,
+    valid_until: String,
+    currency: String,
+    subtotal_cents: i64,
+    discount_cents: i64,
+    vat_cents: i64,
+    total_cents: i64,
+    notes: Option<String>,
+    terms: Option<String>,
+    snapshot_json: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreationLine {
+    id: String,
+    quote_id: String,
+    catalog_item_id: String,
+    position: i64,
+    description: String,
+    quantity_milli: i64,
+    unit: String,
+    unit_price_cents: i64,
+    discount_bp: i64,
+    vat_bp: i64,
+    line_net_cents: i64,
+    line_vat_cents: i64,
+    line_total_cents: i64,
+    created_at: String,
+    updated_at: String,
+}
+
 fn reject(code: &str) -> AppError {
     AppError::Validation(format!(
         "[action_engine:{code}] L’action privée doit être vérifiée avant de continuer."
@@ -443,7 +514,7 @@ fn validate_input(input: &ActionEngineQuoteInput) -> AppResult<QuotePlan> {
 /// The disposable local origin generations are fresh guards, not part of the
 /// permanent request identity. Neither nonce nor full mail is persisted here.
 fn request_hash(input: &ActionEngineQuoteInput) -> AppResult<String> {
-    let source_hash = sha(&serde_json::to_vec(&input.source)?);
+    let source_hash = source_canonical_hash(&input.source)?;
     Ok(sha(&serde_json::to_vec(&json!([
         1,
         input.actor.organization_id,
@@ -458,6 +529,12 @@ fn request_hash(input: &ActionEngineQuoteInput) -> AppResult<String> {
         input.customer_id,
         input.quote_id
     ]))?))
+}
+
+/// ActionEngineQuoteSource declaration order is part of this cross-language
+/// contract: id, revision, organizationId, senderEmail, senderName, subject, body.
+fn source_canonical_hash(source: &ActionEngineQuoteSource) -> AppResult<String> {
+    Ok(sha(&serde_json::to_vec(source)?))
 }
 fn require_origin(
     tx: &Transaction<'_>,
@@ -561,6 +638,98 @@ fn line_id(input: &ActionEngineQuoteInput, position: usize) -> String {
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes).to_string()
+}
+
+/// Read back actual stored business values in the same IMMEDIATE transaction.
+/// The current rows may later be edited, issued or deleted; this creation event
+/// will not change, and a historical replay must never fabricate another one.
+fn quote_creation_json(
+    tx: &Transaction<'_>,
+    input: &ActionEngineQuoteInput,
+    plan: &QuotePlan,
+    customer_created: bool,
+) -> AppResult<String> {
+    let customer = tx.query_row(
+        "SELECT id,name,email,country,archived_at,created_at,updated_at FROM clients WHERE id=?",
+        [&input.customer_id],
+        |row| Ok(CreationCustomer {
+            id: row.get(0)?, name: row.get(1)?, email: row.get(2)?, country: row.get(3)?,
+            archived_at: row.get(4)?, created_at: row.get(5)?, updated_at: row.get(6)?,
+        }),
+    )?;
+    let quote = tx.query_row(
+        "SELECT id,client_id,project_id,number,title,status,issue_date,valid_until,currency,
+            subtotal_cents,discount_cents,vat_cents,total_cents,notes,terms,snapshot_json,created_at,updated_at
+         FROM quotes WHERE id=?",
+        [&input.quote_id],
+        |row| Ok(CreationQuote {
+            id: row.get(0)?, client_id: row.get(1)?, project_id: row.get(2)?, number: row.get(3)?,
+            title: row.get(4)?, status: row.get(5)?, issue_date: row.get(6)?, valid_until: row.get(7)?,
+            currency: row.get(8)?, subtotal_cents: row.get(9)?, discount_cents: row.get(10)?,
+            vat_cents: row.get(11)?, total_cents: row.get(12)?, notes: row.get(13)?,
+            terms: row.get(14)?, snapshot_json: row.get(15)?, created_at: row.get(16)?, updated_at: row.get(17)?,
+        }),
+    )?;
+    let mut statement = tx.prepare(
+        "SELECT id,quote_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,
+            discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at
+         FROM quote_items WHERE quote_id=? ORDER BY position,id COLLATE BINARY",
+    )?;
+    let rows = statement.query_map([&input.quote_id], |row| {
+        Ok((CreationLine {
+            id: row.get(0)?, quote_id: row.get(1)?, catalog_item_id: row.get(2)?, position: row.get(3)?,
+            description: row.get(4)?, quantity_milli: 0, unit: row.get(6)?, unit_price_cents: row.get(7)?,
+            discount_bp: row.get(8)?, vat_bp: row.get(9)?, line_net_cents: row.get(10)?,
+            line_vat_cents: row.get(11)?, line_total_cents: row.get(12)?, created_at: row.get(13)?, updated_at: row.get(14)?,
+        }, row.get::<_, f64>(5)?))
+    })?.collect::<Result<Vec<_>, _>>()?;
+    let expected_name = match plan.customer.as_ref().ok_or_else(|| reject("invalid_record"))? {
+        PlannedCustomer::Existing { name, .. } | PlannedCustomer::New { name, .. } => name,
+    };
+    if customer.id != input.customer_id || customer.name != *expected_name
+        || customer.archived_at.is_some()
+        || customer.email.as_deref().map(normalized_email).as_deref() != Some(input.source.sender_email.as_str())
+        || quote.id != input.quote_id || quote.client_id != input.customer_id
+        || quote.project_id.is_some() || quote.number.is_some() || quote.status != "brouillon"
+        || quote.title != plan.title || quote.currency != "CHF" || quote.discount_cents != 0
+        || quote.notes.is_some() || quote.terms.is_some() || quote.snapshot_json.is_some()
+        || rows.len() != plan.lines.len()
+    {
+        return Err(reject("invalid_record"));
+    }
+    let mut lines = Vec::with_capacity(rows.len());
+    let mut totals = (0_i128, 0_i128, 0_i128);
+    for (position, ((mut actual, quantity), planned)) in rows.into_iter().zip(&plan.lines).enumerate() {
+        let calculated = amount(planned.quantity_milli, planned.unit_price_cents, planned.tax_rate_bp)?;
+        if !quantity.is_finite() || quantity != planned.quantity_milli as f64 / 1000.0
+            || actual.id != line_id(input, position) || actual.quote_id != input.quote_id
+            || actual.catalog_item_id != planned.article_id || actual.position != position as i64
+            || actual.description != planned.description || actual.unit != planned.unit
+            || actual.unit_price_cents != planned.unit_price_cents || actual.discount_bp != 0
+            || actual.vat_bp != planned.tax_rate_bp || actual.line_net_cents != calculated.0
+            || actual.line_vat_cents != calculated.1 || actual.line_total_cents != calculated.2
+        {
+            return Err(reject("invalid_record"));
+        }
+        actual.quantity_milli = planned.quantity_milli;
+        totals.0 += i128::from(actual.line_net_cents);
+        totals.1 += i128::from(actual.line_vat_cents);
+        totals.2 += i128::from(actual.line_total_cents);
+        lines.push(actual);
+    }
+    if i128::from(quote.subtotal_cents) != totals.0 || i128::from(quote.vat_cents) != totals.1
+        || i128::from(quote.total_cents) != totals.2
+    {
+        return Err(reject("invalid_record"));
+    }
+    let json = serde_json::to_string(&QuoteCreation {
+        version: 1, source_canonical_sha256: source_canonical_hash(&input.source)?,
+        customer_created, customer, quote, lines,
+    })?;
+    if json.len() > 65_536 {
+        return Err(reject("invalid_record"));
+    }
+    Ok(json)
 }
 
 impl LocalStore {
@@ -718,6 +887,8 @@ impl LocalStore {
                 input.fingerprint, request_sha, input.expected_resources_hash, input.expected_context_revision,
                 input.actor.user_id, input.installation_id, input.customer_id, input.quote_id,
                 input.canonical_plan_json, receipt_json, receipt_sha, now])?;
+        let creation_json = quote_creation_json(&tx, &input, &plan, create_customer)?;
+        let creation_sha = sha(creation_json.as_bytes());
         append_audit(
             &tx,
             "create",
@@ -725,7 +896,8 @@ impl LocalStore {
             &input.quote_id,
             &json!({"receipt":receipt,"reservationId":input.reservation_id,"requestSha256":request_sha,
                 "quantityMilli":plan.lines.iter().map(|l|l.quantity_milli).collect::<Vec<_>>(),
-                "netCents":totals.0 as i64,"vatCents":totals.1 as i64,"totalCents":totals.2 as i64}),
+                "netCents":totals.0 as i64,"vatCents":totals.1 as i64,"totalCents":totals.2 as i64,
+                "creationJson":creation_json,"creationSha256":creation_sha}),
         )?;
         // No nonce, token, name, email, mail body or price is queued.
         let outbox = json!({"organizationId":input.actor.organization_id,"proposalId":input.proposal_id,
