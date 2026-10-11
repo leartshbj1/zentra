@@ -164,6 +164,7 @@ export const supportTickets = sqliteTable(
     uniqueIndex('support_ticket_external').on(t.connectionId, t.externalId),
     index('support_ticket_inbox').on(t.workspaceId, t.updatedAt),
     index('support_ticket_pending').on(t.workspaceId, t.state),
+    index('support_ticket_work_discovery').on(t.workspaceId, t.createdAt, t.id),
     index('support_ticket_operations').on(t.state, t.connectionId, t.workspaceId, t.createdAt, t.leaseUntil),
   ],
 );

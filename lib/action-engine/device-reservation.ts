@@ -128,10 +128,6 @@ export async function reserveDeviceSupportQuote(
     throw new ActionEngineError('forbidden');
   const db = database(),
     historical = createHistoricalQuoteFences(authority, access);
-  const country = Object.freeze({
-    sql: "NOT EXISTS(SELECT 1 FROM international_workspace_creation_intents WHERE organization_id=? AND country_code='US')",
-    bindings: Object.freeze([actor.organizationId]),
-  });
   const readFence = () =>
     historical.ledgerFence({
       operation: 'read',
@@ -249,7 +245,6 @@ export async function reserveDeviceSupportQuote(
         throw new ActionEngineError('stale_plan');
       const predicate = combineQuotePredicates(
         fences.progression(),
-        country,
         ...(finalReservation ? [finalReservation] : []),
       );
       const row = await db
@@ -267,7 +262,7 @@ export async function reserveDeviceSupportQuote(
       async (call) => {
         if (!publicationCoordinationEnabled(actor.organizationId))
           throw new ActionEngineError('forbidden');
-        return combineQuotePredicates(await fences.ledgerFence(call), country);
+        return fences.ledgerFence(call);
       },
       { reservationBinding: fences.reservationBinding },
     );

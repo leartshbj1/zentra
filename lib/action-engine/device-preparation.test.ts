@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   providerHook: null as null | (() => void),
   providerGuard: null as null | (() => Promise<void>),
   authority: vi.fn(),
+  recover: vi.fn(),
   preflight: vi.fn(),
   preflightCas: vi.fn(),
   load: vi.fn(),
@@ -45,6 +46,9 @@ vi.mock('@/lib/runtime', () => ({
 }));
 vi.mock('./production-admission', () => ({
   createDeviceQuoteAuthority: state.authority,
+}));
+vi.mock('./device-proposal-recovery', () => ({
+  readPreparedDeviceQuote: state.recover,
 }));
 vi.mock('./published-context', () => ({
   loadDeviceQuotePlanningContext: state.load,
@@ -227,6 +231,7 @@ beforeEach(() => {
     predicate: () => predicate,
   };
   state.authority.mockResolvedValue(authority);
+  state.recover.mockResolvedValue(null);
   loaded = { context, admission };
   state.load.mockResolvedValue(loaded);
   state.progression.mockReturnValue(predicate);
@@ -294,6 +299,7 @@ describe('private device quote preparation composition (unit boundaries)', () =>
       prepareDeviceSupportQuote(request(), context.source.id),
     ).rejects.toMatchObject({ code: 'forbidden' });
     expect(state.preflightCas).not.toHaveBeenCalled();
+    expect(state.recover).not.toHaveBeenCalled();
     expect(state.load).not.toHaveBeenCalled();
     expect(state.fences).not.toHaveBeenCalled();
     expect(state.ledgerFactory).not.toHaveBeenCalled();
@@ -316,6 +322,7 @@ describe('private device quote preparation composition (unit boundaries)', () =>
     );
     expect(state.load).toHaveBeenCalledWith(captured, context.source.id);
     expect(state.fences).toHaveBeenCalledWith(authority, cas, loaded);
+    expect(state.recover).toHaveBeenCalledWith(authority, context.source.id);
     expect(state.ledgerFactory).toHaveBeenCalledWith(
       expect.objectContaining({ prepare: state.prepareSql }),
       ledgerFence,
@@ -333,7 +340,7 @@ describe('private device quote preparation composition (unit boundaries)', () =>
       context.source.id,
       expect.objectContaining({
         intake,
-        provider: { decide: state.decide },
+        provider: { decide: expect.any(Function) },
         findProposal: ledger.findProposal,
         saveProposal: ledger.saveProposal,
       }),
@@ -460,5 +467,55 @@ describe('private device quote preparation composition (unit boundaries)', () =>
     expect(state.authority).not.toHaveBeenCalled();
     expect(state.load).not.toHaveBeenCalled();
     expect(state.providerFactory).not.toHaveBeenCalled();
+  });
+
+  it('returns the immutable recovered proposal without context, key or another engine decision', async () => {
+    state.recover.mockResolvedValue(proposal);
+    state.load.mockRejectedValue(Error('current archive unavailable'));
+    state.key.mockRejectedValue(Error('platform key unavailable'));
+    await expect(
+      prepareDeviceSupportQuote(request(), context.source.id),
+    ).resolves.toBe(proposal);
+    expect(state.preflightCas).not.toHaveBeenCalled();
+    expect(state.load).not.toHaveBeenCalled();
+    expect(state.fences).not.toHaveBeenCalled();
+    expect(state.prepareEngine).not.toHaveBeenCalled();
+    expect(state.key).not.toHaveBeenCalled();
+    expect(state.providerFactory).not.toHaveBeenCalled();
+    expect(state.externalCall).not.toHaveBeenCalled();
+  });
+
+  it('does not interpret a failed recovery read as permission to prepare again', async () => {
+    state.recover.mockRejectedValue(new ActionEngineError('forbidden'));
+    await expect(
+      prepareDeviceSupportQuote(request(), context.source.id),
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    expect(state.preflightCas).not.toHaveBeenCalled();
+    expect(state.load).not.toHaveBeenCalled();
+    expect(state.key).not.toHaveBeenCalled();
+    expect(state.externalCall).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the private deployment gate after historical recovery', async () => {
+    state.recover.mockImplementation(async () => {
+      state.enabled = false;
+      return proposal;
+    });
+    await expect(
+      prepareDeviceSupportQuote(request(), context.source.id),
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    expect(state.load).not.toHaveBeenCalled();
+    expect(state.externalCall).not.toHaveBeenCalled();
+  });
+
+  it('does not look up the platform key when the engine can reuse durable intake data', async () => {
+    state.prepareEngine.mockResolvedValue(proposal);
+    state.key.mockRejectedValue(Error('platform key unavailable'));
+    await expect(
+      prepareDeviceSupportQuote(request(), context.source.id),
+    ).resolves.toBe(proposal);
+    expect(state.key).not.toHaveBeenCalled();
+    expect(state.providerFactory).not.toHaveBeenCalled();
+    expect(state.externalCall).not.toHaveBeenCalled();
   });
 });

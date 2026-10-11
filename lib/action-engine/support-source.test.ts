@@ -46,12 +46,12 @@ beforeEach(() => {
   db.exec(`CREATE TABLE support_tickets(id TEXT PRIMARY KEY,workspace_id TEXT,connection_id TEXT,external_id TEXT,subject TEXT,body TEXT,source_json TEXT,fingerprint TEXT,revision INTEGER);
     CREATE TABLE support_connections(id TEXT PRIMARY KEY,workspace_id TEXT,active INTEGER,created_at INTEGER,provider TEXT);
     CREATE TABLE support_gestion_links(workspace_id TEXT PRIMARY KEY,organization_id TEXT,enabled INTEGER,connected_by TEXT,created_at INTEGER);
-    CREATE TABLE support_workspaces(id TEXT PRIMARY KEY,owner_id TEXT);
+    CREATE TABLE support_workspaces(id TEXT PRIMARY KEY,owner_id TEXT,mode TEXT);
     CREATE TABLE organization_members(organization_id TEXT,user_id TEXT,revoked_at INTEGER,role TEXT,email TEXT);
     CREATE TABLE support_members(workspace_id TEXT,email TEXT,role TEXT);
     INSERT INTO support_connections VALUES('connection-a','workspace-a',1,2,'infomaniak');
     INSERT INTO support_gestion_links VALUES('workspace-a','company-a',1,'owner-a',3);
-    INSERT INTO support_workspaces VALUES('workspace-a','owner-a');
+    INSERT INTO support_workspaces VALUES('workspace-a','owner-a','automatic');
     INSERT INTO organization_members VALUES('company-a','owner-a',NULL,'owner','owner@example.test');`);
   db.prepare('INSERT INTO support_tickets VALUES(?,?,?,?,?,?,?,?,?)').run(
     'source-a',
@@ -101,6 +101,19 @@ it('never admits historical source access from another tenant or a changed sourc
   const cap = await readSupportQuoteAccess(actor, 'source-a');
   db.exec("UPDATE support_tickets SET workspace_id='other'");
   expect(allowed(cap.predicate())).toBe(0);
+});
+
+it('a Support pause stops a captured progression gate without blocking historical recovery', async () => {
+  const source = await readSupportQuoteSource(actor, 'source-a');
+  const access = await readSupportQuoteAccess(actor, 'source-a');
+  const progression = source.predicate('progression');
+  expect(allowed(progression)).toBe(1);
+  db.exec("UPDATE support_workspaces SET mode='paused'");
+  expect(allowed(progression)).toBe(0);
+  expect(allowed(source.predicate('read'))).toBe(1);
+  expect(allowed(access.predicate())).toBe(1);
+  db.exec("UPDATE support_workspaces SET mode='review'");
+  expect(allowed(progression)).toBe(1);
 });
 
 it('keeps the existing action-source-v1 revision and exposes only a detached private capability', async () => {

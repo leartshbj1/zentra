@@ -71,7 +71,9 @@ suite('private bound quote loader, real cumulative D1 SQL', () => {
       expect(batch[2]).toContain('DELETE FROM action_engine_atomic_assertions');
     }
     expect(assertions(q.sql)).toBe(0);
-    expect(q.migrations.at(-1)).toContain('0104');
+    expect(q.migrations).toContain(
+      '0104_action_engine_quote_evidence_preconfirmation.sql',
+    );
   });
   it('clean reopen uses a second actual SQLite connection and preserves exact IDs', async () => {
     const q = setup();

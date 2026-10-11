@@ -548,7 +548,7 @@ suite('quote reservation binding, real cumulative D1 SQL', () => {
       ),
     );
     expect(f.count('action_engine_atomic_assertions')).toBe(0);
-    expect(f.migrations.at(-1)).toBe(
+    expect(f.migrations).toContain(
       '0104_action_engine_quote_evidence_preconfirmation.sql',
     );
   });

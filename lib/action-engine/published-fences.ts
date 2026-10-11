@@ -89,16 +89,25 @@ export async function createPublishedQuoteFences(
     if (JSON.stringify(candidate) !== JSON.stringify(input))
       throw new QuotePreparationError('conflict');
   };
+  const country = Object.freeze({
+    // The native quote writer is CH-only. Recheck the same legacy transport
+    // boundary inside every durable read/progression, including after an
+    // external provider wait. Absence of a US intent is not a CH attestation.
+    sql: "NOT EXISTS(SELECT 1 FROM international_workspace_creation_intents WHERE organization_id=? AND country_code='US')",
+    bindings: Object.freeze([actor.organizationId]),
+  });
   const historical = (): QuoteLedgerPredicate =>
     combineQuotePredicates(
       authority.predicate('read'),
       source.predicate('read'),
+      country,
     );
   const progression = (): QuoteLedgerPredicate =>
     combineQuotePredicates(
       admissionCas.predicate(),
       source.predicate('progression'),
       publication,
+      country,
     );
   const ledgerFence: QuoteLedgerFence = async (request) => {
     matchesActor(request.actor);

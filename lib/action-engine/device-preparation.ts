@@ -1,4 +1,5 @@
 import { decisionApiKey } from '@/lib/automation/config';
+import type { DecisionInput } from '@/lib/automation/types';
 import { database } from '@/lib/runtime';
 import { prepareQuoteProposal } from './engine';
 import { createD1QuoteIntake } from './intake';
@@ -10,6 +11,7 @@ import { createPublishedQuoteFences } from './published-fences';
 import { publicationCoordinationEnabled } from './publication-gateway';
 import { ActionEngineError } from './types';
 import { actionIdentifier } from './validation';
+import { readPreparedDeviceQuote } from './device-proposal-recovery';
 
 /**
  * Private server composition only. No route, Support trigger or native IPC calls
@@ -27,6 +29,10 @@ export async function prepareDeviceSupportQuote(
   const authority = await createDeviceQuoteAuthority(captured);
   if (!publicationCoordinationEnabled(authority.actor.organizationId))
     throw new ActionEngineError('forbidden');
+  const recovered = await readPreparedDeviceQuote(authority, sourceId);
+  if (!publicationCoordinationEnabled(authority.actor.organizationId))
+    throw new ActionEngineError('forbidden');
+  if (recovered) return recovered;
   const cas = await authority.preflightCas();
   const loaded = await loadDeviceQuotePlanningContext(captured, sourceId);
   const fences = await createPublishedQuoteFences(authority, cas, loaded);
@@ -50,12 +56,19 @@ export async function prepareDeviceSupportQuote(
   await authorize();
   const ledger = createD1QuoteLedger(db, fences.ledgerFence);
   const intake = createD1QuoteIntake(db, fences.intakeFence);
-  const provider = createQuoteDecisionProvider(
-    await decisionApiKey(),
-    async () => {
+  // A finished durable intake can still need its proposal saved. Resolve the
+  // platform key only if the engine owns a new decision, after intake.start.
+  // A missing key must not prevent recovery or replay of a finished result.
+  const provider = Object.freeze({
+    async decide(input: DecisionInput) {
       await authorize();
+      const key = await decisionApiKey();
+      await authorize();
+      return createQuoteDecisionProvider(key, async () => {
+        await authorize();
+      }).decide(input);
     },
-  );
+  });
   return prepareQuoteProposal(authority.actor, sourceId, {
     intake,
     provider,

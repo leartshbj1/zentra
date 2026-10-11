@@ -304,10 +304,6 @@ async function compose(sourceSize = 256000) {
       installation,
       quoteId,
     );
-  const country = {
-    sql: "NOT EXISTS(SELECT 1 FROM international_workspace_creation_intents WHERE organization_id=? AND country_code='US')",
-    bindings: [org],
-  };
   // Same six-bound final owner/absence guard as reserveDeviceSupportQuote;
   // no shortened authority or substitute source/publication predicate.
   const finalReservation = {
@@ -320,7 +316,9 @@ async function compose(sourceSize = 256000) {
     bindings: [org, reservationId, proposalId, fingerprint, user, installation],
   };
   const progression = fences.progression();
-  const gate = combineQuotePredicates(progression, country, finalReservation);
+  // The country guard is now owned by the shared published fences. Match the
+  // actual A8 composition rather than adding the same binding a second time.
+  const gate = combineQuotePredicates(progression, finalReservation);
   return {
     gate,
     cas,
@@ -328,7 +326,6 @@ async function compose(sourceSize = 256000) {
     fingerprint,
     finalReservation,
     progression,
-    country,
   };
 }
 
@@ -402,7 +399,7 @@ it.each([
 ] as const)(
   'the maximum-size final predicate atomically refuses %s without leaving a write/assertion',
   async (change) => {
-    const { gate, fingerprint, finalReservation, progression, country } =
+    const { gate, fingerprint, finalReservation, progression } =
       await compose();
     expect(allowed(gate)).toBe(1);
     sql.exec('CREATE TABLE qa_budget_write(id TEXT)');
@@ -445,7 +442,7 @@ it.each([
           'a0000000-0000-4000-8000-000000000002',
         ],
       };
-      const wrongOwner = combineQuotePredicates(progression, country, foreign);
+      const wrongOwner = combineQuotePredicates(progression, foreign);
       expect(wrongOwner.bindings).toHaveLength(63);
       expect(allowed(wrongOwner)).toBe(0);
       expect(() => guardedMutation(wrongOwner)).toThrow(/CHECK/);

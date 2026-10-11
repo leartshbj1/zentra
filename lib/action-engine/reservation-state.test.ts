@@ -153,7 +153,9 @@ suite('private reservation classifier, real cumulative D1 SQLite', () => {
       q.sql.prepare('SELECT count(*) n FROM action_engine_quote_events').get()
         ?.n,
     ).toBe(1);
-    expect(q.migrations.at(-1)).toContain('0104');
+    expect(q.migrations).toContain(
+      '0104_action_engine_quote_evidence_preconfirmation.sql',
+    );
   });
   it('returns unreserved only for an existing scoped proposal without a reservation', async () => {
     const q = setup({ reserved: false }),

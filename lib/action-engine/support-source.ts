@@ -346,6 +346,7 @@ export async function readSupportQuoteSource(
     });
     return combineQuotePredicates({
       sql: `EXISTS(SELECT 1 ${SOURCE_FROM} WHERE l.organization_id=? AND ${SUPPORT_PERMISSION}
+        AND w.mode IN ('automatic','review')
         AND ${comparisons.join(' AND ')})`,
       bindings,
     });
