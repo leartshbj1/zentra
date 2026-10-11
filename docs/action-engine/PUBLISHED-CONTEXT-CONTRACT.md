@@ -1,8 +1,10 @@
-# Contexte Gestion publié — raccord A3 privé
+# Contexte Gestion publié — raccords privés A3 et A4
 
 ## État réel
 
-Le desktop 1.90.15, schéma 61, publie des archives .zentra par /api/account/collaboration, avec têtes/révisions Supabase. A3 ajoute des sources natives schéma 62 et un lecteur serveur ; aucun endpoint Action Engine, migration distante ou déploiement n'est activé. La compilation Rust est bloquée avant les modules projet par Windows App Control (erreur 4551). Les tests natifs et l'interopérabilité d'une archive effectivement produite par Rust restent à exécuter.
+Le desktop 1.90.15, schéma 61, publie des archives .zentra par /api/account/collaboration, avec têtes/révisions Supabase. A3 ajoute des sources natives schéma 62 et un lecteur serveur. A4 ajoute la coordination privée du transport publié et compose ses gardes avec celles de la source Support et de l'admission D1. Aucun endpoint Action Engine, commande IPC, interface ou déclencheur Support n'est activé ; aucune migration hébergée ni mise en production n'est effectuée dans ce lot. Le consentement spécifique est désactivé par défaut et le pilote `ACTION_ENGINE_PUBLICATION_ORGANIZATIONS` refuse les nouvelles préparations si sa configuration est absente ou sa liste vide.
+
+La compilation Rust est bloquée avant les modules projet par Windows App Control (erreur 4551). Les tests natifs et l'interopérabilité d'une archive effectivement produite par Rust restent à exécuter. Les contrôles A4 sont consignés dans `PUBLICATION-VALIDATION-20261011.md` et son manifeste de preuves.
 
 Ne jamais utiliser le protocole D1 business_sync_* du desktop ancien 1.46.1 embarqué dans la copie serveur pour cette intégration.
 
@@ -44,11 +46,46 @@ Révision client = SHA-256 de ["customer",…tupleClient] ; article = ["article"
 
 ## Lecture serveur codée
 
-loadDeviceQuotePlanningContext utilise l'identité appareil et l'admission A2, puis la délégation Support/Gestion actuelle. Il exige un ticket durable de la même entreprise, une connexion active, un délégant propriétaire/admin encore autorisé et une source non fermée/non incomplète. L'identité vient de l'enveloppe, jamais du corps ou du modèle. Les conversations signalées multi-expéditeurs sont refusées.
+loadDeviceQuotePlanningContext utilise l'identité appareil et l'admission A2, puis `readSupportQuoteSource` sous la délégation Support/Gestion actuelle. Il exige un ticket durable de la même entreprise, une connexion active, un délégant propriétaire/admin encore autorisé et une source non fermée/non incomplète. L'identité vient de l'enveloppe, jamais du corps ou du modèle. Les conversations signalées multi-expéditeurs sont refusées. Le lecteur capture les faits avant leur hash et retourne une capacité source privée ; un acteur, une autorisation ou un prédicat SQL ne sont jamais acceptés dans un body HTTP.
 
 Les helpers authentifiés collaborationHead, collaborationSnapshot et downloadCollaborationChunk restent utilisés. Le chargeur exige une révision publiée cohérente, vérifie la longueur/SHA du premier chunk et lit au maximum 8 MiB. Le codec vérifie les deux en-têtes locaux positionnels, chemins exacts, flags, CRC, tailles, SHA, JSON sans champs/clefs dupliqués, UTF-8 strict, bornes et hashes des faits.
 
-La révision du contexte lie entreprise, snapshot, révision finale/base, SHA archive déclaré, SHA du chunk vérifié, SHA sidecar, hash ressources et source. La révision finale est attribuée après publication, pas préinscrite dans le ZIP. Source, tête et admission sont relues après les attentes.
+La révision du contexte lie entreprise, snapshot, révision finale/base, SHA archive déclaré, SHA du manifeste de transport normalisé, SHA du chunk vérifié, SHA sidecar, hash ressources et source. `manifestSha256` est le SHA-256 de `JSON.stringify(backupManifest(manifest))`, pas celui du manifeste interne ZIP. La révision finale est attribuée après publication, pas préinscrite dans le ZIP. Source, tête et admission sont relues après les attentes.
+
+## Publication coordonnée A4
+
+Le raccord privé `publication-gateway.ts` se branche dans le chemin existant de commit collaboration pour les entreprises explicitement admises. Les migrations additives proposées sont D1 `0102_action_engine_publication_ledger.sql` et PostgreSQL `20261011011348_action_engine_publication_coordination.sql`. Cette dernière exige le schéma de collaboration historique réconcilié et son garde pays existant ; elle ne déplace aucune donnée et n'active aucune entreprise.
+
+L'ordre imposé est le suivant :
+
+1. Activer le garde PostgreSQL sous le verrou de tête. Il est permanent : les anciens commits ne peuvent plus avancer cette tête hors du protocole coordonné. Les métadonnées du candidat deviennent immuables.
+2. Inscrire une tentative D1 `pending` immuable pour l'entreprise, le snapshot, l'installation, l'acteur, la révision de base, les SHA archive/manifeste et la taille. Une seule tentative peut rester `pending` par entreprise. Cette barrière précède le CAS PostgreSQL.
+3. Appeler `zentra_commit_workspace_v2` avec la même identité d'opération. PostgreSQL reprend le CAS et les contrôles des parties du transport existants sous verrou ; il conserve le premier résultat et son identité.
+4. Lire `zentra_action_publication_fact_v1` et vérifier son fait exact avant la clôture D1 : opération, entreprise, snapshot, installation, acteur, base et résultat terminal. Un commit doit aussi corroborer la taille et le manifeste normalisé, son SHA et le SHA archive, et présenter une version de contenu admissible. Ensuite seulement D1 devient `committed` ou `cancelled`, et le caller peut annoncer le résultat ou purger les copies de transport.
+
+Le fait PostgreSQL est une preuve de **publication de transport**, pas une preuve du contenu SQLite ou de l'existence du devis. La fonction de confirmation du registre Action Engine retourne encore le prédicat `sql: '0'` ; le sidecar clients/articles ne permet pas de lever ce refus.
+
+### Réponse perdue et fermeture
+
+Un timeout ou une réponse incertaine conserve la barrière D1. Le rejeu garde le même ID d'opération et retrouve son fait d'origine. Quand une autre tentative rencontre une barrière vieille d'au moins 120 secondes, le serveur peut appeler explicitement `zentra_close_action_publication_v1`. Cet appel se sérialise avec un commit retardé sous le même verrou de tête : il retrouve le commit déjà fait ou inscrit un tombstone d'annulation permanent, y compris si le candidat n'existe plus. `close` ne publie jamais un candidat.
+
+Le délai seul ne libère rien et ne prouve jamais l'absence de commit. D1 n'est clôturé qu'après vérification du fait terminal PostgreSQL ; une erreur laisse la barrière intacte. Aucune expiration de bail ni attribution automatique d'un commit incertain à une autre installation n'est fournie.
+
+Les faits terminaux PostgreSQL et D1 permettent de rejouer un commit après purge de sa copie de transport sans faire avancer une tête plus récente ni reconstruire un ancien témoin de catalogue courant. **Le parcours natif qui refait `prepare`/`prepare-content` avant d'appeler `commit` reste à adapter et valider** : le rejeu serveur seul ne garantit donc pas encore cette reprise complète sur l'appareil.
+
+Retirer une entreprise de l'allowlist ferme ses nouvelles préparations Action Engine dans le contexte runtime qui fournit ce réglage, sans retirer son garde permanent. Le préparateur le relit aussi avant l'autorisation fournisseur ; un ancien déploiement peut conserver ses propres bindings, tandis que le CAS D1 vérifie les consentements et droits persistants actuels. Le transport d'une entreprise déjà gardée reste coordonné ; le wrapper legacy prend le verrou de tête et refuse `PA103` avant tout retour, même historique. Seul ce refus définitif permet de changer de chemin, jamais un timeout ambigu. Les entreprises non gardées conservent le chemin de collaboration existant.
+
+## Gardes D1 composées
+
+`preflightCas` capture l'admission D1 et les valeurs exactes de son `revision_json`. `createPublishedQuoteFences` compose trois prédicats privés pour la progression de l'intake et du registre :
+
+- L'autorité actuelle appareil, entreprise, rôle, siège, paiement et consentements, avec la génération d'admission capturée inchangée.
+- Les faits bruts exacts ayant produit la révision source : ticket, workspace, connexion, identifiant externe, objet, corps, JSON d'enveloppe, fingerprint, révision, délégant et dates du lien/de la connexion, fournisseur du connecteur. Les permissions de délégation sont relues par le SQL.
+- Le témoin D1 de publication `committed` attendu : entreprise, snapshot, base/révision, SHA archive et SHA manifeste. Toute tentative `pending` ou publication plus récente de cette entreprise bloque la progression.
+
+L'assertion CHECK, la mutation et son journal sont dans le **même batch D1**. La composition refuse un dépassement de 64 paramètres ou 16 000 caractères SQL ; chaque chaîne liée est bornée à 65 536 caractères UTF-16. Le JSON source est segmenté sans séparer les deux unités d'un emoji. Les valeurs restent des paramètres, jamais du SQL interpolé.
+
+L'historique utilise les droits commerciaux/appareil et la délégation actuelle du workspace capturé. Il n'exige pas que le ticket soit encore ouvert, que l'ancienne connexion reste active ou que l'ancien catalogue soit courant ; il n'autorise aucune progression. `prepareDeviceSupportQuote` assemble ces capacités avec la réservation durable avant IA et la sauvegarde de proposition, mais n'est appelé par aucune route, UI ou automatisation Support dans ce lot.
 
 ## Ce qui n'est pas prouvé
 
@@ -56,6 +93,8 @@ La révision du contexte lie entreprise, snapshot, révision finale/base, SHA ar
 - Le premier chunk est vérifié ; le hash de toute l'archive n'est pas recalculé. Le SHA complet vient du manifeste de publication existant.
 - Un hash de sidecar ne prouve pas son égalité avec SQLite face à un producteur malveillant. Le writer natif recorroborera ses faits locaux avant commit ; la confirmation distante devra corroborer les faits métier publiés.
 - Le sidecar actuel ne contient pas de projection des devis/reçus créés. Il ne peut pas confirmer une création dans D1.
-- Une relecture Supabase puis un batch D1 ne constituent pas une transaction distribuée. Barrière de publication/source et réconciliation restent requises avant activation.
+- Les gardes et le protocole de publication imposent un ordre entre des transactions locales ; ils ne constituent pas une transaction distribuée D1/PostgreSQL/SQLite. Une barrière peut rester durablement `pending` lorsque le rapprochement ne dispose pas d'un résultat certain.
+- L'autorité distante, la réservation centrale et la recorroboration du writer natif doivent encore être raccordées à une commande dédiée ; le reçu métier publié et sa vérification distante restent absents. La confirmation demeure refusée, aucune émission ni transmission n'est autorisée.
+- Les migrations proposées, le garde permanent et l'allowlist nécessitent un déploiement coordonné explicitement validé avant toute activation ; aucun hôte client ni base hébergée n'a reçu ce lot.
 
 Les reçus natifs prévus sont partagés et immuables ; l'outbox est privée à l'installation, purgée des archives et conservée lors d'une réception ordinaire. Rejoindre une autre entreprise la vide. Une copie reçue qui perd ou modifie un reçu local est refusée avec restauration des données précédentes ; aucun devis n'est recréé pour résoudre cette situation.

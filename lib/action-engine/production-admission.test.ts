@@ -1,4 +1,5 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -20,6 +21,13 @@ import {
   QUOTE_PREPARATION_CONSENT_VERSION,
   type DeviceQuoteAuthority,
 } from './production-admission';
+import {
+  combineQuotePredicates,
+  readSupportQuoteSource,
+} from './support-source';
+import type { QuoteLedgerPredicate } from './ledger-types';
+import { createPublishedQuoteFences } from './published-fences';
+import { validatePlanningContext } from './validation';
 
 let db: DatabaseSync;
 const org = 'authority-company';
@@ -154,7 +162,10 @@ beforeEach(async () => {
   ).run(org, QUOTE_PREPARATION_CONSENT_VERSION, user, now, now);
 });
 
-afterEach(() => db.close());
+afterEach(() => {
+  vi.restoreAllMocks();
+  db.close();
+});
 
 it.each(['solo', 'team', 'pro'] as const)(
   'admits the paid Complete %s catalogue without exposing credentials',
@@ -516,4 +527,293 @@ it('enforces explicit revisions when modifying the opt-in', () => {
 it('does not accept a forged operation name as historical access', async () => {
   const authority = await createDeviceQuoteAuthority(requestFor());
   expect(() => authority.predicate('confirm' as 'read')).toThrow();
+});
+
+function capturedGateAllowed(gate: QuoteLedgerPredicate) {
+  return db
+    .prepare(`SELECT CASE WHEN (${gate.sql}) THEN 1 ELSE 0 END allowed`)
+    .get(...gate.bindings)?.allowed;
+}
+
+it('captures one exact admission generation in a private immutable CAS capability', async () => {
+  const authority = await createDeviceQuoteAuthority(requestFor());
+  const cas = await authority.preflightCas();
+  expect(Object.keys(cas)).toEqual(['admission', 'predicate']);
+  expect(Object.isFrozen(cas)).toBe(true);
+  expect(Object.isFrozen(cas.admission)).toBe(true);
+  const gate = cas.predicate();
+  expect(Object.isFrozen(gate)).toBe(true);
+  expect(Object.isFrozen(gate.bindings)).toBe(true);
+  expect(capturedGateAllowed(gate)).toBe(1);
+  const material = gate.bindings.at(-1);
+  expect(typeof material).toBe('string');
+  expect(cas.admission.revision).toBe(
+    createHash('sha256')
+      .update(`quote-authority-v1:${material as string}`)
+      .digest('hex'),
+  );
+  expect(JSON.stringify(cas)).not.toContain(token);
+  expect(JSON.stringify(cas)).not.toContain('revision_json');
+});
+
+it.each([
+  'UPDATE device_sessions SET expires_at=expires_at+10',
+  "UPDATE organization_members SET joined_at=joined_at+10 WHERE user_id='authority-owner'",
+  "UPDATE subscriptions SET status='past_due'",
+  'UPDATE automation_settings SET revision=revision+1',
+  'UPDATE automation_platform SET value=\'[ "email_classification" ]\'',
+  'UPDATE action_engine_quote_settings SET revision=revision+1',
+])(
+  'rejects an older admitted generation although current rights remain valid: %s',
+  async (mutation) => {
+    const authority = await createDeviceQuoteAuthority(requestFor());
+    const old = await authority.preflightCas(),
+      compiled = old.predicate();
+    db.exec(mutation);
+    expect(predicateAllowed(authority, 'progression')).toBe(1);
+    expect(capturedGateAllowed(compiled)).toBe(0);
+    expect(capturedGateAllowed(old.predicate())).toBe(0);
+    const fresh = await authority.preflightCas();
+    expect(fresh.admission.revision).not.toBe(old.admission.revision);
+    expect(capturedGateAllowed(fresh.predicate())).toBe(1);
+    await expect(authority.authorizeRead()).resolves.toBeUndefined();
+  },
+);
+
+it('does not recapture a different database generation after the digest await', async () => {
+  const authority = await createDeviceQuoteAuthority(requestFor());
+  const before = await authority.preflight();
+  const digest = crypto.subtle.digest.bind(crypto.subtle);
+  vi.spyOn(crypto.subtle, 'digest').mockImplementationOnce(
+    (algorithm, bytes) => {
+      db.exec('UPDATE action_engine_quote_settings SET revision=revision+1');
+      return digest(algorithm, bytes);
+    },
+  );
+  const raced = await authority.preflightCas();
+  expect(raced.admission.revision).toBe(before.revision);
+  expect(predicateAllowed(authority, 'progression')).toBe(1);
+  expect(capturedGateAllowed(raced.predicate())).toBe(0);
+  const fresh = await authority.preflightCas();
+  expect(fresh.admission.revision).not.toBe(raced.admission.revision);
+  expect(capturedGateAllowed(fresh.predicate())).toBe(1);
+});
+
+it('rechecks private runtime payment mode when a captured CAS predicate is requested', async () => {
+  const authority = await createDeviceQuoteAuthority(requestFor());
+  const cas = await authority.preflightCas();
+  runtime.stripeKey = 'invalid-key';
+  expect(capturedGateAllowed(cas.predicate())).toBe(0);
+  runtime.stripeKey = 'rk_test_authority_fixture';
+  expect(capturedGateAllowed(cas.predicate())).toBe(0);
+  runtime.stripeKey = 'rk_live_authority_fixture';
+  expect(capturedGateAllowed(cas.predicate())).toBe(1);
+});
+
+it('rolls back a guarded mutation when only the admitted settings generation changed', async () => {
+  const authority = await createDeviceQuoteAuthority(requestFor());
+  const cas = await authority.preflightCas(),
+    gate = cas.predicate();
+  db.exec(
+    'CREATE TABLE qa_cas_guard(allowed INTEGER NOT NULL CHECK(allowed=1)); CREATE TABLE qa_cas_write(id TEXT)',
+  );
+  db.exec('UPDATE action_engine_quote_settings SET revision=revision+1');
+  expect(predicateAllowed(authority, 'progression')).toBe(1);
+  db.exec('BEGIN');
+  try {
+    db.prepare(
+      `INSERT INTO qa_cas_guard SELECT CASE WHEN (${gate.sql}) THEN 1 ELSE 0 END`,
+    ).run(...gate.bindings);
+    db.exec("INSERT INTO qa_cas_write VALUES('stale-generation')");
+    throw new Error('Admission CAS unexpectedly allowed the mutation');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/CHECK/);
+  }
+  expect(db.prepare('SELECT count(*) AS n FROM qa_cas_write').get()?.n).toBe(0);
+});
+
+it('combines real migrated admission, large source and committed publication within durable SQL limits', async () => {
+  db.prepare(
+    'INSERT INTO support_workspaces(id,owner_id,name,created_at,updated_at) VALUES(?,?,?,?,?)',
+  ).run('cas-workspace', user, 'Support fixture', 1, 1);
+  db.prepare(`INSERT INTO support_connections(id,workspace_id,provider,label,domain,login,secret,hook_hash,directory_json,routes_json,created_at)
+    VALUES('cas-connection','cas-workspace','infomaniak','fixture','','','','','{}','{}',2)`).run();
+  db.prepare(`INSERT INTO support_gestion_links(workspace_id,organization_id,connected_by,created_at)
+    VALUES('cas-workspace',?,?,3)`).run(org, user);
+  const envelope = {
+    externalId: 'cas-mail',
+    subject: 'Devis',
+    body: '3 radiateurs',
+    senderEmail: 'client@example.test',
+    senderName: 'Client Exemple',
+    closed: false,
+    padding: 'x'.repeat(200000) + '😀',
+  };
+  db.prepare(`INSERT INTO support_tickets(id,workspace_id,connection_id,external_id,subject,body,source_json,fingerprint,created_at,updated_at)
+    VALUES('cas-source','cas-workspace','cas-connection','cas-mail','Devis','3 radiateurs',?,'fixture-fingerprint',4,4)`).run(
+    JSON.stringify(envelope),
+  );
+  const authority = await createDeviceQuoteAuthority(requestFor());
+  const cas = await authority.preflightCas();
+  const source = await readSupportQuoteSource(authority.actor, 'cas-source');
+  const snapshotId = '60000000-0000-4000-8000-000000000001';
+  const nextSnapshotId = '60000000-0000-4000-8000-000000000002';
+  const publication = {
+    organizationId: org,
+    snapshotId,
+    baseRevision: 0,
+    revision: 1,
+    archiveSha256: 'a'.repeat(64),
+    manifestSha256: 'b'.repeat(64),
+  };
+  const fences = await createPublishedQuoteFences(authority, cas, {
+    context: validatePlanningContext({
+      organizationId: org,
+      revision: 'cas-context-fixture',
+      currency: 'CHF',
+      source: source.source,
+      customers: [],
+      articles: [],
+    }),
+    publication: {
+      ...publication,
+      firstChunkSha256: 'c'.repeat(64),
+      sidecarSha256: 'd'.repeat(64),
+      resourcesHash: 'e'.repeat(64),
+    },
+    admission: cas.admission,
+    sourceCapability: source,
+  });
+  function beginPublication(
+    id: string,
+    snapshot: string,
+    baseRevision: number,
+  ) {
+    db.prepare(`INSERT INTO action_engine_publication_attempts
+      (id,organization_id,snapshot_id,installation_id,user_id,base_revision,archive_sha256,manifest_sha256,size_bytes,state,created_at)
+      VALUES(?,?,?,?,?,?,?,?,100,'pending',1)`).run(
+      id,
+      org,
+      snapshot,
+      installation,
+      user,
+      baseRevision,
+      publication.archiveSha256,
+      publication.manifestSha256,
+    );
+  }
+  const attemptId = '50000000-0000-4000-8000-000000000001';
+  beginPublication(attemptId, snapshotId, 0);
+  const combined = fences.progression();
+  expect(combined.bindings.length).toBeLessThanOrEqual(64);
+  expect(combined.sql.length).toBeLessThanOrEqual(16000);
+  expect(
+    combined.bindings
+      .filter((value) => typeof value === 'string')
+      .every((value) => value.length <= 65536),
+  ).toBe(true);
+  expect(capturedGateAllowed(combined)).toBe(0);
+  expect(
+    capturedGateAllowed(
+      combineQuotePredicates(cas.predicate(), source.predicate('progression')),
+    ),
+  ).toBe(1);
+  const historical = await fences.intakeFence({
+    operation: 'read',
+    actor: authority.actor,
+    input: fences.input,
+  });
+  expect(capturedGateAllowed(historical)).toBe(1);
+  db.exec(
+    'CREATE TABLE qa_composed_guard(allowed INTEGER NOT NULL CHECK(allowed=1)); CREATE TABLE qa_composed_write(id TEXT)',
+  );
+  function guardedMutation() {
+    db.exec('BEGIN');
+    try {
+      db.prepare(
+        `INSERT INTO qa_composed_guard SELECT CASE WHEN (${combined.sql}) THEN 1 ELSE 0 END`,
+      ).run(...combined.bindings);
+      db.exec("INSERT INTO qa_composed_write VALUES('only-after-publication')");
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+  expect(guardedMutation).toThrow(/CHECK/);
+  expect(
+    db.prepare('SELECT count(*) AS n FROM qa_composed_write').get()?.n,
+  ).toBe(0);
+  // This is a real D1/SQLite terminal witness, not a claim that PostgreSQL or
+  // business contents were checked by this SQL-only fixture.
+  db.prepare(
+    "UPDATE action_engine_publication_attempts SET state='committed',result_json=?,settled_at=2 WHERE id=?",
+  ).run(
+    JSON.stringify({ committed: true, revision: 1, snapshotId }),
+    attemptId,
+  );
+  expect(capturedGateAllowed(combined)).toBe(1);
+  expect(guardedMutation).not.toThrow();
+  expect(
+    db.prepare('SELECT count(*) AS n FROM qa_composed_write').get()?.n,
+  ).toBe(1);
+  const nextAttemptId = '50000000-0000-4000-8000-000000000002';
+  beginPublication(nextAttemptId, nextSnapshotId, 1);
+  expect(capturedGateAllowed(combined)).toBe(0);
+  expect(guardedMutation).toThrow(/CHECK/);
+  expect(
+    db.prepare('SELECT count(*) AS n FROM qa_composed_write').get()?.n,
+  ).toBe(1);
+  expect(
+    capturedGateAllowed(
+      await fences.ledgerFence({
+        operation: 'read',
+        actor: authority.actor,
+        sourceId: 'cas-source',
+        proposalId: null,
+      }),
+    ),
+  ).toBe(1);
+  expect(
+    capturedGateAllowed(
+      combineQuotePredicates(cas.predicate(), source.predicate('progression')),
+    ),
+  ).toBe(1);
+  db.prepare(
+    "UPDATE action_engine_publication_attempts SET state='cancelled',result_json=?,settled_at=2 WHERE id=?",
+  ).run(
+    JSON.stringify({ committed: false, revision: 1, snapshotId }),
+    nextAttemptId,
+  );
+  expect(capturedGateAllowed(combined)).toBe(1);
+  const overBudget = Array<number>(65 - combined.bindings.length).fill(1);
+  expect(() =>
+    combineQuotePredicates(combined, { sql: '1', bindings: overBudget }),
+  ).toThrow('invalid_context');
+  db.prepare('UPDATE support_tickets SET source_json=? WHERE id=?').run(
+    JSON.stringify({ ...envelope, closed: true }),
+    'cas-source',
+  );
+  expect(capturedGateAllowed(combined)).toBe(0);
+  expect(
+    capturedGateAllowed(
+      await fences.intakeFence({
+        operation: 'read',
+        actor: authority.actor,
+        input: fences.input,
+      }),
+    ),
+  ).toBe(1);
+  db.exec('UPDATE support_gestion_links SET enabled=0');
+  expect(
+    capturedGateAllowed(
+      await fences.intakeFence({
+        operation: 'read',
+        actor: authority.actor,
+        input: fences.input,
+      }),
+    ),
+  ).toBe(0);
 });

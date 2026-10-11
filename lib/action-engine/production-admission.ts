@@ -18,6 +18,11 @@ import type { ActionActor, ActionAdmission } from './types';
 export const QUOTE_PREPARATION_CONSENT_VERSION =
   'action-engine-quote-draft-customer-2026-10-11';
 export type QuoteAuthorityPurpose = 'read' | 'progression';
+export type DeviceQuoteAdmissionCas = Readonly<{
+  admission: ActionAdmission;
+  /** Fresh authority plus the privately captured exact D1 revision material. */
+  predicate: () => QuoteLedgerPredicate;
+}>;
 
 export type DeviceQuoteAuthority = Readonly<{
   actor: ActionActor;
@@ -26,6 +31,7 @@ export type DeviceQuoteAuthority = Readonly<{
   predicate: (purpose: QuoteAuthorityPurpose) => QuoteLedgerPredicate;
   /** Progression only: read access never claims permission to create a draft. */
   preflight: () => Promise<ActionAdmission>;
+  preflightCas: () => Promise<DeviceQuoteAdmissionCas>;
   authorizeRead: () => Promise<void>;
 }>;
 
@@ -36,6 +42,16 @@ const NATIVE_ORIGINS = [
   'http://tauri.localhost',
   'https://tauri.localhost',
 ];
+// One expression supplies both the public opaque revision and its private CAS.
+// Do not hash a later/second SELECT and mistake it for the admitted generation.
+const REVISION_SQL = `json_object(
+  'session',(SELECT json_array(expires_at,revoked_at) FROM device_sessions WHERE session_id=?),
+  'membership',(SELECT json_array(role,joined_at,revoked_at) FROM organization_members WHERE organization_id=? AND user_id=?),
+  'payment',(SELECT json_array(s.subscription_id,s.entitlement_plan_id,s.seat_limit,s.status,s.livemode,s.entitlement_valid_until,c.paid_plan_id,c.paid_from,c.paid_until,c.last_paid_invoice_id) FROM subscriptions s JOIN complete_subscriptions c ON c.subscription_id=s.subscription_id WHERE s.subscription_id=?),
+  'automation',(SELECT json_array(revision,enabled,mode,flags,consent_version) FROM automation_settings WHERE organization_id=?),
+  'platform',(SELECT value FROM automation_platform WHERE id='features'),
+  'action',(SELECT json_array(revision,enabled,consent_version,granted_by,granted_at) FROM action_engine_quote_settings WHERE organization_id=?)
+)`;
 
 function identifier(value: unknown): string {
   if (
@@ -210,36 +226,53 @@ export async function createDeviceQuoteAuthority(
     if (row?.allowed !== 1) throw denied();
   }
 
-  async function preflight(): Promise<ActionAdmission> {
+  const revisionBindings = Object.freeze([
+    identity.sessionId,
+    identity.organizationId,
+    identity.userId,
+    identity.subscriptionId,
+    identity.organizationId,
+    identity.organizationId,
+  ]);
+
+  async function preflightCas(): Promise<DeviceQuoteAdmissionCas> {
     const gate = predicate('progression');
     const row = await db
       .prepare(`SELECT CASE WHEN (${gate.sql}) THEN 1 ELSE 0 END AS allowed,
-        json_object(
-          'session',(SELECT json_array(expires_at,revoked_at) FROM device_sessions WHERE session_id=?),
-          'membership',(SELECT json_array(role,joined_at,revoked_at) FROM organization_members WHERE organization_id=? AND user_id=?),
-          'payment',(SELECT json_array(s.subscription_id,s.entitlement_plan_id,s.seat_limit,s.status,s.livemode,s.entitlement_valid_until,c.paid_plan_id,c.paid_from,c.paid_until,c.last_paid_invoice_id) FROM subscriptions s JOIN complete_subscriptions c ON c.subscription_id=s.subscription_id WHERE s.subscription_id=?),
-          'automation',(SELECT json_array(revision,enabled,mode,flags,consent_version) FROM automation_settings WHERE organization_id=?),
-          'platform',(SELECT value FROM automation_platform WHERE id='features'),
-          'action',(SELECT json_array(revision,enabled,consent_version,granted_by,granted_at) FROM action_engine_quote_settings WHERE organization_id=?)
-        ) AS revision_json`)
-      .bind(
-        ...gate.bindings,
-        identity.sessionId,
-        identity.organizationId,
-        identity.userId,
-        identity.subscriptionId,
-        identity.organizationId,
-        identity.organizationId,
-      )
+        ${REVISION_SQL} AS revision_json`)
+      .bind(...gate.bindings, ...revisionBindings)
       .first<{ allowed: number; revision_json: string }>();
-    if (row?.allowed !== 1 || typeof row.revision_json !== 'string')
+    if (
+      row?.allowed !== 1 ||
+      typeof row.revision_json !== 'string' ||
+      row.revision_json.length > 65536
+    )
       throw denied();
-    return Object.freeze({
+    const revisionJson = row.revision_json;
+    const admission: ActionAdmission = Object.freeze({
       ...actor,
-      revision: await sha256Hex(`quote-authority-v1:${row.revision_json}`),
+      revision: await sha256Hex(`quote-authority-v1:${revisionJson}`),
       automationActive: true,
       mayPrepareQuote: true,
     });
+    return Object.freeze({
+      admission,
+      predicate: () => {
+        const current = predicate('progression');
+        const sql = `(${current.sql}) AND (${REVISION_SQL}=?)`;
+        const bindings = Object.freeze([
+          ...current.bindings,
+          ...revisionBindings,
+          revisionJson,
+        ]);
+        if (sql.length > 16000 || bindings.length > 64) throw denied();
+        return Object.freeze({ sql, bindings });
+      },
+    });
+  }
+
+  async function preflight(): Promise<ActionAdmission> {
+    return (await preflightCas()).admission;
   }
 
   return Object.freeze({
@@ -247,6 +280,7 @@ export async function createDeviceQuoteAuthority(
     installationId: identity.installationId,
     predicate,
     preflight,
+    preflightCas,
     authorizeRead,
   });
 }

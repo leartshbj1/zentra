@@ -5,6 +5,8 @@ import { supabaseServerClient, supabaseRealtimeConfiguration } from './supabase-
 import { announceCompanyRevision } from './company-realtime';
 import { legacyContentChunk, pruneCompanyContent } from './company-content';
 import { requireLegacyCountryTransport } from './international/legacy-country-guard';
+import { commitCoordinatedCollaboration, publicationCoordinationEnabled } from './action-engine/publication-gateway';
+import { SupabaseServerError } from './supabase-server';
 
 type Head = {organization_id:string;revision:number;snapshot_id:string|null;updated_at:string;updated_by:string};
 type Snapshot = {id:string;organization_id:string;installation_id:string;created_by:string;base_revision:number;revision:number|null;manifest:BackupManifest;size_bytes:number;content_version?:number};
@@ -125,8 +127,16 @@ export async function downloadCollaborationChunk(actor:DeviceSessionContext,id:u
 export async function commitCollaboration(actor:DeviceSessionContext,id:unknown) {
   if(!roleCanWriteInvoices(actor.role))throw noWrite();
   await requireLegacyCountryTransport(actor.organizationId);
-  const result=await supabaseServerClient().rpc<{committed:boolean;revision:number;snapshotId:string;conflict?:boolean}>('zentra_commit_workspace',{
+  const result=publicationCoordinationEnabled(actor.organizationId)
+    ? await commitCoordinatedCollaboration(actor,id)
+    : await supabaseServerClient().rpc<{committed:boolean;revision:number;snapshotId:string;conflict?:boolean}>('zentra_commit_workspace',{
     p_organization:actor.organizationId,p_snapshot:backupId(id),p_installation:actor.installationId,p_actor:actor.userId,
+  }).catch((error:unknown)=>{
+    // Only this definitive transactional rejection proves the legacy attempt
+    // did not commit. A timeout/ambiguous failure NEVER triggers another path.
+    if(error instanceof SupabaseServerError && error.code==='PA103')
+      return commitCoordinatedCollaboration(actor,id);
+    throw error;
   });
   // A cleanup failure must never disguise a successful commit and make the
   // sender repeat its business operation. The next successful commit retries.

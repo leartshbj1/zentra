@@ -3,9 +3,11 @@ import type {DeviceSessionContext} from './account';
 const stubs=vi.hoisted(()=>({client:vi.fn()}));
 vi.mock('./supabase-server-runtime',()=>({supabaseServerClient:stubs.client}));
 vi.mock('./company-realtime',()=>({announceCompanyRevision:vi.fn(async()=>undefined)}));
-vi.mock('./runtime',()=>({database:()=>({prepare:()=>({bind:()=>({first:async()=>null})})}),fileArchive:vi.fn()}));
+vi.mock('./runtime',()=>({database:()=>({prepare:()=>({bind:()=>({first:async()=>null})})}),fileArchive:vi.fn(),runtimeValue:()=>''}));
 import {collaborationBase,collaborationHead,collaborationSnapshot,prepareCollaboration,receiveCollaborationChunk,downloadCollaborationChunk,commitCollaboration,pruneCollaborationHistory} from './company-collaboration';
 import {sha256Hex} from './account-security';
+import {SupabaseServerError} from './supabase-server';
+import * as publicationGateway from './action-engine/publication-gateway';
 const a={organizationId:'org_a',installationId:'device-a',userId:'alice',role:'owner'} as DeviceSessionContext;
 const b={...a,organizationId:'org_b',installationId:'device-b',userId:'bob'};
 const id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -95,5 +97,24 @@ describe('Supabase complete company collaboration',()=>{
  it('never disguises an acknowledged commit when transport cleanup fails',async()=>{
   db.select.mockRejectedValueOnce(new Error('cleanup unavailable'));
   await expect(commitCollaboration(a,id)).resolves.toMatchObject({committed:true,revision:1});
+ });
+ it('keeps v2 after a permanent PG guard definitively rejects the legacy protocol',async()=>{
+  const coordinated=vi.spyOn(publicationGateway,'commitCoordinatedCollaboration').mockResolvedValue({committed:true,revision:1,snapshotId:id});
+  try {
+   db.rpc.mockRejectedValueOnce(new SupabaseServerError(400,'PA103','zentra_commit_workspace'));
+   expect(await commitCollaboration(a,id)).toMatchObject({committed:true,revision:1});
+   expect(coordinated).toHaveBeenCalledExactlyOnceWith(a,id);
+   expect(db.rpc).toHaveBeenNthCalledWith(1,'zentra_commit_workspace',{p_organization:a.organizationId,p_snapshot:id,p_installation:a.installationId,p_actor:a.userId});
+  } finally {coordinated.mockRestore();}
+ });
+ it('does not retry through another protocol after a timeout or generic rejection',async()=>{
+  const coordinated=vi.spyOn(publicationGateway,'commitCoordinatedCollaboration');
+  try {
+   for(const failure of [new SupabaseServerError(504,'timeout'),new SupabaseServerError(400,'PA107'),new Error('unavailable')]){
+    db.rpc.mockRejectedValueOnce(failure);
+    await expect(commitCollaboration(a,id)).rejects.toBe(failure);
+   }
+   expect(coordinated).not.toHaveBeenCalled();
+  } finally {coordinated.mockRestore();}
  });
 });

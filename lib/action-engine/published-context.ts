@@ -9,115 +9,24 @@ import {
   collaborationSnapshot,
   downloadCollaborationChunk,
 } from '@/lib/company-collaboration';
-import { database } from '@/lib/runtime';
-import { senderAddress } from '@/lib/support/sender-policies';
-import type { SourceTicket } from '@/lib/support/types';
 import { backupManifest } from '@/lib/workspace-backup';
 import { createDeviceQuoteAuthority } from './production-admission';
 import { readPublishedResourcesPrefix } from './published-resources';
-import { connectorSenderName, quoteMailBody } from './source-envelope';
-import { ActionEngineError, type ActionSource } from './types';
+import { readSupportQuoteSource } from './support-source';
+import { ActionEngineError } from './types';
 import { actionIdentifier, validatePlanningContext } from './validation';
 
-type SourceRow = {
-  id: string;
-  workspace_id: string;
-  connection_id: string;
-  external_id: string;
-  subject: string;
-  body: string;
-  source_json: string;
-  fingerprint: string;
+export type PublishedQuotePublication = Readonly<{
+  organizationId: string;
+  snapshotId: string;
   revision: number;
-  connected_by: string;
-  link_created_at: number;
-  connection_created_at: number;
-  provider: string;
-};
-
-/** Current persisted connector source under the owner's explicit Support/Gestion delegation. */
-async function sourceFor(actor: DeviceSessionContext, sourceId: string) {
-  const row = await database()
-    .prepare(`SELECT t.id,t.workspace_id,t.connection_id,t.external_id,
-      t.subject,t.body,t.source_json,t.fingerprint,t.revision,l.connected_by,
-      l.created_at AS link_created_at,c.created_at AS connection_created_at,c.provider
-    FROM support_tickets t
-    JOIN support_connections c ON c.id=t.connection_id AND c.workspace_id=t.workspace_id AND c.active=1
-    JOIN support_gestion_links l ON l.workspace_id=t.workspace_id AND l.enabled=1
-    JOIN support_workspaces w ON w.id=l.workspace_id
-    JOIN organization_members m ON m.organization_id=l.organization_id
-      AND m.user_id=l.connected_by AND m.revoked_at IS NULL AND m.role IN ('owner','admin')
-    WHERE t.id=? AND l.organization_id=?
-      AND (w.owner_id=l.connected_by OR EXISTS(SELECT 1 FROM support_members sm
-        WHERE sm.workspace_id=w.id AND lower(sm.email)=lower(m.email) AND sm.role='admin'))`)
-    .bind(sourceId, actor.organizationId)
-    .first<SourceRow>();
-  if (
-    !row ||
-    row.id !== sourceId ||
-    !Number.isSafeInteger(row.revision) ||
-    row.revision < 1 ||
-    typeof row.source_json !== 'string' ||
-    row.source_json.length > 256_000
-  )
-    throw new ActionEngineError('invalid_context');
-  let envelope: SourceTicket;
-  try {
-    envelope = JSON.parse(row.source_json) as SourceTicket;
-  } catch {
-    throw new ActionEngineError('invalid_context');
-  }
-  if (
-    !envelope ||
-    typeof envelope !== 'object' ||
-    Array.isArray(envelope) ||
-    envelope.externalId !== row.external_id ||
-    envelope.subject !== row.subject ||
-    envelope.body !== row.body ||
-    envelope.closed !== false ||
-    envelope.incomplete === true ||
-    envelope.mail?.bodyIncomplete === true ||
-    envelope.senderIdentityAmbiguous === true
-  )
-    throw new ActionEngineError('invalid_context');
-  // The durable connector envelope is the only sender identity source. A missing
-  // display name stays empty; neither message text nor a model may supply it.
-  const senderEmail = senderAddress(envelope);
-  const senderName = connectorSenderName(envelope.senderName) ?? '';
-  const revision = await sha256Hex(
-    JSON.stringify([
-      'action-source-v1',
-      row.id,
-      row.workspace_id,
-      row.connection_id,
-      row.external_id,
-      row.subject,
-      row.body,
-      row.source_json,
-      row.fingerprint,
-      row.revision,
-      row.connected_by,
-      row.link_created_at,
-      row.connection_created_at,
-      row.provider,
-    ]),
-  );
-  const source: ActionSource = Object.freeze({
-    id: sourceId,
-    revision,
-    organizationId: actor.organizationId,
-    senderEmail,
-    senderName,
-    subject: row.subject,
-    body: quoteMailBody(
-      row.body,
-      senderEmail,
-      row.provider,
-      Boolean(envelope.mail),
-    ),
-  });
-  return Object.freeze({ source, workspaceId: row.workspace_id, revision });
-}
+  baseRevision: number;
+  archiveSha256: string;
+  manifestSha256: string;
+  firstChunkSha256: string;
+  sidecarSha256: string;
+  resourcesHash: string;
+}>;
 
 function identityMatches(
   session: DeviceSessionContext,
@@ -152,7 +61,10 @@ export async function loadDeviceQuotePlanningContext(
     ACCOUNT_ROLES.filter(roleCanWriteInvoices),
   );
   identityMatches(session, authority);
-  const originalSource = await sourceFor(session, sourceId);
+  const originalSource = await readSupportQuoteSource(
+    authority.actor,
+    sourceId,
+  );
   const head = await collaborationHead(session);
   if (
     !head.enabled ||
@@ -185,12 +97,13 @@ export async function loadDeviceQuotePlanningContext(
     snapshotId: snapshot.id,
     baseRevision: snapshot.base_revision,
   });
-  const publication = Object.freeze({
+  const publication: PublishedQuotePublication = Object.freeze({
     organizationId: session.organizationId,
     snapshotId: snapshot.id,
     revision: head.revision,
     baseRevision: snapshot.base_revision,
     archiveSha256: manifest.sha256,
+    manifestSha256: await sha256Hex(JSON.stringify(manifest)),
     firstChunkSha256: manifest.chunks[0].sha256,
     sidecarSha256: published.sidecarSha256,
     resourcesHash: published.resourcesHash,
@@ -207,7 +120,7 @@ export async function loadDeviceQuotePlanningContext(
     articles: published.articles,
   });
   // Awaited reads cannot carry their old authority/head/source into a proposal.
-  const currentSource = await sourceFor(session, sourceId);
+  const currentSource = await readSupportQuoteSource(authority.actor, sourceId);
   const currentHead = await collaborationHead(session);
   const currentAdmission = await authority.preflight();
   if (
@@ -226,5 +139,6 @@ export async function loadDeviceQuotePlanningContext(
     publication,
     admission: currentAdmission,
     workspaceId: originalSource.workspaceId,
+    sourceCapability: originalSource,
   });
 }

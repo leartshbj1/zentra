@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm';
 import {
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -176,4 +178,59 @@ export const actionEngineQuoteSettings = sqliteTable(
     grantedAt: integer('granted_at'),
     updatedAt: integer('updated_at').notNull(),
   },
+);
+
+// 0102 is authoritative for bounded transport identities, terminal transitions,
+// immutable audit and REPLACE/IGNORE guards. These rows grant no permission.
+export const actionEnginePublicationAttempts = sqliteTable(
+  'action_engine_publication_attempts',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    snapshotId: text('snapshot_id').notNull(),
+    installationId: text('installation_id').notNull(),
+    userId: text('user_id').notNull(),
+    baseRevision: integer('base_revision').notNull(),
+    archiveSha256: text('archive_sha256').notNull(),
+    manifestSha256: text('manifest_sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    state: text('state').notNull(),
+    resultJson: text('result_json'),
+    createdAt: integer('created_at').notNull(),
+    settledAt: integer('settled_at'),
+  },
+  (t) => [
+    uniqueIndex('action_engine_publication_pending')
+      .on(t.organizationId)
+      .where(sql`${t.state}='pending'`),
+    uniqueIndex('action_engine_publication_snapshot').on(
+      t.organizationId,
+      t.snapshotId,
+    ),
+    uniqueIndex('action_engine_publication_committed_revision')
+      .on(t.organizationId, sql`json_extract(${t.resultJson},'$.revision')`)
+      .where(sql`${t.state}='committed'`),
+    index('action_engine_publication_company').on(
+      t.organizationId,
+      t.createdAt,
+      t.id,
+    ),
+  ],
+);
+export const actionEnginePublicationEvents = sqliteTable(
+  'action_engine_publication_events',
+  {
+    attemptId: text('attempt_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    eventType: text('event_type').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.attemptId, t.eventType] }),
+    index('action_engine_publication_events_company').on(
+      t.organizationId,
+      t.createdAt,
+      t.attemptId,
+    ),
+  ],
 );
