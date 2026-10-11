@@ -949,6 +949,150 @@ async fn confirm_sent_worker(
     .await
     .map_err(|_| invalid("La confirmation de l’envoi a été interrompue. Elle reprendra automatiquement."))?
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum PublicationRecovery {
+    Unknown,
+    Pending,
+    Committed(u64),
+    Cancelled,
+}
+
+fn invalid_publication_recovery() -> AppError {
+    invalid("La confirmation de l’envoi est invalide. Vos données sont conservées.")
+}
+
+/// A failed operation's historical result describes another head, never an
+/// acknowledgement of this pending archive. Revision zero alone has no ID.
+fn valid_cancelled_publication(response: &Value, pending: &Pending) -> bool {
+    let Some(revision) = response["revision"].as_u64() else { return false; };
+    let Some(snapshot) = response.get("snapshotId") else { return false; };
+    if revision < pending.base_revision || revision > 9_007_199_254_740_991 {
+        return false;
+    }
+    if revision == 0 {
+        return snapshot.is_null();
+    }
+    snapshot.as_str().is_some_and(|id| {
+        id != pending.id.as_str() && crate::cloud_backup::validate_id(id).is_ok()
+    })
+}
+
+fn recovered_publication_revision(response: &Value, pending: &Pending) -> AppResult<u64> {
+    let revision = response["revision"].as_u64();
+    if response["snapshotId"].as_str() != Some(pending.id.as_str())
+        || revision.is_none()
+        || revision != pending.base_revision.checked_add(1)
+        || revision.is_some_and(|value| value > 9_007_199_254_740_991)
+    {
+        return Err(invalid_publication_recovery());
+    }
+    revision.ok_or_else(invalid_publication_recovery)
+}
+
+/// Closed receipt-only response. Only the historical successor of this exact
+/// pending publication can acknowledge its bytes and original clock.
+fn publication_recovery_response(response: &Value, pending: &Pending) -> AppResult<PublicationRecovery> {
+    let object = response.as_object()
+        .ok_or_else(invalid_publication_recovery)?;
+    if object.len() == 1 && response["known"] == false {
+        return Ok(PublicationRecovery::Unknown);
+    }
+    if object.len() == 2 && response["known"] == true && response["pending"] == true {
+        return Ok(PublicationRecovery::Pending);
+    }
+    if object.len() == 4 && response["known"] == true {
+        if response["committed"] == true {
+            return recovered_publication_revision(response, pending).map(PublicationRecovery::Committed);
+        }
+        if response["committed"] == false && valid_cancelled_publication(response, pending) {
+            return Ok(PublicationRecovery::Cancelled);
+        }
+    }
+    Err(invalid_publication_recovery())
+}
+
+async fn require_pending_recovery_origin(
+    store: &LocalStore,
+    origin: LocalTransferOrigin,
+    pending: Pending,
+    verify_archive: bool,
+) -> AppResult<()> {
+    let owned = store.clone();
+    tauri::async_runtime::spawn_blocking(move || -> AppResult<()> {
+        let _local = owned.lock()?;
+        origin.require_unchanged(&owned)?;
+        if load(&owned)?.pending.as_ref() != Some(&pending) {
+            return Err(invalid("L’envoi local a changé. Relancez la synchronisation."));
+        }
+        if verify_archive {
+            require_archive_content(&file_path(&owned, &pending.id)?, &pending.manifest,
+                "L’envoi local a été modifié. Vos données originales sont conservées.")?;
+        }
+        Ok(())
+    }).await.map_err(|_| invalid("La vérification de l’envoi a été interrompue. Elle reprendra automatiquement."))?
+}
+
+/// Probe before any merge. A known pending server operation resumes only the
+/// existing commit ID, without prepare/upload/new ID. No operation is closed
+/// here. The caller holds the account operation lock across every await.
+/// True means that preferences and the server head must be read again; a
+/// cancelled/conflicting result preserves all local evidence just like unknown.
+async fn recover_pending_publication_with<F, Fut>(
+    store: &LocalStore,
+    organization: &str,
+    mut transport: F,
+) -> AppResult<bool>
+where
+    F: FnMut(Value) -> Fut,
+    Fut: std::future::Future<Output = AppResult<Value>>,
+{
+    let owned = store.clone();
+    let organization = organization.to_owned();
+    let captured = tauri::async_runtime::spawn_blocking(move || -> AppResult<_> {
+        let _local = owned.lock()?;
+        let prefs = load(&owned)?;
+        let Some(pending) = prefs.pending else { return Ok(None); };
+        let origin = LocalTransferOrigin::capture(&owned, &organization)?;
+        origin.require_unchanged(&owned)?;
+        Ok(Some((pending, origin)))
+    }).await.map_err(|_| invalid("La vérification de l’envoi a été interrompue. Elle reprendra automatiquement."))??;
+    let Some((pending, origin)) = captured else { return Ok(false); };
+    let response = transport(json!({
+        "action":"recover-publication", "id":pending.id,
+        "baseRevision":pending.base_revision, "manifest":pending.manifest,
+    })).await?;
+    let recovered = publication_recovery_response(&response, &pending)?;
+    match recovered {
+        PublicationRecovery::Committed(revision) => {
+            confirm_sent_worker(store, origin, pending, revision).await?;
+            return Ok(true);
+        }
+        PublicationRecovery::Pending => {
+            // Never commit a different account generation, changed pending or
+            // damaged local archive after the probe's asynchronous boundary.
+            require_pending_recovery_origin(store, origin.clone(), pending.clone(), true).await?;
+            let result = transport(json!({"action":"commit","id":pending.id})).await?;
+            let object = result.as_object().ok_or_else(invalid_publication_recovery)?;
+            if object.len() == 3 && result["committed"] == true {
+                let revision = recovered_publication_revision(&result, &pending)?;
+                confirm_sent_worker(store, origin, pending, revision).await?;
+                return Ok(true);
+            }
+            if object.len() != 4 || result["committed"] != false
+                || result["conflict"] != true || !valid_cancelled_publication(&result, &pending)
+            {
+                return Err(invalid_publication_recovery());
+            }
+        }
+        PublicationRecovery::Unknown | PublicationRecovery::Cancelled => {}
+    }
+    // Even a negative reply cannot let a caller resume an obsolete company's
+    // merge after its account generation or durable pending state changed.
+    require_pending_recovery_origin(store, origin, pending, false).await?;
+    Ok(recovered != PublicationRecovery::Unknown)
+}
+
 fn confirm_sent(store: &LocalStore, id: &str, revision: u64) -> AppResult<()> {
     let mut prefs = load(store)?;
     let p = prefs
@@ -1124,6 +1268,10 @@ async fn send(
 #[cfg(test)]
 #[path = "company_collaboration_reference_worker_tests.rs"]
 mod reference_worker_tests;
+
+#[cfg(test)]
+#[path = "company_collaboration_publication_recovery_tests.rs"]
+mod publication_recovery_tests;
 
 #[cfg(test)]
 #[path = "company_collaboration_content_version_compat_tests.rs"]
@@ -1520,10 +1668,25 @@ pub async fn sync_company_workspace(
     } else {
         vec![("after", known.as_str())]
     };
-    let head = request(&session, Method::GET, &query, None)
+    let mut head = request(&session, Method::GET, &query, None)
         .await
         .map_err(command_error)?;
-    let revision = checked_head(&session, &head).map_err(command_error)?;
+    let mut revision = checked_head(&session, &head).map_err(command_error)?;
+    // A newer head may include this exact pending snapshot whose ACK was lost.
+    // Recover that creation fact before attempting a merge/reference download,
+    // especially when the original revision was 0 or transport copies pruned.
+    // A denied, unavailable or malformed response never falls through to merge.
+    if !accept_remote && session.role != "read_only" && prefs.pending.is_some()
+        && recover_pending_publication_with(&store, &session.organization_id, |body| {
+            request(&session, Method::POST, &[], Some(body))
+        }).await.map_err(command_error)?
+    {
+        prefs = load(&store).map_err(command_error)?;
+        let confirmed = prefs.revision.to_string();
+        head = request(&session, Method::GET, &[("after", confirmed.as_str())], None)
+            .await.map_err(command_error)?;
+        revision = checked_head(&session, &head).map_err(command_error)?;
+    }
     let mut changed = false;
     if confirmed_duplicate_receipt.is_some()
         && (session.role == "read_only" || accept_remote || revision <= prefs.revision)
