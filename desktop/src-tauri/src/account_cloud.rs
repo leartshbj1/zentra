@@ -26,6 +26,18 @@ use crate::{
 };
 
 const ACCOUNT_API_ORIGIN: &str = "https://zentraapp.ch";
+
+// No runtime selector: the alternative exists only in the compiled test
+// harness and its invalid/partial configuration must never fall back.
+fn account_api_origin() -> AppResult<&'static str> {
+    #[cfg(test)]
+    if let Some(profile) = crate::native_test_profile::configured()
+        .map_err(|_| AppError::Validation("Profil natif de test invalide.".into()))?
+    {
+        return Ok(profile.site_origin());
+    }
+    Ok(ACCOUNT_API_ORIGIN)
+}
 const START_PATH: &str = "/api/account/device/start";
 const POLL_PATH: &str = "/api/account/device/poll";
 const ME_PATH: &str = "/api/account/me";
@@ -696,7 +708,7 @@ fn supplier_inbox_uri(store: &LocalStore, session: &CloudSession, section: Optio
             return Err(AppError::Validation("Le message reçu est invalide.".into()));
         }
     }
-    let mut url=Url::parse(ACCOUNT_API_ORIGIN).map_err(|_|AppError::Validation("Adresse indisponible.".into()))?;
+    let mut url=Url::parse(account_api_origin()?).map_err(|_|AppError::Validation("Adresse indisponible.".into()))?;
     url.set_path("/support/espace");
     let mut query=url.query_pairs_mut();
     query.append_pair("organizationId",&session.organization_id)
@@ -787,7 +799,7 @@ fn account_portal_uri(section: Option<&str>, organization: Option<&str>) -> AppR
         return Err(AppError::Validation("Choisissez une rubrique du compte Zentra.".into()));
     }
     let path = if section.is_empty() { "/compte".to_owned() } else { format!("/compte/{section}") };
-    let mut url = Url::parse(ACCOUNT_API_ORIGIN).map_err(|_|AppError::Validation("Adresse du compte indisponible.".into()))?;
+    let mut url = Url::parse(account_api_origin()?).map_err(|_|AppError::Validation("Adresse du compte indisponible.".into()))?;
     url.set_path(&path);
     if let Some(id) = organization { url.query_pairs_mut().append_pair("organizationId",id); }
     Ok(url.to_string())
@@ -980,6 +992,9 @@ async fn invalidate_current_account_context_worker(store: &LocalStore) -> AppRes
 }
 
 async fn start_link(store: &LocalStore) -> AppResult<CloudAccountState> {
+    // Resolve the immutable destination before clearing any previous identity.
+    // In normal releases this is the unchanged first-party constant.
+    account_api_origin()?;
     // A new authorization may belong to another person in the same company.
     // Drafts cannot reuse the previous person's local identity before /me has
     // verified and installed the member for the new session.
@@ -1531,7 +1546,39 @@ fn parse_future_or_past_date(value: &str, label: &str) -> AppResult<DateTime<Utc
         .map_err(|_| AppError::Validation(format!("La date de {label} est invalide.")))
 }
 
+#[cfg(test)]
+fn require_live_qa_profile() -> AppResult<&'static crate::native_test_profile::NativeTestProfile> {
+    crate::native_test_profile::require()
+        .map_err(|_| AppError::Validation("Profil natif sandbox requis avant la recette.".into()))
+}
+
+#[cfg(test)]
+fn sandbox_verification_uri(
+    profile: &crate::native_test_profile::NativeTestProfile,
+    value: &str,
+    user_code: &str,
+) -> AppResult<Url> {
+    // Compare the original bytes, not only the URL parser's normalized host,
+    // port or path. The one server-generated approval link contains one code.
+    let expected = format!("{}/appareil?code={user_code}", profile.site_origin());
+    if !is_user_code(user_code) || value != expected {
+        return Err(AppError::Validation("Lien de recette sandbox refusé.".into()));
+    }
+    let url = Url::parse(value)
+        .map_err(|_| AppError::Validation("Lien de recette sandbox refusé.".into()))?;
+    if url.as_str() != value {
+        return Err(AppError::Validation("Lien de recette sandbox refusé.".into()));
+    }
+    Ok(url)
+}
+
 fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
+    #[cfg(test)]
+    if let Some(profile) = crate::native_test_profile::configured()
+        .map_err(|_| AppError::Validation("Profil natif de test invalide.".into()))?
+    {
+        return sandbox_verification_uri(profile, value, user_code);
+    }
     let mut url = Url::parse(value)
         .map_err(|_| AppError::Validation("Le lien de connexion est invalide.".into()))?;
     let expected = Url::parse(ACCOUNT_API_ORIGIN)
@@ -1574,7 +1621,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
-    let mut url = Url::parse(ACCOUNT_API_ORIGIN)
+    let mut url = Url::parse(account_api_origin()?)
         .map_err(|_| AppError::Validation("L’origine Zentra intégrée est invalide.".into()))?;
     url.set_path(path);
     if url.scheme() != "https" || url.username() != "" || url.password().is_some() {
@@ -1884,9 +1931,10 @@ fn launch_external_url(uri: &str) -> AppResult<()> {
 
 #[cfg(test)]
 pub(crate) async fn connect_live_qa_profile(store: &LocalStore, label: &str) -> AppResult<()> {
-    if option_env!("HELVICHANTIER_LICENSE_PUBLIC_KEY_B64URL").is_none() {
-        return Err(AppError::Validation("Compilez cette recette avec la clé publique de licence du fichier license-public-key.b64url avant toute autorisation serveur.".into()));
-    }
+    // Required even when ordinary deterministic tests have no sandbox profile.
+    // The future harness must also require this profile before initializing its
+    // fresh LocalStore; no store is created by this connection helper.
+    require_live_qa_profile()?;
     let pending = start_link(store).await?;
     // Only the public, short-lived approval link is printed. Session and license
     // tokens stay in the ordinary protected files of the isolated test profile.
@@ -2564,3 +2612,89 @@ mod member_context_clear_tests {
 #[cfg(test)]
 #[path = "account_cloud_nonblocking_state_tests.rs"]
 mod nonblocking_state_tests;
+
+#[cfg(test)]
+mod sandbox_profile_tests {
+    use super::*;
+
+    fn fixture() -> crate::native_test_profile::NativeTestProfile {
+        crate::native_test_profile::parse(
+            Some(include_bytes!("../../tests/fixtures/action-native-test-profile.public.json")),
+            Some(include_str!("../../tests/fixtures/action-native-test-profile.public.sha256").trim_end()),
+        ).unwrap().unwrap()
+    }
+
+    #[test]
+    fn compiled_origin_is_shared_by_real_account_routes_and_portal() {
+        match crate::native_test_profile::configured() {
+            Err(_) => {
+                assert!(account_api_origin().is_err());
+                assert!(endpoint(START_PATH).is_err());
+                assert!(account_portal_uri(Some("abonnement"), None).is_err());
+            }
+            Ok(profile) => {
+                let expected = profile.map(|p| p.site_origin()).unwrap_or(ACCOUNT_API_ORIGIN);
+                assert_eq!(account_api_origin().unwrap(), expected);
+                for path in [START_PATH, POLL_PATH, ME_PATH, SESSION_PATH,
+                    crate::company_collaboration::PATH, crate::action_engine_device_protocol::PATH,
+                    crate::action_engine_device_protocol::WORK_PATH, AUTOMATION_PATH, COMPANY_MAIL_PATH]
+                {
+                    assert_eq!(endpoint(path).unwrap().as_str(), format!("{expected}{path}"));
+                }
+                assert_eq!(account_portal_uri(Some("abonnement"), None).unwrap(), format!("{expected}/compte/abonnement"));
+                for path in ["https://zentraapp.ch/api/account/me", "//zentraapp.ch", "/api/account/collaboration/../team"] {
+                    assert!(endpoint(path).is_err());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sandbox_approval_refuses_raw_url_normalization_and_foreign_origin() {
+        let profile = fixture();
+        let exact = "https://sandbox.example/appareil?code=ABCD-EFGH";
+        assert_eq!(sandbox_verification_uri(&profile, exact, "ABCD-EFGH").unwrap().as_str(), exact);
+        for value in [
+            "https://zentraapp.ch/appareil?code=ABCD-EFGH",
+            "https://elyko.alb-leart1.chatgpt.site/appareil?code=ABCD-EFGH",
+            "https://sandbox.example.evil.test/appareil?code=ABCD-EFGH",
+            "https://SANDBOX.example/appareil?code=ABCD-EFGH",
+            "https://sandbox.example:443/appareil?code=ABCD-EFGH",
+            "https://sandbox.example:444/appareil?code=ABCD-EFGH",
+            "https://user@sandbox.example/appareil?code=ABCD-EFGH",
+            "https://sandbox.example/appareil?code=ABCD-EFGH#",
+            "https://sandbox.example/other/../appareil?code=ABCD-EFGH",
+            "https://sandbox.example\\appareil?code=ABCD-EFGH",
+            " https://sandbox.example/appareil?code=ABCD-EFGH",
+            "https://sandbox.example/appareil?code=ABCD-EFGH\n",
+            "https://sandbox.example/appareil?code=WRONG",
+            "https://sandbox.example/appareil?code=ABCD-EFGH&code=ABCD-EFGH",
+            "https://sandbox.example/appareil?code=%41BCD-EFGH",
+        ] {
+            assert!(sandbox_verification_uri(&profile, value, "ABCD-EFGH").is_err(), "{value:?}");
+        }
+        assert!(sandbox_verification_uri(&profile, exact, "ABCI-EFGH").is_err());
+    }
+
+    #[test]
+    fn compiled_approval_preserves_production_compatibility_only_when_unconfigured() {
+        match crate::native_test_profile::configured() {
+            Err(_) => assert!(validate_verification_uri("https://zentraapp.ch/appareil?code=ABCD-EFGH", "ABCD-EFGH").is_err()),
+            Ok(Some(profile)) => {
+                let expected = format!("{}/appareil?code=ABCD-EFGH", profile.site_origin());
+                assert_eq!(validate_verification_uri(&expected, "ABCD-EFGH").unwrap().as_str(), expected);
+                assert!(validate_verification_uri("https://zentraapp.ch/appareil?code=ABCD-EFGH", "ABCD-EFGH").is_err());
+                assert!(validate_verification_uri("https://elyko.alb-leart1.chatgpt.site/appareil?code=ABCD-EFGH", "ABCD-EFGH").is_err());
+            }
+            Ok(None) => assert_eq!(validate_verification_uri("https://elyko.alb-leart1.chatgpt.site/appareil?code=ABCD-EFGH", "ABCD-EFGH").unwrap().as_str(), "https://zentraapp.ch/appareil?code=ABCD-EFGH"),
+        }
+    }
+
+    #[test]
+    fn live_qa_admission_requires_the_complete_profile_without_opening_a_store_or_transport() {
+        match crate::native_test_profile::configured() {
+            Ok(Some(profile)) => assert_eq!(require_live_qa_profile().unwrap().sha256(), profile.sha256()),
+            Ok(None) | Err(_) => assert!(require_live_qa_profile().is_err()),
+        }
+    }
+}

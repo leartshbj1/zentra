@@ -298,7 +298,7 @@ $parameter = [regex]::Match($circleText, '(?m)^  diagnostics-native-set:\r?\n   
 Assert-Contract ($parameter.Success -and [regex]::Matches($circleText, '(?m)^  diagnostics-native-set:').Count -eq 1) 'pipeline enum adds only the explicit Action Engine opt-in and still defaults full'
 $job = [regex]::Match($circleText, '(?ms)^  windows-drafts-diagnostics-tests:\r?\n.*?(?=^  [^ ].*:\r?\n|^workflows:\r?\n|\z)')
 Assert-Contract ($job.Success -and $job.Value.Contains('ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"') -and $job.Value.Contains('ZENTRA_VERIFY_ONLY: "true"')) 'only diagnostic job supplies both hardcoded guards'
-Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 1 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 57) 'selector is transmitted only to the diagnostic job; workflow references are closed gates'
+Assert-Contract ($job.Value.Contains('ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>') -and [regex]::Matches($circleText, 'ZENTRA_DIAGNOSTICS_NATIVE_SET:').Count -eq 2 -and [regex]::Matches($circleText, 'pipeline\.parameters\.diagnostics-native-set').Count -eq 59) 'selector is transmitted only to the diagnostic and separate native-profile jobs; workflow references are closed gates'
 $expectedFunctionalWorkflow = @'
   drafts-errors-diagnostics-verification:
     when:
@@ -336,6 +336,7 @@ $expectedActionEngineWorkflow = @'
       and:
         - equal: [codex/action-engine-native, << pipeline.git.branch >>]
         - << pipeline.parameters.verify-only >>
+        - not: << pipeline.parameters.verify-native-profile-only >>
         - not: << pipeline.parameters.release >>
         - equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
         - equal: [0, << pipeline.parameters.smoke-windows-job >>]
@@ -397,8 +398,8 @@ foreach ($spec in @(
 $workflowsSection = [regex]::Match($circleText, '(?ms)^workflows:\r?\n(?<body>.*)\z')
 Assert-Contract ($workflowsSection.Success) 'one explicit workflows section'
 $workflowBlocks = @([regex]::Matches($workflowsSection.Groups['body'].Value, '(?ms)^  (?<name>[^ :\r\n]+):\r?\n.*?(?=^  [^ :\r\n]+:\r?\n|\z)'))
-$legacyWorkflows = @($workflowBlocks | Where-Object { $_.Groups['name'].Value -cne 'action-engine-native-verification' })
-Assert-Contract ($workflowBlocks.Count -eq 54 -and $legacyWorkflows.Count -eq 53 -and @($workflowBlocks | ForEach-Object { $_.Groups['name'].Value } | Select-Object -Unique).Count -eq 54) 'exactly the 53 historical workflows and one dedicated Action Engine workflow'
+$legacyWorkflows = @($workflowBlocks | Where-Object { $_.Groups['name'].Value -cnotin @('action-engine-native-verification','action-native-profile-verification') })
+Assert-Contract ($workflowBlocks.Count -eq 55 -and $legacyWorkflows.Count -eq 53 -and @($workflowBlocks | ForEach-Object { $_.Groups['name'].Value } | Select-Object -Unique).Count -eq 55) 'exactly the 53 historical workflows and two separate Action Engine verification workflows'
 $actionEngineExclusionPattern = '(?m)^        - not:\r?\n            equal: \[action-engine, << pipeline\.parameters\.diagnostics-native-set >>\]\r?\n'
 $reservedBranchExclusionPattern = '(?m)^        - not:\r?\n            equal: \[codex/action-engine-native, << pipeline\.git\.branch >>\]\r?\n'
 $reservedGenericWorkflows = @('android-release-candidate', 'verify-windows-package', 'verify-apple-package', 'windows-release-candidate', 'apple-release-candidate')

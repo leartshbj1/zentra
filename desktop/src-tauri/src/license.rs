@@ -196,9 +196,10 @@ impl LocalStore {
 
     fn license_verification_key(&self) -> AppResult<Option<[u8; 32]>> {
         #[cfg(test)]
-        if let Some(key) = self.license_protected_cache.verification_key {
-            return Ok(Some(key));
+        {
+            return test_license_verification_key(self.license_protected_cache.verification_key);
         }
+        #[cfg(not(test))]
         embedded_key()
     }
 
@@ -1699,6 +1700,18 @@ async fn read_bounded_response(response: reqwest::Response) -> AppResult<Vec<u8>
 }
 
 fn validated_refresh_endpoint() -> AppResult<reqwest::Url> {
+    #[cfg(test)]
+    if let Some(profile) = crate::native_test_profile::configured()
+        .map_err(|_| AppError::Validation("Profil natif de test invalide.".into()))?
+    {
+        let value = format!("{}/api/stripe/refresh", profile.site_origin());
+        let endpoint = reqwest::Url::parse(&value)
+            .map_err(|_| AppError::Validation("Adresse de renouvellement sandbox invalide.".into()))?;
+        if endpoint.as_str() != value {
+            return Err(AppError::Validation("Adresse de renouvellement sandbox invalide.".into()));
+        }
+        return Ok(endpoint);
+    }
     let endpoint = reqwest::Url::parse(LICENSE_REFRESH_ENDPOINT).map_err(|_| {
         AppError::Validation("L’URL de renouvellement intégrée est invalide.".into())
     })?;
@@ -1718,6 +1731,12 @@ fn validated_refresh_endpoint() -> AppResult<reqwest::Url> {
 }
 
 fn embedded_key() -> AppResult<Option<[u8; 32]>> {
+    #[cfg(test)]
+    if let Some(profile) = crate::native_test_profile::configured()
+        .map_err(|_| AppError::Validation("Profil natif de test invalide.".into()))?
+    {
+        return Ok(Some(profile.license_key()));
+    }
     let Some(encoded) = EMBEDDED_PUBLIC_KEY else {
         return Ok(None);
     };
@@ -1728,6 +1747,31 @@ fn embedded_key() -> AppResult<Option<[u8; 32]>> {
         AppError::Validation("La clé publique Ed25519 doit contenir 32 octets.".into())
     })?;
     Ok(Some(key))
+}
+
+#[cfg(test)]
+fn test_license_verification_key(ordinary_test_override: Option<[u8; 32]>) -> AppResult<Option<[u8; 32]>> {
+    // A compiled sandbox authority outranks the old mutable per-store fixture.
+    // Invalid/partial configuration is Err, never a missing enforcement key.
+    if let Some(profile) = crate::native_test_profile::configured()
+        .map_err(|_| AppError::Validation("Profil natif de test invalide.".into()))?
+    {
+        return Ok(Some(profile.license_key()));
+    }
+    match ordinary_test_override {
+        Some(key) => Ok(Some(key)),
+        None => embedded_key(),
+    }
+}
+
+fn license_key_id() -> AppResult<&'static str> {
+    #[cfg(test)]
+    if let Some(profile) = crate::native_test_profile::configured()
+        .map_err(|_| AppError::Validation("Profil natif de test invalide.".into()))?
+    {
+        return Ok(profile.license_kid());
+    }
+    Ok(LICENSE_KEY_ID)
 }
 fn verify_token_with_key(token: &str, key: &[u8; 32]) -> AppResult<LicenseTokenPayload> {
     if token.trim().len() < 100 || token.trim().len() > MAX_LICENSE_TOKEN_BYTES {
@@ -1832,7 +1876,7 @@ fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
     }
     uuid::Uuid::parse_str(&payload.jti)
         .map_err(|_| AppError::Validation("jti doit être un UUID valide.".into()))?;
-    if payload.kid != LICENSE_KEY_ID {
+    if payload.kid != license_key_id()? {
         return Err(AppError::Validation(
             "Identifiant de clé de licence inconnu.".into(),
         ));
@@ -1847,6 +1891,103 @@ fn validate_payload(payload: &LicenseTokenPayload) -> AppResult<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod sandbox_profile_tests {
+    use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
+
+    fn payload(kid: &str) -> LicenseTokenPayload {
+        LicenseTokenPayload {
+            token_version: TOKEN_VERSION,
+            license_id: "synthetic-sandbox-license".into(),
+            installation_id: "55af29dd-fdaa-4993-ae78-17f9ca220e51".into(),
+            jti: "ba0e696d-123f-45a6-8756-1859ee699ef5".into(),
+            kid: kid.into(),
+            customer_name: Some("Synthetic sandbox".into()),
+            access_role: "owner".into(),
+            account_user_id: None,
+            account_session_id: None,
+            plan: LICENSE_PLAN.into(),
+            price_chf_cents: LICENSE_PRICE_CHF_CENTS,
+            issued_at: "2026-10-12T00:00:00Z".into(),
+            valid_from: "2026-10-01".into(),
+            valid_until: "2026-11-01".into(),
+        }
+    }
+
+    fn sign(payload: &LicenseTokenPayload, signing: &SigningKey) -> String {
+        let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(payload).unwrap());
+        format!("{encoded}.{}", URL_SAFE_NO_PAD.encode(signing.sign(encoded.as_bytes()).to_bytes()))
+    }
+
+    #[test]
+    fn compiled_license_authority_is_one_key_and_kid_or_a_closed_error() {
+        match crate::native_test_profile::configured() {
+            Err(_) => {
+                assert!(embedded_key().is_err());
+                assert!(license_key_id().is_err());
+                assert!(validate_payload(&payload(LICENSE_KEY_ID)).is_err());
+            }
+            Ok(Some(profile)) => {
+                assert_eq!(embedded_key().unwrap(), Some(profile.license_key()));
+                assert_eq!(license_key_id().unwrap(), profile.license_kid());
+                assert_ne!(profile.license_kid(), LICENSE_KEY_ID);
+                assert!(validate_payload(&payload(LICENSE_KEY_ID)).is_err());
+            }
+            Ok(None) => {
+                assert_eq!(license_key_id().unwrap(), LICENSE_KEY_ID);
+                assert!(validate_payload(&payload(LICENSE_KEY_ID)).is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn compiled_sandbox_key_cannot_be_replaced_by_the_ordinary_mutable_fixture() {
+        let arbitrary = [99_u8; 32];
+        match crate::native_test_profile::configured() {
+            Err(_) => assert!(test_license_verification_key(Some(arbitrary)).is_err()),
+            Ok(Some(profile)) => {
+                assert_eq!(test_license_verification_key(Some(arbitrary)).unwrap(), Some(profile.license_key()));
+                assert_eq!(test_license_verification_key(None).unwrap(), embedded_key().unwrap());
+                assert_ne!(profile.license_key(), arbitrary);
+            }
+            Ok(None) => assert_eq!(test_license_verification_key(Some(arbitrary)).unwrap(), Some(arbitrary)),
+        }
+    }
+
+    #[test]
+    fn real_refresh_url_uses_the_same_compiled_origin_without_transport_or_store() {
+        match crate::native_test_profile::configured() {
+            Err(_) => assert!(validated_refresh_endpoint().is_err()),
+            Ok(Some(profile)) => assert_eq!(validated_refresh_endpoint().unwrap().as_str(), format!("{}/api/stripe/refresh", profile.site_origin())),
+            Ok(None) => assert_eq!(validated_refresh_endpoint().unwrap().as_str(), LICENSE_REFRESH_ENDPOINT),
+        }
+    }
+
+    #[test]
+    fn real_signature_verifier_distinguishes_wrong_kid_from_wrong_key() {
+        if crate::native_test_profile::configured().is_err() {
+            assert!(license_key_id().is_err());
+            assert!(embedded_key().is_err());
+            return;
+        }
+        let signing = SigningKey::from_bytes(&[42_u8; 32]);
+        let key = signing.verifying_key().to_bytes();
+        if let Some(profile) = crate::native_test_profile::configured().unwrap() {
+            assert_eq!(key, profile.license_key(), "CI sandbox context must use the reviewed public fixture");
+        }
+        let expected = license_key_id().unwrap();
+        let valid = payload(expected);
+        let token = sign(&valid, &signing);
+        assert_eq!(verify_token_with_key(&token, &key).unwrap(), valid);
+        let mut wrong_kid = valid.clone();
+        wrong_kid.kid = if expected == LICENSE_KEY_ID { "sandbox-native-fixture-v1" } else { LICENSE_KEY_ID }.into();
+        assert!(verify_token_with_key(&sign(&wrong_kid, &signing), &key).is_err());
+        let different_key = SigningKey::from_bytes(&[43_u8; 32]).verifying_key().to_bytes();
+        assert!(verify_token_with_key(&token, &different_key).is_err());
+    }
 }
 fn evaluate(
     payload: &LicenseTokenPayload,

@@ -7,6 +7,9 @@ parameters:
   verify-only:
     type: boolean
     default: false
+  verify-native-profile-only:
+    type: boolean
+    default: false
   diagnostics-native-set:
     type: enum
     enum: [full, native-mail-payroll, benchmark-payment, benchmark-public-payment, action-engine]
@@ -32,6 +35,28 @@ parameters:
     default: ""
 
 jobs:
+  windows-action-native-profile-tests:
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
+      ZENTRA_VERIFY_ONLY: "true"
+      ZENTRA_VERIFY_NATIVE_PROFILE_ONLY: << pipeline.parameters.verify-native-profile-only >>
+      ZENTRA_NATIVE_PROFILE_RELEASE: << pipeline.parameters.release >>
+      ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>
+    steps:
+      - checkout
+      - run:
+          name: Verify absent, sandbox and refused partial compile-time native profiles
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/verify-action-native-profile-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/action-native-profile
+          destination: action-native-profile-validation
   windows-drafts-diagnostics-tests:
     parameters:
       diagnostics-phase:
@@ -489,11 +514,24 @@ jobs:
           destination: apple
 
 workflows:
+  action-native-profile-verification:
+    when:
+      and:
+        - equal: [codex/action-engine-native, << pipeline.git.branch >>]
+        - << pipeline.parameters.verify-only >>
+        - << pipeline.parameters.verify-native-profile-only >>
+        - not: << pipeline.parameters.release >>
+        - equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - equal: [0, << pipeline.parameters.smoke-windows-job >>]
+        - equal: [0, << pipeline.parameters.smoke-apple-job >>]
+    jobs:
+      - windows-action-native-profile-tests
   action-engine-native-verification:
     when:
       and:
         - equal: [codex/action-engine-native, << pipeline.git.branch >>]
         - << pipeline.parameters.verify-only >>
+        - not: << pipeline.parameters.verify-native-profile-only >>
         - not: << pipeline.parameters.release >>
         - equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
         - equal: [0, << pipeline.parameters.smoke-windows-job >>]

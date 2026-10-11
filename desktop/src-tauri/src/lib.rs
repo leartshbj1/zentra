@@ -44,6 +44,8 @@ mod database;
 mod diagnostics;
 mod member_context;
 #[cfg(test)]
+mod native_test_profile;
+#[cfg(test)]
 mod customer_credit_tests;
 mod error;
 mod fiduciary_closing;
