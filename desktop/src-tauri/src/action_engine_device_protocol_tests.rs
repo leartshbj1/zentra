@@ -283,6 +283,15 @@ fn confirmation_parser_binds_all_four_selectors_and_rejects_transport_ack() {
 #[test]
 fn original_receipt_requires_present_null_draft_and_human_validation() {
     let value = confirmation();
+    let direct =
+        parse_confirmation_response(&bytes(&value), &selected(), RESERVATION, SNAPSHOT).unwrap();
+    assert_eq!(direct.receipt.quote_number, None);
+    match parse_reservation_response(&bytes(&value), &selected()).unwrap() {
+        ReservationResponse::Confirmed(buffered) => {
+            assert_eq!(buffered.receipt.quote_number, direct.receipt.quote_number);
+        }
+        _ => panic!("expected confirmed reservation with an explicit null quoteNumber"),
+    }
     let mut missing = value.clone();
     missing["receipt"]
         .as_object_mut()
@@ -290,11 +299,28 @@ fn original_receipt_requires_present_null_draft_and_human_validation() {
         .remove("quoteNumber");
     rejects_confirmation(&missing);
     rejects_reservation(&missing);
-    for number in [json!(""), json!("D-001"), json!(0), json!(false), json!({})] {
+    for number in [
+        json!(""),
+        json!("D-001"),
+        json!(0),
+        json!(false),
+        json!({}),
+        json!({"number": null}),
+        json!([]),
+        json!([null]),
+    ] {
         let mut wrong = value.clone();
         wrong["receipt"]["quoteNumber"] = number;
-        rejects_confirmation(&wrong);
-        rejects_reservation(&wrong);
+        assert!(
+            parse_confirmation_response(&bytes(&wrong), &selected(), RESERVATION, SNAPSHOT).is_err(),
+            "direct receipt accepted non-null quoteNumber: {}",
+            wrong["receipt"]["quoteNumber"]
+        );
+        assert!(
+            parse_reservation_response(&bytes(&wrong), &selected()).is_err(),
+            "tagged receipt accepted non-null quoteNumber: {}",
+            wrong["receipt"]["quoteNumber"]
+        );
     }
     for (key, replacement) in [
         ("requiresHumanValidation", json!(false)),

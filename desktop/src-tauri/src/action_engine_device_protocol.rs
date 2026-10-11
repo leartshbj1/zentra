@@ -261,7 +261,9 @@ impl<'de> Deserialize<'de> for RequiredNull {
                 Ok(RequiredNull)
             }
         }
-        deserializer.deserialize_unit(NullVisitor)
+        // Internally tagged enums buffer through a deserializer whose unit
+        // decoding also accepts an empty map. Only an actual null is valid.
+        deserializer.deserialize_any(NullVisitor)
     }
 }
 
