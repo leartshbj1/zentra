@@ -1,6 +1,6 @@
-# Action Engine — frontière d'exécution A8/A9
+# Action Engine — frontière d'exécution A8/A10
 
-État : réservation serveur privée implémentée dans A8, primitives de reprise et journal de publication natifs ajoutés dans A9. Les essais et limites sont consignés dans `DEVICE-RESERVATION-VALIDATION-20261011.md` et `NATIVE-RECOVERY-VALIDATION-20261011.md`. Le consommateur natif reste à composer et à tester. Aucun endpoint, IPC ou writer supplémentaire n'est exposé par ce document. Les 89 tests Rust restent non compilés/non exécutés sous le blocage Windows App Control 4551. Ne pas retenter ni contourner ce blocage.
+État : réservation serveur privée implémentée dans A8, primitives de reprise et journal de publication natifs ajoutés dans A9, contrat appareil/handler interne et acquittement natif ajoutés dans A10. Les essais et limites sont consignés dans `DEVICE-RESERVATION-VALIDATION-20261011.md`, `NATIVE-RECOVERY-VALIDATION-20261011.md` et `DEVICE-BRIDGE-VALIDATION-20261011.md`. Le consommateur natif reste à composer et à tester. Aucun endpoint, IPC ou writer supplémentaire n'est exposé par ce document. Les 99 tests Rust restent non compilés/non exécutés sous le blocage Windows App Control 4551. Ne pas retenter ni contourner ce blocage.
 
 ## Réservation distante avant toute écriture native
 
@@ -42,14 +42,14 @@ La première archive doit figer le brouillon complet avant édition/émission. S
 
 Utiliser uniquement le checkout natif `app-current-corrections`, version 1.90.15/schema 62, et non le desktop 1.46.1 de la copie serveur. Ne pas modifier les anciennes migrations ni distribuer un client exigeant des schémas hébergés absents.
 
-## Ordre concret du consommateur A10
+## Ordre concret du consommateur A11
 
 1. Dans `account_cloud.rs`, étendre le principe d'`InboxReadStamp` avec le nonce membre et `company_local_identity.user_id` : `CloudSession` ne contient pas l'utilisateur. Capturer session, références protégées, générations, workspace, identité et nonce sous verrou compte → mutex LocalStore. Relâcher les verrous pendant HTTP et recorroborer après succès **et rejet**, avant tout effet local. `project_sync_session` seul n'autorise pas une écriture.
 2. Appeler réellement A8 avec les deux sélecteurs source/proposition. `held` reste sans effet, `recovery_required` n'utilise que la reprise locale à sélecteurs, et seul `reserved` fournit l'input neuf. Comparer acteur/installation serveur à l'origine locale ; le worker du writer ne doit pas être entouré d'un second mutex LocalStore.
-3. Résoudre l'ancien transfert via `recover_pending_publication_with`, puis réutiliser le chemin prepare → lien A9 → upload → ACK. Ajouter une lecture privée bornée du candidat exact ; ne pas remplacer son snapshot par la tête distante courante.
-4. Appeler A7 avec source/proposition/réservation/snapshot lié. Il reste à coder l'acquittement local transactionnel de son reçu sous origine inchangée : reçu retourné identique au reçu historique, puis outbox `confirmed`, sans modification du client/devis. Un ACK transport ne peut appeler cette opération. La rétention reste volontairement permanente tant que cette preuve n'est pas acquise.
+3. Résoudre l'ancien transfert via `recover_pending_publication_with`, puis réutiliser le chemin prepare → lien A9 → upload → ACK. A10 fournit `read_action_engine_quote_publication_candidates` : reprendre le candidat exact sous la même origine ; ne pas remplacer son snapshot par la tête distante courante.
+4. Appeler A7 avec source/proposition/réservation/snapshot lié via le contrat A10. A10 fournit `acknowledge_action_engine_quote_confirmation` sous origine inchangée : reçu retourné identique au reçu historique, marqueur canonique privé puis outbox `confirmed` dans la même transaction, sans modification du client/devis. Le futur consommateur doit lui transmettre uniquement la réponse authentifiée réelle A7. Un ACK transport ou un reçu historique A8 sans snapshot ne peut appeler cette opération. La rétention reste volontairement permanente tant que cette preuve n'est pas acquise.
 
-Le handler serveur authentifié, le consommateur Rust et cet acquittement sont encore absents. Aucun port abstrait ne doit être présenté comme un raccord effectif ; aucun IPC ni déclencheur ne doit précéder les validations natives et staging.
+Le handler serveur authentifié et les codecs sont codés et testés localement en A10, sans route exposée ni appel applicatif. Les primitives natives de candidat/acquittement sont codées mais non compilées. Le consommateur compte Rust complet reste absent : aucun port abstrait ne doit être présenté comme un raccord effectif ; aucun IPC ni déclencheur ne doit précéder les validations natives et staging.
 
 ## Essais discriminants avant activation
 
