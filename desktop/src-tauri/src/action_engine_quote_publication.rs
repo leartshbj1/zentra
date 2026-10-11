@@ -4,7 +4,8 @@
 use crate::{
     action_engine_quote::{
         frozen_quote_publication_matches, recover_action_engine_quote_receipt_in_transaction,
-        ActionEngineLocalQuoteOutboxState, ActionEngineQuoteReceipt, ActionEngineQuoteRecoverySelection,
+        require_local_quote_origin, ActionEngineLocalQuoteOutboxState, ActionEngineQuoteActor,
+        ActionEngineQuoteReceipt, ActionEngineQuoteRecoverySelection,
         ActionEngineRecoveredQuote,
     },
     cloud_backup::Manifest,
@@ -24,6 +25,53 @@ const CONFIRMATIONS: &str = "company_local_action_engine_quote_confirmations";
 const MARKER: &str = "company_local_action_engine_publication_schema";
 const MAX_CANDIDATES: usize = 1000;
 const MAX_RETAINED_LINKS: usize = 10000;
+
+// Do not INNER JOIN away an orphan, or filter an unexpected actor, installation
+// or state into an apparent empty queue. Every selected row is verified below,
+// including the extra row used only to signal that recovery must continue.
+const RECOVERY_WORK_SQL: &str = r#"
+SELECT o.organization_id,o.proposal_id,o.fingerprint,o.state,
+       r.source_id,r.reservation_id,r.actor_user_id,r.installation_id
+FROM company_local_action_engine_quote_outbox o
+LEFT JOIN action_engine_quote_receipts r
+  ON r.organization_id=o.organization_id AND r.proposal_id=o.proposal_id
+WHERE o.organization_id=? AND o.state<>'confirmed'
+ORDER BY o.proposal_id COLLATE BINARY LIMIT ?
+"#;
+
+/// Captured physical/account origin, not a remote admission or write input.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct ActionEngineQuoteRecoveryOrigin {
+    pub(crate) actor: ActionEngineQuoteActor,
+    pub(crate) installation_id: String,
+    pub(crate) expected_workspace_scope: String,
+    pub(crate) expected_member_context_nonce: String,
+}
+
+/// Historical selectors only. has_more means the local queue is not drained:
+/// a consumer must continue recovery before discovering any new Support work.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActionEngineQuoteRecoveryWork {
+    pub(crate) selections: Vec<ActionEngineQuoteRecoverySelection>,
+    pub(crate) has_more: bool,
+}
+
+fn validate_recovery_work_origin(origin: &ActionEngineQuoteRecoveryOrigin) -> AppResult<()> {
+    let local_id = |value: &str| !value.is_empty() && value.len() <= 160
+        && value.bytes().enumerate().all(|(index, byte)| byte.is_ascii_alphanumeric()
+            || (index > 0 && matches!(byte, b'_' | b'.' | b':' | b'@' | b'-')));
+    if !local_id(&origin.actor.organization_id) || !local_id(&origin.actor.user_id)
+        || origin.expected_member_context_nonce.len() != 32
+        || !origin.expected_member_context_nonce.bytes().all(|byte|
+            byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+        return Err(invalid());
+    }
+    crate::cloud_backup::validate_id(&origin.installation_id).map_err(|_| invalid())?;
+    crate::cloud_backup::validate_id(&origin.expected_workspace_scope).map_err(|_| invalid())?;
+    Ok(())
+}
 
 fn invalid() -> AppError {
     AppError::Validation(
@@ -610,6 +658,71 @@ fn require_confirmed_candidate(connection: &Connection, organization: &str, prop
 }
 
 impl LocalStore {
+    /// Read the real local recovery queue under one mutex/IMMEDIATE snapshot.
+    /// No schema repair, remote request, current document/catalogue lookup or
+    /// permission to execute is created. Corrupt/foreign rows fail the page;
+    /// they must never disappear into an empty-success or be silently skipped.
+    pub(crate) fn read_action_engine_quote_recovery_work(
+        &self,
+        origin: ActionEngineQuoteRecoveryOrigin,
+        limit: usize,
+    ) -> AppResult<ActionEngineQuoteRecoveryWork> {
+        if !(1..=50).contains(&limit) { return Err(invalid()); }
+        validate_recovery_work_origin(&origin)?;
+        let _lock = self.lock()?;
+        let mut connection = self.connect()?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        self.require_onboarding(&tx)?;
+        require_local_quote_origin(&tx, self, &origin.actor, &origin.installation_id,
+            &origin.expected_workspace_scope, &origin.expected_member_context_nonce)?;
+        let mut selections = (|| -> AppResult<Vec<ActionEngineQuoteRecoverySelection>> {
+            let mut statement = tx.prepare(RECOVERY_WORK_SQL)?;
+            let mut rows = statement.query(params![origin.actor.organization_id, (limit + 1) as i64])?;
+            let mut selections = Vec::with_capacity(limit + 1);
+            let mut previous: Option<String> = None;
+            while let Some(row) = rows.next()? {
+                if selections.len() >= limit + 1 { return Err(invalid()); }
+                let scalar = |index: usize, maximum: usize| -> AppResult<String> {
+                    retained_text(row, index, maximum, false)?.ok_or_else(invalid)
+                };
+                let organization = scalar(0, 160)?;
+                let proposal_id = scalar(1, 160)?;
+                let fingerprint = scalar(2, 64)?;
+                let state = scalar(3, 16)?;
+                let source_id = scalar(4, 160)?;
+                let reservation_id = scalar(5, 36)?;
+                let user = scalar(6, 160)?;
+                let installation = scalar(7, 36)?;
+                if organization != origin.actor.organization_id || user != origin.actor.user_id
+                    || installation != origin.installation_id
+                    || !matches!(state.as_str(), "pending" | "uncertain")
+                    || previous.as_ref().is_some_and(|id| proposal_id.as_str() <= id.as_str()) {
+                    return Err(invalid());
+                }
+                let selection = ActionEngineQuoteRecoverySelection {
+                    source_id, proposal_id, reservation_id, fingerprint,
+                    actor: origin.actor.clone(), installation_id: origin.installation_id.clone(),
+                    expected_workspace_scope: origin.expected_workspace_scope.clone(),
+                    expected_member_context_nonce: origin.expected_member_context_nonce.clone(),
+                };
+                // Reuse the actual closed historical receipt/audit/outbox checks
+                // in this transaction, not a reimplementation or a second lock.
+                let recovered = recover_action_engine_quote_receipt_in_transaction(&tx, self, &selection)?;
+                let expected_state = if state == "pending" {
+                    ActionEngineLocalQuoteOutboxState::Pending
+                } else { ActionEngineLocalQuoteOutboxState::Uncertain };
+                if recovered.local_outbox_state != expected_state { return Err(invalid()); }
+                previous = Some(selection.proposal_id.clone());
+                selections.push(selection);
+            }
+            Ok(selections)
+        })().map_err(|_| invalid())?;
+        let has_more = selections.len() > limit;
+        selections.truncate(limit);
+        tx.commit()?;
+        Ok(ActionEngineQuoteRecoveryWork { selections, has_more })
+    }
+
     /// Historical, bounded candidate facts. No archive, current catalogue or
     /// current draft is needed; absence grants no permission to recreate.
     pub(crate) fn read_action_engine_quote_publication_candidates(&self, selection: ActionEngineQuoteRecoverySelection) -> AppResult<ActionEngineQuotePublicationRecovery> {

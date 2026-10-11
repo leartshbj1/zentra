@@ -22,6 +22,11 @@ use crate::{
     error::{AppError, AppResult},
 };
 
+// The production writer checks this under its IMMEDIATE transaction, after
+// exact historical replay. Errors are errors; an orphan or unexpected state
+// must not be filtered into permission to create another local draft.
+const RECOVERY_PENDING_SQL: &str = r#"SELECT EXISTS(SELECT 1 FROM company_local_action_engine_quote_outbox WHERE organization_id=? AND state<>'confirmed') AS recovery_pending"#;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ActionEngineQuoteActor {
@@ -686,7 +691,7 @@ fn require_origin(
         &input.expected_member_context_nonce,
     )
 }
-fn require_local_quote_origin(
+pub(crate) fn require_local_quote_origin(
     tx: &Transaction<'_>,
     store: &LocalStore,
     actor: &ActionEngineQuoteActor,
@@ -1306,12 +1311,30 @@ impl LocalStore {
         Ok(recovered)
     }
 
-    /// Owns the one local mutex. A future wrapper must not acquire it again.
-    /// The central permanent reservation is mandatory caller-supplied evidence;
-    /// this private repository cannot contact or re-admit the remote service.
+    /// Fixture-only entry point for existing multi-receipt repository tests.
+    /// Production must use the strict recovery-first method below.
+    #[cfg(test)]
     pub(crate) fn commit_action_engine_quote_draft(
         &self,
         input: ActionEngineQuoteInput,
+    ) -> AppResult<ActionEngineQuoteReceipt> {
+        self.commit_action_engine_quote_draft_impl(input, false)
+    }
+
+    /// Owns the one local mutex. The central permanent reservation is required
+    /// caller-supplied evidence, not re-admitted here. An exact historical replay
+    /// precedes the atomic guard; a new draft requires all local recovery done.
+    pub(crate) fn commit_action_engine_quote_draft_after_recovery(
+        &self,
+        input: ActionEngineQuoteInput,
+    ) -> AppResult<ActionEngineQuoteReceipt> {
+        self.commit_action_engine_quote_draft_impl(input, true)
+    }
+
+    fn commit_action_engine_quote_draft_impl(
+        &self,
+        input: ActionEngineQuoteInput,
+        recovery_first: bool,
     ) -> AppResult<ActionEngineQuoteReceipt> {
         let plan = validate_input(&input)?;
         let request_sha = request_hash(&input)?;
@@ -1324,6 +1347,11 @@ impl LocalStore {
         if let Some(receipt) = read_receipt(&tx, &input, &request_sha)? {
             tx.commit()?;
             return Ok(receipt);
+        }
+        if recovery_first {
+            let pending: bool = tx.query_row(RECOVERY_PENDING_SQL,
+                [&input.actor.organization_id], |row| row.get(0))?;
+            if pending { return Err(reject("recovery_pending")); }
         }
         crate::company_collaboration::require_action_engine_quote_write_ready(
             self, &input.actor.organization_id,

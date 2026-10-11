@@ -557,3 +557,336 @@ fn into_input_revalidates_owned_fields_and_never_accepts_server_local_origin_fie
         rejects_reservation(&supplied);
     }
 }
+
+// A14 work summaries are closed selectors, not executable plans. These tests
+// are written for Rust's real codec and perform no HTTP or native execution.
+fn work_selected(limit: u32) -> WorkDiscoverySelection {
+    WorkDiscoverySelection {
+        limit,
+        cursor: None,
+    }
+}
+
+fn discovered() -> Value {
+    json!({
+        "schemaVersion": 1,
+        "state": "discovered",
+        "sourceIds": ["source:1", "source:2"],
+        "nextCursor": null
+    })
+}
+
+fn prepared() -> Value {
+    json!({
+        "schemaVersion": 1,
+        "state": "prepared",
+        "sourceId": "source:1",
+        "proposalId": "proposal:1",
+        "fingerprint": "a".repeat(64),
+        "disposition": "ready",
+        "reasons": [],
+        "requiresHumanValidation": true
+    })
+}
+
+#[test]
+fn work_paths_and_selector_only_requests_are_exact_without_a10_changes() {
+    assert_eq!(WORK_PATH, "/api/account/automation/quote-work");
+    assert_eq!(PATH, "/api/account/automation/quote-execution");
+    assert_eq!(MAX_RESPONSE_BYTES, 128 * 1024);
+    let request = discovery_request(&work_selected(20)).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&request).unwrap(),
+        json!({"schemaVersion":1,"operation":"discover","limit":20,"cursor":null})
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&preparation_request("source:1").unwrap()).unwrap(),
+        json!({"schemaVersion":1,"operation":"prepare","sourceId":"source:1"})
+    );
+    assert!(request.len() <= MAX_WORK_REQUEST_BYTES);
+}
+
+#[test]
+fn work_request_limits_and_cursor_character_bounds_are_enforced() {
+    for limit in [0, 51, u32::MAX] {
+        let selection = work_selected(limit);
+        assert!(discovery_request(&selection).is_err());
+        assert!(parse_discovery_response(&bytes(&discovered()), &selection).is_err());
+    }
+    for cursor in ["", "a=", "a/b", "a+b", "a b", "é", "a\n", "a."] {
+        let selection = WorkDiscoverySelection {
+            limit: 1,
+            cursor: Some(cursor.into()),
+        };
+        assert!(discovery_request(&selection).is_err());
+        assert!(parse_discovery_response(&bytes(&discovered()), &selection).is_err());
+    }
+    let mut selection = WorkDiscoverySelection {
+        limit: 50,
+        cursor: Some("aZ0_-".repeat(819)[..4095].into()),
+    };
+    selection.cursor.as_mut().unwrap().push('A');
+    let encoded = discovery_request(&selection).unwrap();
+    assert!(encoded.len() <= MAX_WORK_REQUEST_BYTES);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&encoded).unwrap()["cursor"],
+        json!(selection.cursor)
+    );
+    selection.cursor.as_mut().unwrap().push('A');
+    assert!(discovery_request(&selection).is_err());
+}
+
+#[test]
+fn work_source_selectors_use_ascii_ids_and_do_not_require_uuids() {
+    for source in ["s", "source_.:@-9", &"s".repeat(160)] {
+        assert!(preparation_request(source).is_ok());
+    }
+    for source in ["", "_source", "source/path", "source space", "é", &"s".repeat(161)] {
+        assert!(preparation_request(source).is_err());
+        assert!(parse_preparation_response(&bytes(&prepared()), source).is_err());
+    }
+    let value = parse_preparation_response(&bytes(&prepared()), "source:1").unwrap();
+    assert_eq!(value.proposal_id, "proposal:1");
+    assert_eq!(value.disposition, QuoteWorkDisposition::Ready);
+    assert!(value.requires_human_validation);
+}
+
+#[test]
+fn work_discovery_accepts_empty_partial_and_complete_pages() {
+    let page = parse_discovery_response(&bytes(&discovered()), &work_selected(2)).unwrap();
+    assert_eq!(page.source_ids, vec!["source:1", "source:2"]);
+    assert_eq!(page.next_cursor, None);
+    let mut empty = discovered();
+    empty["sourceIds"] = json!([]);
+    assert!(parse_discovery_response(&bytes(&empty), &work_selected(1)).is_ok());
+    assert!(parse_discovery_response(&bytes(&discovered()), &work_selected(3)).is_ok());
+    let mut full = discovered();
+    full["nextCursor"] = json!("aZ0_-");
+    assert_eq!(
+        parse_discovery_response(&bytes(&full), &work_selected(2)).unwrap().next_cursor,
+        Some("aZ0_-".into())
+    );
+}
+
+#[test]
+fn work_discovery_largest_valid_page_fits_its_separate_response_budget() {
+    let ids: Vec<String> = (0..50).map(|index| format!("s{index:02}{}", "x".repeat(157))).collect();
+    assert!(ids.iter().all(|id| id.len() == 160));
+    let value = json!({
+        "schemaVersion":1,"state":"discovered","sourceIds":ids,"nextCursor":"a".repeat(4096)
+    });
+    let encoded = bytes(&value);
+    assert!(encoded.len() > MAX_WORK_REQUEST_BYTES);
+    assert!(encoded.len() <= MAX_WORK_RESPONSE_BYTES);
+    let page = parse_discovery_response(&encoded, &work_selected(50)).unwrap();
+    assert_eq!(page.source_ids.len(), 50);
+    assert_eq!(page.next_cursor.unwrap().len(), 4096);
+}
+
+#[test]
+fn work_discovery_requires_explicit_next_cursor_and_every_closed_field() {
+    for key in ["schemaVersion", "state", "sourceIds", "nextCursor"] {
+        let mut value = discovered();
+        value.as_object_mut().unwrap().remove(key);
+        assert!(parse_discovery_response(&bytes(&value), &work_selected(2)).is_err());
+    }
+    for key in ["organizationId", "installationId", "permission", "plan", "cursor", "limit"] {
+        let mut value = discovered();
+        value[key] = json!("not-a-wire-field");
+        assert!(parse_discovery_response(&bytes(&value), &work_selected(2)).is_err());
+    }
+}
+
+#[test]
+fn work_discovery_rejects_duplicate_ids_overfull_pages_and_bad_ids() {
+    for ids in [
+        json!(["source:1", "source:1"]),
+        json!(["source:1", "source:2", "source:3"]),
+        json!([""]),
+        json!(["source/path"]),
+        json!(["é"]),
+        json!(["s".repeat(161)]),
+        json!([1]),
+        json!([null]),
+        json!([["source:1"]]),
+    ] {
+        let mut value = discovered();
+        value["sourceIds"] = ids;
+        assert!(parse_discovery_response(&bytes(&value), &work_selected(2)).is_err());
+    }
+}
+
+#[test]
+fn work_discovery_cursor_requires_full_page_and_bounded_base64url_characters() {
+    let mut value = discovered();
+    value["nextCursor"] = json!("cursor");
+    assert!(parse_discovery_response(&bytes(&value), &work_selected(3)).is_err());
+    for next in [json!(""), json!("a="), json!("a/b"), json!("é"), json!("a".repeat(4097)), json!(0), json!(false), json!({}), json!([])] {
+        value["nextCursor"] = next;
+        assert!(parse_discovery_response(&bytes(&value), &work_selected(2)).is_err());
+    }
+}
+
+#[test]
+fn work_discovery_rejects_duplicate_json_keys_including_escaped_names() {
+    for raw in [
+        r#"{"schemaVersion":1,"schemaVersion":1,"state":"discovered","sourceIds":[],"nextCursor":null}"#,
+        r#"{"schemaVersion":1,"state":"discovered","state":"discovered","sourceIds":[],"nextCursor":null}"#,
+        r#"{"schemaVersion":1,"state":"discovered","sourceIds":[],"source\u0049ds":[],"nextCursor":null}"#,
+        r#"{"schemaVersion":1,"state":"discovered","sourceIds":[],"nextCursor":null,"next\u0043ursor":null}"#,
+    ] {
+        assert!(parse_discovery_response(raw.as_bytes(), &work_selected(2)).is_err());
+    }
+}
+
+#[test]
+fn work_summary_decoders_reject_bad_utf8_json_extra_data_and_oversized_responses() {
+    let too_long = vec![b' '; MAX_WORK_RESPONSE_BYTES + 1];
+    for raw in [&[][..], &[0xff][..], b"null", b"[]", b"{}", b"{}{}", &too_long] {
+        assert!(parse_discovery_response(raw, &work_selected(2)).is_err());
+        assert!(parse_preparation_response(raw, "source:1").is_err());
+    }
+    let mut discovery = bytes(&discovered());
+    discovery.extend_from_slice(b" null");
+    assert!(parse_discovery_response(&discovery, &work_selected(2)).is_err());
+    let mut preparation = bytes(&prepared());
+    preparation.push(0xff);
+    assert!(parse_preparation_response(&preparation, "source:1").is_err());
+    let bad_surrogate = r#"{"schemaVersion":1,"state":"discovered","sourceIds":["\ud800"],"nextCursor":null}"#;
+    assert!(parse_discovery_response(bad_surrogate.as_bytes(), &work_selected(2)).is_err());
+}
+
+#[test]
+fn work_summary_schema_and_state_are_not_coerced_or_cross_decoded() {
+    for version in [json!(0), json!(2), json!(1.0), json!("1"), json!(true), json!(null)] {
+        let mut discovery = discovered();
+        discovery["schemaVersion"] = version.clone();
+        assert!(parse_discovery_response(&bytes(&discovery), &work_selected(2)).is_err());
+        let mut preparation = prepared();
+        preparation["schemaVersion"] = version;
+        assert!(parse_preparation_response(&bytes(&preparation), "source:1").is_err());
+    }
+    assert!(parse_discovery_response(&bytes(&prepared()), &work_selected(2)).is_err());
+    assert!(parse_preparation_response(&bytes(&discovered()), "source:1").is_err());
+    for state in ["error", "reserved", "confirmed", "Prepared", "discovered"] {
+        let mut value = prepared();
+        value["state"] = json!(state);
+        assert!(parse_preparation_response(&bytes(&value), "source:1").is_err());
+    }
+}
+
+#[test]
+fn work_prepared_is_correlated_to_source_and_lowercase_plan_fingerprint() {
+    assert!(parse_preparation_response(&bytes(&prepared()), "another-source").is_err());
+    for (key, value) in [
+        ("sourceId", json!("another-source")),
+        ("proposalId", json!("_proposal")),
+        ("proposalId", json!("p".repeat(161))),
+        ("proposalId", json!("proposal path")),
+        ("fingerprint", json!("A".repeat(64))),
+        ("fingerprint", json!("g".repeat(64))),
+        ("fingerprint", json!("a".repeat(63))),
+        ("fingerprint", json!("a".repeat(65))),
+        ("fingerprint", json!(null)),
+    ] {
+        let mut summary = prepared();
+        summary[key] = value;
+        assert!(parse_preparation_response(&bytes(&summary), "source:1").is_err());
+    }
+    let parsed = parse_preparation_response(&bytes(&prepared()), "source:1").unwrap();
+    assert_eq!(parsed.source_id, "source:1");
+    assert_eq!(parsed.fingerprint, "a".repeat(64));
+    assert!(parsed.reasons.is_empty());
+}
+
+#[test]
+fn work_prepared_requires_all_fields_and_rejects_plan_price_and_authority_leaks() {
+    for key in ["schemaVersion", "state", "sourceId", "proposalId", "fingerprint", "disposition", "reasons", "requiresHumanValidation"] {
+        let mut value = prepared();
+        value.as_object_mut().unwrap().remove(key);
+        assert!(parse_preparation_response(&bytes(&value), "source:1").is_err());
+    }
+    for key in ["plan", "canonicalPlanJson", "customer", "netCents", "currency", "confidence", "actor", "organizationId", "installationId", "authorizationRevision", "permission"] {
+        let mut value = prepared();
+        value[key] = json!("not-a-summary-field");
+        assert!(parse_preparation_response(&bytes(&value), "source:1").is_err());
+    }
+}
+
+#[test]
+fn work_prepared_requires_literal_human_validation_and_closed_disposition() {
+    for human in [json!(false), json!("true"), json!(1), json!(null)] {
+        let mut value = prepared();
+        value["requiresHumanValidation"] = human;
+        assert!(parse_preparation_response(&bytes(&value), "source:1").is_err());
+    }
+    for disposition in [json!("Ready"), json!("confirmed"), json!("needsReview"), json!(null), json!({})] {
+        let mut value = prepared();
+        value["disposition"] = disposition;
+        assert!(parse_preparation_response(&bytes(&value), "source:1").is_err());
+    }
+}
+
+#[test]
+fn work_prepared_review_reasons_match_all_thirteen_server_literals_in_order() {
+    let reasons = [
+        "missing_customer_name", "ambiguous_customer", "archived_customer",
+        "missing_quantity", "ambiguous_quantity", "unsupported_quantity",
+        "missing_article", "too_many_candidates", "source_too_long", "low_confidence",
+        "not_quote_request", "invalid_decision", "provider_unavailable",
+    ];
+    let mut value = prepared();
+    value["disposition"] = json!("needs_review");
+    value["reasons"] = json!(reasons);
+    let summary = parse_preparation_response(&bytes(&value), "source:1").unwrap();
+    assert_eq!(summary.disposition, QuoteWorkDisposition::NeedsReview);
+    assert_eq!(serde_json::to_value(&summary.reasons).unwrap(), json!(reasons));
+    assert_eq!(summary.reasons.len(), 13);
+    assert!(summary.requires_human_validation);
+}
+
+#[test]
+fn work_prepared_rejects_empty_review_duplicate_unknown_or_inconsistent_reasons() {
+    let mut value = prepared();
+    value["reasons"] = json!(["missing_article"]);
+    assert!(parse_preparation_response(&bytes(&value), "source:1").is_err());
+    value["disposition"] = json!("needs_review");
+    for reasons in [
+        json!([]), json!(["missing_article", "missing_article"]),
+        json!(["too_many_lines"]), json!(["MissingArticle"]),
+        json!(vec!["missing_article"; 14]), json!([null]), json!([1]),
+        json!([{}]), json!([["missing_article"]]), json!(null),
+    ] {
+        value["reasons"] = reasons;
+        assert!(parse_preparation_response(&bytes(&value), "source:1").is_err());
+    }
+}
+
+#[test]
+fn work_prepared_rejects_duplicate_json_keys_even_when_identical_or_escaped() {
+    let normal = serde_json::to_string(&prepared()).unwrap();
+    for (key, literal, escaped) in [
+        ("schemaVersion", "1".to_string(), "schema\\u0056ersion"),
+        ("state", "\"prepared\"".to_string(), "sta\\u0074e"),
+        ("sourceId", "\"source:1\"".to_string(), "source\\u0049d"),
+        ("proposalId", "\"proposal:1\"".to_string(), "proposal\\u0049d"),
+        ("fingerprint", format!("\"{}\"", "a".repeat(64)), "finger\\u0070rint"),
+        ("disposition", "\"ready\"".to_string(), "dis\\u0070osition"),
+        ("reasons", "[]".to_string(), "rea\\u0073ons"),
+        ("requiresHumanValidation", "true".to_string(), "requiresHuman\\u0056alidation"),
+    ] {
+        for duplicate_key in [key, escaped] {
+            let duplicate = format!("{{\"{duplicate_key}\":{literal},{}", &normal[1..]);
+            assert!(parse_preparation_response(duplicate.as_bytes(), "source:1").is_err());
+        }
+    }
+}
+
+#[test]
+fn work_error_responses_never_become_empty_discovery_or_prepared_success() {
+    for code in ["invalid_request", "forbidden", "stale_plan", "review_required", "busy", "uncertain", "service_unavailable"] {
+        let error = bytes(&json!({"schemaVersion":1,"state":"error","code":code,"message":"Private service unavailable"}));
+        assert!(parse_discovery_response(&error, &work_selected(2)).is_err());
+        assert!(parse_preparation_response(&error, "source:1").is_err());
+    }
+}

@@ -20,6 +20,124 @@ pub(crate) const PATH: &str = "/api/account/automation/quote-execution";
 pub(crate) const MAX_RESPONSE_BYTES: usize = 128 * 1024;
 const MAX_PLAN_BYTES: usize = 65_536;
 
+// Separate private work protocol: a summary is neither a reservation nor a
+// permission to create, publish, send or confirm a document.
+pub(crate) const WORK_PATH: &str = "/api/account/automation/quote-work";
+pub(crate) const MAX_WORK_REQUEST_BYTES: usize = 8192;
+pub(crate) const MAX_WORK_RESPONSE_BYTES: usize = 16 * 1024;
+
+#[derive(Debug, Clone)]
+pub(crate) struct WorkDiscoverySelection {
+    pub(crate) limit: u32,
+    pub(crate) cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct QuoteWorkDiscovery {
+    pub(crate) source_ids: Vec<String>,
+    pub(crate) next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum QuoteWorkDisposition {
+    Ready,
+    NeedsReview,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum QuoteWorkReviewReason {
+    MissingCustomerName,
+    AmbiguousCustomer,
+    ArchivedCustomer,
+    MissingQuantity,
+    AmbiguousQuantity,
+    UnsupportedQuantity,
+    MissingArticle,
+    TooManyCandidates,
+    SourceTooLong,
+    LowConfidence,
+    NotQuoteRequest,
+    InvalidDecision,
+    ProviderUnavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct QuoteWorkPrepared {
+    pub(crate) source_id: String,
+    pub(crate) proposal_id: String,
+    pub(crate) fingerprint: String,
+    pub(crate) disposition: QuoteWorkDisposition,
+    pub(crate) reasons: Vec<QuoteWorkReviewReason>,
+    pub(crate) requires_human_validation: bool,
+}
+
+// A bare Option would also accept an absent field. deserialize_any rejects a
+// missing nextCursor while accepting an explicit JSON null or string only.
+#[derive(Debug)]
+struct RequiredWorkCursor(Option<String>);
+
+impl<'de> Deserialize<'de> for RequiredWorkCursor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct CursorVisitor;
+        impl<'de> serde::de::Visitor<'de> for CursorVisitor {
+            type Value = RequiredWorkCursor;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an explicit null or cursor string")
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RequiredWorkCursor(None))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RequiredWorkCursor(Some(value.to_owned())))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RequiredWorkCursor(Some(value)))
+            }
+        }
+        deserializer.deserialize_any(CursorVisitor)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkDiscoveryWire {
+    schema_version: u32,
+    state: String,
+    source_ids: Vec<String>,
+    next_cursor: RequiredWorkCursor,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkPreparedWire {
+    schema_version: u32,
+    state: String,
+    source_id: String,
+    proposal_id: String,
+    fingerprint: String,
+    disposition: QuoteWorkDisposition,
+    reasons: Vec<QuoteWorkReviewReason>,
+    requires_human_validation: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct QuoteExecutionSelection {
@@ -516,6 +634,139 @@ pub(crate) fn parse_confirmation_response(
         reservation_id: wire.reservation_id,
         publication_snapshot_id: wire.publication_snapshot_id,
         receipt: wire.receipt.capture(&expected.proposal_id)?,
+    })
+}
+
+fn valid_work_cursor(cursor: &str) -> bool {
+    !cursor.is_empty()
+        && cursor.len() <= 4096
+        && cursor
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn work_selection(expected: &WorkDiscoverySelection) -> AppResult<()> {
+    if !(1..=50).contains(&expected.limit)
+        || expected
+            .cursor
+            .as_deref()
+            .is_some_and(|cursor| !valid_work_cursor(cursor))
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn work_request<T: Serialize>(value: &T) -> AppResult<Vec<u8>> {
+    let bytes = serde_json::to_vec(value).map_err(|_| invalid())?;
+    if bytes.len() > MAX_WORK_REQUEST_BYTES {
+        return Err(invalid());
+    }
+    Ok(bytes)
+}
+
+fn work_decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> AppResult<T> {
+    if bytes.len() > MAX_WORK_RESPONSE_BYTES {
+        return Err(invalid());
+    }
+    // The existing A10 decoder rejects empty input, malformed UTF-8, trailing
+    // data and duplicate fields in these closed derived wire structs.
+    decode(bytes)
+}
+
+pub(crate) fn discovery_request(expected: &WorkDiscoverySelection) -> AppResult<Vec<u8>> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Request<'a> {
+        schema_version: u32,
+        operation: &'static str,
+        limit: u32,
+        cursor: &'a Option<String>,
+    }
+    work_selection(expected)?;
+    work_request(&Request {
+        schema_version: 1,
+        operation: "discover",
+        limit: expected.limit,
+        cursor: &expected.cursor,
+    })
+}
+
+pub(crate) fn preparation_request(source_id: &str) -> AppResult<Vec<u8>> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Request<'a> {
+        schema_version: u32,
+        operation: &'static str,
+        source_id: &'a str,
+    }
+    if !valid_id(source_id) {
+        return Err(invalid());
+    }
+    work_request(&Request {
+        schema_version: 1,
+        operation: "prepare",
+        source_id,
+    })
+}
+
+pub(crate) fn parse_discovery_response(
+    bytes: &[u8],
+    expected: &WorkDiscoverySelection,
+) -> AppResult<QuoteWorkDiscovery> {
+    work_selection(expected)?;
+    let wire: WorkDiscoveryWire = work_decode(bytes)?;
+    let next_cursor = wire.next_cursor.0;
+    if wire.schema_version != 1
+        || wire.state != "discovered"
+        || wire.source_ids.len() > expected.limit as usize
+        || wire.source_ids.iter().any(|id| !valid_id(id))
+        || wire.source_ids.iter().collect::<HashSet<_>>().len() != wire.source_ids.len()
+        || next_cursor.as_deref().is_some_and(|cursor| {
+            !valid_work_cursor(cursor) || wire.source_ids.len() != expected.limit as usize
+        })
+    {
+        return Err(invalid());
+    }
+    Ok(QuoteWorkDiscovery {
+        source_ids: wire.source_ids,
+        next_cursor,
+    })
+}
+
+pub(crate) fn parse_preparation_response(
+    bytes: &[u8],
+    expected_source_id: &str,
+) -> AppResult<QuoteWorkPrepared> {
+    if !valid_id(expected_source_id) {
+        return Err(invalid());
+    }
+    let wire: WorkPreparedWire = work_decode(bytes)?;
+    if wire.schema_version != 1
+        || wire.state != "prepared"
+        || wire.source_id != expected_source_id
+        || !valid_id(&wire.source_id)
+        || !valid_id(&wire.proposal_id)
+        || !valid_hash(&wire.fingerprint)
+        || !wire.requires_human_validation
+        || wire.reasons.len() > 13
+        || wire.reasons.iter().collect::<HashSet<_>>().len() != wire.reasons.len()
+        || match wire.disposition {
+            QuoteWorkDisposition::Ready => !wire.reasons.is_empty(),
+            QuoteWorkDisposition::NeedsReview => wire.reasons.is_empty(),
+        }
+    {
+        return Err(invalid());
+    }
+    // The fingerprint belongs to the server's full captured plan. This summary
+    // cannot recalculate it or establish catalogue, source or write authority.
+    Ok(QuoteWorkPrepared {
+        source_id: wire.source_id,
+        proposal_id: wire.proposal_id,
+        fingerprint: wire.fingerprint,
+        disposition: wire.disposition,
+        reasons: wire.reasons,
+        requires_human_validation: true,
     })
 }
 

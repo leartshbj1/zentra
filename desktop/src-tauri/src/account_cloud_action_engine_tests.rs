@@ -1,5 +1,7 @@
 //! Actual private consumer helpers, protected account files and LocalStore.
-//! Only the HTTP future is synthetic. The licence is genuinely signed by the
+//! HTTP futures and the work-round execution port are synthetic. Work-round
+//! tests never assert a remote confirmation or a canonical native ACK. The
+//! licence is genuinely signed by the
 //! public test authority; these tests grant no production or server admission.
 //! Written for native CI, not executed locally while AppControl blocks Cargo.
 use super::*;
@@ -841,6 +843,609 @@ fn private_execution_future_is_send_without_being_polled_or_starting_transport()
     // This generic bound is checked when native CI compiles the real consumer.
     // Dropping its unpolled future cannot start HTTPS or a publication phase.
     require_send(execute_quote_draft(&f.store, selected()));
+    assert_eq!(references(&f.store), before_refs);
+    assert_eq!(revisions(&f.store), before_revisions);
+    assert_eq!(
+        f.store
+            .connect()
+            .unwrap()
+            .query_row::<i64, _, _>("SELECT COUNT(*) FROM quotes", [], |row| row.get(0))
+            .unwrap(),
+        0
+    );
+}
+
+fn work_discovered(sources: &[String], cursor: Option<&str>) -> AppResult<(StatusCode, Vec<u8>)> {
+    Ok((
+        StatusCode::OK,
+        serde_json::to_vec(&serde_json::json!({
+            "schemaVersion":1,"state":"discovered","sourceIds":sources,"nextCursor":cursor
+        }))
+        .unwrap(),
+    ))
+}
+
+fn work_prepared(source: &str, ready: bool) -> AppResult<(StatusCode, Vec<u8>)> {
+    Ok((StatusCode::OK, serde_json::to_vec(&serde_json::json!({
+        "schemaVersion":1,"state":"prepared","sourceId":source,"proposalId":format!("proposal-{source}"),
+        "fingerprint":"a".repeat(64),"disposition":if ready {"ready"} else {"needs_review"},
+        "reasons":if ready {vec![]} else {vec!["missing_article"]},"requiresHumanValidation":true
+    })).unwrap()))
+}
+
+fn work_operation(body: &[u8]) -> serde_json::Value {
+    serde_json::from_slice(body).unwrap()
+}
+
+// Use the ACTUAL writer to create a genuine local recovery intention. Its plan
+// is a private synthetic fixture, not a server reservation/admission/proof.
+fn work_local_draft(f: &Fixture) -> crate::action_engine_quote::ActionEngineQuoteInput {
+    use crate::action_engine_quote::{ActionEngineQuoteInput, ActionEngineQuoteSource};
+    use crate::action_engine_resources::{article_revision, export_resources, resource_hash};
+    use sha2::{Digest, Sha256};
+    let article = Uuid::new_v4().to_string();
+    let db = f.store.connect().unwrap();
+    db.execute("UPDATE settings SET vat_registered=1,default_vat_bp=810,updated_at='2026-10-11T00:00:00Z' WHERE id=1", []).unwrap();
+    db.execute("INSERT INTO catalog_items(id,kind,sku,name,description,unit,sales_price_cents,vat_bp,created_at,updated_at)
+        VALUES(?,'product','SYNTHETIC','Radiateur','radiateurs','pièce',19900,810,'2026-10-11T00:00:00Z','2026-10-11T00:00:00Z')", [&article]).unwrap();
+    let resources = export_resources(&db).unwrap();
+    let original = captured(&f.store);
+    let plan = serde_json::json!({
+        "schemaVersion":1,"engineVersion":"action-engine-quote-v1","kind":"prepare_quote_draft",
+        "organizationId":f.session.organization_id,"contextRevision":"synthetic-round-v1",
+        "sourceId":"synthetic-local-source","sourceRevision":"mail-v1","status":"ready","reasons":[],
+        "customer":{"kind":"new","name":"Camille Exemple","email":"camille@example.ch"},
+        "title":"Devis radiateurs","currency":"CHF",
+        "lines":[{"articleId":article,"articleRevision":article_revision(&resources.articles[0]),
+            "description":"Radiateur","unit":"pièce","quantityMilli":3000,
+            "unitPriceCents":19900,"taxRateBp":810,"netCents":59700,"evidence":"3 radiateurs"}],
+        "netCents":59700,"confidence":0.99,"requiresHumanValidation":true
+    });
+    let canonical_plan_json = serde_json::to_string(&plan).unwrap();
+    let input = ActionEngineQuoteInput {
+        fingerprint: format!("{:x}", Sha256::digest(canonical_plan_json.as_bytes())),
+        canonical_plan_json,
+        proposal_id: Uuid::new_v4().to_string(),
+        reservation_id: Uuid::new_v4().to_string(),
+        source: ActionEngineQuoteSource {
+            id: "synthetic-local-source".into(),
+            revision: "mail-v1".into(),
+            organization_id: f.session.organization_id.clone(),
+            sender_email: "camille@example.ch".into(),
+            sender_name: "Camille Exemple".into(),
+            subject: "Devis radiateurs".into(),
+            body: "3 radiateurs".into(),
+        },
+        actor: ActionEngineQuoteActor {
+            organization_id: f.session.organization_id.clone(),
+            user_id: f.member.clone(),
+        },
+        installation_id: f.store.installation_id.clone(),
+        expected_workspace_scope: original.inbox.workspace_scope,
+        expected_member_context_nonce: original.member_nonce,
+        expected_resources_hash: resource_hash(&resources),
+        expected_context_revision: "synthetic-round-v1".into(),
+        customer_id: Uuid::new_v4().to_string(),
+        quote_id: Uuid::new_v4().to_string(),
+    };
+    drop(db);
+    f.store
+        .commit_action_engine_quote_draft(input.clone())
+        .unwrap();
+    input
+}
+
+#[test]
+fn work_round_empty_completion_is_memory_only_and_refuses_another_advance() {
+    let f = fixture();
+    let before_refs = references(&f.store);
+    let before_revisions = revisions(&f.store);
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    let result = tauri::async_runtime::block_on(advance_quote_work_round_with(&f.store, &mut round,
+        |identity, body| { assert_eq!(identity,f.session); assert_eq!(work_operation(&body),serde_json::json!({"schemaVersion":1,"operation":"discover","limit":20,"cursor":null}));
+            async {work_discovered(&[],None)} },
+        |_,_,_| async {panic!("empty discovery cannot execute")})).unwrap();
+    assert_eq!(
+        result,
+        QuoteWorkBatchOutcome::Page {
+            confirmed: 0,
+            held: 0,
+            review_required: 0,
+            round_complete: true
+        }
+    );
+    assert!(round.complete && round.cursor.is_none() && round.seen_sources.is_empty());
+    assert!(
+        tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, _| async { panic!("completed round cannot send HTTP") },
+            |_, _, _| async { panic!("completed round cannot execute") }
+        ))
+        .is_err()
+    );
+    assert_eq!(references(&f.store), before_refs);
+    assert_eq!(revisions(&f.store), before_revisions);
+}
+
+#[test]
+fn work_round_review_summary_never_reserves_or_executes_a_quote() {
+    let f = fixture();
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    let calls = Cell::new(0);
+    let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+        &f.store,
+        &mut round,
+        |_, body| {
+            calls.set(calls.get() + 1);
+            let request = work_operation(&body);
+            async move {
+                if request["operation"] == "discover" {
+                    work_discovered(&["needs-review".into()], None)
+                } else {
+                    assert_eq!(request["sourceId"], "needs-review");
+                    work_prepared("needs-review", false)
+                }
+            }
+        },
+        |_, _, _| async { panic!("needs_review must never reserve or write") },
+    ))
+    .unwrap();
+    assert_eq!(calls.get(), 2);
+    assert_eq!(
+        result,
+        QuoteWorkBatchOutcome::Page {
+            confirmed: 0,
+            held: 0,
+            review_required: 1,
+            round_complete: true
+        }
+    );
+    assert!(round.seen_sources.contains("needs-review"));
+    assert_eq!(
+        f.store
+            .connect()
+            .unwrap()
+            .query_row::<i64, _, _>("SELECT COUNT(*) FROM quotes", [], |row| row.get(0))
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
+fn work_round_ready_forwards_same_origin_selectors_and_digest_without_claiming_confirmation() {
+    let f = fixture();
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    let original = round.original.clone();
+    let calls = Cell::new(0);
+    let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+        &f.store,
+        &mut round,
+        |_, body| {
+            let request = work_operation(&body);
+            async move {
+                if request["operation"] == "discover" {
+                    work_discovered(&["ready".into()], None)
+                } else {
+                    work_prepared("ready", true)
+                }
+            }
+        },
+        |stamp, selection, digest| {
+            assert!(stamp == original);
+            assert_eq!(selection.source_id, "ready");
+            assert_eq!(selection.proposal_id, "proposal-ready");
+            assert_eq!(digest, "a".repeat(64));
+            calls.set(calls.get() + 1);
+            async { Ok(QuoteExecutionOutcome::Held) }
+        },
+    ))
+    .unwrap();
+    assert_eq!(calls.get(), 1);
+    assert_eq!(
+        result,
+        QuoteWorkBatchOutcome::Page {
+            confirmed: 0,
+            held: 1,
+            review_required: 0,
+            round_complete: true
+        }
+    );
+}
+
+#[test]
+fn work_round_advances_complete_pages_then_a_new_round_starts_without_a_watermark() {
+    let f = fixture();
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    for page in 0..2 {
+        let expected_cursor = if page == 0 {
+            None
+        } else {
+            Some("cursor_page_2")
+        };
+        let size = if page == 0 { 20 } else { 2 };
+        let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, body| {
+                let request = work_operation(&body);
+                async move {
+                    if request["operation"] == "discover" {
+                        assert_eq!(request["cursor"], serde_json::json!(expected_cursor));
+                        work_discovered(
+                            &(0..size)
+                                .map(|i| format!("page-{page}-{i}"))
+                                .collect::<Vec<_>>(),
+                            if page == 0 {
+                                Some("cursor_page_2")
+                            } else {
+                                None
+                            },
+                        )
+                    } else {
+                        work_prepared(request["sourceId"].as_str().unwrap(), false)
+                    }
+                }
+            },
+            |_, _, _| async { panic!("review-only page cannot execute") },
+        ))
+        .unwrap();
+        assert_eq!(
+            result,
+            QuoteWorkBatchOutcome::Page {
+                confirmed: 0,
+                held: 0,
+                review_required: size,
+                round_complete: page == 1
+            }
+        );
+    }
+    assert_eq!(round.seen_sources.len(), 22);
+    assert_eq!(round.visited_cursors.len(), 1);
+    let fresh = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    assert!(fresh.cursor.is_none() && fresh.seen_sources.is_empty() && !fresh.complete);
+}
+
+#[test]
+fn work_round_rejects_repeated_cursor_or_source_before_any_page_preparation() {
+    for repeated_cursor in [false, true] {
+        let f = fixture();
+        let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+        tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, body| {
+                let request = work_operation(&body);
+                async move {
+                    if request["operation"] == "discover" {
+                        work_discovered(
+                            &(0..20).map(|i| format!("source-{i}")).collect::<Vec<_>>(),
+                            Some("page_two"),
+                        )
+                    } else {
+                        work_prepared(request["sourceId"].as_str().unwrap(), false)
+                    }
+                }
+            },
+            |_, _, _| async { panic!("review-only page") },
+        ))
+        .unwrap();
+        let calls = Cell::new(0);
+        let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, body| {
+                calls.set(calls.get() + 1);
+                assert_eq!(work_operation(&body)["operation"], "discover");
+                async move {
+                    if repeated_cursor {
+                        work_discovered(
+                            &(0..20).map(|i| format!("next-{i}")).collect::<Vec<_>>(),
+                            Some("page_two"),
+                        )
+                    } else {
+                        work_discovered(&["source-0".into()], None)
+                    }
+                }
+            },
+            |_, _, _| async { panic!("replayed page must fail before effects") },
+        ));
+        assert!(result.is_err());
+        assert_eq!(calls.get(), 1);
+        assert_eq!(round.cursor.as_deref(), Some("page_two"));
+        assert_eq!(round.seen_sources.len(), 20);
+        assert!(!round.complete);
+    }
+}
+
+#[test]
+fn work_round_refuses_account_change_during_preparation_on_success_and_failure() {
+    for failure in [false, true] {
+        let f = fixture();
+        let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+        let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, body| {
+                let request = work_operation(&body);
+                let f = &f;
+                async move {
+                    if request["operation"] == "discover" {
+                        work_discovered(&["ready".into()], None)
+                    } else {
+                        crate::member_context::rotate(&f.store.connect().unwrap()).unwrap();
+                        if failure {
+                            Err(AppError::Remote("obsolete response".into()))
+                        } else {
+                            work_prepared("ready", true)
+                        }
+                    }
+                }
+            },
+            |_, _, _| async { panic!("changed origin cannot execute") },
+        ));
+        assert_changed(result);
+        assert!(!round.complete);
+        assert!(round.seen_sources.is_empty() && round.cursor.is_none());
+    }
+}
+
+#[test]
+fn work_round_rechecks_original_after_executor_wait_before_interpreting_its_result() {
+    for failure in [false, true] {
+        let f = fixture();
+        let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+        let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, body| {
+                let request = work_operation(&body);
+                async move {
+                    if request["operation"] == "discover" {
+                        work_discovered(&["ready".into()], None)
+                    } else {
+                        work_prepared("ready", true)
+                    }
+                }
+            },
+            |_, _, _| async {
+                crate::member_context::rotate(&f.store.connect().unwrap()).unwrap();
+                if failure {
+                    Err(AppError::Remote("obsolete execution failure".into()))
+                } else {
+                    Ok(QuoteExecutionOutcome::Held)
+                }
+            },
+        ));
+        assert_changed(result);
+        assert!(!round.complete && round.cursor.is_none() && round.seen_sources.is_empty());
+    }
+}
+
+#[test]
+fn work_round_partial_page_failure_keeps_original_cursor_for_a_safe_retry() {
+    let f = fixture();
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    for retry in [false, true] {
+        let calls = Cell::new(0);
+        let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, body| {
+                calls.set(calls.get() + 1);
+                let request = work_operation(&body);
+                async move {
+                    if request["operation"] == "discover" {
+                        assert!(request["cursor"].is_null());
+                        work_discovered(&["first".into(), "second".into()], None)
+                    } else if request["sourceId"] == "second" && !retry {
+                        Err(AppError::Remote("synthetic interrupted page".into()))
+                    } else {
+                        work_prepared(request["sourceId"].as_str().unwrap(), false)
+                    }
+                }
+            },
+            |_, _, _| async { panic!("review-only page") },
+        ));
+        assert_eq!(calls.get(), 3);
+        if retry {
+            assert_eq!(
+                result.unwrap(),
+                QuoteWorkBatchOutcome::Page {
+                    confirmed: 0,
+                    held: 0,
+                    review_required: 2,
+                    round_complete: true
+                }
+            );
+        } else {
+            assert!(matches!(result, Err(AppError::Remote(_))));
+            assert!(!round.complete && round.cursor.is_none() && round.seen_sources.is_empty());
+        }
+    }
+}
+
+#[test]
+fn work_round_real_pending_receipt_always_precedes_discovery_even_on_repeated_held_result() {
+    let f = fixture();
+    let input = work_local_draft(&f);
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    for _ in 0..2 {
+        let calls = Cell::new(0);
+        let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, _| async { panic!("pending real local receipt must prevent discovery/prepare") },
+            |original, selection, fingerprint| {
+                assert_eq!(original.user_id, f.member);
+                assert_eq!(selection.source_id, input.source.id);
+                assert_eq!(selection.proposal_id, input.proposal_id);
+                assert_eq!(fingerprint, input.fingerprint);
+                calls.set(calls.get() + 1);
+                async { Ok(QuoteExecutionOutcome::Held) }
+            },
+        ))
+        .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            result,
+            QuoteWorkBatchOutcome::Recovery {
+                confirmed: 0,
+                still_pending: true,
+                has_more: false
+            }
+        );
+        assert!(!round.complete && round.cursor.is_none() && round.seen_sources.is_empty());
+    }
+    assert_eq!(
+        f.store
+            .connect()
+            .unwrap()
+            .query_row::<i64, _, _>("SELECT COUNT(*) FROM quotes", [], |row| row.get(0))
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn work_round_external_corruption_is_not_an_empty_queue_or_a_permission_to_discover() {
+    let f = fixture();
+    work_local_draft(&f);
+    // Model corruption outside the SQL guards on this disposable test DB only.
+    // The ordinary trigger correctly forbids changing an immutable payload.
+    f.store
+        .connect()
+        .unwrap()
+        .execute_batch("DROP TRIGGER action_engine_quote_outbox_update;")
+        .unwrap();
+    f.store
+        .connect()
+        .unwrap()
+        .execute(
+            "UPDATE company_local_action_engine_quote_outbox SET payload_sha256=?",
+            ["0".repeat(64)],
+        )
+        .unwrap();
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    assert!(
+        tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, _| async { panic!("corruption cannot disappear into empty success") },
+            |_, _, _| async { panic!("corrupt selection cannot execute") }
+        ))
+        .is_err()
+    );
+    assert!(!round.complete && round.cursor.is_none() && round.seen_sources.is_empty());
+}
+
+#[test]
+fn work_round_cancelled_preparation_does_not_advance_the_continuation_or_execute() {
+    let f = fixture();
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    let (started_tx, mut started_rx) = channel(1);
+    let (abort, registration) = AbortHandle::new_pair();
+    let (result, ()) = tauri::async_runtime::block_on(join(
+        Abortable::new(
+            advance_quote_work_round_with(
+                &f.store,
+                &mut round,
+                |_, body| {
+                    let request = work_operation(&body);
+                    let started = &started_tx;
+                    async move {
+                        if request["operation"] == "discover" {
+                            work_discovered(&["ready".into()], None)
+                        } else {
+                            started.try_send(()).unwrap();
+                            std::future::pending::<AppResult<(StatusCode, Vec<u8>)>>().await
+                        }
+                    }
+                },
+                |_, _, _| async { panic!("cancelled preparation cannot execute") },
+            ),
+            registration,
+        ),
+        async {
+            started_rx.recv().await.unwrap();
+            abort.abort();
+        },
+    ));
+    assert!(result.is_err());
+    assert!(!round.complete && round.cursor.is_none() && round.seen_sources.is_empty());
+}
+
+#[test]
+fn work_round_invalid_summary_requires_review_without_effect_or_cursor_progress() {
+    for fault in ["source", "human", "extra", "oversize"] {
+        let f = fixture();
+        let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+        let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+            &f.store,
+            &mut round,
+            |_, body| {
+                let request = work_operation(&body);
+                async move {
+                    if request["operation"] == "discover" {
+                        work_discovered(&["ready".into()], None)
+                    } else {
+                        let (_, bytes) = work_prepared("ready", true)?;
+                        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                        match fault {
+                            "source" => value["sourceId"] = serde_json::json!("foreign-source"),
+                            "human" => value["requiresHumanValidation"] = serde_json::json!(false),
+                            "extra" => {
+                                value["canonicalPlanJson"] = serde_json::json!("untrusted plan")
+                            }
+                            "oversize" => {
+                                return Ok((
+                                    StatusCode::OK,
+                                    vec![b' '; protocol::MAX_WORK_RESPONSE_BYTES + 1],
+                                ))
+                            }
+                            _ => unreachable!(),
+                        }
+                        Ok((StatusCode::OK, serde_json::to_vec(&value).unwrap()))
+                    }
+                }
+            },
+            |_, _, _| async { panic!("malformed summary cannot reserve/write") },
+        ));
+        assert!(result.is_err());
+        assert!(!round.complete && round.cursor.is_none() && round.seen_sources.is_empty());
+    }
+}
+
+#[test]
+fn work_round_source_budget_rejects_new_page_before_preparation() {
+    let f = fixture();
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    round.seen_sources = (0..MAX_ROUND_SOURCES)
+        .map(|i| format!("seen-{i}"))
+        .collect();
+    let result = tauri::async_runtime::block_on(advance_quote_work_round_with(
+        &f.store,
+        &mut round,
+        |_, body| {
+            assert_eq!(work_operation(&body)["operation"], "discover");
+            async { work_discovered(&["new-source".into()], None) }
+        },
+        |_, _, _| async { panic!("bounded round must stop before preparation/execution") },
+    ));
+    assert!(result.is_err());
+    assert_eq!(round.seen_sources.len(), MAX_ROUND_SOURCES);
+    assert!(!round.complete);
+}
+
+#[test]
+fn private_work_round_futures_are_send_without_polling_or_starting_transport() {
+    fn require_send<T: Send>(_: T) {}
+    let f = fixture();
+    let before_refs = references(&f.store);
+    let before_revisions = revisions(&f.store);
+    require_send(begin_quote_work_round(&f.store));
+    let mut round = tauri::async_runtime::block_on(begin_quote_work_round(&f.store)).unwrap();
+    require_send(advance_quote_work_round(&f.store, &mut round));
     assert_eq!(references(&f.store), before_refs);
     assert_eq!(revisions(&f.store), before_revisions);
     assert_eq!(
