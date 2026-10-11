@@ -120,6 +120,14 @@ La première insertion de preuve exige une réservation sans reçu dans la même
 
 Les essais de composition utilisent de vraies migrations D1, transactions SQLite, archives ZIP, WASM et registres, avec des ports Auth/PG/Storage explicitement synthétiques. Ils ne prouvent ni un déploiement hébergé ni l'exécution du writer Rust. `DEVICE-CONFIRMATION-VALIDATION-20261011.md` consigne le périmètre et les résultats. L'endpoint, la commande native, le déclenchement Support et la notification restent absents.
 
+## Réservation d'exécution privée A8
+
+`reserveDeviceSupportQuote` capture uniquement source/proposition et les headers avant authentification. Son classifieur SQL protège la propriété de la réservation avant de charger le contexte courant. `held` ne révèle aucun ID privé. Une preuve durable est confirmée par A7, sans ancien transport ; un reçu legacy sans preuve ne devient jamais un succès. Une réservation possédée sous contexte/consentement périmé fournit seulement les sélecteurs `recovery_required`, sans plan/source ou permission d'écrire.
+
+Une nouvelle exécution lie la provenance dans le même batch que la réservation et conserve les IDs métier serveur. Avant de retourner l'input privé du futur Rust, le dernier SELECT vérifie ensemble progression complète, propriétaire exact et absence de reçu/preuve. Aucun await historique ne suit sur succès. La garde finale utilise six paramètres pour préserver le plafond réel de 64 même lorsque le JSON de source nécessite quatre segments. Elle ne remplace pas les contrôles locaux du writer et ne constitue pas une transaction distribuée.
+
+`DEVICE-RESERVATION-VALIDATION-20261011.md` décrit les tests et leurs ports synthétiques. Aucun endpoint, IPC, déclencheur, notification ou migration supplémentaire n'est ajouté ; le raccord natif et la validation hébergée restent nécessaires.
+
 ## Ce qui n'est pas prouvé par le chargeur de planification
 
 - Le codec valide un compartiment de deux positions, pas tout le ZIP, son annuaire central ou les doublons dans sa queue opaque. Les positions ne sont pas sélectionnées par recherche de nom.
@@ -127,7 +135,7 @@ Les essais de composition utilisent de vraies migrations D1, transactions SQLite
 - Un hash de sidecar ne prouve pas son égalité avec SQLite face à un producteur malveillant. Le writer natif recorroborera ses faits locaux avant commit ; la confirmation distante devra corroborer les faits métier publiés.
 - Le sidecar actuel ne contient pas de projection des devis/reçus créés. Il ne peut pas confirmer une création dans D1.
 - Les gardes et le protocole de publication imposent un ordre entre des transactions locales ; ils ne constituent pas une transaction distribuée D1/PostgreSQL/SQLite. Une barrière peut rester durablement `pending` lorsque le rapprochement ne dispose pas d'un résultat certain.
-- L'autorité distante, la réservation centrale et la recorroboration du writer natif doivent encore être raccordées à une commande dédiée. A7 compose la confirmation privée du reçu métier publié ; le parcours exposé, le writer effectivement exécuté et la notification restent à valider. Aucune émission ni transmission n'est autorisée.
+- L'autorité distante, la réservation centrale A8 et la recorroboration du writer natif doivent encore être raccordées à une commande dédiée. A7 compose la confirmation privée du reçu métier publié ; le parcours exposé, le writer effectivement exécuté et la notification restent à valider. Aucune émission ni transmission n'est autorisée.
 - Les migrations proposées, le garde permanent et l'allowlist nécessitent un déploiement coordonné explicitement validé avant toute activation ; aucun hôte client ni base hébergée n'a reçu ce lot.
 
 Les reçus natifs prévus sont partagés et immuables ; l'outbox est privée à l'installation, purgée des archives et conservée lors d'une réception ordinaire. Rejoindre une autre entreprise la vide. Une copie reçue qui perd ou modifie un reçu local est refusée avec restauration des données précédentes ; aucun devis n'est recréé pour résoudre cette situation.
