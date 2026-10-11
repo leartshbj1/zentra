@@ -63,14 +63,24 @@ Objectif actif : un ERP qui prépare le travail administratif, avec contrôle ut
 - Livraison : `PUBLICATION-RECOVERY-20261011.md` et `docs/evidence/action-engine-publication-recovery-20261011.json`.
 - Aucune nouvelle migration. Les schémas D1/PG A4 et le serveur A5 doivent être validés/installés avant distribution du client. Aucun déploiement, appel fournisseur ou changement de donnée client. La preuve métier du devis et sa confirmation restent à raccorder.
 
+## Lot A6 codé et testé côté serveur, raccord privé restant
+
+- Vérification de la vraie SQLite complète : client, devis, toutes les lignes, reçu et audit de création. Un audit/sidecar seul ne prouve rien ; modification, émission ou suppression avant première preuve impose une revue.
+- Liaison provenance/réservation dans le même batch, journal canonique append-only et reprise historique après preuve durable sans dépendance au catalogue/tête/transport anciens.
+- **1 524/1 524 tests serveur**, 47 fichiers ; **6/6** smoke des vrais modules sous Workerd. Typage, lint ciblé, format, assets et build réussis. Données synthétiques, aucune exécution Rust.
+- **5 nouveaux tests natifs écrits, 2 enrichis : 68 avec A3/A5, non exécutés.** Rustfmt a seulement parsé les deux fichiers ; aucun Cargo/App Control retenté ou contourné.
+- Code serveur `0e9330c7efaf143acf0998a96a251477b75a8d0b`, natif `3eee678aa16fc0eeb9f559232aa7a5ac66fb6453`.
+- Migration D1 additive 0103 proposée/testée localement ; aucune nouvelle migration PG. Aucun endpoint, IPC, déclencheur, notification ou déploiement.
+- Livraison : `CANONICAL-QUOTE-VALIDATION-20261011.md` et `docs/evidence/action-engine-canonical-quote-20261011.json`. Bornes du pilote, dépendance sql.js épinglée et absence de limite CPU stricte documentées.
+
 ## Suite : premier vrai brouillon confirmé
 
 1. Reprendre `AUDIT.md` et les contrats de `lib/action-engine/README.md`.
-2. Valider les sources natives A3/A5 sur un hôte autorisé : compiler, exécuter les 63 tests et les régressions de restauration/fusion, puis vérifier l'interopérabilité d'une vraie archive synthétique. Ne pas retenter/bypasser Windows App Control en boucle.
+2. Valider les sources natives A3/A5/A6 sur un hôte autorisé : compiler, exécuter les 68 tests et les régressions de restauration/fusion, puis vérifier l'interopérabilité d'une vraie archive synthétique. Ne pas retenter/bypasser Windows App Control en boucle.
 3. Valider le protocole A4 sur un environnement de staging approuvé, notamment avec plusieurs connexions PG et le gateway complet ; la composition locale ne prouve pas une transaction distribuée. Tous les writers d'une entreprise protégée doivent suivre ce protocole, y compris après retrait de son flag.
 4. Raccorder le préparateur privé à Support, puis réconcilier les tickets non dispatchés et les analyses incertaines. La course avant modèle et les gardes de persistance sont composées localement ; le déclenchement depuis Support n'est pas encore intégré.
 5. Raccorder le writer privé validé à une commande native unique dans le desktop **1.90.15** de `app-current-corrections`, sous origine entreprise et contexte membre, admission/réservation/source distantes corroborées. Ne pas exposer directement l'input privé à la WebView.
-6. Ajouter une projection canonique devis/lignes/reçu/audit à une vraie archive native, puis corroborer la confirmation via la publication protégée (voir `PUBLISHED-CONTEXT-CONTRACT.md`). Valider la reprise A5 avant fusion/préparation avec les commits perdus, les modifications en cours, deux appareils et le changement de compte avant de déclarer l'exécution autonome fonctionnelle.
+6. Raccorder les vérificateurs privés A6 au parcours appareil : réservation/liaison authentifiées, garde pays D1, fait PG committed exact, tous les chunks/SHA complets, preuve SQLite, journal durable puis confirmation. Exiger la preuve A6 même si un reçu legacy existe ; avec preuve durable, ne pas relire l'ancien transport. Valider aussi la reprise A5 avant fusion/préparation avec commits perdus, modifications en cours, deux appareils et changement de compte.
 7. Réutiliser l’interface Activité / À suivre / Réglages, ouvrir le véritable devis existant et notifier seulement après reçu métier confirmé.
 
 Ne pas publier le desktop 1.46.1 de la copie serveur. Aucun changement de production n’a été effectué. Les ports abstraits ne constituent pas une intégration en ligne. L’objectif global reste en cours.

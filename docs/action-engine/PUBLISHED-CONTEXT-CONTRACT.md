@@ -102,14 +102,22 @@ L'assertion CHECK, la mutation et son journal sont dans le **même batch D1**. L
 
 L'historique utilise les droits commerciaux/appareil et la délégation actuelle du workspace capturé. Il n'exige pas que le ticket soit encore ouvert, que l'ancienne connexion reste active ou que l'ancien catalogue soit courant ; il n'autorise aucune progression. `prepareDeviceSupportQuote` assemble ces capacités avec la réservation durable avant IA et la sauvegarde de proposition, mais n'est appelé par aucune route, UI ou automatisation Support dans ce lot.
 
-## Ce qui n'est pas prouvé
+## Preuve canonique privée A6
+
+A6 ajoute un autre lecteur, distinct du codec de planification à deux positions : `quote-archive.ts` valide le ZIP complet borné et son SHA, puis `sqlite-reader.ts` lit la vraie SQLite schema 62 en lecture seule. `canonical-quote.ts` recorrobore les vrais client/devis/lignes/reçu/audit contre la réservation liée au contexte initial. Les types de stockage INTEGER et les octets UTF-8 sont contrôlés, sans arrondir un nombre unsafe ou accepter une conversion REAL/TEXT de cents. Un audit/sidecar seul n'est jamais une preuve.
+
+La première preuve exige le brouillon complet inchangé ; modification, émission ou suppression impose une revue, jamais une recréation. La capacité serveur scellée autorise l'append du journal immuable D1 0103. Après preuve durable, `historical-quote-fences.ts` peut confirmer le fait initial sous permissions actuelles, sans catalogue/tête/archive anciens. La provenance initiale est liée à la nouvelle réservation dans le même batch ; aucun backfill legacy.
+
+Ce sont encore des composants privés : pas de route, commande IPC ou orchestration appareil → PG/chunks → preuve → confirmation. `published-fences.ts` refuse toujours la confirmation d'un simple contexte de catalogue. Le futur raccord doit ajouter le garde pays D1, exiger la preuve A6 même sur replay d'un reçu legacy et valider tous les chunks authentifiés. Les limites CPU/mémoire, dépendances et tests exacts sont décrits dans `CANONICAL-QUOTE-VALIDATION-20261011.md`.
+
+## Ce qui n'est pas prouvé par le chargeur de planification
 
 - Le codec valide un compartiment de deux positions, pas tout le ZIP, son annuaire central ou les doublons dans sa queue opaque. Les positions ne sont pas sélectionnées par recherche de nom.
 - Le premier chunk est vérifié ; le hash de toute l'archive n'est pas recalculé. Le SHA complet vient du manifeste de publication existant.
 - Un hash de sidecar ne prouve pas son égalité avec SQLite face à un producteur malveillant. Le writer natif recorroborera ses faits locaux avant commit ; la confirmation distante devra corroborer les faits métier publiés.
 - Le sidecar actuel ne contient pas de projection des devis/reçus créés. Il ne peut pas confirmer une création dans D1.
 - Les gardes et le protocole de publication imposent un ordre entre des transactions locales ; ils ne constituent pas une transaction distribuée D1/PostgreSQL/SQLite. Une barrière peut rester durablement `pending` lorsque le rapprochement ne dispose pas d'un résultat certain.
-- L'autorité distante, la réservation centrale et la recorroboration du writer natif doivent encore être raccordées à une commande dédiée ; le reçu métier publié et sa vérification distante restent absents. La confirmation demeure refusée, aucune émission ni transmission n'est autorisée.
+- L'autorité distante, la réservation centrale et la recorroboration du writer natif doivent encore être raccordées à une commande dédiée. A6 fournit les vérificateurs privés du reçu métier publié, mais pas le parcours authentifié complet. Aucune émission ni transmission n'est autorisée.
 - Les migrations proposées, le garde permanent et l'allowlist nécessitent un déploiement coordonné explicitement validé avant toute activation ; aucun hôte client ni base hébergée n'a reçu ce lot.
 
 Les reçus natifs prévus sont partagés et immuables ; l'outbox est privée à l'installation, purgée des archives et conservée lors d'une réception ordinaire. Rejoindre une autre entreprise la vide. Une copie reçue qui perd ou modifie un reçu local est refusée avec restauration des données précédentes ; aucun devis n'est recréé pour résoudre cette situation.
