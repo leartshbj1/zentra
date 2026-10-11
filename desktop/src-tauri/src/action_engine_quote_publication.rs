@@ -39,6 +39,16 @@ WHERE o.organization_id=? AND o.state<>'confirmed'
 ORDER BY o.proposal_id COLLATE BINARY LIMIT ?
 "#;
 
+// This is an installation/actor-local history, not the shared company feed.
+// Do not join away missing receipt/outbox/candidate evidence: every selected
+// marker, including lookahead, is corroborated in the same transaction below.
+const ACTIVITY_SQL: &str = r#"
+SELECT c.* FROM company_local_action_engine_quote_confirmations c
+WHERE c.organization_id=?1 AND c.actor_user_id=?2 AND c.installation_id=?3
+  AND c.proposal_id COLLATE BINARY > ?4
+ORDER BY c.proposal_id COLLATE BINARY LIMIT ?5
+"#;
+
 /// Captured physical/account origin, not a remote admission or write input.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -56,6 +66,28 @@ pub(crate) struct ActionEngineQuoteRecoveryOrigin {
 pub(crate) struct ActionEngineQuoteRecoveryWork {
     pub(crate) selections: Vec<ActionEngineQuoteRecoverySelection>,
     pub(crate) has_more: bool,
+}
+
+/// Original, canonically confirmed draft creation. This does not describe the
+/// current quote status, grant execution, or assert activity on other devices.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActionEngineQuoteActivity {
+    pub(crate) organization_id: String,
+    pub(crate) proposal_id: String,
+    pub(crate) quote_id: String,
+    pub(crate) confirmed_at: String,
+    pub(crate) kind: &'static str,
+    pub(crate) requires_human_validation: bool,
+}
+
+/// Keyset pagination is by proposal BINARY, not confirmation chronology. The
+/// continuation is for this read only, never a durable notification watermark.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActionEngineQuoteActivityPage {
+    pub(crate) entries: Vec<ActionEngineQuoteActivity>,
+    pub(crate) next_after_proposal_id: Option<String>,
 }
 
 fn validate_recovery_work_origin(origin: &ActionEngineQuoteRecoveryOrigin) -> AppResult<()> {
@@ -658,6 +690,97 @@ fn require_confirmed_candidate(connection: &Connection, organization: &str, prop
 }
 
 impl LocalStore {
+    /// Read only this current actor/installation's corroborated A10 markers.
+    /// The real local origin is checked even when no marker is present. No
+    /// catalogue/current quote, schema repair, remote request, badge or toast.
+    pub(crate) fn read_action_engine_quote_activity(
+        &self,
+        origin: ActionEngineQuoteRecoveryOrigin,
+        after_proposal_id: Option<String>,
+        limit: usize,
+    ) -> AppResult<ActionEngineQuoteActivityPage> {
+        if !(1..=50).contains(&limit) { return Err(invalid()); }
+        validate_recovery_work_origin(&origin)?;
+        let valid_cursor = |value: &str| !value.is_empty() && value.len() <= 160
+            && value.bytes().enumerate().all(|(index, byte)| byte.is_ascii_alphanumeric()
+                || (index > 0 && matches!(byte, b'_' | b'.' | b':' | b'@' | b'-')));
+        if after_proposal_id.as_deref().is_some_and(|value| !valid_cursor(value)) {
+            return Err(invalid());
+        }
+        let after = after_proposal_id.as_deref().unwrap_or("");
+        let _lock = self.lock()?;
+        let mut connection = self.connect()?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        self.require_onboarding(&tx)?;
+        require_local_quote_origin(&tx, self, &origin.actor, &origin.installation_id,
+            &origin.expected_workspace_scope, &origin.expected_member_context_nonce)?;
+        let mut entries = (|| -> AppResult<Vec<ActionEngineQuoteActivity>> {
+            let mut statement = tx.prepare(ACTIVITY_SQL)?;
+            let columns = [
+                ("organization_id",160), ("source_id",160), ("action_kind",32),
+                ("proposal_id",160), ("reservation_id",36), ("fingerprint",64),
+                ("actor_user_id",160), ("installation_id",36), ("customer_id",160),
+                ("quote_id",36), ("receipt_sha256",64), ("snapshot_id",36), ("confirmed_at",40),
+            ];
+            if !statement.column_names().iter().copied().eq(columns.iter().map(|(name,_)| *name)) {
+                return Err(invalid());
+            }
+            let mut rows = statement.query(params![origin.actor.organization_id, origin.actor.user_id,
+                origin.installation_id, after, (limit + 1) as i64])?;
+            let mut entries = Vec::with_capacity(limit + 1);
+            let mut previous = after.to_owned();
+            while let Some(raw) = rows.next()? {
+                if entries.len() >= limit + 1 { return Err(invalid()); }
+                let mut fields = serde_json::Map::new();
+                for (index,(name,maximum)) in columns.into_iter().enumerate() {
+                    let value = retained_text(raw,index,maximum,false)?.ok_or_else(invalid)?;
+                    if value.is_empty() || value.chars().any(char::is_control) { return Err(invalid()); }
+                    fields.insert(name.to_owned(),Value::String(value));
+                }
+                let marker = Value::Object(fields);
+                let proposal = text(&marker,"proposal_id",160)?;
+                if !valid_cursor(proposal) || proposal <= previous.as_str()
+                    || text(&marker,"organization_id",160)? != origin.actor.organization_id
+                    || text(&marker,"actor_user_id",160)? != origin.actor.user_id
+                    || text(&marker,"installation_id",36)? != origin.installation_id {
+                    return Err(invalid());
+                }
+                let selection = ActionEngineQuoteRecoverySelection {
+                    source_id: text(&marker,"source_id",160)?.to_owned(),
+                    proposal_id: proposal.to_owned(),
+                    reservation_id: text(&marker,"reservation_id",36)?.to_owned(),
+                    fingerprint: text(&marker,"fingerprint",64)?.to_owned(),
+                    actor: origin.actor.clone(), installation_id: origin.installation_id.clone(),
+                    expected_workspace_scope: origin.expected_workspace_scope.clone(),
+                    expected_member_context_nonce: origin.expected_member_context_nonce.clone(),
+                };
+                let recovered = recover_action_engine_quote_receipt_in_transaction(&tx,self,&selection)?;
+                if recovered.local_outbox_state != ActionEngineLocalQuoteOutboxState::Confirmed {
+                    return Err(invalid());
+                }
+                same_execution(&marker,&selection,&recovered)?;
+                let snapshot = text(&marker,"snapshot_id",36)?;
+                // Reuses the actual closed candidate/marker/time corroboration,
+                // without loading every historical publication for this quote.
+                require_confirmed_candidate(&tx,&origin.actor.organization_id,proposal,snapshot)?;
+                entries.push(ActionEngineQuoteActivity {
+                    organization_id: origin.actor.organization_id.clone(), proposal_id: proposal.to_owned(),
+                    quote_id: recovered.receipt.quote_id, confirmed_at: text(&marker,"confirmed_at",40)?.to_owned(),
+                    kind: "quote_draft_created", requires_human_validation: true,
+                });
+                previous = proposal.to_owned();
+            }
+            Ok(entries)
+        })().map_err(|_| invalid())?;
+        let has_more = entries.len() > limit;
+        entries.truncate(limit);
+        let next_after_proposal_id = if has_more {
+            Some(entries.last().ok_or_else(invalid)?.proposal_id.clone())
+        } else { None };
+        tx.commit()?;
+        Ok(ActionEngineQuoteActivityPage { entries, next_after_proposal_id })
+    }
+
     /// Read the real local recovery queue under one mutex/IMMEDIATE snapshot.
     /// No schema repair, remote request, current document/catalogue lookup or
     /// permission to execute is created. Corrupt/foreign rows fail the page;

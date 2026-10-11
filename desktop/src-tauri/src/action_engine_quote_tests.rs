@@ -1,7 +1,7 @@
 //! Actual LocalStore/SQLite transactions. These synthetic private inputs are
 //! not evidence of a remote reservation, Automation entitlement or IPC route.
 use super::*;
-use crate::action_engine_quote_publication::ActionEngineQuoteRecoveryOrigin;
+use crate::action_engine_quote_publication::{ActionEngineQuoteConfirmation, ActionEngineQuoteRecoveryOrigin};
 use crate::database::query_all;
 use serde_json::Value;
 
@@ -170,6 +170,253 @@ fn two_recovery_work_requests(f: &Fixture) -> [ActionEngineQuoteInput; 2] {
     change_plan(&mut second, |plan| { plan["sourceId"] = json!("ticket-b"); });
     f.store.commit_action_engine_quote_draft(second.clone()).unwrap();
     [first, second]
+}
+
+// Real frozen native archive/link plus a synthetic private A7 caller result.
+// This does not test remote authentication or manufacture a server authority.
+fn activity_candidate(f: &Fixture) -> (String, crate::cloud_backup::Manifest) {
+    let _local = f.store.lock().unwrap();
+    let snapshot_id = Uuid::new_v4().to_string();
+    let path = f.store.data_dir.join("company-sync").join(format!("{snapshot_id}.zentra"));
+    f.store.create_collaboration_backup_at(&path, env!("CARGO_PKG_VERSION"), "company-a", &snapshot_id, 0).unwrap();
+    let manifest = crate::cloud_backup::file_manifest(&path).unwrap();
+    let clock: i64 = f.store.connect().unwrap().query_row(
+        "SELECT value FROM company_local_clock WHERE id=1", [], |row| row.get(0)).unwrap();
+    crate::action_engine_quote_publication::link_prepared(&f.store,"company-a",&snapshot_id,0,clock,&manifest).unwrap();
+    (snapshot_id,manifest)
+}
+fn activity_confirmation(f: &Fixture, request: &ActionEngineQuoteInput, snapshot_id: &str) -> ActionEngineQuoteConfirmation {
+    ActionEngineQuoteConfirmation {
+        schema_version: 1, state: "confirmed".into(), source_id: request.source.id.clone(),
+        proposal_id: request.proposal_id.clone(), reservation_id: request.reservation_id.clone(),
+        publication_snapshot_id: snapshot_id.into(),
+        receipt: f.store.recover_action_engine_quote_receipt(recovery_selection(request)).unwrap().receipt,
+    }
+}
+fn activity_snapshot(store: &LocalStore) -> Value {
+    let mut result = snapshot(store);
+    let db = store.connect().unwrap();
+    for table in ["company_local_action_engine_quote_publications", "company_local_action_engine_quote_confirmations"] {
+        result.as_object_mut().unwrap().insert(table.into(),json!(query_all(&db,
+            &format!("SELECT * FROM {table} ORDER BY organization_id,proposal_id"),[]).unwrap()));
+    }
+    result
+}
+fn corruptible_activity_connection(store: &LocalStore) -> rusqlite::Connection {
+    let db = corruptible_recovery_connection(store);
+    db.execute_batch("DROP TRIGGER IF EXISTS company_local_action_quote_confirmation_update;
+        DROP TRIGGER IF EXISTS company_local_action_quote_publication_update;").unwrap();
+    db
+}
+
+#[test]
+fn confirmed_activity_empty_page_checks_origin_onboarding_and_closed_bounds_without_writing() {
+    let f = fixture(true);
+    let request = input(&f,true);
+    let origin = recovery_work_origin(&request);
+    let before = activity_snapshot(&f.store);
+    let page = f.store.read_action_engine_quote_activity(origin.clone(),None,50).unwrap();
+    assert_eq!(serde_json::to_value(&page).unwrap(),json!({"entries":[],"nextAfterProposalId":null}));
+    for limit in [0,51,usize::MAX] {
+        assert!(f.store.read_action_engine_quote_activity(origin.clone(),None,limit).is_err());
+    }
+    for cursor in ["".to_owned(),"x".repeat(161),"déjà".into(),"x\n".into()] {
+        assert!(f.store.read_action_engine_quote_activity(origin.clone(),Some(cursor),1).is_err());
+    }
+    for field in ["user","organization","installation","workspace","nonce"] {
+        let mut changed = origin.clone();
+        match field {
+            "user" => changed.actor.user_id="other-user".into(),
+            "organization" => changed.actor.organization_id="other-company".into(),
+            "installation" => changed.installation_id=Uuid::new_v4().to_string(),
+            "workspace" => changed.expected_workspace_scope=Uuid::new_v4().to_string(),
+            _ => changed.expected_member_context_nonce="0".repeat(32),
+        }
+        assert!(f.store.read_action_engine_quote_activity(changed,None,1).is_err(),"{field}");
+    }
+    assert_eq!(activity_snapshot(&f.store),before);
+    f.store.connect().unwrap().execute("UPDATE company_local_identity SET role='read_only'",[]).unwrap();
+    assert!(f.store.read_action_engine_quote_activity(origin.clone(),None,1).is_err());
+    f.store.connect().unwrap().execute("UPDATE company_local_identity SET role='owner'",[]).unwrap();
+    f.store.connect().unwrap().execute("UPDATE settings SET onboarding_completed=0 WHERE id=1",[]).unwrap();
+    assert!(matches!(f.store.read_action_engine_quote_activity(origin,None,1).unwrap_err(),AppError::OnboardingRequired));
+}
+
+#[test]
+fn confirmed_activity_starts_only_after_exact_a7_ack_and_replay_reopen_keeps_one_historical_entry() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    let request=input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let origin=recovery_work_origin(&request);
+    let (snapshot_id,manifest)=activity_candidate(&f);
+    crate::action_engine_quote_publication::mark_published(&f.store,"company-a",&snapshot_id,0,&manifest,1).unwrap();
+    assert!(f.store.read_action_engine_quote_activity(origin.clone(),None,10).unwrap().entries.is_empty(),
+        "a draft, receipt, candidate and transport ACK are not canonical activity");
+    let confirmation=activity_confirmation(&f,&request,&snapshot_id);
+    f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(&request),confirmation.clone()).unwrap();
+    let before=activity_snapshot(&f.store);
+    let page=f.store.read_action_engine_quote_activity(origin.clone(),None,10).unwrap();
+    assert_eq!(page.entries.len(),1);
+    let confirmed_at: String=f.store.connect().unwrap().query_row(
+        "SELECT confirmed_at FROM company_local_action_engine_quote_confirmations",[],|row| row.get(0)).unwrap();
+    assert_eq!(serde_json::to_value(&page).unwrap(),json!({"entries":[{
+        "organizationId":"company-a","proposalId":request.proposal_id,"quoteId":request.quote_id,
+        "confirmedAt":confirmed_at,"kind":"quote_draft_created","requiresHumanValidation":true
+    }],"nextAfterProposalId":null}));
+    f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(&request),confirmation).unwrap();
+    assert_eq!(f.store.read_action_engine_quote_activity(origin.clone(),None,10).unwrap(),page);
+    std::fs::remove_file(f.store.data_dir.join("company-sync").join(format!("{snapshot_id}.zentra"))).unwrap();
+    let reopened=LocalStore::initialize(f.store.data_dir.clone()).unwrap();
+    assert_eq!(reopened.read_action_engine_quote_activity(origin,None,10).unwrap(),page,
+        "lost ACK/restart/archive pruning do not duplicate or erase confirmed history");
+    assert_eq!(activity_snapshot(&reopened),before);
+    assert_eq!(reopened.connect().unwrap().query_row::<i64,_,_>("PRAGMA user_version",[],|row| row.get(0)).unwrap(),62);
+}
+
+#[test]
+fn confirmed_activity_pages_in_binary_proposal_order_with_verified_lookahead_not_timestamp_watermark() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    let requests=two_recovery_work_requests(&f);
+    let (snapshot_id,_)=activity_candidate(&f);
+    for request in &requests {
+        f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(request),activity_confirmation(&f,request,&snapshot_id)).unwrap();
+    }
+    let origin=recovery_work_origin(&requests[0]);
+    let before=activity_snapshot(&f.store);
+    let first=f.store.read_action_engine_quote_activity(origin.clone(),None,1).unwrap();
+    assert_eq!(first.entries.len(),1);
+    assert_eq!(first.entries[0].proposal_id,requests[1].proposal_id);
+    assert_eq!(first.next_after_proposal_id.as_deref(),Some(requests[1].proposal_id.as_str()));
+    let last=f.store.read_action_engine_quote_activity(origin.clone(),first.next_after_proposal_id,1).unwrap();
+    assert_eq!(last.entries.len(),1);
+    assert_eq!(last.entries[0].proposal_id,requests[0].proposal_id);
+    assert!(last.next_after_proposal_id.is_none());
+    let all=f.store.read_action_engine_quote_activity(origin.clone(),None,50).unwrap();
+    assert_eq!(all.entries,vec![first.entries[0].clone(),last.entries[0].clone()]);
+    assert!(all.next_after_proposal_id.is_none());
+    assert!(f.store.read_action_engine_quote_activity(origin,Some(requests[0].proposal_id.clone()),1).unwrap().entries.is_empty());
+    assert_eq!(activity_snapshot(&f.store),before);
+}
+
+#[test]
+fn confirmed_activity_excludes_other_actor_installation_and_company_markers_from_this_local_feed() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    let requests=two_recovery_work_requests(&f);
+    let (snapshot_id,_)=activity_candidate(&f);
+    for request in &requests {
+        f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(request),activity_confirmation(&f,request,&snapshot_id)).unwrap();
+    }
+    // Only isolated corruption fixtures bypass immutability. A foreign marker
+    // is intentionally out of scope, never claimed as a shared team activity.
+    let db=corruptible_activity_connection(&f.store);
+    for (column,value,original) in [
+        ("actor_user_id","other-user".to_owned(),requests[1].actor.user_id.clone()),
+        ("installation_id",Uuid::new_v4().to_string(),requests[1].installation_id.clone()),
+        ("organization_id","company-b".to_owned(),"company-a".to_owned()),
+    ] {
+        db.execute(&format!("UPDATE company_local_action_engine_quote_confirmations SET {column}=? WHERE proposal_id=?"),params![value,requests[1].proposal_id]).unwrap();
+        let before=activity_snapshot(&f.store);
+        let page=f.store.read_action_engine_quote_activity(recovery_work_origin(&requests[0]),None,1).unwrap();
+        assert_eq!(page.entries.len(),1,"{column}");
+        assert_eq!(page.entries[0].proposal_id,requests[0].proposal_id,"{column}");
+        assert!(page.next_after_proposal_id.is_none(),"{column}");
+        assert_eq!(activity_snapshot(&f.store),before,"{column}");
+        db.execute(&format!("UPDATE company_local_action_engine_quote_confirmations SET {column}=? WHERE proposal_id=?"),params![original,requests[1].proposal_id]).unwrap();
+    }
+}
+
+#[test]
+fn confirmed_activity_remains_the_original_draft_fact_after_current_business_changes_issue_or_deletion() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    for stage in ["edited","issued","deleted"] {
+        let f=fixture(true);
+        let request=input(&f,true);
+        f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let (snapshot_id,_)=activity_candidate(&f);
+        f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(&request),activity_confirmation(&f,&request,&snapshot_id)).unwrap();
+        let origin=recovery_work_origin(&request);
+        let original=f.store.read_action_engine_quote_activity(origin.clone(),None,10).unwrap();
+        let db=f.store.connect().unwrap();
+        db.execute("UPDATE clients SET name='Changed customer',email='changed@example.test',address_line1='Rue fictive 1',postal_code='1200',city='Genève' WHERE id=?",[&request.customer_id]).unwrap();
+        db.execute("UPDATE catalog_items SET sales_price_cents=1,archived_at='later' WHERE id=?",[&f.article_id]).unwrap();
+        db.execute("UPDATE settings SET vat_number='CHE-123.456.789 TVA' WHERE id=1",[]).unwrap();
+        drop(db);
+        match stage {
+            "edited"=>{f.store.update_record("quotes",&request.quote_id,json!({"title":"Human edited draft"})).unwrap();},
+            "issued"=>{f.store.issue_quote(&request.quote_id,Some("2026-10-11".into()),Some("2026-11-10".into())).unwrap();},
+            _=>{f.store.delete_record("quotes",&request.quote_id).unwrap();},
+        }
+        let before=activity_snapshot(&f.store);
+        assert_eq!(f.store.read_action_engine_quote_activity(origin,None,10).unwrap(),original,
+            "{stage}: opening a current quote is separate from its historical creation fact");
+        assert_eq!(activity_snapshot(&f.store),before,"{stage}");
+    }
+}
+
+#[test]
+fn confirmed_activity_refuses_missing_or_contradictory_evidence_without_repairing_it() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    for mutation in ["receipt","outbox","audit","candidate","receipt_hash","manifest","time","blob","utf8","oversized"] {
+        let f=fixture(true);
+        let request=input(&f,true);
+        f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let (snapshot_id,_)=activity_candidate(&f);
+        f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(&request),activity_confirmation(&f,&request,&snapshot_id)).unwrap();
+        let db=corruptible_activity_connection(&f.store);
+        match mutation {
+            "receipt"=>{db.execute("DELETE FROM action_engine_quote_receipts",[]).unwrap();},
+            "outbox"=>{db.execute("DELETE FROM company_local_action_engine_quote_outbox",[]).unwrap();},
+            "audit"=>{db.execute("DELETE FROM audit_log WHERE entity_type='action_engine_quote'",[]).unwrap();},
+            "candidate"=>{db.execute("DELETE FROM company_local_action_engine_quote_publications",[]).unwrap();},
+            "receipt_hash"=>{db.execute("UPDATE company_local_action_engine_quote_confirmations SET receipt_sha256=?",["0".repeat(64)]).unwrap();},
+            "manifest"=>{db.execute("UPDATE company_local_action_engine_quote_publications SET manifest_json='{}',manifest_sha256=?",[sha(b"{}")]).unwrap();},
+            "time"=>{db.execute("UPDATE company_local_action_engine_quote_confirmations SET confirmed_at='9999-99-99T99:99:99Z'",[]).unwrap();},
+            "blob"=>{db.execute("UPDATE company_local_action_engine_quote_confirmations SET confirmed_at=X'80'",[]).unwrap();},
+            "utf8"=>{db.execute("UPDATE company_local_action_engine_quote_confirmations SET confirmed_at=CAST(X'80' AS TEXT)",[]).unwrap();},
+            _=>{db.execute("UPDATE company_local_action_engine_quote_confirmations SET source_id=?",["x".repeat(161)]).unwrap();},
+        }
+        let before=activity_snapshot(&f.store);
+        assert!(f.store.read_action_engine_quote_activity(recovery_work_origin(&request),None,1).is_err(),"{mutation}");
+        assert_eq!(activity_snapshot(&f.store),before,"{mutation}");
+    }
+}
+
+#[test]
+fn confirmed_activity_corrupt_lookahead_refuses_the_whole_page_instead_of_hiding_the_error() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    let requests=two_recovery_work_requests(&f);
+    let (snapshot_id,_)=activity_candidate(&f);
+    for request in &requests {
+        f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(request),activity_confirmation(&f,request,&snapshot_id)).unwrap();
+    }
+    corruptible_activity_connection(&f.store).execute(
+        "UPDATE company_local_action_engine_quote_confirmations SET confirmed_at='9999-99-99T99:99:99Z' WHERE proposal_id=?",
+        [&requests[0].proposal_id]).unwrap();
+    let before=activity_snapshot(&f.store);
+    assert!(f.store.read_action_engine_quote_activity(recovery_work_origin(&requests[0]),None,1).is_err(),
+        "the first visible row is valid; the extra row must still be corroborated");
+    assert_eq!(activity_snapshot(&f.store),before);
+}
+
+#[test]
+fn confirmed_activity_missing_or_open_schema_is_an_error_and_never_an_empty_or_repaired_page() {
+    for schema in ["missing","unknown_column"] {
+        let f=fixture(true);
+        let request=input(&f,true);
+        let db=f.store.connect().unwrap();
+        if schema=="missing" {
+            db.execute("DROP TABLE company_local_action_engine_quote_confirmations",[]).unwrap();
+        } else {
+            db.execute("ALTER TABLE company_local_action_engine_quote_confirmations ADD COLUMN unknown_field TEXT",[]).unwrap();
+        }
+        let before=query_all(&db,"SELECT type,name,sql FROM sqlite_master ORDER BY type,name",[]).unwrap();
+        assert!(f.store.read_action_engine_quote_activity(recovery_work_origin(&request),None,1).is_err(),"{schema}");
+        assert_eq!(query_all(&db,"SELECT type,name,sql FROM sqlite_master ORDER BY type,name",[]).unwrap(),before,"{schema}");
+    }
 }
 
 #[test]
