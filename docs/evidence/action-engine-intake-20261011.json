@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-11T00:21:01.364Z",
+  "objective": "Zentra Action Engine",
+  "phase": "A2-local-intake-and-narrow-device-authority",
+  "codeCommit": "c3d92cce06ddff231522a1be2f19ba92b0aa9649",
+  "parentCommit": "5e8940b78ed1d509c368e8e68bee315496d4f60f",
+  "workspace": "D:\\Codex-Zentra-Temporary\\2026-10-08\\international-site",
+  "sources": [
+    {
+      "path": "db/action-engine-schema.ts",
+      "bytes": 5681,
+      "sha256": "68c408515c5b9c13bd27fd125aee426e358e8c73f8768d70cbd6103ebdb366a8"
+    },
+    {
+      "path": "docs/action-engine/AUDIT.md",
+      "bytes": 6684,
+      "sha256": "18d692d6ad758286063e826d74a85f0dbb761d802ae13a4f2023124b3a44046b"
+    },
+    {
+      "path": "docs/action-engine/NATIVE-ADAPTER-CONTRACT.md",
+      "bytes": 4728,
+      "sha256": "499e7b430e2f57130af5f1d690fba348ddbabec390a63476609b50950883afea"
+    },
+    {
+      "path": "docs/action-engine/PUBLISHED-CONTEXT-CONTRACT.md",
+      "bytes": 5220,
+      "sha256": "f73f5b34576024bb15d69869649cbc8115d693ce1fac59cfdff520838c4d357d"
+    },
+    {
+      "path": "drizzle/0100_action_engine_quote_intake.sql",
+      "bytes": 8780,
+      "sha256": "d870a8d2762ab2892c2c67aa2bc8431b38124a8307b1c33f1be6cba582d90cb7"
+    },
+    {
+      "path": "drizzle/0101_action_engine_quote_settings.sql",
+      "bytes": 1540,
+      "sha256": "f8ca7538b323e07e9bec642d8d9d96723c425d3b422ee33896e8626777c518bf"
+    },
+    {
+      "path": "lib/action-engine/README.md",
+      "bytes": 7825,
+      "sha256": "ffcbdd2ae180e0fcc4c442a0967dd4e71226276512c7a11a643c79c7162cfa37"
+    },
+    {
+      "path": "lib/action-engine/engine.test.ts",
+      "bytes": 26428,
+      "sha256": "3a1a395600e95964317cdaa3c13d8bde26d8a26759808670afe886bd954d4f81"
+    },
+    {
+      "path": "lib/action-engine/engine.ts",
+      "bytes": 9252,
+      "sha256": "aaf242f3088f2cf725fdbbe87a84a2a2b8e494291cecd83f12687939010a0844"
+    },
+    {
+      "path": "lib/action-engine/fingerprint.ts",
+      "bytes": 520,
+      "sha256": "6b59868171d531097ef6a0ec83349786389ae72170cf422be6cea573a1ddd79e"
+    },
+    {
+      "path": "lib/action-engine/intake-d1.test.ts",
+      "bytes": 10157,
+      "sha256": "6e124dce13582878da6ef778d32e2d023c6e07ee06042030131b1249345a1009"
+    },
+    {
+      "path": "lib/action-engine/intake-types.ts",
+      "bytes": 3225,
+      "sha256": "0773c0e8d5695b502e927c91b06bd9aea02f51f4a6643c4bc8a420c044fbc1c9"
+    },
+    {
+      "path": "lib/action-engine/intake.test.ts",
+      "bytes": 28472,
+      "sha256": "8b7e0d6e2988af6fba8179ab915e1e6be28ca54ee31856df43705d599713ed0c"
+    },
+    {
+      "path": "lib/action-engine/intake.ts",
+      "bytes": 26269,
+      "sha256": "dad2f5e11eca940b3fc24ed2b5b9e5eb5ea4d07d59b4bd69f28734a4f4088f8a"
+    },
+    {
+      "path": "lib/action-engine/planner.ts",
+      "bytes": 12681,
+      "sha256": "2d2ea9ed074488f5b22b8bc0f140ac52f21f93678a322c22e09ea3b3adc98c11"
+    },
+    {
+      "path": "lib/action-engine/production-admission.test.ts",
+      "bytes": 19841,
+      "sha256": "c5d350df5b2444b9da78dfec4ac027fad2b6a3dd944cd8e0c7a8cdae41656a20"
+    },
+    {
+      "path": "lib/action-engine/production-admission.ts",
+      "bytes": 11809,
+      "sha256": "8eee37ec599baa6401ea2332e3e2edea3013370767e58373d54704fc57ec1d9c"
+    },
+    {
+      "path": "lib/action-engine/provider.test.ts",
+      "bytes": 4674,
+      "sha256": "d4f3fdd3f9284e5b6b3cfea876c4f7691bfcd47c6fd812ea246df9b73a440150"
+    },
+    {
+      "path": "lib/action-engine/provider.ts",
+      "bytes": 2472,
+      "sha256": "04d9a1bc0a41c7c8747227d39a56ff1488a51f6c80c4cc93e217156d62872f3b"
+    },
+    {
+      "path": "lib/action-engine/types.ts",
+      "bytes": 5794,
+      "sha256": "5902f9c5b88e4e90b7fba70dd4c5be119bf0a287c7a34186e1de7a6e99c36b6a"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".qa/action-engine-intake/brand-v1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-intake/build-v1.log",
+      "bytes": 27771,
+      "sha256": "ee95549e9092d6ea8cc55fe10de74863c34cce955ca429188952041504778693"
+    },
+    {
+      "path": ".qa/action-engine-intake/format-v1.log",
+      "bytes": 48,
+      "sha256": "e2f8847b4f7d17506ab166ed2d3a47bff7646f3b2ae2dee4a7f1f4cad4a3fe92"
+    },
+    {
+      "path": ".qa/action-engine-intake/format-v2.log",
+      "bytes": 48,
+      "sha256": "e2f8847b4f7d17506ab166ed2d3a47bff7646f3b2ae2dee4a7f1f4cad4a3fe92"
+    },
+    {
+      "path": ".qa/action-engine-intake/format-v3.log",
+      "bytes": 48,
+      "sha256": "86c40bb5f249a5d5ec6ad8388ab6a818e70f0786333e7d01961930cd7d0d640b"
+    },
+    {
+      "path": ".qa/action-engine-intake/format-v4.log",
+      "bytes": 48,
+      "sha256": "ad9c859fea91560eea0741f3af740695e0fd2169e7644593aff4d16e357f30b2"
+    },
+    {
+      "path": ".qa/action-engine-intake/lint-v1.log",
+      "bytes": 738,
+      "sha256": "8ff68187d4422d4d500bd9873c6bdf4d737385a45811bf8ccfea996a466577ff"
+    },
+    {
+      "path": ".qa/action-engine-intake/lint-v2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-intake/regression-v1.json",
+      "bytes": 172824,
+      "sha256": "89f4b408de1d8555649986da3a4423d65de37633ebd21be965f73100d93e21b1"
+    },
+    {
+      "path": ".qa/action-engine-intake/regression-v1.log",
+      "bytes": 124,
+      "sha256": "e40a6bc16b4c6c8127e393636969c03f669b031cb44370e3c704f5373ac8ab30"
+    },
+    {
+      "path": ".qa/action-engine-intake/regression-v2.json",
+      "bytes": 172849,
+      "sha256": "0ae4f5b4b1e3f7c4c92f83ce4125aeef2c6c244734fdb2285f0c56e2a53114b1"
+    },
+    {
+      "path": ".qa/action-engine-intake/regression-v2.log",
+      "bytes": 124,
+      "sha256": "bccbe2835250a10e18e80a43dfcd3d5981b8049cd806dfe1fae398d87418aa20"
+    },
+    {
+      "path": ".qa/action-engine-intake/smoke-v1.json",
+      "bytes": 25588,
+      "sha256": "b3babbb9ccda85640c61c8f575bdf1491f2c82710e63d3ee40cc45693005813b"
+    },
+    {
+      "path": ".qa/action-engine-intake/smoke-v1.log",
+      "bytes": 119,
+      "sha256": "2ec85f6cae0d89f1bc2d29b4013ec32b6cfa49eeeab68e48e52544e715397d45"
+    },
+    {
+      "path": ".qa/action-engine-intake/smoke-v2.json",
+      "bytes": 61631,
+      "sha256": "e5c7c31a0022164b02924d35b7f7aaf0bf4048c79f56d6de8700cae893dac493"
+    },
+    {
+      "path": ".qa/action-engine-intake/smoke-v2.log",
+      "bytes": 119,
+      "sha256": "8546c8d0fc364cb2bb62ea5317565745baa150c207ea9c0d5b098538579b0e90"
+    },
+    {
+      "path": ".qa/action-engine-intake/staged-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-intake/types-v1.log",
+      "bytes": 4190,
+      "sha256": "3bd7dab37d2882c71481ede4cf759393eabbb94cbcb3fc5f40379692f6f31b74"
+    },
+    {
+      "path": ".qa/action-engine-intake/types-v2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".qa/action-engine-intake/types-v3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "checks": [
+    {
+      "command": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts lib/action-engine lib/automation --reporter=json --outputFile=.qa/action-engine-intake/regression-v2.json",
+      "exitCode": 0,
+      "passed": 545,
+      "failed": 0,
+      "pending": 0,
+      "testFiles": 20,
+      "breakdown": {
+        "core": 175,
+        "sqliteLedger": 63,
+        "d1Ledger": 7,
+        "sqliteIntake": 39,
+        "d1Intake": 4,
+        "deviceAuthority": 67,
+        "singleAttemptProvider": 15,
+        "automation": 175
+      }
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "exitCode": 0,
+      "log": ".qa/action-engine-intake/types-v3.log"
+    },
+    {
+      "command": "node node_modules/oxlint/bin/oxlint lib/action-engine db/action-engine-schema.ts",
+      "exitCode": 0,
+      "log": ".qa/action-engine-intake/lint-v2.log"
+    },
+    {
+      "command": "node scripts/check-brand-assets.mjs",
+      "exitCode": 0,
+      "log": ".qa/action-engine-intake/brand-v1.log"
+    },
+    {
+      "command": "node node_modules/vinext/dist/cli.js build",
+      "exitCode": 0,
+      "log": ".qa/action-engine-intake/build-v1.log",
+      "warnings": [
+        "Existing middleware deprecation",
+        "Vinext static route classification incomplete"
+      ]
+    },
+    {
+      "command": "git diff --cached --check",
+      "exitCode": 0,
+      "log": ".qa/action-engine-intake/staged-check.log"
+    }
+  ],
+  "earlierChecks": [
+    {
+      "report": ".qa/action-engine-intake/smoke-v1.json",
+      "passed": 75,
+      "failed": 0,
+      "note": "Earlier source state, before final intake/admission tests and review corrections"
+    },
+    {
+      "report": ".qa/action-engine-intake/smoke-v2.json",
+      "passed": 182,
+      "failed": 1,
+      "note": "Test fixture inserted a fourth active member into a three-seat plan; corrected to a valid pro-to-team downgrade, no production guard weakened"
+    },
+    {
+      "log": ".qa/action-engine-intake/types-v1.log",
+      "exitCode": 2,
+      "note": "Test mock tuple/literal typing corrected"
+    },
+    {
+      "log": ".qa/action-engine-intake/lint-v1.log",
+      "exitCode": 1,
+      "note": "Unused type import, intentional control-character matching and test body coercion corrected"
+    },
+    {
+      "report": ".qa/action-engine-intake/regression-v1.json",
+      "passed": 545,
+      "failed": 0,
+      "note": "Repeated after lint corrections to verify final source state"
+    }
+  ],
+  "boundaries": {
+    "productionMutation": false,
+    "deployment": false,
+    "realProviderCall": false,
+    "realCustomerData": false,
+    "supportTrigger": false,
+    "sourceAndPublicationFence": false,
+    "nativeWriter": false,
+    "realDraftCreated": false,
+    "nativeBaselineUnmodified": "56daec734529c06bae6dd73729c74b3a655edb86",
+    "supportedAuthority": "Authenticated native device, current paid Stripe Complete only; capability opt-in disabled by default",
+    "unsupportedRights": "Trials, manual/founder grants, prepaid/transition rights are denied",
+    "atomicity": "D1 transaction for the supplied private SQL predicate; no distributed exactly-once claim for D1/Supabase/SQLite",
+    "uncertainty": "Started or uncertain AI attempts are never automatically reassigned; reconciliation UI and Support source scheduler still absent",
+    "synchronizationBaseline": "Current native 1.90.15 publishes .zentra archives via Supabase collaboration; old embedded 1.46.1 D1 business-sync is not used"
+  }
+}
