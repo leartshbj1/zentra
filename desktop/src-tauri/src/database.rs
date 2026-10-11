@@ -1598,6 +1598,7 @@ impl LocalStore {
             // Repair it in the same migration transaction, including after restore.
             crate::member_context::migrate(&transaction)?;
             crate::company_collaboration::upgrade_tracking(&transaction)?;
+            crate::action_engine_quote_publication::ensure_schema(&transaction)?;
             workspace_read_indexes::ensure(&transaction)?;
             transaction.commit()?;
             return Ok(());
@@ -1892,6 +1893,7 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 62)?;
         }
+        crate::action_engine_quote_publication::ensure_schema(&transaction)?;
         workspace_read_indexes::ensure(&transaction)?;
         transaction.commit()?;
         if moves_plaintext_license {

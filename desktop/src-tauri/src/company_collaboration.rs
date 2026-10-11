@@ -184,6 +184,9 @@ mod member_context_private_tests;
 #[cfg(test)]
 #[path = "action_engine_collaboration_tests.rs"]
 mod action_engine_collaboration_tests;
+#[cfg(test)]
+#[path = "company_collaboration_action_publication_tests.rs"]
+mod action_publication_tests;
 
 pub(crate) fn local_table(table: &str) -> bool {
     table.starts_with("sqlite_")
@@ -555,6 +558,7 @@ async fn reconcile_idle_device(store: &LocalStore, session: &ProjectSyncSession)
     Ok(())
 }
 pub(crate) fn strip_private(connection: &Connection) -> AppResult<()> {
+    crate::action_engine_quote_publication::strip_private(connection)?;
     let exists:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_identity')",[],|r|r.get(0))?;
     if exists {
         connection.execute("DELETE FROM company_local_identity", [])?;
@@ -708,6 +712,7 @@ fn file_path(store: &LocalStore, id: &str) -> AppResult<PathBuf> {
 }
 fn clean_transport_copies(store: &LocalStore) -> AppResult<()> {
     let prefs = load(store)?;
+    let retained = crate::action_engine_quote_publication::retained_snapshot_ids(&store.connect()?)?;
     let directory = folder(store)?;
     for entry in fs::read_dir(&directory)? {
         let entry = entry?;
@@ -724,6 +729,7 @@ fn clean_transport_copies(store: &LocalStore) -> AppResult<()> {
             continue;
         };
         if crate::cloud_backup::validate_id(id).is_err()
+            || retained.iter().any(|snapshot| snapshot == id)
             || prefs.pending.as_ref().is_some_and(|p| p.id == id)
             || prefs.received.as_ref().is_some_and(|r| r.id == id)
             || prefs
@@ -862,6 +868,7 @@ fn prepare_locked(store: &LocalStore, organization: &str, activate: bool) -> App
         ));
     }
     if let Some(p) = prefs.pending {
+        crate::action_engine_quote_publication::link_prepared(store, organization, &p.id, p.base_revision, p.clock, &p.manifest)?;
         return Ok(p);
     }
     let _gate = WriteGate::take(store)?;
@@ -901,7 +908,20 @@ fn prepare_locked(store: &LocalStore, organization: &str, activate: bool) -> App
     prefs.pending = Some(pending.clone());
     prefs.organization_id = Some(organization.into());
     save(store, &prefs)?;
+    crate::action_engine_quote_publication::link_prepared(store, organization, &pending.id, pending.base_revision, pending.clock, &pending.manifest)?;
     Ok(pending)
+}
+
+/// The caller already owns LocalStore's non-reentrant mutex. A historical
+/// receipt is recovered BEFORE this guard; it grants no new local write.
+pub(crate) fn require_action_engine_quote_write_ready(store: &LocalStore, organization: &str) -> AppResult<()> {
+    let prefs = load(store)?;
+    if prefs.pending.is_some() || prefs.received.is_some() || prefs.conflict
+        || prefs.organization_id.as_deref().is_some_and(|bound| bound != organization)
+    {
+        return Err(invalid("Terminez la synchronisation de cette entreprise avant de préparer un nouveau devis Automation. Vos données sont conservées."));
+    }
+    Ok(())
 }
 
 async fn prepare_for_send_worker(
@@ -1103,6 +1123,9 @@ fn confirm_sent(store: &LocalStore, id: &str, revision: u64) -> AppResult<()> {
     if revision <= p.base_revision {
         return Err(invalid("La confirmation du serveur est incohérente."));
     }
+    crate::action_engine_quote_publication::mark_published(store,
+        prefs.organization_id.as_deref().ok_or_else(|| invalid("Entreprise de publication absente."))?,
+        id, p.base_revision, &p.manifest, revision)?;
     remember_reference(
         store,
         &file_path(store, id)?,
@@ -1431,6 +1454,7 @@ const PRIVATE_ROWS: &[&str] = &[
     "company_local_member_context",
     "company_local_notes_scope",
     "company_local_action_engine_quote_outbox",
+    "company_local_action_engine_quote_publications",
     "device_number_ranges",
     "active_timers",
     "project_sync_binding",
@@ -1451,12 +1475,28 @@ fn private_rows(store: &LocalStore) -> AppResult<Vec<(String, Vec<Value>)>> {
 fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResult<()> {
     let mut db = store.connect()?;
     let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-    for (table, rows) in rows {
+    // Children first on delete, parents first on insert. Publication links own
+    // an FK to the outbox and cannot survive a parent DELETE/INSERT interleave.
+    for (table, _) in rows.iter().rev() {
         tx.execute(&format!("DELETE FROM {table}"), [])?;
+    }
+    for (table, rows) in rows {
+        // Identity triggers may have generated a new nonce during the first
+        // pass. Restore this installation's saved nonce only after identity.
+        if table == "company_local_member_context" { tx.execute(&format!("DELETE FROM {table}"), [])?; }
         for row in rows {
-            let object = row
+            let mut object = row
                 .as_object()
-                .ok_or_else(|| invalid("Données privées illisibles."))?;
+                .ok_or_else(|| invalid("Données privées illisibles."))?.clone();
+            // Public inserts must begin unacknowledged. Restore a published
+            // private link via its same guarded transition, in this transaction.
+            let published = if table == "company_local_action_engine_quote_publications" {
+                let revision = object.get("published_revision").cloned().unwrap_or(Value::Null);
+                let at = object.get("published_at").cloned().unwrap_or(Value::Null);
+                object.insert("published_revision".into(), Value::Null);
+                object.insert("published_at".into(), Value::Null);
+                Some((revision, at))
+            } else { None };
             let columns = object
                 .keys()
                 .map(|s| format!("\"{s}\""))
@@ -1481,6 +1521,17 @@ fn restore_private(store: &LocalStore, rows: &[(String, Vec<Value>)]) -> AppResu
                 ),
                 rusqlite::params_from_iter(values),
             )?;
+            if let Some((revision, at)) = published {
+                if !revision.is_null() {
+                    tx.execute("UPDATE company_local_action_engine_quote_publications SET published_revision=?,published_at=?
+                        WHERE organization_id=? AND proposal_id=? AND snapshot_id=?",
+                        params![revision.as_i64().ok_or_else(|| invalid("Révision privée invalide."))?,
+                            at.as_str().ok_or_else(|| invalid("Date privée invalide."))?,
+                            object["organization_id"].as_str().ok_or_else(|| invalid("Entreprise privée invalide."))?,
+                            object["proposal_id"].as_str().ok_or_else(|| invalid("Proposition privée invalide."))?,
+                            object["snapshot_id"].as_str().ok_or_else(|| invalid("Publication privée invalide."))?])?;
+                } else if !at.is_null() { return Err(invalid("Publication privée incohérente.")); }
+            }
         }
     }
     crate::work_notes::ensure_workspace_scope(&tx)?;
@@ -1538,7 +1589,8 @@ fn apply(
     let action_receipts = action_receipts(store)?;
     if joining {
         for (table, rows) in &mut private {
-            if table == "company_local_notes_scope" || table == "company_local_action_engine_quote_outbox" { rows.clear(); }
+            if table == "company_local_notes_scope" || table == "company_local_action_engine_quote_outbox"
+                || table == "company_local_action_engine_quote_publications" { rows.clear(); }
         }
     }
     // Keep a named recovery copy before an explicit conflict decision. Ordinary
@@ -1957,7 +2009,10 @@ fn apply_merged(store: &LocalStore, received: &Received, path: &Path) -> AppResu
         prefs.conflict = false;
         prefs.conflict_reason = None;
         remember_reference(store, &reference, &received.organization, received.revision)?;
-        save(store, &prefs)
+        save(store, &prefs)?;
+        let pending = prefs.pending.as_ref().ok_or_else(|| invalid("Publication réunie absente."))?;
+        crate::action_engine_quote_publication::link_prepared(store, &received.organization,
+            &pending.id, pending.base_revision, pending.clock, &pending.manifest)
     })?;
     let _ = clean_transport_copies(store);
     Ok(())

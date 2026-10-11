@@ -141,6 +141,393 @@ fn creation_event(store: &LocalStore, quote_id: &str) -> (String, Value) {
         serde_json::from_str(rows[0]["payload_json"].as_str().unwrap()).unwrap())
 }
 
+fn recovery_selection(input: &ActionEngineQuoteInput) -> ActionEngineQuoteRecoverySelection {
+    ActionEngineQuoteRecoverySelection {
+        source_id: input.source.id.clone(), proposal_id: input.proposal_id.clone(),
+        reservation_id: input.reservation_id.clone(), fingerprint: input.fingerprint.clone(),
+        actor: input.actor.clone(), installation_id: input.installation_id.clone(),
+        expected_workspace_scope: input.expected_workspace_scope.clone(),
+        expected_member_context_nonce: input.expected_member_context_nonce.clone(),
+    }
+}
+fn recovery_refuses(store: &LocalStore, selection: ActionEngineQuoteRecoverySelection, code: &str) {
+    let before = snapshot(store);
+    let error = store.recover_action_engine_quote_receipt(selection).unwrap_err();
+    assert!(error.to_string().contains(&format!("action_engine:{code}")), "{error}");
+    assert_eq!(snapshot(store), before, "recovery must not repair/recreate/mutate");
+}
+// Corrupt only an isolated synthetic fixture, never bypass a production guard.
+fn corruptible_recovery_connection(store: &LocalStore) -> rusqlite::Connection {
+    let db = store.connect().unwrap();
+    db.execute_batch("PRAGMA foreign_keys=OFF;PRAGMA ignore_check_constraints=ON;
+      DROP TRIGGER IF EXISTS action_engine_quote_receipt_update;
+      DROP TRIGGER IF EXISTS action_engine_quote_receipt_delete;
+      DROP TRIGGER IF EXISTS action_engine_quote_outbox_update;
+      DROP TRIGGER IF EXISTS audit_log_no_update;
+      DROP TRIGGER IF EXISTS audit_log_no_delete;").unwrap();
+    db
+}
+fn replace_recovery_audit(db: &rusqlite::Connection, quote: &str, payload_json: &str) {
+    let (id, time, actor, previous): (String, String, String, Option<String>) = db.query_row(
+        "SELECT id,occurred_at,actor,previous_hash FROM audit_log WHERE action='create' AND entity_type='action_engine_quote' AND entity_id=?",
+        [quote], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap();
+    let hash = sha(format!("{}\n{}\n{}\n{}\ncreate\naction_engine_quote\n{}\n{}",
+        previous.as_deref().unwrap_or(""),id,time,actor,quote,payload_json).as_bytes());
+    db.execute("UPDATE audit_log SET payload_json=?,entry_hash=? WHERE id=?",params![payload_json,hash,id]).unwrap();
+}
+
+#[test]
+fn selector_recovery_reads_both_customer_branches_without_reusing_the_mail_or_plan() {
+    for existing in [false, true] {
+        let f = fixture(existing);
+        if existing {
+            // The existing native customer matcher trims/case-folds emails;
+            // historical recovery must preserve that accepted stored text.
+            f.store.connect().unwrap().execute("UPDATE clients SET email='  Camille@Example.ch  '",[]).unwrap();
+        }
+        let request = input(&f, existing);
+        let receipt = f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let selected = recovery_selection(&request);
+        let before = snapshot(&f.store);
+        let recovered = f.store.recover_action_engine_quote_receipt(selected.clone()).unwrap();
+        assert_eq!(recovered.receipt, receipt);
+        assert_eq!(recovered.reservation_id, request.reservation_id);
+        assert_eq!(recovered.receipt_sha256, sha(serde_json::to_string(&receipt).unwrap().as_bytes()));
+        assert_eq!(recovered.local_outbox_state, ActionEngineLocalQuoteOutboxState::Pending);
+        assert_eq!(recovered.attempt_count, 0);
+        assert_eq!(snapshot(&f.store), before);
+        let wire = serde_json::to_value(&recovered).unwrap();
+        assert_eq!(wire.as_object().unwrap().len(), 5);
+        assert!(wire.get("confirmed").is_none());
+        let selection_wire = serde_json::to_value(selected).unwrap();
+        for absent in ["source", "body", "canonicalPlanJson", "expectedResourcesHash"] {
+            assert!(selection_wire.get(absent).is_none());
+        }
+        let reopened = LocalStore::initialize(f.store.data_dir.clone()).unwrap();
+        assert_eq!(reopened.recover_action_engine_quote_receipt(recovery_selection(&request)).unwrap(), recovered);
+    }
+}
+
+#[test]
+fn selector_recovery_keeps_the_creation_fact_after_human_changes_issue_and_deletion() {
+    for stage in ["edited", "issued", "deleted"] {
+        // Issued documents are intentionally immutable; delete a separate
+        // draft rather than asking the public repository to delete an issue.
+        let f = fixture(true);
+        let request = input(&f, true);
+        let receipt = f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let selected = recovery_selection(&request);
+        if stage == "edited" {
+            f.store.update_record("quotes", &request.quote_id, json!({"title":"Human edited"})).unwrap();
+        }
+        let db = f.store.connect().unwrap();
+        db.execute("UPDATE catalog_items SET archived_at='later',sales_price_cents=1",[]).unwrap();
+        db.execute("UPDATE settings SET vat_number='CHE-123.456.789 TVA' WHERE id=1",[]).unwrap();
+        db.execute("UPDATE clients SET address_line1='Rue fictive 1',postal_code='1200',city='Genève' WHERE id=?",[&request.customer_id]).unwrap();
+        drop(db);
+        match stage {
+            "issued" => { f.store.issue_quote(&request.quote_id,Some("2026-10-11".into()),Some("2026-11-10".into())).unwrap(); }
+            "deleted" => { f.store.delete_record("quotes", &request.quote_id).unwrap(); }
+            _ => {}
+        }
+        let before = snapshot(&f.store);
+        let recovered = f.store.recover_action_engine_quote_receipt(selected.clone()).unwrap();
+        assert_eq!(recovered.receipt, receipt, "{stage}");
+        assert!(recovered.receipt.quote_number.is_none());
+        assert_eq!(recovered.receipt.status,"draft");
+        assert!(!frozen_quote_publication_matches(&f.store.connect().unwrap(),&request.actor.organization_id,
+            &request.proposal_id,&request.reservation_id,&request.fingerprint,&request.quote_id,
+            &recovered.receipt_sha256).unwrap(),"{stage} cannot be a first initial-draft publication proof");
+        assert_eq!(snapshot(&f.store),before,"{stage}");
+    }
+}
+
+#[test]
+fn recovery_local_outbox_status_does_not_invent_a_canonical_confirmation() {
+    let f = fixture(true);
+    let request = input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    for (state, expected) in [("uncertain",ActionEngineLocalQuoteOutboxState::Uncertain),
+        ("confirmed",ActionEngineLocalQuoteOutboxState::Confirmed)] {
+        f.store.connect().unwrap().execute(
+            "UPDATE company_local_action_engine_quote_outbox SET state=?,attempt_count=attempt_count+1,updated_at=?",
+            params![state,now_iso()]).unwrap();
+        let before = snapshot(&f.store);
+        let result = f.store.recover_action_engine_quote_receipt(recovery_selection(&request)).unwrap();
+        assert_eq!(result.local_outbox_state,expected);
+        assert!(serde_json::to_value(result).unwrap().get("canonicalEvidence").is_none());
+        assert_eq!(snapshot(&f.store),before);
+    }
+}
+
+#[test]
+fn recovery_missing_or_orphaned_durable_rows_are_uncertain_not_none_or_a_retry() {
+    for missing in ["both", "outbox", "receipt", "audit", "schema"] {
+        let f = fixture(true);
+        let request = input(&f,true);
+        if missing != "both" { f.store.commit_action_engine_quote_draft(request.clone()).unwrap(); }
+        let db = corruptible_recovery_connection(&f.store);
+        match missing {
+            "outbox" => { db.execute("DELETE FROM company_local_action_engine_quote_outbox",[]).unwrap(); }
+            "receipt" => { db.execute("DELETE FROM action_engine_quote_receipts",[]).unwrap(); }
+            "audit" => { db.execute("DELETE FROM audit_log WHERE entity_type='action_engine_quote'",[]).unwrap(); }
+            "schema" => { db.execute_batch("DROP TABLE company_local_action_engine_quote_outbox").unwrap(); }
+            _ => {}
+        }
+        drop(db);
+        if missing == "schema" {
+            assert!(f.store.recover_action_engine_quote_receipt(recovery_selection(&request)).unwrap_err()
+                .to_string().contains("action_engine:recovery_uncertain"));
+        } else { recovery_refuses(&f.store,recovery_selection(&request),"recovery_uncertain"); }
+    }
+}
+
+#[test]
+fn recovery_requires_fresh_physical_origin_member_identity_and_original_selectors() {
+    let f = fixture(true);
+    let request = input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    for field in ["workspace", "nonce", "installation", "organization", "user", "source", "proposal", "reservation", "fingerprint"] {
+        let mut selection = recovery_selection(&request);
+        let code = match field {
+            "workspace" => { selection.expected_workspace_scope=Uuid::new_v4().to_string(); "forbidden" }
+            "nonce" => { selection.expected_member_context_nonce="0".repeat(32); "forbidden" }
+            "installation" => { selection.installation_id=Uuid::new_v4().to_string(); "forbidden" }
+            "organization" => { selection.actor.organization_id="company-b".into(); "forbidden" }
+            "user" => { selection.actor.user_id="another-user".into(); "forbidden" }
+            "source" => { selection.source_id="another-source".into(); "recovery_uncertain" }
+            "proposal" => { selection.proposal_id=Uuid::new_v4().to_string(); "recovery_uncertain" }
+            "reservation" => { selection.reservation_id=Uuid::new_v4().to_string(); "recovery_uncertain" }
+            _ => { selection.fingerprint="0".repeat(64); "recovery_uncertain" }
+        };
+        recovery_refuses(&f.store,selection,code);
+    }
+    f.store.connect().unwrap().execute("UPDATE company_local_identity SET role='read_only'",[]).unwrap();
+    let mut selection = recovery_selection(&request);
+    selection.expected_member_context_nonce=crate::member_context::read(&f.store.connect().unwrap()).unwrap();
+    recovery_refuses(&f.store,selection,"forbidden");
+}
+
+#[test]
+fn recovery_checks_origin_after_waiting_for_the_store_mutex() {
+    let f=fixture(true);
+    let request=input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let selected=recovery_selection(&request);
+    let guard=f.store.lock().unwrap();
+    let owned=f.store.clone();
+    let (send,receive)=std::sync::mpsc::channel();
+    let reader=std::thread::spawn(move || { send.send(()).unwrap(); owned.recover_action_engine_quote_receipt(selected) });
+    receive.recv().unwrap();
+    f.store.connect().unwrap().execute("UPDATE company_local_identity SET user_id='different-member'",[]).unwrap();
+    let before=snapshot(&f.store);
+    drop(guard);
+    assert!(reader.join().unwrap().unwrap_err().to_string().contains("action_engine:forbidden"));
+    assert_eq!(snapshot(&f.store),before);
+}
+
+#[test]
+fn recovery_rejects_hash_type_budget_and_closed_json_corruption_without_repair() {
+    for mutation in ["plan_hash", "receipt_hash", "request_hash", "payload_hash", "payload_identity",
+        "payload_duplicate", "payload_unknown", "receipt_missing_null", "receipt_duplicate",
+        "receipt_unknown", "plan_unknown", "blob_plan", "oversize_plan", "counter_type", "state"] {
+        let f=fixture(true);
+        let request=input(&f,true);
+        f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let db=corruptible_recovery_connection(&f.store);
+        let mut selected=recovery_selection(&request);
+        match mutation {
+            "plan_hash" => { db.execute("UPDATE action_engine_quote_receipts SET plan_json=plan_json||' '",[]).unwrap(); }
+            "receipt_hash" => { db.execute("UPDATE action_engine_quote_receipts SET receipt_sha256=?",["0".repeat(64)]).unwrap(); }
+            "request_hash" => { db.execute("UPDATE action_engine_quote_receipts SET request_sha256=?",["0".repeat(64)]).unwrap(); }
+            "payload_hash" => { db.execute("UPDATE company_local_action_engine_quote_outbox SET payload_sha256=?",["0".repeat(64)]).unwrap(); }
+            "blob_plan" => { db.execute("UPDATE action_engine_quote_receipts SET plan_json=CAST(plan_json AS BLOB)",[]).unwrap(); }
+            "oversize_plan" => { db.execute("UPDATE action_engine_quote_receipts SET plan_json=?",[" ".repeat(65_537)]).unwrap(); }
+            "counter_type" => { db.execute("UPDATE company_local_action_engine_quote_outbox SET attempt_count=0.5",[]).unwrap(); }
+            "state" => { db.execute("UPDATE company_local_action_engine_quote_outbox SET state='unknown'",[]).unwrap(); }
+            "plan_unknown" => {
+                let raw:String=db.query_row("SELECT plan_json FROM action_engine_quote_receipts",[],|r|r.get(0)).unwrap();
+                let changed=format!("{{\"unknown\":1,{}",&raw[1..]);
+                selected.fingerprint=sha(changed.as_bytes());
+                db.execute("UPDATE action_engine_quote_receipts SET plan_json=?,fingerprint=?",params![changed,selected.fingerprint]).unwrap();
+            }
+            "receipt_missing_null" | "receipt_duplicate" | "receipt_unknown" => {
+                let raw:String=db.query_row("SELECT receipt_json FROM action_engine_quote_receipts",[],|r|r.get(0)).unwrap();
+                let changed=match mutation {
+                    "receipt_missing_null" => raw.replace("\"quoteNumber\":null,",""),
+                    "receipt_duplicate" => format!("{{\"quoteNumber\":null,{}",&raw[1..]),
+                    _ => format!("{{\"unknown\":1,{}",&raw[1..]),
+                };
+                db.execute("UPDATE action_engine_quote_receipts SET receipt_json=?,receipt_sha256=?",params![changed,sha(changed.as_bytes())]).unwrap();
+            }
+            _ => {
+                let raw:String=db.query_row("SELECT payload_json FROM company_local_action_engine_quote_outbox",[],|r|r.get(0)).unwrap();
+                let changed=match mutation {
+                    "payload_duplicate" => format!("{{\"quoteId\":\"{}\",{}",request.quote_id,&raw[1..]),
+                    "payload_unknown" => format!("{{\"unknown\":1,{}",&raw[1..]),
+                    _ => { let mut value:Value=serde_json::from_str(&raw).unwrap(); value["customerId"]=json!(Uuid::new_v4().to_string()); serde_json::to_string(&value).unwrap() }
+                };
+                db.execute("UPDATE company_local_action_engine_quote_outbox SET payload_json=?,payload_sha256=?",params![changed,sha(changed.as_bytes())]).unwrap();
+            }
+        }
+        drop(db);
+        recovery_refuses(&f.store,selected,"recovery_uncertain");
+    }
+}
+
+#[test]
+fn recovery_corroborates_unique_closed_audit_creation_and_source_request_hash() {
+    for mutation in ["entry_hash", "duplicate_event", "unknown", "duplicate", "quantity", "creation_hash", "source_hash",
+        "creation_duplicate", "creation_unknown", "creation_missing_null"] {
+        let f=fixture(true);
+        let request=input(&f,true);
+        f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let (_,mut payload)=creation_event(&f.store,&request.quote_id);
+        let db=corruptible_recovery_connection(&f.store);
+        match mutation {
+            "entry_hash" => { db.execute("UPDATE audit_log SET entry_hash=? WHERE entity_type='action_engine_quote'",["0".repeat(64)]).unwrap(); }
+            "duplicate_event" => {
+                db.execute("INSERT INTO audit_log SELECT ?,occurred_at,actor,action,entity_type,entity_id,payload_json,previous_hash,? FROM audit_log WHERE entity_type='action_engine_quote'",
+                    params![Uuid::new_v4().to_string(),"1".repeat(64)]).unwrap();
+            }
+            _ => {
+                match mutation {
+                    "quantity" => payload["quantityMilli"]=json!([4000]),
+                    "creation_hash" => payload["creationSha256"]=json!("0".repeat(64)),
+                    "source_hash" => {
+                        let mut creation:Value=serde_json::from_str(payload["creationJson"].as_str().unwrap()).unwrap();
+                        creation["sourceCanonicalSha256"]=json!("0".repeat(64));
+                        // Preserve native typed order; hashes remain internally valid
+                        // until request_sha256 is recomputed from this forged source.
+                        let typed:QuoteCreation=serde_json::from_value(creation).unwrap();
+                        let raw=serde_json::to_string(&typed).unwrap();
+                        payload["creationSha256"]=json!(sha(raw.as_bytes())); payload["creationJson"]=json!(raw);
+                    }
+                    "creation_duplicate" | "creation_unknown" | "creation_missing_null" => {
+                        let original=payload["creationJson"].as_str().unwrap();
+                        let raw=match mutation {
+                            "creation_duplicate"=>format!("{{\"version\":1,{}",&original[1..]),
+                            "creation_unknown"=>format!("{{\"unknown\":true,{}",&original[1..]),
+                            _=>original.replace("\"projectId\":null,",""),
+                        };
+                        payload["creationSha256"]=json!(sha(raw.as_bytes())); payload["creationJson"]=json!(raw);
+                    }
+                    _ => {}
+                }
+                let raw=serde_json::to_string(&payload).unwrap();
+                let changed=match mutation {
+                    "unknown"=>format!("{{\"unknown\":1,{}",&raw[1..]),
+                    "duplicate"=>format!("{{\"netCents\":59700,{}",&raw[1..]),
+                    _=>raw,
+                };
+                replace_recovery_audit(&db,&request.quote_id,&changed);
+            }
+        }
+        drop(db);
+        recovery_refuses(&f.store,recovery_selection(&request),"recovery_uncertain");
+    }
+}
+
+#[test]
+fn frozen_publication_requires_initial_actual_customer_quote_and_all_lines() {
+    for mutation in ["none", "customer", "quote", "line", "quantity", "deleted", "extra_line"] {
+        let f=fixture(true);
+        let request=input(&f,true);
+        let receipt=f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+        let receipt_sha=sha(serde_json::to_string(&receipt).unwrap().as_bytes());
+        let db=f.store.connect().unwrap();
+        match mutation {
+            "customer"=>{ db.execute("UPDATE clients SET name='Human renamed' WHERE id=?",[&request.customer_id]).unwrap(); }
+            "quote"=>{ db.execute("UPDATE quotes SET title='Human edited' WHERE id=?",[&request.quote_id]).unwrap(); }
+            "line"=>{ db.execute("UPDATE quote_items SET description='Human edited' WHERE quote_id=?",[&request.quote_id]).unwrap(); }
+            "quantity"=>{ db.execute("UPDATE quote_items SET quantity=3.1 WHERE quote_id=?",[&request.quote_id]).unwrap(); }
+            "deleted"=>{ db.execute("DELETE FROM quote_items WHERE quote_id=?",[&request.quote_id]).unwrap(); db.execute("DELETE FROM quotes WHERE id=?",[&request.quote_id]).unwrap(); }
+            "extra_line"=>{ db.execute("INSERT INTO quote_items(id,quote_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) SELECT ?,quote_id,catalog_item_id,position+1,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at FROM quote_items WHERE quote_id=?",
+                params![Uuid::new_v4().to_string(),request.quote_id]).unwrap(); }
+            _=>{}
+        }
+        let before=snapshot(&f.store);
+        assert_eq!(frozen_quote_publication_matches(&db,&request.actor.organization_id,&request.proposal_id,
+            &request.reservation_id,&request.fingerprint,&request.quote_id,&receipt_sha).unwrap(),mutation=="none","{mutation}");
+        assert_eq!(f.store.recover_action_engine_quote_receipt(recovery_selection(&request)).unwrap().receipt,receipt);
+        assert_eq!(snapshot(&f.store),before);
+    }
+}
+
+#[test]
+fn frozen_publication_missing_receipt_is_older_archive_but_corrupt_history_is_an_error() {
+    let f=fixture(true);
+    let request=input(&f,true);
+    let receipt_sha="0".repeat(64);
+    let db=f.store.connect().unwrap();
+    assert!(!frozen_quote_publication_matches(&db,&request.actor.organization_id,&request.proposal_id,
+        &request.reservation_id,&request.fingerprint,&request.quote_id,&receipt_sha).unwrap());
+    drop(db);
+    let receipt=f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let db=f.store.connect().unwrap();
+    assert!(frozen_quote_publication_matches(&db,&request.actor.organization_id,&request.proposal_id,
+        &request.reservation_id,&request.fingerprint,&request.quote_id,&receipt_sha).is_err());
+    drop(db);
+    let db=corruptible_recovery_connection(&f.store);
+    db.execute("UPDATE audit_log SET entry_hash=? WHERE entity_type='action_engine_quote'",["0".repeat(64)]).unwrap();
+    assert!(frozen_quote_publication_matches(&db,&request.actor.organization_id,&request.proposal_id,
+        &request.reservation_id,&request.fingerprint,&request.quote_id,
+        &sha(serde_json::to_string(&receipt).unwrap().as_bytes())).is_err());
+}
+
+#[test]
+fn recovery_selection_is_closed_and_malformed_selectors_never_read_a_receipt() {
+    let f=fixture(true);
+    let request=input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let value=serde_json::to_value(recovery_selection(&request)).unwrap();
+    let mut unknown=value.clone(); unknown["body"]=json!("not accepted");
+    assert!(serde_json::from_value::<ActionEngineQuoteRecoverySelection>(unknown).is_err());
+    let raw=serde_json::to_string(&value).unwrap();
+    assert!(serde_json::from_str::<ActionEngineQuoteRecoverySelection>(&format!("{{\"sourceId\":\"ticket-a\",{}",&raw[1..])).is_err());
+    for malformed in ["UPPERCASE", "not-a-hash", ""] {
+        let mut selected=recovery_selection(&request); selected.fingerprint=malformed.into();
+        recovery_refuses(&f.store,selected,"invalid_record");
+    }
+}
+
+#[test]
+fn old_sync_flights_block_new_drafts_but_not_a_matching_historical_receipt() {
+    for state in ["pending", "received", "conflict", "foreign", "default"] {
+        for historical in [false,true] {
+            let f=fixture(true);
+            let request=input(&f,true);
+            let original=if historical { Some(f.store.commit_action_engine_quote_draft(request.clone()).unwrap()) } else { None };
+            // Valid bounded transport metadata suffices for the existing prefs
+            // loader; these bytes are not presented as a published ZIP proof.
+            let path=f.directory.path().join("synthetic-transport.bin");
+            std::fs::write(&path,b"synthetic transport metadata fixture").unwrap();
+            let manifest=crate::cloud_backup::file_manifest(&path).unwrap();
+            let value=match state {
+                "pending"=>json!({"organization_id":"company-a","pending":{
+                    "id":Uuid::new_v4().to_string(),"base_revision":0,"clock":0,"manifest":manifest,"content_version":2}}),
+                "received"=>json!({"organization_id":"company-a","received":{
+                    "id":Uuid::new_v4().to_string(),"organization":"company-a","revision":1,"clock":0,"manifest":manifest}}),
+                "conflict"=>json!({"organization_id":"company-a","conflict":true}),
+                "foreign"=>json!({"organization_id":"company-b"}),
+                _=>json!({}),
+            };
+            let prefs=f.store.data_dir.join("company-collaboration.json");
+            let bytes=serde_json::to_vec(&value).unwrap();
+            std::fs::write(&prefs,&bytes).unwrap();
+            let before=snapshot(&f.store);
+            match f.store.commit_action_engine_quote_draft(request.clone()) {
+                Ok(receipt)=>{
+                    assert!(historical || state=="default","new draft bypassed {state}");
+                    if let Some(expected)=original { assert_eq!(receipt,expected); assert_eq!(snapshot(&f.store),before); }
+                }
+                Err(_)=>{ assert!(!historical && state!="default","historical replay was blocked by {state}"); assert_eq!(snapshot(&f.store),before); }
+            }
+            assert_eq!(std::fs::read(prefs).unwrap(),bytes,"guard must not settle or discard a flight");
+        }
+    }
+}
+
 #[test]
 fn creation_evidence_is_read_from_real_customer_quote_and_lines_for_both_customer_branches() {
     for existing in [false, true] {
@@ -1052,6 +1439,11 @@ fn actual_backup_preserves_shared_receipt_strips_outbox_and_restore_replay_is_re
             .unwrap(),
         0
     );
+    copied.pragma_update(None,"query_only",true).unwrap();
+    assert!(frozen_quote_publication_matches(&copied,&request.actor.organization_id,&request.proposal_id,
+        &request.reservation_id,&request.fingerprint,&request.quote_id,
+        &sha(serde_json::to_string(&receipt).unwrap().as_bytes())).unwrap(),
+        "a real stripped archive contains initial business facts but no private outbox");
     drop(copied);
     f.store
         .restore_backup(&backup, env!("CARGO_PKG_VERSION"))
@@ -1064,6 +1456,10 @@ fn actual_backup_preserves_shared_receipt_strips_outbox_and_restore_replay_is_re
         .is_err());
     fresh_origin(&f.store, &mut request);
     let restored = snapshot(&f.store);
+    assert!(f.store.recover_action_engine_quote_receipt(recovery_selection(&request)).unwrap_err()
+        .to_string().contains("action_engine:recovery_uncertain"),
+        "manual restore must not backfill a missing private recovery outbox");
+    assert_eq!(snapshot(&f.store),restored);
     assert_eq!(
         f.store.commit_action_engine_quote_draft(request).unwrap(),
         receipt

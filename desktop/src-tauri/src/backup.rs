@@ -1153,16 +1153,10 @@ pub(crate) fn validate_database(path: &Path) -> AppResult<()> {
 
 fn strip_restored_license(path: &Path) -> AppResult<()> {
     let connection = Connection::open(path)?;
-    crate::member_context::strip(&connection)?;
-    let has_notes_scope: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_local_notes_scope')",
-        [], |r| r.get(0),
-    )?;
-    if has_notes_scope {
-        // A restore/import is a new draft boundary. Ordinary company receives
-        // explicitly restore their previous private scope after installation.
-        connection.execute("DELETE FROM company_local_notes_scope", [])?;
-    }
+    // Incoming archives may predate outgoing private-data stripping. Import no
+    // other installation's identity/outbox/link or local draft context. Normal
+    // receives/merges subsequently restore only their captured LOCAL rows.
+    crate::company_collaboration::strip_private(&connection)?;
     let has_license_table: bool = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='license_state')",
         [],
@@ -1422,7 +1416,13 @@ mod tests {
             let connection = Connection::open(&path).unwrap();
             connection
                 .execute_batch(
-                    "CREATE TABLE license_state(id INTEGER PRIMARY KEY,token TEXT NOT NULL);",
+                    "CREATE TABLE license_state(id INTEGER PRIMARY KEY,token TEXT NOT NULL);
+                     CREATE TABLE company_local_identity(id INTEGER PRIMARY KEY,organization_id TEXT,user_id TEXT,display_name TEXT,role TEXT);
+                     INSERT INTO company_local_identity VALUES(1,'foreign-legacy-company','foreign-legacy-user','Foreign legacy user','owner');
+                     -- Only table detection/deletion is needed: no current
+                     -- outbox columns, receipt table or housekeeping marker.
+                     CREATE TABLE company_local_action_engine_quote_outbox(payload_json TEXT NOT NULL);
+                     INSERT INTO company_local_action_engine_quote_outbox VALUES('foreign-legacy-private-outbox');",
                 )
                 .unwrap();
             connection
@@ -1443,6 +1443,9 @@ mod tests {
                 .unwrap(),
             0
         );
+        for table in ["company_local_identity", "company_local_action_engine_quote_outbox"] {
+            assert_eq!(connection.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        }
         drop(connection);
         let bytes = fs::read(path).unwrap();
         assert!(!bytes
