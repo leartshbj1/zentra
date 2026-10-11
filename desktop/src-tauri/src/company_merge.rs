@@ -617,8 +617,27 @@ mod tests {
             let mut local = LocalStore::initialize(directory.path().join("local")).unwrap();
             let mut remote = LocalStore::initialize(directory.path().join("remote")).unwrap();
             for store in [&mut local, &mut remote] {
+                let previous_scope = crate::work_notes::workspace_scope(&store.connect().unwrap()).unwrap();
                 test_license::configure(store);
                 store.restore_company_snapshot(&base.to_string_lossy(), || Ok(())).unwrap();
+                // Assert the first restore itself repaired the stripped private
+                // rows, before another migration could conceal a v61 gap.
+                let restored = store.connect().unwrap();
+                let restored_scope = crate::work_notes::workspace_scope(&restored).unwrap();
+                let restored_nonce = crate::member_context::read(&restored).unwrap();
+                assert!(uuid::Uuid::parse_str(&restored_scope).is_ok());
+                assert_ne!(restored_scope, previous_scope);
+                for table in ["company_local_notes_scope", "company_local_member_context"] {
+                    assert_eq!(restored.query_row::<i64, _, _>(
+                        &format!("SELECT count(*) FROM {table} WHERE id=1"), [], |r| r.get(0)
+                    ).unwrap(), 1);
+                }
+                drop(restored);
+                store.migrate().unwrap();
+                let repeated = store.connect().unwrap();
+                assert_eq!(crate::work_notes::workspace_scope(&repeated).unwrap(), restored_scope);
+                assert_eq!(crate::member_context::read(&repeated).unwrap(), restored_nonce);
+                drop(repeated);
                 test_license::install(store);
                 assert_eq!(store.connect().unwrap().pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), 62);
             }

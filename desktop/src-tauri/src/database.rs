@@ -1878,7 +1878,6 @@ impl LocalStore {
         }
         if current < 61 {
             transaction.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
-            crate::work_notes::ensure_workspace_scope(&transaction)?;
             // Register the new shared table with the normal transaction clock
             // and write gate, then refresh the column-aware trigger set.
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
@@ -1893,6 +1892,9 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 62)?;
         }
+        // Archives strip private scopes even when their v61 table already
+        // exists. Repair the singleton for every upgrade in this transaction.
+        crate::work_notes::ensure_workspace_scope(&transaction)?;
         crate::action_engine_quote_publication::ensure_schema(&transaction)?;
         workspace_read_indexes::ensure(&transaction)?;
         transaction.commit()?;
