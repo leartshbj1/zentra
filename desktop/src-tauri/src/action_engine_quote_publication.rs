@@ -182,12 +182,13 @@ struct Outbox {
     payload_sha: String,
     plan_json: String,
     state: String,
+    created_at: String,
 }
 fn outboxes(connection: &Connection, organization: &str) -> AppResult<Vec<Outbox>> {
     let mut q = connection.prepare(
         "SELECT o.organization_id,r.source_id,o.proposal_id,r.reservation_id,o.fingerprint,
           r.actor_user_id,r.installation_id,r.customer_id,o.quote_id,r.receipt_sha256,
-          r.receipt_json,o.payload_json,o.payload_sha256,r.plan_json,o.state
+          r.receipt_json,o.payload_json,o.payload_sha256,r.plan_json,o.state,o.created_at
          FROM company_local_action_engine_quote_outbox o
          JOIN action_engine_quote_receipts r ON r.organization_id=o.organization_id AND r.proposal_id=o.proposal_id
          WHERE o.organization_id=? AND o.state<>'confirmed' ORDER BY o.proposal_id COLLATE BINARY LIMIT 1001",
@@ -210,6 +211,7 @@ fn outboxes(connection: &Connection, organization: &str) -> AppResult<Vec<Outbox
                 payload_sha: r.get(12)?,
                 plan_json: r.get(13)?,
                 state: r.get(14)?,
+                created_at: r.get(15)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -228,9 +230,11 @@ fn outboxes(connection: &Connection, organization: &str) -> AppResult<Vec<Outbox
         if row.payload_json.len() > 4096
             || row.receipt_json.len() > 4096
             || row.plan_json.len() > 65536
+            || row.created_at.len() > 40
         {
             return Err(invalid());
         }
+        instant(&row.created_at)?;
         let payload: OutboxPayload =
             serde_json::from_str(&row.payload_json).map_err(|_| invalid())?;
         let receipt: ActionEngineQuoteReceipt =
@@ -388,20 +392,32 @@ pub(crate) fn link_prepared(
     }
     let manifest_sha = hash(manifest_json.as_bytes());
     for row in eligible {
-        let expected = json!({"organization_id":row.organization,"source_id":row.source,"action_kind":"prepare_quote_draft",
+        let mut expected = json!({"organization_id":row.organization,"source_id":row.source,"action_kind":"prepare_quote_draft",
             "proposal_id":row.proposal,"reservation_id":row.reservation,"fingerprint":row.fingerprint,
             "actor_user_id":row.user,"installation_id":row.installation,"customer_id":row.customer,"quote_id":row.quote,
             "receipt_sha256":row.receipt_sha,"snapshot_id":snapshot,"base_revision":base,"archive_sha256":manifest.sha256,
             "manifest_sha256":manifest_sha,"manifest_json":manifest_json,"size_bytes":manifest.size_bytes,"local_clock":clock});
         let existing = query_all(&tx,
             "SELECT organization_id,source_id,action_kind,proposal_id,reservation_id,fingerprint,actor_user_id,installation_id,
-             customer_id,quote_id,receipt_sha256,snapshot_id,base_revision,archive_sha256,manifest_sha256,manifest_json,size_bytes,local_clock
+             customer_id,quote_id,receipt_sha256,snapshot_id,base_revision,archive_sha256,manifest_sha256,manifest_json,size_bytes,local_clock,created_at
              FROM company_local_action_engine_quote_publications WHERE organization_id=? AND proposal_id=? AND snapshot_id=?",
             params![organization, row.proposal, snapshot])?;
-        if !existing.is_empty() {
+        let created_at = if existing.is_empty() {
+            now_iso()
+        } else {
+            let at = text(&existing[0], "created_at", 40)?.to_owned();
+            expected["created_at"] = json!(at);
             if existing.as_slice() != std::slice::from_ref(&expected) {
                 return Err(invalid());
             }
+            at
+        };
+        // A clock rollback must not create or replay a link that the confirmed
+        // activity reader will later reject as preceding its local creation.
+        if instant(&created_at)? < instant(&row.created_at)? {
+            return Err(invalid());
+        }
+        if !existing.is_empty() {
             continue;
         }
         tx.execute("INSERT INTO company_local_action_engine_quote_publications
@@ -409,7 +425,7 @@ pub(crate) fn link_prepared(
              customer_id,quote_id,receipt_sha256,snapshot_id,base_revision,archive_sha256,manifest_sha256,manifest_json,size_bytes,local_clock,created_at)
             VALUES(?,?,'prepare_quote_draft',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             params![organization,row.source,row.proposal,row.reservation,row.fingerprint,row.user,row.installation,row.customer,row.quote,
-                row.receipt_sha,snapshot,base as i64,manifest.sha256,manifest_sha,manifest_json,manifest.size_bytes as i64,clock,now_iso()])?;
+                row.receipt_sha,snapshot,base as i64,manifest.sha256,manifest_sha,manifest_json,manifest.size_bytes as i64,clock,created_at])?;
     }
     tx.commit()?;
     Ok(())
@@ -432,7 +448,7 @@ pub(crate) fn mark_published(
         return Ok(());
     };
     let existing = query_all(&tx,
-        "SELECT base_revision,manifest_json,manifest_sha256,archive_sha256,size_bytes,published_revision
+        "SELECT base_revision,manifest_json,manifest_sha256,archive_sha256,size_bytes,published_revision,created_at,published_at
          FROM company_local_action_engine_quote_publications WHERE organization_id=? AND snapshot_id=? AND actor_user_id=? AND installation_id=?",
         params![organization,snapshot,publisher,store.installation_id])?;
     if existing.is_empty() {
@@ -443,6 +459,8 @@ pub(crate) fn mark_published(
     if revision != base.checked_add(1).ok_or_else(invalid)? {
         return Err(invalid());
     }
+    let at = now_iso();
+    let published_at = instant(&at)?;
     for row in &existing {
         if row["base_revision"].as_u64() != Some(base)
             || row["manifest_json"].as_str() != Some(&manifest_json)
@@ -454,10 +472,16 @@ pub(crate) fn mark_published(
         {
             return Err(invalid());
         }
+        let created_at = instant(text(row, "created_at", 40)?)?;
+        if row["published_revision"].is_null() {
+            if !row["published_at"].is_null() || published_at < created_at { return Err(invalid()); }
+        } else if instant(text(row, "published_at", 40)?)? < created_at {
+            return Err(invalid());
+        }
     }
     tx.execute("UPDATE company_local_action_engine_quote_publications SET published_revision=?,published_at=?
         WHERE organization_id=? AND snapshot_id=? AND actor_user_id=? AND installation_id=? AND published_revision IS NULL",
-        params![revision as i64,now_iso(),organization,snapshot,publisher,store.installation_id])?;
+        params![revision as i64,at,organization,snapshot,publisher,store.installation_id])?;
     tx.commit()?;
     Ok(())
 }
@@ -896,6 +920,7 @@ impl LocalStore {
         if changed != 1 { return Err(invalid()); }
         let confirmed = recover_action_engine_quote_receipt_in_transaction(&tx,self,&selection)?;
         if confirmed.local_outbox_state != ActionEngineLocalQuoteOutboxState::Confirmed { return Err(invalid()); }
+        require_confirmed_candidate(&tx,&selection.actor.organization_id,&selection.proposal_id,&confirmation.publication_snapshot_id)?;
         tx.commit()?;
         Ok(confirmed)
     }

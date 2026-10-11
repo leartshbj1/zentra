@@ -209,6 +209,127 @@ fn corruptible_activity_connection(store: &LocalStore) -> rusqlite::Connection {
     db
 }
 
+fn relink_activity_candidate(f: &Fixture, snapshot_id: &str, manifest: &crate::cloud_backup::Manifest) -> AppResult<()> {
+    let _local = f.store.lock().unwrap();
+    let clock: i64 = f.store.connect().unwrap().query_row(
+        "SELECT value FROM company_local_clock WHERE id=1", [], |row| row.get(0)).unwrap();
+    crate::action_engine_quote_publication::link_prepared(&f.store,"company-a",snapshot_id,0,clock,manifest)
+}
+
+#[test]
+fn publication_link_refuses_a_new_candidate_before_local_creation_without_mutation() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    f.store.commit_action_engine_quote_draft(input(&f,true)).unwrap();
+    let (snapshot_id,manifest)=activity_candidate(&f);
+    let db=corruptible_activity_connection(&f.store);
+    db.execute("DELETE FROM company_local_action_engine_quote_publications",[]).unwrap();
+    // Simulate a local creation clock ahead of the clock used for a new link,
+    // without changing the host clock or the real frozen business archive.
+    db.execute("UPDATE company_local_action_engine_quote_outbox
+        SET created_at='9999-12-31T23:59:59Z',updated_at='9999-12-31T23:59:59Z'",[]).unwrap();
+    let before=activity_snapshot(&f.store);
+    assert!(relink_activity_candidate(&f,&snapshot_id,&manifest).is_err());
+    assert_eq!(activity_snapshot(&f.store),before,"a clock rollback must not persist a new unreadable candidate");
+}
+
+#[test]
+fn publication_link_rechecks_replayed_creation_time_as_an_instant_without_rewriting_it() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    f.store.commit_action_engine_quote_draft(input(&f,true)).unwrap();
+    let (snapshot_id,manifest)=activity_candidate(&f);
+    let db=corruptible_activity_connection(&f.store);
+    let created_at: String=db.query_row("SELECT created_at FROM company_local_action_engine_quote_outbox",[],|row| row.get(0)).unwrap();
+    let created=chrono::DateTime::parse_from_rfc3339(&created_at).unwrap();
+    for (case,at,refused) in [
+        ("earlier",(created-chrono::Duration::seconds(1)).to_rfc3339(),true),
+        ("invalid","9999-99-99T99:99:99Z".to_owned(),true),
+        ("equal",created_at,false),
+        ("equivalent_offset",created.with_timezone(&chrono::FixedOffset::east_opt(3600).unwrap()).to_rfc3339(),false),
+    ] {
+        db.execute("UPDATE company_local_action_engine_quote_publications SET created_at=?",[at]).unwrap();
+        let before=activity_snapshot(&f.store);
+        let result=relink_activity_candidate(&f,&snapshot_id,&manifest);
+        assert_eq!(result.is_err(),refused,"{case}");
+        assert_eq!(activity_snapshot(&f.store),before,"{case}: replay must keep its original timestamp");
+    }
+}
+
+#[test]
+fn transport_ack_refuses_a_clock_rollback_atomically_and_an_explicit_retry_succeeds() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    let request=input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let (snapshot_id,manifest)=activity_candidate(&f);
+    let db=corruptible_activity_connection(&f.store);
+    let original: String=db.query_row("SELECT created_at FROM company_local_action_engine_quote_publications",[],|row| row.get(0)).unwrap();
+    // This future instant is lexically earlier than the current UTC clock.
+    // SQLite's text ordering alone would permit an ACK before its candidate.
+    let future=(chrono::Utc::now()+chrono::Duration::hours(1))
+        .with_timezone(&chrono::FixedOffset::west_opt(7200).unwrap()).to_rfc3339();
+    db.execute("UPDATE company_local_action_engine_quote_publications SET created_at=?",[future]).unwrap();
+    let before=activity_snapshot(&f.store);
+    assert!(crate::action_engine_quote_publication::mark_published(&f.store,"company-a",&snapshot_id,0,&manifest,1).is_err());
+    assert_eq!(activity_snapshot(&f.store),before);
+    db.execute("UPDATE company_local_action_engine_quote_publications SET created_at=?",[original]).unwrap();
+    crate::action_engine_quote_publication::mark_published(&f.store,"company-a",&snapshot_id,0,&manifest,1).unwrap();
+    let published=activity_snapshot(&f.store);
+    assert_eq!(published["company_local_action_engine_quote_publications"][0]["published_revision"],json!(1));
+    assert_eq!(published["company_local_action_engine_quote_outbox"][0]["state"],json!("pending"));
+    assert_eq!(published["company_local_action_engine_quote_confirmations"],json!([]));
+    crate::action_engine_quote_publication::mark_published(&f.store,"company-a",&snapshot_id,0,&manifest,1).unwrap();
+    assert_eq!(activity_snapshot(&f.store),published,"transport ACK replay preserves its first timestamp");
+}
+
+#[test]
+fn transport_ack_replay_corroborates_historical_instants_without_using_the_current_clock() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    f.store.commit_action_engine_quote_draft(input(&f,true)).unwrap();
+    let (snapshot_id,manifest)=activity_candidate(&f);
+    crate::action_engine_quote_publication::mark_published(&f.store,"company-a",&snapshot_id,0,&manifest,1).unwrap();
+    let db=corruptible_activity_connection(&f.store);
+    let future=chrono::Utc::now()+chrono::Duration::hours(2);
+    let created=future.with_timezone(&chrono::FixedOffset::west_opt(7200).unwrap()).to_rfc3339();
+    for (case,at,refused) in [
+        ("equivalent_offset",future.with_timezone(&chrono::FixedOffset::east_opt(7200).unwrap()).to_rfc3339(),false),
+        ("earlier",(future-chrono::Duration::seconds(1)).with_timezone(&chrono::FixedOffset::east_opt(7200).unwrap()).to_rfc3339(),true),
+        ("invalid","9999-99-99T99:99:99Z".to_owned(),true),
+    ] {
+        db.execute("UPDATE company_local_action_engine_quote_publications SET created_at=?,published_at=?",params![created,at]).unwrap();
+        let before=activity_snapshot(&f.store);
+        let result=crate::action_engine_quote_publication::mark_published(&f.store,"company-a",&snapshot_id,0,&manifest,1);
+        assert_eq!(result.is_err(),refused,"{case}");
+        assert_eq!(activity_snapshot(&f.store),before,"{case}: historical ACK dates are immutable");
+    }
+}
+
+#[test]
+fn canonical_ack_rolls_back_an_unreadable_candidate_and_a_valid_retry_restores_activity() {
+    let _transfer=crate::cloud_backup::WORKSPACE_TRANSFER_TEST_LOCK.lock().unwrap();
+    let f=fixture(true);
+    let request=input(&f,true);
+    f.store.commit_action_engine_quote_draft(request.clone()).unwrap();
+    let (snapshot_id,_)=activity_candidate(&f);
+    let confirmation=activity_confirmation(&f,&request,&snapshot_id);
+    let db=corruptible_activity_connection(&f.store);
+    let original: String=db.query_row("SELECT created_at FROM company_local_action_engine_quote_publications",[],|row| row.get(0)).unwrap();
+    let created_at: String=db.query_row("SELECT created_at FROM company_local_action_engine_quote_outbox",[],|row| row.get(0)).unwrap();
+    let earlier=(chrono::DateTime::parse_from_rfc3339(&created_at).unwrap()-chrono::Duration::seconds(1)).to_rfc3339();
+    db.execute("UPDATE company_local_action_engine_quote_publications SET created_at=?",[earlier]).unwrap();
+    let before=activity_snapshot(&f.store);
+    assert!(f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(&request),confirmation.clone()).is_err());
+    assert_eq!(activity_snapshot(&f.store),before,"the new canonical marker and terminal outbox state must roll back together");
+    db.execute("UPDATE company_local_action_engine_quote_publications SET created_at=?",[original]).unwrap();
+    f.store.acknowledge_action_engine_quote_confirmation(recovery_selection(&request),confirmation).unwrap();
+    let page=f.store.read_action_engine_quote_activity(recovery_work_origin(&request),None,1).unwrap();
+    assert_eq!(page.entries.len(),1);
+    assert_eq!(page.entries[0].proposal_id,request.proposal_id);
+    assert!(page.next_after_proposal_id.is_none());
+}
+
 #[test]
 fn confirmed_activity_empty_page_checks_origin_onboarding_and_closed_bounds_without_writing() {
     let f = fixture(true);
