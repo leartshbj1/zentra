@@ -1,0 +1,91 @@
+version: 2.1
+
+# This standalone server config never builds or releases an application.
+# Ordinary pushes have both opt-ins false and create no workflow.
+parameters:
+  verify-only:
+    type: boolean
+    default: false
+  verify-real-postgres:
+    type: boolean
+    default: false
+
+jobs:
+  action-engine-postgres-verification:
+    docker:
+      - image: cimg/node:22.16
+      - image: postgres:17.6
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+          POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+          # Public synthetic bootstrap credential, never a production secret.
+          POSTGRES_PASSWORD: zentra-g3-public-synthetic-admin-not-a-secret
+        command:
+          - postgres
+          - -c
+          - listen_addresses=127.0.0.1
+          - -c
+          - port=5432
+          - -c
+          - log_statement=none
+          - -c
+          - log_min_error_statement=panic
+          - -c
+          - password_encryption=scram-sha-256
+    resource_class: medium
+    working_directory: ~/project
+    environment:
+      ZENTRA_ACTION_PG_VERIFY_ONLY: '<< pipeline.parameters.verify-only >>'
+      ZENTRA_ACTION_PG_VERIFY_REAL_POSTGRES: '<< pipeline.parameters.verify-real-postgres >>'
+      ZENTRA_ACTION_PG_EXPECTED_SOURCE: '<< pipeline.git.revision >>'
+    steps:
+      - checkout
+      - run:
+          name: Refuse any source or invocation outside the isolated G3 gate
+          command: |
+            node --input-type=module <<'NODE'
+            import { spawnSync } from 'node:child_process';
+            const source = process.env.ZENTRA_ACTION_PG_EXPECTED_SOURCE;
+            const allowed = /^(?:PATH|HOME|TMPDIR|TMP|TEMP|CI|CIRCLECI|CIRCLE_SHA1)$/;
+            const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => allowed.test(name)));
+            const result = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', env });
+            if (process.platform !== 'linux' || process.env.CIRCLECI !== 'true' ||
+                process.env.CIRCLE_BRANCH !== 'codex/action-engine-pg-verification' ||
+                process.env.ZENTRA_ACTION_PG_VERIFY_ONLY !== 'true' ||
+                process.env.ZENTRA_ACTION_PG_VERIFY_REAL_POSTGRES !== 'true' ||
+                !/^[a-f0-9]{40}$/.test(source || '') ||
+                source !== process.env.CIRCLE_SHA1 || result.status !== 0 ||
+                source !== result.stdout.trim()) {
+              process.stderr.write('Isolated G3 source guard refused.\n');
+              process.exit(1);
+            }
+            NODE
+      - run:
+          name: Install the locked application test and separate QA driver dependencies without scripts
+          command: node scripts/bootstrap-action-real-postgres-ci.mjs --install
+          no_output_timeout: 20m
+      - run:
+          name: Attest the fresh loopback cluster and verify G3 with real PostgreSQL backends
+          command: node scripts/bootstrap-action-real-postgres-ci.mjs --verify
+          no_output_timeout: 10m
+      - store_artifacts:
+          path: .qa/action-engine-postgres-ci
+          destination: action-engine-postgres-verification
+
+workflows:
+  isolated-action-engine-postgres-verification:
+    when:
+      and:
+        - equal:
+            [codex/action-engine-pg-verification, << pipeline.git.branch >>]
+        - << pipeline.parameters.verify-only >>
+        - << pipeline.parameters.verify-real-postgres >>
+    jobs:
+      - action-engine-postgres-verification:
+          filters:
+            branches:
+              only: codex/action-engine-pg-verification
+            tags:
+              ignore: /.*/

@@ -1,0 +1,9 @@
+{
+  "name": "zentra-action-engine-postgres-ci",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Disposable CI-only PostgreSQL concurrency driver; never included in the app runtime.",
+  "dependencies": {
+    "pg": "8.16.3"
+  }
+}

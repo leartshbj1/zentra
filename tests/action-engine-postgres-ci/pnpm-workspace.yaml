@@ -1,0 +1,5 @@
+packages:
+  - '.'
+
+# Independent QA lock and store; the application workspace is unchanged.
+enableGlobalVirtualStore: false
