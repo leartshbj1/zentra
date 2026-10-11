@@ -1,0 +1,592 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-11T01:06:23.802Z",
+  "objective": "Zentra Action Engine",
+  "phase": "A3-private-published-context-and-native-source-checkpoint",
+  "status": "server-validation-passed-native-validation-unavailable-not-integrated",
+  "productionChanges": false,
+  "liveProviderCalls": false,
+  "nativeTestsExecuted": false,
+  "nativeTestsWritten": {
+    "resources": 20,
+    "writer": 22,
+    "archives": 4,
+    "collaboration": 3,
+    "merge": 1,
+    "total": 50
+  },
+  "activation": {
+    "route": false,
+    "ipc": false,
+    "supportTrigger": false,
+    "ui": false,
+    "remoteMigrations": false
+  },
+  "server": {
+    "workspace": "D:/Codex-Zentra-Temporary/2026-10-08/international-site",
+    "codeCommit": "b517d2d05ef843c44915804f8cf272da6a07dda5",
+    "parentCommit": "91e3d5f35187acfa961e1b55dc54c9f83f1ce479",
+    "branch": "codex/international-runtime",
+    "sources": [
+      {
+        "path": "docs/action-engine/NATIVE-ADAPTER-CONTRACT.md",
+        "bytes": 5487,
+        "sha256": "472c648280932175da290ea21b27922369c20cc85086a3e7e67e0eef4771e72b"
+      },
+      {
+        "path": "docs/action-engine/PUBLISHED-CONTEXT-CONTRACT.md",
+        "bytes": 5913,
+        "sha256": "e959d4708f161c380f2e7d60ceac7866727f2df0a15ea9378e99d2c190de429c"
+      },
+      {
+        "path": "lib/action-engine/README.md",
+        "bytes": 8928,
+        "sha256": "2430225ffe80881f5a99dfef1bf32f0f3761fbc2db6cc918810c9278c35a1257"
+      },
+      {
+        "path": "lib/action-engine/native-schema.test.ts",
+        "bytes": 10162,
+        "sha256": "be3be4524eef029690eb01e018d36877d5991210008b23837bdcd55038d49030"
+      },
+      {
+        "path": "lib/action-engine/published-context.test.ts",
+        "bytes": 11783,
+        "sha256": "93df5415c7b520f72c44b9baf7863ab9ab653203dec20d033647ba7a71366d65"
+      },
+      {
+        "path": "lib/action-engine/published-context.ts",
+        "bytes": 8265,
+        "sha256": "d9a5103aee7f9036b200745d2b097050ce3bf122158bde965343568205e034b7"
+      },
+      {
+        "path": "lib/action-engine/published-resources.test.ts",
+        "bytes": 24158,
+        "sha256": "07014d1f4d55e9c4e2192a92620fd85b4cd49721cc34d46bb8432500d684e676"
+      },
+      {
+        "path": "lib/action-engine/published-resources.ts",
+        "bytes": 19991,
+        "sha256": "df94cf6b58051952068c70b6ed9f04cbc63d9f383d13405bfe053654e6ad28e4"
+      },
+      {
+        "path": "lib/action-engine/source-envelope.ts",
+        "bytes": 1142,
+        "sha256": "c11eb136e824446d81ab407d67fe602db72b983a18aed80adaea73de3e3f5dbe"
+      },
+      {
+        "path": "lib/action-engine/source-ingestion.test.ts",
+        "bytes": 12350,
+        "sha256": "d521dbceb4fbc26d50d2ac6b2975f44e8e0a625d37585b8cf446da72b94891dd"
+      },
+      {
+        "path": "lib/support/connectors.ts",
+        "bytes": 17344,
+        "sha256": "0e4204170e6f782ebc82640e4e67b59a2e694a22a99c34d1e95cb84182380fe2"
+      },
+      {
+        "path": "lib/support/infomaniak-imap.test.ts",
+        "bytes": 11050,
+        "sha256": "ef9f6c80c3515b3db10da0f86a43cc165c8e441c0542f29ced295b8128678015"
+      },
+      {
+        "path": "lib/support/infomaniak-imap.ts",
+        "bytes": 9350,
+        "sha256": "6b60960464dc74887c01985bc120867f437bf8aff4796b64f64653d5e6e8cb87"
+      },
+      {
+        "path": "lib/support/infomaniak.test.ts",
+        "bytes": 7473,
+        "sha256": "752a47da950fdfa8afcb35b3bd3e1d07d32a6ca4d057d5db74e0d7eec5a3fecd"
+      },
+      {
+        "path": "lib/support/infomaniak.ts",
+        "bytes": 15033,
+        "sha256": "23329e36a642c169dc4f02ac7d599cb6341673e5fa319646173cdf09a8c234b1"
+      },
+      {
+        "path": "lib/support/service.ts",
+        "bytes": 62293,
+        "sha256": "411494a451ed061c43921679f76f556c1340a2fe642eadfc9afb996bdb85994a"
+      },
+      {
+        "path": "lib/support/types.ts",
+        "bytes": 4956,
+        "sha256": "b5ae90e568ce626bbae98826735fd56084022b66bd6284be1519bc7548cb8ada"
+      }
+    ],
+    "artifacts": [
+      {
+        "path": ".qa/action-engine-native/projection-v1.json",
+        "bytes": 25315,
+        "sha256": "ceac633c63fc4472e616a91f2c5a60b541538db57aacfc2ee347c5a2f0ea4440"
+      },
+      {
+        "path": ".qa/action-engine-native/projection-v1.log",
+        "bytes": 124,
+        "sha256": "444c8ff992cf8376cbfb8c31638062ca8b3b2cbf98ddeac79ddbbe1901607aac"
+      },
+      {
+        "path": ".qa/action-engine-native/projection-v2.json",
+        "bytes": 57706,
+        "sha256": "13470d6ade65a8e327cb61f280b92bd3e3b8f6b324be13c8ada45966e6b5d5ec"
+      },
+      {
+        "path": ".qa/action-engine-native/projection-v2.log",
+        "bytes": 124,
+        "sha256": "24e8bf2fc3157d9c331e143f2c3a1fcb23a4813390aa1270bb33ac3ff847f98b"
+      },
+      {
+        "path": ".qa/action-engine-native/regression-v1.json",
+        "bytes": 259395,
+        "sha256": "16779f660e32cf8f2443d04e469cdb91654b7af519650e32e34c2105fd24b0d0"
+      },
+      {
+        "path": ".qa/action-engine-native/regression-v1.log",
+        "bytes": 124,
+        "sha256": "dea2e11b8b1265775d8f0654c6169ed084ea1b434d8ddb6467b240865f334dbb"
+      },
+      {
+        "path": ".qa/action-engine-native/regression-final.json",
+        "bytes": 275890,
+        "sha256": "ff4d1106359d328505d16327e0afd122ea4e8b5fb541b9f3f39160329e629e1c"
+      },
+      {
+        "path": ".qa/action-engine-native/regression-final.log",
+        "bytes": 127,
+        "sha256": "da12bb0cbfab0179b89b54af4318fa4978eb4ba0ce38254a7956fda9177e678d"
+      },
+      {
+        "path": ".qa/action-engine-native/regression-workers4.json",
+        "bytes": 261895,
+        "sha256": "2d3fcea6fe1a596ab8f3fcba9eac550c0e37f05ed07f6b5a7d66e0861fbb390e"
+      },
+      {
+        "path": ".qa/action-engine-native/regression-workers4.log",
+        "bytes": 130,
+        "sha256": "7b9fa8e9ed74f3436a69cc0fefc29543dcf7672461bf0963396ff87df029b4ea"
+      },
+      {
+        "path": ".qa/action-engine-native/types-v1.log",
+        "bytes": 120,
+        "sha256": "e0649931fcc7d4fde880f7ca76f83d1a8560bdaf19dcad20dd49ecff496933b5"
+      },
+      {
+        "path": ".qa/action-engine-native/types-v2.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-native/types-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-native/lint-v1.log",
+        "bytes": 10768,
+        "sha256": "60b0de91d6e531112b671aa7c46155e7dd58d319efc227fc3f4ed8f25de9c6ff"
+      },
+      {
+        "path": ".qa/action-engine-native/lint-core-v2.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-native/lint-core-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-native/lint-expanded-final.log",
+        "bytes": 8257,
+        "sha256": "0aab6f6c584ce6efe8faa1a72527ff9d2e3c2e11f0bbf5b55777ff9d9fa6f7e2"
+      },
+      {
+        "path": ".qa/action-engine-native/lint-support-baseline-final.log",
+        "bytes": 9619,
+        "sha256": "9ac80e3e1db219999642496a8b30bfe0b1514aa71908dd33ab8bfc523dfc1fb9"
+      },
+      {
+        "path": ".qa/action-engine-native/lint-baseline-comparison.json",
+        "bytes": 121,
+        "sha256": "1be63d33714ec2aa676b7ccbc1dc7def61afe7c1f9bd268833ee1da6ff369742"
+      },
+      {
+        "path": ".qa/action-engine-native/format-final.log",
+        "bytes": 117,
+        "sha256": "ba387525a3886594c768afaf60daba39fca0ac5310ad75aac237d2a3f970a9d3"
+      },
+      {
+        "path": ".qa/action-engine-native/brand-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-native/build-final.log",
+        "bytes": 27766,
+        "sha256": "3c9448501daadd7e18a6e07f2a0710a3c888aab3c7e314dfca7080de7c0fa849"
+      },
+      {
+        "path": ".qa/action-engine-native/diff-final.log",
+        "bytes": 402,
+        "sha256": "643f2685c0025701465241fd1498c0c56eb1253b558a107c64a3b04c7cec50cf"
+      }
+    ]
+  },
+  "native": {
+    "workspace": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+    "codeCommit": "e7ae48848a529a368b238ac57f724f1c8aff10df",
+    "parentCommit": "56daec734529c06bae6dd73729c74b3a655edb86",
+    "branch": "codex/action-engine-native",
+    "baselineAppVersion": "1.90.15",
+    "schemaMigration": "61-to-62-additive",
+    "sources": [
+      {
+        "path": "desktop/src-tauri/src/action_engine_archive_tests.rs",
+        "bytes": 7683,
+        "sha256": "698293f3d72a53313eebe409907ec57f55de37067dfce67ec9c3df936090b043"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_collaboration_tests.rs",
+        "bytes": 10803,
+        "sha256": "4036e61a73fa0a90dd05453c86617aa339aa4f0c515821721a971402970b8549"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote.rs",
+        "bytes": 30261,
+        "sha256": "76880b016feba6279525d609bb2304e0615a173e36bd5e133618d11ee2831211"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote_schema.sql",
+        "bytes": 6818,
+        "sha256": "7a925b998ef0952f9ecd5f5da315fe5031a97d4391b07f5528499f62da870ac5"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_quote_tests.rs",
+        "bytes": 33659,
+        "sha256": "03a9b1596340360e7e90d353a06e29747cb266185a4d6efa0301967031fb63b3"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_resources.rs",
+        "bytes": 16374,
+        "sha256": "427a41736a79e952c6500e5e58740674a6f65a642179c8394a3a05f6078a984b"
+      },
+      {
+        "path": "desktop/src-tauri/src/action_engine_resources_tests.rs",
+        "bytes": 23217,
+        "sha256": "0fdf640db6a36dfc3e279bac267b33e04d8a86b917c4a5a199610ce8bbd3b41e"
+      },
+      {
+        "path": "desktop/src-tauri/src/backup.rs",
+        "bytes": 78913,
+        "sha256": "b8033e6619273073ab26e4368be575a0b0bc622b1aed08ab7d82144dac6f8c78"
+      },
+      {
+        "path": "desktop/src-tauri/src/company_collaboration.rs",
+        "bytes": 113937,
+        "sha256": "6709e965ed629e193727e04baa8d84967ea0a21c5a773d957df592816f54f44e"
+      },
+      {
+        "path": "desktop/src-tauri/src/company_merge.rs",
+        "bytes": 53876,
+        "sha256": "cc65ebd602362cb174742d44e380afdfe3fb9edc19e4d761a5d071eeb3e80158"
+      },
+      {
+        "path": "desktop/src-tauri/src/database.rs",
+        "bytes": 515368,
+        "sha256": "515426eed0683fdc4b48be7ca6d6c0eef7405fbefed86943a1762d4e7f71a369"
+      },
+      {
+        "path": "desktop/src-tauri/src/lib.rs",
+        "bytes": 600222,
+        "sha256": "9e53c89d8ad9eafa0444f08ec542b7519b3577d6ed3cb1b4a33fed58c31dcec3"
+      },
+      {
+        "path": "desktop/src-tauri/src/models.rs",
+        "bytes": 45080,
+        "sha256": "0d648e55a5698e432ce1818392af93e05ba49edf75fafb7bcb6d1a006cc8d340"
+      },
+      {
+        "path": "desktop/src-tauri/src/schema.rs",
+        "bytes": 434108,
+        "sha256": "7261dadecb08b6e70cc8609be5942ffb33b27203a435d79f18f48ec27550b023"
+      }
+    ],
+    "artifacts": [
+      {
+        "path": ".qa/action-engine-native/check-v1.log",
+        "bytes": 1252,
+        "sha256": "dc29b013e20baab025249803b3206a99e51d2e524344a3d6f50f32fc26bb2331"
+      },
+      {
+        "path": ".qa/action-engine-native/rustfmt-check-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-native/legacy-files-rustfmt-parse-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": ".qa/action-engine-native/legacy-files-rustfmt-parse-final.txt",
+        "bytes": 1824824,
+        "sha256": "f75c7e7b354b5b4f9a6cfed720a00bac5db2d532d3ee1ed8d490242685447704"
+      },
+      {
+        "path": ".qa/action-engine-native/diff-final.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "executedChecks": [
+    {
+      "name": "Vitest selected regression",
+      "exitCode": 0,
+      "passed": 809,
+      "total": 809,
+      "pending": 0,
+      "files": 29,
+      "maxWorkers": 4,
+      "nativeSqlSourceRoot": "D:/Codex-Zentra-Temporary/2026-10-08/app-current-corrections",
+      "report": "server:.qa/action-engine-native/regression-workers4.json"
+    },
+    {
+      "name": "TypeScript noEmit incremental=false",
+      "exitCode": 0
+    },
+    {
+      "name": "Oxlint Action Engine and D1 declarations",
+      "exitCode": 0
+    },
+    {
+      "name": "Oxlint expanded Support scope",
+      "exitCode": 1,
+      "diagnostics": 29,
+      "baselineDiagnostics": 29,
+      "newDiagnosticMessages": 0
+    },
+    {
+      "name": "Oxfmt seven new TypeScript files",
+      "exitCode": 0
+    },
+    {
+      "name": "Brand assets",
+      "exitCode": 0
+    },
+    {
+      "name": "Vinext production build",
+      "exitCode": 0,
+      "knownWarnings": [
+        "middleware convention deprecated",
+        "some route classifications unknown"
+      ]
+    },
+    {
+      "name": "Rustfmt six new Rust files",
+      "exitCode": 0,
+      "scope": "format/syntax, not compilation"
+    },
+    {
+      "name": "Rustfmt parse seven modified existing Rust files",
+      "exitCode": 0,
+      "scope": "stdout-only, syntax, not typechecking"
+    },
+    {
+      "name": "Native cargo check locked lib",
+      "exitCode": 101,
+      "projectCompiled": false,
+      "reason": "Windows App Control blocked dependency build scripts, OS error 4551; no bypass attempted"
+    },
+    {
+      "name": "Git diff check server/native",
+      "exitCode": 0
+    }
+  ],
+  "regressionFiles": [
+    {
+      "path": "lib/action-engine/engine.test.ts",
+      "passed": 58,
+      "total": 58,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/intake-d1.test.ts",
+      "passed": 4,
+      "total": 4,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/intake.test.ts",
+      "passed": 39,
+      "total": 39,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/ledger-d1.test.ts",
+      "passed": 7,
+      "total": 7,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/ledger.test.ts",
+      "passed": 63,
+      "total": 63,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/money.test.ts",
+      "passed": 24,
+      "total": 24,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/native-schema.test.ts",
+      "passed": 23,
+      "total": 23,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/planner.test.ts",
+      "passed": 58,
+      "total": 58,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/production-admission.test.ts",
+      "passed": 67,
+      "total": 67,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/provider.test.ts",
+      "passed": 15,
+      "total": 15,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/published-context.test.ts",
+      "passed": 30,
+      "total": 30,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/published-resources.test.ts",
+      "passed": 49,
+      "total": 49,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/source-ingestion.test.ts",
+      "passed": 21,
+      "total": 21,
+      "status": "passed"
+    },
+    {
+      "path": "lib/action-engine/validation.test.ts",
+      "passed": 35,
+      "total": 35,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/activity.test.ts",
+      "passed": 4,
+      "total": 4,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/billing-lifecycle.test.ts",
+      "passed": 25,
+      "total": 25,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/billing.test.ts",
+      "passed": 20,
+      "total": 20,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/checkout.test.ts",
+      "passed": 5,
+      "total": 5,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/entitlement-flow.test.ts",
+      "passed": 19,
+      "total": 19,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/mail-summary.test.ts",
+      "passed": 3,
+      "total": 3,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/provider.test.ts",
+      "passed": 35,
+      "total": 35,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/service.test.ts",
+      "passed": 27,
+      "total": 27,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/webhook-setup.test.ts",
+      "passed": 9,
+      "total": 9,
+      "status": "passed"
+    },
+    {
+      "path": "lib/automation/workflows.test.ts",
+      "passed": 28,
+      "total": 28,
+      "status": "passed"
+    },
+    {
+      "path": "lib/support/infomaniak-imap-lifetime.test.ts",
+      "passed": 3,
+      "total": 3,
+      "status": "passed"
+    },
+    {
+      "path": "lib/support/infomaniak-imap.test.ts",
+      "passed": 22,
+      "total": 22,
+      "status": "passed"
+    },
+    {
+      "path": "lib/support/infomaniak.test.ts",
+      "passed": 30,
+      "total": 30,
+      "status": "passed"
+    },
+    {
+      "path": "lib/support/mail-documents.test.ts",
+      "passed": 5,
+      "total": 5,
+      "status": "passed"
+    },
+    {
+      "path": "lib/support/support.test.ts",
+      "passed": 81,
+      "total": 81,
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "50 native tests written but not executed; Rust typecheck and integration unverified",
+    "No ZIP generated by Rust was passed to the TypeScript codec",
+    "Published sidecar hashes do not prove equality with SQLite or canonical quote creation",
+    "D1 and Supabase reads are not a shared atomic persistence fence",
+    "No remote authority/reservation composition, source reconciliation or native IPC/UI integrated",
+    "Historical source fingerprints may cause one new analysis at first re-ingestion",
+    "CH/CHF only; only currently paid Stripe Complete rights; opt-in remains disabled",
+    "No live, installed, physical multi-device or exactly-once guarantee"
+  ]
+}

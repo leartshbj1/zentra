@@ -29,13 +29,25 @@ Objectif actif : un ERP qui prépare le travail administratif, avec contrôle ut
 - Livraison : `INTAKE-VALIDATION-20261011.md` et `docs/evidence/action-engine-intake-20261011.json`.
 - Migrations additives D1 0100/0101 testées localement uniquement. Ce prédicat d'autorité ne remplace pas les versions source/catalogue/client ni la preuve de publication ; aucune route activée.
 
-## Suite : projection publiée et premier vrai brouillon
+## Lot A3 codé localement, validation native en attente
+
+- Chargeur privé du ticket Support délégué et des ressources Gestion publiées ; codec ZIP/JSON fermé, empreintes des faits et relectures après attente.
+- Identités connecteur enrichies et persistées même quand le texte ne change pas ; conversations multi-expéditeurs signalées. Les versions fournisseur ne déclenchent pas seules une nouvelle analyse.
+- Sources natives d'un writer atomique client éventuel + devis brouillon non numéroté + reçu + audit + outbox ; projection depuis la copie SQLite figée, migration additive 62.
+- Conservation des reçus avant réception/fusion, outbox locale exclue du partage, compatibilité v60/v61 préparée sur copies temporaires.
+- **809/809 tests serveur**, typage, lint du noyau, format, assets et build passés. Le périmètre Support élargi conserve 29 diagnostics lint identiques à sa baseline.
+- **50 tests natifs écrits, non exécutés**. Cargo check échoue avant compilation du projet : Windows App Control refuse les build scripts de dépendances, erreur 4551. Les lectures Rustfmt et revues statiques ne constituent pas une compilation.
+- Code serveur : `b517d2d05ef843c44915804f8cf272da6a07dda5` ; code natif : `e7ae48848a529a368b238ac57f724f1c8aff10df` (`codex/action-engine-native`).
+- Livraison : `NATIVE-PROJECTION-VALIDATION-20261011.md` et `docs/evidence/action-engine-native-projection-20261011.json`.
+- Aucun IPC, endpoint Action Engine, déclenchement, notification ou déploiement activé. Une vraie archive produite par Rust n'a pas encore été passée au codec TS.
+
+## Suite : composition et premier vrai brouillon confirmé
 
 1. Reprendre `AUDIT.md` et les contrats de `lib/action-engine/README.md`.
-2. Raccorder le ticket durable et une projection autorisée des clients et du catalogue. L’absence de contexte fiable impose une revue, pas une invention.
+2. Valider les sources natives A3 sur un hôte autorisé : compiler, exécuter les 50 tests et les régressions de restauration/fusion, puis vérifier l'interopérabilité d'une vraie archive synthétique. Ne pas retenter/bypasser Windows App Control en boucle.
 3. Composer le nouveau prédicat d'autorité avec la délégation Support/Gestion et les versions source/catalogue/client ; `mayPrepareQuote` couvre création client éventuelle + devis brouillon, pas seulement lecture Automation. Les branches commerciales non corroborées restent refusées.
 4. Raccorder l'intake durable, puis réconcilier les tickets reçus mais non dispatchés et les analyses incertaines. La course avant modèle est fermée dans le noyau ; le déclenchement depuis Support n'est pas encore intégré.
-5. Commande native unique dans le desktop **1.90.15** de `app-current-corrections`, sous origine entreprise et contexte membre : client éventuel, brouillon/lignes, reçu, audit, synchronisation. Vérifier l’arithmétique entière au commit.
+5. Raccorder le writer privé validé à une commande native unique dans le desktop **1.90.15** de `app-current-corrections`, sous origine entreprise et contexte membre, admission/réservation/source distantes corroborées. Ne pas exposer directement l'input privé à la WebView.
 6. Corroborer la confirmation avec une archive Gestion publiée via Supabase (voir `PUBLISHED-CONTEXT-CONTRACT.md`), puis tester les commits perdus, les modifications en cours, deux appareils et le changement de compte avant de déclarer l'exécution autonome fonctionnelle.
 7. Réutiliser l’interface Activité / À suivre / Réglages, ouvrir le véritable devis existant et notifier seulement après reçu métier confirmé.
 
