@@ -1,12 +1,12 @@
-# Action Engine — frontière d'exécution A8/A11
+# Action Engine — frontière d'exécution A8/A12
 
-État : réservation privée A8, reprise/journal A9, contrat/ACK A10 et consommateur natif authentifié A11 codés. Les essais et limites figurent dans leurs rapports, dont `DEVICE-CONSUMER-VALIDATION-20261011.md`. Le consommateur est composé dans les sources mais n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 136 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 1 982 tests serveur réussis ne remplacent pas la validation native et staging.
+État : réservation privée A8, reprise/journal A9, contrat/ACK A10, consommateur natif authentifié A11 et découverte/reprise de préparation serveur A12 codés. Les essais et limites figurent dans leurs rapports, dont `DEVICE-CONSUMER-VALIDATION-20261011.md` et `SUPPORT-DISCOVERY-VALIDATION-20261011.md`. Le consommateur natif n'a jamais été exécuté ; aucun endpoint, IPC, caller Support ou notification n'est exposé. Les 136 tests Rust restent non compilés/non exécutés sous Windows App Control 4551. Ne pas retenter ni contourner ce blocage. Les 2 066 tests serveur réussis ne remplacent pas la validation native et staging.
 
 ## Réservation distante avant toute écriture native
 
 La composition privée A8 `device-reservation.ts` possède une entrée fermée `{sourceId, proposalId}`. L'acteur, l'entreprise, l'installation et les droits viennent de l'authentificateur appareil. La nouvelle réservation exige l'admission actuelle, le consentement spécifique, le pilote serveur, la source exacte et la publication de contexte courante.
 
-A8 réutilise `createPublishedQuoteFences` et construit le registre avec `reservationBinding: fences.reservationBinding`, en ajoutant le garde pays natif au fence. La liaison initiale est écrite dans le même batch que la réservation. Les IDs client et devis viennent du serveur. L'appareil ne fournit ni plan, prix, rôle, SQL ou reçu.
+A8 réutilise `createPublishedQuoteFences` et construit le registre avec `reservationBinding: fences.reservationBinding`. A12 centralise le garde pays natif dans ces fences partagés, sans le lier deux fois dans A8. La liaison initiale est écrite dans le même batch que la réservation. Les IDs client et devis viennent du serveur. L'appareil ne fournit ni plan, prix, rôle, SQL ou reçu.
 
 La réponse privée destinée au Rust doit lier le plan canonique original et son SHA, la source capturée, la réservation et sa provenance. Capturer ces valeurs avant toute attente ; les relire sous les gardes actuelles avant retour. Un autre appareil reçoit un état détenu, sans transfert automatique ni expiration autorisant une seconde création.
 
@@ -34,9 +34,26 @@ Ces sources A9 ne sont ni compilées ni exécutées. Le SQL privé est vérifié
 
 La première archive doit figer le brouillon complet avant édition/émission. Si cette première preuve est déjà impossible, conserver le reçu, afficher une revue requise et ne pas recréer. Après preuve durable, A7 peut confirmer le fait historique sans relire le transport ancien.
 
+## Découverte Support et reprise de préparation A12, privées
+
+Le callback facultatif actuel `dispatchMailWorkflows` suit la persistance de la classification Support. Un arrêt entre les deux laisse un ticket classé sans workflow. `discoverDeviceSupportQuoteWork` dérive maintenant le travail des tickets, intakes et propositions durables, sous la vraie session appareil et la délégation actuelle ; il ne dépend pas de la réussite du callback et ne l'active pas.
+
+Ordre du futur consommateur :
+
+1. Reprendre d'abord les candidats de l'outbox locale A11 sous leur origine, y compris après un ACK local perdu. La découverte exclut un résultat déjà canoniquement confirmé ; elle ne remplace donc pas cette reprise locale.
+2. Lire une ronde entière de pages d'IDs source, maximum 50 par page, avec le curseur lié au membre/espace/installation. Relire la même page sous droits frais avant retour ; un changement d'espace, de droits ou d'admissibilité impose refus/conflit, sans utiliser la page ancienne.
+3. Appeler le préparateur privé avec chaque ID source. `readPreparedDeviceQuote` récupère d'abord la proposition immuable sous droits actuels, avant archive/catalogue/clé. Si elle n'existe pas, suivre la préparation ordinaire gardée. Résoudre la clé seulement lorsqu'une décision neuve est réellement nécessaire après `intake.start` ; un résultat fini peut rejoindre le registre sans nouvel appel IA.
+4. Passer ensuite les sélecteurs source/proposition à A8/A11, jamais un plan fourni par l'interface. Une proposition historique n'autorise pas une création fraîche. Les droits de progression, le mode Support, le pays et la publication restent contrôlés aux mutations.
+5. À la ronde suivante, repartir sans curseur : classification tardive et expiration de bail ne changent pas forcément la date du ticket. Prévoir cadence bornée et gestion de conflit ; aucun scheduler ou retry automatique d'analyse incertaine n'est installé dans A12.
+
+La catégorie `quote` est seulement un présélecteur ; le préparateur distingue demande et offre. Les intakes `started`/`uncertain` ne sont jamais redispatchés. Les connecteurs sans expéditeur structuré restent non planifiables et demandent une revue. Une révision Gestion plus récente peut invalider conservativement une proposition non réservée ; aucun rebase silencieux.
+
+La migration D1 0105 ajoute uniquement l'index `(workspace_id, created_at, id)`, vérifié avec le vrai EXPLAIN SQLite local. Aucun nouveau schéma Supabase/natif ni changement de production. L'index et les pages bornées ne prouvent pas une limite stricte de scan/CPU ou une charge de 150 entreprises. La compilation native et le staging restent des prérequis à toute exposition du raccord.
+
 ## Fichiers à examiner au prochain lot
 
 - Serveur : `lib/action-engine/device-reservation.ts` et son classifieur sont implémentés en A8 ; conserver leurs contrats et tests lors de la future exposition. `ledger.ts`, `published-fences.ts`, `confirmation-records.ts`, `historical-quote-fences.ts`, `device-confirmation.ts` restent les frontières de référence.
+- Découverte/préparation : `device-work-discovery.ts`, `device-proposal-recovery.ts`, `device-preparation.ts`, avec tests de composition D1 et migration 0105. Ils restent privés ; aucun hook Support ou ordonnanceur ne peut fabriquer l'identité appareil à leur place.
 - Native : `account_cloud_action_engine.rs` et `action_engine_device_protocol.rs` créés en A11, avec leurs tests. Examiner aussi `account_cloud.rs`, `action_engine_quote.rs`, `action_engine_quote_publication.rs`, `company_collaboration.rs` et leurs tests dans `desktop/src-tauri/src/`. Journal privé A9 réutilisé, schéma partagé inchangé.
 - Exposition seulement après validation : `commands.rs`, `lib.rs`, contrat HTTP fermé et consommateurs UI. La route collaboration reste un transport, sans plan métier ni autorisation déclarée par l'appelant.
 
