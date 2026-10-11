@@ -14,7 +14,7 @@ function Get-ZentraActionEngineVerificationPlan {
         @{Name='action_engine_resources::tests::'; Count=20; Group='core'},
         @{Name='action_engine_quote::tests::'; Count=67; Group='core'},
         @{Name='action_engine_device_protocol::tests::'; Count=33; Group='core'},
-        @{Name='account_cloud::action_engine::tests::'; Count=28; Group='core'},
+        @{Name='account_cloud::action_engine::tests::'; Count=29; Group='core'},
         @{Name='backup::action_engine_archive_tests::'; Count=4; Group='core'},
         @{Name='company_collaboration::action_engine_collaboration_tests::'; Count=3; Group='core'},
         @{Name='company_collaboration::action_publication_tests::'; Count=17; Group='core'},
@@ -67,7 +67,7 @@ function Get-ZentraActionEngineVerificationPlan {
             ExpectedCount=$specification.Count
         }
     }
-    if ($core.Count -ne 194 -or $regression.Count -ne 44 -or $selected.Count -ne 238) {
+    if ($core.Count -ne 195 -or $regression.Count -ne 44 -or $selected.Count -ne 239) {
         throw 'The reviewed Action Engine native selection is incomplete.'
     }
     $allNames = [string[]]@($selected)
@@ -77,7 +77,7 @@ function Get-ZentraActionEngineVerificationPlan {
         CoreTestNames=[string[]]$core.ToArray()
         RegressionTestNames=[string[]]$regression.ToArray()
         SelectedTestNames=$allNames
-        ExpectedCoreCount=194
+        ExpectedCoreCount=195
         ExcludedProcessKillTestNames=$excluded
     }
 }
@@ -85,8 +85,8 @@ function Get-ZentraActionEngineVerificationPlan {
 function Assert-ZentraActionEngineVerificationProof {
     param([Parameter(Mandatory=$true)]$Plan, [Parameter(Mandatory=$true)][AllowEmptyCollection()][object[]]$SuiteExecutions)
     Set-StrictMode -Version Latest
-    if ($Plan.ExpectedCoreCount -ne 194 -or $Plan.CoreTestNames.Count -ne 194 -or
-        $Plan.RegressionTestNames.Count -ne 44 -or $Plan.SelectedTestNames.Count -ne 238 -or
+    if ($Plan.ExpectedCoreCount -ne 195 -or $Plan.CoreTestNames.Count -ne 195 -or
+        $Plan.RegressionTestNames.Count -ne 44 -or $Plan.SelectedTestNames.Count -ne 239 -or
         $SuiteExecutions.Count -ne $Plan.Filters.Count) {
         throw 'The native verification proof is incomplete.'
     }
@@ -118,7 +118,7 @@ function Assert-ZentraActionEngineVerificationProof {
         }
         if ($filter.Group -ceq 'core') { $corePassed += $execution.passed } else { $regressionPassed += $execution.passed }
     }
-    if ($corePassed -ne 194 -or $regressionPassed -ne 44) { throw 'The native execution totals do not corroborate the catalogue.' }
+    if ($corePassed -ne 195 -or $regressionPassed -ne 44) { throw 'The native execution totals do not corroborate the catalogue.' }
     return [pscustomobject]@{
         CorePassed=$corePassed
         RegressionPassed=$regressionPassed

@@ -17,6 +17,34 @@ use std::{
 };
 use tauri::async_runtime::channel;
 
+#[test]
+fn private_action_engine_routes_use_the_fixed_https_origin_and_refuse_variants() {
+    for path in [protocol::PATH, protocol::WORK_PATH] {
+        let url = endpoint(path).unwrap();
+        assert_eq!(url.as_str(), format!("{ACCOUNT_API_ORIGIN}{path}"));
+        assert_eq!(url.scheme(), "https");
+        assert_eq!(url.host_str(), Some("zentraapp.ch"));
+        assert!(url.username().is_empty());
+        assert!(url.password().is_none());
+        assert!(url.query().is_none());
+        assert!(url.fragment().is_none());
+        for refused in [
+            format!("{path}/"),
+            format!("{path}?organizationId=other"),
+            format!("{path}#fragment"),
+            format!("{path}/../team"),
+            format!("{path}%2f"),
+            path.to_ascii_uppercase(),
+            format!("{ACCOUNT_API_ORIGIN}{path}"),
+            format!("https://example.test{path}"),
+            format!("//example.test{path}"),
+        ] {
+            assert!(endpoint(&refused).is_err(), "{refused}");
+        }
+    }
+    assert!(endpoint("/api/account/automation/other").is_err());
+}
+
 struct Fixture {
     _directory: tempfile::TempDir,
     store: LocalStore,

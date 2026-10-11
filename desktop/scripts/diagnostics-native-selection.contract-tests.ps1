@@ -155,18 +155,26 @@ Assert-Contract ($actionEngineBranches.Count -eq 1) 'one explicit Action Engine 
 $actionEngineBranch = $actionEngineBranches[0]
 $actionEngineBody = $actionEngineBranch.Clauses[0].Item2
 $actionEngineStatements = @($actionEngineBody.Statements)
-Assert-Contract ($actionEngineStatements.Count -eq 7) 'Action Engine branch contains only helper import, plan, suites, corroboration, proof, proof write and return'
+Assert-Contract ($actionEngineStatements.Count -eq 9) 'Action Engine branch contains only helper import, plan, synthetic fixture path, suites, corroboration, fixture existence, proof, proof write and return'
 Assert-Contract ($harnessInit.Extent.EndOffset -lt $actionEngineBranch.Extent.StartOffset -and $actionEngineBranch.Extent.EndOffset -lt $fullSuites.Extent.StartOffset) 'Action Engine uses the prepared harness and exits before full validation'
 $expectedActionEngineImport = ". (Join-Path `$PSScriptRoot 'action-engine-verification.ps1')"
 Assert-Contract ((Normalize-ContractText $actionEngineStatements[0].Extent.Text) -ceq $expectedActionEngineImport -and [regex]::Matches($releaseText, 'action-engine-verification\.ps1').Count -eq 1) 'pure Action Engine helper is imported only inside its explicit branch after harness initialization'
 Assert-Contract ((Normalize-ContractText $actionEngineStatements[1].Extent.Text) -ceq '$actionEnginePlan = Get-ZentraActionEngineVerificationPlan -TestNames $diagnosticHarness.TestNames') 'plan is built from the compiled libtest catalogue before suite execution'
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[2].Extent.Text) -ceq "`$env:ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE = Join-Path `$artifacts 'action-engine-interop'") 'complete synthetic fixture is exported only to the fixed job artifact directory'
 $expectedActionEngineLoop = @'
 foreach ($filter in $actionEnginePlan.Filters) {
     Invoke-ZentraVerificationSuite $diagnosticHarness $filter.Name $filter.Arguments
 }
 '@
-Assert-Contract ((Normalize-ContractText $actionEngineStatements[2].Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineLoop)) 'Action Engine dispatches only the helper fixed plan through the existing verified harness'
-Assert-Contract ((Normalize-ContractText $actionEngineStatements[3].Extent.Text) -ceq '$actionEngineCorroboration = Assert-ZentraActionEngineVerificationProof -Plan $actionEnginePlan -SuiteExecutions $diagnosticHarness.Proof.suiteExecutions') 'every runtime result is corroborated before a success proof is assembled'
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[3].Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineLoop)) 'Action Engine dispatches only the helper fixed plan through the existing verified harness'
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[4].Extent.Text) -ceq '$actionEngineCorroboration = Assert-ZentraActionEngineVerificationProof -Plan $actionEnginePlan -SuiteExecutions $diagnosticHarness.Proof.suiteExecutions') 'every runtime result is corroborated before a success proof is assembled'
+$expectedActionEngineFixtureGuard = @'
+if (-not [IO.File]::Exists((Join-Path $env:ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE 'synthetic-quote.zentra')) -or
+    -not [IO.File]::Exists((Join-Path $env:ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE 'synthetic-quote-metadata.json'))) {
+    throw 'The complete synthetic native archive evidence was not exported.'
+}
+'@
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[5].Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineFixtureGuard)) 'a missing complete archive or metadata cannot produce a native success proof'
 $actionEngineCommands = @($actionEngineBody.FindAll({param($node) $node -is [System.Management.Automation.Language.CommandAst]}, $true))
 Assert-Contract (@($actionEngineCommands | Where-Object {
     -not ($_.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot -and (Normalize-ContractText $_.Extent.Text) -ceq $expectedActionEngineImport) -and
@@ -199,7 +207,10 @@ foreach ($entry in @(
     @{ Name = 'loaderHypothesisConfirmed'; Value = '$diagnosticHarness.Proof.loaderHypothesisConfirmed' },
     @{ Name = 'harnessManifestRepairValidated'; Value = '$diagnosticHarness.Proof.harnessManifestRepairValidated' },
     @{ Name = 'selectedNativeSuitesPassed'; Value = '$true' },
-    @{ Name = 'nativeExecuted'; Value = '$true' }
+    @{ Name = 'nativeExecuted'; Value = '$true' },
+    @{ Name = 'nativeArchiveFixture'; Value = "'action-engine-interop/synthetic-quote.zentra'" },
+    @{ Name = 'nativeArchiveFixtureMetadata'; Value = "'action-engine-interop/synthetic-quote-metadata.json'" },
+    @{ Name = 'nativeArchiveInteropExecuted'; Value = '$false' }
 )) { Assert-Contract ((Read-StaticHashEntry $actionEngineProofTable $entry.Name) -ceq $entry.Value) "Action Engine proof corroborates $($entry.Name)" }
 foreach ($name in @('fullFunctionalExecuted', 'frontendExecuted', 'mobileExecuted', 'frontendBuildExecuted', 'benchmarksExecuted', 'packagingExecuted', 'signingExecuted', 'publishesInstaller', 'publishesRelease', 'installsApplication')) {
     Assert-Contract ((Read-StaticHashEntry $actionEngineProofTable $name) -ceq '$false') "Action Engine proof excludes $name"
@@ -208,8 +219,8 @@ Assert-Contract (@($actionEngineProofTable.KeyValuePairs | Where-Object { $_.Ite
 $expectedActionEngineWrite = @'
 [IO.File]::WriteAllText((Join-Path $artifacts 'diagnostics-action-engine-proof.json'), ($actionEngineProof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 '@
-Assert-Contract ((Normalize-ContractText $actionEngineStatements[5].Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineWrite)) 'distinct Action Engine proof is written only after runtime corroboration'
-Assert-Contract ($actionEngineStatements[6] -is [System.Management.Automation.Language.ReturnStatementAst] -and $null -eq $actionEngineStatements[6].Pipeline) 'Action Engine returns unconditionally before full validation and packaging'
+Assert-Contract ((Normalize-ContractText $actionEngineStatements[7].Extent.Text) -ceq (Normalize-ContractText $expectedActionEngineWrite)) 'distinct Action Engine proof is written only after runtime corroboration'
+Assert-Contract ($actionEngineStatements[8] -is [System.Management.Automation.Language.ReturnStatementAst] -and $null -eq $actionEngineStatements[8].Pipeline) 'Action Engine returns unconditionally before full validation and packaging'
 foreach ($appendix in @(
     "`$diagnosticNativeSuites += @('commands::payroll_import_worker_tests::', 'payroll_import::tests::')",
     "`$diagnosticFrontendSuites += @('src/payrollImportScopeBridge.test.ts', 'src/PayrollImportWizardLifecycle.test.tsx')",

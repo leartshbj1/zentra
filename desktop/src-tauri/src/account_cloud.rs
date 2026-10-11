@@ -1570,6 +1570,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | crate::supplier_inbox::PATH
             | crate::appointment_inbox::PATH
             | crate::action_engine_device_protocol::PATH
+            | crate::action_engine_device_protocol::WORK_PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

@@ -496,7 +496,7 @@ fn parse_quantity(evidence: &str, skus: &[&str]) -> Option<i64> {
             values.push(None);
             continue;
         }
-        let dotted = literal.replace(',', '.');
+        let dotted = literal.replace(',', ".");
         let mut parts = dotted.split('.');
         let whole = parts.next()?.parse::<i128>().ok();
         let fraction = parts.next().unwrap_or("");

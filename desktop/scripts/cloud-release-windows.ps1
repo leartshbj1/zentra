@@ -118,10 +118,17 @@ try {
         if ($diagnosticSelection -ceq 'action-engine') {
             . (Join-Path $PSScriptRoot 'action-engine-verification.ps1')
             $actionEnginePlan = Get-ZentraActionEngineVerificationPlan -TestNames $diagnosticHarness.TestNames
+            # Only the real cfg(test) archive fixture consumes this directory.
+            # Export the complete synthetic ZIP, never a truncated prefix or live company.
+            $env:ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE = Join-Path $artifacts 'action-engine-interop'
             foreach ($filter in $actionEnginePlan.Filters) {
                 Invoke-ZentraVerificationSuite $diagnosticHarness $filter.Name $filter.Arguments
             }
             $actionEngineCorroboration = Assert-ZentraActionEngineVerificationProof -Plan $actionEnginePlan -SuiteExecutions $diagnosticHarness.Proof.suiteExecutions
+            if (-not [IO.File]::Exists((Join-Path $env:ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE 'synthetic-quote.zentra')) -or
+                -not [IO.File]::Exists((Join-Path $env:ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE 'synthetic-quote-metadata.json'))) {
+                throw 'The complete synthetic native archive evidence was not exported.'
+            }
             $actionEngineProof = [ordered]@{
                 source = $diagnosticSource; circleSource = $env:CIRCLE_SHA1; branch = $env:CIRCLE_BRANCH
                 selection = $diagnosticSelection; verificationOnly = $true
@@ -137,6 +144,9 @@ try {
                 loaderHypothesisConfirmed = $diagnosticHarness.Proof.loaderHypothesisConfirmed
                 harnessManifestRepairValidated = $diagnosticHarness.Proof.harnessManifestRepairValidated
                 selectedNativeSuitesPassed = $true; nativeExecuted = $true
+                nativeArchiveFixture = 'action-engine-interop/synthetic-quote.zentra'
+                nativeArchiveFixtureMetadata = 'action-engine-interop/synthetic-quote-metadata.json'
+                nativeArchiveInteropExecuted = $false
                 fullFunctionalExecuted = $false; frontendExecuted = $false; mobileExecuted = $false
                 frontendBuildExecuted = $false; benchmarksExecuted = $false
                 packagingExecuted = $false; signingExecuted = $false
