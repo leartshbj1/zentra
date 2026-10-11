@@ -235,7 +235,7 @@ fn action_execution_publishes_a_real_committed_draft_with_existing_uploads_witho
                     calls.push("prepare");assert_eq!(body["confirmFullAccess"],false);
                     let id=body["id"].as_str().unwrap().to_owned();*captured.lock().unwrap()=Some(id.clone());
                     let db=f.store.connect().unwrap();
-                    assert_eq!(db.query_row("SELECT count(*) FROM quotes WHERE id=? AND number IS NULL AND status='draft'",[&f.input.quote_id],|row|row.get::<_,i64>(0)).unwrap(),1);
+                    assert_eq!(db.query_row("SELECT count(*) FROM quotes WHERE id=? AND number IS NULL AND status='brouillon'",[&f.input.quote_id],|row|row.get::<_,i64>(0)).unwrap(),1);
                     let links=query_all(&db,"SELECT * FROM company_local_action_engine_quote_publications",[]).unwrap();
                     assert_eq!(links.len(),1);assert_eq!(links[0]["snapshot_id"],id);assert!(links[0]["published_revision"].is_null());
                     if content {std::future::ready(Ok(json!({"missing":body["entries"].as_array().unwrap().iter().map(|part|part["sha256"].clone()).collect::<Vec<_>>()})))}
