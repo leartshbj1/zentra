@@ -21,6 +21,9 @@ $context = [ordered]@{
     ZENTRA_VERIFY_DIAGNOSTICS_ONLY='true';ZENTRA_VERIFY_ONLY='true';ZENTRA_VERIFY_NATIVE_PROFILE_ONLY='true'
     ZENTRA_NATIVE_PROFILE_RELEASE='false';ZENTRA_DIAGNOSTICS_NATIVE_SET='action-engine'
     RUSTUP_TOOLCHAIN='stable-x86_64-pc-windows-msvc';CARGO_TARGET_DIR=$null
+    CIRCLE_NODE_INDEX='0';CIRCLE_NODE_TOTAL='3';CIRCLE_BUILD_NUM='302'
+    ZENTRA_NATIVE_PROFILE_PIPELINE_ID='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    CIRCLE_WORKFLOW_ID='11111111-2222-3333-4444-555555555555'
 }
 $null = Assert-ZentraNativeProfileAdmission $context
 Assert-Behavior $true 'exact admission passes without side effects'
@@ -37,6 +40,36 @@ foreach ($value in @('TRUE','True',' true','true ')) {
     foreach ($key in $context.Keys) { $copy[$key] = $context[$key] }
     $copy['ZENTRA_VERIFY_NATIVE_PROFILE_ONLY'] = $value
     Assert-Refused { Assert-ZentraNativeProfileAdmission $copy } 'opt-in does not coerce case or whitespace'
+}
+foreach ($spec in @(
+    @{Index='0';Name='absent';Count=265},
+    @{Index='1';Name='sandbox';Count=26},
+    @{Index='2';Name='partial';Count=26}
+)) {
+    $copy = [ordered]@{}
+    foreach ($key in $context.Keys) { $copy[$key] = $context[$key] }
+    $copy['CIRCLE_NODE_INDEX'] = $spec.Index
+    $null = Assert-ZentraNativeProfileAdmission $copy
+    $node = Get-ZentraNativeProfileNodePlan $copy
+    Assert-Behavior ($node.Context -ceq $spec.Name -and $node.NodeIndex -eq [int]$spec.Index -and
+        $node.NodeTotal -eq 3 -and $node.ExpectedTotal -eq $spec.Count -and
+        $node.ArtifactDirectory -ceq "node-$($spec.Index)-$($spec.Name)" -and
+        $node.PipelineId -ceq $context['ZENTRA_NATIVE_PROFILE_PIPELINE_ID'] -and
+        $node.WorkflowId -ceq $context['CIRCLE_WORKFLOW_ID'] -and $node.JobNumber -ceq '302') 'each exact node selects only its fixed context, count and artifact namespace'
+}
+foreach ($spec in @(
+    @{Key='CIRCLE_NODE_INDEX';Values=@('', '3', '-1', '00', '01', ' 0', '0 ', "0`n", 0, $null)},
+    @{Key='CIRCLE_NODE_TOTAL';Values=@('', '1', '2', '4', '03', ' 3', '3 ', "3`n", 3, $null)},
+    @{Key='CIRCLE_BUILD_NUM';Values=@('', '0', '-1', '0302', '3.02', ' 302', '302 ', "302`n", 302, $null)},
+    @{Key='ZENTRA_NATIVE_PROFILE_PIPELINE_ID';Values=@('', 'aaaaaaaa-bbbb-cccc-dddd-EEEEEEEEEEEE', 'bad', "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`n", $null)},
+    @{Key='CIRCLE_WORKFLOW_ID';Values=@('', 'bad', "11111111-2222-3333-4444-555555555555`n", $null)}
+)) {
+    foreach ($value in $spec.Values) {
+        $copy = [ordered]@{}
+        foreach ($key in $context.Keys) { $copy[$key] = $context[$key] }
+        $copy[$spec.Key] = $value
+        Assert-Refused { Assert-ZentraNativeProfileAdmission $copy } 'noncanonical or ambiguous node/pipeline/workflow/job identity refuses before side effects'
+    }
 }
 $json = [IO.File]::ReadAllText((Join-Path $repo 'desktop/tests/fixtures/action-native-test-profile.public.json'))
 $shaText = [IO.File]::ReadAllText((Join-Path $repo 'desktop/tests/fixtures/action-native-test-profile.public.sha256'))
@@ -174,7 +207,7 @@ $actionCatalogue += @('company_merge::tests::actual_v60_and_v61_references_merge
 $absentPlan = Get-ZentraNativeProfileVerificationPlan -TestNames @($catalogue + $actionCatalogue) -IncludeActionEngine
 $absentResult = Assert-SyntheticEvidence $absentPlan (New-SyntheticEvidence $absentPlan)
 Assert-Behavior ($absentPlan.Filters.Count -eq 36 -and $absentPlan.ExpectedTotal -eq 265 -and $absentResult.ActionEnginePassed -eq 239) 'absent context adds unchanged 33-suite 239 selection to the three new modules'
-Assert-Behavior (($absentResult.TotalPassed + 2 * $result.TotalPassed) -eq 317) 'separate contexts total 265 plus 26 plus 26'
+Assert-Behavior ($absentResult.TotalPassed -eq 265 -and $result.TotalPassed -eq 26) 'each synthetic result attests only its own fixed count; no local aggregate is produced'
 
 # Parse the future runner. Never dot-source or invoke it, even with mocks.
 $runnerPath = Join-Path $PSScriptRoot 'verify-action-native-profile-windows.ps1'
@@ -232,7 +265,30 @@ Assert-Behavior ($runnerText.Contains('$bootstrapProof.installerBytes -gt $boots
     $runnerText.Contains('$bootstrapProof.checksumBytes -gt $bootstrapPlan.MaximumChecksumBytes')) 'both raw download sizes are checked before installation'
 $bootstrapTry = @($runnerAst.FindAll({param($n) $n -is [Management.Automation.Language.TryStatementAst] -and $null -ne $n.Finally -and $n.Finally.Extent.Text.Contains("'native-profile-bootstrap-proof.json'")},$true))
 Assert-Behavior ($bootstrapTry.Count -eq 1 -and $bootstrapTry[0].Finally.Extent.Text.Contains('$proof.bootstrap = $bootstrapProof')) 'bootstrap raw hashes, state and result are saved independently even on refusal'
-Assert-Behavior ($runnerText.Contains("foreach (`$context in @('absent','sandbox','partial'))") -and $runnerText.Contains('-IncludeActionEngine:($context -ceq ''absent'')')) 'only absent context selects legacy tests'
+Assert-Behavior ($runnerText.Contains('$context = $node.Context') -and
+    -not $runnerText.Contains("foreach (`$context in @('absent','sandbox','partial'))") -and
+    $runnerText.Contains('-IncludeActionEngine:($context -ceq ''absent'')')) 'one admitted node selects one compiled context, with legacy tests only in absent'
+$nodePlanCalls = @($calls | Where-Object {$_.GetCommandName() -ceq 'Get-ZentraNativeProfileNodePlan'})
+$fixtureReads = @($runnerAst.FindAll({param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -ceq 'ReadAllBytes'},$true))
+Assert-Behavior ($nodePlanCalls.Count -eq 1 -and $nodePlanCalls[0].Extent.StartOffset -gt $guard[0].Extent.EndOffset -and
+    @($fixtureReads | Where-Object {$_.Extent.StartOffset -lt $headGuard[0].Extent.EndOffset}).Count -eq 0 -and
+    @($fixtureReads | Where-Object {$_.Extent.StartOffset -lt $nodePlanCalls[0].Extent.EndOffset}).Count -eq 0) 'node identity and exact source admission precede original fixture byte reads'
+Assert-Behavior ($runnerText.Contains("kind='isolated-native-test-profile-node-verification'") -and
+    $runnerText.Contains('nodeIndex=$node.NodeIndex; nodeTotal=$node.NodeTotal; context=$context') -and
+    $runnerText.Contains('pipelineId=$node.PipelineId; workflowId=$node.WorkflowId; jobNumber=$node.JobNumber') -and
+    $runnerText.Contains('$node.ArtifactDirectory') -and $runnerText.Contains('NATIVE_PROFILE_NODE source=') -and
+    $runnerText.Contains('NATIVE_PROFILE_NODE_PASSED job=')) 'proof, artifact namespace and public logs identify the real source/pipeline/workflow/job/node/context'
+Assert-Behavior ($runnerText.Contains('expectedTotal=$node.ExpectedTotal') -and $runnerText.Contains('aggregationExecuted=$false') -and
+    $runnerText.Contains('if ($plan.ExpectedTotal -ne $node.ExpectedTotal)') -and
+    $runnerText.Contains('$proof.runtimePassed = $corroboration.TotalPassed') -and
+    -not $runnerText.Contains('317') -and -not $runnerText.Contains('allContextsPassed') -and
+    -not $runnerText.Contains('$proof.runtimePassed +=')) 'a node cannot claim the aggregate total or other contexts passing'
+Assert-Behavior ($runnerText.Contains('$contextProof.profileTestNames = $plan.ProfileTestNames') -and
+    $runnerText.Contains('$contextProof.catalogueCount = $plan.CatalogueCount') -and
+    $runnerText.Contains("'native-profile-context-proof.json'")) 'each node retains its compiled profile catalogue and independent corroborated context proof for later offline comparison'
+Assert-Behavior ($runnerText.Contains('$proof.toolchain.exit = $toolchainExit') -and
+    $runnerText.Contains('$proof.toolchain.prepared = $true') -and
+    $runnerText.Contains("stdout='toolchain-install.log';stderr='toolchain-install-errors.log'")) 'each node retains its real independent toolchain setup result and fixed raw logs'
 $topTry = @($runnerAst.EndBlock.Statements | Where-Object {$_ -is [Management.Automation.Language.TryStatementAst]})
 Assert-Behavior ($topTry.Count -eq 1 -and $null -ne $topTry[0].Finally -and $topTry[0].Finally.Extent.Text.Contains('[Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],''Process'')')) 'process environment is restored in the outer finally'
 Assert-Behavior ($runnerText.Contains('ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE') -and $runnerText.Contains('fullArchiveInteropExecuted=$false') -and $runnerText.Contains('historicalG0EvidenceModified=$false')) 'new archive export and proof never claim a new ZIP-to-TS execution or rewrite G0'

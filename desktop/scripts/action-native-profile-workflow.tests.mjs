@@ -156,6 +156,7 @@ function main() {
   check('historical job order is unchanged', Object.keys(current.jobs).filter(name => name !== newJobName), baselineJobs);
   for (const name of baselineJobs) check(`historical job ${name} is unchanged`, current.jobs[name], baseline.jobs[name]);
   const expectedNewJob = {
+    parallelism: 3,
     resource_class: 'windows.medium',
     machine: { image: 'windows-server-2022-gui:2026.05.1', shell: 'powershell.exe -NoProfile -ExecutionPolicy Bypass' },
     environment: {
@@ -164,9 +165,10 @@ function main() {
       ZENTRA_VERIFY_NATIVE_PROFILE_ONLY: optIn,
       ZENTRA_NATIVE_PROFILE_RELEASE: '<< pipeline.parameters.release >>',
       ZENTRA_DIAGNOSTICS_NATIVE_SET: '<< pipeline.parameters.diagnostics-native-set >>',
+      ZENTRA_NATIVE_PROFILE_PIPELINE_ID: '<< pipeline.id >>',
     },
     steps: ['checkout', { run: {
-      name: 'Verify absent, sandbox and refused partial compile-time native profiles',
+      name: 'Verify one compile-time native profile per isolated node',
       command: 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/verify-action-native-profile-windows.ps1',
       no_output_timeout: '20m',
     } }, { store_artifacts: { path: 'desktop/artifacts/action-native-profile', destination: 'action-native-profile-validation' } }],

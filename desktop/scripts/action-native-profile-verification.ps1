@@ -20,6 +20,35 @@ function Assert-ZentraNativeProfileAdmission {
         -not $Context.Contains('CARGO_TARGET_DIR') -or -not [string]::IsNullOrEmpty($Context['CARGO_TARGET_DIR'])) {
         throw 'Native profile verification requires an exact source and the standard harness target directory.'
     }
+    $null = Get-ZentraNativeProfileNodePlan -Context $Context
+}
+
+function Get-ZentraNativeProfileNodePlan {
+    param([Parameter(Mandatory=$true)][Collections.IDictionary]$Context)
+    if (-not $Context.Contains('CIRCLE_NODE_TOTAL') -or $Context['CIRCLE_NODE_TOTAL'] -isnot [string] -or $Context['CIRCLE_NODE_TOTAL'] -cne '3' -or
+        -not $Context.Contains('CIRCLE_NODE_INDEX') -or $Context['CIRCLE_NODE_INDEX'] -isnot [string] -or
+        $Context['CIRCLE_NODE_INDEX'] -cnotmatch '\A[012]\z') {
+        throw 'Native profile verification requires one exact node of the three-node context mapping.'
+    }
+    foreach ($name in @('ZENTRA_NATIVE_PROFILE_PIPELINE_ID','CIRCLE_WORKFLOW_ID')) {
+        if (-not $Context.Contains($name) -or $Context[$name] -isnot [string] -or
+            $Context[$name] -cnotmatch '\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z') {
+            throw 'Native profile verification requires exact pipeline and workflow identities.'
+        }
+    }
+    if (-not $Context.Contains('CIRCLE_BUILD_NUM') -or $Context['CIRCLE_BUILD_NUM'] -isnot [string] -or
+        $Context['CIRCLE_BUILD_NUM'] -cnotmatch '\A[1-9][0-9]{0,9}\z') {
+        throw 'Native profile verification requires an exact CI job number.'
+    }
+    $index = [int]$Context['CIRCLE_NODE_INDEX']
+    $name = @('absent','sandbox','partial')[$index]
+    return [pscustomobject]@{
+        NodeIndex=$index; NodeTotal=3; Context=$name
+        ExpectedTotal=$(if ($index -eq 0) {265} else {26})
+        ArtifactDirectory=('node-{0}-{1}' -f $index,$name)
+        PipelineId=$Context['ZENTRA_NATIVE_PROFILE_PIPELINE_ID']
+        WorkflowId=$Context['CIRCLE_WORKFLOW_ID']; JobNumber=$Context['CIRCLE_BUILD_NUM']
+    }
 }
 
 function Get-ZentraNativeProfileFixture {

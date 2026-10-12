@@ -36,6 +36,7 @@ parameters:
 
 jobs:
   windows-action-native-profile-tests:
+    parallelism: 3
     resource_class: windows.medium
     machine:
       image: windows-server-2022-gui:2026.05.1
@@ -48,10 +49,11 @@ jobs:
       ZENTRA_VERIFY_NATIVE_PROFILE_ONLY: << pipeline.parameters.verify-native-profile-only >>
       ZENTRA_NATIVE_PROFILE_RELEASE: << pipeline.parameters.release >>
       ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>
+      ZENTRA_NATIVE_PROFILE_PIPELINE_ID: << pipeline.id >>
     steps:
       - checkout
       - run:
-          name: Verify absent, sandbox and refused partial compile-time native profiles
+          name: Verify one compile-time native profile per isolated node
           command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/verify-action-native-profile-windows.ps1
           no_output_timeout: 20m
       - store_artifacts:
