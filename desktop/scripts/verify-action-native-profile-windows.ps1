@@ -188,5 +188,10 @@ try {
 } finally {
     foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],'Process') }
     $proof.completedAt = [DateTimeOffset]::UtcNow.ToString('o')
-    if (Test-Path -LiteralPath $artifacts -PathType Container) { Save-ZentraHarnessProof $proof (Join-Path $artifacts 'native-profile-verification-proof.json') }
+    if (Test-Path -LiteralPath $artifacts -PathType Container) {
+        Save-ZentraHarnessProof $proof (Join-Path $artifacts 'native-profile-verification-proof.json')
+        # Transport the real final files, including empty stderr; this adds no test result.
+        $transport = Write-ZentraNativeProfileTransportBundle -Context $admission -Repository $repo -ArtifactRoot $artifactRoot
+        Write-Host "NATIVE_PROFILE_NODE_TRANSPORT job=$($node.JobNumber) index=$($node.NodeIndex) context=$context files=$($transport.FileCount) bytes=$($transport.TotalBytes) zipSha256=$($transport.ZipSha256)"
+    }
 }

@@ -1,5 +1,5 @@
-# Pure PS behavior and AST checks only. SYNTHETIC results never attest native
-# execution. Rust source is read as text; the CI runner is parsed, never run.
+# Pure PS behavior/AST and a managed ZIP of small synthetic text files only.
+# SYNTHETIC results never attest native execution. The CI runner is parsed, never run.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'action-native-profile-verification.ps1')
@@ -209,6 +209,122 @@ $absentResult = Assert-SyntheticEvidence $absentPlan (New-SyntheticEvidence $abs
 Assert-Behavior ($absentPlan.Filters.Count -eq 36 -and $absentPlan.ExpectedTotal -eq 265 -and $absentResult.ActionEnginePassed -eq 239) 'absent context adds unchanged 33-suite 239 selection to the three new modules'
 Assert-Behavior ($absentResult.TotalPassed -eq 265 -and $result.TotalPassed -eq 26) 'each synthetic result attests only its own fixed count; no local aggregate is produced'
 
+$transportFiles = @(
+    [pscustomobject]@{path='native-profile-verification-proof.json';bytes=12},
+    [pscustomobject]@{path='windows-test-suite-01-errors.log';bytes=0},
+    [pscustomobject]@{path='nested/details.txt';bytes=4}
+)
+$transportPlan = Get-ZentraNativeProfileTransportPlan -Context $context -Files $transportFiles
+Assert-Behavior ($transportPlan.TotalBytes -eq 16 -and $transportPlan.Paths.Count -eq 3 -and
+    $transportPlan.Paths[0] -ceq 'native-profile-verification-proof.json' -and
+    $transportPlan.ZipName -ceq 'node-0-absent-evidence.zip' -and
+    $transportPlan.ReceiptName -ceq 'node-0-absent-evidence.receipt.json') 'transport plan includes empty files in an ordinal inventory with output outside the node'
+foreach ($path in @('', '.', '..', '../escape', '/absolute', 'C:/drive', 'a\b', 'a//b', 'a/./b',
+    'a/../b', 'a.', 'a/b.', 'a/CON.log', 'nul', 'COM1', 'LPT9.txt', 'space name', "tab`tname", ('a' * 241))) {
+    Assert-Refused { Assert-ZentraNativeProfileTransportRelativePath -Path $path } 'transport refuses escapes, aliases, ambiguous names and unbounded relative paths'
+}
+foreach ($files in @(
+    @(),
+    @([pscustomobject]@{path='other.log';bytes=0}),
+    @([pscustomobject]@{path='NATIVE-profile-verification-proof.json';bytes=0}),
+    @($transportFiles + [pscustomobject]@{path='NESTED/DETAILS.TXT';bytes=1}),
+    @($transportFiles + [pscustomobject]@{path='nested';bytes=1}),
+    @($transportFiles + [pscustomobject]@{path='negative.log';bytes=-1}),
+    @($transportFiles + [pscustomobject]@{path='string.log';bytes='1'}),
+    @($transportFiles + [pscustomobject]@{path='fraction.log';bytes=1.5}),
+    @($transportFiles + [pscustomobject]@{path='large.log';bytes=134217729}),
+    @($transportFiles + [pscustomobject]@{path='large1.log';bytes=134217728} + [pscustomobject]@{path='large2.log';bytes=134217728})
+)) {
+    Assert-Refused { Get-ZentraNativeProfileTransportPlan -Context $context -Files $files } 'transport refuses incomplete, colliding or unbounded inventories'
+}
+$manyFiles = @($transportFiles)
+for ($i=0; $i -lt 510; $i++) { $manyFiles += [pscustomobject]@{path="file-$i.log";bytes=0} }
+Assert-Refused { Get-ZentraNativeProfileTransportPlan -Context $context -Files $manyFiles } 'transport refuses more than 512 files before reading contents'
+$limitPlan = Get-ZentraNativeProfileTransportPlan -Context $context -Files @(
+    [pscustomobject]@{path='native-profile-verification-proof.json';bytes=0},
+    [pscustomobject]@{path='one.log';bytes=134217728},
+    [pscustomobject]@{path='two.log';bytes=134217728}
+)
+Assert-Behavior ($limitPlan.TotalBytes -eq 268435456) 'exact per-file and complete byte limits are accepted by the pure plan without creating large files'
+
+# Exercise only managed file/ZIP APIs on small text fixtures. No runner or harness.
+$temporaryRoot = [IO.Path]::Combine([IO.Path]::GetTempPath(),('zentra-profile-transport-test-' + [Guid]::NewGuid().ToString('N')))
+$cleanupRoot = [IO.Path]::GetFullPath($temporaryRoot)
+try {
+    $null = [IO.Directory]::CreateDirectory($temporaryRoot)
+    $nodePath = Join-Path $temporaryRoot 'node-0-absent'
+    $null = [IO.Directory]::CreateDirectory((Join-Path $nodePath 'nested'))
+    [IO.File]::WriteAllText((Join-Path $nodePath 'native-profile-verification-proof.json'),'synthetic proof only',[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $nodePath 'nested/details.txt'),"synthetic text`n",[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllBytes((Join-Path $nodePath 'windows-test-suite-01-errors.log'),[byte[]]@())
+    $transportContext = [ordered]@{}
+    foreach ($key in $context.Keys) { $transportContext[$key] = $context[$key] }
+    $sourceLines = @(& git -C $repo rev-parse HEAD)
+    if ($LASTEXITCODE -ne 0 -or $sourceLines.Count -ne 1) { throw 'Synthetic transport test needs the existing repository HEAD.' }
+    $transportContext['CIRCLE_SHA1'] = $sourceLines[0]
+    $wrongSource = [ordered]@{}
+    foreach ($key in $transportContext.Keys) { $wrongSource[$key] = $transportContext[$key] }
+    $wrongSource['CIRCLE_SHA1'] = '0' * 40
+    Assert-Refused { Write-ZentraNativeProfileTransportBundle -Context $wrongSource -Repository $repo -ArtifactRoot $temporaryRoot } 'transport refuses a different source before creating output'
+    Assert-Behavior (@(Get-ChildItem -LiteralPath $temporaryRoot -File -Force).Count -eq 0) 'source refusal creates no bundle or receipt'
+    $wrongAdmission = [ordered]@{}
+    foreach ($key in $transportContext.Keys) { $wrongAdmission[$key] = $transportContext[$key] }
+    $wrongAdmission['CIRCLE_BRANCH'] = 'main'
+    Assert-Refused { Write-ZentraNativeProfileTransportBundle -Context $wrongAdmission -Repository $repo -ArtifactRoot (Join-Path $temporaryRoot 'does-not-exist') } 'transport admission refuses before any artifact path lookup or creation'
+    $hardLink = Join-Path $nodePath 'linked.log'
+    $null = New-Item -ItemType HardLink -Path $hardLink -Target (Join-Path $nodePath 'nested/details.txt')
+    Assert-Refused { Write-ZentraNativeProfileTransportBundle -Context $transportContext -Repository $repo -ArtifactRoot $temporaryRoot } 'transport refuses real hard-linked files before reading evidence'
+    Remove-Item -LiteralPath $hardLink -Force
+    $junction = Join-Path $temporaryRoot 'linked-node'
+    $null = New-Item -ItemType Junction -Path $junction -Target $nodePath
+    Assert-Refused { Get-ZentraNativeProfileTransportInventory -NodePath (Join-Path $junction 'nested') } 'transport refuses a real linked ancestor'
+    Remove-Item -LiteralPath $junction -Force
+    Assert-Behavior (@(Get-ChildItem -LiteralPath $temporaryRoot -File -Force).Count -eq 0) 'link refusal creates no bundle or receipt'
+    $bundle = Write-ZentraNativeProfileTransportBundle -Context $transportContext -Repository $repo -ArtifactRoot $temporaryRoot
+    $receipt = [IO.File]::ReadAllText($bundle.ReceiptPath) | ConvertFrom-Json
+    Assert-Behavior ($receipt.kind -ceq 'isolated-native-test-profile-transport-receipt' -and $receipt.schemaVersion -eq 1 -and
+        $receipt.source -ceq $transportContext['CIRCLE_SHA1'] -and $receipt.circleSource -ceq $receipt.source -and
+        $receipt.pipelineId -ceq $context['ZENTRA_NATIVE_PROFILE_PIPELINE_ID'] -and $receipt.workflowId -ceq $context['CIRCLE_WORKFLOW_ID'] -and
+        $receipt.jobNumber -ceq '302' -and $receipt.nodeIndex -eq 0 -and $receipt.nodeTotal -eq 3 -and $receipt.context -ceq 'absent') 'synthetic transport receipt retains exact source and node identities without a runtime result'
+    Assert-Behavior ($receipt.fileCount -eq 3 -and $receipt.files.Count -eq 3 -and
+        $receipt.nodeDirectory -ceq 'node-0-absent' -and $receipt.finalProofPath -ceq 'native-profile-verification-proof.json' -and
+        $receipt.zip.path -ceq 'node-0-absent-evidence.zip' -and $receipt.zip.bytes -eq (Get-Item -LiteralPath $bundle.ZipPath).Length -and
+        $receipt.zip.sha256 -ceq (Get-FileHash -LiteralPath $bundle.ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()) 'receipt hash and size corroborate the actual fresh managed ZIP'
+    $zipStream = [IO.File]::OpenRead($bundle.ZipPath)
+    $zip = [IO.Compression.ZipArchive]::new($zipStream,[IO.Compression.ZipArchiveMode]::Read,$false)
+    try {
+        Assert-Behavior ($zip.Entries.Count -eq 3 -and @($zip.Entries | Where-Object {$_.FullName -like '*evidence*'}).Count -eq 0) 'ZIP includes all actual node files and never its own ZIP or receipt'
+        $sum = [long]0
+        foreach ($file in $receipt.files) {
+            $entry = $zip.GetEntry($file.path)
+            $entryStream = $entry.Open()
+            $sha = [Security.Cryptography.SHA256]::Create()
+            try { $actualSha = [BitConverter]::ToString($sha.ComputeHash($entryStream)).Replace('-','').ToLowerInvariant() }
+            finally { $sha.Dispose(); $entryStream.Dispose() }
+            Assert-Behavior ($entry.Length -eq $file.bytes -and $actualSha -ceq $file.sha256 -and
+                $file.sha256 -ceq (Get-FileHash -LiteralPath (Join-Path $nodePath $file.path) -Algorithm SHA256).Hash.ToLowerInvariant()) 'each receipt row corroborates source bytes and real decompressed ZIP bytes'
+            $sum += $file.bytes
+        }
+        Assert-Behavior ($sum -eq $receipt.totalBytes -and $zip.GetEntry('windows-test-suite-01-errors.log').Length -eq 0 -and
+            @($receipt.files | Where-Object {$_.path -ceq 'windows-test-suite-01-errors.log'})[0].sha256 -ceq 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855') 'a real zero-byte stderr remains an explicit zero-byte ZIP entry with its SHA-256'
+    } finally { $zip.Dispose(); $zipStream.Dispose() }
+    $originalZipHash = (Get-FileHash -LiteralPath $bundle.ZipPath -Algorithm SHA256).Hash
+    $originalReceiptHash = (Get-FileHash -LiteralPath $bundle.ReceiptPath -Algorithm SHA256).Hash
+    Assert-Refused { Write-ZentraNativeProfileTransportBundle -Context $transportContext -Repository $repo -ArtifactRoot $temporaryRoot } 'transport never overwrites an existing ZIP or receipt'
+    Assert-Behavior ((Get-FileHash -LiteralPath $bundle.ZipPath -Algorithm SHA256).Hash -ceq $originalZipHash -and
+        (Get-FileHash -LiteralPath $bundle.ReceiptPath -Algorithm SHA256).Hash -ceq $originalReceiptHash) 'fresh-output refusal preserves both original transport hashes'
+    Assert-Behavior (@($receipt.PSObject.Properties.Name | Where-Object {$_ -cin @('passed','runtimePassed','contextPassed','expectedTotal','allContextsPassed','aggregationExecuted')}).Count -eq 0) 'transport receipt cannot introduce a native or aggregate success result'
+    Remove-Item -LiteralPath $bundle.ZipPath -Force
+    Assert-Refused { Write-ZentraNativeProfileTransportBundle -Context $transportContext -Repository $repo -ArtifactRoot $temporaryRoot } 'an existing receipt alone also refuses before creating a replacement ZIP'
+    Assert-Behavior (-not (Test-Path -LiteralPath $bundle.ZipPath) -and
+        (Get-FileHash -LiteralPath $bundle.ReceiptPath -Algorithm SHA256).Hash -ceq $originalReceiptHash) 'receipt-only refusal preserves existing evidence and creates no ZIP'
+} finally {
+    if ([IO.Path]::GetFullPath($temporaryRoot) -cne $cleanupRoot -or
+        -not $cleanupRoot.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase) -or
+        [IO.Path]::GetFileName($cleanupRoot) -cnotmatch '\Azentra-profile-transport-test-[0-9a-f]{32}\z') { throw 'Refusing synthetic fixture cleanup outside its checked temporary directory.' }
+    if (Test-Path -LiteralPath $temporaryRoot) { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force }
+}
+
 # Parse the future runner. Never dot-source or invoke it, even with mocks.
 $runnerPath = Join-Path $PSScriptRoot 'verify-action-native-profile-windows.ps1'
 $tokens=$null; $parseErrors=$null
@@ -293,4 +409,31 @@ $topTry = @($runnerAst.EndBlock.Statements | Where-Object {$_ -is [Management.Au
 Assert-Behavior ($topTry.Count -eq 1 -and $null -ne $topTry[0].Finally -and $topTry[0].Finally.Extent.Text.Contains('[Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],''Process'')')) 'process environment is restored in the outer finally'
 Assert-Behavior ($runnerText.Contains('ZENTRA_ACTION_FULL_ARCHIVE_EVIDENCE') -and $runnerText.Contains('fullArchiveInteropExecuted=$false') -and $runnerText.Contains('historicalG0EvidenceModified=$false')) 'new archive export and proof never claim a new ZIP-to-TS execution or rewrite G0'
 Assert-Behavior ($runnerText.Contains('[Text.UTF8Encoding]::new($false,$true)') -and $runnerText.Contains('$strictUtf8.GetString([IO.File]::ReadAllBytes($fixtureShaPath))')) 'fixture SHA is decoded from strict original UTF8 bytes without automatic BOM removal'
-Write-Host "Native profile CI pure behavior/AST checks passed: $script:passed (nativeExecution=false; CI runner never executed)."
+$transportCalls = @($calls | Where-Object {$_.GetCommandName() -ceq 'Write-ZentraNativeProfileTransportBundle'})
+$finalProofCalls = @($calls | Where-Object {$_.GetCommandName() -ceq 'Save-ZentraHarnessProof' -and $_.Extent.Text.Contains("'native-profile-verification-proof.json'")})
+Assert-Behavior ($transportCalls.Count -eq 1 -and $finalProofCalls.Count -eq 1 -and
+    $finalProofCalls[0].Extent.EndOffset -lt $transportCalls[0].Extent.StartOffset -and
+    $transportCalls[0].Extent.StartOffset -gt $topTry[0].Finally.Extent.StartOffset -and
+    $transportCalls[0].Extent.EndOffset -lt $topTry[0].Finally.Extent.EndOffset -and
+    $transportCalls[0].Extent.Text -ceq 'Write-ZentraNativeProfileTransportBundle -Context $admission -Repository $repo -ArtifactRoot $artifactRoot') 'sole transport call follows final proof saving and environment restoration inside outer finally'
+$helperTokens=$null; $helperErrors=$null
+$helperAst = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'action-native-profile-verification.ps1'),[ref]$helperTokens,[ref]$helperErrors)
+Assert-Behavior ($helperErrors.Count -eq 0) 'managed transport helper AST parses'
+$writer = @($helperAst.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq 'Write-ZentraNativeProfileTransportBundle'},$true))[0]
+$writerText = $writer.Extent.Text
+Assert-Behavior ($writerText.Contains('[IO.Compression.ZipArchive]::new') -and $writerText.Contains('[IO.FileMode]::CreateNew') -and
+    $writerText.Contains('[IO.FileShare]::Read)') -and $writerText.Contains('Get-ZentraNativeProfileTransportInventory') -and
+    -not $writerText.Contains('Compress-Archive') -and -not $writerText.Contains('Save-ZentraHarnessProof')) 'transport uses only managed ZIP and exclusive fresh outputs without rewriting any proof'
+$writerCommands = @($writer.FindAll({param($n) $n -is [Management.Automation.Language.CommandAst]},$true))
+Assert-Behavior (@($writerCommands | Where-Object {$_.GetCommandName() -cin @('Invoke-WebRequest','Start-Process','Invoke-ZentraHarnessTool','Initialize-ZentraVerificationHarness','Invoke-ZentraVerificationSuite','cargo','rustup','7z','tar')}).Count -eq 0) 'managed transport cannot invoke network, app packaging or native tools'
+$writerAdmission = @($writerCommands | Where-Object {$_.GetCommandName() -ceq 'Assert-ZentraNativeProfileAdmission'})
+$writerSource = @($writerCommands | Where-Object {$_.GetCommandName() -ceq 'Assert-ZentraNativeProfileTransportSource'})
+$writerInventories = @($writerCommands | Where-Object {$_.GetCommandName() -ceq 'Get-ZentraNativeProfileTransportInventory'})
+$opens = @($writer.FindAll({param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Expression.Extent.Text -ceq '[IO.FileStream]'},$true))
+Assert-Behavior ($writerAdmission.Count -eq 1 -and $writerSource.Count -eq 2 -and $writerInventories.Count -eq 2 -and $opens.Count -eq 3 -and
+    $writerAdmission[0].Extent.EndOffset -lt $writerSource[0].Extent.StartOffset -and
+    $writerSource[0].Extent.EndOffset -lt $writerInventories[0].Extent.StartOffset -and
+    $writerInventories[0].Extent.EndOffset -lt $opens[0].Extent.StartOffset -and
+    $writerInventories[1].Extent.EndOffset -lt $writerSource[1].Extent.StartOffset -and
+    $writerSource[1].Extent.EndOffset -lt $opens[2].Extent.StartOffset) 'transport revalidates admission/source and the complete metadata inventory before reads and again before a receipt'
+Write-Host "Native profile CI pure behavior/AST/managed-ZIP checks passed: $script:passed (nativeExecution=false; CI runner never executed)."

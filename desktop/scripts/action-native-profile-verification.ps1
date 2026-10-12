@@ -1,4 +1,4 @@
-# Pure CI admission, selection and result checks. Dot-sourcing never runs tools,
+# CI admission, selection, result checks and explicit evidence transport. Dot-sourcing never runs tools,
 # opens a store, changes environment variables or executes a native harness.
 Set-StrictMode -Version Latest
 
@@ -48,6 +48,187 @@ function Get-ZentraNativeProfileNodePlan {
         ArtifactDirectory=('node-{0}-{1}' -f $index,$name)
         PipelineId=$Context['ZENTRA_NATIVE_PROFILE_PIPELINE_ID']
         WorkflowId=$Context['CIRCLE_WORKFLOW_ID']; JobNumber=$Context['CIRCLE_BUILD_NUM']
+    }
+}
+
+function Assert-ZentraNativeProfileTransportRelativePath {
+    param([Parameter(Mandatory=$true)][AllowEmptyString()][string]$Path)
+    if ($Path.Length -gt 240 -or $Path -cnotmatch '\A[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\z') {
+        throw 'Native profile transport requires bounded ordinary relative file paths.'
+    }
+    foreach ($part in $Path.Split('/')) {
+        if ($part -in @('.','..') -or $part.EndsWith('.') -or
+            $part -match '\A(?:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(?:\.|\z)') {
+            throw 'Native profile transport refuses ambiguous Windows path components.'
+        }
+    }
+}
+
+function Get-ZentraNativeProfileTransportPlan {
+    param([Parameter(Mandatory=$true)][Collections.IDictionary]$Context,
+        [Parameter(Mandatory=$true)][AllowEmptyCollection()][object[]]$Files)
+    Assert-ZentraNativeProfileAdmission -Context $Context
+    $node = Get-ZentraNativeProfileNodePlan -Context $Context
+    if ($Files.Count -lt 1 -or $Files.Count -gt 512) { throw 'Native profile transport requires one bounded file inventory.' }
+    $paths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $total = [long]0
+    foreach ($file in $Files) {
+        if ($file.path -isnot [string]) { throw 'Native profile transport requires actual relative path strings.' }
+        Assert-ZentraNativeProfileTransportRelativePath -Path $file.path
+        if (-not $paths.Add($file.path) -or ($file.bytes -isnot [int] -and $file.bytes -isnot [long]) -or
+            $file.bytes -lt 0 -or $file.bytes -gt 134217728) { throw 'Native profile transport refuses collisions or unbounded file sizes.' }
+        $total += $file.bytes
+        if ($total -gt 268435456) { throw 'Native profile transport exceeds the complete inventory byte limit.' }
+    }
+    foreach ($path in $paths) {
+        $parent = $path
+        while ($parent.Contains('/')) {
+            $parent = $parent.Substring(0,$parent.LastIndexOf('/'))
+            if ($paths.Contains($parent)) { throw 'Native profile transport refuses file/directory collisions.' }
+        }
+    }
+    if (@($Files | Where-Object { $_.path -ceq 'native-profile-verification-proof.json' }).Count -ne 1) { throw 'Native profile transport requires the final node proof in its real inventory.' }
+    $orderedPaths = [string[]]@($paths)
+    [Array]::Sort($orderedPaths,[StringComparer]::Ordinal)
+    return [pscustomobject]@{
+        Node=$node; Paths=$orderedPaths; TotalBytes=$total
+        ZipName=($node.ArtifactDirectory + '-evidence.zip')
+        ReceiptName=($node.ArtifactDirectory + '-evidence.receipt.json')
+    }
+}
+
+function Assert-ZentraNativeProfileTransportOrdinaryPath {
+    param([Parameter(Mandatory=$true)][string]$Path, [switch]$Directory)
+    $current = [IO.Path]::GetFullPath($Path)
+    $first = $true
+    while (-not [string]::IsNullOrEmpty($current)) {
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+        $expectDirectory = -not $first -or $Directory.IsPresent
+        if (($expectDirectory -and $item -isnot [IO.DirectoryInfo]) -or
+            (-not $expectDirectory -and $item -isnot [IO.FileInfo]) -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            $null -eq $item.PSObject.Properties['LinkType'] -or -not [string]::IsNullOrEmpty($item.LinkType)) {
+            throw 'Native profile transport requires ordinary files and directories without linked ancestors.'
+        }
+        $first = $false
+        $current = [IO.Path]::GetDirectoryName($current)
+    }
+}
+
+function Get-ZentraNativeProfileTransportInventory {
+    param([Parameter(Mandatory=$true)][string]$NodePath)
+    Assert-ZentraNativeProfileTransportOrdinaryPath -Path $NodePath -Directory
+    $prefix = [IO.Path]::GetFullPath($NodePath).TrimEnd([char[]]@('\','/')) + [IO.Path]::DirectorySeparatorChar
+    $pending = [Collections.Generic.Queue[string]]::new()
+    $pending.Enqueue($NodePath)
+    $files = [Collections.Generic.List[object]]::new()
+    $directories = 1
+    while ($pending.Count -gt 0) {
+        $directory = $pending.Dequeue()
+        Assert-ZentraNativeProfileTransportOrdinaryPath -Path $directory -Directory
+        $entries = [IO.Directory]::EnumerateFileSystemEntries($directory).GetEnumerator()
+        try {
+            while ($entries.MoveNext()) {
+                $fullPath = [IO.Path]::GetFullPath($entries.Current)
+                if (-not $fullPath.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) { throw 'Native profile transport refuses a path outside its node directory.' }
+                $relative = $fullPath.Substring($prefix.Length).Replace('\','/')
+                Assert-ZentraNativeProfileTransportRelativePath -Path $relative
+                $item = Get-Item -LiteralPath $fullPath -Force -ErrorAction Stop
+                Assert-ZentraNativeProfileTransportOrdinaryPath -Path $fullPath -Directory:($item -is [IO.DirectoryInfo])
+                if ($item -is [IO.DirectoryInfo]) {
+                    $directories++
+                    if ($directories -gt 512) { throw 'Native profile transport exceeds the directory limit.' }
+                    $pending.Enqueue($fullPath)
+                } else {
+                    $files.Add([pscustomobject]@{path=$relative;bytes=$item.Length;fullPath=$fullPath})
+                    if ($files.Count -gt 512) { throw 'Native profile transport exceeds the file limit.' }
+                }
+            }
+        } finally { $entries.Dispose() }
+    }
+    return $files.ToArray()
+}
+
+function Assert-ZentraNativeProfileTransportSource {
+    param([Parameter(Mandatory=$true)][string]$Repository, [Parameter(Mandatory=$true)][string]$Source)
+    $head = @(& git -C $Repository rev-parse HEAD)
+    if ($LASTEXITCODE -ne 0 -or $head.Count -ne 1 -or $head[0] -cne $Source) {
+        throw 'Native profile transport requires HEAD to remain the exact admitted CircleCI source.'
+    }
+}
+
+function Write-ZentraNativeProfileTransportBundle {
+    param([Parameter(Mandatory=$true)][Collections.IDictionary]$Context,
+        [Parameter(Mandatory=$true)][string]$Repository, [Parameter(Mandatory=$true)][string]$ArtifactRoot)
+    # Admission and unchanged source precede all evidence reads and output creation.
+    Assert-ZentraNativeProfileAdmission -Context $Context
+    Assert-ZentraNativeProfileTransportSource -Repository $Repository -Source $Context['CIRCLE_SHA1']
+    $node = Get-ZentraNativeProfileNodePlan -Context $Context
+    Assert-ZentraNativeProfileTransportOrdinaryPath -Path $ArtifactRoot -Directory
+    $nodePath = Join-Path $ArtifactRoot $node.ArtifactDirectory
+    $files = @(Get-ZentraNativeProfileTransportInventory -NodePath $nodePath)
+    $plan = Get-ZentraNativeProfileTransportPlan -Context $Context -Files $files
+    $zipPath = Join-Path $ArtifactRoot $plan.ZipName
+    $receiptPath = Join-Path $ArtifactRoot $plan.ReceiptName
+    if (Test-Path -LiteralPath $zipPath) { throw 'Native profile transport ZIP must be fresh.' }
+    if (Test-Path -LiteralPath $receiptPath) { throw 'Native profile transport receipt must be fresh.' }
+    Add-Type -AssemblyName System.IO.Compression
+    $streams = [Collections.Generic.Dictionary[string,IO.FileStream]]::new([StringComparer]::Ordinal)
+    $inventory = @()
+    $zipStream=$null; $archive=$null; $receiptStream=$null; $hash=$null
+    try {
+        # Keep every admitted source open with no write/delete sharing through ZIP creation.
+        foreach ($path in $plan.Paths) {
+            $file = @($files | Where-Object { $_.path -ceq $path })[0]
+            Assert-ZentraNativeProfileTransportOrdinaryPath -Path $file.fullPath
+            $stream = [IO.FileStream]::new($file.fullPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+            $streams.Add($path,$stream)
+            if ($stream.Length -ne $file.bytes) { throw 'Native profile transport source size changed.' }
+        }
+        $hash = [Security.Cryptography.SHA256]::Create()
+        foreach ($path in $plan.Paths) {
+            $stream = $streams[$path]
+            $sha = [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-','').ToLowerInvariant()
+            $inventory += [ordered]@{path=$path;bytes=$stream.Length;sha256=$sha}
+            $stream.Position = 0
+        }
+        $zipStream = [IO.FileStream]::new($zipPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+        $archive = [IO.Compression.ZipArchive]::new($zipStream,[IO.Compression.ZipArchiveMode]::Create,$true)
+        foreach ($path in $plan.Paths) {
+            $entry = $archive.CreateEntry($path,[IO.Compression.CompressionLevel]::Optimal)
+            $destination = $entry.Open()
+            try { $streams[$path].CopyTo($destination) } finally { $destination.Dispose() }
+        }
+        $archive.Dispose(); $archive=$null
+        $zipStream.Flush($true)
+        $after = @(Get-ZentraNativeProfileTransportInventory -NodePath $nodePath)
+        $afterPlan = Get-ZentraNativeProfileTransportPlan -Context $Context -Files $after
+        if ($afterPlan.Paths.Count -ne $plan.Paths.Count -or $afterPlan.TotalBytes -ne $plan.TotalBytes -or
+            [string]::Join("`n",$afterPlan.Paths) -cne [string]::Join("`n",$plan.Paths)) { throw 'Native profile transport inventory changed during capture.' }
+        Assert-ZentraNativeProfileTransportSource -Repository $Repository -Source $Context['CIRCLE_SHA1']
+        if ($zipStream.Length -lt 1 -or $zipStream.Length -gt 269484032) { throw 'Native profile transport ZIP exceeds its complete bound.' }
+        $zipStream.Position = 0
+        $zipSha = [BitConverter]::ToString($hash.ComputeHash($zipStream)).Replace('-','').ToLowerInvariant()
+        $receipt = [ordered]@{
+            kind='isolated-native-test-profile-transport-receipt';schemaVersion=1
+            source=$Context['CIRCLE_SHA1'];circleSource=$Context['CIRCLE_SHA1']
+            pipelineId=$node.PipelineId;workflowId=$node.WorkflowId;jobNumber=$node.JobNumber
+            nodeIndex=$node.NodeIndex;nodeTotal=$node.NodeTotal;context=$node.Context
+            nodeDirectory=$node.ArtifactDirectory;finalProofPath='native-profile-verification-proof.json'
+            fileCount=$inventory.Count;totalBytes=$plan.TotalBytes;files=$inventory
+            zip=[ordered]@{path=$plan.ZipName;bytes=$zipStream.Length;sha256=$zipSha}
+        }
+        $receiptBytes = [Text.UTF8Encoding]::new($false).GetBytes(($receipt | ConvertTo-Json -Depth 6))
+        $receiptStream = [IO.FileStream]::new($receiptPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        $receiptStream.Write($receiptBytes,0,$receiptBytes.Length)
+        $receiptStream.Flush($true)
+        return [pscustomobject]@{ZipPath=$zipPath;ReceiptPath=$receiptPath;FileCount=$inventory.Count;TotalBytes=$plan.TotalBytes;ZipSha256=$zipSha}
+    } finally {
+        if ($null -ne $receiptStream) { $receiptStream.Dispose() }
+        if ($null -ne $archive) { $archive.Dispose() }
+        if ($null -ne $zipStream) { $zipStream.Dispose() }
+        if ($null -ne $hash) { $hash.Dispose() }
+        foreach ($stream in $streams.Values) { $stream.Dispose() }
     }
 }
 
