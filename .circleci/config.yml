@@ -13,6 +13,9 @@ parameters:
   verify-live-profile-only:
     type: boolean
     default: false
+  verify-live-account-only:
+    type: boolean
+    default: false
   diagnostics-native-set:
     type: enum
     enum: [full, native-mail-payroll, benchmark-payment, benchmark-public-payment, action-engine]
@@ -38,6 +41,35 @@ parameters:
     default: ""
 
 jobs:
+  windows-action-live-account-tests:
+    parallelism: 1
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
+      ZENTRA_VERIFY_ONLY: << pipeline.parameters.verify-only >>
+      ZENTRA_VERIFY_NATIVE_PROFILE_ONLY: << pipeline.parameters.verify-native-profile-only >>
+      ZENTRA_VERIFY_LIVE_PROFILE_ONLY: << pipeline.parameters.verify-live-profile-only >>
+      ZENTRA_VERIFY_LIVE_ACCOUNT_ONLY: << pipeline.parameters.verify-live-account-only >>
+      ZENTRA_LIVE_PROFILE_RELEASE: << pipeline.parameters.release >>
+      ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>
+      ZENTRA_LIVE_PROFILE_PIPELINE_ID: << pipeline.id >>
+    steps:
+      - checkout
+      - run:
+          name: Compile a fresh A41 profile and connect then reopen two real native stores
+          command: node desktop/scripts/verify-action-live-account-ci-windows.mjs --ci-run
+          no_output_timeout: 40m
+      - store_artifacts:
+          path: desktop/artifacts/action-live-profile
+          destination: action-live-account-profile-compilation
+      - store_artifacts:
+          path: desktop/artifacts/action-live-account
+          destination: action-live-account-public-report
   windows-action-live-profile-tests:
     parallelism: 1
     resource_class: windows.medium
@@ -544,9 +576,25 @@ jobs:
           destination: apple
 
 workflows:
+  action-live-account-verification:
+    when:
+      and:
+        - equal: [codex/action-engine-native-live-a41, << pipeline.git.branch >>]
+        - << pipeline.parameters.verify-only >>
+        - << pipeline.parameters.verify-live-account-only >>
+        - not: << pipeline.parameters.verify-live-profile-only >>
+        - not: << pipeline.parameters.verify-native-profile-only >>
+        - not: << pipeline.parameters.release >>
+        - equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - equal: [0, << pipeline.parameters.smoke-windows-job >>]
+        - equal: [0, << pipeline.parameters.smoke-apple-job >>]
+    jobs:
+      - windows-action-live-account-tests:
+          context: zentra-a41-native-live-account-qa
   action-live-profile-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/action-engine-native-live-a41, << pipeline.git.branch >>]
         - << pipeline.parameters.verify-only >>
         - << pipeline.parameters.verify-live-profile-only >>
@@ -560,6 +608,7 @@ workflows:
   action-native-profile-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/action-engine-native, << pipeline.git.branch >>]
         - << pipeline.parameters.verify-only >>
         - << pipeline.parameters.verify-native-profile-only >>
@@ -572,6 +621,7 @@ workflows:
   action-engine-native-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/action-engine-native, << pipeline.git.branch >>]
         - << pipeline.parameters.verify-only >>
         - not: << pipeline.parameters.verify-native-profile-only >>
@@ -585,6 +635,7 @@ workflows:
   user-clarity-release-1914:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.14-20261006, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -597,6 +648,7 @@ workflows:
   quality-continuity-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/quality-continuity-20261004, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -608,6 +660,7 @@ workflows:
   drafts-diagnostics-release-1913:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.13-20261004, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -620,6 +673,7 @@ workflows:
   drafts-errors-diagnostics-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - equal: [full, << pipeline.parameters.diagnostics-native-set >>]
@@ -635,6 +689,7 @@ workflows:
   drafts-errors-diagnostics-targeted-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/drafts-errors-diagnostics-20261001, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -646,6 +701,7 @@ workflows:
   apple-design-release-1912:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/apple-design-app-20261001, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -658,6 +714,7 @@ workflows:
   notes-release-1911:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/notes-release-1.90.11-20260930, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -670,6 +727,7 @@ workflows:
   first-client-1910:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1910, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -682,6 +740,7 @@ workflows:
   windows-volume-1909:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.9-windows-volume, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -691,6 +750,7 @@ workflows:
   android-package-1909:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.9-android-smoke, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -700,6 +760,7 @@ workflows:
   first-client-package-1909:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.9-windows-smoke, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -709,6 +770,7 @@ workflows:
   first-client-1909:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1909, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -721,6 +783,7 @@ workflows:
   android-package-1908:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.8-android-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -729,6 +792,7 @@ workflows:
   windows-package-1908:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.8-windows-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -737,6 +801,7 @@ workflows:
   first-client-1908:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1908, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -749,6 +814,7 @@ workflows:
   android-package-1907:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.7-android-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -757,6 +823,7 @@ workflows:
   first-client-package-1907:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.7-windows-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -765,6 +832,7 @@ workflows:
   first-client-1907:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1907, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -776,6 +844,7 @@ workflows:
   first-client-android-payload-smoke:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-android-smoke-20260928, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -784,6 +853,7 @@ workflows:
   first-client-android-release:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-android-release-20260927, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -793,6 +863,7 @@ workflows:
   iphone-brand-1906:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.6-iphone-icons, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -801,6 +872,7 @@ workflows:
   first-client-package-1906:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.6-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -809,6 +881,7 @@ workflows:
   first-client-1906:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1906, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -819,6 +892,7 @@ workflows:
   first-client-package-1905:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.5-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -827,6 +901,7 @@ workflows:
   first-client-1905:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1905, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -837,6 +912,7 @@ workflows:
   updater-channel-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/updater-channel-verification-20260927, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -845,6 +921,7 @@ workflows:
   first-client-backup-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/backup-verification-20260927, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -853,6 +930,7 @@ workflows:
   first-client-shared-mail-verification:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/shared-mail-verification-20260927, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -861,6 +939,7 @@ workflows:
   first-client-package-1904:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.90.4-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -869,6 +948,7 @@ workflows:
   first-client-1904:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1904, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -879,6 +959,7 @@ workflows:
   first-client-pdf-pagination:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-pdf-pagination-20260927, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -887,6 +968,7 @@ workflows:
   first-client-project-reports:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-project-reports-20260927, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -895,6 +977,7 @@ workflows:
   first-client-apple-1903:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-apple-1903, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -903,6 +986,7 @@ workflows:
   first-client-1903:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/first-client-release-1903, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -913,6 +997,7 @@ workflows:
   mail-logo-1902:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/mail-logo-1902, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -923,6 +1008,7 @@ workflows:
   brand-icon-1901:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/brand-icon-1901, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -933,6 +1019,7 @@ workflows:
   bexio-import-190:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/bexio-import-190, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -941,6 +1028,7 @@ workflows:
   mail-connection-1891:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/mail-connection-1891, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -949,6 +1037,7 @@ workflows:
   fixed-assets-scan-validation:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/fixed-assets-invoice-scan, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -957,6 +1046,7 @@ workflows:
   release-189-windows:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.89.0-windows, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -965,6 +1055,7 @@ workflows:
   outgoing-mail-validation:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/company-outgoing-mail, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -973,6 +1064,7 @@ workflows:
   smoke-1881:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.88.1-smoke, << pipeline.git.branch >>]
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -981,6 +1073,7 @@ workflows:
   release-1881:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.88.1, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -992,6 +1085,7 @@ workflows:
   release-188:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.88.0, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -1003,6 +1097,7 @@ workflows:
   mobile-release-187:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.87.0, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -1013,6 +1108,7 @@ workflows:
   mobile-release-1861:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.86.1, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -1023,6 +1119,7 @@ workflows:
   apple-retry-186:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.86.0-apple, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -1032,6 +1129,7 @@ workflows:
   mobile-release-186:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - equal: [codex/release-1.86.0, << pipeline.git.branch >>]
         - not: << pipeline.parameters.release >>
         - not:
@@ -1042,6 +1140,7 @@ workflows:
   android-release-candidate:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - << pipeline.parameters.release >>
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -1056,6 +1155,7 @@ workflows:
   verify-windows-package:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - not:
             equal: [0, << pipeline.parameters.smoke-windows-job >>]
         - not:
@@ -1067,6 +1167,7 @@ workflows:
   verify-apple-package:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - not:
             equal: [0, << pipeline.parameters.smoke-apple-job >>]
         - not:
@@ -1078,6 +1179,7 @@ workflows:
   windows-release-candidate:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - << pipeline.parameters.release >>
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
@@ -1091,6 +1193,7 @@ workflows:
   apple-release-candidate:
     when:
       and:
+        - not: << pipeline.parameters.verify-live-account-only >>
         - << pipeline.parameters.release >>
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
