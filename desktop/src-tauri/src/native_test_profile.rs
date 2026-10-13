@@ -10,6 +10,14 @@ use std::sync::OnceLock;
 
 const REFUSED: &str = "ZENTRA_ACTION_NATIVE_TEST_PROFILE_REFUSED";
 const MAX_PROFILE_BYTES: usize = 8192;
+const LIVE_A41_CONTEXT: &str = "live-sandbox-a41";
+const LIVE_A41_PROFILE_SHA256: &str =
+    "2c23574986b6d87795a95c7a8a4ced270b396d0eba5160b5997b96faeb3693bf";
+const LIVE_A41_SITE_ORIGIN: &str =
+    "https://zentra-autopilote-recette-a41-20261013.alb-leart1.chatgpt.site";
+const LIVE_A41_SUPABASE_ORIGIN: &str = "https://lanhvwpalnkuabtjcpgp.supabase.co";
+const LIVE_A41_PUBLIC_KEY: &str = "hLFfY6E43JD0Sz-gUOrhOHY8mxQHqyu2875H2oXPQb0";
+const LIVE_A41_KID: &str = "sandbox-action-engine-a41";
 const PRODUCTION_PUBLIC_KEY: &str = "FySkIPXpEIfZ9UCBlXuhFAgFx3LpchgBFWTh65Aa040";
 const PRODUCTION_KID: &str = "hc-prod-v1";
 const PRODUCTION_HOSTS: [&str; 5] = [
@@ -102,9 +110,36 @@ impl NativeTestProfile {
 
 static CONFIGURED: OnceLock<Result<Option<NativeTestProfile>, &'static str>> = OnceLock::new();
 
+// Only the explicitly compiled live context admits this provisioned public
+// identity. An absent context retains the historical A33 parser contract;
+// an unknown context or incomplete live input never falls back to it.
+fn parse_compilation_context(
+    context: Option<&str>,
+    json: Option<&[u8]>,
+    expected_sha256: Option<&str>,
+) -> Result<Option<NativeTestProfile>, &'static str> {
+    match context {
+        None => parse(json, expected_sha256),
+        Some(LIVE_A41_CONTEXT) => {
+            let profile = parse(json, expected_sha256)?.ok_or(REFUSED)?;
+            if profile.sha256() != LIVE_A41_PROFILE_SHA256
+                || profile.site_origin() != LIVE_A41_SITE_ORIGIN
+                || profile.profile.supabase_origin != LIVE_A41_SUPABASE_ORIGIN
+                || profile.profile.license.public_key_b64url != LIVE_A41_PUBLIC_KEY
+                || profile.license_kid() != LIVE_A41_KID
+            {
+                return Err(REFUSED);
+            }
+            Ok(Some(profile))
+        }
+        Some(_) => Err(REFUSED),
+    }
+}
+
 pub(crate) fn configured() -> Result<Option<&'static NativeTestProfile>, &'static str> {
     match CONFIGURED.get_or_init(|| {
-        parse(
+        parse_compilation_context(
+            option_env!("ZENTRA_ACTION_NATIVE_TEST_CONTEXT"),
             option_env!("ZENTRA_ACTION_NATIVE_TEST_PROFILE_JSON").map(str::as_bytes),
             option_env!("ZENTRA_ACTION_NATIVE_TEST_PROFILE_SHA256"),
         )
@@ -358,6 +393,10 @@ mod tests {
     const PREPARED: &[u8] = include_bytes!("../../tests/fixtures/action-native-test-profile.public.json");
     const PREPARED_SHA256: &str =
         include_str!("../../tests/fixtures/action-native-test-profile.public.sha256");
+    // Separate provisioned identity; the historical non-provisioned A33
+    // fixture and its SHA above remain unchanged.
+    const LIVE_A41_PREPARED: &[u8] =
+        include_bytes!("../../tests/fixtures/action-native-live-a41-profile.public.json");
 
     fn fixture() -> Value {
         serde_json::from_slice(PREPARED).unwrap()
@@ -415,18 +454,35 @@ mod tests {
         // tests, which must also exercise the closed error branch. No global
         // environment or OnceLock state is replaced between these contexts.
         match (
+            option_env!("ZENTRA_ACTION_NATIVE_TEST_CONTEXT"),
             option_env!("ZENTRA_ACTION_NATIVE_TEST_PROFILE_JSON"),
             option_env!("ZENTRA_ACTION_NATIVE_TEST_PROFILE_SHA256"),
         ) {
-            (None, None) => {
+            (None, None, None) => {
                 assert!(configured().unwrap().is_none());
                 assert_eq!(require().unwrap_err(), REFUSED);
             }
-            (Some(_), Some(expected_sha256)) => {
+            (None, Some(_), Some(expected_sha256)) => {
                 assert_eq!(expected_sha256, fixture_sha256());
                 let expected = parse(Some(PREPARED), Some(fixture_sha256()))
                     .unwrap()
                     .unwrap();
+                let actual = configured().unwrap().unwrap();
+                assert_eq!(actual.site_origin(), expected.site_origin());
+                assert_eq!(actual.license_key(), expected.license_key());
+                assert_eq!(actual.license_kid(), expected.license_kid());
+                assert_eq!(actual.sha256(), expected.sha256());
+                assert!(std::ptr::eq(require().unwrap(), actual));
+            }
+            (Some(LIVE_A41_CONTEXT), Some(_), Some(expected_sha256)) => {
+                assert_eq!(expected_sha256, LIVE_A41_PROFILE_SHA256);
+                let expected = parse_compilation_context(
+                    Some(LIVE_A41_CONTEXT),
+                    Some(LIVE_A41_PREPARED),
+                    Some(LIVE_A41_PROFILE_SHA256),
+                )
+                .unwrap()
+                .unwrap();
                 let actual = configured().unwrap().unwrap();
                 assert_eq!(actual.site_origin(), expected.site_origin());
                 assert_eq!(actual.license_key(), expected.license_key());
@@ -835,4 +891,88 @@ mod tests {
         attach_sites_access(&mut ordinary, Ok(None), None).unwrap();
         assert!(!ordinary.headers().contains_key(SITES_ACCESS_HEADER));
     }
+}
+
+#[cfg(test)]
+mod live_a41_context_tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    const PREPARED: &[u8] = include_bytes!("../../tests/fixtures/action-native-test-profile.public.json");
+    const LIVE_A41_PREPARED: &[u8] =
+        include_bytes!("../../tests/fixtures/action-native-live-a41-profile.public.json");
+
+    fn fixture_sha256() -> &'static str {
+        include_str!("../../tests/fixtures/action-native-test-profile.public.sha256").trim_end()
+    }
+
+    fn coherent(mut envelope: Value) -> (Vec<u8>, String) {
+        let expected = format!(
+            "{:x}",
+            Sha256::digest(canonical_json(&envelope["profile"]).unwrap().as_bytes())
+        );
+        envelope["deploymentProfileSha256"] = json!(expected);
+        (serde_json::to_vec(&envelope).unwrap(), expected)
+    }
+
+    #[test]
+    fn live_a41_compilation_context_admits_only_exact_public_tuple() {
+        let profile = parse_compilation_context(
+            Some(LIVE_A41_CONTEXT),
+            Some(LIVE_A41_PREPARED),
+            Some(LIVE_A41_PROFILE_SHA256),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(profile.sha256(), LIVE_A41_PROFILE_SHA256);
+        assert_eq!(profile.site_origin(), LIVE_A41_SITE_ORIGIN);
+        assert_eq!(profile.profile.supabase_origin, LIVE_A41_SUPABASE_ORIGIN);
+        assert_eq!(URL_SAFE_NO_PAD.encode(profile.license_key()), LIVE_A41_PUBLIC_KEY);
+        assert_eq!(profile.license_kid(), LIVE_A41_KID);
+        assert_ne!(profile.sha256(), fixture_sha256());
+
+        for (bytes, sha256) in [
+            (None, None),
+            (Some(LIVE_A41_PREPARED), None),
+            (None, Some(LIVE_A41_PROFILE_SHA256)),
+            (Some(PREPARED), Some(fixture_sha256())),
+            (Some(LIVE_A41_PREPARED), Some(fixture_sha256())),
+        ] {
+            assert_eq!(
+                parse_compilation_context(Some(LIVE_A41_CONTEXT), bytes, sha256).unwrap_err(),
+                REFUSED
+            );
+        }
+        for context in ["", "sandbox", "live-sandbox-a41 ", "LIVE-SANDBOX-A41", "live-sandbox-a42"] {
+            for (bytes, sha256) in [
+                (None, None),
+                (Some(LIVE_A41_PREPARED), Some(LIVE_A41_PROFILE_SHA256)),
+            ] {
+                assert_eq!(
+                    parse_compilation_context(Some(context), bytes, sha256).unwrap_err(),
+                    REFUSED
+                );
+            }
+        }
+        for (path, replacement) in [
+            (vec!["profileId"], json!("sandbox-other")),
+            (vec!["siteOrigin"], json!("https://other.example")),
+            (vec!["supabaseOrigin"], json!("https://bbbbbbbbbbbbbbbbbbbb.supabase.co")),
+            (vec!["license", "kid"], json!("sandbox-other-v1")),
+            (vec!["license", "publicKeyB64url"], json!(URL_SAFE_NO_PAD.encode([1_u8; 32]))),
+        ] {
+            let mut value: Value = serde_json::from_slice(LIVE_A41_PREPARED).unwrap();
+            let mut field = &mut value["profile"];
+            for name in path { field = &mut field[name]; }
+            *field = replacement;
+            let (bytes, sha256) = coherent(value);
+            assert!(parse(Some(&bytes), Some(&sha256)).unwrap().is_some());
+            assert_eq!(
+                parse_compilation_context(Some(LIVE_A41_CONTEXT), Some(&bytes), Some(&sha256))
+                    .unwrap_err(),
+                REFUSED
+            );
+        }
+    }
+
 }

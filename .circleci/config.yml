@@ -10,6 +10,9 @@ parameters:
   verify-native-profile-only:
     type: boolean
     default: false
+  verify-live-profile-only:
+    type: boolean
+    default: false
   diagnostics-native-set:
     type: enum
     enum: [full, native-mail-payroll, benchmark-payment, benchmark-public-payment, action-engine]
@@ -35,6 +38,31 @@ parameters:
     default: ""
 
 jobs:
+  windows-action-live-profile-tests:
+    parallelism: 1
+    resource_class: windows.medium
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_DIAGNOSTICS_ONLY: "true"
+      ZENTRA_VERIFY_ONLY: << pipeline.parameters.verify-only >>
+      ZENTRA_VERIFY_NATIVE_PROFILE_ONLY: << pipeline.parameters.verify-native-profile-only >>
+      ZENTRA_VERIFY_LIVE_PROFILE_ONLY: << pipeline.parameters.verify-live-profile-only >>
+      ZENTRA_LIVE_PROFILE_RELEASE: << pipeline.parameters.release >>
+      ZENTRA_DIAGNOSTICS_NATIVE_SET: << pipeline.parameters.diagnostics-native-set >>
+      ZENTRA_LIVE_PROFILE_PIPELINE_ID: << pipeline.id >>
+    steps:
+      - checkout
+      - run:
+          name: Compile the exact public live sandbox profile and verify targeted library tests
+          command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/verify-action-live-profile-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/action-live-profile
+          destination: action-live-profile-validation
   windows-action-native-profile-tests:
     parallelism: 3
     resource_class: windows.medium
@@ -516,6 +544,19 @@ jobs:
           destination: apple
 
 workflows:
+  action-live-profile-verification:
+    when:
+      and:
+        - equal: [codex/action-engine-native-live-a41, << pipeline.git.branch >>]
+        - << pipeline.parameters.verify-only >>
+        - << pipeline.parameters.verify-live-profile-only >>
+        - not: << pipeline.parameters.verify-native-profile-only >>
+        - not: << pipeline.parameters.release >>
+        - equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+        - equal: [0, << pipeline.parameters.smoke-windows-job >>]
+        - equal: [0, << pipeline.parameters.smoke-apple-job >>]
+    jobs:
+      - windows-action-live-profile-tests
   action-native-profile-verification:
     when:
       and:
