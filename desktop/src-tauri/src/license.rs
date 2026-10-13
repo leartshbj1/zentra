@@ -1596,11 +1596,15 @@ async fn request_refreshed_license(token: &str) -> AppResult<LicenseRefreshOutco
         .user_agent(format!("Zentra-License/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|_| AppError::Validation("Le client HTTPS de licence est indisponible.".into()))?;
-    let response = client
+    let request = client
         .post(endpoint)
         .header(ACCEPT, "application/json")
         .header(CONTENT_TYPE, "application/json")
-        .body(body)
+        .body(body);
+    #[cfg(test)]
+    let request = crate::native_test_profile::with_sites_authorization(request)
+        .map_err(|error| AppError::Validation(error.into()))?;
+    let response = request
         .send()
         .await
         .map_err(|_| {

@@ -44,7 +44,7 @@ function Get-ZentraNativeProfileNodePlan {
     $name = @('absent','sandbox','partial')[$index]
     return [pscustomobject]@{
         NodeIndex=$index; NodeTotal=3; Context=$name
-        ExpectedTotal=$(if ($index -eq 0) {265} else {26})
+        ExpectedTotal=$(if ($index -eq 0) {271} else {32})
         ArtifactDirectory=('node-{0}-{1}' -f $index,$name)
         PipelineId=$Context['ZENTRA_NATIVE_PROFILE_PIPELINE_ID']
         WorkflowId=$Context['CIRCLE_WORKFLOW_ID']; JobNumber=$Context['CIRCLE_BUILD_NUM']
@@ -311,6 +311,12 @@ function Get-ZentraNativeProfileVerificationPlan {
             'sandbox_profile_id_and_kid_grammar_and_bounds_match_the_preparer'
             'schema_versions_match_numeric_one_and_discriminators_are_literal'
             'malformed_json_and_wrong_types_return_only_the_fixed_redacted_error'
+            'sites_access_header_is_sensitive_and_preserves_device_authorization_and_body'
+            'sites_access_rejects_invalid_tokens_without_retaining_them'
+            'sites_access_installation_requires_a_valid_manifest_and_is_immutable'
+            'sites_access_refuses_foreign_production_and_non_https_destinations'
+            'sites_access_refuses_invalid_missing_profiles_and_preexisting_header'
+            'sites_access_preserves_site_paths_and_ordinary_tests_without_a_token'
         )
         'account_cloud::sandbox_profile_tests::'=@(
             'compiled_origin_is_shared_by_real_account_routes_and_portal'
@@ -364,7 +370,7 @@ function Assert-ZentraNativeProfileVerificationProof {
         [Parameter(Mandatory=$true)][AllowEmptyCollection()][object[]]$SuiteExecutions,
         [Parameter(Mandatory=$true)][AllowEmptyCollection()][string[]]$StdoutTexts,
         [Parameter(Mandatory=$true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$StderrTexts)
-    if ($Plan.ProfileTestNames.Count -ne 26 -or $Plan.ExpectedTotal -cnotin @(26,265) -or
+    if ($Plan.ProfileTestNames.Count -ne 32 -or $Plan.ExpectedTotal -cnotin @(32,271) -or
         $SuiteExecutions.Count -ne $Plan.Filters.Count -or $StdoutTexts.Count -ne $Plan.Filters.Count -or $StderrTexts.Count -ne $Plan.Filters.Count) {
         throw 'The native profile proof is incomplete.'
     }
@@ -421,5 +427,5 @@ function Assert-ZentraNativeProfileVerificationProof {
         $total += $execution.passed
     }
     if ($total -ne $Plan.ExpectedTotal) { throw 'The native profile runtime total does not corroborate the selection.' }
-    return [pscustomobject]@{TotalPassed=$total;ProfilePassed=26;ActionEnginePassed=$Plan.ActionEngineTestNames.Count;RuntimeNamesAndCountsCorroborated=$true}
+    return [pscustomobject]@{TotalPassed=$total;ProfilePassed=32;ActionEnginePassed=$Plan.ActionEngineTestNames.Count;RuntimeNamesAndCountsCorroborated=$true}
 }

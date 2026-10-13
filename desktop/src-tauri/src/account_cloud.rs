@@ -103,6 +103,9 @@ impl ProjectSyncSession {
             }
             request = request.body(body);
         }
+        #[cfg(test)]
+        let request = crate::native_test_profile::with_sites_authorization(request)
+            .map_err(|error| AppError::Validation(error.into()))?;
         let response = request.send().await.map_err(|_| AppError::Remote("Hors ligne ou service indisponible. Les fichiers restent sur cet appareil ; l’envoi reprendra automatiquement.".into()))?;
         let status = response.status();
         let bytes = read_response_with_limit(response,if file && status.is_success() {25*1024*1024} else {1024*1024}).await?;
@@ -1663,6 +1666,9 @@ async fn account_request_url(
         validate_opaque_token(token, "zds_")?;
         request = request.header(AUTHORIZATION, format!("Bearer {token}"));
     }
+    #[cfg(test)]
+    let request = crate::native_test_profile::with_sites_authorization(request)
+        .map_err(|error| AppError::Validation(error.into()))?;
     let response = request.send().await.map_err(|_| {
         AppError::Remote("Le service de compte Zentra est momentanément inaccessible.".into())
     })?;

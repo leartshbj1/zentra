@@ -1,8 +1,9 @@
 #![cfg(test)]
 
-// Public compilation input for the isolated test harness only. This module
-// performs no I/O and never selects a profile from the runtime environment.
+// Compilation input and optional in-memory service access for the isolated
+// test harness only. No I/O or profile selection from the runtime environment.
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use reqwest::header::HeaderValue;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
@@ -115,6 +116,90 @@ pub(crate) fn configured() -> Result<Option<&'static NativeTestProfile>, &'stati
 
 pub(crate) fn require() -> Result<&'static NativeTestProfile, &'static str> {
     configured()?.ok_or(REFUSED)
+}
+
+const SITES_ACCESS_REFUSED: &str = "ZENTRA_ACTION_NATIVE_TEST_SITES_ACCESS_REFUSED";
+const SITES_ACCESS_HEADER: &str = "oai-sites-authorization";
+const MAX_SITES_TOKEN_BYTES: usize = 4096;
+
+// Deliberately neither Debug nor Serialize. The secret is never part of the
+// public profile, compilation environment, protected store or archive.
+struct SitesAccessToken {
+    value: HeaderValue,
+}
+
+impl SitesAccessToken {
+    fn parse(token: &str) -> Result<Self, &'static str> {
+        if token.is_empty()
+            || token.len() > MAX_SITES_TOKEN_BYTES
+            || !token.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
+        {
+            return Err(SITES_ACCESS_REFUSED);
+        }
+        let mut value = HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|_| SITES_ACCESS_REFUSED)?;
+        value.set_sensitive(true);
+        Ok(Self { value })
+    }
+}
+
+static SITES_ACCESS: OnceLock<SitesAccessToken> = OnceLock::new();
+
+fn install_sites_access_into(
+    cell: &OnceLock<SitesAccessToken>,
+    profile: Result<Option<&NativeTestProfile>, &'static str>,
+    token: &str,
+) -> Result<(), &'static str> {
+    profile.map_err(|_| SITES_ACCESS_REFUSED)?.ok_or(SITES_ACCESS_REFUSED)?;
+    cell.set(SitesAccessToken::parse(token)?)
+        .map_err(|_| SITES_ACCESS_REFUSED)
+}
+
+// The future harness supplies the credential directly in memory, after its
+// admission guard and before any LocalStore initialization. No rotation/reset.
+pub(crate) fn install_sites_access_token(token: &str) -> Result<(), &'static str> {
+    let profile = require().map_err(|_| SITES_ACCESS_REFUSED)?;
+    install_sites_access_into(&SITES_ACCESS, Ok(Some(profile)), token)
+}
+
+fn attach_sites_access(
+    request: &mut reqwest::Request,
+    profile: Result<Option<&NativeTestProfile>, &'static str>,
+    access: Option<&SitesAccessToken>,
+) -> Result<(), &'static str> {
+    let profile = profile.map_err(|_| SITES_ACCESS_REFUSED)?;
+    if request.headers().contains_key(SITES_ACCESS_HEADER) {
+        return Err(SITES_ACCESS_REFUSED);
+    }
+    if profile.is_none() && access.is_none() {
+        return Ok(());
+    }
+    let profile = profile.ok_or(SITES_ACCESS_REFUSED)?;
+    let url = request.url();
+    if url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+        || url.origin().ascii_serialization() != profile.site_origin()
+    {
+        return Err(SITES_ACCESS_REFUSED);
+    }
+    if let Some(access) = access {
+        request.headers_mut().insert(SITES_ACCESS_HEADER, access.value.clone());
+    }
+    Ok(())
+}
+
+pub(crate) fn with_sites_authorization(
+    builder: reqwest::RequestBuilder,
+) -> Result<reqwest::RequestBuilder, &'static str> {
+    let profile = configured().map_err(|_| SITES_ACCESS_REFUSED)?;
+    // Inspect the actual destination and preserve the same client, body,
+    // timeout and Authorization. Never put a secret in client default headers.
+    let (client, request) = builder.build_split();
+    let mut request = request.map_err(|_| SITES_ACCESS_REFUSED)?;
+    attach_sites_access(&mut request, Ok(profile), SITES_ACCESS.get())?;
+    Ok(reqwest::RequestBuilder::from_parts(client, request))
 }
 
 fn valid_sha256(value: &str) -> bool {
@@ -643,5 +728,111 @@ mod tests {
                 refuses_coherent(value);
             }
         }
+    }
+
+    #[test]
+    fn sites_access_header_is_sensitive_and_preserves_device_authorization_and_body() {
+        let profile = parse(Some(PREPARED), Some(fixture_sha256())).unwrap().unwrap();
+        let access = SitesAccessToken::parse("synthetic-sites-access-token").unwrap();
+        let url = url::Url::parse(&format!("{}/api/account/collaboration?id=fixture", profile.site_origin())).unwrap();
+        let mut request = reqwest::Request::new(reqwest::Method::POST, url.clone());
+        request.headers_mut().insert(reqwest::header::AUTHORIZATION, HeaderValue::from_static("Bearer zds_synthetic_device_token"));
+        *request.body_mut() = Some(Vec::from(b"synthetic-body".as_slice()).into());
+        attach_sites_access(&mut request, Ok(Some(&profile)), Some(&access)).unwrap();
+        let header = request.headers().get(SITES_ACCESS_HEADER).unwrap();
+        assert!(header.is_sensitive());
+        assert_eq!(header.as_bytes(), b"Bearer synthetic-sites-access-token");
+        assert!(!format!("{header:?}").contains("synthetic-sites-access-token"));
+        assert_eq!(request.headers()[reqwest::header::AUTHORIZATION], "Bearer zds_synthetic_device_token");
+        assert_eq!(request.url(), &url);
+        assert_eq!(request.method(), reqwest::Method::POST);
+        assert_eq!(request.body().unwrap().as_bytes().unwrap(), b"synthetic-body");
+    }
+
+    #[test]
+    fn sites_access_rejects_invalid_tokens_without_retaining_them() {
+        let profile = parse(Some(PREPARED), Some(fixture_sha256())).unwrap().unwrap();
+        let too_long = "x".repeat(MAX_SITES_TOKEN_BYTES + 1);
+        for token in ["", "Bearer token", "has space", "tab\there", "line\r\nbreak", "nul\0byte", "non-ascii-é", too_long.as_str()] {
+            let cell = OnceLock::new();
+            assert_eq!(install_sites_access_into(&cell, Ok(Some(&profile)), token), Err(SITES_ACCESS_REFUSED));
+            assert!(cell.get().is_none());
+        }
+        let boundary = SitesAccessToken::parse(&"x".repeat(MAX_SITES_TOKEN_BYTES)).unwrap();
+        assert!(boundary.value.is_sensitive());
+    }
+
+    #[test]
+    fn sites_access_installation_requires_a_valid_manifest_and_is_immutable() {
+        let profile = parse(Some(PREPARED), Some(fixture_sha256())).unwrap().unwrap();
+        let cell = OnceLock::new();
+        for configuration in [Ok(None), Err(REFUSED)] {
+            assert_eq!(install_sites_access_into(&cell, configuration, "first-token"), Err(SITES_ACCESS_REFUSED));
+            assert!(cell.get().is_none());
+        }
+        let invalid = parse(Some(PREPARED), Some(&"0".repeat(64)));
+        let invalid = invalid.as_ref().map(|profile| profile.as_ref()).map_err(|error| *error);
+        assert_eq!(install_sites_access_into(&cell, invalid, "first-token"), Err(SITES_ACCESS_REFUSED));
+        assert!(cell.get().is_none());
+        install_sites_access_into(&cell, Ok(Some(&profile)), "first-token").unwrap();
+        assert_eq!(install_sites_access_into(&cell, Ok(Some(&profile)), "replacement-token"), Err(SITES_ACCESS_REFUSED));
+        assert_eq!(cell.get().unwrap().value.as_bytes(), b"Bearer first-token");
+        assert!(cell.get().unwrap().value.is_sensitive());
+    }
+
+    #[test]
+    fn sites_access_refuses_foreign_production_and_non_https_destinations() {
+        let profile = parse(Some(PREPARED), Some(fixture_sha256())).unwrap().unwrap();
+        let access = SitesAccessToken::parse("synthetic-sites-access-token").unwrap();
+        let mut refused = vec![
+            "http://sandbox.example/api/account/me".to_owned(),
+            "https://sandbox.example:8443/api/account/me".to_owned(),
+            "https://sandbox.example.evil.test/api/account/me".to_owned(),
+            "https://other.example/api/account/me".to_owned(),
+            "https://user:password@sandbox.example/api/account/me".to_owned(),
+            "https://sandbox.example/api/account/me#fragment".to_owned(),
+            format!("{}/api/account/me", profile.profile.supabase_origin),
+        ];
+        refused.extend(PRODUCTION_HOSTS.iter().map(|host| format!("https://{host}/api/account/me")));
+        for target in refused {
+            let mut request = reqwest::Request::new(reqwest::Method::GET, url::Url::parse(&target).unwrap());
+            assert_eq!(attach_sites_access(&mut request, Ok(Some(&profile)), Some(&access)), Err(SITES_ACCESS_REFUSED));
+            assert!(!request.headers().contains_key(SITES_ACCESS_HEADER));
+        }
+    }
+
+    #[test]
+    fn sites_access_refuses_invalid_missing_profiles_and_preexisting_header() {
+        let profile = parse(Some(PREPARED), Some(fixture_sha256())).unwrap().unwrap();
+        let access = SitesAccessToken::parse("synthetic-sites-access-token").unwrap();
+        let target = url::Url::parse(&format!("{}/api/account/me", profile.site_origin())).unwrap();
+        for configuration in [Ok(None), Err(REFUSED)] {
+            let mut request = reqwest::Request::new(reqwest::Method::GET, target.clone());
+            assert_eq!(attach_sites_access(&mut request, configuration, Some(&access)), Err(SITES_ACCESS_REFUSED));
+            assert!(!request.headers().contains_key(SITES_ACCESS_HEADER));
+        }
+        let mut request = reqwest::Request::new(reqwest::Method::GET, target);
+        assert_eq!(attach_sites_access(&mut request, Err(REFUSED), None), Err(SITES_ACCESS_REFUSED));
+        request.headers_mut().insert(SITES_ACCESS_HEADER, HeaderValue::from_static("Bearer caller-token"));
+        assert_eq!(attach_sites_access(&mut request, Ok(Some(&profile)), Some(&access)), Err(SITES_ACCESS_REFUSED));
+        assert_eq!(request.headers()[SITES_ACCESS_HEADER], "Bearer caller-token");
+    }
+
+    #[test]
+    fn sites_access_preserves_site_paths_and_ordinary_tests_without_a_token() {
+        let profile = parse(Some(PREPARED), Some(fixture_sha256())).unwrap().unwrap();
+        let access = SitesAccessToken::parse("synthetic-sites-access-token").unwrap();
+        for path in ["/api/account/device/start", "/api/account/device/poll", "/api/account/collaboration?id=fixture&content=1", crate::action_engine_device_protocol::PATH, crate::action_engine_device_protocol::WORK_PATH, "/api/stripe/refresh"] {
+            let target = url::Url::parse(&format!("{}{path}", profile.site_origin())).unwrap();
+            let mut request = reqwest::Request::new(reqwest::Method::POST, target.clone());
+            attach_sites_access(&mut request, Ok(Some(&profile)), None).unwrap();
+            assert!(!request.headers().contains_key(SITES_ACCESS_HEADER));
+            attach_sites_access(&mut request, Ok(Some(&profile)), Some(&access)).unwrap();
+            assert_eq!(request.url(), &target);
+            assert!(request.headers().get(SITES_ACCESS_HEADER).unwrap().is_sensitive());
+        }
+        let mut ordinary = reqwest::Request::new(reqwest::Method::GET, url::Url::parse("https://zentraapp.ch/api/account/me").unwrap());
+        attach_sites_access(&mut ordinary, Ok(None), None).unwrap();
+        assert!(!ordinary.headers().contains_key(SITES_ACCESS_HEADER));
     }
 }

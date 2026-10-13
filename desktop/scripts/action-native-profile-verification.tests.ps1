@@ -42,9 +42,9 @@ foreach ($value in @('TRUE','True',' true','true ')) {
     Assert-Refused { Assert-ZentraNativeProfileAdmission $copy } 'opt-in does not coerce case or whitespace'
 }
 foreach ($spec in @(
-    @{Index='0';Name='absent';Count=265},
-    @{Index='1';Name='sandbox';Count=26},
-    @{Index='2';Name='partial';Count=26}
+    @{Index='0';Name='absent';Count=271},
+    @{Index='1';Name='sandbox';Count=32},
+    @{Index='2';Name='partial';Count=32}
 )) {
     $copy = [ordered]@{}
     foreach ($key in $context.Keys) { $copy[$key] = $context[$key] }
@@ -109,7 +109,7 @@ Assert-Refused { Assert-ZentraNativeProfileRustupChecksum -Expected 'invalid' -A
 # Corroborate the reviewed names against source declarations without compiling.
 $profileNames = @()
 foreach ($spec in @(
-    @{File='native_test_profile.rs';Module='tests';Count=18},
+    @{File='native_test_profile.rs';Module='tests';Count=24},
     @{File='account_cloud.rs';Module='sandbox_profile_tests';Count=4},
     @{File='license.rs';Module='sandbox_profile_tests';Count=4}
 )) {
@@ -127,7 +127,19 @@ foreach ($spec in @(
 }
 $catalogue = @($profileNames + 'diagnostics::tests::synthetic_unselected')
 $plan = Get-ZentraNativeProfileVerificationPlan -TestNames $catalogue
-Assert-Behavior ($plan.Filters.Count -eq 3 -and $plan.ProfileTestNames.Count -eq 26 -and $plan.ActionEngineTestNames.Count -eq 0) 'three exact modules select all 26 source names only'
+Assert-Behavior ($plan.Filters.Count -eq 3 -and $plan.ProfileTestNames.Count -eq 32 -and $plan.ActionEngineTestNames.Count -eq 0) 'three exact modules select all 32 source names only'
+foreach ($name in @(
+    'sites_access_header_is_sensitive_and_preserves_device_authorization_and_body',
+    'sites_access_rejects_invalid_tokens_without_retaining_them',
+    'sites_access_installation_requires_a_valid_manifest_and_is_immutable',
+    'sites_access_refuses_foreign_production_and_non_https_destinations',
+    'sites_access_refuses_invalid_missing_profiles_and_preexisting_header',
+    'sites_access_preserves_site_paths_and_ordinary_tests_without_a_token'
+)) {
+    $fullName = 'native_test_profile::tests::' + $name
+    Assert-Behavior ($plan.ProfileTestNames -ccontains $fullName) 'each reviewed Sites header source regression is selected'
+    Assert-Refused { Get-ZentraNativeProfileVerificationPlan @($catalogue | Where-Object { $_ -cne $fullName }) } 'missing Sites header regression refuses'
+}
 Assert-Refused { Get-ZentraNativeProfileVerificationPlan @() } 'empty catalogue refuses'
 Assert-Refused { Get-ZentraNativeProfileVerificationPlan @($catalogue + $catalogue[0]) } 'duplicate catalogue refuses'
 Assert-Refused { Get-ZentraNativeProfileVerificationPlan @($catalogue + 'invalid name') } 'invalid catalogue refuses'
@@ -160,13 +172,13 @@ function Assert-SyntheticEvidence {
 }
 $evidence = New-SyntheticEvidence $plan
 $result = Assert-SyntheticEvidence $plan $evidence
-Assert-Behavior ($result.TotalPassed -eq 26 -and $result.ProfilePassed -eq 26 -and $result.RuntimeNamesAndCountsCorroborated) 'synthetic successful raw logs corroborate all exact names'
+Assert-Behavior ($result.TotalPassed -eq 32 -and $result.ProfilePassed -eq 32 -and $result.RuntimeNamesAndCountsCorroborated) 'synthetic successful raw logs corroborate all exact names'
 foreach ($case in @(
     @{Name='nonzero exit';Change={param($e) $e.Executions[0].exit=1}},
     @{Name='failed test';Change={param($e) $e.Executions[0].failed=1}},
     @{Name='ignored test';Change={param($e) $e.Executions[0].ignored=1}},
     @{Name='missing pass';Change={param($e) $e.Executions[0].passed--}},
-    @{Name='string counter';Change={param($e) $e.Executions[0].passed='18'}},
+    @{Name='string counter';Change={param($e) $e.Executions[0].passed='24'}},
     @{Name='wrong selection count';Change={param($e) $e.Executions[0].selectedNames++}},
     @{Name='changed arguments';Change={param($e) $e.Executions[0].extraArguments=@('--ignored')}},
     @{Name='changed native arguments';Change={param($e) $e.Executions[0].nativeArguments+=@('--ignored')}},
@@ -206,8 +218,8 @@ $actionCatalogue += @('company_merge::tests::actual_v60_and_v61_references_merge
     'backup::recovery_crash_tests::native_crash_child','backup::recovery_crash_tests::native_crash_boundaries_restore_one_complete_profile_before_migration')
 $absentPlan = Get-ZentraNativeProfileVerificationPlan -TestNames @($catalogue + $actionCatalogue) -IncludeActionEngine
 $absentResult = Assert-SyntheticEvidence $absentPlan (New-SyntheticEvidence $absentPlan)
-Assert-Behavior ($absentPlan.Filters.Count -eq 36 -and $absentPlan.ExpectedTotal -eq 265 -and $absentResult.ActionEnginePassed -eq 239) 'absent context adds unchanged 33-suite 239 selection to the three new modules'
-Assert-Behavior ($absentResult.TotalPassed -eq 265 -and $result.TotalPassed -eq 26) 'each synthetic result attests only its own fixed count; no local aggregate is produced'
+Assert-Behavior ($absentPlan.Filters.Count -eq 36 -and $absentPlan.ExpectedTotal -eq 271 -and $absentResult.ActionEnginePassed -eq 239) 'absent context adds unchanged 33-suite 239 selection to the three profile modules'
+Assert-Behavior ($absentResult.TotalPassed -eq 271 -and $result.TotalPassed -eq 32) 'each synthetic result attests only its own fixed count; no local aggregate is produced'
 
 $transportFiles = @(
     [pscustomobject]@{path='native-profile-verification-proof.json';bytes=12},
@@ -397,7 +409,7 @@ Assert-Behavior ($runnerText.Contains("kind='isolated-native-test-profile-node-v
 Assert-Behavior ($runnerText.Contains('expectedTotal=$node.ExpectedTotal') -and $runnerText.Contains('aggregationExecuted=$false') -and
     $runnerText.Contains('if ($plan.ExpectedTotal -ne $node.ExpectedTotal)') -and
     $runnerText.Contains('$proof.runtimePassed = $corroboration.TotalPassed') -and
-    -not $runnerText.Contains('317') -and -not $runnerText.Contains('allContextsPassed') -and
+    -not $runnerText.Contains('317') -and -not $runnerText.Contains('335') -and -not $runnerText.Contains('allContextsPassed') -and
     -not $runnerText.Contains('$proof.runtimePassed +=')) 'a node cannot claim the aggregate total or other contexts passing'
 Assert-Behavior ($runnerText.Contains('$contextProof.profileTestNames = $plan.ProfileTestNames') -and
     $runnerText.Contains('$contextProof.catalogueCount = $plan.CatalogueCount') -and

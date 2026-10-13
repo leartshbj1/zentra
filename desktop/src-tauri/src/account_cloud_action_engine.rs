@@ -172,10 +172,14 @@ async fn request_limited(
         return Err(review());
     }
     validate_opaque_token(&session.session_token, "zds_")?;
-    let response = account_transport()?.post(endpoint(path)?)
+    let request = account_transport()?.post(endpoint(path)?)
         .header(ACCEPT,"application/json").header(CONTENT_TYPE,"application/json")
         .header(AUTHORIZATION,format!("Bearer {}",session.session_token))
-        .body(body).send().await.map_err(|_| AppError::Remote(
+        .body(body);
+    #[cfg(test)]
+    let request = crate::native_test_profile::with_sites_authorization(request)
+        .map_err(|error| AppError::Validation(error.into()))?;
+    let response = request.send().await.map_err(|_| AppError::Remote(
             "Automation est momentanément inaccessible. Le devis et sa reprise restent conservés.".into()))?;
     let json = response
         .headers()
