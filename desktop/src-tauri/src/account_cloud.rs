@@ -1443,7 +1443,7 @@ fn validate_session(session: &CloudSession) -> AppResult<()> {
     validate_opaque_token(&session.session_token, "zds_")?;
     parse_future_or_past_date(&session.session_expires_at, "session")?;
     parse_future_or_past_date(&session.connected_at, "connexion")?;
-    validate_prefixed_uuid(&session.organization_id, "org_")?;
+    validate_server_organization_id(&session.organization_id)?;
     if session.organization_name.trim().is_empty() || session.organization_name.len() > 160 {
         return Err(AppError::Validation(
             "Le nom d’entreprise reçu est invalide.".into(),
@@ -1509,6 +1509,19 @@ fn validate_installation_id(value: &str) -> AppResult<()> {
         ));
     }
     Ok(())
+}
+
+fn validate_server_organization_id(value: &str) -> AppResult<()> {
+    // Normal server trials retain this identifier when converted to paid plans.
+    if let Some(raw) = value.strip_prefix("org_trial_") {
+        if raw.len() == 32
+            && raw.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Ok(());
+        }
+        return Err(AppError::Validation("Référence serveur invalide.".into()));
+    }
+    validate_prefixed_uuid(value, "org_")
 }
 
 fn validate_prefixed_uuid(value: &str, prefix: &str) -> AppResult<()> {
@@ -2173,6 +2186,71 @@ mod tests {
             organization_name: "Atelier Zentra".into(),
             role: "owner".into(),
             connected_at: "2026-09-04T12:00:00Z".into(),
+        }
+    }
+
+    #[test]
+    fn validates_server_organization_ids_for_uuid_and_trial_contracts() {
+        for value in [
+            "org_369d3fcf-b05b-4d78-9f2a-3c4141aed7fd",
+            "org_369D3FCF-B05B-4D78-9F2A-3C4141AED7FD",
+            "org_trial_345a3d1f68056cf7e709d4af4fc229a4",
+            "org_trial_0123456789abcdef0123456789abcdef",
+        ] {
+            validate_server_organization_id(value).unwrap();
+        }
+        let trial = "org_trial_345a3d1f68056cf7e709d4af4fc229a4";
+        for value in [
+            String::new(), "org_".into(), "org_trial_".into(),
+            format!("org_trial_{}", "a".repeat(31)),
+            format!("org_trial_{}", "a".repeat(33)),
+            format!("org_trial_{}", "A".repeat(32)),
+            format!("org_trial_{}", "g".repeat(32)),
+            format!("org_trial_{}", "é".repeat(16)),
+            "org_trial_369d3fcf-b05b-4d78-9f2a-3c4141aed7fd".into(),
+            format!(" {trial}"), format!("{trial} "), format!("{trial}\n"),
+            format!("{trial}\0"), format!("{trial}/other"), format!("{trial}?other"),
+            trial.replacen("org_trial_", "org_TRIAL_", 1),
+        ] {
+            assert!(validate_server_organization_id(&value).is_err());
+        }
+    }
+
+    #[test]
+    fn trial_organization_session_keeps_normal_credential_and_role_guards() {
+        // Synthetic session shape only; this is not a server authorization proof.
+        let session = CloudSession {
+            organization_id: "org_trial_345a3d1f68056cf7e709d4af4fc229a4".into(),
+            ..session_for(TEST_INSTALLATION_ID)
+        };
+        validate_session(&session).unwrap();
+        for invalid in [
+            CloudSession { version: SECRET_VERSION + 1, ..session.clone() },
+            CloudSession { session_token: "zds_short".into(), ..session.clone() },
+            CloudSession { session_token: format!("zdv_{}", "B".repeat(43)), ..session.clone() },
+            CloudSession { session_expires_at: "invalid".into(), ..session.clone() },
+            CloudSession { connected_at: "invalid".into(), ..session.clone() },
+            CloudSession { organization_id: "org_trial_invalid".into(), ..session.clone() },
+            CloudSession { organization_name: " ".into(), ..session.clone() },
+            CloudSession { role: "founder".into(), ..session.clone() },
+        ] {
+            assert!(validate_session(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn trial_organization_session_is_bound_to_its_installation() {
+        let session = CloudSession {
+            organization_id: "org_trial_345a3d1f68056cf7e709d4af4fc229a4".into(),
+            ..session_for(TEST_INSTALLATION_ID)
+        };
+        validate_session_for_installation(&session, TEST_INSTALLATION_ID).unwrap();
+        assert!(validate_session_for_installation(
+            &session, "ff1144aa-2b33-4c44-8d55-66778899aabb",
+        ).is_err());
+        for installation_id in ["invalid", "00000000-0000-0000-0000-000000000000"] {
+            let invalid = CloudSession { installation_id: installation_id.into(), ..session.clone() };
+            assert!(validate_session_for_installation(&invalid, installation_id).is_err());
         }
     }
 

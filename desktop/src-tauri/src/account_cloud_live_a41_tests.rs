@@ -95,6 +95,12 @@ impl PrivatePipe {
         if value.event != expected { return Err(()); }
         Ok(())
     }
+
+    // Closed stage markers contain no values from credentials, HTTP responses,
+    // local paths or application errors. They are diagnostics, never proof.
+    fn progress(&mut self, phase: &'static str, step: &'static str, index: usize) -> RecipeResult<()> {
+        self.write(json!({"event":"progress","phase":phase,"step":step,"index":index}))
+    }
 }
 
 fn closed_profile_guard() -> RecipeResult<()> {
@@ -207,18 +213,22 @@ fn enroll() -> RecipeResult<()> {
     pipe.write(json!({"event":"workspace","rootDir":root_text}))?;
     let mut stores = Vec::new();
     for (index, name) in ["device-a", "device-b"].iter().enumerate() {
+        pipe.progress("enroll", "initialize_store", index)?;
         let store = LocalStore::initialize(root.join(name)).map_err(|_| ())?;
         installation_uuid(&store.installation_id)?;
         if stores.iter().any(|other: &LocalStore| other.installation_id == store.installation_id) { return Err(()); }
+        pipe.progress("enroll", "start_link", index)?;
         let pending = tauri::async_runtime::block_on(start_link(&store)).map_err(|_| ())?;
         if pending.status != "pending" { return Err(()); }
         let interval = pending.interval_seconds.ok_or(())?;
         std::thread::sleep(Duration::from_secs(interval));
+        pipe.progress("enroll", "pending_poll", index)?;
         if tauri::async_runtime::block_on(poll_link(&store)).map_err(|_| ())?.status != "pending" { return Err(()); }
         pipe.write(json!({"event":"approve","index":index,"installationId":store.installation_id,
             "userCode":pending.user_code.ok_or(())?}))?;
         pipe.acknowledge("approved")?;
         let mut connected = false;
+        pipe.progress("enroll", "approved_poll", index)?;
         for _ in 0..6 {
             std::thread::sleep(Duration::from_secs(interval));
             let state = tauri::async_runtime::block_on(poll_link(&store)).map_err(|_| ())?;
@@ -229,7 +239,11 @@ fn enroll() -> RecipeResult<()> {
         stores.push(store);
     }
     // Recheck BOTH after the second authorization, not only its latest device.
-    let proofs = stores.iter().map(native_proof).collect::<RecipeResult<Vec<_>>>()?;
+    let mut proofs = Vec::new();
+    for (index, store) in stores.iter().enumerate() {
+        pipe.progress("enroll", "verify_native_proof", index)?;
+        proofs.push(native_proof(store)?);
+    }
     drop(stores);
     complete(&mut pipe, "enroll", &proofs)
 }
@@ -251,6 +265,7 @@ fn reopen() -> RecipeResult<()> {
     let baseline = input.baseline.ok_or(())?;
     let mut proofs = Vec::new();
     for (index, name) in ["device-a", "device-b"].iter().enumerate() {
+        pipe.progress("reopen", "retained_store", index)?;
         let directory = root.join(name);
         let metadata = std::fs::symlink_metadata(&directory).map_err(|_| ())?;
         if !metadata.is_dir() || metadata.file_type().is_symlink()
@@ -265,7 +280,9 @@ fn reopen() -> RecipeResult<()> {
         for file in ["cloud-account-link.protected", "cloud-account-exchange.protected", "license-clock-pending.dpapi"] {
             if directory.join(file).try_exists().map_err(|_| ())? { return Err(()); }
         }
+        pipe.progress("reopen", "initialize_store", index)?;
         let store = LocalStore::initialize(directory).map_err(|_| ())?;
+        pipe.progress("reopen", "verify_native_proof", index)?;
         let proof = native_proof(&store)?;
         if proof != baseline[index] { return Err(()); }
         proofs.push(proof);

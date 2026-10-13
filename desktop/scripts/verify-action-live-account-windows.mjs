@@ -24,6 +24,11 @@ const TESTS = Object.freeze({
   enroll: 'account_cloud::live_a41_account_tests::enroll_two_native_stores',
   reopen: 'account_cloud::live_a41_account_tests::reopen_two_native_stores',
 });
+export const SESSION_REGRESSION_TESTS = Object.freeze([
+  'account_cloud::tests::validates_server_organization_ids_for_uuid_and_trial_contracts',
+  'account_cloud::tests::trial_organization_session_keeps_normal_credential_and_role_guards',
+  'account_cloud::tests::trial_organization_session_is_bound_to_its_installation',
+]);
 class RecipeFailure extends Error {
   constructor(code) { super(code); this.name = 'RecipeFailure'; this.code = code; }
 }
@@ -212,6 +217,23 @@ export function validateInstallationProofs(proofs) {
   return result;
 }
 
+const NATIVE_PROGRESS = Object.freeze({
+  enroll: Object.freeze([
+    ...[0, 1].flatMap(index => ['initialize_store', 'start_link', 'pending_poll', 'approved_poll'].map(step => Object.freeze({ step, index }))),
+    ...[0, 1].map(index => Object.freeze({ step: 'verify_native_proof', index })),
+  ]),
+  reopen: Object.freeze([...[0, 1].flatMap(index => ['retained_store', 'initialize_store', 'verify_native_proof'].map(step => Object.freeze({ step, index })))]),
+});
+
+export function validateNativeProgress(event, phase, position) {
+  keys(event, ['event', 'phase', 'step', 'index'], 'closed_native_progress_required');
+  const expected = Number.isSafeInteger(position) && position >= 0 ? NATIVE_PROGRESS[phase]?.[position] : undefined;
+  need(expected && event.event === 'progress' && event.phase === phase && event.step === expected.step && event.index === expected.index,
+    'native_progress_order_refused');
+  // Only compile-time literals can form this public diagnostic code.
+  return `native_${phase}_${expected.step}_${expected.index}`;
+}
+
 function childEnvironment(environment, pipe) {
   const result = {};
   for (const name of ['SystemRoot', 'SYSTEMROOT', 'WINDIR', 'PATH', 'PATHEXT', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'HOMEDRIVE', 'HOMEPATH', 'COMSPEC', 'PROCESSOR_ARCHITECTURE', 'NUMBER_OF_PROCESSORS', 'CIRCLECI', 'CIRCLE_BRANCH']) {
@@ -220,10 +242,50 @@ function childEnvironment(environment, pipe) {
   return { ...result, RUST_BACKTRACE: '0', ZENTRA_A41_NATIVE_PRIVATE_PIPE: pipe };
 }
 
+// Public-environment regression tests of the freshly compiled, verified binary.
+// The same strict Windows CI admission applies; never call this on a local PC.
+export async function runLiveSessionRegressions() {
+  const environment = { ...process.env };
+  assertCiAdmission(environment);
+  const harness = await loadVerifiedHarness(environment);
+  const catalogue = fs.readFileSync(path.join(REPOSITORY, 'desktop/artifacts/action-live-profile/windows-test-harness-list-after.txt'), 'utf8');
+  need(SESSION_REGRESSION_TESTS.every(name => catalogue.replace(/\r\n/g, '\n').split('\n').includes(`${name}: test`)), 'session_regression_tests_required');
+  const childEnv = childEnvironment(environment, '');
+  delete childEnv.ZENTRA_A41_NATIVE_PRIVATE_PIPE;
+  for (const name of SESSION_REGRESSION_TESTS) {
+    need(await shaFile(harness.executable) === harness.sha256, 'regression_library_changed');
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn(harness.executable, [name, '--exact', '--nocapture', '--test-threads=1'], {
+        cwd: REPOSITORY, env: childEnv, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stdout = '', stderr = '';
+      const timer = setTimeout(() => { child.kill(); reject(new RecipeFailure('session_regression_timeout')); }, 60000);
+      const capture = (stream, bytes) => {
+        if (Buffer.byteLength(stream === 'stdout' ? stdout : stderr) + bytes.length > 128 * 1024) {
+          child.kill(); reject(new RecipeFailure('session_regression_output_refused')); return;
+        }
+        if (stream === 'stdout') stdout += bytes.toString('utf8'); else stderr += bytes.toString('utf8');
+      };
+      child.stdout.on('data', bytes => capture('stdout', bytes));
+      child.stderr.on('data', bytes => capture('stderr', bytes));
+      child.once('error', () => { clearTimeout(timer); reject(new RecipeFailure('session_regression_process_failed')); });
+      child.once('close', code => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
+    });
+    need(result.code === 0 && result.stderr.trim() === ''
+      && result.stdout.replace(/\r\n/g, '\n').split('\n').includes(`test ${name} ... ok`)
+      && result.stdout.includes(`test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; ${harness.catalogueCount - 1} filtered out;`),
+      'session_regression_not_proven');
+  }
+  need(await shaFile(harness.executable) === harness.sha256, 'regression_library_changed');
+  return { format: 'zentra-a41-native-session-regressions-v1', source: harness.source, binarySha256: harness.sha256,
+    tests: [...SESSION_REGRESSION_TESTS], passed: SESSION_REGRESSION_TESTS.length, nativeExecuted: true };
+}
+
 async function nativePhase(phase, harness, input, jar, environment, previous) {
   need(await shaFile(harness.executable) === harness.sha256, 'library_changed_before_phase');
   const pipeName = `\\\\.\\pipe\\zentra-a41-native-${randomUUID()}`, challenge = randomBytes(32).toString('base64url');
   let channel, accepted = false, child, completed = false, timer, stdout = '', stderr = '', rootDir = previous?.rootDir;
+  let progressCount = 0, diagnosticStage;
   const server = net.createServer();
   const connection = new Promise((resolve, reject) => {
     server.on('error', () => reject(new RecipeFailure('private_pipe_failed')));
@@ -253,7 +315,9 @@ async function nativePhase(phase, harness, input, jar, environment, previous) {
     const approvals = [];
     for (;;) {
       const event = await channel.read();
-      if (phase === 'enroll' && event?.event === 'workspace') {
+      if (event?.event === 'progress') {
+        diagnosticStage = validateNativeProgress(event, phase, progressCount++);
+      } else if (phase === 'enroll' && event?.event === 'workspace') {
         keys(event, ['event', 'rootDir'], 'closed_workspace_event_required');
         need(rootDir === undefined && typeof event.rootDir === 'string' && path.win32.isAbsolute(event.rootDir)
           && path.win32.basename(event.rootDir).startsWith('zentra-a41-native-'), 'private_workspace_refused'); rootDir = event.rootDir;
@@ -265,6 +329,7 @@ async function nativePhase(phase, harness, input, jar, environment, previous) {
         need(response?.approved === true && response.organization?.id === ORGANIZATION_ID, 'real_browser_approval_mismatch');
         approvals.push(event.installationId); channel.write({ event: 'approved' });
       } else {
+        need(progressCount === NATIVE_PROGRESS[phase].length, 'native_progress_incomplete');
         keys(event, ['event', 'phase', 'profileSha256', 'ownerId', 'organizationId', 'strictMeHttp200', 'nativeLicenseValidated', 'installations'], 'closed_completion_event_required');
         need(event.event === 'complete' && event.phase === phase && event.profileSha256 === PROFILE_SHA256 && event.ownerId === OWNER_ID
           && event.organizationId === ORGANIZATION_ID && event.strictMeHttp200 === true && event.nativeLicenseValidated === true, 'native_completion_refused');
@@ -279,6 +344,11 @@ async function nativePhase(phase, harness, input, jar, environment, previous) {
         completed = true; return { rootDir, proofs, privateBaseline: event.installations, publicPhase: { phase, exactTest: TESTS[phase], strictMeHttp200: true, nativeLicenseValidated: true, installations: proofs } };
       }
     }
+  } catch (error) {
+    if (diagnosticStage && ['private_protocol_failed', 'private_protocol_timeout'].includes(error?.code)) {
+      throw new RecipeFailure(diagnosticStage + (error.code === 'private_protocol_timeout' ? '_timeout' : '_failed'));
+    }
+    throw error;
   } finally {
     clearTimeout(timer); channel?.close(); if (!completed && child) child.kill();
     await new Promise(resolve => server.close(resolve));

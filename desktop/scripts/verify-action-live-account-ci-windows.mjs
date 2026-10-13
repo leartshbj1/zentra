@@ -6,7 +6,7 @@ import path from 'node:path';
 import {spawn,execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {DESCRIPTION,validatePrivateInput,runLiveAccountRecipe} from './verify-action-live-account-windows.mjs';
+import {DESCRIPTION,validatePrivateInput,runLiveAccountRecipe,runLiveSessionRegressions} from './verify-action-live-account-windows.mjs';
 
 const REPOSITORY=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const HISTORICAL_SOURCE='ad57c6905112462bbf844c8bb89072d488294f2c';
@@ -115,15 +115,19 @@ export async function runDedicatedCi() {
   process.stdout.write(`LIVE_ACCOUNT_CI_PHASE compile source=${source}\n`);
   await compileFreshSource(environment);
   process.env.ZENTRA_RUN_LIVE_ACCOUNT_RECIPE='true';
-  let report;
-  try {report=validatePublicReport(await runLiveAccountRecipe(input),source);}
+  let report, sessionRegressions;
+  try {
+    sessionRegressions=await runLiveSessionRegressions();
+    process.stdout.write(`LIVE_ACCOUNT_SESSION_REGRESSIONS_PASSED source=${source} tests=3\n`);
+    report=validatePublicReport(await runLiveAccountRecipe(input),source);
+  }
   finally {delete process.env.ZENTRA_RUN_LIVE_ACCOUNT_RECIPE;}
   // Only the second, closed validation above admits an artifact write.
   const proof=fs.readFileSync(path.join(REPOSITORY,'desktop/artifacts/action-live-profile/live-profile-verification-proof.json'));
   const result={format:'zentra-a41-native-account-ci-public-v1',source,pipelineId:environment.ZENTRA_LIVE_PROFILE_PIPELINE_ID,
     workflowId:environment.CIRCLE_WORKFLOW_ID,jobNumber:environment.CIRCLE_BUILD_NUM,nodeIndex:0,nodeTotal:1,
     nodeVersion:process.version,profileCompilationProofSha256:sha(proof),nativeAccountJourneyValidated:true,
-    stripePaidTestValidated:false,actionEngineGatesEstablished:false,report};
+    stripePaidTestValidated:false,actionEngineGatesEstablished:false,sessionRegressions,report};
   fs.mkdirSync(output);fs.writeFileSync(path.join(output,'native-account-report.public.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx'});
   process.stdout.write(`LIVE_ACCOUNT_CI_PASSED source=${source} installations=2 reopened=2 paid=false actionEngine=false\n`);
   return result;
