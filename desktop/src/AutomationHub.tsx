@@ -19,6 +19,8 @@ import type { AppointmentInboxState } from './AppointmentInbox';
 import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus } from './AutopilotPanel';
 import type { AutopilotView } from './autopilotView';
 import type { AutopilotReviewItem } from './autopilotReview';
+import { normalizeAutopilotReviewPage } from './autopilotReview';
+import { autopilotCopy } from './autopilotPresentation';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
@@ -51,6 +53,8 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const activityPage = page === 'overview' || page === 'history';
   const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const pending = (state.activity?.supplierInbox?.needsReview ?? 0) + (state.activity?.appointments?.pending ?? 0) + (state.activity?.workflows?.review ?? 0) + (state.activity?.workflows?.open ?? 0) + (state.activity?.totals.needsReview ?? 0);
+  const autopilotReview = autopilot?.state.status === 'ready' && !autopilot.state.reviewsUnavailable
+    && (normalizeAutopilotReviewPage(autopilot.state.reviews, state.organizationId)?.items.length ?? 0) > 0;
   const open = (destination: BriefDestination) => {
     if (destination === 'support') { void invoke('open_supplier_inbox_settings',{section:'inbox'}).catch(()=>onPage('settings')); return; }
     onPage(destination === 'review' ? 'centre' : destination);
@@ -59,7 +63,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   return <div className="automation-hub">
     <header className="automation-hub__toolbar">
     <nav className="automation-hub__navigation" aria-label={t('Espace Automation')}>
-      {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{label(tab === 'overview' ? 'activity' : tab === 'centre' ? 'followup' : 'settings')}{tab === 'centre' && pending > 0 && <span className="automation-hub__count">{pending}</span>}</button>)}
+      {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{label(tab === 'overview' ? 'activity' : tab === 'centre' ? 'followup' : 'settings')}{tab === 'centre' && (pending > 0 || autopilotReview) && <span className="automation-hub__count">{autopilotReview ? autopilotCopy(language).reviewIndicator : pending}</span>}</button>)}
     </nav>
     <div className="automation-hub__mode" role="status">
       {readiness === 'observation' && <Eye size={16} aria-hidden="true" />}

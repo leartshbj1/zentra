@@ -3,6 +3,7 @@ import { desktopApi, type QuoteAutopilotOrigin } from './bridge';
 import { createAutopilotSession, type AutopilotCycleGuard, type AutopilotCycleResult } from './autopilotSession';
 import { autopilotBudget } from './autopilotBudget';
 import { normalizeConfirmedQuoteActivityPage } from './confirmedQuoteActivity';
+import { createAutopilotDraftNotices } from './autopilotDraftNotices';
 import { normalizeAutopilotReviewPage } from './autopilotReview';
 import type { AutopilotView } from './autopilotView';
 import { classifyDiagnosticError, recordDiagnostic } from './diagnostics';
@@ -42,6 +43,9 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
   const [online, setOnline] = useState(() => navigator.onLine !== false);
   const current = useRef({ context, key, state: bound, onWorkspaceChanged });
   current.current = { context, key, state: bound, onWorkspaceChanged };
+  const draftNotices = useRef(createAutopilotDraftNotices());
+  const [, noticeDelivered] = useState(0);
+  draftNotices.current.hasBaseline(key ?? '');
   const timings = useRef({ key, consentAt: 0, feedAt: 0, reviewCursor: null as string | null, refreshVersion: 0, providerRetryAt: 0 });
   if (timings.current.key !== key) timings.current = { key, consentAt: 0, feedAt: 0, reviewCursor: null, refreshVersion: 0, providerRetryAt: 0 };
   const publish = (guard: AutopilotCycleGuard, next: AutopilotView) => {
@@ -86,6 +90,22 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
       }
       let next: AutopilotView = { ...previous, status: 'ready', consent, canManage: admitted.canManage && !captured.readOnly,
         error: null, saving: false };
+      // Establish history BEFORE a producer can create the first draft. Reuse
+      // this existing feed read unless the tick signals a subsequent change.
+      let baselinePage: ReturnType<typeof normalizeConfirmedQuoteActivityPage> = null;
+      if (!draftNotices.current.hasBaseline(guard.scope)) {
+        if (!autopilotBudget.reserve(captured.organizationId, 'activity')) return pauseQuota(guard, captured);
+        const selection = draftNotices.current.selection(guard.scope)!;
+        const reply = await desktopApi.readQuoteAutopilotActivity(captured.origin, selection);
+        if (!guard.current()) return 'blocked';
+        if (closedGate(reply)) { publish(guard, empty('unavailable')); return 'blocked'; }
+        if (reply.code === 'rate_limited') return pauseQuota(guard, captured, reply);
+        if (reply.status !== 'available' || !scoped(reply, captured)
+          || !draftNotices.current.observe(guard.scope, captured.organizationId, reply.data, selection)) {
+          fail(guard, problem(reply)); return 'blocked';
+        }
+        baselinePage = draftNotices.current.preview(guard.scope);
+      }
       let result: AutopilotCycleResult = 'idle', changed = false, reviewChanged = false;
       if (Date.now() < timings.current.providerRetryAt) next = { ...next, error: 'quota_exhausted' };
       if (Date.now() >= timings.current.providerRetryAt && !captured.readOnly && (!admitted.canManage || consent?.enabled && consent.consentVersion === consent.requiredConsentVersion)) {
@@ -119,14 +139,23 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
       }
       // Read actual canonical events. Tick counters only signal a refresh and
       // are never converted into activity rows, quotes or financial totals.
-      if (!next.activity || !next.reviews || changed || reviewChanged || Date.now() - timings.current.feedAt >= 45_000) {
-        if (!autopilotBudget.reserve(captured.organizationId, 'activity')) return pauseQuota(guard, captured);
-        const activity = await desktopApi.readQuoteAutopilotActivity(captured.origin, { limit: 50, cursor: null });
-        if (!guard.current()) return 'blocked';
-        if (closedGate(activity)) { publish(guard, empty('unavailable')); return 'blocked'; }
-        if (activity.code === 'rate_limited') return pauseQuota(guard, captured, activity);
-        const activityPage = activity.status === 'available' && scoped(activity, captured)
-          ? normalizeConfirmedQuoteActivityPage(activity.data, captured.organizationId) : null;
+      if (baselinePage || !next.activity || !next.reviews || changed || reviewChanged || draftNotices.current.needsDrain(guard.scope) || Date.now() - timings.current.feedAt >= 45_000) {
+        let activityPage = baselinePage;
+        if (!activityPage || changed) {
+          const selection = draftNotices.current.selection(guard.scope);
+          if (selection) {
+            if (!autopilotBudget.reserve(captured.organizationId, 'activity')) return pauseQuota(guard, captured);
+            const activity = await desktopApi.readQuoteAutopilotActivity(captured.origin, selection);
+            if (!guard.current()) return 'blocked';
+            if (closedGate(activity)) { publish(guard, empty('unavailable')); return 'blocked'; }
+            if (activity.code === 'rate_limited') return pauseQuota(guard, captured, activity);
+            if (activity.status !== 'available' || !scoped(activity, captured)
+              || !draftNotices.current.observe(guard.scope, captured.organizationId, activity.data, selection)) {
+              fail(guard, problem(activity)); return 'blocked';
+            }
+          }
+          activityPage = draftNotices.current.preview(guard.scope);
+        }
         if (!autopilotBudget.reserve(captured.organizationId, 'review')) return pauseQuota(guard, captured);
         const reviews = await desktopApi.readQuoteAutopilotReview(captured.origin, { limit: 20, cursor: timings.current.reviewCursor });
         if (!guard.current()) return 'blocked';
@@ -134,13 +163,16 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
         if (reviews.code === 'rate_limited') return pauseQuota(guard, captured, reviews);
         const reviewPage = reviews.status === 'available' && scoped(reviews, captured)
           ? normalizeAutopilotReviewPage(reviews.data, captured.organizationId) : null;
-        if (!activityPage || !reviewPage) { fail(guard, problem(!activityPage ? activity : reviews)); return 'blocked'; }
+        if (!activityPage || !reviewPage) {
+          fail(guard, problem(reviews)); return 'blocked';
+        }
         next = { ...next, activity: activityPage, reviews: reviewPage, reviewsUnavailable: false, readingReviews: false };
         // A user refresh made during this request must still cause a newer
         // read. Its cursor and freshness cannot be overwritten by this reply.
         timings.current.feedAt = timings.current.refreshVersion === freshness ? Date.now() : 0;
       }
       publish(guard, next);
+      if (result !== 'blocked' && draftNotices.current.needsDrain(guard.scope)) return 'more';
       return result;
     },
     onError: (guard, error) => {
@@ -220,5 +252,12 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
     timings.current.reviewCursor = null; timings.current.refreshVersion++; await session.refresh(); };
   const effective = bound.key === key ? bound.state : empty(key ? 'checking' : 'disconnected');
   return { state: !online && key ? { ...effective, status: 'offline' as const, canManage: false } : effective,
+    draftNotices: key ? draftNotices.current.pending(key) : [],
+    draftNoticeScope: key,
+    onDraftNoticeHandled: (scope: string, ids: readonly string[]) => {
+      const shown = draftNotices.current.consume(scope, ids);
+      if (shown) noticeDelivered(version => version + 1);
+      return shown;
+    },
     onConsent, onRefresh, onNextReviews };
 }

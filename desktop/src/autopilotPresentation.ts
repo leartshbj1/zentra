@@ -3,6 +3,7 @@ import type { AutopilotReviewReason } from './autopilotReview';
 const copy = {
   fr: {
     title: 'Autopilote', checking: 'Vérification de l’accès…', unavailable: 'Indisponible pour cet espace',
+    newDraft: 'Un nouveau brouillon de devis est prêt à vérifier.', openDraft: 'Ouvrir le devis', reviewIndicator: 'À vérifier',
     active: 'Préparation activée', paused: 'Préparation en pause', offline: 'Reprise au retour du réseau',
     disconnected: 'Connectez cette entreprise à votre compte.', connection: 'L’accès ne peut pas être vérifié pour le moment.',
     settings: 'Réglages', consentTitle: 'Préparer les demandes reçues',
@@ -22,6 +23,7 @@ const copy = {
   },
   de: {
     title: 'Autopilot', checking: 'Zugriff wird geprüft…', unavailable: 'Für diesen Arbeitsbereich nicht verfügbar',
+    newDraft: 'Ein neuer Offertenentwurf ist zur Prüfung bereit.', openDraft: 'Offerte öffnen', reviewIndicator: 'Zu prüfen',
     active: 'Vorbereitung aktiviert', paused: 'Vorbereitung pausiert', offline: 'Fortsetzung bei erneuter Verbindung',
     disconnected: 'Verbinden Sie dieses Unternehmen mit Ihrem Konto.', connection: 'Der Zugriff kann derzeit nicht überprüft werden.',
     settings: 'Einstellungen', consentTitle: 'Eingegangene Anfragen vorbereiten',
@@ -41,6 +43,7 @@ const copy = {
   },
   it: {
     title: 'Autopilota', checking: 'Verifica dell’accesso…', unavailable: 'Non disponibile per questo spazio',
+    newDraft: 'Una nuova bozza di preventivo è pronta da verificare.', openDraft: 'Apri preventivo', reviewIndicator: 'Da verificare',
     active: 'Preparazione attiva', paused: 'Preparazione in pausa', offline: 'Ripresa al ritorno della connessione',
     disconnected: 'Collega questa azienda al tuo account.', connection: 'Al momento non è possibile verificare l’accesso.',
     settings: 'Impostazioni', consentTitle: 'Preparare le richieste ricevute',
@@ -60,6 +63,7 @@ const copy = {
   },
   en: {
     title: 'Autopilot', checking: 'Checking access…', unavailable: 'Unavailable for this workspace',
+    newDraft: 'A new quote draft is ready to review.', openDraft: 'Open quote', reviewIndicator: 'To review',
     active: 'Preparation enabled', paused: 'Preparation paused', offline: 'Resumes when back online',
     disconnected: 'Connect this company to your account.', connection: 'Access cannot be verified right now.',
     settings: 'Settings', consentTitle: 'Prepare incoming requests',

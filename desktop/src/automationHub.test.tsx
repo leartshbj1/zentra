@@ -8,6 +8,7 @@ import { translations } from './translations';
 import { automationWorkflows, readinessLabels } from './automationExperience';
 import { automationConnectionMessages } from './automationConnection';
 import { AutomationHub } from './AutomationHub';
+import type { AutopilotView } from './autopilotView';
 const mock = vi.hoisted(() => ({ company: {} as Record<string, unknown> }));
 vi.mock('./AutomationCompany', () => ({ useCompanyAutomation: () => mock.company }));
 const state: AutomationState = { organizationId: 'a', active: true, canManage: true, available: ['document_routing'], settings: { enabled: true, consent: true, mode: 'suggest', flags: ['document_routing'], thresholds: { medium: .75, high: .95 } } };
@@ -46,4 +47,15 @@ it('localizes the hub, statuses, workflows and settings into all supported langu
     }; visit(ast);
   }
   expect(messages.filter(text => !translations[text]?.every(value => value.trim()))).toEqual([]);
+});
+it('signals an actual paginated Autopilot review without inventing or adding a numeric total', () => {
+  const autopilotState: AutopilotView = { status: 'ready', consent: null, canManage: false, saving: false, error: null,
+    activity: null, reviewsUnavailable: false, readingReviews: false,
+    reviews: { organizationId: 'a', items: [{ proposalId: 'proposal-a', sourceId: 'source-a', createdAt: 1000,
+      disposition: 'needs_review', reasons: ['low_confidence'], requiresHumanValidation: true }], nextCursor: 'older' } };
+  const show = (value: AutopilotView) => renderToStaticMarkup(<AutomationHub workspace={workspace} page="settings" onPage={() => {}} onNavigate={() => {}}
+    autopilot={{ state: value, onConsent: async () => {}, onRefresh: async () => {}, onNextReviews: async () => {}, onOpenQuote: () => {} }} />);
+  expect(show(autopilotState)).toContain('automation-hub__count">À vérifier</span>');
+  expect(show({ ...autopilotState, reviewsUnavailable: true })).not.toContain('automation-hub__count">À vérifier');
+  expect(show({ ...autopilotState, reviews: { ...autopilotState.reviews!, organizationId: 'other' } })).not.toContain('automation-hub__count">À vérifier');
 });

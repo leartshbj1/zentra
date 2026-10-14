@@ -7,6 +7,7 @@ import { captureWorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useAutopilot, type AutopilotContext } from './useAutopilot';
 import { resolveConfirmedQuoteDestination } from './confirmedQuoteDestination';
 import { autopilotCopy, autopilotCatalogueCopy } from './autopilotPresentation';
+import { selectAutopilotDraftNotices } from './autopilotDraftNotices';
 import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type AutopilotCatalogueRequest, type AutopilotCatalogueFollowup } from './autopilotCatalogue';
 import type { AutopilotReviewItem } from './autopilotReview';
 import './first-client-clarity.css';
@@ -461,7 +462,8 @@ type PrintTarget =
   | { entity: 'delivery_notes'; value: DeliveryNote; order: SalesOrder }
   | { entity: 'payslips'; value: Payslip }
   | null;
-type Notice = { tone: 'success' | 'warning' | 'error'; text: string; localValidation?: Error; onReview?: () => void };
+type Notice = { tone: 'success' | 'warning' | 'error'; text: string; localValidation?: Error; onReview?: () => void;
+  autopilot?: Readonly<{ scope: string; quoteId: string }> };
 
 const navigation: Array<{
   id: View;
@@ -717,6 +719,25 @@ function WorkspaceContent({
     consultationIdentity.companyId, consultationIdentity.organizationId, consultationIdentity.memberId,
     consultationIdentity.memberContextNonce, consultationIdentity.ready, readOnly]);
   const autopilot = useAutopilot(autopilotContext, refreshInboxWorkspace);
+  const liveAutopilotNoticeScope = useRef(autopilot.draftNoticeScope);
+  liveAutopilotNoticeScope.current = autopilot.draftNoticeScope;
+  useEffect(() => {
+    if (notice?.autopilot && notice.autopilot.scope !== autopilot.draftNoticeScope) { setNotice(null); return; }
+    if (!autopilotContext || !autopilot.draftNoticeScope || autopilot.state.status !== 'ready') return;
+    // The canonical event may precede the asynchronous workspace refresh.
+    // Keep it pending until the real, current draft can actually be opened.
+    const selected = selectAutopilotDraftNotices(autopilot.draftNotices, autopilotContext.organizationId,
+      { workspaceScope: autopilotContext.origin.expectedWorkspaceScope, memberContextNonce: autopilotContext.origin.expectedMemberContextNonce },
+      workspace, consultationIdentity, { active: cloudAccount?.status === 'connected', readOnly });
+    // A collaborator may already have finalised a real draft before it arrives
+    // here. Retire only these exact known states, never a missing document.
+    if (selected.handled.length) autopilot.onDraftNoticeHandled(autopilot.draftNoticeScope, selected.handled);
+    if (notice || busy || modal) return;
+    const item = selected.draft;
+    if (item && autopilot.onDraftNoticeHandled(autopilot.draftNoticeScope, [item.activityId]))
+      setNotice({ tone: 'success', text: autopilotCopy(getAppLanguage()).newDraft,
+        autopilot: { scope: autopilot.draftNoticeScope, quoteId: item.quoteId } });
+  }, [autopilot, autopilotContext, workspace, consultationIdentity, cloudAccount?.status, readOnly, notice, busy, modal]);
   const [catalogueFollowup, setCatalogueFollowup] = useState<AutopilotCatalogueFollowup | null>(null);
   const catalogueContext = useRef({ identity: consultationIdentity, reviews: autopilot.state.reviews,
     ready: autopilot.state.status === 'ready', active: cloudAccount?.status === 'connected', readOnly });
@@ -2159,7 +2180,7 @@ function WorkspaceContent({
             ) : null}
           </div>
         </div> : <div className="project-folder-spacing"><h1 className="sr-only">{title[0]}</h1></div>}
-        {notice ? (
+        {notice && (!notice.autopilot || notice.autopilot.scope === autopilot.draftNoticeScope && autopilot.state.status === 'ready') ? (
           <div
             className={`notice notice--${notice.tone} ${modal || notice.tone === 'error' ? 'notice--floating' : ''}`}
             role={notice.tone === 'error' ? 'alert' : 'status'}
@@ -2173,8 +2194,12 @@ function WorkspaceContent({
               ) : (
                 <ShieldCheck size={18} />
               )}
-              {t(notice.text)}
+              {notice.autopilot ? autopilotCopy(getAppLanguage()).newDraft : t(notice.text)}
             </span>}
+            {notice.autopilot && <Button size="small" variant="secondary" disabled={busy || !!modal} onClick={() => {
+              if (busy || modal || notice.autopilot?.scope !== liveAutopilotNoticeScope.current) return;
+              openAutopilotQuote(notice.autopilot.quoteId);
+            }}>{autopilotCopy(getAppLanguage()).openDraft}</Button>}
             <button
               type="button"
               onClick={() => setNotice(null)}
