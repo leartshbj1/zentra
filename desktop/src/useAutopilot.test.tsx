@@ -80,6 +80,22 @@ it('does not re-render the workspace for an unchanged idle background cycle', as
   await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
   expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(2); expect(renders).toBe(before);
 });
+it('keeps a refresh newer than an in-flight pagination response and returns to the latest page', async () => {
+  const firstPage={organizationId:'company-a',items:[],nextCursor:'next_page'};
+  api.readQuoteAutopilotReview.mockResolvedValueOnce({...common,data:firstPage}); await mount();
+  let finish!:(value:unknown)=>void;
+  api.readQuoteAutopilotReview.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}))
+    .mockResolvedValue({...common,data:{organizationId:'company-a',items:[],nextCursor:null}});
+  let pageRead!:Promise<void>, refresh!:Promise<void>;
+  await act(async()=>{pageRead=result.onNextReviews();});
+  expect(api.readQuoteAutopilotReview).toHaveBeenLastCalledWith(origin,{limit:20,cursor:'next_page'});
+  await act(async()=>{refresh=result.onRefresh();});
+  await act(async()=>{finish({...common,data:{organizationId:'company-a',items:[],nextCursor:'stale_next'}});await pageRead;await refresh;});
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(api.readQuoteAutopilotReview).toHaveBeenCalledTimes(3);
+  expect(api.readQuoteAutopilotReview).toHaveBeenLastCalledWith(origin,{limit:20,cursor:null});
+  expect(result.state.reviews?.nextCursor).toBeNull(); expect(result.state.readingReviews).toBe(false);
+});
 it('does not replay an uncertain consent write and clears its actionable cached state', async () => {
   api.setQuoteAutopilotConsent.mockRejectedValue(Error('reply lost')); await mount();
   await act(async () => { await result.onConsent(false); });

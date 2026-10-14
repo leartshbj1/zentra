@@ -41,8 +41,8 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
   const [online, setOnline] = useState(() => navigator.onLine !== false);
   const current = useRef({ context, key, state: bound, onWorkspaceChanged });
   current.current = { context, key, state: bound, onWorkspaceChanged };
-  const timings = useRef({ key, consentAt: 0, feedAt: 0, reviewCursor: null as string | null });
-  if (timings.current.key !== key) timings.current = { key, consentAt: 0, feedAt: 0, reviewCursor: null };
+  const timings = useRef({ key, consentAt: 0, feedAt: 0, reviewCursor: null as string | null, refreshVersion: 0 });
+  if (timings.current.key !== key) timings.current = { key, consentAt: 0, feedAt: 0, reviewCursor: null, refreshVersion: 0 };
   const publish = (guard: AutopilotCycleGuard, next: AutopilotView) => {
     if (!guard.current() || current.current.key !== guard.scope) return;
     // These are bounded, normalized DTOs. Do not re-render the entire workspace
@@ -57,6 +57,7 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
     perform: async guard => {
       const captured = current.current.context;
       if (!captured || current.current.key !== guard.scope || !guard.current()) return 'blocked';
+      const freshness = timings.current.refreshVersion;
       const admitted = await desktopApi.getQuoteAutopilotState(captured.origin);
       if (!guard.current()) return 'blocked';
       if (closedGate(admitted)) { publish(guard, empty('unavailable')); return 'blocked'; }
@@ -72,7 +73,7 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
         if (closedGate(reply)) { publish(guard, empty('unavailable')); return 'blocked'; }
         consent = reply.status === 'available' && scoped(reply, captured) ? consentData(reply.data) : null;
         if (!consent) { fail(guard, problem(reply)); return 'blocked'; }
-        timings.current.consentAt = Date.now();
+        timings.current.consentAt = timings.current.refreshVersion === freshness ? Date.now() : 0;
       }
       let next: AutopilotView = { ...previous, status: 'ready', consent, canManage: admitted.canManage && !captured.readOnly,
         error: null, saving: false };
@@ -108,7 +109,9 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
           ? normalizeAutopilotReviewPage(reviews.data, captured.organizationId) : null;
         if (!activityPage || !reviewPage) { fail(guard, problem(!activityPage ? activity : reviews)); return 'blocked'; }
         next = { ...next, activity: activityPage, reviews: reviewPage, reviewsUnavailable: false, readingReviews: false };
-        timings.current.feedAt = Date.now();
+        // A user refresh made during this request must still cause a newer
+        // read. Its cursor and freshness cannot be overwritten by this reply.
+        timings.current.feedAt = timings.current.refreshVersion === freshness ? Date.now() : 0;
       }
       publish(guard, next);
       return result;
@@ -164,24 +167,26 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
   };
   const onNextReviews = async () => {
     const captured = current.current.context, previous = current.current.state;
+    const freshness = timings.current.refreshVersion;
     const cursor = previous.key === current.current.key ? previous.state.reviews?.nextCursor : null;
     if (!captured || !cursor) return;
     const read = await session.exclusive(async guard => {
       publish(guard, { ...previous.state, readingReviews: true });
       try {
         const reply = await desktopApi.readQuoteAutopilotReview(captured.origin, { limit: 20, cursor });
-        if (!guard.current()) return;
+        if (!guard.current() || timings.current.refreshVersion !== freshness) return;
         const reviews = reply.status === 'available' && scoped(reply, captured) ? normalizeAutopilotReviewPage(reply.data, captured.organizationId) : null;
         if (!reviews) { publish(guard, { ...previous.state, readingReviews: false, reviewsUnavailable: true }); return; }
         timings.current.reviewCursor = cursor;
         publish(guard, { ...previous.state, readingReviews: false, reviewsUnavailable: false, reviews });
-      } catch { if (guard.current()) publish(guard, { ...previous.state, readingReviews: false, reviewsUnavailable: true }); }
+      } catch { if (guard.current() && timings.current.refreshVersion === freshness)
+        publish(guard, { ...previous.state, readingReviews: false, reviewsUnavailable: true }); }
     });
     if (read.status === 'busy' && current.current.key === previous.key && current.current.state.key === previous.key)
       setBound({ key: previous.key, state: { ...current.current.state.state, error: 'busy' } });
   };
   const onRefresh = async () => { timings.current.feedAt = 0; timings.current.consentAt = 0;
-    timings.current.reviewCursor = null; await session.refresh(); };
+    timings.current.reviewCursor = null; timings.current.refreshVersion++; await session.refresh(); };
   const effective = bound.key === key ? bound.state : empty(key ? 'checking' : 'disconnected');
   return { state: !online && key ? { ...effective, status: 'offline' as const, canManage: false } : effective,
     onConsent, onRefresh, onNextReviews };
