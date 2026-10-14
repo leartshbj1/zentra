@@ -1634,6 +1634,9 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | crate::appointment_inbox::PATH
             | crate::action_engine_device_protocol::PATH
             | crate::action_engine_device_protocol::WORK_PATH
+            | "/api/account/automation/quote-consent"
+            | "/api/account/automation/quote-activity"
+            | "/api/account/automation/quote-review"
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

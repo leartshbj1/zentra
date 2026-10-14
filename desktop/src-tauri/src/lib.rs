@@ -222,6 +222,7 @@ pub fn run() {
             // sont lisibles par la WebView (pas de sous-dossiers).
             app.asset_protocol_scope()
                 .allow_directory(store.attachments_dir.join("branding"), false)?;
+            app.manage(account_cloud::action_engine::supervisor::Supervisor::default());
             app.manage(store);
             if let Some(window) = app.get_webview_window("main") {
                 announce_native_ready(window.as_ref().clone());
@@ -445,6 +446,12 @@ pub fn run() {
             account_cloud::get_cached_cloud_account_state,
             account_cloud::cloud_team_request,
             account_cloud::automation_request,
+            account_cloud::action_engine::supervisor::quote_autopilot_state,
+            account_cloud::action_engine::supervisor::quote_autopilot_consent,
+            account_cloud::action_engine::supervisor::set_quote_autopilot_consent,
+            account_cloud::action_engine::supervisor::quote_autopilot_tick,
+            account_cloud::action_engine::supervisor::quote_autopilot_activity,
+            account_cloud::action_engine::supervisor::quote_autopilot_review,
             account_cloud::subscription_overview_request,
             supplier_inbox::supplier_inbox_request,
             account_cloud::open_automation_settings,

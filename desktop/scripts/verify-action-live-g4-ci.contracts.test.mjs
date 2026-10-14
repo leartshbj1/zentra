@@ -212,10 +212,27 @@ for (const branch of ['main', 'codex/action-engine-native', 'codex/release-1.90.
   ok(() => assert.deepEqual(active(current, { ...live, branch }), []));
 const files = ['desktop/scripts/verify-action-live-account-ci-windows.mjs', 'desktop/scripts/verify-action-live-account-windows.mjs',
   'desktop/scripts/verify-action-live-profile-windows.ps1', 'desktop/src-tauri/src/account_cloud_live_a41_tests.rs'];
-for (const file of files) ok(() => assert.equal(normalizedDigest(read(file)), baselinePins[file]));
+for (const file of files) ok(() => {
+  let source=read(file).replace(/\r\n/g,'\n');
+  if(file==='desktop/scripts/verify-action-live-profile-windows.ps1') {
+    const addition="    . (Join-Path $PSScriptRoot 'quote-autopilot-verification.ps1')\n    $autopilotProof = Invoke-ZentraAutopilotProductVerification -Harness $harness -Source $source -ProfileSha256 $expectedSha -Artifacts $artifacts\n    if (-not $autopilotProof.passed) { throw 'Autopilot product native validation did not pass.' }\n";
+    assert.equal(source.split(addition).length,2); source=source.replace(addition,'');
+    const projection='            # This historical proof continues to describe only its eleven\n            # profile tests. The additional nine have their own closed receipt.\n            $proof.suiteExecutions = @($harnessRecord.suiteExecutions | Select-Object -First 11)';
+    assert.equal(source.split(projection).length,2); source=source.replace(projection,'            $proof.suiteExecutions = @($harnessRecord.suiteExecutions)');
+  }
+  assert.equal(normalizedDigest(source),baselinePins[file]);
+});
 for (const [file, declaration] of [['desktop/src-tauri/src/account_cloud.rs', '#[cfg(all(test, windows))]\n#[path = "account_cloud_live_a41_g4_tests.rs"]\nmod live_a41_g4_tests;\n\n'],
   ['desktop/src-tauri/src/company_collaboration.rs', '#[cfg(all(test, windows))]\n#[path = "company_collaboration_live_a41_g4_support.rs"]\npub(crate) mod live_a41_g4_support;\n\n']]) {
-  const source = read(file).replace(/\r\n/g, '\n');
+  let source = read(file).replace(/\r\n/g, '\n');
+  if(file==='desktop/src-tauri/src/account_cloud.rs') {
+    for(const route of ['quote-consent','quote-activity','quote-review']) {
+      const addition=`            | "/api/account/automation/${route}"\n`;
+      // The existing writer paths are unchanged. Only these fixed read/CAS
+      // product routes are added; no caller-selected origin becomes authority.
+      assert.equal(source.split(addition).length,2);source=source.replace(addition,'');
+    }
+  }
   ok(() => assert.equal(source.split(declaration).length, 2));
   ok(() => assert.equal(normalizedDigest(source.replace(declaration, '')), baselinePins[file]));
 }
@@ -244,7 +261,7 @@ for (const file of ['desktop/src-tauri/Cargo.toml', 'desktop/src-tauri/src/datab
   ok(() => assert.equal(normalizedDigest(read(file)), baselinePins[file]));
 ok(() => assert(!JSON.stringify(current).includes('contracts.test.mjs')));
 console.log(JSON.stringify({ result: 'PURE_G4_CI_CONTRACTS_OK', checks, matrixCases, contextAttachedOnce: true,
-  baselineSource, sourceBaselinePinsChecked: Object.keys(baselinePins).length, accountAndProfileSourcesUnchanged: files.length,
+  baselineSource, sourceBaselinePinsChecked: Object.keys(baselinePins).length, baselineBodiesPreservedWithExplicitProductAdditions: files.length,
   ignoredQaDependency: false, gitHistoryRequired: false, automaticallyWiredIntoCi: false,
   sessionRegressionProofSeparate: true, sameRegressionAndG4BinaryRequired: true,
   rustModulesDeclaredTestWindowsOnly: true, rustCompiled: false, nativeExecuted: false, cargoExecuted: false,

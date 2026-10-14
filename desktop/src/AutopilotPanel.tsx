@@ -1,0 +1,90 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUpRight, ChevronRight, ClipboardCheck, Workflow } from 'lucide-react';
+import { useAppLanguage, getAppLocale } from './language';
+import { autopilotCopy, autopilotReviewReason } from './autopilotPresentation';
+import { normalizeAutopilotReviewPage } from './autopilotReview';
+import type { AutopilotView } from './autopilotView';
+import './AutopilotPanel.css';
+
+function statusText(state: AutopilotView, language: string) {
+  const copy = autopilotCopy(language);
+  if (state.status === 'checking') return copy.checking;
+  if (state.status === 'offline') return copy.offline;
+  if (state.status === 'disconnected') return copy.disconnected;
+  if (state.error === 'permission') return copy.permission;
+  if (state.error === 'conflict') return copy.conflict;
+  if (state.error === 'rate_limited') return copy.rateLimited;
+  if (state.status === 'error') return copy.connection;
+  if (state.status === 'ready' && !state.canManage && !state.consent) return copy.shared;
+  if (state.status !== 'ready' || !state.consent) return copy.unavailable;
+  return state.consent.enabled && state.consent.consentVersion === state.consent.requiredConsentVersion ? copy.active : copy.paused;
+}
+
+export function AutopilotStatus({ state, onSettings }: { state: AutopilotView; onSettings: () => void }) {
+  const language = useAppLanguage(), copy = autopilotCopy(language);
+  return <section className="quote-autopilot quote-autopilot--status" aria-label={copy.title}>
+    <Workflow size={21} aria-hidden="true" />
+    <div><strong>{copy.title}</strong><span>{statusText(state, language)}</span></div>
+    <button type="button" onClick={onSettings}>{copy.settings}<ChevronRight size={16} aria-hidden="true" /></button>
+  </section>;
+}
+
+export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; onConsent: (enabled: boolean) => Promise<void> }) {
+  const language = useAppLanguage(), copy = autopilotCopy(language);
+  const admitted = state.status === 'ready' && state.consent !== null;
+  const errorText = state.error === 'save' ? copy.saveError : state.error === 'context_changed' ? copy.contextChanged
+    : state.error === 'busy' ? copy.busy : state.error === 'connection' ? copy.connection : state.error === 'permission' ? copy.permission
+      : state.error === 'conflict' ? copy.conflict : state.error === 'rate_limited' ? copy.rateLimited : null;
+  return <section className="quote-autopilot quote-autopilot--settings" aria-labelledby="quote-autopilot-settings-title">
+    <header><div><h2 id="quote-autopilot-settings-title">{copy.title}</h2><p>{copy.consentTitle}</p></div></header>
+    {admitted ? <>
+      <label className="quote-autopilot__consent">
+        <input type="checkbox" checked={state.consent!.enabled && state.consent!.consentVersion === state.consent!.requiredConsentVersion} disabled={!state.canManage || state.saving}
+          onChange={event => { void onConsent(event.target.checked); }} />
+        <span><strong>{copy.consent}</strong><small>{copy.consentDetail}</small></span>
+      </label>
+      {!state.canManage && <p className="quote-autopilot__context">{copy.admin}</p>}
+      {state.consent!.enabled && state.consent!.consentVersion === state.consent!.requiredConsentVersion && <p className="quote-autopilot__context">{copy.background}</p>}
+    </> : <p className="quote-autopilot__context" role="status">{state.status === 'ready' && !state.canManage ? copy.admin : statusText(state, language)}</p>}
+    {state.saving && <p className="quote-autopilot__context" role="status">{copy.saving}</p>}
+    {errorText && <p className="quote-autopilot__error" role="status">{errorText}</p>}
+  </section>;
+}
+
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh }: {
+  state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
+  onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
+}) {
+  const language = useAppLanguage(), copy = autopilotCopy(language);
+  const page = useMemo(() => normalizeAutopilotReviewPage(state.reviews, organizationId), [state.reviews, organizationId]);
+  const [opening, setOpening] = useState<string | null>(null), [openFailed, setOpenFailed] = useState(false);
+  const epoch = useRef(0);
+  useEffect(() => { epoch.current++; setOpening(null); setOpenFailed(false); return () => { epoch.current++; }; }, [organizationId]);
+  const open = async (proposalId: string, sourceId: string) => {
+    if (opening || state.status !== 'ready' || !page) return;
+    const original = epoch.current; setOpening(proposalId); setOpenFailed(false);
+    try { await onOpenSource(sourceId); }
+    catch { if (epoch.current === original) setOpenFailed(true); }
+    finally { if (epoch.current === original) setOpening(null); }
+  };
+  const readable = state.status === 'ready' && !!page && !state.reviewsUnavailable;
+  return <section className="quote-autopilot quote-autopilot--reviews" aria-labelledby="quote-autopilot-review-title">
+    <header><div><h2 id="quote-autopilot-review-title">{copy.reviewTitle}</h2><p>{copy.reviewDescription}</p></div>
+      {onRefresh && <button type="button" disabled={state.readingReviews} onClick={() => { void onRefresh(); }}>{copy.refresh}</button>}
+    </header>
+    {!readable ? <p className="quote-autopilot__context" role="status">{state.status !== 'ready' ? statusText(state, language) : state.readingReviews ? copy.loading : copy.readError}</p>
+      : page.items.length === 0 ? <p className="quote-autopilot__context">{copy.empty}</p>
+        : <ol className="quote-autopilot__requests">{page.items.map(item => <li key={item.proposalId}>
+          <ClipboardCheck size={21} aria-hidden="true" />
+          <div><strong>{copy.request}</strong><time dateTime={new Date(item.createdAt * 1000).toISOString()}>
+            {new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt * 1000)}
+          </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul></div>
+          <button type="button" disabled={opening !== null} onClick={() => { void open(item.proposalId, item.sourceId); }}>
+            {copy.openRequest}<ArrowUpRight size={16} aria-hidden="true" />
+          </button>
+        </li>)}</ol>}
+    {openFailed && <p className="quote-autopilot__error" role="status">{copy.openError}</p>}
+    {state.error === 'busy' && <p className="quote-autopilot__context" role="status">{copy.busy}</p>}
+    {readable && page.nextCursor && onNext && <footer><button type="button" disabled={state.readingReviews} onClick={() => { void onNext(); }}>{copy.more}<ChevronRight size={16} aria-hidden="true" /></button></footer>}
+  </section>;
+}

@@ -1,4 +1,4 @@
-//! Private authenticated consumer. No IPC, scheduler or public route enables it.
+//! Authenticated consumer, with a separately gated product IPC supervisor.
 //! Real A8/A7 transport, writer and collaboration helpers; no AI/model input is
 //! accepted here. Native compilation and staging remain required before use.
 use super::*;
@@ -14,6 +14,9 @@ use crate::action_engine_quote_publication::{
 };
 use rusqlite::OptionalExtension;
 use std::collections::HashSet;
+
+#[path = "account_cloud_quote_autopilot.rs"]
+pub(crate) mod supervisor;
 
 // Deliberately neither Debug nor Serialize: account tokens/references and local
 // workspace identities must never escape through IPC or diagnostic logging.
@@ -538,7 +541,7 @@ async fn recovery_work(
 
 /// One bounded local-recovery batch OR one discovery page; never a background
 /// loop or automatic retry. Caller must retain this opaque round until complete
-/// and then start a new cursor-less round. No IPC/scheduler calls it yet.
+/// and then start a new cursor-less round. The supervisor retains it natively.
 pub(crate) async fn advance_quote_work_round(
     store: &LocalStore,
     round: &mut QuoteWorkRound,

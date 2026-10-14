@@ -1,0 +1,64 @@
+.quote-autopilot {
+  color: var(--apple-ink, #1d1d1f);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", sans-serif;
+  font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  font-optical-sizing: auto;
+  line-height: 1.5;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-underline-offset: .2em;
+}
+.quote-autopilot ::selection { background: var(--apple-selection, #e2ece6); color: var(--apple-ink, #1d1d1f); }
+.quote-autopilot button {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  min-height: 44px; max-width: 100%; padding: .625rem .875rem;
+  border: 0; border-radius: 10px; background: var(--apple-grouped, #efeff2);
+  color: var(--apple-ink, #1d1d1f); font: inherit; font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  line-height: 1.4; font-weight: 550; white-space: normal; text-align: start; cursor: pointer;
+  touch-action: manipulation; transition: background-color 150ms ease-out, opacity 120ms ease-out;
+}
+.quote-autopilot button:hover:not(:disabled) { background: var(--apple-selection, #e2ece6); }
+.quote-autopilot button:active:not(:disabled) { opacity: .74; }
+.quote-autopilot button:focus-visible, .quote-autopilot input:focus-visible { outline: 2px solid var(--apple-focus, #24664f); outline-offset: 3px; }
+.quote-autopilot button:disabled { opacity: .55; cursor: default; }
+.quote-autopilot svg { flex: none; }
+.quote-autopilot--status { display: flex; align-items: center; gap: 1rem; margin-block-end: 1.5rem; padding-block: .75rem; }
+.quote-autopilot--status > div { display: grid; gap: .125rem; min-width: 0; flex: 1; }
+.quote-autopilot--status strong { font-size: calc(16px * var(--zentra-ui-text-scale, 1)); font-weight: 600; }
+.quote-autopilot--status span, .quote-autopilot__context, .quote-autopilot time { color: var(--apple-secondary, #6e6e73); }
+.quote-autopilot--status span { font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot--status > button { flex: none; background: transparent; }
+.quote-autopilot--settings, .quote-autopilot--reviews { padding: 1.5rem; margin-block: 1.5rem; border-radius: 16px; background: var(--apple-paper, #fff); }
+.quote-autopilot header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-block-end: 1.5rem; }
+.quote-autopilot header > div { min-width: 0; }
+.quote-autopilot h2 { margin: 0 0 .375rem; font-size: calc(20px * var(--zentra-ui-text-scale, 1)); font-weight: 600; line-height: 1.3; letter-spacing: -.02em; }
+.quote-autopilot p { max-width: 70ch; margin: 0; font-size: inherit; line-height: 1.5; }
+.quote-autopilot header p { color: var(--apple-secondary, #6e6e73); font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot__consent { display: flex; align-items: flex-start; gap: .875rem; padding-block: .5rem; cursor: pointer; min-height: 44px; }
+.quote-autopilot__consent input { flex: none; margin: .25rem 0 0; inline-size: 20px; block-size: 20px; accent-color: var(--apple-accent, #24664f); }
+.quote-autopilot__consent > span { display: grid; gap: .5rem; min-width: 0; }
+.quote-autopilot__consent strong { font-weight: 550; }
+.quote-autopilot__consent small { font-size: calc(14px * var(--zentra-ui-text-scale, 1)); color: var(--apple-secondary, #6e6e73); }
+.quote-autopilot p.quote-autopilot__context, .quote-autopilot p.quote-autopilot__error { margin-block-start: 1rem; font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot__error { color: var(--apple-danger, #a93034); }
+.quote-autopilot__requests { list-style: none; padding: 0; margin: 0; }
+.quote-autopilot__requests > li { display: grid; grid-template-columns: 21px minmax(0, 1fr) auto; gap: 1rem; align-items: start; padding-block: 1.25rem; }
+.quote-autopilot__requests > li + li { border-block-start: 1px solid var(--apple-line, #dcdce1); }
+.quote-autopilot__requests > li > svg { margin-block-start: .2rem; color: var(--apple-warning, #785813); }
+.quote-autopilot__requests > li > div { min-width: 0; }
+.quote-autopilot__requests strong { display: block; font-weight: 600; }
+.quote-autopilot__requests time { display: block; margin-block-start: .125rem; font-size: calc(13px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot__requests ul { list-style: none; padding: 0; margin: .625rem 0 0; color: var(--apple-secondary, #6e6e73); font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot footer { display: flex; justify-content: flex-end; padding-block-start: 1rem; }
+@media (max-width: 680px) {
+  .quote-autopilot { font-size: calc(16px * var(--zentra-ui-text-scale, 1)); }
+  .quote-autopilot--settings, .quote-autopilot--reviews { padding: 1.25rem 1rem; }
+  .quote-autopilot--status { gap: .75rem; }
+  .quote-autopilot--status > svg { display: none; }
+  .quote-autopilot--status > button { max-width: 45%; padding-inline: .5rem; }
+  .quote-autopilot header { flex-wrap: wrap; }
+  .quote-autopilot__requests > li { grid-template-columns: 21px minmax(0, 1fr); gap: .75rem; }
+  .quote-autopilot__requests > li > button { grid-column: 2; justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) { .quote-autopilot button { transition: none; } }
+@media (forced-colors: active) { .quote-autopilot button { border: 1px solid ButtonText; } }

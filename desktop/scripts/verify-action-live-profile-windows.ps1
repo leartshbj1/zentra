@@ -176,6 +176,9 @@ try {
         $proof.runtimePassed++
     }
     if ($proof.runtimePassed -ne 11 -or $harness.Proof.suiteExecutions.Count -ne 11) { throw 'The one-node live-profile result is incomplete.' }
+    . (Join-Path $PSScriptRoot 'quote-autopilot-verification.ps1')
+    $autopilotProof = Invoke-ZentraAutopilotProductVerification -Harness $harness -Source $source -ProfileSha256 $expectedSha -Artifacts $artifacts
+    if (-not $autopilotProof.passed) { throw 'Autopilot product native validation did not pass.' }
     $proof.passed = $true
     Write-Host "LIVE_PROFILE_PASSED source=$source context=live-sandbox-a41 passed=$($proof.runtimePassed)"
 } finally {
@@ -183,7 +186,9 @@ try {
     if (Test-Path -LiteralPath $artifacts -PathType Container) {
         if (Test-Path -LiteralPath (Join-Path $artifacts 'windows-test-harness-proof.json')) {
             $harnessRecord = [IO.File]::ReadAllText((Join-Path $artifacts 'windows-test-harness-proof.json')) | ConvertFrom-Json
-            $proof.suiteExecutions = @($harnessRecord.suiteExecutions)
+            # This historical proof continues to describe only its eleven
+            # profile tests. The additional nine have their own closed receipt.
+            $proof.suiteExecutions = @($harnessRecord.suiteExecutions | Select-Object -First 11)
         }
         $proof.completedAt = [DateTimeOffset]::UtcNow.ToString('o')
         Save-ZentraHarnessProof $proof (Join-Path $artifacts 'live-profile-verification-proof.json')

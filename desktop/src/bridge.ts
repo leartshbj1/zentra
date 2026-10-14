@@ -25,6 +25,137 @@ import { documentCompositions } from './documentComposition';
 import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from './documentAppearance';
 import type { CertificateDraft, CertificateInput } from './salaryCertificate';
 import { Channel } from '@tauri-apps/api/core';
+export type QuoteAutopilotOrigin = Readonly<{ expectedWorkspaceScope: string; expectedMemberContextNonce: string }>;
+export type QuoteAutopilotCode = 'none' | 'product_gate_closed' | 'busy' | 'context_changed' | 'invalid_request' | 'forbidden' | 'revision_conflict' | 'conflict' | 'rate_limited' | 'service_unavailable';
+export type QuoteAutopilotStatus = 'available' | 'unavailable' | 'context_changed' | 'error';
+export type QuoteAutopilotScope = Readonly<{ schemaVersion: 1; code: QuoteAutopilotCode; organizationId: string | null; workspaceScope: string | null; memberContextNonce: string | null }>;
+export type QuoteAutopilotState = QuoteAutopilotScope & Readonly<{ status: QuoteAutopilotStatus; canManage: boolean }>;
+export type QuoteAutopilotConsent = Readonly<{ schemaVersion: 1; enabled: boolean; revision: number; consentVersion: string | null; requiredConsentVersion: string }>;
+export type QuoteAutopilotConsentInput = Readonly<{ schemaVersion: 1; enabled: boolean; consentVersion: string | null; expectedRevision: number }>;
+export type QuoteAutopilotPageInput = Readonly<{ limit: number; cursor: string | null }>;
+export type QuoteAutopilotReason = 'missing_customer_name' | 'ambiguous_customer' | 'archived_customer' | 'missing_quantity' | 'ambiguous_quantity' | 'unsupported_quantity' | 'missing_article' | 'too_many_candidates' | 'source_too_long' | 'low_confidence' | 'not_quote_request' | 'invalid_decision' | 'provider_unavailable';
+export type QuoteAutopilotReviewPage = Readonly<{ organizationId: string; items: readonly Readonly<{ proposalId: string; sourceId: string; createdAt: number; disposition: 'needs_review'; reasons: readonly QuoteAutopilotReason[]; requiresHumanValidation: true }>[]; nextCursor: string | null }>;
+export type QuoteAutopilotActivityPage = import('./confirmedQuoteActivity').ConfirmedQuoteActivityPage;
+export type QuoteAutopilotRead<T> = QuoteAutopilotScope & Readonly<{ status: QuoteAutopilotStatus; data: T | null }>;
+export type QuoteAutopilotTick = QuoteAutopilotScope & Readonly<{ status: 'unavailable' | 'idle' | 'progress' | 'needs_review' | 'held' | 'busy' | 'context_changed' | 'error'; phase: 'none' | 'recovery' | 'page'; counts: Readonly<{ confirmed: number; held: number; reviewRequired: number }> | null; roundComplete: boolean; hasMore: boolean; pendingRecovery: boolean }>;
+
+const quoteAutopilotConsentVersion = 'action-engine-quote-draft-customer-2026-10-11';
+const quoteAutopilotReasons: readonly QuoteAutopilotReason[] = ['missing_customer_name', 'ambiguous_customer', 'archived_customer', 'missing_quantity', 'ambiguous_quantity', 'unsupported_quantity', 'missing_article', 'too_many_candidates', 'source_too_long', 'low_confidence', 'not_quote_request', 'invalid_decision', 'provider_unavailable'];
+function quoteAutopilotInvalid(): never { throw new Error('AUTOPILOT_INVALID_NATIVE_CONTRACT'); }
+function quoteAutopilotExact(raw: unknown, fields: readonly string[]): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(raw))) return quoteAutopilotInvalid();
+  const keys = Reflect.ownKeys(raw);
+  if (keys.length !== fields.length || keys.some(key => typeof key !== 'string' || !fields.includes(key))) return quoteAutopilotInvalid();
+  const result: Record<string, unknown> = Object.create(null);
+  for (const field of fields) {
+    const descriptor = Object.getOwnPropertyDescriptor(raw, field);
+    if (!descriptor?.enumerable || !('value' in descriptor)) return quoteAutopilotInvalid();
+    result[field] = descriptor.value;
+  }
+  return result;
+}
+function quoteAutopilotIdentifier(value: unknown): value is string { return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,159}$/.test(value); }
+function quoteAutopilotCursor(value: unknown): value is string | null { return value === null || typeof value === 'string' && /^[A-Za-z0-9_-]{1,4096}$/.test(value); }
+function quoteAutopilotInteger(value: unknown, min: number, max: number): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max; }
+export function captureQuoteAutopilotOrigin(raw: QuoteAutopilotOrigin): QuoteAutopilotOrigin {
+  const value = quoteAutopilotExact(raw, ['expectedWorkspaceScope', 'expectedMemberContextNonce']);
+  if (!quoteAutopilotIdentifier(value.expectedWorkspaceScope) || typeof value.expectedMemberContextNonce !== 'string' || !/^[0-9a-f]{32}$/.test(value.expectedMemberContextNonce)) return quoteAutopilotInvalid();
+  return Object.freeze({ expectedWorkspaceScope: value.expectedWorkspaceScope, expectedMemberContextNonce: value.expectedMemberContextNonce });
+}
+export function captureQuoteAutopilotConsentInput(raw: QuoteAutopilotConsentInput): QuoteAutopilotConsentInput {
+  const value = quoteAutopilotExact(raw, ['schemaVersion', 'enabled', 'consentVersion', 'expectedRevision']);
+  if (value.schemaVersion !== 1 || typeof value.enabled !== 'boolean' || !quoteAutopilotInteger(value.expectedRevision, 0, 2147483647)
+    || (value.enabled ? value.consentVersion !== quoteAutopilotConsentVersion : value.consentVersion !== null)) return quoteAutopilotInvalid();
+  return Object.freeze({ schemaVersion: 1, enabled: value.enabled, consentVersion: value.consentVersion as string | null, expectedRevision: value.expectedRevision });
+}
+export function captureQuoteAutopilotPageInput(raw: QuoteAutopilotPageInput): QuoteAutopilotPageInput {
+  const value = quoteAutopilotExact(raw, ['limit', 'cursor']);
+  if (!quoteAutopilotInteger(value.limit, 1, 50) || !quoteAutopilotCursor(value.cursor)) return quoteAutopilotInvalid();
+  return Object.freeze({ limit: value.limit, cursor: value.cursor });
+}
+function quoteAutopilotEnvelope(raw: unknown, origin: QuoteAutopilotOrigin, fields: readonly string[], statuses: readonly string[]): Record<string, unknown> {
+  const value = quoteAutopilotExact(raw, ['schemaVersion', 'status', 'code', 'organizationId', 'workspaceScope', 'memberContextNonce', ...fields]);
+  const expected = captureQuoteAutopilotOrigin(origin);
+  if (value.schemaVersion !== 1 || typeof value.status !== 'string' || !statuses.includes(value.status) || typeof value.code !== 'string'
+    || !['none', 'product_gate_closed', 'busy', 'context_changed', 'invalid_request', 'forbidden', 'revision_conflict', 'conflict', 'rate_limited', 'service_unavailable'].includes(value.code)) return quoteAutopilotInvalid();
+  const admitted = ['available', 'idle', 'progress', 'needs_review', 'held'].includes(value.status);
+  if (admitted) {
+    if (value.code !== 'none' || !quoteAutopilotIdentifier(value.organizationId) || value.workspaceScope !== expected.expectedWorkspaceScope
+      || value.memberContextNonce !== expected.expectedMemberContextNonce) return quoteAutopilotInvalid();
+  } else if (value.code === 'none' || value.organizationId !== null || value.workspaceScope !== null || value.memberContextNonce !== null) return quoteAutopilotInvalid();
+  if (value.status === 'unavailable' && value.code !== 'product_gate_closed' || value.status === 'context_changed' && value.code !== 'context_changed'
+    || value.status === 'busy' && value.code !== 'busy' || value.status === 'error' && ['none', 'product_gate_closed', 'context_changed', 'busy'].includes(value.code as string)) return quoteAutopilotInvalid();
+  return value;
+}
+export function quoteAutopilotStateFromRaw(raw: unknown, origin: QuoteAutopilotOrigin): QuoteAutopilotState {
+  const value = quoteAutopilotEnvelope(raw, origin, ['canManage'], ['available', 'unavailable', 'context_changed', 'error']);
+  if (typeof value.canManage !== 'boolean' || value.status !== 'available' && value.canManage) return quoteAutopilotInvalid();
+  return Object.freeze({ ...value }) as QuoteAutopilotState;
+}
+function quoteAutopilotArray(raw: unknown, maximum: number): readonly unknown[] {
+  if (!Array.isArray(raw) || Object.getPrototypeOf(raw) !== Array.prototype) return quoteAutopilotInvalid();
+  const length = Object.getOwnPropertyDescriptor(raw, 'length')?.value as unknown;
+  if (!quoteAutopilotInteger(length, 0, maximum) || Reflect.ownKeys(raw).length !== length + 1) return quoteAutopilotInvalid();
+  return Array.from({ length }, (_, index) => {
+    const value = Object.getOwnPropertyDescriptor(raw, String(index));
+    if (!value?.enumerable || !('value' in value)) return quoteAutopilotInvalid();
+    return value.value;
+  });
+}
+export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review', limit = 50): QuoteAutopilotRead<T> {
+  const value = quoteAutopilotEnvelope(raw, origin, ['data'], ['available', 'unavailable', 'context_changed', 'error']);
+  if (value.status !== 'available') {
+    if (value.data !== null) return quoteAutopilotInvalid();
+    return Object.freeze({ ...value }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'consent') {
+    const consent = quoteAutopilotExact(value.data, ['schemaVersion', 'enabled', 'revision', 'consentVersion', 'requiredConsentVersion']);
+    if (consent.schemaVersion !== 1 || typeof consent.enabled !== 'boolean' || !quoteAutopilotInteger(consent.revision, 0, 2147483647)
+      || consent.requiredConsentVersion !== quoteAutopilotConsentVersion || consent.consentVersion !== null && (typeof consent.consentVersion !== 'string' || !/^[a-z0-9-]{1,160}$/.test(consent.consentVersion))
+      || consent.enabled && (consent.revision === 0 || consent.consentVersion !== consent.requiredConsentVersion)
+      || consent.revision === 0 && consent.consentVersion !== null) return quoteAutopilotInvalid();
+    return Object.freeze({ ...value, data: Object.freeze({ ...consent }) }) as QuoteAutopilotRead<T>;
+  }
+  const page = quoteAutopilotExact(value.data, ['organizationId', 'items', 'nextCursor']);
+  if (page.organizationId !== value.organizationId || !quoteAutopilotCursor(page.nextCursor) || !quoteAutopilotInteger(limit, 1, 50)) return quoteAutopilotInvalid();
+  const identities = new Set<string>();
+  const activityIds = new Set<string>(), quoteIds = new Set<string>();
+  const items = quoteAutopilotArray(page.items, limit).map(rawItem => {
+    const fields = kind === 'activity' ? ['activityId', 'proposalId', 'quoteId', 'confirmedAt', 'kind', 'requiresHumanValidation'] : ['proposalId', 'sourceId', 'createdAt', 'disposition', 'reasons', 'requiresHumanValidation'];
+    const item = quoteAutopilotExact(rawItem, fields);
+    if (!quoteAutopilotIdentifier(item.proposalId) || identities.has(item.proposalId) || item.requiresHumanValidation !== true) return quoteAutopilotInvalid();
+    identities.add(item.proposalId);
+    if (kind === 'activity') {
+      if (!quoteAutopilotIdentifier(item.activityId) || typeof item.quoteId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(item.quoteId)
+        || !quoteAutopilotInteger(item.confirmedAt, 1, 253402300799) || item.kind !== 'quote_draft_created'
+        || activityIds.has(item.activityId) || quoteIds.has(item.quoteId)) return quoteAutopilotInvalid();
+      activityIds.add(item.activityId); quoteIds.add(item.quoteId);
+    } else {
+      if (!quoteAutopilotIdentifier(item.sourceId) || !quoteAutopilotInteger(item.createdAt, 1, 253402300799) || item.disposition !== 'needs_review') return quoteAutopilotInvalid();
+      const reasons = quoteAutopilotArray(item.reasons, 13);
+      if (!reasons.length || new Set(reasons).size !== reasons.length || reasons.some(reason => !quoteAutopilotReasons.includes(reason as QuoteAutopilotReason))) return quoteAutopilotInvalid();
+      item.reasons = Object.freeze([...reasons]);
+    }
+    return Object.freeze({ ...item });
+  });
+  const data = Object.freeze({ organizationId: page.organizationId, items: Object.freeze(items), nextCursor: page.nextCursor });
+  if (new TextEncoder().encode(JSON.stringify(data)).length > 65536) return quoteAutopilotInvalid();
+  return Object.freeze({ ...value, data }) as QuoteAutopilotRead<T>;
+}
+export function quoteAutopilotTickFromRaw(raw: unknown, origin: QuoteAutopilotOrigin): QuoteAutopilotTick {
+  const value = quoteAutopilotEnvelope(raw, origin, ['phase', 'counts', 'roundComplete', 'hasMore', 'pendingRecovery'], ['unavailable', 'idle', 'progress', 'needs_review', 'held', 'busy', 'context_changed', 'error']);
+  if (typeof value.roundComplete !== 'boolean' || typeof value.hasMore !== 'boolean' || typeof value.pendingRecovery !== 'boolean') return quoteAutopilotInvalid();
+  if (['unavailable', 'busy', 'context_changed', 'error'].includes(value.status as string)) {
+    if (value.phase !== 'none' || value.counts !== null || value.roundComplete || value.hasMore || value.pendingRecovery) return quoteAutopilotInvalid();
+    return Object.freeze({ ...value }) as QuoteAutopilotTick;
+  }
+  const counts = quoteAutopilotExact(value.counts, ['confirmed', 'held', 'reviewRequired']);
+  if (!['recovery', 'page'].includes(value.phase as string) || Object.values(counts).some(count => !quoteAutopilotInteger(count, 0, 20))
+    || (counts.confirmed as number) + (counts.held as number) + (counts.reviewRequired as number) > 20
+    || value.status === 'needs_review' && counts.reviewRequired === 0 || value.phase === 'recovery' && (value.roundComplete || counts.held !== 0 || counts.reviewRequired !== 0)
+    || value.phase === 'page' && (value.pendingRecovery || value.hasMore === value.roundComplete)) return quoteAutopilotInvalid();
+  return Object.freeze({ ...value, counts: Object.freeze({ ...counts }) }) as QuoteAutopilotTick;
+}
 import { diagnosticInvoke as invoke, diagnosticOperation } from './diagnostics';
 import type { CustomerCreditRecoveryInput, CustomerCreditRecoveryPlan, CustomerCreditRecoveryPreview } from './customerCreditRecoveryState';
 async function loadPaymentFormWorkspace(expectedWorkspaceScope?:string):Promise<Workspace> {
@@ -4834,6 +4965,33 @@ const cloudAccountReader = createCloudAccountReader(async () =>
 
 export const desktopApi = {
   loadWorkspace,
+  async getQuoteAutopilotState(origin: QuoteAutopilotOrigin): Promise<QuoteAutopilotState> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    return quoteAutopilotStateFromRaw(await invoke<unknown>('quote_autopilot_state', { origin: captured }), captured);
+  },
+  async readQuoteAutopilotConsent(origin: QuoteAutopilotOrigin): Promise<QuoteAutopilotRead<QuoteAutopilotConsent>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_consent', { origin: captured }), captured, 'consent');
+  },
+  async setQuoteAutopilotConsent(origin: QuoteAutopilotOrigin, input: QuoteAutopilotConsentInput): Promise<QuoteAutopilotRead<QuoteAutopilotConsent>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    const request = captureQuoteAutopilotConsentInput(input);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('set_quote_autopilot_consent', { origin: captured, input: request }), captured, 'consent');
+  },
+  async tickQuoteAutopilot(origin: QuoteAutopilotOrigin): Promise<QuoteAutopilotTick> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    return quoteAutopilotTickFromRaw(await invoke<unknown>('quote_autopilot_tick', { origin: captured }), captured);
+  },
+  async readQuoteAutopilotActivity(origin: QuoteAutopilotOrigin, input: QuoteAutopilotPageInput): Promise<QuoteAutopilotRead<QuoteAutopilotActivityPage>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    const request = captureQuoteAutopilotPageInput(input);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_activity', { origin: captured, input: request }), captured, 'activity', request.limit);
+  },
+  async readQuoteAutopilotReview(origin: QuoteAutopilotOrigin, input: QuoteAutopilotPageInput): Promise<QuoteAutopilotRead<QuoteAutopilotReviewPage>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    const request = captureQuoteAutopilotPageInput(input);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_review', { origin: captured, input: request }), captured, 'review', request.limit);
+  },
   async getNogaCatalog(): Promise<NogaCatalog> {
     const raw = await invoke<RawRecord>('get_noga_catalog');
     return {

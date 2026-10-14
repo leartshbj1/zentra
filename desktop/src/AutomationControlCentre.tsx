@@ -14,6 +14,7 @@ import {
 import type { WorkflowDefinition } from './automationWorkflowTypes';
 import './AutomationControlCentre.css';
 import { AutomationJournal } from './AutomationJournal';
+import type { ConfirmedQuoteActivityPage } from './confirmedQuoteActivity';
 import type { AutomationActivity } from './automation';
 import type { BriefDestination } from './AutomationBrief';
 import { t, useAppLanguage } from './language';
@@ -251,6 +252,7 @@ export function AutomationControlCentre({
   organizationId,
   request, initialTab = 'history', embedded = false, hideNavigation = false, hideRules = false,
   activity, onOpen, onOpenInvoice, appointments, appointmentsUnavailable, onOpenAppointment, onOpenSourceMessage,
+  confirmedQuotes, onOpenQuote,
 }: {
   organizationId: string;
   request: Requester;
@@ -262,6 +264,8 @@ export function AutomationControlCentre({
   appointmentsUnavailable?: boolean;
   onOpenAppointment?: (id: string) => void;
   onOpenSourceMessage?: (id: string) => Promise<unknown>;
+  confirmedQuotes?: ConfirmedQuoteActivityPage | null;
+  onOpenQuote?: (id: string) => void;
 }) {
   const language = useAppLanguage();
   const c = useCentreText();
@@ -497,7 +501,7 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {tab === 'history' && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} loading={loading} unavailable={!!error} onRefresh={() => void load()} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={!!data?.canManage && !error} busy={busy || loading} act={action} onOpenSourceMessage={onOpenSourceMessage} quickMessage/>}/>}
+      {tab === 'history' && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} confirmedQuotes={confirmedQuotes} openQuote={onOpenQuote} loading={loading} unavailable={!!error} onRefresh={() => void load()} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={!!data?.canManage && !error} busy={busy || loading} act={action} onOpenSourceMessage={onOpenSourceMessage} quickMessage/>}/>}
       {data &&
         tab === 'rules' &&
         (editing ? (

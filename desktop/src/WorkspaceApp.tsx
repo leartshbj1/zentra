@@ -3,6 +3,10 @@ import type { AccountingNavigationContext } from './AccountingScreen';
 import { useWorkspaceMutationOrigin } from './useWorkspaceMutationOrigin';
 import { bindWorkspaceMutationRead } from './memberOriginBridge';
 import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
+import { captureWorkspaceMutationOrigin } from './workspaceMemberOrigin';
+import { useAutopilot, type AutopilotContext } from './useAutopilot';
+import { resolveConfirmedQuoteDestination } from './confirmedQuoteDestination';
+import { autopilotCopy } from './autopilotPresentation';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
 import './workspace-navigation.css';
@@ -699,6 +703,31 @@ function WorkspaceContent({
   }, [inboxWorkspaceReception, receptionScope]);
   const publishInboxWorkspace = (next: Workspace) => { workspaceRef.current = next; setWorkspace(next); };
   const refreshInboxWorkspace = () => inboxWorkspaceReception.request();
+  const autopilotContext = useMemo<AutopilotContext | null>(() => {
+    if (cloudAccount?.status !== 'connected' || !cloudAccount.organizationId
+      || consultationIdentity.organizationId !== cloudAccount.organizationId) return null;
+    try {
+      const origin = captureWorkspaceMutationOrigin(workspace, consultationIdentity);
+      return Object.freeze({ organizationId: cloudAccount.organizationId, readOnly,
+        origin: Object.freeze({ expectedWorkspaceScope: origin.workspaceScope, expectedMemberContextNonce: origin.memberContextNonce }) });
+    } catch { return null; }
+  }, [cloudAccount?.status, cloudAccount?.organizationId, cloudAccount?.role, workspace.workNotesScope,
+    consultationIdentity.companyId, consultationIdentity.organizationId, consultationIdentity.memberId,
+    consultationIdentity.memberContextNonce, consultationIdentity.ready, readOnly]);
+  const autopilot = useAutopilot(autopilotContext, refreshInboxWorkspace);
+  const openAutopilotQuote = (quoteId: string) => {
+    if (!autopilotContext || autopilot.state.status !== 'ready') return;
+    const destination = resolveConfirmedQuoteDestination({ organizationId: autopilotContext.organizationId, quoteId,
+      origin: { workspaceScope: autopilotContext.origin.expectedWorkspaceScope, memberContextNonce: autopilotContext.origin.expectedMemberContextNonce } },
+      workspaceRef.current, consultationIdentity, { active: cloudAccount?.status === 'connected', readOnly });
+    if (destination.kind !== 'available') {
+      setNotice({ tone: 'warning', text: autopilotCopy(getAppLanguage()).quoteUnavailable });
+      refreshInboxWorkspace(); return;
+    }
+    setView('quotes'); setSearch('');
+    if (destination.mode === 'consult') setPrintTarget({ entity: 'quotes', value: destination.quote as Quote });
+    else setModal({ type: 'document', entity: 'quotes', item: destination.quote as Quote });
+  };
   const supplierInbox = useSupplierInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace, workspace.workNotesScope);
   const appointmentInbox = useAppointmentInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace, workspace.workNotesScope);
   const openAutomationAppointment = (id: string) => {
@@ -2127,7 +2156,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
