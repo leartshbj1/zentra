@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { BASELINE,CONTINUATION_TEST,CONTINUATION_STEPS,DESCRIPTION,validateContinuationInput,assertContinuationAdmission,
   validateBaselineReceipt,validateHistoricalReview,validateContinuationBaseline,validateContinuationComplete,validateContinuationReview,
   validateContinuationSupportState,makeContinuationSource,continuationFailureCode,validateContinuationDiagnostic } from './verify-action-live-g4-continuation.mjs';
@@ -28,7 +29,7 @@ const env=()=>({CIRCLECI:'true',CIRCLE_BRANCH:'codex/action-engine-native-live-a
   ZENTRA_LIVE_PROFILE_RELEASE:'false',ZENTRA_DIAGNOSTICS_NATIVE_SET:'action-engine',ZENTRA_RUN_LIVE_ACCOUNT_RECIPE:'true',ZENTRA_RUN_LIVE_G4_CONTINUATION:'true'});
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json'}});
 const refuse=fn=>assert.throws(fn);
-function sourceMock(mutate=()=>{}){
+function sourceMock(mutate=()=>{},expectedBody=/3 pièces.*A41-RAD-100/){
   const calls=[];let ticket,approved=false;
   return {calls,async fetcher(url,options){
     const body=options.body?JSON.parse(options.body):null;calls.push({url:String(url),options,body});
@@ -36,7 +37,7 @@ function sourceMock(mutate=()=>{}){
     if(new URL(url).pathname==='/api/auth/session')return response({authenticated:true,user:{id:OWNER,emailConfirmed:true}});
     if(new URL(url).pathname.startsWith('/api/support/hooks/')){
       ticket={id:uuid(6),connectionId:uuid(3),externalId:body.ticketId,subject:body.subject,body:body.body,senderEmail:body.senderEmail,revision:1,state:'pending',decision:null,automatic:false};
-      assert.match(body.body,/3 pièces.*A41-RAD-100/);return response({ticket},202);
+      assert.match(body.body,expectedBody);return response({ticket},202);
     }
     if(body){assert.equal(body.action,'approve');assert.equal(body.ticketId,uuid(6));assert.equal(body.revision,1);approved=true;return response({saved:true});}
     const state=support();if(ticket){const saved={...ticket,...(approved?{revision:2,state:'ready',decision:{category:'quote',manual:true}}:{})};state.tickets.push(saved);state.focusedTicket=saved;}
@@ -95,6 +96,37 @@ test('source lifecycle uses only existing hook and normal human approve, preserv
   const proof=source.publicProof();assert.equal(proof.existingConnectionReused,true);assert.equal(proof.historicalTicketPreserved,true);
   assert.equal(proof.sourceId,uuid(6));assert.equal(proof.thirdPartyMailboxExecuted,false);
   assert.ok(!JSON.stringify(proof).includes(input().apiHookToken));assert.ok(!JSON.stringify(proof).includes(input().account.sitesServiceToken));
+});
+test('source template is a closed local choice and cannot enter the private JSON contract',()=>{
+  let calls=0;const fetcher=async()=>{calls++;throw Error('synthetic');};
+  for(const sourceTemplate of ['en','https://example.test','Please quote 3 items',null,()=>{},['en-g5-v1'],{toString:()=> 'en-g5-v1'}])
+    refuse(()=>makeContinuationSource(input(),{admit:()=>{},fetcher,sourceTemplate}));
+  refuse(()=>validateContinuationInput({...input(),sourceTemplate:'en-g5-v1'}));
+  assert.equal(calls,0);
+});
+test('default continuation retains its exact French envelope and hash',async()=>{
+  const mock=sourceMock(),source=makeContinuationSource(input(),{fetcher:mock.fetcher,admit:()=>{}});
+  await source.provision(baseline());
+  const envelope=mock.calls.find(call=>new URL(call.url).pathname.startsWith('/api/support/hooks/')).body;
+  assert.deepEqual(envelope,{ticketId:`a41-continuation-${uuid(1)}`,subject:`Devis Radiateur A41 — ${uuid(1)}`,
+    body:'Bonjour, pour Camille Recette A41, merci de préparer un devis pour 3 pièces de Radiateur A41, référence A41-RAD-100. Merci.',
+    senderEmail:'camille-a41@example.invalid',senderName:'Camille Recette A41',version:`a41-continuation-${uuid(1)}`});
+  assert.equal(source.publicProof().sourceEnvelopeSha256,createHash('sha256').update(JSON.stringify(envelope)).digest('hex'));
+});
+test('G5 English template changes only subject and body, with exact SKU, envelope hash and one source attempt',async()=>{
+  const mock=sourceMock(()=>{},/^Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100\. Thank you\.$/),
+    source=makeContinuationSource(input(),{fetcher:mock.fetcher,admit:()=>{},sourceTemplate:'en-g5-v1'});
+  await source.provision(baseline());
+  const envelope=mock.calls.find(call=>new URL(call.url).pathname.startsWith('/api/support/hooks/')).body;
+  assert.deepEqual(envelope,{ticketId:`a41-continuation-${uuid(1)}`,subject:`Quotation request: 3 radiators A41-RAD-100 — ${uuid(1)}`,
+    body:'Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100. Thank you.',
+    senderEmail:'camille-a41@example.invalid',senderName:'Camille Recette A41',version:`a41-continuation-${uuid(1)}`});
+  assert.equal(source.publicProof().sourceEnvelopeSha256,createHash('sha256').update(JSON.stringify(envelope)).digest('hex'));
+  assert.deepEqual(mock.calls.filter(call=>call.body).map(call=>call.body.action??'hook'),['hook','approve']);
+  const count=mock.calls.length;await assert.rejects(source.provision(baseline()),/continuation_source_attempt_already_used/);assert.equal(mock.calls.length,count);
+  const g5=readFileSync(new URL('./verify-action-live-g5-windows.mjs',import.meta.url),'utf8'),old=readFileSync(new URL('./verify-action-live-g4-continuation.mjs',import.meta.url),'utf8');
+  assert.equal((g5.match(/sourceTemplate:'en-g5-v1'/g)||[]).length,1);
+  assert.doesNotMatch(old.slice(old.indexOf('export async function runLiveG4Continuation')),/sourceTemplate/);
 });
 test('unknown source response is never retried or replaced with a fresh source',async()=>{
   let calls=0;const source=makeContinuationSource(input(),{admit:()=>{},fetcher:async()=>{calls++;throw Error('synthetic private error');}});

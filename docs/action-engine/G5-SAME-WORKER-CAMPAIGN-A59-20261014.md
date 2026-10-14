@@ -65,6 +65,15 @@ Le pin est celui du vrai head observé avant la future campagne ; il n'est pas
 forcé à 2. Le mode ne modifie ni le head ni les consentements et ne renouvelle
 aucun token automatiquement.
 
+G5 choisit localement le template fermé `en-g5-v1`. Le sujet est
+`Quotation request: 3 radiators A41-RAD-100 — <campaign>` et le corps exact est
+`Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100. Thank you.`
+Le nom du catalogue, la quantité, le client, l'identité de campagne et les
+comparateurs métier restent inchangés. Le hash couvre l'enveloppe réellement
+envoyée. Aucun champ du JSON privé ne choisit ce texte ; la continuation garde
+son template français exact par défaut. Ce choix ne fabrique aucune confiance
+et n'autorise aucune nouvelle campagne avant A61 testé et déployé en QA.
+
 Les variables privées sont supprimées avant Git et compilation. Source exacte,
 fichiers suivis, checkout propre, réconciliation Tauri, profil 11 et trois
 régressions de session précèdent le flag interne G5. Les cinq noms suivants
@@ -111,7 +120,7 @@ restauration synthétique de profils, pas cette chaîne AE authentifiée.
 
 Les commandes, sorties brutes et hashes locaux sont conservés dans
 `.qa/a59-g5-recovery/agent/`. Ils ne constituent pas un résultat CI natif.
-Les contrôles locaux donnent 49/49 tests Node (22 nouveaux G5 et 27 de
+Les contrôles locaux donnent 52/52 tests Node (25 nouveaux G5 et 27 de
 continuation), 283 contrôles G4 historiques, 360 contrôles CI avec 4 032 cas
 de matrice, six vérifications de syntaxe et `git diff --check` réussis.
 Ces ensembles sont distincts et ne sont pas additionnés en preuve native.

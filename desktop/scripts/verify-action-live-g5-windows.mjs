@@ -154,7 +154,7 @@ async function nativePhase(harness,input,retained,account,phase,state){
       reviews:state.baseline?.preexistingReviews??null,consentRevisions:state.baseline?.consentRevisions??null});
     if(phase===0){state.baseline=validateG5Baseline(await channel.read(),input);
       const factory=makeContinuationSource({...continuation(input),account:{...input.account,browserCookieHeader:retained.browserCookieHeader}},
-        {admit:()=>assertG5Admission({...process.env}),baselineValidator:b=>validateG5Baseline(b,input)});
+        {admit:()=>assertG5Admission({...process.env}),baselineValidator:b=>validateG5Baseline(b,input),sourceTemplate:'en-g5-v1'});
       const source=await factory.provision(state.baseline);state.sourceId=source.sourceId;state.sourceLifecycle=factory.publicProof();channel.write({event:'source-ready',sourceId:state.sourceId});}
     const raw=await channel.read();if(raw?.event==='new-source-review'){validateContinuationReview(raw,state.sourceId);throw new G5Refusal('g5_new_source_needs_review');}
     const event=validateG5Phase(raw,phase,state);

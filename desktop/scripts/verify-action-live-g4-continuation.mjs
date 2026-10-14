@@ -202,10 +202,15 @@ export function validateContinuationSupportState(state,input){
 
 // Fetch injection exists only for pure source-lifecycle unit tests. The runner
 // below always supplies the actual global fetch, never a private-input callback.
-export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>assertContinuationAdmission({...process.env}),baselineValidator=validateContinuationBaseline}={}){
+/** @typedef {'fr-continuation-v1'|'en-g5-v1'} ContinuationSourceTemplate */
+/** @type {ContinuationSourceTemplate} */
+const DEFAULT_SOURCE_TEMPLATE='fr-continuation-v1';
+export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>assertContinuationAdmission({...process.env}),baselineValidator=validateContinuationBaseline,sourceTemplate=DEFAULT_SOURCE_TEMPLATE}={}){
   // This captured port is only for the separate trusted G5 coordinator. The
   // original continuation retains its exact revision-one validator by default.
   need(typeof baselineValidator==='function','continuation_baseline_validator_refused');
+  need(sourceTemplate==='fr-continuation-v1'||sourceTemplate==='en-g5-v1','continuation_source_template_refused');
+  const english=sourceTemplate==='en-g5-v1';
   const input=validateContinuationInput(raw);const jar=new Cookies(input.account.browserCookieHeader);let attempted=false,result;
   async function request(route,body,hook=false){
     const expectedHook=`/api/support/hooks/${input.connectionId}`;
@@ -228,8 +233,8 @@ export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>a
       const auth=(await request('/api/auth/session')).value;need(auth?.authenticated===true&&auth.user?.id===OWNER&&auth.user?.emailConfirmed===true,'continuation_owner_refused');
       const route=`/api/support?workspace=${input.workspaceId}`;
       const before=(await request(route)).value,prior=validateContinuationSupportState(before,input);
-      const envelope={ticketId:`a41-continuation-${input.campaignId}`,subject:`Devis Radiateur A41 — ${input.campaignId}`,
-        body:'Bonjour, pour Camille Recette A41, merci de préparer un devis pour 3 pièces de Radiateur A41, référence A41-RAD-100. Merci.',
+      const envelope={ticketId:`a41-continuation-${input.campaignId}`,subject:english?`Quotation request: 3 radiators A41-RAD-100 — ${input.campaignId}`:`Devis Radiateur A41 — ${input.campaignId}`,
+        body:english?'Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100. Thank you.':'Bonjour, pour Camille Recette A41, merci de préparer un devis pour 3 pièces de Radiateur A41, référence A41-RAD-100. Merci.',
         senderEmail:'camille-a41@example.invalid',senderName:'Camille Recette A41',version:`a41-continuation-${input.campaignId}`};
       const received=await request(`/api/support/hooks/${input.connectionId}`,envelope,true),ticket=received.value.ticket;
       need(UUID.test(ticket?.id??'')&&ticket.id!==BASELINE.sourceId&&ticket.connectionId===input.connectionId&&ticket.externalId===envelope.ticketId
