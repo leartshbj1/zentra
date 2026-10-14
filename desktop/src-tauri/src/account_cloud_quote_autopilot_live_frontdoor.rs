@@ -119,7 +119,10 @@ fn webview_json_cannot_supply_a_native_test_grant() {
     let value = json!({"expectedWorkspaceScope":"scope","expectedMemberContextNonce":"a".repeat(32)});
     let origin: Origin = serde_json::from_value(value.clone()).unwrap();
     assert!(origin.test_frontdoor.is_none());
+    #[cfg(not(all(target_os = "windows", feature = "quote-autopilot-product")))]
     assert_eq!(admission(&origin), Err("product_gate_closed"));
+    #[cfg(all(target_os = "windows", feature = "quote-autopilot-product"))]
+    assert_eq!(admission(&origin), Ok(()));
     for field in ["testFrontdoor", "test_frontdoor", "grant", "enabled"] {
         for attempted in [json!(null), json!(true), json!({"active":true})] {
             let mut invalid = value.clone(); invalid[field] = attempted;

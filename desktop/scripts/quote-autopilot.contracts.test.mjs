@@ -100,7 +100,7 @@ test('native busy is a closed transient refusal and never carries another worksp
 });
 
 test('native compile gate, exact registration and detached physical lock remain explicit', () => {
-  assert.match(native,/const PRODUCT_ENABLED: bool = false;/);
+  assert.match(native,/const PRODUCT_ENABLED: bool = cfg!\(all\(target_os = "windows", feature = "quote-autopilot-product"\)\);/);
   assert.match(native,/let enabled = PRODUCT_ENABLED;\s*#\[cfg\(all\(test, windows\)\)\]\s*let enabled = enabled \|\| live_frontdoor::allows\(origin\);\s*if !enabled \{ return Err\("product_gate_closed"\); \}/);
   for (const command of ['quote_autopilot_state','quote_autopilot_consent','set_quote_autopilot_consent','quote_autopilot_tick','quote_autopilot_activity','quote_autopilot_review'])
     assert.ok(lib.includes(`account_cloud::action_engine::supervisor::${command},`));

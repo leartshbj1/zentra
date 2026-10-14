@@ -12,6 +12,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 maintenance = []
+quote-autopilot-product = []
 
 [[example]]
 name = "repair_empty_company_link"

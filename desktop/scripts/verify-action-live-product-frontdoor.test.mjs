@@ -81,7 +81,7 @@ test('failure code inspection never invokes a private getter',()=>{
 });
 test('real native source calls six handlers and exactly one tick; off gate and private capability remain closed',()=>{
   const native=read('../src-tauri/src/account_cloud_quote_autopilot.rs'),capability=read('../src-tauri/src/account_cloud_quote_autopilot_live_frontdoor.rs'),recipe=read('../src-tauri/src/account_cloud_live_a41_product_frontdoor_tests.rs');
-  assert.match(native,/const PRODUCT_ENABLED: bool = false;/);assert.match(native,/#\[cfg\(all\(test, windows\)\)\]\n    #\[serde\(skip\)\]/);
+  assert.match(native,/const PRODUCT_ENABLED: bool = cfg!\(all\(target_os = "windows", feature = "quote-autopilot-product"\)\);/);assert.match(native,/#\[cfg\(all\(test, windows\)\)\]\n    #\[serde\(skip\)\]/);
   for(const name of ['quote_autopilot_state','quote_autopilot_consent','set_quote_autopilot_consent','quote_autopilot_tick','quote_autopilot_activity','quote_autopilot_review'])assert.ok(capability.includes(name+'(app.state()'));
   assert.equal((capability.match(/quote_autopilot_tick\(app\.state/g)||[]).length,1);assert.match(capability,/expected_revision: before\.revision - 1/);assert.match(capability,/after\.data != consent\.data/);
   assert.match(capability,/Arc::ptr_eq/);assert.match(capability,/grant\.original != \*stamp/);assert.match(recipe,/#\[ignore="Explicit future A41 native product frontdoor/);

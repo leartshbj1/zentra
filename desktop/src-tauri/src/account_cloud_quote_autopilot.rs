@@ -5,7 +5,8 @@ use super::*;
 use futures_util::lock::Mutex;
 use std::sync::Arc;
 
-const PRODUCT_ENABLED: bool = false;
+// Explicit build capability; all native and server authority checks still apply.
+const PRODUCT_ENABLED: bool = cfg!(all(target_os = "windows", feature = "quote-autopilot-product"));
 const CONSENT_PATH: &str = "/api/account/automation/quote-consent";
 const ACTIVITY_PATH: &str = "/api/account/automation/quote-activity";
 const REVIEW_PATH: &str = "/api/account/automation/quote-review";
@@ -369,3 +370,7 @@ pub(crate) mod live_frontdoor;
 #[cfg(test)]
 #[path = "account_cloud_quote_autopilot_tests.rs"]
 mod tests;
+
+#[cfg(all(test, target_os = "windows", feature = "quote-autopilot-product"))]
+#[path = "account_cloud_quote_autopilot_on_tests.rs"]
+mod on_tests;

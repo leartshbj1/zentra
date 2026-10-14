@@ -18,6 +18,7 @@ fn synthetic_stamp() -> ActionStamp {
 fn origin() -> Origin { Origin { expected_workspace_scope: "workspace-synthetic".into(), expected_member_context_nonce: "a".repeat(32), #[cfg(all(test, windows))] test_frontdoor: None } }
 fn round(stamp: ActionStamp) -> QuoteWorkRound { QuoteWorkRound { original: stamp, cursor: None, visited_cursors: HashSet::new(), seen_sources: HashSet::new(), complete: false } }
 
+#[cfg(not(all(target_os = "windows", feature = "quote-autopilot-product")))]
 #[test]
 fn product_gate_is_closed_before_context_or_transport() {
     assert!(!PRODUCT_ENABLED);
