@@ -15,14 +15,14 @@ fn synthetic_stamp() -> ActionStamp {
         member_nonce: "a".repeat(32),
     }
 }
-fn origin() -> Origin { Origin { expected_workspace_scope: "workspace-synthetic".into(), expected_member_context_nonce: "a".repeat(32) } }
+fn origin() -> Origin { Origin { expected_workspace_scope: "workspace-synthetic".into(), expected_member_context_nonce: "a".repeat(32), #[cfg(all(test, windows))] test_frontdoor: None } }
 fn round(stamp: ActionStamp) -> QuoteWorkRound { QuoteWorkRound { original: stamp, cursor: None, visited_cursors: HashSet::new(), seen_sources: HashSet::new(), complete: false } }
 
 #[test]
 fn product_gate_is_closed_before_context_or_transport() {
     assert!(!PRODUCT_ENABLED);
     assert_eq!(admission(&origin()), Err("product_gate_closed"));
-    assert_eq!(admission(&Origin { expected_workspace_scope: String::new(), expected_member_context_nonce: String::new() }), Err("product_gate_closed"));
+    assert_eq!(admission(&Origin { expected_workspace_scope: String::new(), expected_member_context_nonce: String::new(), ..origin() }), Err("product_gate_closed"));
     let value = serde_json::to_value(TickReply::refused("product_gate_closed")).unwrap();
     assert_eq!(value, json!({"schemaVersion":1,"status":"unavailable","code":"product_gate_closed","organizationId":null,"workspaceScope":null,"memberContextNonce":null,"phase":"none","counts":null,"roundComplete":false,"hasMore":false,"pendingRecovery":false}));
 }

@@ -2,6 +2,9 @@
 use super::*;
 use crate::account_cloud::action_engine::continuation_support::g5 as staged;
 
+#[path = "account_cloud_live_a41_product_frontdoor_tests.rs"]
+mod product_frontdoor;
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Pin { revision: u64, snapshot_id: String, archive_sha256: String }

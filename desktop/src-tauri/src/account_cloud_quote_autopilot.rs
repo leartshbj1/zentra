@@ -22,6 +22,9 @@ pub(crate) struct Supervisor {
 pub(crate) struct Origin {
     expected_workspace_scope: String,
     expected_member_context_nonce: String,
+    #[cfg(all(test, windows))]
+    #[serde(skip)]
+    test_frontdoor: Option<Arc<live_frontdoor::Grant>>,
 }
 impl Origin {
     fn valid(&self) -> bool {
@@ -103,17 +106,30 @@ impl TickReply {
 
 // Fixed order: the build gate is checked before origin parsing, disk or HTTPS.
 fn admission(origin: &Origin) -> Result<(), &'static str> {
-    if !PRODUCT_ENABLED { return Err("product_gate_closed"); }
+    let enabled = PRODUCT_ENABLED;
+    #[cfg(all(test, windows))]
+    let enabled = enabled || live_frontdoor::allows(origin);
+    if !enabled { return Err("product_gate_closed"); }
     if !origin.valid() { return Err("invalid_request"); }
     Ok(())
 }
 async fn admitted_stamp(store: &LocalStore, origin: &Origin) -> Result<ActionStamp, &'static str> {
+    #[cfg(all(test, windows))]
+    live_frontdoor::require_store(origin, store)?;
     let stamp = capture(store).await.map_err(|_| "context_changed")?;
+    #[cfg(all(test, windows))]
+    live_frontdoor::require_stamp(origin, &stamp)?;
     if !origin.matches(&stamp) { return Err("context_changed"); }
     Ok(stamp)
 }
 async fn current(store: &LocalStore, origin: &Origin, stamp: &ActionStamp) -> bool {
-    origin.matches(stamp) && check(store, stamp).await.is_ok()
+    #[cfg(all(test, windows))]
+    if !live_frontdoor::current(origin, store, stamp) { return false; }
+    let unchanged = origin.matches(stamp) && check(store, stamp).await.is_ok();
+    #[cfg(all(test, windows))]
+    return unchanged && live_frontdoor::current(origin, store, stamp);
+    #[cfg(not(all(test, windows)))]
+    unchanged
 }
 fn status_code(status: StatusCode) -> &'static str {
     match status.as_u16() {
@@ -345,6 +361,10 @@ pub(crate) async fn quote_autopilot_tick(store: State<'_, LocalStore>, superviso
         Err(_) => TickReply::refused("service_unavailable"),
     })
 }
+
+#[cfg(all(test, windows))]
+#[path = "account_cloud_quote_autopilot_live_frontdoor.rs"]
+pub(crate) mod live_frontdoor;
 
 #[cfg(test)]
 #[path = "account_cloud_quote_autopilot_tests.rs"]
