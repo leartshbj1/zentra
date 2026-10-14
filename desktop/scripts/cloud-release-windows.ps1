@@ -88,6 +88,17 @@ if ((Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $match
 Expand-Archive -LiteralPath $zipPath -DestinationPath $toolsRoot -Force
 $nodeRoot = Join-Path $toolsRoot ([IO.Path]::GetFileNameWithoutExtension($zipName))
 $env:PATH = "$nodeRoot;$env:APPDATA\npm;$env:USERPROFILE\.cargo\bin;$env:PATH"
+if ($script:windowsAutopilotProductOn) {
+    # Observe the exact checkout before Rustup/Cargo/Tauri, using verified Node.
+    $schemaNode = Join-Path $nodeRoot 'node.exe'
+    Invoke-Checked $schemaNode @('--test', 'desktop/scripts/tauri-schema-readonly-receipt.test.mjs')
+    $schemaBaselinePath = Join-Path $artifacts 'tauri-schema-before.public.json'
+    if (Test-Path -LiteralPath $schemaBaselinePath) { throw 'schema_baseline_exists' }
+    $schemaBaseline = @(& $schemaNode desktop/scripts/tauri-schema-readonly-receipt.mjs before $script:releasePreflightSource)
+    if ($LASTEXITCODE -ne 0) { throw 'schema_baseline_failed' }
+    [IO.File]::WriteAllText($schemaBaselinePath, (($schemaBaseline -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
+    $schemaBaselineSha256 = (Get-FileHash -LiteralPath $schemaBaselinePath -Algorithm SHA256).Hash.ToLowerInvariant()
+}
 Invoke-Checked npm.cmd @('install', '--global', 'pnpm@11.19.0', '--no-audit', '--no-fund')
 if ($diagnosticPhase -cne 'frontend') {
     if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
@@ -107,6 +118,9 @@ if ($diagnosticPhase -cne 'frontend') {
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
+    if ($script:windowsAutopilotProductOn) {
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/autopilotCatalogue.test.ts', 'src/CatalogItemForm.autopilot.test.tsx', 'src/catalogForm.test.ts')
+    }
     # AUTOPILOT_BUILD_PAIR_BEGIN: isolated verification returns before packaging.
     if ($AutopilotBuildVerificationOnly) {
         Invoke-Checked node @('--test', 'desktop/scripts/quote-autopilot.contracts.test.mjs', 'desktop/scripts/quote-autopilot-release.contracts.test.mjs', 'desktop/scripts/quote-autopilot-windows-on-ci.contracts.test.mjs')
@@ -534,6 +548,12 @@ try {
         if (-not (Test-Path $file -PathType Leaf) -or (Get-Item $file).Length -lt 1000000) { throw "Missing build artifact: $file" }
         Copy-Item -LiteralPath $file -Destination $artifacts
     }
+    if ($script:windowsAutopilotProductOn) {
+        # Export only observed schemas from this same checkout and package job.
+        Invoke-Checked $schemaNode @('desktop/scripts/tauri-schema-readonly-receipt.mjs', 'after', $script:releasePreflightSource, $schemaBaselinePath, $schemaBaselineSha256)
+        $schemaReceiptPath = Join-Path $artifacts 'tauri-schemas/receipt.public.json'
+        $schemaReceiptSha256 = (Get-FileHash -LiteralPath $schemaReceiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
     $source = (& git rev-parse HEAD).Trim()
     $proof = [ordered]@{
         version = $version; source = $source; target = 'x86_64-pc-windows-msvc'
@@ -551,6 +571,7 @@ try {
         $onPath = Join-Path $artifacts 'autopilot-windows-on.public.json'
         [IO.File]::WriteAllText($onPath, ($onReceipt | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
         $proof.windowsAutopilotProduct = [ordered]@{enabled=$true;feature=$onReceipt.feature;source=$onReceipt.source;version=$onReceipt.version;testBinarySha256=$onReceipt.testBinarySha256;preflightSha256=(Get-FileHash -LiteralPath $onPath -Algorithm SHA256).Hash.ToLowerInvariant()}
+        $proof.tauriSchemas = [ordered]@{receipt='tauri-schemas/receipt.public.json';sha256=$schemaReceiptSha256;baselineSha256=$schemaBaselineSha256;source=$source;circleJob=$env:CIRCLE_JOB;circleBuildNum=$env:CIRCLE_BUILD_NUM;schemasRestored=$false}
     }
     [IO.File]::WriteAllText((Join-Path $artifacts 'provenance.json'), ($proof | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
 } finally {
