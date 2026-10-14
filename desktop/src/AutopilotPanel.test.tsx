@@ -30,6 +30,11 @@ it('never infers disabled consent or availability from a closed product gate', (
   const html = renderToStaticMarkup(<AutopilotSettings state={{ ...state,status:'unavailable',consent:null,canManage:false }} onConsent={vi.fn()} />);
   expect(html).toContain(autopilotCopy('fr').unavailable); expect(html).not.toContain('type="checkbox"');
 });
+it.each(['fr','de','it','en'])('explains monthly allowance independently of connection and hourly limits in %s',language=>{
+  locale.language=language;const copy=autopilotCopy(language);
+  const html=renderToStaticMarkup(<AutopilotStatus state={{...state,error:'quota_exhausted'}} onSettings={()=>{}}/>);
+  expect(html).toContain(copy.monthlyQuota);expect(html).not.toContain(copy.connection);expect(html).not.toContain(copy.rateLimited);
+});
 it('does not submit consent on mount and requires a real explicit checkbox action', async () => {
   const change = vi.fn().mockResolvedValue(undefined);
   const {host} = await mount(<AutopilotSettings state={state} onConsent={change} />);

@@ -14,6 +14,7 @@ function statusText(state: AutopilotView, language: string) {
   if (state.error === 'permission') return copy.permission;
   if (state.error === 'conflict') return copy.conflict;
   if (state.error === 'rate_limited') return copy.rateLimited;
+  if (state.error === 'quota_exhausted') return copy.monthlyQuota;
   if (state.status === 'error') return copy.connection;
   if (state.status === 'ready' && !state.canManage && !state.consent) return copy.shared;
   if (state.status !== 'ready' || !state.consent) return copy.unavailable;
@@ -34,7 +35,7 @@ export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; 
   const admitted = state.status === 'ready' && state.consent !== null;
   const errorText = state.error === 'save' ? copy.saveError : state.error === 'context_changed' ? copy.contextChanged
     : state.error === 'busy' ? copy.busy : state.error === 'connection' ? copy.connection : state.error === 'permission' ? copy.permission
-      : state.error === 'conflict' ? copy.conflict : state.error === 'rate_limited' ? copy.rateLimited : null;
+      : state.error === 'conflict' ? copy.conflict : state.error === 'rate_limited' ? copy.rateLimited : state.error === 'quota_exhausted' ? copy.monthlyQuota : null;
   return <section className="quote-autopilot quote-autopilot--settings" aria-labelledby="quote-autopilot-settings-title">
     <header><div><h2 id="quote-autopilot-settings-title">{copy.title}</h2><p>{copy.consentTitle}</p></div></header>
     {admitted ? <>

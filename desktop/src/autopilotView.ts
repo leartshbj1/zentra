@@ -7,7 +7,7 @@ export type AutopilotView = Readonly<{
   consent: Readonly<{ schemaVersion: 1; enabled: boolean; revision: number; consentVersion: string | null; requiredConsentVersion: string }> | null;
   canManage: boolean;
   saving: boolean;
-  error: 'connection' | 'save' | 'context_changed' | 'busy' | 'permission' | 'conflict' | 'rate_limited' | null;
+  error: 'connection' | 'save' | 'context_changed' | 'busy' | 'permission' | 'conflict' | 'rate_limited' | 'quota_exhausted' | null;
   activity: ConfirmedQuoteActivityPage | null;
   reviews: AutopilotReviewPage | null;
   reviewsUnavailable: boolean;

@@ -112,6 +112,16 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
 
 #[test]
 fn server_failures_map_to_closed_codes_without_response_text() {
+    let quota = json!({"schemaVersion":1,"state":"error","code":"quota_exhausted","message":"private-synthetic-token"});
+    assert!(monthly_quota_refusal(&serde_json::to_vec(&quota).unwrap()));
+    for bad in [json!({"schemaVersion":1,"state":"error","code":"quota_exhausted"}),
+        json!({"schemaVersion":1,"state":"prepared","code":"quota_exhausted","message":"x"}),
+        json!({"schemaVersion":1,"state":"error","code":"quota_exhausted","message":"x","token":"private"})] {
+        assert!(!monthly_quota_refusal(&serde_json::to_vec(&bad).unwrap()));
+    }
+    assert_eq!(cycle_error_code(&AppError::Automation(crate::error::AutomationErrorCode::QuotaExhausted)),"quota_exhausted");
+    assert_eq!(cycle_error_code(&AppError::Automation(crate::error::AutomationErrorCode::RateLimited)),"rate_limited");
+    assert!(!serde_json::to_string(&TickReply::refused("quota_exhausted")).unwrap().contains("private-synthetic-token"));
     for (status, expected) in [(400,"invalid_request"),(401,"forbidden"),(403,"forbidden"),(404,"product_gate_closed"),(409,"conflict"),(429,"rate_limited"),(500,"service_unavailable")] {
         assert_eq!(status_code(StatusCode::from_u16(status).unwrap()), expected);
         let value = serde_json::to_string(&ReadReply::refused(expected)).unwrap();

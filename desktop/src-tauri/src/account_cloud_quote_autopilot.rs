@@ -121,6 +121,22 @@ fn status_code(status: StatusCode) -> &'static str {
         409 => "conflict", 429 => "rate_limited", _ => "service_unavailable",
     }
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MonthlyQuotaRefusal { schema_version: u8, state: String, code: String, message: String }
+pub(super) fn monthly_quota_refusal(bytes: &[u8]) -> bool {
+    if bytes.len() > 4096 { return false; }
+    serde_json::from_slice::<MonthlyQuotaRefusal>(bytes).ok().is_some_and(|v|
+        v.schema_version == 1 && v.state == "error" && v.code == "quota_exhausted"
+        && !v.message.is_empty() && v.message.len() <= 2048)
+}
+fn cycle_error_code(error: &AppError) -> &'static str {
+    match error {
+        AppError::Automation(crate::error::AutomationErrorCode::QuotaExhausted) => "quota_exhausted",
+        AppError::Automation(crate::error::AutomationErrorCode::RateLimited) => "rate_limited",
+        _ => "service_unavailable",
+    }
+}
 fn stale_round(round: &Option<QuoteWorkRound>, stamp: &ActionStamp) -> bool {
     round.as_ref().is_some_and(|round| round.original != *stamp)
 }
@@ -317,7 +333,7 @@ pub(crate) async fn quote_autopilot_tick(store: State<'_, LocalStore>, superviso
         let Some(round) = flight.as_mut() else { return (TickReply::refused("service_unavailable"), Some(stamp)); };
         let result = advance_quote_work_round(&worker, round).await;
         if !current(&worker, &captured, &stamp).await { *flight = None; return (TickReply::refused("context_changed"), None); }
-        let reply = match result { Ok(outcome) => TickReply::outcome(outcome, &stamp), Err(_) => TickReply::refused("service_unavailable") };
+        let reply = match result { Ok(outcome) => TickReply::outcome(outcome, &stamp), Err(error) => TickReply::refused(cycle_error_code(&error)) };
         // Failure keeps the opaque round. Server intake/ledger states remain
         // the retry authority; no IPC operation resets started/uncertain rows.
         (reply, Some(stamp))

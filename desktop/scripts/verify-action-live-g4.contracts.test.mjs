@@ -108,7 +108,16 @@ for (const [file, declaration] of [
   ['desktop/src-tauri/src/account_cloud.rs', '#[cfg(all(test, windows))]\n#[path = "account_cloud_live_a41_g4_tests.rs"]\nmod live_a41_g4_tests;\n\n'],
   ['desktop/src-tauri/src/company_collaboration.rs', '#[cfg(all(test, windows))]\n#[path = "company_collaboration_live_a41_g4_support.rs"]\npub(crate) mod live_a41_g4_support;\n\n'],
 ]) {
-  const declared = read(file).replace(/\r\n/g,'\n');
+  let declared = read(file).replace(/\r\n/g,'\n');
+  if(file==='desktop/src-tauri/src/account_cloud.rs') {
+    // Preserve the historical body/hash after projecting only the three fixed
+    // product read/CAS routes, exactly as the independent CI contract does.
+    for(const route of ['quote-consent','quote-activity','quote-review']) {
+      const addition=`            | "/api/account/automation/${route}"\n`;
+      ok(()=>assert.equal(declared.split(addition).length,2));
+      declared=declared.replace(addition,'');
+    }
+  }
   ok(()=>assert.equal(declared.split(declaration).length,2));
   ok(()=>assert.equal(createHash('sha256').update(declared.replace(declaration,'')).digest('hex'),baselinePins[file]));
 }

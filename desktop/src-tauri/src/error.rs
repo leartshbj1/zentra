@@ -1,5 +1,13 @@
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, thiserror::Error)]
+pub enum AutomationErrorCode {
+    #[error("Le quota mensuel d’analyses est atteint. Consultez votre abonnement Zentra Support.")]
+    QuotaExhausted,
+    #[error("Une limite temporaire est atteinte. La préparation reprendra automatiquement.")]
+    RateLimited,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("Erreur de base de données locale : {0}")]
@@ -18,6 +26,8 @@ pub enum AppError {
     Restore(String),
     #[error("{0}")]
     Remote(String),
+    #[error("{0}")]
+    Automation(AutomationErrorCode),
     #[error("Enregistrement introuvable : {0}")]
     NotFound(String),
     #[error("Le questionnaire initial doit être terminé avant cette opération.")]

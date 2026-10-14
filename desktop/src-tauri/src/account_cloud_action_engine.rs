@@ -18,6 +18,10 @@ use std::collections::HashSet;
 #[path = "account_cloud_quote_autopilot.rs"]
 pub(crate) mod supervisor;
 
+#[cfg(all(test, windows))]
+#[path = "account_cloud_action_engine_continuation_support.rs"]
+pub(crate) mod continuation_support;
+
 // Deliberately neither Debug nor Serialize: account tokens/references and local
 // workspace identities must never escape through IPC or diagnostic logging.
 #[derive(Clone, PartialEq, Eq)]
@@ -235,6 +239,11 @@ where
             return Err(review());
         }
         if !status.is_success() {
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                return Err(AppError::Automation(if supervisor::monthly_quota_refusal(&bytes) {
+                    crate::error::AutomationErrorCode::QuotaExhausted
+                } else { crate::error::AutomationErrorCode::RateLimited }));
+            }
             // Never display a remote raw message or turn a refusal into an
             // empty result / permission to create. No automatic POST retry.
             return Err(if matches!(status.as_u16(), 401 | 402 | 403) {

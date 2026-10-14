@@ -22,7 +22,7 @@ const scoped = (reply: ScopedReply, context: AutopilotContext) => reply.schemaVe
   && reply.memberContextNonce === context.origin.expectedMemberContextNonce;
 const problem = (reply: ScopedReply): NonNullable<AutopilotView['error']> => reply.status === 'context_changed' || reply.code === 'context_changed' ? 'context_changed'
   : reply.code === 'forbidden' ? 'permission' : ['conflict','revision_conflict'].includes(reply.code) ? 'conflict'
-    : reply.code === 'rate_limited' ? 'rate_limited' : 'connection';
+    : reply.code === 'rate_limited' ? 'rate_limited' : reply.code === 'quota_exhausted' ? 'quota_exhausted' : 'connection';
 function consentData(raw: unknown): AutopilotView['consent'] {
   if (!raw || typeof raw !== 'object') return null;
   const value = raw as NonNullable<AutopilotView['consent']>;
@@ -42,8 +42,8 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
   const [online, setOnline] = useState(() => navigator.onLine !== false);
   const current = useRef({ context, key, state: bound, onWorkspaceChanged });
   current.current = { context, key, state: bound, onWorkspaceChanged };
-  const timings = useRef({ key, consentAt: 0, feedAt: 0, reviewCursor: null as string | null, refreshVersion: 0 });
-  if (timings.current.key !== key) timings.current = { key, consentAt: 0, feedAt: 0, reviewCursor: null, refreshVersion: 0 };
+  const timings = useRef({ key, consentAt: 0, feedAt: 0, reviewCursor: null as string | null, refreshVersion: 0, providerRetryAt: 0 });
+  if (timings.current.key !== key) timings.current = { key, consentAt: 0, feedAt: 0, reviewCursor: null, refreshVersion: 0, providerRetryAt: 0 };
   const publish = (guard: AutopilotCycleGuard, next: AutopilotView) => {
     if (!guard.current() || current.current.key !== guard.scope) return;
     // These are bounded, normalized DTOs. Do not re-render the entire workspace
@@ -87,7 +87,8 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
       let next: AutopilotView = { ...previous, status: 'ready', consent, canManage: admitted.canManage && !captured.readOnly,
         error: null, saving: false };
       let result: AutopilotCycleResult = 'idle', changed = false, reviewChanged = false;
-      if (!captured.readOnly && (!admitted.canManage || consent?.enabled && consent.consentVersion === consent.requiredConsentVersion)) {
+      if (Date.now() < timings.current.providerRetryAt) next = { ...next, error: 'quota_exhausted' };
+      if (Date.now() >= timings.current.providerRetryAt && !captured.readOnly && (!admitted.canManage || consent?.enabled && consent.consentVersion === consent.requiredConsentVersion)) {
         const charge = autopilotBudget.reserve(captured.organizationId, 'tick');
         if (!charge) {
           // A full execution budget pauses the producer, not separately
@@ -98,8 +99,9 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
           if (!guard.current()) return 'blocked';
           if (closedGate(tick)) { publish(guard, empty('unavailable')); return 'blocked'; }
           const refused = tick.organizationId === null && tick.workspaceScope === null && tick.memberContextNonce === null;
-          if (tick.status === 'error' && (refused || scoped(tick, captured)) && ['forbidden','conflict','revision_conflict','rate_limited'].includes(tick.code)) {
+          if (tick.status === 'error' && (refused || scoped(tick, captured)) && ['forbidden','conflict','revision_conflict','rate_limited','quota_exhausted'].includes(tick.code)) {
             if (tick.code === 'rate_limited') return pauseQuota(guard, captured, tick);
+            if (tick.code === 'quota_exhausted') timings.current.providerRetryAt = Date.now() + 900_000;
             next = { ...next, error: problem(tick) }; result = 'blocked';
           } else {
             if (!scoped(tick, captured) || tick.status === 'context_changed') { fail(guard, 'context_changed'); return 'blocked'; }
@@ -212,7 +214,7 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
     if (read.status === 'busy' && current.current.key === previous.key && current.current.state.key === previous.key)
       setBound({ key: previous.key, state: { ...current.current.state.state, error: 'busy' } });
   };
-  const onRefresh = async () => { timings.current.feedAt = 0; timings.current.consentAt = 0;
+  const onRefresh = async () => { timings.current.feedAt = 0; timings.current.consentAt = 0; timings.current.providerRetryAt = 0;
     timings.current.reviewCursor = null; timings.current.refreshVersion++; await session.refresh(); };
   const effective = bound.key === key ? bound.state : empty(key ? 'checking' : 'disconnected');
   return { state: !online && key ? { ...effective, status: 'offline' as const, canManage: false } : effective,

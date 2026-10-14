@@ -15,6 +15,9 @@ import { DESCRIPTION, runLiveG4Recipe, validateComplete, validatePublication, va
 import { SESSION_REGRESSION_TESTS, runLiveSessionRegressions }
   from './verify-action-live-account-windows.mjs';
 import { captureTauriSchemaReconciliation } from './tauri-schema-reconciliation.mjs';
+import { parsePrivateJson } from './verify-action-live-account-windows.mjs';
+import { runLiveG4Continuation, validateContinuationInput, validatePublicContinuationReport,
+  DESCRIPTION as CONTINUATION } from './verify-action-live-g4-continuation.mjs';
 
 export { CONTEXT_NAME, SECRET_NAMES, compileEnvironment, privateInputFromEnvironment };
 export const G4_BASELINE_SOURCE = '91a859eefb3ecc88716e34d77b3aa9f91a412e8c';
@@ -23,6 +26,12 @@ const SHA = /^[a-f0-9]{64}$/;
 const SOURCE = /^[a-f0-9]{40}$/;
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const RUN_FLAGS = Object.freeze(['ZENTRA_RUN_LIVE_ACCOUNT_RECIPE', 'ZENTRA_RUN_LIVE_G4_RECIPE']);
+const CONTINUATION_FLAG = 'ZENTRA_RUN_LIVE_G4_CONTINUATION';
+const CONTINUATION_CONTEXT_FORMAT = 'zentra-a41-continuation-context-v1';
+const CONTINUATION_FILES = Object.freeze(['desktop/scripts/verify-action-live-g4-continuation.mjs',
+  'desktop/scripts/verify-action-live-g4-continuation.test.mjs', 'desktop/scripts/verify-action-live-g4-continuation-ci.test.mjs',
+  'desktop/src-tauri/src/account_cloud_action_engine.rs', 'desktop/src-tauri/src/account_cloud_action_engine_continuation_support.rs',
+  'desktop/src-tauri/src/account_cloud_live_a41_g4_continuation_tests.rs']);
 const OUTPUT = 'desktop/artifacts/action-live-account';
 const G4_FILES = Object.freeze(['desktop/scripts/verify-action-live-g4-ci-windows.mjs',
   'desktop/scripts/tauri-schema-reconciliation.mjs',
@@ -44,6 +53,47 @@ export function assertG4CiAdmission(environment, platform = process.platform, no
   need(environment.CIRCLE_SHA1 !== G4_BASELINE_SOURCE
     && !DESCRIPTION.historicalSourcesRefused.includes(environment.CIRCLE_SHA1), 'new_g4_source_required');
   need(!environment.ZENTRA_RUN_LIVE_G4_RECIPE, 'inherited_g4_run_flag_refused');
+  need(!environment[CONTINUATION_FLAG], 'inherited_continuation_run_flag_refused');
+}
+
+// A41 is known to be populated. Its current dispatcher requires this canonical
+// JSON envelope; a raw legacy cookie never launches the retained virgin body.
+// The Sites credential remains separate and is never duplicated here.
+export function continuationInputFromEnvironment(environment) {
+  const raw = environment[SECRET_NAMES[1]];
+  need(typeof raw === 'string' && /^[\[{]/.test(raw.trimStart()), 'continuation_context_required');
+  need(Buffer.byteLength(raw) <= 32768, 'continuation_context_bounds');
+  let value;
+  try { value = parsePrivateJson(raw); } catch { throw new Refusal('continuation_context_encoding_refused'); }
+  closed(value, ['format', 'sourceSha', 'campaignId', 'workspaceId', 'connectionId', 'apiHookToken', 'browserCookieHeader']);
+  need(value.format === CONTINUATION_CONTEXT_FORMAT && value.sourceSha === environment.CIRCLE_SHA1,
+    'continuation_context_source_refused');
+  return validateContinuationInput({ format: CONTINUATION.privateInputFormat, sourceSha: value.sourceSha,
+    campaignId: value.campaignId, workspaceId: value.workspaceId, connectionId: value.connectionId, apiHookToken: value.apiHookToken,
+    account: { format: 'zentra-a41-native-account-input-v1', sitesServiceToken: environment[SECRET_NAMES[0]],
+      browserCookieHeader: value.browserCookieHeader, expectedOwnerId: '1f0d9981-607b-4848-9374-587035cdfd89',
+      expectedOrganizationId: 'org_trial_345a3d1f68056cf7e709d4af4fc229a4' } });
+}
+
+export function publicContinuationCiProof(report, identity, hashes, sessionRegressions) {
+  closed(identity, ['source', 'pipelineId', 'workflowId', 'jobNumber', 'nodeVersion']);
+  need(Object.values(identity).every(value => typeof value === 'string') && SOURCE.test(identity.source)
+    && UUID.test(identity.pipelineId) && UUID.test(identity.workflowId) && /^[1-9][0-9]{0,9}$/.test(identity.jobNumber)
+    && /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(identity.nodeVersion) && Number(identity.nodeVersion.slice(1).split('.')[0]) >= 22,
+  'continuation_ci_identity_refused');
+  closed(hashes, ['entrypointSha256', 'profileCompilationProofSha256', 'continuationCoordinatorSha256',
+    'rustContinuationHarnessSha256', 'rustContinuationAdapterSha256', 'rustParentHarnessSha256', 'rustCollaborationSupportSha256']);
+  need(Object.values(hashes).every(value => typeof value === 'string' && SHA.test(value)), 'continuation_ci_hashes_refused');
+  const validated = validatePublicContinuationReport(report, identity.source);
+  need(hashes.continuationCoordinatorSha256 === validated.coordinatorSha256, 'continuation_coordinator_hash_refused');
+  const regressions = validateSessionRegressionProof(sessionRegressions, identity.source, validated.binarySha256);
+  return sorted({ format: 'zentra-a41-native-continuation-ci-public-v1', ...identity, ...hashes, nodeIndex: 0, nodeTotal: 1,
+    claims: { g1g2NativeAccountJourneyValidated: true, populatedHeadReceivedInTwoNewStores: true,
+      newSourceNominalG4Validated: true, lostStoresRecovered: false, historicalPreparationReplayed: false,
+      allActionEngineGatesEstablished: false, stripePaidTestDirectlyValidated: false, realDecisionProviderDirectlyAttested: false,
+      serverSourceDirectlyAttested: false, fullSchedulerTested: false, g5FailureMatrixExecuted: false,
+      g6FullServiceParityEstablished: false, storageV0Executed: false, thirdPartyMailboxExecuted: false, autopilotProductActivated: false },
+    sessionRegressions: regressions, report: validated });
 }
 
 export function validatePublicG4Report(report, source) {
@@ -156,6 +206,8 @@ function requireTrackedG4Sources(environment) {
 
 export async function runDedicatedG4Ci() {
   assertG4CiAdmission({ ...process.env });
+  const continuation = continuationInputFromEnvironment(process.env);
+  return runDedicatedContinuationCi(continuation);
   // The two credentials are private memory only from this point. No bootstrap,
   // git child, compiler or native environment receives their original variables.
   const input = privateInputFromEnvironment(process.env);
@@ -207,6 +259,60 @@ export async function runDedicatedG4Ci() {
   return result;
 }
 
+// Separate test-only branch; the complete virgin recipe body above is retained.
+async function runDedicatedContinuationCi(input) {
+  for (const name of SECRET_NAMES) delete process.env[name];
+  const environment = { ...process.env };
+  need(typeof fetch === 'function' && typeof Headers.prototype.getSetCookie === 'function', 'node_fetch_cookie_runtime_required');
+  const tracked = () => {
+    requireTrackedG4Sources(environment);
+    const options = { cwd: ROOT, env: compileEnvironment(environment), encoding: 'utf8', windowsHide: true, timeout: 30000 };
+    need(execFileSync('git', ['ls-files', '--error-unmatch', '--', ...CONTINUATION_FILES], options).trim().split(/\r?\n/).sort().join('|')
+      === [...CONTINUATION_FILES].sort().join('|'), 'continuation_ci_sources_must_be_tracked');
+  };
+  tracked();
+  const source = environment.CIRCLE_SHA1, output = path.join(ROOT, OUTPUT);
+  need(input.sourceSha === source && !fs.existsSync(output), 'continuation_fresh_source_artifacts_required');
+  const schemas = captureTauriSchemaReconciliation(environment);
+  process.stdout.write(`LIVE_CONTINUATION_CI_PHASE compile source=${source}\n`);
+  await compileFreshSource(environment);
+  let schemaReceipt;
+  try { schemaReceipt = schemas.reconcile(); }
+  catch (error) {
+    const receipt = schemas.failureReceipt();
+    if (receipt) fs.writeFileSync(path.join(ROOT, 'desktop/artifacts/action-live-profile/tauri-schema-reconciliation-refusal.public.json'),
+      JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
+    throw error;
+  }
+  tracked();
+  fs.writeFileSync(path.join(ROOT, 'desktop/artifacts/action-live-profile/tauri-schema-reconciliation.public.json'),
+    JSON.stringify(schemaReceipt, null, 2) + '\n', { flag: 'wx' });
+  process.env.ZENTRA_RUN_LIVE_ACCOUNT_RECIPE = 'true';
+  let report, sessionRegressions;
+  try {
+    sessionRegressions = await runLiveSessionRegressions();
+    process.stdout.write(`LIVE_CONTINUATION_SESSION_REGRESSIONS_PASSED source=${source} tests=3\n`);
+    process.env[CONTINUATION_FLAG] = 'true';
+    report = validatePublicContinuationReport(await runLiveG4Continuation(input), source);
+  }
+  finally { for (const name of [...RUN_FLAGS, CONTINUATION_FLAG]) delete process.env[name]; }
+  const digestFile = relative => hash(fs.readFileSync(path.join(ROOT, relative)));
+  const result = publicContinuationCiProof(report, { source, pipelineId: environment.ZENTRA_LIVE_PROFILE_PIPELINE_ID,
+    workflowId: environment.CIRCLE_WORKFLOW_ID, jobNumber: environment.CIRCLE_BUILD_NUM, nodeVersion: process.version }, {
+    entrypointSha256: digestFile('desktop/scripts/verify-action-live-g4-ci-windows.mjs'),
+    profileCompilationProofSha256: digestFile('desktop/artifacts/action-live-profile/live-profile-verification-proof.json'),
+    continuationCoordinatorSha256: digestFile('desktop/scripts/verify-action-live-g4-continuation.mjs'),
+    rustContinuationHarnessSha256: digestFile('desktop/src-tauri/src/account_cloud_live_a41_g4_continuation_tests.rs'),
+    rustContinuationAdapterSha256: digestFile('desktop/src-tauri/src/account_cloud_action_engine_continuation_support.rs'),
+    rustParentHarnessSha256: digestFile('desktop/src-tauri/src/account_cloud_live_a41_g4_tests.rs'),
+    rustCollaborationSupportSha256: digestFile('desktop/src-tauri/src/company_collaboration_live_a41_g4_support.rs'),
+  }, sessionRegressions);
+  fs.mkdirSync(output);
+  fs.writeFileSync(path.join(output, 'native-continuation-report.public.json'), JSON.stringify(result, null, 2) + '\n', { flag: 'wx' });
+  process.stdout.write(`LIVE_CONTINUATION_CI_PASSED source=${source} newStores=2 baselineRevision=1 canonicalDrafts=1 g5=false g6=false scheduler=false\n`);
+  return result;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   if (args.length === 0 || (args.length === 1 && args[0] === '--describe')) process.stdout.write(JSON.stringify({
@@ -214,6 +320,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     historicalSourcesRefused: DESCRIPTION.historicalSourcesRefused, newCompilationRequired: true,
     baselineSourceWithoutG4Integration: G4_BASELINE_SOURCE,
     nativeExecution: 'dedicated Windows CI only', exactG4Test: DESCRIPTION.exactTest,
+    continuationPrivateContextFormat: CONTINUATION_CONTEXT_FORMAT, exactContinuationTest: CONTINUATION.exactTest,
+    legacyVirginPathAllowed: false,
     publicArtifactDirectory: OUTPUT, productActivation: false, directDecisionProviderProof: false,
   }) + '\n');
   else if (args.length === 1 && args[0] === '--ci-run') runDedicatedG4Ci().catch(error => {

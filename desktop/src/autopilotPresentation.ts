@@ -17,7 +17,8 @@ const copy = {
     background: 'Les demandes sont traitées en arrière-plan pendant que Zentra est ouvert.',
     refresh: 'Actualiser', loading: 'Lecture des demandes…', quoteUnavailable: 'Ce devis n’est pas encore disponible sur cet appareil. Vérifiez son arrivée dans les devis.',
     shared: 'Activité de l’entreprise', permission: 'Vérifiez l’abonnement et les autorisations de cette entreprise.',
-    conflict: 'Les réglages ont changé. Relisez leur état avant de réessayer.', rateLimited: 'Autopilote reprendra dans quelques instants.',
+    monthlyQuota: 'Quota mensuel d’analyses atteint. Consultez votre abonnement Zentra Support ; les demandes reçues restent disponibles.',
+    conflict: 'Les réglages ont changé. Relisez leur état avant de réessayer.', rateLimited: 'Limite temporaire atteinte. Autopilote reprendra automatiquement.',
   },
   de: {
     title: 'Autopilot', checking: 'Zugriff wird geprüft…', unavailable: 'Für diesen Arbeitsbereich nicht verfügbar',
@@ -35,7 +36,8 @@ const copy = {
     background: 'Anfragen werden im Hintergrund bearbeitet, solange Zentra geöffnet ist.',
     refresh: 'Aktualisieren', loading: 'Anfragen werden gelesen…', quoteUnavailable: 'Diese Offerte ist auf diesem Gerät noch nicht verfügbar. Prüfen Sie den Eingang unter Offerten.',
     shared: 'Unternehmensaktivität', permission: 'Prüfen Sie das Abonnement und die Berechtigungen dieses Unternehmens.',
-    conflict: 'Die Einstellungen haben sich geändert. Prüfen Sie den aktuellen Status vor einem erneuten Versuch.', rateLimited: 'Autopilot wird in Kürze fortgesetzt.',
+    monthlyQuota: 'Monatliches Analyselimit erreicht. Prüfen Sie Ihr Zentra Support-Abonnement. Eingegangene Anfragen bleiben verfügbar.',
+    conflict: 'Die Einstellungen haben sich geändert. Prüfen Sie den aktuellen Status vor einem erneuten Versuch.', rateLimited: 'Vorübergehendes Limit erreicht. Autopilot wird automatisch fortgesetzt.',
   },
   it: {
     title: 'Autopilota', checking: 'Verifica dell’accesso…', unavailable: 'Non disponibile per questo spazio',
@@ -53,7 +55,8 @@ const copy = {
     background: 'Le richieste vengono elaborate in background mentre Zentra è aperto.',
     refresh: 'Aggiorna', loading: 'Lettura delle richieste…', quoteUnavailable: 'Questo preventivo non è ancora disponibile su questo dispositivo. Verifica il suo arrivo nei preventivi.',
     shared: 'Attività dell’azienda', permission: 'Verifica l’abbonamento e le autorizzazioni di questa azienda.',
-    conflict: 'Le impostazioni sono cambiate. Verifica lo stato prima di riprovare.', rateLimited: 'Autopilota riprenderà tra pochi istanti.',
+    conflict: 'Le impostazioni sono cambiate. Verifica lo stato prima di riprovare.', rateLimited: 'Limite temporaneo raggiunto. Autopilota riprenderà automaticamente.',
+    monthlyQuota: 'Quota mensile di analisi raggiunta. Verifica l’abbonamento Zentra Support. Le richieste ricevute restano disponibili.',
   },
   en: {
     title: 'Autopilot', checking: 'Checking access…', unavailable: 'Unavailable for this workspace',
@@ -71,7 +74,8 @@ const copy = {
     background: 'Requests are processed in the background while Zentra is open.',
     refresh: 'Refresh', loading: 'Reading requests…', quoteUnavailable: 'This quote is not available on this device yet. Check for its arrival in Quotes.',
     shared: 'Company activity', permission: 'Check this company’s subscription and permissions.',
-    conflict: 'Settings have changed. Check their current state before trying again.', rateLimited: 'Autopilot will resume shortly.',
+    conflict: 'Settings have changed. Check their current state before trying again.', rateLimited: 'Temporary limit reached. Autopilot will resume automatically.',
+    monthlyQuota: 'Monthly analysis allowance reached. Check your Zentra Support subscription. Incoming requests remain available.',
   },
 } as const;
 export function autopilotCopy(language: string) { return copy[language as keyof typeof copy] ?? copy.fr; }

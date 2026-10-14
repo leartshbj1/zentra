@@ -385,3 +385,6 @@ async fn execute() -> RecipeResult<()> {
 fn canonical_quote_round_across_two_native_stores() {
     if tauri::async_runtime::block_on(execute()).is_err() { panic!("ZENTRA_A41_NATIVE_G4_REFUSED"); }
 }
+
+#[path = "account_cloud_live_a41_g4_continuation_tests.rs"]
+mod continuation;

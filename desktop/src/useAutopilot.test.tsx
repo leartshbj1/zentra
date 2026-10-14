@@ -132,6 +132,16 @@ it('does not bypass server quota backoff with focus, refresh or online events', 
   expect(api.readQuoteAutopilotConsent).toHaveBeenCalledTimes(1);
   expect(api.tickQuoteAutopilot).not.toHaveBeenCalled();
 });
+it('keeps monthly quota distinct from network failure and resumes after a plan update',async()=>{
+  api.tickQuoteAutopilot.mockResolvedValueOnce({...tick,status:'error',code:'quota_exhausted',organizationId:null,workspaceScope:null,memberContextNonce:null,counts:null,phase:'none'});
+  await mount();expect(result.state.error).toBe('quota_exhausted');expect(result.state.status).toBe('ready');
+  expect(api.readQuoteAutopilotActivity).toHaveBeenCalledOnce();expect(result.state.activity).not.toBeNull();expect(changed).not.toHaveBeenCalled();
+  await act(async()=>{await vi.advanceTimersByTimeAsync(90_000);});
+  expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(1);expect(api.readQuoteAutopilotActivity.mock.calls.length).toBeGreaterThan(1);
+  expect(result.state.error).toBe('quota_exhausted');
+  api.tickQuoteAutopilot.mockResolvedValue(tick);await act(async()=>{await result.onRefresh();});
+  expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(2);expect(result.state.error).toBeNull();
+});
 it('keeps a refresh newer than an in-flight pagination response and returns to the latest page', async () => {
   const firstPage={organizationId:'company-a',items:[],nextCursor:'next_page'};
   api.readQuoteAutopilotReview.mockResolvedValueOnce({...common,data:firstPage}); await mount();

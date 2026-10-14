@@ -587,6 +587,7 @@ fn native_error_code(error: &AppError) -> &'static str {
         AppError::Validation(_) => "input.validation",
         AppError::Restore(_) => "storage.restore",
         AppError::Remote(_) => "service.remote",
+        AppError::Automation(_) => "service.remote",
         AppError::NotFound(_) => "record.not_found",
         AppError::OnboardingRequired => "setup.required",
         AppError::UnsafePath(_) => "storage.unsafe_path",

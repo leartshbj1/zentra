@@ -86,6 +86,12 @@ test('review counters remain separate from activity and gated responses clear ev
   refused(()=>exports.quoteAutopilotTickFromRaw({...value,counts:{confirmed:0,held:0,reviewRequired:0}},origin()));
   refused(()=>exports.quoteAutopilotReadFromRaw(envelope('unavailable',{data:consent()}),origin(),'consent'));
 });
+test('monthly quota is a closed refusal distinct from hourly pacing and cannot carry a financial outcome',()=>{
+  const value=envelope('unavailable',{status:'error',code:'quota_exhausted',phase:'none',counts:null,roundComplete:false,hasMore:false,pendingRecovery:false});
+  assert.equal(exports.quoteAutopilotTickFromRaw(value,origin()).code,'quota_exhausted');
+  refused(()=>exports.quoteAutopilotTickFromRaw({...value,counts:{confirmed:1,held:0,reviewRequired:0}},origin()));
+  refused(()=>exports.quoteAutopilotTickFromRaw({...value,rawProviderMessage:'private'},origin()));
+});
 test('native compile gate, exact registration and detached physical lock remain explicit', () => {
   assert.match(native,/const PRODUCT_ENABLED: bool = false;/);
   assert.match(native,/if !PRODUCT_ENABLED \{ return Err\("product_gate_closed"\); \}/);

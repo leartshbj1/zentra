@@ -26,7 +26,7 @@ import { documentAppearance, type DocumentDesignKind, type DocumentStyle } from 
 import type { CertificateDraft, CertificateInput } from './salaryCertificate';
 import { Channel } from '@tauri-apps/api/core';
 export type QuoteAutopilotOrigin = Readonly<{ expectedWorkspaceScope: string; expectedMemberContextNonce: string }>;
-export type QuoteAutopilotCode = 'none' | 'product_gate_closed' | 'busy' | 'context_changed' | 'invalid_request' | 'forbidden' | 'revision_conflict' | 'conflict' | 'rate_limited' | 'service_unavailable';
+export type QuoteAutopilotCode = 'none' | 'product_gate_closed' | 'busy' | 'context_changed' | 'invalid_request' | 'forbidden' | 'revision_conflict' | 'conflict' | 'rate_limited' | 'quota_exhausted' | 'service_unavailable';
 export type QuoteAutopilotStatus = 'available' | 'unavailable' | 'context_changed' | 'error';
 export type QuoteAutopilotScope = Readonly<{ schemaVersion: 1; code: QuoteAutopilotCode; organizationId: string | null; workspaceScope: string | null; memberContextNonce: string | null }>;
 export type QuoteAutopilotState = QuoteAutopilotScope & Readonly<{ status: QuoteAutopilotStatus; canManage: boolean }>;
@@ -77,7 +77,7 @@ function quoteAutopilotEnvelope(raw: unknown, origin: QuoteAutopilotOrigin, fiel
   const value = quoteAutopilotExact(raw, ['schemaVersion', 'status', 'code', 'organizationId', 'workspaceScope', 'memberContextNonce', ...fields]);
   const expected = captureQuoteAutopilotOrigin(origin);
   if (value.schemaVersion !== 1 || typeof value.status !== 'string' || !statuses.includes(value.status) || typeof value.code !== 'string'
-    || !['none', 'product_gate_closed', 'busy', 'context_changed', 'invalid_request', 'forbidden', 'revision_conflict', 'conflict', 'rate_limited', 'service_unavailable'].includes(value.code)) return quoteAutopilotInvalid();
+    || !['none', 'product_gate_closed', 'busy', 'context_changed', 'invalid_request', 'forbidden', 'revision_conflict', 'conflict', 'rate_limited', 'quota_exhausted', 'service_unavailable'].includes(value.code)) return quoteAutopilotInvalid();
   const admitted = ['available', 'idle', 'progress', 'needs_review', 'held'].includes(value.status);
   if (admitted) {
     if (value.code !== 'none' || !quoteAutopilotIdentifier(value.organizationId) || value.workspaceScope !== expected.expectedWorkspaceScope
