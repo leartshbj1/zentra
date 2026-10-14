@@ -49,6 +49,12 @@
 .quote-autopilot__requests strong { display: block; font-weight: 600; }
 .quote-autopilot__requests time { display: block; margin-block-start: .125rem; font-size: calc(13px * var(--zentra-ui-text-scale, 1)); }
 .quote-autopilot__requests ul { list-style: none; padding: 0; margin: .625rem 0 0; color: var(--apple-secondary, #6e6e73); font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot__request-actions { display: flex; flex-direction: column; gap: .5rem; max-inline-size: 15rem; }
+.quote-autopilot button.quote-autopilot__source-action { color: var(--apple-accent, #24664f); background: transparent; }
+.quote-autopilot p.quote-autopilot__catalogue-hint { margin-block-start: .75rem; color: var(--apple-secondary, #6e6e73); font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot--catalogue-next { padding: 1.5rem; margin-block: 1.5rem; border-radius: 16px; background: var(--apple-paper, #fff); }
+.quote-autopilot--catalogue-next p { color: var(--apple-secondary, #6e6e73); }
+.quote-autopilot__next-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-block-start: 1rem; }
 .quote-autopilot footer { display: flex; justify-content: flex-end; padding-block-start: 1rem; }
 @media (max-width: 680px) {
   .quote-autopilot { font-size: calc(16px * var(--zentra-ui-text-scale, 1)); }
@@ -59,6 +65,9 @@
   .quote-autopilot header { flex-wrap: wrap; }
   .quote-autopilot__requests > li { grid-template-columns: 21px minmax(0, 1fr); gap: .75rem; }
   .quote-autopilot__requests > li > button { grid-column: 2; justify-self: start; }
+  .quote-autopilot__requests > li > .quote-autopilot__request-actions { grid-column: 2; inline-size: 100%; max-inline-size: none; align-items: stretch; }
+  .quote-autopilot--catalogue-next { padding: 1.25rem 1rem; }
+  .quote-autopilot__next-actions { flex-direction: column; align-items: stretch; }
 }
 @media (prefers-reduced-motion: reduce) { .quote-autopilot button { transition: none; } }
 @media (forced-colors: active) { .quote-autopilot button { border: 1px solid ButtonText; } }

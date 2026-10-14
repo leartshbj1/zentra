@@ -1,5 +1,7 @@
+import { catalogFormTranslations } from './translationsCatalogForm';
 // Interface copy only; product names, descriptions, units and stock reasons stay verbatim.
 export const catalogTranslations: Record<string, readonly [string, string, string]> = {
+  ...catalogFormTranslations,
   'Références actives': ['Aktive Artikel', 'Voci attive', 'Active items'],
   'Produits suivis': ['Produkte mit Bestandsführung', 'Prodotti con scorte gestite', 'Stock-tracked products'],
   'Alertes de stock': ['Bestandswarnungen', 'Avvisi scorte', 'Stock alerts'],

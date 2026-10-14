@@ -80,6 +80,38 @@ const copy = {
 } as const;
 export function autopilotCopy(language: string) { return copy[language as keyof typeof copy] ?? copy.fr; }
 
+const catalogueCopy = {
+  fr: { title: 'Article à identifier', browse: 'Vérifier le catalogue', add: 'Ajouter un article',
+    hint: 'Vérifiez la référence existante avant d’en ajouter une. La demande reste à vérifier.',
+    formHint: 'Saisissez le nom, le prix et la TVA. Cet ajout au catalogue ne crée pas de devis et ne relance pas la demande.',
+    chooseTax: 'Choisir la TVA', skuExists: 'Cette référence existe déjà, y compris parmi les articles archivés. Vérifiez le catalogue avant d’en ajouter une.',
+    saved: 'Article enregistré', savedDetail: 'Vous pouvez maintenant rédiger le devis vous-même ou retrouver le message. La demande automatique reste inchangée.',
+    writeQuote: 'Rédiger le devis', returnRequest: 'Revenir à la demande', dismiss: 'Plus tard',
+    contextChanged: 'L’espace ou le compte a changé. Rouvrez la demande dans la bonne entreprise.' },
+  de: { title: 'Artikel zu identifizieren', browse: 'Katalog prüfen', add: 'Artikel hinzufügen',
+    hint: 'Prüfen Sie vorhandene Artikel, bevor Sie einen hinzufügen. Die Anfrage bleibt zur Prüfung offen.',
+    formHint: 'Geben Sie Name, Preis und MWST an. Der Katalogeintrag erstellt keine Offerte und startet die Anfrage nicht erneut.',
+    chooseTax: 'MWST auswählen', skuExists: 'Diese Referenz ist bereits vorhanden, auch unter archivierten Artikeln. Prüfen Sie zuerst den Katalog.',
+    saved: 'Artikel gespeichert', savedDetail: 'Sie können die Offerte jetzt selbst verfassen oder die Nachricht öffnen. Die automatische Anfrage bleibt unverändert.',
+    writeQuote: 'Offerte verfassen', returnRequest: 'Zur Anfrage', dismiss: 'Später',
+    contextChanged: 'Arbeitsbereich oder Konto geändert. Öffnen Sie die Anfrage im richtigen Unternehmen erneut.' },
+  it: { title: 'Articolo da identificare', browse: 'Verifica il catalogo', add: 'Aggiungi un articolo',
+    hint: 'Verifica gli articoli esistenti prima di aggiungerne uno. La richiesta resta da verificare.',
+    formHint: 'Inserisci nome, prezzo e IVA. L’aggiunta al catalogo non crea un preventivo e non riavvia la richiesta.',
+    chooseTax: 'Scegli l’IVA', skuExists: 'Questo riferimento esiste già, anche tra gli articoli archiviati. Verifica prima il catalogo.',
+    saved: 'Articolo salvato', savedDetail: 'Puoi ora redigere il preventivo o riaprire il messaggio. La richiesta automatica resta invariata.',
+    writeQuote: 'Redigi il preventivo', returnRequest: 'Torna alla richiesta', dismiss: 'Più tardi',
+    contextChanged: 'Lo spazio o l’account è cambiato. Riapri la richiesta nell’azienda corretta.' },
+  en: { title: 'Item to identify', browse: 'Check the catalogue', add: 'Add an item',
+    hint: 'Check existing items before adding one. The request still needs review.',
+    formHint: 'Enter the name, price and VAT. Adding this item does not create a quote or retry the request.',
+    chooseTax: 'Choose VAT', skuExists: 'This reference already exists, including archived items. Check the catalogue before adding one.',
+    saved: 'Item saved', savedDetail: 'You can now write the quote yourself or reopen the message. The automatic request remains unchanged.',
+    writeQuote: 'Write the quote', returnRequest: 'Return to request', dismiss: 'Later',
+    contextChanged: 'The workspace or account changed. Reopen the request in the correct company.' },
+} as const;
+export function autopilotCatalogueCopy(language: string) { return catalogueCopy[language as keyof typeof catalogueCopy] ?? catalogueCopy.fr; }
+
 const reasons: Record<AutopilotReviewReason, readonly [string, string, string, string]> = {
   missing_customer_name: ['Le client doit être précisé.', 'Der Kunde muss angegeben werden.', 'Occorre indicare il cliente.', 'The customer needs to be identified.'],
   ambiguous_customer: ['Plusieurs clients correspondent.', 'Mehrere Kunden kommen infrage.', 'Corrispondono più clienti.', 'More than one customer matches.'],

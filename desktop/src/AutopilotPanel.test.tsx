@@ -3,8 +3,8 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { AutopilotReviews, AutopilotSettings, AutopilotStatus } from './AutopilotPanel';
-import { autopilotCopy } from './autopilotPresentation';
+import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus } from './AutopilotPanel';
+import { autopilotCopy, autopilotCatalogueCopy } from './autopilotPresentation';
 import type { AutopilotView } from './autopilotView';
 const locale = vi.hoisted(() => ({ language: 'fr' }));
 vi.mock('./language', () => ({ useAppLanguage: () => locale.language, getAppLocale: () => `${locale.language}-CH` }));
@@ -53,4 +53,32 @@ it('opens only the exact Support source and removes retained reviews for another
   expect(open).toHaveBeenCalledExactlyOnceWith('exact-ticket-a');
   await act(async () => root.render(<AutopilotReviews state={state} organizationId="company-b" onOpenSource={open} />));
   expect(host.querySelector('.quote-autopilot__requests')).toBeNull(); expect(host.textContent).not.toContain(autopilotCopy('fr').openRequest);
+});
+const missingItem = { ...state, reviews: { ...state.reviews!, items: state.reviews!.items.map(item => ({ ...item, reasons: ['missing_article'] as const })) } };
+it.each(['fr','de','it','en'])('shows honest catalogue identification and manual follow-up in %s', language => {
+  locale.language=language;const copy=autopilotCatalogueCopy(language);
+  const html=renderToStaticMarkup(<><AutopilotReviews state={missingItem} organizationId="company-a" onOpenSource={async()=>{}} onCatalogue={()=>{}} canAddCatalogue />
+    <AutopilotCatalogueNext canWrite onWriteQuote={()=>{}} onReturnRequest={async()=>{}} onDismiss={()=>{}}/></>);
+  for(const text of [copy.title,copy.browse,copy.add,copy.hint,copy.savedDetail,copy.writeQuote,copy.returnRequest])expect(html).toContain(text);
+  expect(html).not.toMatch(/proposal-a|exact-ticket-a|missing_article|JEV|TypeSafe/);
+});
+it('routes only the exact missing-item review to catalogue actions and keeps read-only creation hidden', async()=>{
+  const catalogue=vi.fn();const {root,host}=await mount(<AutopilotReviews state={missingItem} organizationId="company-a" onOpenSource={async()=>{}} onCatalogue={catalogue} canAddCatalogue/>);
+  const buttons=host.querySelectorAll<HTMLButtonElement>('.quote-autopilot__request-actions button');
+  await act(async()=>buttons[0].click());await act(async()=>buttons[1].click());
+  expect(catalogue.mock.calls).toEqual([[expect.objectContaining({proposalId:'proposal-a',sourceId:'exact-ticket-a'}),'browse'],[expect.objectContaining({proposalId:'proposal-a',sourceId:'exact-ticket-a'}),'create']]);
+  await act(async()=>root.render(<AutopilotReviews state={missingItem} organizationId="company-a" onOpenSource={async()=>{}} onCatalogue={catalogue}/>));
+  expect(host.textContent).toContain(autopilotCatalogueCopy('fr').browse);expect(host.textContent).not.toContain(autopilotCatalogueCopy('fr').add);
+});
+it('never offers catalogue actions for other reasons, another company or a closed gate',()=>{
+  for(const [value,organization]of [[state,'company-a'],[missingItem,'company-b'],[{...missingItem,status:'unavailable'},'company-a']] as const){
+    const html=renderToStaticMarkup(<AutopilotReviews state={value as AutopilotView} organizationId={organization} onOpenSource={async()=>{}} onCatalogue={()=>{}} canAddCatalogue/>);
+    expect(html).not.toContain(autopilotCatalogueCopy('fr').browse);expect(html).not.toContain(autopilotCatalogueCopy('fr').add);
+  }
+});
+it('requires separate explicit actions for a manual quote and the original Support message',async()=>{
+  const write=vi.fn(),source=vi.fn().mockResolvedValue(undefined);const {host}=await mount(<AutopilotCatalogueNext canWrite onWriteQuote={write} onReturnRequest={source} onDismiss={()=>{}}/>);
+  expect(write).not.toHaveBeenCalled();expect(source).not.toHaveBeenCalled();
+  const buttons=host.querySelectorAll<HTMLButtonElement>('button');await act(async()=>buttons[0].click());expect(write).toHaveBeenCalledOnce();expect(source).not.toHaveBeenCalled();
+  await act(async()=>buttons[1].click());expect(source).toHaveBeenCalledOnce();
 });

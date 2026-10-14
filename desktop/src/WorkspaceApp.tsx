@@ -6,7 +6,9 @@ import type { WorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { captureWorkspaceMutationOrigin } from './workspaceMemberOrigin';
 import { useAutopilot, type AutopilotContext } from './useAutopilot';
 import { resolveConfirmedQuoteDestination } from './confirmedQuoteDestination';
-import { autopilotCopy } from './autopilotPresentation';
+import { autopilotCopy, autopilotCatalogueCopy } from './autopilotPresentation';
+import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type AutopilotCatalogueRequest, type AutopilotCatalogueFollowup } from './autopilotCatalogue';
+import type { AutopilotReviewItem } from './autopilotReview';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
 import './workspace-navigation.css';
@@ -101,7 +103,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import {DiagnosticsPanel} from './DiagnosticsPanel';
 import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
 import { employeeDraftFields, validEmployeeCreationId, validCreationEmployeeDraft, EMPLOYEE_CREATION_UNCONFIRMED, EMPLOYEE_LOCAL_DRAFT_UNSAVED, employeeCreationRecovery } from './employeeCreationDraft';
-import {recordDiagnostic, classifyDiagnosticError, diagnosticOperation} from './diagnostics';
+import {recordDiagnostic, classifyDiagnosticError, diagnosticOperation, diagnosticInvoke} from './diagnostics';
 import {
   Archive,
   ArrowRight,
@@ -414,7 +416,7 @@ type ModalState = (
   | {type:'documentCreationDrafts';selections:readonly DocumentCreationConsultation[]}
   | { type: 'client'; item?: Client }
   | { type: 'clientDetail'; client: Client }
-  | { type: 'catalogItem'; item?: CatalogItem }
+  | { type: 'catalogItem'; item?: CatalogItem; autopilotRequest?: AutopilotCatalogueRequest }
   | {
       type: 'stockMovement';
       item: CatalogItem;
@@ -715,6 +717,42 @@ function WorkspaceContent({
     consultationIdentity.companyId, consultationIdentity.organizationId, consultationIdentity.memberId,
     consultationIdentity.memberContextNonce, consultationIdentity.ready, readOnly]);
   const autopilot = useAutopilot(autopilotContext, refreshInboxWorkspace);
+  const [catalogueFollowup, setCatalogueFollowup] = useState<AutopilotCatalogueFollowup | null>(null);
+  const catalogueContext = useRef({ identity: consultationIdentity, reviews: autopilot.state.reviews,
+    ready: autopilot.state.status === 'ready', active: cloudAccount?.status === 'connected', readOnly });
+  catalogueContext.current = { identity: consultationIdentity, reviews: autopilot.state.reviews,
+    ready: autopilot.state.status === 'ready', active: cloudAccount?.status === 'connected', readOnly };
+  const openAutopilotCatalogue = (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => {
+    if (!autopilotContext || busy || modal) return;
+    const request: AutopilotCatalogueRequest = { ...item, organizationId: autopilotContext.organizationId,
+      origin: { workspaceScope: autopilotContext.origin.expectedWorkspaceScope, memberContextNonce: autopilotContext.origin.expectedMemberContextNonce } };
+    const now = catalogueContext.current;
+    const selected = now.ready ? resolveAutopilotCatalogueEntry(request, now.reviews, workspaceRef.current, now.identity, now, mode) : null;
+    if (!selected) { setNotice({ tone: 'warning', text: autopilotCatalogueCopy(getAppLanguage()).contextChanged }); return; }
+    setSearch('');
+    if (mode === 'browse') setView('catalog');
+    else setModal({ type: 'catalogItem', autopilotRequest: selected });
+  };
+  const catalogueItemCreated = (request: AutopilotCatalogueRequest, catalogItemId: string) => {
+    const now = catalogueContext.current, next = resolveAutopilotCatalogueFollowup({ request, catalogItemId }, workspaceRef.current, now.identity, now);
+    if (next) { setCatalogueFollowup(next); setView('automation'); setAutomationPage('centre'); }
+  };
+  const visibleCatalogueFollowup = resolveAutopilotCatalogueFollowup(catalogueFollowup, workspace, consultationIdentity,
+    { active: cloudAccount?.status === 'connected', readOnly });
+  const catalogueNext = visibleCatalogueFollowup ? {
+    canWrite: !readOnly,
+    onDismiss: () => setCatalogueFollowup(null),
+    onWriteQuote: () => {
+      const now = catalogueContext.current;
+      if (busy || modal || now.readOnly || !resolveAutopilotCatalogueFollowup(visibleCatalogueFollowup, workspaceRef.current, now.identity, now)) return;
+      setCatalogueFollowup(null); setSearch(''); setView('quotes'); setModal({ type: 'document', entity: 'quotes' });
+    },
+    onReturnRequest: async () => {
+      const now = catalogueContext.current;
+      if (!resolveAutopilotCatalogueFollowup(visibleCatalogueFollowup, workspaceRef.current, now.identity, now)) throw Error('AUTOPILOT_CATALOGUE_CONTEXT_CHANGED');
+      await diagnosticInvoke('open_supplier_inbox_settings', { section: 'inbox', ticketId: visibleCatalogueFollowup.request.sourceId });
+    },
+  } : undefined;
   const openAutopilotQuote = (quoteId: string) => {
     if (!autopilotContext || autopilot.state.status !== 'ready') return;
     const destination = resolveConfirmedQuoteDestination({ organizationId: autopilotContext.organizationId, quoteId,
@@ -2156,7 +2194,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -2714,6 +2752,7 @@ function WorkspaceContent({
           close={() => { if (modal.type === 'payslipPayment' && modal.returnToPosting) { setModal(null); setPayslipPostingId(modal.payslip.id); } else if (modal.returnToClientId) returnToClientFolder(modal.returnToClientId); else setModal(null); }}
           replace={next => setModal(current => { const value = typeof next === 'function' ? next(current) : next; return value && current?.returnToClientId ? { ...value, returnToClientId: current.returnToClientId } : value; })}
           act={act}
+          onAutopilotCatalogueCreated={catalogueItemCreated}
           onOpenClientEntry={openClientEntry}
           onReadWorkspace={(expectedOrigin,validateRead) => diagnosticOperation('app', 'workspace.stock_refresh', async () => {
             const originWorkspaceScope = expectedOrigin?.workspaceScope ?? workspace.workNotesScope;
@@ -6270,6 +6309,7 @@ function WorkspaceModal({
   onQrReady,
   onOpenClientEntry,
   onReadWorkspace,
+  onAutopilotCatalogueCreated,
 }: {
   state: Exclude<ModalState, null>;
   readOnly: boolean;
@@ -6293,6 +6333,7 @@ function WorkspaceModal({
   onQrReady: (invoice: Invoice, qr: StoredSwissQrBill) => void;
   onOpenClientEntry: (kind: 'client' | 'project' | 'quotes' | 'invoices', clientId: string, id: string) => void;
   onReadWorkspace: (origin?:WorkspaceMutationOrigin,validateRead?:()=>void) => Promise<Workspace>;
+  onAutopilotCatalogueCreated: (request: AutopilotCatalogueRequest, catalogItemId: string) => void;
 }) {
   if (state.type === 'client')
     return <ClientForm key={JSON.stringify([workspace.workNotesScope, 'client', state.item?.id || 'new'])} item={state.item} workspace={workspace} busy={busy} readOnly={readOnly} close={close} act={act} />;
@@ -6314,12 +6355,14 @@ function WorkspaceModal({
   if (state.type === 'catalogItem')
     return (
       <CatalogItemForm
-        key={JSON.stringify([workspace.workNotesScope, 'catalog', state.item?.id || 'new'])}
+        key={JSON.stringify([workspace.workNotesScope, 'catalog', state.item?.id || 'new', state.autopilotRequest?.proposalId, state.autopilotRequest?.origin.memberContextNonce])}
         item={state.item}
+        autopilotRequest={state.autopilotRequest}
+        onCreated={state.autopilotRequest ? id => onAutopilotCatalogueCreated(state.autopilotRequest!, id) : undefined}
         workspace={workspace}
         busy={busy}
         readOnly={readOnly}
-        onReadWorkspace={onReadWorkspace}
+        onReadWorkspace={() => onReadWorkspace(state.autopilotRequest?.origin)}
         close={close}
         act={act}
       />

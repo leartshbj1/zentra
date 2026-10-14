@@ -16,8 +16,9 @@ import { AutomationControlCentre } from './AutomationControlCentre';
 import { automationLabel } from './automationPresentation';
 import './automation-design.css';
 import type { AppointmentInboxState } from './AppointmentInbox';
-import { AutopilotReviews, AutopilotSettings, AutopilotStatus } from './AutopilotPanel';
+import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus } from './AutopilotPanel';
 import type { AutopilotView } from './autopilotView';
+import type { AutopilotReviewItem } from './autopilotReview';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
@@ -28,7 +29,10 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   appointments?: AppointmentInboxState | null; appointmentsUnavailable?: boolean;
   onOpenAppointment?: (id: string) => void;
   autopilot?: { state: AutopilotView; onConsent: (enabled: boolean) => Promise<void>;
-    onRefresh: () => Promise<void>; onNextReviews: () => Promise<void>; onOpenQuote: (id: string) => void };
+    onRefresh: () => Promise<void>; onNextReviews: () => Promise<void>; onOpenQuote: (id: string) => void;
+    onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
+    canAddCatalogue?: boolean;
+    catalogueNext?: { canWrite: boolean; onWriteQuote: () => void; onReturnRequest: () => Promise<unknown>; onDismiss: () => void } };
 }) {
   const language = useAppLanguage();
   const { state, status, refresh, readOnly } = useCompanyAutomation();
@@ -86,7 +90,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       })}</div>
       {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
     </section>}
-    {followup && <div className="automation-hub__followup">{autopilot && <AutopilotReviews state={autopilot.state} organizationId={state.organizationId} onOpenSource={openSourceMessage} onNext={autopilot.onNextReviews} onRefresh={autopilot.onRefresh} />}<AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))} /></div>}
+    {followup && <div className="automation-hub__followup">{autopilot?.state.status === 'ready' && autopilot.catalogueNext && <AutopilotCatalogueNext key={state.organizationId} {...autopilot.catalogueNext} />}{autopilot && <AutopilotReviews state={autopilot.state} organizationId={state.organizationId} onOpenSource={openSourceMessage} onNext={autopilot.onNextReviews} onRefresh={autopilot.onRefresh} onCatalogue={autopilot.onCatalogue} canAddCatalogue={autopilot.canAddCatalogue} />}<AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))} /></div>}
     {page === 'settings' && <section aria-label={t('Réglages')} className="automation-hub__settings">{autopilot && <AutopilotSettings state={autopilot.state} onConsent={autopilot.onConsent} />}<Button variant="secondary" onClick={()=>onPage('rules')}>{t('Règles de l’équipe')}<ArrowRight size={16}/></Button><AutomationSettings /></section>}
     {page === 'rules' && <><Button variant="ghost" onClick={()=>onPage('settings')}><ArrowLeft size={16}/>{t('Réglages')}</Button><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></>}
   </div>;

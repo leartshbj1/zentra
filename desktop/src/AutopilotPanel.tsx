@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, ChevronRight, ClipboardCheck, Workflow } from 'lucide-react';
 import { useAppLanguage, getAppLocale } from './language';
-import { autopilotCopy, autopilotReviewReason } from './autopilotPresentation';
-import { normalizeAutopilotReviewPage } from './autopilotReview';
+import { autopilotCopy, autopilotCatalogueCopy, autopilotReviewReason } from './autopilotPresentation';
+import { normalizeAutopilotReviewPage, type AutopilotReviewItem } from './autopilotReview';
 import type { AutopilotView } from './autopilotView';
 import './AutopilotPanel.css';
 
@@ -52,11 +52,13 @@ export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; 
   </section>;
 }
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh }: {
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
+  onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
+  canAddCatalogue?: boolean;
 }) {
-  const language = useAppLanguage(), copy = autopilotCopy(language);
+  const language = useAppLanguage(), copy = autopilotCopy(language), catalogue = autopilotCatalogueCopy(language);
   const page = useMemo(() => normalizeAutopilotReviewPage(state.reviews, organizationId), [state.reviews, organizationId]);
   const [opening, setOpening] = useState<string | null>(null), [openFailed, setOpenFailed] = useState(false);
   const epoch = useRef(0);
@@ -77,15 +79,38 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
       : page.items.length === 0 ? <p className="quote-autopilot__context">{copy.empty}</p>
         : <ol className="quote-autopilot__requests">{page.items.map(item => <li key={item.proposalId}>
           <ClipboardCheck size={21} aria-hidden="true" />
-          <div><strong>{copy.request}</strong><time dateTime={new Date(item.createdAt * 1000).toISOString()}>
+          <div><strong>{item.reasons.includes('missing_article') ? catalogue.title : copy.request}</strong><time dateTime={new Date(item.createdAt * 1000).toISOString()}>
             {new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt * 1000)}
-          </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul></div>
-          <button type="button" disabled={opening !== null} onClick={() => { void open(item.proposalId, item.sourceId); }}>
+          </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul>
+          {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}</div>
+          <div className="quote-autopilot__request-actions">
+          {item.reasons.includes('missing_article') && onCatalogue && <>
+            <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'browse')}>{catalogue.browse}</button>
+            {canAddCatalogue && <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'create')}>{catalogue.add}</button>}
+          </>}
+          <button type="button" className="quote-autopilot__source-action" disabled={opening !== null} onClick={() => { void open(item.proposalId, item.sourceId); }}>
             {copy.openRequest}<ArrowUpRight size={16} aria-hidden="true" />
-          </button>
+          </button></div>
         </li>)}</ol>}
     {openFailed && <p className="quote-autopilot__error" role="status">{copy.openError}</p>}
     {state.error === 'busy' && <p className="quote-autopilot__context" role="status">{copy.busy}</p>}
     {readable && page.nextCursor && onNext && <footer><button type="button" disabled={state.readingReviews} onClick={() => { void onNext(); }}>{copy.more}<ChevronRight size={16} aria-hidden="true" /></button></footer>}
+  </section>;
+}
+
+export function AutopilotCatalogueNext({ canWrite, onWriteQuote, onReturnRequest, onDismiss }: {
+  canWrite: boolean; onWriteQuote: () => void; onReturnRequest: () => Promise<unknown>; onDismiss: () => void;
+}) {
+  const language = useAppLanguage(), copy = autopilotCatalogueCopy(language), common = autopilotCopy(language);
+  const [opening, setOpening] = useState(false), [failed, setFailed] = useState(false);
+  return <section className="quote-autopilot quote-autopilot--catalogue-next" aria-label={copy.saved}>
+    <div><h2>{copy.saved}</h2><p>{copy.savedDetail}</p></div>
+    <div className="quote-autopilot__next-actions">
+      {canWrite && <button type="button" disabled={opening} onClick={onWriteQuote}>{copy.writeQuote}</button>}
+      <button type="button" disabled={opening} onClick={() => { setOpening(true); setFailed(false);
+        void onReturnRequest().catch(() => setFailed(true)).finally(() => setOpening(false)); }}>{copy.returnRequest}<ArrowUpRight size={16} aria-hidden="true" /></button>
+      <button type="button" className="quote-autopilot__source-action" disabled={opening} onClick={onDismiss}>{copy.dismiss}</button>
+    </div>
+    {failed && <p role="status" className="quote-autopilot__error">{common.openError}</p>}
   </section>;
 }
