@@ -99,7 +99,9 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
           if (!guard.current()) return 'blocked';
           if (closedGate(tick)) { publish(guard, empty('unavailable')); return 'blocked'; }
           const refused = tick.organizationId === null && tick.workspaceScope === null && tick.memberContextNonce === null;
-          if (tick.status === 'error' && (refused || scoped(tick, captured)) && ['forbidden','conflict','revision_conflict','rate_limited','quota_exhausted'].includes(tick.code)) {
+          if (tick.status === 'busy' && refused && tick.code === 'busy') {
+            next = { ...next, error: 'busy' }; result = 'blocked';
+          } else if (tick.status === 'error' && (refused || scoped(tick, captured)) && ['forbidden','conflict','revision_conflict','rate_limited','quota_exhausted'].includes(tick.code)) {
             if (tick.code === 'rate_limited') return pauseQuota(guard, captured, tick);
             if (tick.code === 'quota_exhausted') timings.current.providerRetryAt = Date.now() + 900_000;
             next = { ...next, error: problem(tick) }; result = 'blocked';

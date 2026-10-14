@@ -85,6 +85,17 @@ it('keeps a refused member tick explicit and backs off while reading independent
   expect(result.state.error).toBe('permission'); expect(result.state.consent).toBeNull(); expect(result.state.activity?.items).toEqual([]);
   await act(async () => { await vi.advanceTimersByTimeAsync(29_999); }); expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(1);
 });
+it('treats the real closed native singleflight refusal as busy and keeps authorized history readable', async () => {
+  api.tickQuoteAutopilot.mockResolvedValue({ ...tick, status:'busy', code:'busy', organizationId:null, workspaceScope:null, memberContextNonce:null,
+    phase:'none', counts:null, roundComplete:false, hasMore:false, pendingRecovery:false });
+  await mount();
+  expect(result.state.status).toBe('ready'); expect(result.state.error).toBe('busy');
+  expect(result.state.consent).toEqual(consent); expect(result.state.activity?.items).toEqual([]); expect(result.state.reviews?.items).toEqual([]);
+  expect(api.readQuoteAutopilotActivity).toHaveBeenCalledOnce(); expect(api.readQuoteAutopilotReview).toHaveBeenCalledOnce();
+  await act(async () => { await vi.advanceTimersByTimeAsync(29_999); }); expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); }); expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(2);
+});
+
 it('recognizes the real closed native error scope without misreporting a quota refusal as an account change', async () => {
   api.tickQuoteAutopilot.mockResolvedValue({ ...tick, organizationId: null, workspaceScope: null, memberContextNonce: null,
     status: 'error', code: 'rate_limited', phase: 'none', counts: null });
