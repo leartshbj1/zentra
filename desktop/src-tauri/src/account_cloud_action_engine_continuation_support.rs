@@ -1,6 +1,8 @@
 //! Only the ignored A41 continuation test can reach this boundary. It uses the
 //! real provider/HTTPS/writer/publication; an old source can never be prepared.
 use super::*;
+#[path = "account_cloud_action_engine_g5_support.rs"]
+pub(crate) mod g5;
 const HISTORICAL_SOURCE: &str = "6876287b-2ad0-486a-85df-95610f2d2a6d";
 
 pub(crate) struct NewSourceResult {

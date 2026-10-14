@@ -1,6 +1,8 @@
 //! Distinct populated-head continuation. Never runs the virgin recipe, seeds
 //! business rows, changes consent, rotates a hook or replays the old proposal.
 use super::*;
+#[path = "account_cloud_live_a41_g5_tests.rs"]
+mod g5;
 const BASE_SNAPSHOT: &str = "5ba6a352-807e-4b7f-9bc7-e216477ef7f2";
 const BASE_ARCHIVE: &str = "c782d6c38685b9bae3efebf32601f265dbaae35ab3a0e6829cf339ea6469f315";
 const OLD_SOURCE: &str = "6876287b-2ad0-486a-85df-95610f2d2a6d";

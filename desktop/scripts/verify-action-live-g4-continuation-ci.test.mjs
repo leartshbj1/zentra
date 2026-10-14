@@ -103,9 +103,9 @@ test('separate CI proof ties source/binary/hash and never asserts scheduler, G5,
   for(const patch of [{continuationCoordinatorSha256:'9'.repeat(64)},{cookie:'synthetic'}])assert.throws(()=>publicContinuationCiProof(report(),identity(),{...hashes(),...patch},regressions()));
   assert.throws(()=>publicContinuationCiProof(report(),identity(),hashes(),{...regressions(),binarySha256:'9'.repeat(64)}));
 });
-test('virgin CI body is byte preserved after removing only two explicit dispatch lines',()=>{
+test('virgin CI body is byte preserved after removing only explicit continuation and G5 dispatch lines',()=>{
   const source=read('./verify-action-live-g4-ci-windows.mjs');
-  const addition='  const continuation = continuationInputFromEnvironment(process.env);\n  return runDedicatedContinuationCi(continuation);\n';
+  const addition='  const g5 = g5InputFromEnvironment(process.env);\n  if (g5 !== null) return runDedicatedG5Ci(g5);\n  const continuation = continuationInputFromEnvironment(process.env);\n  return runDedicatedContinuationCi(continuation);\n';
   const body=source.slice(source.indexOf('export async function runDedicatedG4Ci()'),source.indexOf('\n// Separate test-only branch;'));
   assert.equal(body.split(addition).length,2);
   assert.equal(sha(body.replace(addition,'')),'9bbe9166345de4b4b61743080cce7bfa8da6a200735d69443067e9dfc79a5e36');

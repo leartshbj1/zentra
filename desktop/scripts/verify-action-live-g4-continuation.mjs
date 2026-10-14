@@ -202,7 +202,10 @@ export function validateContinuationSupportState(state,input){
 
 // Fetch injection exists only for pure source-lifecycle unit tests. The runner
 // below always supplies the actual global fetch, never a private-input callback.
-export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>assertContinuationAdmission({...process.env})}={}){
+export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>assertContinuationAdmission({...process.env}),baselineValidator=validateContinuationBaseline}={}){
+  // This captured port is only for the separate trusted G5 coordinator. The
+  // original continuation retains its exact revision-one validator by default.
+  need(typeof baselineValidator==='function','continuation_baseline_validator_refused');
   const input=validateContinuationInput(raw);const jar=new Cookies(input.account.browserCookieHeader);let attempted=false,result;
   async function request(route,body,hook=false){
     const expectedHook=`/api/support/hooks/${input.connectionId}`;
@@ -221,7 +224,7 @@ export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>a
   return {
     async provision(baseline){
       admit();need(!attempted,'continuation_source_attempt_already_used');attempted=true;
-      validateContinuationBaseline(baseline,input.campaignId);
+      baselineValidator(baseline,input.campaignId);
       const auth=(await request('/api/auth/session')).value;need(auth?.authenticated===true&&auth.user?.id===OWNER&&auth.user?.emailConfirmed===true,'continuation_owner_refused');
       const route=`/api/support?workspace=${input.workspaceId}`;
       const before=(await request(route)).value,prior=validateContinuationSupportState(before,input);
@@ -254,17 +257,17 @@ export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>a
   };
 }
 
-function publicEnvironment(env){const result={};for(const name of ['SystemRoot','SYSTEMROOT','WINDIR','PATH','PATHEXT','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA',
+export function publicEnvironment(env){const result={};for(const name of ['SystemRoot','SYSTEMROOT','WINDIR','PATH','PATHEXT','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA',
   'HOMEDRIVE','HOMEPATH','COMSPEC','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','CIRCLECI','CIRCLE_BRANCH','CIRCLE_SHA1'])if(typeof env[name]==='string')result[name]=env[name];return result;}
 async function shaFile(file){const h=createHash('sha256');for await(const bytes of fs.createReadStream(file))h.update(bytes);return h.digest('hex');}
-async function verifiedHarness(input,env){
-  assertContinuationAdmission(env);need(input.sourceSha===env.CIRCLE_SHA1,'continuation_source_pin_refused');
+export async function verifiedHarness(input,env,{admit=assertContinuationAdmission,requiredFiles=REQUIRED_FILES,requiredTests=[CONTINUATION_TEST]}={}){
+  admit(env);need(input.sourceSha===env.CIRCLE_SHA1,'continuation_source_pin_refused');
   const gitRead=args=>new Promise((resolve,reject)=>{const child=spawn('git',args,{cwd:ROOT,env:publicEnvironment(env),windowsHide:true,stdio:['ignore','pipe','pipe']});let out='',err='';
     const fail=()=>{clearTimeout(timer);child.kill();reject(new ContinuationRefusal('continuation_git_refused'));};const timer=setTimeout(fail,30000);
     child.once('error',fail);child.stdout.on('data',b=>{out+=b;if(Buffer.byteLength(out)>65536)fail();});child.stderr.on('data',b=>{err+=b;if(Buffer.byteLength(err)>65536)fail();});
     child.once('exit',code=>{clearTimeout(timer);if(code!==0||err.trim())reject(new ContinuationRefusal('continuation_git_refused'));else resolve(out.trim());});});
   need(await gitRead(['rev-parse','HEAD'])===input.sourceSha&&await gitRead(['status','--porcelain','--untracked-files=no'])==='','continuation_clean_source_required');
-  need(equal((await gitRead(['ls-files','--error-unmatch','--',...REQUIRED_FILES])).split(/\r?\n/).sort(),[...REQUIRED_FILES].sort()),'continuation_sources_must_be_tracked');
+  need(equal((await gitRead(['ls-files','--error-unmatch','--',...requiredFiles])).split(/\r?\n/).sort(),[...requiredFiles].sort()),'continuation_sources_must_be_tracked');
   const folder=path.join(ROOT,'desktop/artifacts/action-live-profile');
   const read=name=>{const bytes=fs.readFileSync(path.join(folder,name));need(bytes.length<=1048576,'continuation_proof_bounds');try{return JSON.parse(bytes);}catch{throw new ContinuationRefusal('continuation_proof_refused');}};
   const profile=read('live-profile-verification-proof.json'),harness=read('windows-test-harness-proof.json');
@@ -274,7 +277,7 @@ async function verifiedHarness(input,env){
   const listing=fs.readFileSync(path.join(folder,'windows-test-harness-list-after.txt'),'utf8');need(Buffer.byteLength(listing)<=1048576,'continuation_catalogue_bounds');
   const lines=listing.replace(/\r\n/g,'\n').trimEnd().split('\n'),summary=lines.pop()?.match(/^(\d+) tests, 0 benchmarks$/);
   const names=lines.filter(Boolean).map(line=>{const m=line.match(/^([A-Za-z_][A-Za-z0-9_:]*): test$/);need(m,'continuation_catalogue_refused');return m[1];});
-  need(summary&&names.length===Number(summary[1])&&names.length===profile.catalogueCount&&new Set(names).size===names.length&&names.includes(CONTINUATION_TEST),'continuation_new_test_required_before_enrollment');
+  need(summary&&names.length===Number(summary[1])&&names.length===profile.catalogueCount&&new Set(names).size===names.length&&requiredTests.every(name=>names.includes(name)),'continuation_new_test_required_before_enrollment');
   need(typeof harness.executable==='string'&&path.isAbsolute(harness.executable),'continuation_executable_refused');
   const executable=fs.realpathSync(harness.executable),stat=fs.lstatSync(harness.executable),deps=fs.realpathSync(path.join(ROOT,'desktop/src-tauri/target/release/deps'));
   need(stat.isFile()&&!stat.isSymbolicLink()&&stat.size>0&&stat.size<=536870912&&path.dirname(executable).toLowerCase()===deps.toLowerCase()

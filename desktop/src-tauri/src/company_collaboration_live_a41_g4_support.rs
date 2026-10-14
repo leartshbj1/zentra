@@ -2,6 +2,8 @@
 //! A50/91a and b502 do not compile or prove this subsequent G4 work.
 //! No substitute transport, server fact, licence or local publication metadata.
 use super::*;
+#[path = "company_collaboration_live_a41_g5_support.rs"]
+pub(crate) mod g5;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
