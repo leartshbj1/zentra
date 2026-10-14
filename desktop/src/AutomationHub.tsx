@@ -1,5 +1,5 @@
 import { copyDiagnosticIntent } from './diagnosticIntent';
-import { ArrowLeft, ArrowRight, Banknote, FileText, Package, Receipt, Workflow } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Banknote, Eye, FileText, Package, Receipt, Workflow } from 'lucide-react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationBrief, type BriefDestination } from './AutomationBrief';
 import { AutomationSettings } from './AutomationSettings';
@@ -49,15 +49,22 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   };
   const openSourceMessage = (ticketId: string) => invoke('open_supplier_inbox_settings', { section: 'inbox', ticketId });
   return <div className="automation-hub">
+    <header className="automation-hub__toolbar">
     <nav className="automation-hub__navigation" aria-label={t('Espace Automation')}>
       {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{label(tab === 'overview' ? 'activity' : tab === 'centre' ? 'followup' : 'settings')}{tab === 'centre' && pending > 0 && <span className="automation-hub__count">{pending}</span>}</button>)}
     </nav>
+    <div className="automation-hub__mode" role="status">
+      {readiness === 'observation' && <Eye size={16} aria-hidden="true" />}
+      <span>{t(ready ? (readiness === 'observation' ? 'Observation' : 'Suggestions actives') : 'À configurer')}</span>
+    </div>
+    </header>
     {!ready && <div className="automation-hub__welcome">
         <div><h2>{t(readiness === 'consent' ? 'Votre accès est actif. Commençons.' : 'Retrouvez vos suggestions')}</h2><p>{t(canManage ? 'Choisissez les fonctions de votre équipe dans les réglages. Tout se passe ici, dans Zentra.' : 'Votre accès est inclus. Le titulaire ou un administrateur peut terminer les réglages pour toute l’équipe.')}</p></div>
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
-    {activityPage && <><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} summaryOnly language={language} onOpen={open}/><div className="automation-hub__activity">
+    {activityPage && <><div className="automation-hub__activity">
       <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} onOpenSourceMessage={openSourceMessage} initialTab="history" activity={state.activity} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></div>
+      <aside className="automation-hub__summary"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} summaryOnly language={language} onOpen={open}/></aside>
     </div><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></>}
     {(page === 'invoices' || page === 'appointments') && <section className="automation-hub__focused"><Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>{page==='invoices'?inboxPanel:appointmentPanel}</section>}
     {page === 'tools' && <section aria-label={t('Outils')}>

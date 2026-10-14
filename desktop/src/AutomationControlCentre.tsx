@@ -2,10 +2,10 @@
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AlertCircle,
   ArrowUpRight,
   Check,
   ChevronDown,
-  Clock,
   Plus,
   RotateCcw,
   Workflow,
@@ -16,7 +16,7 @@ import './AutomationControlCentre.css';
 import { AutomationJournal } from './AutomationJournal';
 import type { AutomationActivity } from './automation';
 import type { BriefDestination } from './AutomationBrief';
-import { useAppLanguage } from './language';
+import { t, useAppLanguage } from './language';
 import { activityDateTime, activityTimestamp, automationLabel, automationRunStatus } from './automationPresentation';
 import type { AppointmentInboxState } from './AppointmentInbox';
 
@@ -119,15 +119,137 @@ const categories = {
   account: 'Compte et accès',
   other: 'Autre',
 };
-const date = (n: number) =>
-  new Intl.DateTimeFormat('fr-CH', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(n * 1000);
+const centreTranslations: Record<string, readonly [string, string, string]> = {
+  'Centre Automation': ['Automation-Zentrale', 'Centro Automation', 'Automation centre'],
+  'Votre centre Automation': ['Ihre Automation-Zentrale', 'Il tuo centro Automation', 'Your Automation centre'],
+  'Les actions de votre équipe, au même endroit.': ['Die Aktionen Ihres Teams an einem Ort.', 'Le azioni del tuo team, in un solo posto.', 'Your team’s actions in one place.'],
+  'Actualiser le centre Automation': ['Automation-Zentrale aktualisieren', 'Aggiorna il centro Automation', 'Refresh Automation centre'],
+  'Vue du centre Automation': ['Ansicht der Automation-Zentrale', 'Vista del centro Automation', 'Automation centre view'],
+  'À faire': ['Aufgaben', 'Da fare', 'Tasks'],
+  'Règles': ['Regeln', 'Regole', 'Rules'],
+  'Chargement du centre…': ['Zentrale wird geladen…', 'Caricamento del centro…', 'Loading the centre…'],
+  'Rien à vérifier': ['Nichts zu prüfen', 'Nulla da verificare', 'Nothing to review'],
+  'Les règles qui demandent votre accord apparaîtront ici.': ['Regeln, die Ihre Zustimmung benötigen, erscheinen hier.', 'Le regole che richiedono il tuo consenso appariranno qui.', 'Rules needing your approval will appear here.'],
+  'Les factures et rendez-vous reçus conservent leurs contrôles dans les écrans de réception de Gestion.': ['Die Prüfungen für empfangene Rechnungen und Termine bleiben in den Eingangsschirmen von Gestion.', 'Le verifiche di fatture e appuntamenti ricevuti restano nelle schermate di ricezione di Gestion.', 'Received invoices and appointments keep their checks in Gestion’s inbox screens.'],
+  'Aucune tâche à faire': ['Keine offenen Aufgaben', 'Nessuna attività da svolgere', 'No open tasks'],
+  'Les tâches, notifications et brouillons créés par vos règles apparaîtront ici.': ['Aufgaben, Benachrichtigungen und Entwürfe Ihrer Regeln erscheinen hier.', 'Le attività, notifiche e bozze create dalle tue regole appariranno qui.', 'Tasks, notifications and drafts created by your rules will appear here.'],
+  'Pour': ['Für', 'Per', 'For'],
+  'un collaborateur': ['ein Teammitglied', 'un collaboratore', 'a team member'],
+  'Relire la réponse': ['Antwort prüfen', 'Rileggi la risposta', 'Review reply'],
+  'Voir le détail': ['Details ansehen', 'Vedi dettagli', 'View details'],
+  'Lu': ['Gelesen', 'Letto', 'Read'],
+  'Terminé': ['Erledigt', 'Completato', 'Done'],
+  'Écarter': ['Verwerfen', 'Escludi', 'Dismiss'],
+  'Vos règles': ['Ihre Regeln', 'Le tue regole', 'Your rules'],
+  'Déclencheur actuel : un message classé dans Support. Les actions créent des tâches, notifications ou brouillons dans ce centre.': ['Auslöser: eine in Support eingeordnete Nachricht. Die Aktionen erstellen hier Aufgaben, Benachrichtigungen oder Entwürfe.', 'Attivazione: un messaggio classificato in Support. Le azioni creano attività, notifiche o bozze in questo centro.', 'Trigger: a message classified in Support. Actions create tasks, notifications or drafts in this centre.'],
+  'En pause': ['Pausiert', 'In pausa', 'Paused'],
+  'Modifier': ['Bearbeiten', 'Modifica', 'Edit'],
+  'Commencer avec un modèle': ['Mit einer Vorlage beginnen', 'Inizia da un modello', 'Start with a template'],
+  'Personnalisez-le et choisissez quand il peut agir.': ['Passen Sie die Vorlage an und legen Sie fest, wann sie handeln darf.', 'Personalizzalo e scegli quando può agire.', 'Customize it and choose when it can act.'],
+  'Le titulaire ou un administrateur peut ajouter et modifier les règles de votre entreprise.': ['Der Inhaber oder ein Administrator kann Unternehmensregeln hinzufügen und bearbeiten.', 'Il titolare o un amministratore può aggiungere e modificare le regole aziendali.', 'The owner or an administrator can add and edit company rules.'],
+  'Modification enregistrée.': ['Änderung gespeichert.', 'Modifica salvata.', 'Change saved.'],
+  'Le centre Automation est indisponible. Réessayez.': ['Die Automation-Zentrale ist nicht verfügbar. Versuchen Sie es erneut.', 'Il centro Automation non è disponibile. Riprova.', 'The Automation centre is unavailable. Try again.'],
+  'Règle enregistrée. Elle s’applique aux prochains messages classés.': ['Regel gespeichert. Sie gilt für die nächsten eingeordneten Nachrichten.', 'Regola salvata. Si applica ai prossimi messaggi classificati.', 'Rule saved. It applies to future classified messages.'],
+  'La règle n’a pas pu être enregistrée.': ['Die Regel konnte nicht gespeichert werden.', 'Impossibile salvare la regola.', 'The rule could not be saved.'],
+  'Réessayez.': ['Versuchen Sie es erneut.', 'Riprova.', 'Try again.'],
+  'Brouillon à relire': ['Entwurf prüfen', 'Bozza da rileggere', 'Draft to review'],
+  'Enregistrer pour l’équipe': ['Für das Team speichern', 'Salva per il team', 'Save for the team'],
+  'Copié': ['Kopiert', 'Copiato', 'Copied'],
+  'Copier la réponse': ['Antwort kopieren', 'Copia la risposta', 'Copy reply'],
+  'Le brouillon n’a pas été enregistré. Votre texte reste ici.': ['Der Entwurf wurde nicht gespeichert. Ihr Text bleibt hier.', 'La bozza non è stata salvata. Il testo resta qui.', 'The draft was not saved. Your text remains here.'],
+  'Sélectionnez le texte pour le copier.': ['Wählen Sie den Text aus, um ihn zu kopieren.', 'Seleziona il testo per copiarlo.', 'Select the text to copy it.'],
+  'Un collègue a modifié ce brouillon. Copiez votre texte avant de recharger sa version.': ['Ein Teammitglied hat diesen Entwurf geändert. Kopieren Sie Ihren Text, bevor Sie die gespeicherte Version laden.', 'Un collega ha modificato la bozza. Copia il testo prima di caricare la sua versione.', 'A colleague changed this draft. Copy your text before loading their version.'],
+  'Charger la version enregistrée': ['Gespeicherte Version laden', 'Carica la versione salvata', 'Load saved version'],
+  'Aucun message n’est envoyé automatiquement.': ['Keine Nachricht wird automatisch versendet.', 'Nessun messaggio viene inviato automaticamente.', 'No message is sent automatically.'],
+  'Modifier la règle': ['Regel bearbeiten', 'Modifica regola', 'Edit rule'],
+  'Nouvelle règle': ['Neue Regel', 'Nuova regola', 'New rule'],
+  'Fermer': ['Schliessen', 'Chiudi', 'Close'],
+  'Nom de la règle': ['Regelname', 'Nome della regola', 'Rule name'],
+  'Quand': ['Wenn', 'Quando', 'When'],
+  'Un message est classé dans Zentra Support': ['Eine Nachricht wird in Zentra Support eingeordnet', 'Un messaggio viene classificato in Zentra Support', 'A message is classified in Zentra Support'],
+  'Si': ['Falls', 'Se', 'If'],
+  'Catégorie': ['Kategorie', 'Categoria', 'Category'],
+  'Toutes les catégories': ['Alle Kategorien', 'Tutte le categorie', 'All categories'],
+  'Priorité': ['Priorität', 'Priorità', 'Priority'],
+  'Toutes les priorités': ['Alle Prioritäten', 'Tutte le priorità', 'All priorities'],
+  'Urgente': ['Dringend', 'Urgente', 'Urgent'],
+  'Élevée': ['Hoch', 'Alta', 'High'],
+  'Normale': ['Normal', 'Normale', 'Normal'],
+  'Basse': ['Niedrig', 'Bassa', 'Low'],
+  'Expéditeur précis, facultatif': ['Bestimmter Absender, optional', 'Mittente specifico, facoltativo', 'Specific sender, optional'],
+  'Seulement avec une pièce jointe': ['Nur mit Anhang', 'Solo con un allegato', 'Only with an attachment'],
+  'Décision de Zentra': ['Entscheidung von Zentra', 'Decisione di Zentra', 'Zentra decision'],
+  'Ajouter une décision pour choisir une branche': ['Entscheidung zur Zweigauswahl hinzufügen', 'Aggiungi una decisione per scegliere un ramo', 'Add a decision to choose a branch'],
+  'Question': ['Frage', 'Domanda', 'Question'],
+  'Branche Oui': ['Ja-Zweig', 'Ramo Sì', 'Yes branch'],
+  'Branche Non': ['Nein-Zweig', 'Ramo No', 'No branch'],
+  'Une réponse incertaine demande une validation. Cette décision ne valide jamais un paiement ni une décision RH.': ['Eine unsichere Antwort erfordert eine Bestätigung. Diese Entscheidung genehmigt niemals Zahlungen oder Personalentscheide.', 'Una risposta incerta richiede una conferma. Questa decisione non approva mai pagamenti o decisioni HR.', 'An uncertain answer needs approval. This decision never authorizes payments or HR decisions.'],
+  'Alors': ['Dann', 'Allora', 'Then'],
+  'Action': ['Aktion', 'Azione', 'Action'],
+  'Branche': ['Zweig', 'Ramo', 'Branch'],
+  'Dans tous les cas': ['In jedem Fall', 'In ogni caso', 'Always'],
+  'Si Oui': ['Bei Ja', 'Se Sì', 'If yes'],
+  'Si Non': ['Bei Nein', 'Se No', 'If no'],
+  'Titre': ['Titel', 'Titolo', 'Title'],
+  'Toute l’équipe': ['Gesamtes Team', 'Tutto il team', 'Whole team'],
+  'Attendre, en heures': ['Warten, in Stunden', 'Attesa, in ore', 'Wait, in hours'],
+  'Modèle de réponse': ['Antwortvorlage', 'Modello di risposta', 'Reply template'],
+  'Note interne, facultative': ['Interne Notiz, optional', 'Nota interna, facoltativa', 'Internal note, optional'],
+  'Instructions': ['Anweisungen', 'Istruzioni', 'Instructions'],
+  'Champs disponibles :': ['Verfügbare Felder:', 'Campi disponibili:', 'Available fields:'],
+  'et': ['und', 'e', 'and'],
+  'Retirer cette action': ['Diese Aktion entfernen', 'Rimuovi questa azione', 'Remove this action'],
+  'Ajouter une action': ['Aktion hinzufügen', 'Aggiungi azione', 'Add action'],
+  'Autonomie': ['Autonomie', 'Autonomia', 'Autonomy'],
+  'Comportement': ['Verhalten', 'Comportamento', 'Behaviour'],
+  'Confiance minimale, en %': ['Mindestkonfidenz in %', 'Confidenza minima, in %', 'Minimum confidence, in %'],
+  'Activer pour les prochains messages': ['Für künftige Nachrichten aktivieren', 'Attiva per i prossimi messaggi', 'Enable for future messages'],
+  'Une règle arrêtée conserve son historique. Les demandes RH restent à confirmer. Les brouillons ne sont jamais envoyés.': ['Eine pausierte Regel behält ihren Verlauf. Personalangelegenheiten müssen bestätigt werden. Entwürfe werden nie versendet.', 'Una regola sospesa conserva la cronologia. Le richieste HR richiedono conferma. Le bozze non vengono mai inviate.', 'A paused rule keeps its history. HR requests still need approval. Drafts are never sent.'],
+  'Enregistrer la règle': ['Regel speichern', 'Salva regola', 'Save rule'],
+  'Simuler avec un exemple': ['Mit einem Beispiel simulieren', 'Simula con un esempio', 'Simulate with an example'],
+  'Exemple fictif ·': ['Fiktives Beispiel ·', 'Esempio fittizio ·', 'Fictitious example ·'],
+  'conditions remplies': ['Bedingungen erfüllt', 'condizioni soddisfatte', 'conditions met'],
+  'conditions non remplies': ['Bedingungen nicht erfüllt', 'condizioni non soddisfatte', 'conditions not met'],
+  'Vérifiez la règle.': ['Prüfen Sie die Regel.', 'Verifica la regola.', 'Check the rule.'],
+  'Observer sans agir': ['Ohne Aktion beobachten', 'Osserva senza agire', 'Observe without acting'],
+  'Me demander de confirmer': ['Bestätigung anfordern', 'Chiedimi conferma', 'Ask me to confirm'],
+  'Exécuter si la confiance suffit': ['Bei ausreichender Konfidenz ausführen', 'Esegui con confidenza sufficiente', 'Run with sufficient confidence'],
+  'Exécuter puis notifier': ['Ausführen und benachrichtigen', 'Esegui e notifica', 'Run then notify'],
+  'Créer une tâche': ['Aufgabe erstellen', 'Crea attività', 'Create task'],
+  'Notifier dans Automation': ['In Automation benachrichtigen', 'Notifica in Automation', 'Notify in Automation'],
+  'Préparer une réponse': ['Antwort vorbereiten', 'Prepara risposta', 'Prepare reply'],
+  'Résumé du message reçu': ['Zusammenfassung der Nachricht', 'Riepilogo del messaggio ricevuto', 'Received message summary'],
+  'Demander une vérification': ['Prüfung anfordern', 'Richiedi verifica', 'Request review'],
+  'action': ['Aktion', 'azione', 'action'],
+  'actions': ['Aktionen', 'azioni', 'actions'],
+  'Facture fournisseur': ['Lieferantenrechnung', 'Fattura fornitore', 'Supplier invoice'],
+  'Devis': ['Offerte', 'Preventivo', 'Quote'],
+  'Commande': ['Bestellung', 'Ordine', 'Order'],
+  'SAV': ['Kundendienst', 'Assistenza post-vendita', 'After-sales'],
+  'Rendez-vous': ['Termin', 'Appuntamento', 'Appointment'],
+  'Réclamation': ['Reklamation', 'Reclamo', 'Complaint'],
+  'Administratif': ['Verwaltung', 'Amministrazione', 'Administration'],
+  'Ressources humaines': ['Personal', 'Risorse umane', 'Human resources'],
+  'Indésirable': ['Spam', 'Spam', 'Spam'],
+  'Problème technique': ['Technisches Problem', 'Problema tecnico', 'Technical issue'],
+  'Facturation': ['Abrechnung', 'Fatturazione', 'Billing'],
+  'Avoir': ['Gutschrift', 'Nota di credito', 'Credit note'],
+  'Rappel de paiement': ['Zahlungserinnerung', 'Sollecito di pagamento', 'Payment reminder'],
+  'Reçu': ['Beleg', 'Ricevuta', 'Receipt'],
+  'Question produit': ['Produktfrage', 'Domanda sul prodotto', 'Product question'],
+  'Remboursement': ['Rückerstattung', 'Rimborso', 'Refund'],
+  'Livraison': ['Lieferung', 'Consegna', 'Delivery'],
+  'Compte et accès': ['Konto und Zugang', 'Account e accesso', 'Account and access'],
+  'Autre': ['Sonstiges', 'Altro', 'Other'],
+};
+function useCentreText() {
+  const language = useAppLanguage();
+  return (source: string) => language === 'fr' || !/\p{L}/u.test(source) ? source : centreTranslations[source]?.[['de', 'it', 'en'].indexOf(language)] ?? t(source, undefined, language);
+}
 
 export function AutomationControlCentre({
   organizationId,
-  request, initialTab = 'review', embedded = false, hideNavigation = false, hideRules = false,
+  request, initialTab = 'history', embedded = false, hideNavigation = false, hideRules = false,
   activity, onOpen, onOpenInvoice, appointments, appointmentsUnavailable, onOpenAppointment, onOpenSourceMessage,
 }: {
   organizationId: string;
@@ -141,10 +263,14 @@ export function AutomationControlCentre({
   onOpenAppointment?: (id: string) => void;
   onOpenSourceMessage?: (id: string) => Promise<unknown>;
 }) {
-  const [data, setData] = useState<AutomationCentreState | null>(null),
+  const language = useAppLanguage();
+  const c = useCentreText();
+  const [loadedData, setData] = useState<AutomationCentreState | null>(null),
     [error, setError] = useState(''),
+    [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [tab, setTab] = useState<'review' | 'work' | 'history' | 'rules'>(initialTab);
+  const data = loadedData?.organizationId === organizationId ? loadedData : null;
   useEffect(() => { setTab(initialTab); setEditing(null); }, [initialTab]);
   const [editing, setEditing] = useState<Rule | null>(null),
     [notice, setNotice] = useState('');
@@ -158,6 +284,7 @@ export function AutomationControlCentre({
     if (inflight.current && !force) return;
     const requestNumber = ++sequence.current;
     inflight.current = true;
+    setLoading(true);
     try {
       const next = (await api.current(withDiagnosticIntent({
         action: 'centre',
@@ -165,6 +292,9 @@ export function AutomationControlCentre({
       if (alive.current && requestNumber === sequence.current && next.organizationId === organizationId) {
         setData(next);
         setError('');
+      } else if (alive.current && requestNumber === sequence.current) {
+        setData(null);
+        setError('Le compte et l’entreprise ne correspondent pas');
       }
     } catch (e) {
       if (alive.current && requestNumber === sequence.current)
@@ -174,7 +304,10 @@ export function AutomationControlCentre({
             : 'Le centre Automation est indisponible. Réessayez.',
         );
     } finally {
-      if (requestNumber === sequence.current) inflight.current = false;
+      if (requestNumber === sequence.current) {
+        inflight.current = false;
+        if (alive.current) setLoading(false);
+      }
     }
   }, [organizationId]);
   useEffect(() => {
@@ -215,31 +348,31 @@ export function AutomationControlCentre({
       [],
     work = data?.items.filter((i) => i.state === 'open') || [];
   return (
-    <section className={`automation-centre${embedded ? " automation-centre--embedded" : ""}`} aria-label="Centre Automation">
+    <section className={`automation-centre${embedded ? " automation-centre--embedded" : ""}`} aria-label={c('Centre Automation')} aria-busy={busy || undefined}>
       {!embedded && <header className="automation-centre__heading">
         <div>
-          <h2>Votre centre Automation</h2>
-          <p>Les actions de votre équipe, au même endroit.</p>
+          <h2>{c("Votre centre Automation")}</h2>
+          <p>{c("Les actions de votre équipe, au même endroit.")}</p>
         </div>
         <button
           type="button"
           className="ac-quiet"
           onClick={() => void load()}
           disabled={busy}
-          aria-label="Actualiser le centre Automation"
+          aria-label={c("Actualiser le centre Automation")}
         >
           <RotateCcw size={18} />
         </button>
       </header>}
       {!hideNavigation && <nav
         className="automation-centre__tabs"
-        aria-label="Vue du centre Automation"
+        aria-label={c('Vue du centre Automation')}
       >
         {(
           [
-            ['review', 'À vérifier', review.length],
-            ['work', 'À faire', work.length],
-            ['history', 'Historique', 0],
+            ['history', automationLabel('activity', language), 0],
+            ['review', automationLabel('review', language), review.length],
+            ['work', c('À faire'), work.length],
             ['rules', 'Règles', 0],
           ] as const
         ).filter(([id]) => !hideRules || id !== 'rules').map(([id, label, count]) => (
@@ -252,80 +385,74 @@ export function AutomationControlCentre({
               setEditing(null);
             }}
           >
-            {label}
+            {c(label)}
             {count > 0 && <span>{count}</span>}
           </button>
         ))}
       </nav>}
       {error && (
-        <p className="ac-message" role="alert">
-          {error}
-        </p>
+        <div className="ac-message ac-message--error" role="alert"><AlertCircle size={18} aria-hidden="true"/><p>{c(error)}</p><button type="button" className="ac-quiet" disabled={loading || busy} onClick={() => void load()}>{automationLabel('retry', language)}</button></div>
       )}
       {notice && (
         <p className="ac-message" role="status">
-          {notice}
+          <Check size={17} aria-hidden="true"/>{c(notice)}
         </p>
       )}
-      {!data && !error && <p role="status">Chargement du centre…</p>}
+      {!data && !error && tab !== 'history' && <p role="status">{c('Chargement du centre…')}</p>}
       {data && tab === 'review' && (
         <div className="ac-list">
           {review.length === 0 ? (
-            <div className="ac-empty">
+            !error && <div className="ac-empty">
               <Check size={24} />
-              <h3>Rien à vérifier</h3>
-              <p>Les règles qui demandent votre accord apparaîtront ici.</p>
+              <h3>{c("Rien à vérifier")}</h3>
+              <p>{c("Les règles qui demandent votre accord apparaîtront ici.")}</p>
             </div>
           ) : (
             review.map((run) => (
               <AutomationRunRow
                 key={run.id}
                 run={run}
-                canManage={data.canManage}
-                busy={busy}
+                canManage={data.canManage && !error}
+                busy={busy || loading}
                 act={action}
                 onOpenSourceMessage={onOpenSourceMessage}
               />
             ))
           )}
           <p className="ac-footnote">
-            Les factures et rendez-vous reçus conservent leurs contrôles dans
-            les écrans de réception de Gestion.
-          </p>
+            {c("Les factures et rendez-vous reçus conservent leurs contrôles dans les écrans de réception de Gestion.")}</p>
         </div>
       )}
       {data && tab === 'work' && (
         <div className="ac-list">
           {work.length === 0 ? (
-            <div className="ac-empty">
+            !error && <div className="ac-empty">
               <Check size={24} />
-              <h3>Tout est à jour</h3>
+              <h3>{c("Aucune tâche à faire")}</h3>
               <p>
-                Les tâches, notifications et brouillons créés par vos règles
-                apparaîtront ici.
-              </p>
+                {c("Les tâches, notifications et brouillons créés par vos règles apparaîtront ici.")}</p>
             </div>
           ) : (
             work.map((item) => (
               <article key={item.id} className="ac-item">
                 <div className="ac-item__body">
                   <span className="ac-meta">
-                    {actions[item.kind as keyof typeof actions] || 'Action'} ·{' '}
-                    {date(item.created_at)}
+                    {c(actions[item.kind as keyof typeof actions] || 'Action')} {c("·")}{' '}
+                    {activityDateTime(item.created_at, language)}
                   </span>
                   <h3>{item.title}</h3>
                   {item.assigned_to && (
                     <p className="ac-meta">
-                      Pour{' '}
+                      {c("Pour")}{' '}
                       {data.members.find((m) => m.user_id === item.assigned_to)
                         ?.name || 'un collaborateur'}
                     </p>
                   )}
-                  <details className="ac-item__details"><summary>{item.kind === 'reply_draft' ? 'Relire la réponse' : 'Voir le détail'}</summary>
+                  <details className="ac-item__details"><summary>{c(item.kind === 'reply_draft' ? 'Relire la réponse' : 'Voir le détail')}</summary>
                   {item.kind === 'reply_draft' ? (
                     <ReplyDraft
                       item={item}
-                      busy={busy || !data.canWork}
+                      busy={busy || loading || !!error || !data.canWork}
                       save={action}
                     />
                   ) : (
@@ -343,16 +470,16 @@ export function AutomationControlCentre({
                         state: 'done',
                       }, 'automation_request', 'work_item_update'))
                     }
-                    disabled={busy || !data.canWork}
+                    disabled={busy || loading || !!error || !data.canWork}
                   >
                     <Check size={16} />
-                    {item.kind === 'notify' ? 'Lu' : 'Terminé'}
+                    {c(item.kind === 'notify' ? 'Lu' : 'Terminé')}
                   </button>
                   <button
                     type="button"
                     className="ac-quiet"
-                    aria-label={`Écarter · ${item.title}`}
-                    disabled={busy || !data.canWork}
+                    aria-label={`${c('Écarter')} · ${item.title}`}
+                    disabled={busy || loading || !!error || !data.canWork}
                     onClick={() =>
                       void action(withDiagnosticIntent({
                         action: 'work_item_update',
@@ -370,29 +497,7 @@ export function AutomationControlCentre({
           )}
         </div>
       )}
-      {tab === 'history' && embedded && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={data?.canManage ?? false} busy={busy} act={action} onOpenSourceMessage={onOpenSourceMessage} quickMessage/>}/>}
-      {data && tab === 'history' && !embedded && (
-        <div className="ac-list">
-          {!data.runs.length ? (
-            <div className="ac-empty">
-              <Clock size={24} />
-              <h3>L’historique commence avec vos règles</h3>
-              <p>Chaque exécution indiquera ses étapes et son résultat réel.</p>
-            </div>
-          ) : (
-            data.runs.map((run) => (
-              <AutomationRunRow
-                key={run.id}
-                run={run}
-                canManage={data.canManage}
-                busy={busy}
-                act={action}
-                onOpenSourceMessage={onOpenSourceMessage}
-              />
-            ))
-          )}
-        </div>
-      )}
+      {tab === 'history' && <AutomationJournal organizationId={organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} openAppointment={onOpenAppointment} openAppointments={onOpen ? () => onOpen('appointments') : undefined} runs={data?.runs ?? []} activity={activity} loading={loading} unavailable={!!error} onRefresh={() => void load()} openInvoice={onOpenInvoice} openInvoices={onOpen ? () => onOpen('invoices') : undefined} renderRun={run => <AutomationRunRow run={run} canManage={!!data?.canManage && !error} busy={busy || loading} act={action} onOpenSourceMessage={onOpenSourceMessage} quickMessage/>}/>}
       {data &&
         tab === 'rules' &&
         (editing ? (
@@ -432,20 +537,17 @@ export function AutomationControlCentre({
         ) : (
           <>
             <div className="ac-section">
-              <h3>Vos règles</h3>
+              <h3>{c("Vos règles")}</h3>
               <p>
-                Déclencheur actuel : un message classé dans Support. Les actions
-                créent des tâches, notifications ou brouillons dans ce centre.
-              </p>
+                {c("Déclencheur actuel : un message classé dans Support. Les actions créent des tâches, notifications ou brouillons dans ce centre.")}</p>
             </div>
             {data.rules.map((rule) => (
               <article className="ac-rule" key={rule.id}>
                 <div>
                   <h4>{rule.name}</h4>
                   <p>
-                    {rule.enabled ? modes[rule.definition.mode] : 'En pause'} ·{' '}
-                    {rule.definition.actions.length} action
-                    {rule.definition.actions.length > 1 ? 's' : ''}
+                    {c(rule.enabled ? modes[rule.definition.mode] : 'En pause')} {c("·")}{' '}
+                    {new Intl.NumberFormat(language).format(rule.definition.actions.length)} {c(rule.definition.actions.length === 1 ? 'action' : 'actions')}
                   </p>
                 </div>
                 {data.canManage && (
@@ -454,16 +556,15 @@ export function AutomationControlCentre({
                     type="button"
                     onClick={() => setEditing(structuredClone(rule))}
                   >
-                    Modifier
-                  </button>
+                    {c("Modifier")}</button>
                 )}
               </article>
             ))}
             {data.canManage ? (
               <>
                 <div className="ac-section">
-                  <h3>Commencer avec un modèle</h3>
-                  <p>Personnalisez-le et choisissez quand il peut agir.</p>
+                  <h3>{c("Commencer avec un modèle")}</h3>
+                  <p>{c("Personnalisez-le et choisissez quand il peut agir.")}</p>
                 </div>
                 <div className="ac-templates">
                   {data.templates.map((template) => (
@@ -493,9 +594,7 @@ export function AutomationControlCentre({
               </>
             ) : (
               <p>
-                Le titulaire ou un administrateur peut ajouter et modifier les
-                règles de votre entreprise.
-              </p>
+                {c("Le titulaire ou un administrateur peut ajouter et modifier les règles de votre entreprise.")}</p>
             )}
           </>
         ))}
@@ -511,6 +610,7 @@ function ReplyDraft({
   busy: boolean;
   save: (v: Record<string, unknown>) => Promise<unknown>;
 }) {
+  const c = useCentreText();
   const [value, setValue] = useState(item.body),
     [copied, setCopied] = useState(false),
     [problem, setProblem] = useState('');
@@ -525,7 +625,7 @@ function ReplyDraft({
     conflict = !busy && item.revision !== base.current.revision && changed;
   return (
     <div className="ac-draft">
-      <label htmlFor={'draft-' + item.id}>Brouillon à relire</label>
+      <label htmlFor={'draft-' + item.id}>{c("Brouillon à relire")}</label>
       <textarea
         id={'draft-' + item.id}
         value={value}
@@ -567,8 +667,7 @@ function ReplyDraft({
               );
           }}
         >
-          Enregistrer pour l’équipe
-        </button>
+          {c("Enregistrer pour l’équipe")}</button>
         <button
           type="button"
           className="ac-quiet"
@@ -579,14 +678,12 @@ function ReplyDraft({
               .catch(() => setProblem('Sélectionnez le texte pour le copier.'));
           }}
         >
-          {copied ? 'Copié' : 'Copier la réponse'}
+          {c(copied ? 'Copié' : 'Copier la réponse')}
         </button>
       </div>
       {conflict && (
         <p role="alert">
-          Un collègue a modifié ce brouillon. Copiez votre texte avant de
-          recharger sa version.
-          <button
+          {c("Un collègue a modifié ce brouillon. Copiez votre texte avant de recharger sa version.")}<button
             className="ac-quiet"
             type="button"
             onClick={() => {
@@ -594,12 +691,11 @@ function ReplyDraft({
               base.current = { body: item.body, revision: item.revision };
             }}
           >
-            Charger la version enregistrée
-          </button>
+            {c("Charger la version enregistrée")}</button>
         </p>
       )}
-      {problem && <p role="alert">{problem}</p>}
-      <small>Aucun message n’est envoyé automatiquement.</small>
+      {problem && <p role="alert">{c(problem)}</p>}
+      <small>{c("Aucun message n’est envoyé automatiquement.")}</small>
     </div>
   );
 }
@@ -837,6 +933,7 @@ function RuleEditor({
   onClose: () => void;
   request: Requester;
 }) {
+  const c = useCentreText();
   const [draft, setDraft] = useState(rule),
     [preview, setPreview] = useState<{
       matched: boolean;
@@ -866,19 +963,17 @@ function RuleEditor({
       }}
     >
       <div className="ac-editor__heading">
-        <h3>{draft.id ? 'Modifier la règle' : 'Nouvelle règle'}</h3>
+        <h3>{c(draft.id ? 'Modifier la règle' : 'Nouvelle règle')}</h3>
         <button
           type="button"
           className="ac-quiet"
           onClick={onClose}
           disabled={busy}
         >
-          Fermer
-        </button>
+          {c("Fermer")}</button>
       </div>
       <label>
-        Nom de la règle
-        <input
+        {c("Nom de la règle")}<input
           value={draft.name}
           maxLength={120}
           required
@@ -886,15 +981,14 @@ function RuleEditor({
         />
       </label>
       <fieldset>
-        <legend>Quand</legend>
-        <p className="ac-trigger">Un message est classé dans Zentra Support</p>
+        <legend>{c("Quand")}</legend>
+        <p className="ac-trigger">{c("Un message est classé dans Zentra Support")}</p>
       </fieldset>
       <fieldset>
-        <legend>Si</legend>
+        <legend>{c("Si")}</legend>
         <div className="ac-fields">
           <label>
-            Catégorie
-            <select
+            {c("Catégorie")}<select
               value={d.conditions.category}
               onChange={(e) =>
                 edit({
@@ -902,17 +996,16 @@ function RuleEditor({
                 })
               }
             >
-              <option value="">Toutes les catégories</option>
+              <option value="">{c("Toutes les catégories")}</option>
               {Object.entries(categories).map(([v, label]) => (
                 <option key={v} value={v}>
-                  {label}
+                  {c(label)}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            Priorité
-            <select
+            {c("Priorité")}<select
               value={d.conditions.priority}
               onChange={(e) =>
                 edit({
@@ -920,16 +1013,15 @@ function RuleEditor({
                 })
               }
             >
-              <option value="">Toutes les priorités</option>
-              <option value="urgent">Urgente</option>
-              <option value="high">Élevée</option>
-              <option value="normal">Normale</option>
-              <option value="low">Basse</option>
+              <option value="">{c("Toutes les priorités")}</option>
+              <option value="urgent">{c("Urgente")}</option>
+              <option value="high">{c("Élevée")}</option>
+              <option value="normal">{c("Normale")}</option>
+              <option value="low">{c("Basse")}</option>
             </select>
           </label>
           <label>
-            Expéditeur précis, facultatif
-            <input
+            {c("Expéditeur précis, facultatif")}<input
               type="email"
               value={d.conditions.sender}
               placeholder="contact@exemple.ch"
@@ -951,11 +1043,10 @@ function RuleEditor({
               })
             }
           />
-          Seulement avec une pièce jointe
-        </label>
+          {c("Seulement avec une pièce jointe")}</label>
       </fieldset>
       <fieldset>
-        <legend>Décision de Zentra</legend>
+        <legend>{c("Décision de Zentra")}</legend>
         <label className="ac-check">
           <input
             type="checkbox"
@@ -969,13 +1060,11 @@ function RuleEditor({
               })
             }
           />
-          Ajouter une décision pour choisir une branche
-        </label>
+          {c("Ajouter une décision pour choisir une branche")}</label>
         {d.decision && (
           <div className="ac-fields">
             <label>
-              Question
-              <textarea
+              {c("Question")}<textarea
                 rows={2}
                 required
                 value={d.decision.question}
@@ -988,8 +1077,7 @@ function RuleEditor({
               />
             </label>
             <label>
-              Branche Oui
-              <input
+              {c("Branche Oui")}<input
                 required
                 maxLength={200}
                 value={d.decision.yes}
@@ -999,8 +1087,7 @@ function RuleEditor({
               />
             </label>
             <label>
-              Branche Non
-              <input
+              {c("Branche Non")}<input
                 required
                 maxLength={200}
                 value={d.decision.no}
@@ -1012,18 +1099,15 @@ function RuleEditor({
           </div>
         )}
         <p className="ac-help">
-          Une réponse incertaine demande une validation. Cette décision ne
-          valide jamais un paiement ni une décision RH.
-        </p>
+          {c("Une réponse incertaine demande une validation. Cette décision ne valide jamais un paiement ni une décision RH.")}</p>
       </fieldset>
       <fieldset>
-        <legend>Alors</legend>
+        <legend>{c("Alors")}</legend>
         {d.actions.map((a, i) => (
           <div className="ac-action-editor" key={i}>
             <div className="ac-fields">
               <label>
-                Action
-                <select
+                {c("Action")}<select
                   value={a.type}
                   onChange={(e) =>
                     changeAction(i, { type: e.target.value as typeof a.type })
@@ -1031,15 +1115,14 @@ function RuleEditor({
                 >
                   {Object.entries(actions).map(([v, label]) => (
                     <option key={v} value={v}>
-                      {label}
+                      {c(label)}
                     </option>
                   ))}
                 </select>
               </label>
               {d.decision && (
                 <label>
-                  Branche
-                  <select
+                  {c("Branche")}<select
                     value={a.branch}
                     onChange={(e) =>
                       changeAction(i, {
@@ -1047,15 +1130,14 @@ function RuleEditor({
                       })
                     }
                   >
-                    <option value="always">Dans tous les cas</option>
-                    <option value="yes">Si Oui</option>
-                    <option value="no">Si Non</option>
+                    <option value="always">{c("Dans tous les cas")}</option>
+                    <option value="yes">{c("Si Oui")}</option>
+                    <option value="no">{c("Si Non")}</option>
                   </select>
                 </label>
               )}
               <label>
-                Titre
-                <input
+                {c("Titre")}<input
                   required
                   value={a.title}
                   maxLength={160}
@@ -1063,14 +1145,13 @@ function RuleEditor({
                 />
               </label>
               <label>
-                Pour
-                <select
+                {c("Pour")}<select
                   value={a.assignedTo}
                   onChange={(e) =>
                     changeAction(i, { assignedTo: e.target.value })
                   }
                 >
-                  <option value="">Toute l’équipe</option>
+                  <option value="">{c("Toute l’équipe")}</option>
                   {members.map((m) => (
                     <option key={m.user_id} value={m.user_id}>
                       {m.name}
@@ -1079,8 +1160,7 @@ function RuleEditor({
                 </select>
               </label>
               <label>
-                Attendre, en heures
-                <input
+                {c("Attendre, en heures")}<input
                   type="number"
                   min={0}
                   max={720}
@@ -1093,11 +1173,11 @@ function RuleEditor({
               </label>
             </div>
             <label>
-              {a.type === 'reply_draft'
+              {c(a.type === 'reply_draft'
                 ? 'Modèle de réponse'
                 : a.type === 'summary'
                   ? 'Note interne, facultative'
-                  : 'Instructions'}
+                  : 'Instructions')}
               <textarea
                 rows={3}
                 maxLength={4000}
@@ -1107,9 +1187,8 @@ function RuleEditor({
               />
             </label>
             <p className="ac-help">
-              Champs disponibles : {'{{objet}}'}, {'{{expediteur}}'},{' '}
-              {'{{categorie}}'} et {'{{priorite}}'}.
-            </p>
+              {c("Champs disponibles :")}{'{{objet}}'}{c(",")}{'{{expediteur}}'}{c(",")}{' '}
+              {'{{categorie}}'} {c("et")}{'{{priorite}}'}{c(".")}</p>
             {d.actions.length > 1 && (
               <button
                 className="ac-quiet"
@@ -1118,8 +1197,7 @@ function RuleEditor({
                   edit({ actions: d.actions.filter((_, n) => n !== i) })
                 }
               >
-                Retirer cette action
-              </button>
+                {c("Retirer cette action")}</button>
             )}
           </div>
         ))}
@@ -1144,29 +1222,26 @@ function RuleEditor({
             }
           >
             <Plus size={16} />
-            Ajouter une action
-          </button>
+            {c("Ajouter une action")}</button>
         )}
       </fieldset>
       <fieldset>
-        <legend>Autonomie</legend>
+        <legend>{c("Autonomie")}</legend>
         <div className="ac-fields">
           <label>
-            Comportement
-            <select
+            {c("Comportement")}<select
               value={d.mode}
               onChange={(e) => edit({ mode: e.target.value as typeof d.mode })}
             >
               {Object.entries(modes).map(([v, label]) => (
                 <option value={v} key={v}>
-                  {label}
+                  {c(label)}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            Confiance minimale, en %
-            <input
+            {c("Confiance minimale, en %")}<input
               type="number"
               min={80}
               max={100}
@@ -1184,17 +1259,13 @@ function RuleEditor({
             checked={draft.enabled}
             onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
           />
-          Activer pour les prochains messages
-        </label>
+          {c("Activer pour les prochains messages")}</label>
         <p className="ac-help">
-          Une règle arrêtée conserve son historique. Les demandes RH restent à
-          confirmer. Les brouillons ne sont jamais envoyés.
-        </p>
+          {c("Une règle arrêtée conserve son historique. Les demandes RH restent à confirmer. Les brouillons ne sont jamais envoyés.")}</p>
       </fieldset>
       <div className="ac-editor__footer">
         <button type="submit" disabled={busy}>
-          Enregistrer la règle
-        </button>
+          {c("Enregistrer la règle")}</button>
         <button
           type="button"
           className="ac-quiet"
@@ -1222,17 +1293,16 @@ function RuleEditor({
               .finally(() => setTesting(false));
           }}
         >
-          Simuler avec un exemple
-        </button>
+          {c("Simuler avec un exemple")}</button>
       </div>
-      {problem && <p role="alert">{problem}</p>}
+      {problem && <p role="alert">{c(problem)}</p>}
       {preview && (
         <div className="ac-preview">
           <h4>
-            Exemple fictif ·{' '}
-            {preview.matched
+            {c("Exemple fictif ·")}{' '}
+            {c(preview.matched
               ? 'conditions remplies'
-              : 'conditions non remplies'}
+              : 'conditions non remplies')}
           </h4>
           <p>{preview.message}</p>
           {preview.actions.map((a, i) => (

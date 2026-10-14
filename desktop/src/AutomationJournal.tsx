@@ -1,25 +1,35 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowUpRight, CalendarDays, ChevronDown, FileText, Search, Workflow, X } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, ChevronDown, FileText, RotateCcw, Search, Workflow, X } from 'lucide-react';
 import type { AutomationActivity } from './automation';
 import { useAppLanguage } from './language';
 import { activityInvoiceAmount, activityTimestamp, activityTimeZone, automationLabel, invoiceActivityStatus } from './automationPresentation';
 import type { AppointmentInboxItem, AppointmentInboxState } from './AppointmentInbox';
 import { appointmentActivityStatus, appointmentSchedule, scopedAppointments } from './appointmentActivity';
 import { confirmedQuoteActivityCopy, confirmedQuoteActivityKey, normalizeConfirmedQuoteActivityPage, type ConfirmedQuoteActivity, type ConfirmedQuoteActivityPage } from './confirmedQuoteActivity';
+import './AutomationJournal.css';
 
 type JournalRun = { id: string; title: string; state: string; createdAt: number; updatedAt: number };
 type Invoice = NonNullable<AutomationActivity['supplierInbox']>['recent'][number];
 type Entry<R> = { id: string; title: string; at: number } & ({ kind: 'workflow'; run: R } | { kind: 'invoice'; invoice: Invoice } | {kind:'appointment'; appointment:AppointmentInboxItem} | { kind: 'quote'; quote: ConfirmedQuoteActivity });
 
-export function AutomationJournal<R extends JournalRun>({ runs, activity, renderRun, openInvoices, openInvoice, organizationId, appointments, appointmentsUnavailable, openAppointment, openAppointments, confirmedQuotes, openQuote }: {
+const journalCopy = {
+  fr: { refresh: 'Actualiser', loading: 'Chargement de l’activité…', empty: 'Pas encore d’activité', results: 'Résultats disponibles' },
+  de: { refresh: 'Aktualisieren', loading: 'Aktivität wird geladen…', empty: 'Noch keine Aktivität', results: 'Verfügbare Ergebnisse' },
+  it: { refresh: 'Aggiorna', loading: 'Caricamento delle attività…', empty: 'Nessuna attività per ora', results: 'Risultati disponibili' },
+  en: { refresh: 'Refresh', loading: 'Loading activity…', empty: 'No activity yet', results: 'Available results' },
+} as const;
+
+export function AutomationJournal<R extends JournalRun>({ runs, activity, renderRun, openInvoices, openInvoice, organizationId, appointments, appointmentsUnavailable, openAppointment, openAppointments, confirmedQuotes, openQuote, loading = false, unavailable = false, onRefresh }: {
   runs: R[]; activity?: AutomationActivity | null; renderRun: (run: R) => ReactNode; openInvoices?: () => void; openInvoice?: (id: string) => void;
   organizationId?: string; appointments?: AppointmentInboxState | null; appointmentsUnavailable?: boolean;
   openAppointment?: (id: string) => void; openAppointments?: () => void;
   confirmedQuotes?: ConfirmedQuoteActivityPage | null; openQuote?: (quoteId: string) => void;
+  loading?: boolean; unavailable?: boolean; onRefresh?: () => void;
 }) {
   const language = useAppLanguage();
   const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const quoteCopy = confirmedQuoteActivityCopy(language);
+  const copy = journalCopy[language as keyof typeof journalCopy] ?? journalCopy.fr;
   const quotePage = useMemo(() => normalizeConfirmedQuoteActivityPage(confirmedQuotes, organizationId), [confirmedQuotes, organizationId]);
   const quotesUnavailable = confirmedQuotes !== undefined && !quotePage;
   const [query, setQuery] = useState('');
@@ -38,21 +48,23 @@ export function AutomationJournal<R extends JournalRun>({ runs, activity, render
   const day = (at: number) => at ? new Intl.DateTimeFormat(`${language}-CH`, {dateStyle: 'long', timeZone}).format(at * 1000) : label('unavailableDate');
   const groups = new Map<string, Entry<R>[]>();
   for (const entry of filtered.slice(0, limit)) { const key = day(entry.at); groups.set(key, [...(groups.get(key) || []), entry]); }
-  return <section className="automation-journal" aria-label={label('journal')}>
-    <header className="automation-journal__heading"><div><h2>{label('journal')}</h2><p>{label('recent')}</p></div></header>
+  return <section className="automation-journal" aria-label={label('journal')} aria-busy={loading || undefined}>
+    <header className="automation-journal__heading"><div><h2>{label('journal')}</h2><p>{label('recent')}</p></div>{onRefresh && <button type="button" className="ac-quiet automation-journal__refresh" disabled={loading} aria-label={copy.refresh} onClick={onRefresh}><RotateCcw size={17} aria-hidden="true"/><span>{copy.refresh}</span></button>}</header>
     <div className="automation-journal__toolbar">
-      <div className="automation-journal__filters" aria-label={label('journal')}>
+      <div className="automation-journal__filters" role="group" aria-label={label('journal')}>
         {(['all', 'invoice', 'appointment', 'workflow', ...(confirmedQuotes !== undefined ? ['quote' as const] : [])] as const).map(value => <button type="button" key={value} aria-pressed={effectiveFilter === value} onClick={() => { setFilter(value); setLimit(30); }}>{value === 'quote' ? quoteCopy.filter : label(value === 'all' ? 'all' : value === 'invoice' ? 'invoices' : value === 'appointment' ? 'appointments' : 'rules')}</button>)}
       </div>
       <label className="automation-journal__search"><Search size={17} aria-hidden="true"/><input type="search" value={query} placeholder={label('search')} aria-label={label('search')} onChange={e => { setQuery(e.target.value); setLimit(30); }}/>{query && <button type="button" aria-label={label('clear')} onClick={()=>setQuery('')}><X size={16}/></button>}</label>
     </div>
+    {loading && <p className="automation-journal__availability" role="status">{copy.loading}</p>}
+    {unavailable && <p className="automation-journal__availability" role="status">{label('activityUnavailable')}</p>}
     {appointmentsUnavailable && <p role="status">{label('appointmentsUnavailable')}</p>}
     {quotesUnavailable && <p role="status">{quoteCopy.unavailable}</p>}
-    {filtered.length === 0 ? (quotesUnavailable && !entries.length ? null : <div className="automation-journal__empty"><Workflow size={26} aria-hidden="true"/><p>{entries.length ? label('noResults') : label('empty')}</p></div>) : Array.from(groups, ([date, items]) => <section className="automation-journal__group" key={date}><h3>{date}</h3><ol>{items.map(entry => <li key={entry.id} className="automation-journal__entry">
+    {filtered.length === 0 ? ((quotesUnavailable || unavailable) && !entries.length ? null : loading && !entries.length ? <div className="automation-journal__skeleton" aria-hidden="true"><span/><span/><span/></div> : <div className="automation-journal__empty"><Workflow size={26} aria-hidden="true"/>{!entries.length && <h3>{copy.empty}</h3>}<p>{entries.length ? label('noResults') : label('empty')}</p></div>) : Array.from(groups, ([date, items]) => <section className="automation-journal__group" key={date}><h3>{date}</h3><ol>{items.map(entry => <li key={entry.id} className="automation-journal__entry" data-kind={entry.kind}>
       <span className="automation-journal__symbol" aria-hidden="true">{entry.kind === 'invoice' || entry.kind === 'quote' ? <FileText size={19}/> : entry.kind === 'appointment' ? <CalendarDays size={19}/> : <Workflow size={19}/>}</span>
       {entry.kind === 'workflow' ? renderRun(entry.run) : entry.kind === 'quote' ? <>
         <div className="ac-run automation-journal__quote"><strong>{entry.title}</strong><small><time dateTime={new Date(entry.at*1000).toISOString()}>{new Intl.DateTimeFormat(`${language}-CH`,{timeStyle:'short',timeZone}).format(entry.at*1000)}</time></small></div>
-        {openQuote && <div className="automation-journal__direct"><button type="button" className="ac-quiet" onClick={()=>openQuote(entry.quote.quoteId)}>{quoteCopy.open}<ArrowUpRight size={16} aria-hidden="true"/></button></div>}
+        {openQuote && !unavailable && <div className="automation-journal__direct"><button type="button" className="ac-quiet" onClick={()=>openQuote(entry.quote.quoteId)}>{quoteCopy.open}<ArrowUpRight size={16} aria-hidden="true"/></button></div>}
       </> : entry.kind === 'appointment' ? <><details className="ac-run automation-journal__appointment">
         <summary>
           <span><strong>{entry.title}</strong><small>{entry.at ? new Intl.DateTimeFormat(`${language}-CH`,{timeStyle:'short',timeZone}).format(entry.at*1000) : label('unavailableDate')}</small></span>
@@ -83,6 +95,6 @@ export function AutomationJournal<R extends JournalRun>({ runs, activity, render
         </div>
       </details><div className="automation-journal__direct">{entry.invoice.state === 'imported' && entry.invoice.invoiceId && openInvoice ? <button type="button" className="ac-quiet" onClick={()=>openInvoice(entry.invoice.invoiceId!)}>{label('openInvoice')}<ArrowUpRight size={16} aria-hidden="true"/></button> : openInvoices && <button type="button" className="ac-quiet" onClick={openInvoices}>{label('openInbox')}<ArrowUpRight size={16} aria-hidden="true"/></button>}</div></>}
     </li>)}</ol></section>)}
-    {filtered.length > limit && <button type="button" className="ac-quiet" onClick={()=>setLimit(limit+30)}>{label('showMore')}</button>}
+    {filtered.length > 0 && <footer className="automation-journal__footer"><span>{copy.results} · {new Intl.NumberFormat(language).format(Math.min(limit, filtered.length))} / {new Intl.NumberFormat(language).format(filtered.length)}</span>{filtered.length > limit && <button type="button" className="ac-quiet" onClick={()=>setLimit(limit+30)}>{label('showMore')}</button>}</footer>}
   </section>;
 }

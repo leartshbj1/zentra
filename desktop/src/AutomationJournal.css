@@ -1,0 +1,168 @@
+.automation-centre.automation-centre .automation-journal {
+  min-width: 0;
+  color: var(--ac-ink);
+  font-variant-numeric: tabular-nums;
+}
+.automation-centre.automation-centre .automation-journal__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.automation-centre.automation-centre .automation-journal__heading h2 {
+  margin: 0 0 7px;
+  font-size: calc(24px * var(--zentra-ui-text-scale, 1));
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+.automation-centre.automation-centre .automation-journal__heading p {
+  margin: 0;
+  font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  line-height: 1.5;
+}
+.automation-centre.automation-centre button.automation-journal__refresh {
+  flex: none;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  background: transparent;
+  color: var(--ac-muted);
+}
+.automation-centre.automation-centre .automation-journal__toolbar {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 14px;
+  margin: 24px 0 8px;
+}
+.automation-centre.automation-centre .automation-journal__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--ac-soft);
+  color: var(--ac-muted);
+}
+.automation-centre.automation-centre .automation-journal__search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ac-ink);
+  font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+}
+.automation-centre.automation-centre .automation-journal__search input::placeholder { color: var(--ac-muted); opacity: 1; }
+.automation-centre.automation-centre .automation-journal__search:focus-within { outline: 2px solid var(--ac-accent); outline-offset: 3px; }
+.automation-centre.automation-centre .automation-journal__search input:focus-visible { outline: none; }
+.automation-centre.automation-centre .automation-journal__search button { min-width: 44px; padding: 10px; background: transparent; color: var(--ac-muted); }
+.automation-centre.automation-centre .automation-journal__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ac-line);
+}
+.automation-centre.automation-centre .automation-journal__filters button {
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ac-muted);
+  font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  font-weight: 550;
+}
+.automation-centre.automation-centre .automation-journal__filters button[aria-pressed='true'] { background: var(--ac-soft); color: var(--ac-ink); }
+.automation-centre.automation-centre .automation-journal__group h3 {
+  margin: 28px 0 4px;
+  color: var(--ac-muted);
+  font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  font-weight: 600;
+  line-height: 1.5;
+}
+.automation-centre.automation-centre .automation-journal__group ol { list-style: none; margin: 0; padding: 0; }
+.automation-centre.automation-centre .automation-journal__entry {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 0 14px;
+  min-width: 0;
+  border-bottom: 1px solid var(--ac-line);
+}
+.automation-centre.automation-centre .automation-journal__entry:last-child { border-bottom: 0; }
+.automation-centre.automation-centre .automation-journal__symbol { padding-top: 23px; color: var(--ac-muted); }
+.automation-centre.automation-centre .automation-journal__entry .ac-run { min-width: 0; border: 0; }
+.automation-centre.automation-centre .automation-journal__entry .ac-run > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 16px;
+  min-height: 76px;
+  padding: 18px 0;
+  box-sizing: border-box;
+  border-radius: 6px;
+  color: var(--ac-ink);
+  background: transparent;
+}
+.automation-centre.automation-centre .automation-journal__entry .ac-run > summary strong,
+.automation-centre.automation-centre .automation-journal__quote > strong {
+  display: block;
+  font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  font-weight: 550;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.automation-centre.automation-centre .automation-journal__entry .ac-run > summary small,
+.automation-centre.automation-centre .automation-journal__quote > small {
+  display: block;
+  margin-top: 5px;
+  color: var(--ac-muted);
+  font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+  font-weight: 400;
+  line-height: 1.5;
+}
+.automation-centre.automation-centre .automation-journal__quote { padding: 18px 0 8px; }
+.automation-centre.automation-centre .automation-journal__entry .ac-status { max-width: 180px; text-align: right; font-size: calc(12px * var(--zentra-ui-text-scale, 1)); }
+.automation-centre.automation-centre .automation-journal__entry .ac-run > summary:hover { background: var(--ac-soft); }
+.automation-centre.automation-centre .ac-run > summary > svg { transition: transform 160ms ease-out; }
+.automation-centre.automation-centre .ac-run[open] > summary > svg { transform: rotate(180deg); }
+.automation-centre.automation-centre .automation-journal__direct { grid-column: 2; margin: -4px 0 12px; }
+.automation-centre.automation-centre .automation-journal__direct button { min-height: 44px; padding: 9px 0; color: var(--ac-accent); background: transparent; font-size: calc(13px * var(--zentra-ui-text-scale, 1)); text-align: left; }
+.automation-centre.automation-centre .automation-journal__facts { display: grid; gap: 12px; margin: 0 0 16px; }
+.automation-centre.automation-centre .automation-journal__facts > div { display: grid; grid-template-columns: minmax(100px, .7fr) minmax(0, 1.3fr); gap: 16px; }
+.automation-centre.automation-centre .automation-journal__facts dt { color: var(--ac-muted); font-size: calc(13px * var(--zentra-ui-text-scale, 1)); }
+.automation-centre.automation-centre .automation-journal__facts dd { margin: 0; font-size: calc(14px * var(--zentra-ui-text-scale, 1)); overflow-wrap: anywhere; }
+.automation-centre.automation-centre .automation-journal__availability { margin: 18px 0; font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.automation-centre.automation-centre .automation-journal__empty { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 56px 16px; color: var(--ac-muted); }
+.automation-centre.automation-centre .automation-journal__empty h3 { margin: 6px 0 0; color: var(--ac-ink); font-size: calc(17px * var(--zentra-ui-text-scale, 1)); font-weight: 600; }
+.automation-centre.automation-centre .automation-journal__empty p { margin: 0; max-width: 40ch; font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+.automation-centre.automation-centre .automation-journal__skeleton { display: grid; gap: 20px; padding: 24px 0; }
+.automation-centre.automation-centre .automation-journal__skeleton span { width: 76%; height: 40px; border-radius: 7px; background: var(--ac-soft); }
+.automation-centre.automation-centre .automation-journal__skeleton span:nth-child(2) { width: 58%; }
+.automation-centre.automation-centre .automation-journal__footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--ac-line); color: var(--ac-muted); font-size: calc(12px * var(--zentra-ui-text-scale, 1)); }
+@media (max-width: 680px) {
+  .automation-centre.automation-centre .automation-journal__heading { gap: 10px; }
+  .automation-centre.automation-centre .automation-journal__heading h2 { font-size: calc(21px * var(--zentra-ui-text-scale, 1)); }
+  .automation-centre.automation-centre .automation-journal__refresh span { display: none; }
+  .automation-centre.automation-centre .automation-journal__toolbar { margin-top: 20px; }
+  .automation-centre.automation-centre .automation-journal__search input { font-size: calc(16px * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-centre .automation-journal__filters { flex-wrap: nowrap; gap: 2px; min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--ac-line) transparent; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-centre .automation-journal__filters button { flex: 0 0 auto; min-height: 44px; padding-inline: 10px; white-space: nowrap; }
+  .automation-centre.automation-centre .automation-journal__entry { grid-template-columns: 18px minmax(0, 1fr); column-gap: 10px; }
+  .automation-centre.automation-centre .automation-journal__entry .ac-run > summary { grid-template-columns: minmax(0, 1fr) 16px; gap: 8px 10px; }
+  .automation-centre.automation-centre .automation-journal__entry .ac-run > summary > span:first-child { grid-column: 1; }
+  .automation-centre.automation-centre .automation-journal__entry .ac-run > summary > svg { grid-column: 2; grid-row: 1; }
+  .automation-centre.automation-centre .automation-journal__entry .ac-status { grid-column: 1; max-width: none; text-align: left; }
+  .automation-centre.automation-centre .automation-journal__facts > div { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .automation-centre.automation-centre .ac-run > summary > svg { transition: none; }
+}
