@@ -6,7 +6,12 @@ import { readFileSync, statSync } from 'node:fs';
 
 globalThis.fetch = async () => { throw Error('PURE_RELEASE_CONTRACT_NETWORK_REFUSED'); };
 const read = name => readFileSync(new URL(name, import.meta.url), 'utf8').replaceAll('\r\n', '\n');
-const release = read('./cloud-release-windows.ps1');
+const releaseSource = read('./cloud-release-windows.ps1');
+// The separate build-only branch is checked below, never counted as a full release.
+const pairStart = releaseSource.indexOf('    # AUTOPILOT_BUILD_PAIR_BEGIN:');
+const pairEnd = releaseSource.indexOf('    # AUTOPILOT_BUILD_PAIR_END\n', pairStart);
+assert.ok(pairStart > 0 && pairEnd > pairStart);
+const release = releaseSource.slice(0, pairStart) + releaseSource.slice(pairEnd + '    # AUTOPILOT_BUILD_PAIR_END\n'.length);
 const native = read('../src-tauri/src/account_cloud_quote_autopilot.rs');
 const consumer = read('../src-tauri/src/account_cloud_action_engine.rs');
 const account = read('../src-tauri/src/account_cloud.rs');
@@ -66,7 +71,7 @@ test('preflight uses the existing checked runner and adds no capability, session
   const end = release.indexOf("    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workNotes.test.ts'", start);
   assert.ok(start > 0 && end > start);
   const addition = release.slice(start, end);
-  assert.equal(addition.split('\n').filter(line => /^\s*Invoke-Checked /.test(line)).length, 3);
+  assert.equal(addition.split('\n').filter(line => /^\s*Invoke-Checked /.test(line)).length, 4);
   assert.doesNotMatch(addition, /(?:SetEnvironmentVariable|\$env:|PRODUCT_ENABLED\s*=|ZENTRA_RUN_|oai-sites|Bearer|--ignored|Proof|Passed\s*=|ConvertTo-Json|WriteAllText|Invoke-WebRequest)/i);
   assert.match(release, /Invoke-ZentraVerificationSuite \$script:releasePreflightHarness \$spec\.Filter \$spec\.TestArguments/);
   assert.match(read('./windows-verification-harness.ps1'), /\$names\.Count -eq 0/);
@@ -74,8 +79,8 @@ test('preflight uses the existing checked runner and adds no capability, session
 
 test('existing release contracts preserve the twenty-five historical calls and close only the single new appendix', () => {
   const contracts = read('./windows-release-preflight.contract-tests.ps1');
-  assert.match(contracts, /\$calls\.Count -eq 26 -and \$historicalCalls\.Count -eq 25/);
-  assert.match(contracts, /\$autopilotCalls\.Count -eq 1/);
+  assert.match(contracts, /\$calls\.Count -eq 27 -and \$historicalCalls\.Count -eq 25/);
+  assert.match(contracts, /\$autopilotCalls\.Count -eq 1 -and \$onCalls\.Count -eq 1/);
   assert.ok(contracts.includes(`'test|--manifest-path|desktop/src-tauri/Cargo.toml|--locked|--lib|${namespace}|--|--test-threads=1'`));
   assert.match(contracts, /if \(\$_ -isnot \[System\.Management\.Automation\.Language\.StringConstantExpressionAst\]\)/);
   assert.match(contracts, /foreach \(\$call in \$calls\)[^]*?ConvertTo-ZentraReleaseTestInvocation 'cargo' \$arguments/);

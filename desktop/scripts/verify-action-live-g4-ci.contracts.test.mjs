@@ -169,7 +169,23 @@ no(() => publicCiProof(report, identity, hashes));
 no(() => publicCiProof(report, identity, hashes, { ...sessionRegressions, source: baselineSource }));
 no(() => publicCiProof(report, identity, hashes, { ...sessionRegressions, binarySha256: 'e'.repeat(64) }));
 
-const currentYaml = read('.circleci/config.yml');
+// Remove only the reviewed closed public Windows build opt-in. The hashes
+// refuse accidental expansion; the separate ON contracts exercise its matrix.
+function historicalCiYaml(value) {
+  value=value.replaceAll('\r\n','\n');
+  for(const [start,end,hash] of [
+    ['  windows-autopilot-product-on:\n','  verify-only:\n','27296e8b38832a97890135f66bed3e7c6ee6e91641810e17e3fca2d1677728d6'],
+    ['  windows-autopilot-product:\n','  windows-action-live-account-tests:\n','36b9e1ef9dd710742aefc19e269aa122b6d061b21b82aafda0968f8166918e8e'],
+    ['  autopilot-windows-build-verification:\n','  action-live-account-verification:\n','603af1b9bef6ac5014d5092f05fb8bcec2f4bba9ec18d1e9b0337688741c6d39']]) {
+    const a=value.indexOf(start),b=value.indexOf(end,a+start.length);
+    assert.ok(a>=0 && b>a);assert.equal(digest(value.slice(a,b)),hash);
+    value=value.slice(0,a)+value.slice(b);
+  }
+  const exclusion='        - not: << pipeline.parameters.windows-autopilot-product-on >>\n';
+  assert.equal(value.split(exclusion).length-1,8);
+  return value.replaceAll(exclusion,'');
+}
+const currentYaml = historicalCiYaml(read('.circleci/config.yml'));
 const oldYaml = currentYaml.replace('node desktop/scripts/verify-action-live-g4-ci-windows.mjs --ci-run',
   'node desktop/scripts/verify-action-live-account-ci-windows.mjs --ci-run');
 ok(() => assert.equal(normalizedDigest(oldYaml), baselinePins['.circleci/config.yml']));
@@ -258,7 +274,25 @@ ok(() => assert(run.indexOf('publicCiProof(report,') < run.indexOf("fs.writeFile
 ok(() => assert(entry.includes("stdio: ['ignore', 'inherit', 'inherit']") && entry.includes('env: compilerEnvironment')));
 ok(() => assert(entry.includes("else if (args.length === 1 && args[0] === '--ci-run')")));
 for (const file of ['desktop/src-tauri/Cargo.toml', 'desktop/src-tauri/src/database.rs'])
-  ok(() => assert.equal(normalizedDigest(read(file)), baselinePins[file]));
+  ok(() => {
+    let source=read(file).replaceAll('\r\n','\n');
+    if(file==='desktop/src-tauri/Cargo.toml') {
+      const feature='quote-autopilot-product = []\n';
+      assert.equal(source.split(feature).length-1,1);
+      source=source.replace(feature,'');
+      // A release version changes metadata only; pin the allowed transition and
+      // require all four version records before projecting the historical body.
+      const version=JSON.parse(read('desktop/package.json')).version;
+      assert.ok(['1.90.15','1.90.16'].includes(version));
+      assert.equal(JSON.parse(read('desktop/src-tauri/tauri.conf.json')).version,version);
+      const declaration=`version = "${version}"\n`;
+      assert.equal(source.split(declaration).length-1,1);
+      assert.equal(read('desktop/src-tauri/Cargo.lock').replaceAll('\r\n','\n')
+        .split(`name = "helvichantier"\n${declaration}`).length-1,1);
+      source=source.replace(declaration,'version = "1.90.15"\n');
+    }
+    assert.equal(normalizedDigest(source),baselinePins[file]);
+  });
 ok(() => assert(!JSON.stringify(current).includes('contracts.test.mjs')));
 console.log(JSON.stringify({ result: 'PURE_G4_CI_CONTRACTS_OK', checks, matrixCases, contextAttachedOnce: true,
   baselineSource, sourceBaselinePinsChecked: Object.keys(baselinePins).length, baselineBodiesPreservedWithExplicitProductAdditions: files.length,

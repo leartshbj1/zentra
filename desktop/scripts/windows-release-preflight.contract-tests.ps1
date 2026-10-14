@@ -70,6 +70,24 @@ try {
     Assert-Contract $true 'historical diagnostic mode remains available'
     Set-ReleaseFixtureEnvironment
 
+    Assert-ZentraWindowsAutopilotProductEnvironment 'release-preflight'
+    Assert-Throws { Assert-ZentraWindowsAutopilotProductEnvironment 'diagnostics-verification' } 'ON cannot inherit the diagnostics or A41 profile mode'
+    foreach ($name in @('ZENTRA_ACTION_NATIVE_TEST_CONTEXT','ZENTRA_ACTION_NATIVE_TEST_PROFILE_JSON','ZENTRA_ACTION_NATIVE_TEST_PROFILE_SHA256','ZENTRA_A41_SITES_SERVICE_TOKEN','ZENTRA_A41_BROWSER_COOKIE_QA','ZENTRA_RUN_LIVE_ACCOUNT_RECIPE','ZENTRA_RUN_LIVE_G4_RECIPE','ZENTRA_RUN_LIVE_G4_CONTINUATION','ZENTRA_RUN_LIVE_G5_RECIPE','ZENTRA_RUN_LIVE_PRODUCT_FRONTDOOR_RECIPE','CARGO_TARGET_DIR','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','CARGO_BUILD_RUSTFLAGS')) {
+        $prior=[Environment]::GetEnvironmentVariable($name,'Process')
+        try {
+            [Environment]::SetEnvironmentVariable($name,'closed-synthetic-fixture','Process')
+            Assert-Throws { Assert-ZentraWindowsAutopilotProductEnvironment 'release-preflight' } 'ON refuses private profiles/credentials and hidden compiler flags'
+        } finally { [Environment]::SetEnvironmentVariable($name,$prior,'Process') }
+    }
+    [IO.Directory]::CreateDirectory((Join-Path $testRoot 'desktop/src-tauri')) | Out-Null
+    [IO.File]::WriteAllText((Join-Path $testRoot 'desktop/package.json'),'{"version":"1.90.15"}')
+    [IO.File]::WriteAllText((Join-Path $testRoot 'desktop/src-tauri/tauri.conf.json'),'{"version":"1.90.15"}')
+    [IO.File]::WriteAllText((Join-Path $testRoot 'desktop/src-tauri/Cargo.toml'),('[package]'+[char]10+'version = "1.90.15"'+[char]10))
+    Assert-Contract ((Get-ZentraWindowsAutopilotProductVersion $testRoot) -ceq '1.90.15') 'ON uses the identical Cargo/Tauri/package version'
+    [IO.File]::WriteAllText((Join-Path $testRoot 'desktop/src-tauri/tauri.conf.json'),'{"version":"1.90.16"}')
+    Assert-Throws { Get-ZentraWindowsAutopilotProductVersion $testRoot } 'version drift refuses before packaging'
+    [IO.File]::WriteAllText((Join-Path $testRoot 'desktop/src-tauri/tauri.conf.json'),'{"version":"1.90.15"}')
+
     $prefix=@('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--lib','company_','--')
     $original=$prefix+@('--nocapture','--test-threads=1')
     $spec=ConvertTo-ZentraReleaseTestInvocation 'cargo' $original
@@ -90,9 +108,10 @@ try {
     Assert-Contract (@($errors).Count -eq 0) 'release parses without evaluation'
     $calls=@($releaseAst.FindAll({param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -ceq 'Invoke-Checked' -and $n.CommandElements.Count -ge 2 -and $n.CommandElements[1].Extent.Text -ceq 'cargo'},$true))
     $autopilotCalls=@($calls | Where-Object { $_.Extent.Text.Contains("'account_cloud::action_engine::supervisor::tests::'") })
-    $historicalCalls=@($calls | Where-Object { -not $_.Extent.Text.Contains("'account_cloud::action_engine::supervisor::tests::'") })
-    Assert-Contract ($calls.Count -eq 26 -and $historicalCalls.Count -eq 25) 'all 25 historical cargo call sites retained with one product appendix'
-    Assert-Contract ($autopilotCalls.Count -eq 1) 'one exact supervisor call site'
+    $onCalls=@($calls | Where-Object { $_.Extent.Text.Contains("'account_cloud::action_engine::supervisor::on_tests::'") })
+    $historicalCalls=@($calls | Where-Object { -not $_.Extent.Text.Contains("'account_cloud::action_engine::supervisor::tests::'") -and -not $_.Extent.Text.Contains("'account_cloud::action_engine::supervisor::on_tests::'") })
+    Assert-Contract ($calls.Count -eq 27 -and $historicalCalls.Count -eq 25) 'all 25 historical cargo call sites retained with separate default/common and ON appendices'
+    Assert-Contract ($autopilotCalls.Count -eq 1 -and $onCalls.Count -eq 1) 'one default/common and one explicit ON supervisor call site'
     $autopilotArray=$autopilotCalls[0].CommandElements[2].SubExpression.Statements[0].PipelineElements[0].Expression
     $autopilotArguments=@($autopilotArray.Elements | ForEach-Object {
         if ($_ -isnot [System.Management.Automation.Language.StringConstantExpressionAst]) { throw 'The supervisor selection must be static.' }
@@ -133,6 +152,42 @@ try {
         return $script:mockExit
     }
     $prepared=[pscustomobject]@{Mode='release-preflight';Source=$script:fixtureSource;Executable=$exe;ExpectedSha256=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant();TestNames=@('company_::first','company_::second');Proof=[ordered]@{suiteExecutions=@()};ProofPath=(Join-Path $testRoot 'inert-proof.json');Repository=$testRoot;Artifacts=$testRoot}
+    $commonPrefix='account_cloud::action_engine::supervisor::tests::';$onPrefix='account_cloud::action_engine::supervisor::on_tests::'
+    $commonNames=@('ipc_origin_requires_both_exact_local_generations','retained_round_rejects_session_nonce_reference_and_role_changes','physical_singleflight_survives_dropped_ipc_waiter_and_allows_consent_withdrawal','review_and_recovery_summaries_are_distinct_from_confirmed_activity','consent_cas_and_read_dtos_refuse_extra_fields_versions_and_revision_overflow','review_pages_are_bounded_same_company_and_never_expose_decisions','server_failures_map_to_closed_codes_without_response_text','product_routes_are_fixed_first_party_https_without_sites_credentials') | ForEach-Object {$commonPrefix+$_}
+    $onNames=@('windows_product_build_admits_only_well_formed_origins','windows_product_json_cannot_supply_business_authority_or_private_grant') | ForEach-Object {$onPrefix+$_}
+    $onProof=[ordered]@{source=$script:fixtureSource;contextMode='release-preflight';target='x86_64-pc-windows-msvc';binarySha256After=$prepared.ExpectedSha256;prepared=$true;compileExit=0;compileArguments=@('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--release','--lib','--no-run','--message-format=json','--target','x86_64-pc-windows-msvc','--features','quote-autopilot-product');windowsAutopilotProduct=@{feature='quote-autopilot-product';version='1.90.15'};suiteExecutions=@()}
+    foreach($row in @(@($commonPrefix,8),@($onPrefix,2))) { $onProof.suiteExecutions += @{filter=$row[0];selectedNames=$row[1];passed=$row[1];failed=0;ignored=0;exit=0;contextMode='release-preflight';nativeArguments=@($row[0],'--test-threads=1')} }
+    $jsonName='account_cloud::action_engine::supervisor::live_frontdoor::webview_json_cannot_supply_a_native_test_grant'
+    $onProof.suiteExecutions += @{filter=$jsonName;selectedNames=1;passed=1;failed=0;ignored=0;exit=0;contextMode='release-preflight';nativeArguments=@($jsonName,'--exact','--test-threads=1')}
+    $onFixture=[pscustomobject]@{Mode='release-preflight';Source=$script:fixtureSource;Executable=$exe;ExpectedSha256=$prepared.ExpectedSha256;TestNames=@($commonNames)+@($onNames)+@($jsonName);Proof=$onProof;ProofPath=(Join-Path $testRoot 'inert-on-proof.json');Repository=$testRoot}
+    [IO.File]::WriteAllText($onFixture.ProofPath,'{"inertFixture":true}')
+    $receipt=Get-ZentraWindowsAutopilotProductReceipt $onFixture
+    Assert-Contract ($receipt.commonPassed -eq 8 -and $receipt.onPassed -eq 2 -and -not $receipt.offPolicyClaimed -and -not $receipt.businessJourneyExecuted -and $receipt.feature -ceq 'quote-autopilot-product') 'ON receipt closes 8+2 without relabeling OFF or business proof'
+    Assert-Contract ($receipt.jsonBoundary.passed -eq 1 -and $receipt.jsonBoundary.build -ceq 'on' -and $receipt.jsonBoundary.exactTest -ceq $jsonName) 'private JSON1 remains separate from common8 and ON2'
+    $offProof=[ordered]@{};foreach($key in $onProof.Keys){$offProof[$key]=$onProof[$key]};$offProof.Remove('windowsAutopilotProduct');$offProof.compileArguments=@($onProof.compileArguments[0..9])
+    $offFixture=[pscustomobject]@{Mode='release-preflight';Source=$onFixture.Source;Executable=$exe;ExpectedSha256=$onFixture.ExpectedSha256;TestNames=@($jsonName);Proof=$offProof;ProofPath=$onFixture.ProofPath;Repository=$testRoot}
+    $offReceipt=Get-ZentraWindowsAutopilotJsonReceipt $offFixture 'off'
+    Assert-Contract ($offReceipt.passed -eq 1 -and $offReceipt.build -ceq 'off' -and $null -eq $offReceipt.feature) 'OFF private JSON1 has its own same-binary receipt'
+    Assert-Throws {Get-ZentraWindowsAutopilotJsonReceipt $offFixture 'on'} 'OFF binary cannot be relabeled ON'
+    foreach($patch in @(@('selectedNames',2),@('passed',0),@('failed',1),@('ignored',1),@('exit',1),@('nativeArguments',@($jsonName,'--test-threads=1')))) {
+        $saved=$onProof.suiteExecutions[2][$patch[0]];$onProof.suiteExecutions[2][$patch[0]]=$patch[1]
+        Assert-Throws {Get-ZentraWindowsAutopilotJsonReceipt $onFixture 'on'} 'missing exact selection or bad JSON runtime result refuses'
+        $onProof.suiteExecutions[2][$patch[0]]=$saved
+    }
+    $onFixture.TestNames=@($commonNames)+@($onNames)
+    Assert-Throws {Get-ZentraWindowsAutopilotProductReceipt $onFixture} 'missing private JSON catalogue refuses ON receipt'
+    $onFixture.TestNames=@($commonNames)+@($onNames)+@($jsonName)+@($jsonName)
+    Assert-Throws {Get-ZentraWindowsAutopilotProductReceipt $onFixture} 'duplicate private JSON catalogue refuses ON receipt'
+    foreach($bad in @(@($commonNames),@($commonNames)+@($onNames)+@($onNames[0]))) {
+        $onFixture.TestNames=$bad
+        Assert-Throws { Get-ZentraWindowsAutopilotProductReceipt $onFixture } 'missing or duplicate catalogue entries refuse'
+    }
+    $onFixture.TestNames=@($commonNames)+@($onNames)+@($jsonName);$onFixture.Proof.windowsAutopilotProduct.feature='other'
+    Assert-Throws { Get-ZentraWindowsAutopilotProductReceipt $onFixture } 'different compiled feature refuses'
+    $onFixture.Proof.windowsAutopilotProduct.feature='quote-autopilot-product';$onFixture.Proof.suiteExecutions[1].ignored=1
+    Assert-Throws { Get-ZentraWindowsAutopilotProductReceipt $onFixture } 'ignored ON result cannot be success'
+    $onFixture.Proof.suiteExecutions[1].ignored=0;$onFixture.ExpectedSha256='0'*64
+    Assert-Throws { Get-ZentraWindowsAutopilotProductReceipt $onFixture } 'test binary mutation refuses'
     Invoke-ZentraVerificationSuite $prepared 'company_' @('--nocapture','--test-threads=1') -Mode 'release-preflight' -PreserveOriginalTestArguments
     Assert-Contract (($script:lastArguments -join '|') -ceq 'company_|--nocapture|--test-threads=1') 'real dispatcher preserves exact original argv'
     Assert-Contract (@($script:lastArguments | Where-Object { $_ -ceq '--test-threads=1' }).Count -eq 1) 'no duplicated thread flag'

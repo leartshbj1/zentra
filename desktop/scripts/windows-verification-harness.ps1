@@ -63,6 +63,84 @@ function ConvertTo-ZentraReleaseTestInvocation {
     return [pscustomobject]@{Filter=$filter;TestArguments=[string[]]$tail}
 }
 
+# Explicit public build choice. This is not a runtime or WebView switch.
+function Assert-ZentraWindowsAutopilotProductEnvironment {
+    param([string]$Mode)
+    if ($Mode -cne 'release-preflight' -or $env:ZENTRA_RELEASE_TEST_HARNESS -cne 'true' -or
+        $env:CIRCLECI -cne 'true' -or $env:OS -cne 'Windows_NT') { throw 'Windows Autopilot ON requires explicit release-preflight.' }
+    foreach ($name in @('ZENTRA_ACTION_NATIVE_TEST_CONTEXT','ZENTRA_ACTION_NATIVE_TEST_PROFILE_JSON','ZENTRA_ACTION_NATIVE_TEST_PROFILE_SHA256',
+        'ZENTRA_A41_SITES_SERVICE_TOKEN','ZENTRA_A41_BROWSER_COOKIE_QA','ZENTRA_RUN_LIVE_ACCOUNT_RECIPE','ZENTRA_RUN_LIVE_G4_RECIPE',
+        'ZENTRA_RUN_LIVE_G4_CONTINUATION','ZENTRA_RUN_LIVE_G5_RECIPE','ZENTRA_RUN_LIVE_PRODUCT_FRONTDOOR_RECIPE',
+        'CARGO_TARGET_DIR','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','CARGO_BUILD_RUSTFLAGS')) {
+        if (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name,'Process'))) { throw 'Windows Autopilot ON refuses test credentials, profiles and hidden compiler flags.' }
+    }
+}
+function Get-ZentraWindowsAutopilotProductVersion {
+    param([string]$Repository)
+    $version = (Get-Content -LiteralPath (Join-Path $Repository 'desktop/package.json') -Raw | ConvertFrom-Json).version
+    $cargo = [regex]::Match([IO.File]::ReadAllText((Join-Path $Repository 'desktop/src-tauri/Cargo.toml')), '(?m)^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"\s*$')
+    $tauri = (Get-Content -LiteralPath (Join-Path $Repository 'desktop/src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json).version
+    if ($version -isnot [string] -or $version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or -not $cargo.Success -or $cargo.Groups[1].Value -cne $version -or $tauri -cne $version) { throw 'Windows Autopilot ON requires identical package, Cargo and Tauri versions.' }
+    return $version
+}
+function Get-ZentraWindowsAutopilotProductReceipt {
+    param($Harness)
+    Assert-ZentraWindowsAutopilotProductEnvironment 'release-preflight'
+    Assert-ZentraVerificationMode $Harness.Source 'release-preflight' $Harness.Repository
+    $version = Get-ZentraWindowsAutopilotProductVersion $Harness.Repository
+    $expectedArguments = @('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--release','--lib','--no-run','--message-format=json','--target','x86_64-pc-windows-msvc','--features','quote-autopilot-product')
+    if ($Harness.Mode -cne 'release-preflight' -or $Harness.Proof.source -cne $Harness.Source -or
+        $Harness.Proof.contextMode -cne 'release-preflight' -or $Harness.Proof.target -cne 'x86_64-pc-windows-msvc' -or
+        $Harness.Proof.binarySha256After -cne $Harness.ExpectedSha256 -or -not $Harness.Proof.prepared -or $Harness.Proof.compileExit -ne 0 -or
+        ($Harness.Proof.compileArguments -join '|') -cne ($expectedArguments -join '|') -or
+        $Harness.Proof.windowsAutopilotProduct.feature -cne 'quote-autopilot-product' -or $Harness.Proof.windowsAutopilotProduct.version -cne $version -or
+        $Harness.ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        (Get-FileHash -LiteralPath $Harness.Executable -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Harness.ExpectedSha256) { throw 'Windows Autopilot ON requires the exact compiled feature, version and binary.' }
+    $commonPrefix = 'account_cloud::action_engine::supervisor::tests::'
+    $onPrefix = 'account_cloud::action_engine::supervisor::on_tests::'
+    $common = @('ipc_origin_requires_both_exact_local_generations','retained_round_rejects_session_nonce_reference_and_role_changes',
+        'physical_singleflight_survives_dropped_ipc_waiter_and_allows_consent_withdrawal','review_and_recovery_summaries_are_distinct_from_confirmed_activity',
+        'consent_cas_and_read_dtos_refuse_extra_fields_versions_and_revision_overflow','review_pages_are_bounded_same_company_and_never_expose_decisions',
+        'server_failures_map_to_closed_codes_without_response_text','product_routes_are_fixed_first_party_https_without_sites_credentials') | ForEach-Object { $commonPrefix + $_ }
+    $on = @('windows_product_build_admits_only_well_formed_origins','windows_product_json_cannot_supply_business_authority_or_private_grant') | ForEach-Object { $onPrefix + $_ }
+    foreach ($spec in @(@($commonPrefix,$common,8),@($onPrefix,$on,2))) {
+        $actual = @($Harness.TestNames | Where-Object { $_.StartsWith($spec[0],[StringComparison]::Ordinal) })
+        $execution = @($Harness.Proof.suiteExecutions | Where-Object { $_.filter -ceq $spec[0] })
+        if ($actual.Count -ne $spec[2] -or @($actual | Select-Object -Unique).Count -ne $spec[2] -or @($spec[1] | Where-Object { $_ -cnotin $actual }).Count -ne 0 -or
+            $execution.Count -ne 1 -or $execution[0].selectedNames -ne $spec[2] -or $execution[0].passed -ne $spec[2] -or $execution[0].failed -ne 0 -or $execution[0].ignored -ne 0 -or $execution[0].exit -ne 0 -or
+            $execution[0].contextMode -cne 'release-preflight' -or ($execution[0].nativeArguments -join '|') -cne ($spec[0]+'|--test-threads=1')) { throw 'Windows Autopilot ON requires exact common and ON catalogues/results.' }
+    }
+    return [ordered]@{format='zentra-windows-autopilot-on-preflight-v1';source=$Harness.Source;version=$version;feature='quote-autopilot-product';target='x86_64-pc-windows-msvc';
+        testBinarySha256=$Harness.ExpectedSha256;harnessProofSha256=(Get-FileHash -LiteralPath $Harness.ProofPath -Algorithm SHA256).Hash.ToLowerInvariant();
+        commonPassed=8;onPassed=2;jsonBoundary=(Get-ZentraWindowsAutopilotJsonReceipt $Harness 'on');offPolicyClaimed=$false;productionOrigin='https://zentraapp.ch';qaProfileUsed=$false;serverActivated=$false;businessJourneyExecuted=$false}
+}
+
+function Get-ZentraWindowsAutopilotJsonReceipt {
+    param($Harness,[ValidateSet('off','on')][string]$Build)
+    Assert-ZentraWindowsAutopilotProductEnvironment 'release-preflight'
+    Assert-ZentraVerificationMode $Harness.Source 'release-preflight' $Harness.Repository
+    $name='account_cloud::action_engine::supervisor::live_frontdoor::webview_json_cannot_supply_a_native_test_grant'
+    $feature=if($Build -ceq 'on') {'quote-autopilot-product'} else {$null}
+    if(($Build -ceq 'off' -and $Harness.Proof.Contains('windowsAutopilotProduct')) -or
+        ($Build -ceq 'on' -and $Harness.Proof.windowsAutopilotProduct.feature -cne $feature)) {throw 'Windows Autopilot JSON build metadata differs from its feature.'}
+    $expected=@('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--release','--lib','--no-run','--message-format=json','--target','x86_64-pc-windows-msvc')
+    if($Build -ceq 'on') {$expected+=@('--features','quote-autopilot-product')}
+    $execution=@($Harness.Proof.suiteExecutions | Where-Object {$_.filter -ceq $name})
+    if($Harness.Mode -cne 'release-preflight' -or $Harness.Proof.source -cne $Harness.Source -or
+        $Harness.Proof.contextMode -cne 'release-preflight' -or $Harness.Proof.target -cne 'x86_64-pc-windows-msvc' -or
+        -not $Harness.Proof.prepared -or $Harness.Proof.compileExit -ne 0 -or
+        ($Harness.Proof.compileArguments -join '|') -cne ($expected -join '|') -or
+        $Harness.ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$' -or $Harness.Proof.binarySha256After -cne $Harness.ExpectedSha256 -or
+        (Get-FileHash -LiteralPath $Harness.Executable -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Harness.ExpectedSha256 -or
+        @($Harness.TestNames | Where-Object {$_ -ceq $name}).Count -ne 1 -or $execution.Count -ne 1 -or
+        $execution[0].selectedNames -ne 1 -or $execution[0].passed -ne 1 -or $execution[0].failed -ne 0 -or $execution[0].ignored -ne 0 -or $execution[0].exit -ne 0 -or
+        $execution[0].contextMode -cne 'release-preflight' -or ($execution[0].nativeArguments -join '|') -cne ($name+'|--exact|--test-threads=1')) {throw 'Windows Autopilot JSON boundary requires one exact executed test on the same binary.'}
+    return [ordered]@{format='zentra-windows-autopilot-json-boundary-v1';build=$Build;source=$Harness.Source;feature=$feature;target='x86_64-pc-windows-msvc';
+        exactTest=$name;passed=1;testBinarySha256=$Harness.ExpectedSha256;harnessProofSha256=(Get-FileHash -LiteralPath $Harness.ProofPath -Algorithm SHA256).Hash.ToLowerInvariant();
+        privateGrantAccepted=$false;qaProfileUsed=$false;serverActivated=$false}
+}
+
+
 function ConvertTo-ZentraWindowsArgument {
     param([AllowEmptyString()][string]$Value)
     if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
@@ -324,7 +402,9 @@ function Save-ZentraHarnessProof {
 
 function Initialize-ZentraVerificationHarness {
     param([string]$Repository, [string]$Artifacts, [string]$Source,
-        [ValidateSet('diagnostics-verification','release-preflight')][string]$Mode = 'diagnostics-verification')
+        [ValidateSet('diagnostics-verification','release-preflight')][string]$Mode = 'diagnostics-verification',
+        [switch]$WindowsAutopilotProductOn)
+    if ($WindowsAutopilotProductOn) { Assert-ZentraWindowsAutopilotProductEnvironment $Mode }
     Assert-ZentraVerificationMode $Source $Mode $Repository
     $proofPath = Join-Path $Artifacts 'windows-test-harness-proof.json'
     $proof = [ordered]@{source=$Source;verificationOnly=$true;contextMode=$Mode;nativeProfile='release';target='x86_64-pc-windows-msvc';
@@ -355,6 +435,10 @@ function Initialize-ZentraVerificationHarness {
         $buildLog = Join-Path $Artifacts 'windows-test-harness-build.log'
         $compileArguments = @('test','--manifest-path','desktop/src-tauri/Cargo.toml','--locked','--release','--lib','--no-run','--message-format=json')
         if ($Mode -ceq 'release-preflight') { $compileArguments += @('--target','x86_64-pc-windows-msvc') }
+        if ($WindowsAutopilotProductOn) {
+            $compileArguments += @('--features','quote-autopilot-product')
+            $proof.windowsAutopilotProduct = [ordered]@{feature='quote-autopilot-product';version=(Get-ZentraWindowsAutopilotProductVersion $Repository)}
+        }
         $proof.compileArguments = $compileArguments
         $proof.compileExit = Invoke-ZentraHarnessTool $cargo $compileArguments $Repository $jsonPath $buildLog -HeartbeatMessage 'Compiling the library test harness; no packaging or installation.' -TimeoutSeconds 5400 -Mode $Mode
         Get-Content -LiteralPath $buildLog | ForEach-Object { Write-Host $_ }

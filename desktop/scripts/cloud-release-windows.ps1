@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$WindowsAutopilotProductOn, [switch]$AutopilotBuildVerificationOnly)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -44,9 +44,13 @@ if (-not [string]::IsNullOrEmpty($env:ZENTRA_RELEASE_TEST_HARNESS) -and $env:ZEN
     throw 'Unknown release test-harness opt-in.'
 }
 $script:releasePreflightEnabled = $env:ZENTRA_RELEASE_TEST_HARNESS -ceq 'true'
+$script:windowsAutopilotProductOn = [bool]$WindowsAutopilotProductOn
+if (($script:windowsAutopilotProductOn -or $AutopilotBuildVerificationOnly) -and (-not $script:releasePreflightEnabled -or $diagnosticSelection -cne 'full' -or $diagnosticPhase -cne 'all')) { throw 'Windows Autopilot builds require the full explicit release preflight.' }
+if ($AutopilotBuildVerificationOnly -and ($WindowsAutopilotProductOn -or $env:CIRCLE_JOB -cne 'windows-autopilot-product' -or $env:CIRCLE_BRANCH -cne 'codex/action-engine-native-live-a41')) { throw 'Autopilot build verification requires the dedicated no-context job.' }
 $script:releasePreflightHarness = $null
 if ($script:releasePreflightEnabled) {
     . (Join-Path $PSScriptRoot 'windows-verification-harness.ps1')
+    if ($script:windowsAutopilotProductOn -or $AutopilotBuildVerificationOnly) { Assert-ZentraWindowsAutopilotProductEnvironment 'release-preflight' }
     $script:releasePreflightSource = (& git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the exact release-preflight source.' }
     Assert-ZentraVerificationMode $script:releasePreflightSource 'release-preflight' $repo
@@ -63,7 +67,7 @@ function Invoke-Checked {
         if ($null -eq $script:releasePreflightHarness) {
             & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
             & (Join-Path $PSScriptRoot 'windows-release-preflight.contract-tests.ps1')
-            $script:releasePreflightHarness = Initialize-ZentraVerificationHarness $repo $artifacts $script:releasePreflightSource -Mode 'release-preflight'
+            $script:releasePreflightHarness = Initialize-ZentraVerificationHarness $repo $artifacts $script:releasePreflightSource -Mode 'release-preflight' -WindowsAutopilotProductOn:$script:windowsAutopilotProductOn
         }
         Invoke-ZentraVerificationSuite $script:releasePreflightHarness $spec.Filter $spec.TestArguments -Mode 'release-preflight' -PreserveOriginalTestArguments
         return
@@ -103,6 +107,40 @@ if ($diagnosticPhase -cne 'frontend') {
 Invoke-Checked pnpm.cmd @('install', '--frozen-lockfile')
 Start-Transcript -Path (Join-Path $artifacts 'validation.log') | Out-Null
 try {
+    # AUTOPILOT_BUILD_PAIR_BEGIN: isolated verification returns before packaging.
+    if ($AutopilotBuildVerificationOnly) {
+        Invoke-Checked node @('--test', 'desktop/scripts/quote-autopilot.contracts.test.mjs', 'desktop/scripts/quote-autopilot-release.contracts.test.mjs', 'desktop/scripts/quote-autopilot-windows-on-ci.contracts.test.mjs')
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/autopilotSession.test.ts', 'src/autopilotReview.test.ts', 'src/AutopilotPanel.test.tsx', 'src/autopilotBudget.test.ts', 'src/useAutopilot.test.tsx', 'src/confirmedQuoteDestination.test.ts')
+        & (Join-Path $PSScriptRoot 'windows-verification-harness.contract-tests.ps1') -NativeNodePath (Join-Path $nodeRoot 'node.exe')
+        & (Join-Path $PSScriptRoot 'windows-release-preflight.contract-tests.ps1')
+        . (Join-Path $PSScriptRoot 'quote-autopilot-verification.ps1')
+        $offArtifacts = Join-Path $artifacts 'autopilot-build/off'
+        $onArtifacts = Join-Path $artifacts 'autopilot-build/on'
+        [IO.Directory]::CreateDirectory($offArtifacts) | Out-Null
+        [IO.Directory]::CreateDirectory($onArtifacts) | Out-Null
+        $buildVersion = Get-ZentraWindowsAutopilotProductVersion $repo
+        $off = Initialize-ZentraVerificationHarness $repo $offArtifacts $script:releasePreflightSource -Mode 'release-preflight'
+        $offPlan = Get-ZentraAutopilotProductPlan -TestNames $off.TestNames
+        Invoke-ZentraVerificationSuite $off 'account_cloud::action_engine::supervisor::tests::' @('--test-threads=1') -Mode 'release-preflight' -PreserveOriginalTestArguments
+        $offResult = $off.Proof.suiteExecutions[-1]
+        if ($offPlan.ExpectedTotal -ne 9 -or $offResult.selectedNames -ne 9 -or $offResult.passed -ne 9 -or $offResult.failed -ne 0 -or $offResult.ignored -ne 0 -or $offResult.exit -ne 0) { throw 'The separate OFF build requires exactly nine passing tests.' }
+        Invoke-ZentraVerificationSuite $off 'account_cloud::action_engine::supervisor::live_frontdoor::webview_json_cannot_supply_a_native_test_grant' @('--exact','--test-threads=1') -Mode 'release-preflight' -PreserveOriginalTestArguments
+        $offJson = Get-ZentraWindowsAutopilotJsonReceipt $off 'off'
+        $on = Initialize-ZentraVerificationHarness $repo $onArtifacts $script:releasePreflightSource -Mode 'release-preflight' -WindowsAutopilotProductOn
+        Invoke-ZentraVerificationSuite $on 'account_cloud::action_engine::supervisor::tests::' @('--test-threads=1') -Mode 'release-preflight' -PreserveOriginalTestArguments
+        Invoke-ZentraVerificationSuite $on 'account_cloud::action_engine::supervisor::on_tests::' @('--test-threads=1') -Mode 'release-preflight' -PreserveOriginalTestArguments
+        Invoke-ZentraVerificationSuite $on 'account_cloud::action_engine::supervisor::live_frontdoor::webview_json_cannot_supply_a_native_test_grant' @('--exact','--test-threads=1') -Mode 'release-preflight' -PreserveOriginalTestArguments
+        $onReceipt = Get-ZentraWindowsAutopilotProductReceipt $on
+        [IO.File]::WriteAllText((Join-Path $offArtifacts 'autopilot-json-boundary.public.json'), ($offJson | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText((Join-Path $onArtifacts 'autopilot-json-boundary.public.json'), ($onReceipt.jsonBoundary | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+        if ($off.Source -cne $on.Source -or $onReceipt.version -cne $buildVersion -or $off.ExpectedSha256 -ceq $on.ExpectedSha256 -or (Get-FileHash -LiteralPath $off.Executable -Algorithm SHA256).Hash.ToLowerInvariant() -cne $off.ExpectedSha256) { throw 'OFF and ON require the same source/version and two stable binaries.' }
+        $pair = [ordered]@{format='zentra-windows-autopilot-build-verification-v1';source=$on.Source;version=$buildVersion;
+            off=[ordered]@{passed=9;feature=$null;testBinarySha256=$off.ExpectedSha256;harnessProofSha256=(Get-FileHash -LiteralPath $off.ProofPath -Algorithm SHA256).Hash.ToLowerInvariant();jsonBoundary=$offJson};
+            on=$onReceipt;sameSourceAndVersion=$true;packageBuilt=$false;serverActivated=$false;privateProfileUsed=$false;businessJourneyExecuted=$false}
+        [IO.File]::WriteAllText((Join-Path $artifacts 'autopilot-build/pair.public.json'), ($pair | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
+        return
+    }
+    # AUTOPILOT_BUILD_PAIR_END
     if ($env:ZENTRA_VERIFY_DIAGNOSTICS_ONLY -eq 'true') {
         if ($env:ZENTRA_VERIFY_ONLY -ne 'true') { throw 'Diagnostics validation requires the verification-only guard.' }
         $diagnosticSource = (& git rev-parse HEAD).Trim()
@@ -449,6 +487,10 @@ try {
     Invoke-Checked node @('--test', 'desktop/scripts/quote-autopilot-release.contracts.test.mjs')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/autopilotSession.test.ts', 'src/autopilotReview.test.ts', 'src/AutopilotPanel.test.tsx', 'src/autopilotBudget.test.ts', 'src/useAutopilot.test.tsx', 'src/confirmedQuoteDestination.test.ts')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'account_cloud::action_engine::supervisor::tests::', '--', '--test-threads=1')
+    if ($script:windowsAutopilotProductOn) {
+        Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'account_cloud::action_engine::supervisor::on_tests::', '--', '--test-threads=1')
+        Invoke-ZentraVerificationSuite $script:releasePreflightHarness 'account_cloud::action_engine::supervisor::live_frontdoor::webview_json_cannot_supply_a_native_test_grant' @('--exact','--test-threads=1') -Mode 'release-preflight' -PreserveOriginalTestArguments
+    }
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workNotes.test.ts', 'src/workNotesBridge.test.ts')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'work_notes', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
@@ -476,7 +518,14 @@ try {
     $config.plugins.updater.pubkey = $env:ELYKO_UPDATER_PUBLIC_KEY
     $generated = Join-Path $repo 'desktop/src-tauri/tauri.updater.generated-cloud.conf.json'
     [IO.File]::WriteAllText($generated, ($config | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
-    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'tauri', 'build', '--target', 'x86_64-pc-windows-msvc', '--bundles', 'nsis', '--config', $generated)
+    if ($script:windowsAutopilotProductOn) {
+        $onReceipt = Get-ZentraWindowsAutopilotProductReceipt $script:releasePreflightHarness
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'tauri', 'build', '--target', 'x86_64-pc-windows-msvc', '--features', 'quote-autopilot-product', '--bundles', 'nsis', '--config', $generated)
+        $afterPackage = Get-ZentraWindowsAutopilotProductReceipt $script:releasePreflightHarness
+        if (($onReceipt | ConvertTo-Json -Compress) -cne ($afterPackage | ConvertTo-Json -Compress)) { throw 'Windows Autopilot build identity changed during packaging.' }
+    } else {
+        Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'tauri', 'build', '--target', 'x86_64-pc-windows-msvc', '--bundles', 'nsis', '--config', $generated)
+    }
     $version = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
     $releaseRoot = Join-Path $repo 'desktop/src-tauri/target/x86_64-pc-windows-msvc/release'
     $exe = Join-Path $releaseRoot 'Zentra.exe'
@@ -496,6 +545,12 @@ try {
         outgoingMailTestsPassed = $true; fixedAssetsTestsPassed = $true; inputVatTestsPassed = $true; invoiceScanTestsPassed = $true
         interfaceWorkspaceTestsPassed = $true
         files = @($exe, $setup | ForEach-Object { [ordered]@{name = (Split-Path $_ -Leaf); size = (Get-Item $_).Length; sha256 = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()} })
+    }
+    if ($script:windowsAutopilotProductOn) {
+        if ($source -cne $onReceipt.source -or $version -cne $onReceipt.version) { throw 'Windows Autopilot package source/version differs from its tested build.' }
+        $onPath = Join-Path $artifacts 'autopilot-windows-on.public.json'
+        [IO.File]::WriteAllText($onPath, ($onReceipt | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
+        $proof.windowsAutopilotProduct = [ordered]@{enabled=$true;feature=$onReceipt.feature;source=$onReceipt.source;version=$onReceipt.version;testBinarySha256=$onReceipt.testBinarySha256;preflightSha256=(Get-FileHash -LiteralPath $onPath -Algorithm SHA256).Hash.ToLowerInvariant()}
     }
     [IO.File]::WriteAllText((Join-Path $artifacts 'provenance.json'), ($proof | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
 } finally {
