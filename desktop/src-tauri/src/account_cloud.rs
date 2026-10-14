@@ -1977,6 +1977,10 @@ pub(crate) async fn disconnect_live_qa_profile(store: &LocalStore) -> AppResult<
 #[path = "account_cloud_live_a41_tests.rs"]
 mod live_a41_account_tests;
 
+#[cfg(all(test, windows))]
+#[path = "account_cloud_live_a41_g4_tests.rs"]
+mod live_a41_g4_tests;
+
 #[cfg(test)]
 #[path = "account_inbox_read_tests.rs"]
 mod inbox_read_tests;

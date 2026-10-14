@@ -62,7 +62,7 @@ jobs:
       - checkout
       - run:
           name: Compile a fresh A41 profile and connect then reopen two real native stores
-          command: node desktop/scripts/verify-action-live-account-ci-windows.mjs --ci-run
+          command: node desktop/scripts/verify-action-live-g4-ci-windows.mjs --ci-run
           no_output_timeout: 40m
       - store_artifacts:
           path: desktop/artifacts/action-live-profile

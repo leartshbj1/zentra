@@ -188,6 +188,10 @@ mod action_engine_collaboration_tests;
 #[path = "company_collaboration_action_publication_tests.rs"]
 mod action_publication_tests;
 
+#[cfg(all(test, windows))]
+#[path = "company_collaboration_live_a41_g4_support.rs"]
+pub(crate) mod live_a41_g4_support;
+
 pub(crate) fn local_table(table: &str) -> bool {
     table.starts_with("sqlite_")
         || table.starts_with("company_local_")
