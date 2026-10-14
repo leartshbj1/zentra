@@ -14,6 +14,7 @@ import { DESCRIPTION, runLiveG4Recipe, validateComplete, validatePublication, va
   from './verify-action-live-g4-windows.mjs';
 import { SESSION_REGRESSION_TESTS, runLiveSessionRegressions }
   from './verify-action-live-account-windows.mjs';
+import { captureTauriSchemaReconciliation } from './tauri-schema-reconciliation.mjs';
 
 export { CONTEXT_NAME, SECRET_NAMES, compileEnvironment, privateInputFromEnvironment };
 export const G4_BASELINE_SOURCE = '91a859eefb3ecc88716e34d77b3aa9f91a412e8c';
@@ -24,6 +25,7 @@ const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const RUN_FLAGS = Object.freeze(['ZENTRA_RUN_LIVE_ACCOUNT_RECIPE', 'ZENTRA_RUN_LIVE_G4_RECIPE']);
 const OUTPUT = 'desktop/artifacts/action-live-account';
 const G4_FILES = Object.freeze(['desktop/scripts/verify-action-live-g4-ci-windows.mjs',
+  'desktop/scripts/tauri-schema-reconciliation.mjs',
   'desktop/scripts/verify-action-live-g4-windows.mjs', 'desktop/scripts/live-g4-api-support-source.mjs',
   'desktop/src-tauri/src/account_cloud_live_a41_g4_tests.rs',
   'desktop/src-tauri/src/company_collaboration_live_a41_g4_support.rs']);
@@ -163,8 +165,21 @@ export async function runDedicatedG4Ci() {
   requireTrackedG4Sources(environment);
   const source = environment.CIRCLE_SHA1, output = path.join(ROOT, OUTPUT);
   need(!fs.existsSync(output), 'fresh_g4_public_artifacts_required');
+  const schemas = captureTauriSchemaReconciliation(environment);
   process.stdout.write(`LIVE_G4_CI_PHASE compile source=${source}\n`);
   await compileFreshSource(environment);
+  let schemaReceipt;
+  try { schemaReceipt = schemas.reconcile(); }
+  catch (error) {
+    const refusalReceipt = schemas.failureReceipt();
+    if (refusalReceipt) fs.writeFileSync(path.join(ROOT, 'desktop/artifacts/action-live-profile/tauri-schema-reconciliation-refusal.public.json'),
+      JSON.stringify(refusalReceipt, null, 2) + '\n', { flag: 'wx' });
+    throw error;
+  }
+  requireTrackedG4Sources(environment);
+  fs.writeFileSync(path.join(ROOT, 'desktop/artifacts/action-live-profile/tauri-schema-reconciliation.public.json'),
+    JSON.stringify(schemaReceipt, null, 2) + '\n', { flag: 'wx' });
+  process.stdout.write(`LIVE_G4_SCHEMA_RECONCILIATION source=${source} restored=${schemaReceipt.restoredPaths.length}\n`);
   // Run flags are internal admission, not entitlement or opt-in. Normal paid,
   // seat, Automation/AE consent, flags, JEV and publication gates must pass.
   process.env.ZENTRA_RUN_LIVE_ACCOUNT_RECIPE = 'true';

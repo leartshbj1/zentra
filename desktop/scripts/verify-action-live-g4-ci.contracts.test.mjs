@@ -222,6 +222,14 @@ for (const [file, declaration] of [['desktop/src-tauri/src/account_cloud.rs', '#
 const entry = read('desktop/scripts/verify-action-live-g4-ci-windows.mjs');
 const run = entry.slice(entry.indexOf('export async function runDedicatedG4Ci()'));
 ok(() => assert(run.indexOf('delete process.env[name]') < run.indexOf('requireTrackedG4Sources(environment)')));
+ok(() => assert(run.indexOf('requireTrackedG4Sources(environment)') < run.indexOf('captureTauriSchemaReconciliation(environment)')));
+ok(() => assert(run.indexOf('captureTauriSchemaReconciliation(environment)') < run.indexOf('await compileFreshSource(environment)')));
+ok(() => assert(run.indexOf('await compileFreshSource(environment)') < run.indexOf('schemas.reconcile()')));
+ok(() => assert(run.indexOf('schemas.reconcile()') < run.indexOf("process.env.ZENTRA_RUN_LIVE_ACCOUNT_RECIPE = 'true'")));
+ok(() => assert(run.includes('tauri-schema-reconciliation.public.json') && run.includes("{ flag: 'wx' }")));
+ok(() => assert(run.includes('tauri-schema-reconciliation-refusal.public.json') && run.includes('schemas.failureReceipt()')));
+ok(() => assert(entry.slice(entry.indexOf('const G4_FILES'), entry.indexOf('class Refusal')).includes("'desktop/scripts/tauri-schema-reconciliation.mjs'")));
+ok(() => assert(read('desktop/scripts/verify-action-live-g4-windows.mjs').includes("need(await gitRead(['rev-parse', 'HEAD']) === env.CIRCLE_SHA1\n    && await gitRead(['status', '--porcelain', '--untracked-files=no']) === '', 'g4_clean_exact_source_required');")));
 ok(() => assert(run.indexOf('await compileFreshSource(environment)') < run.indexOf("process.env.ZENTRA_RUN_LIVE_G4_RECIPE = 'true'")));
 ok(() => assert(run.indexOf('await compileFreshSource(environment)') < run.indexOf("process.env.ZENTRA_RUN_LIVE_ACCOUNT_RECIPE = 'true'")));
 ok(() => assert(run.indexOf("process.env.ZENTRA_RUN_LIVE_ACCOUNT_RECIPE = 'true'") < run.indexOf('await runLiveSessionRegressions()')));
