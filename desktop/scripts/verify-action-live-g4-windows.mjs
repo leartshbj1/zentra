@@ -27,6 +27,68 @@ const need = (ok, code) => { if (!ok) throw new Refusal(code); };
 const plain = x => x !== null && typeof x === 'object' && !Array.isArray(x) && Object.getPrototypeOf(x) === Object.prototype;
 const closed = (value, names, code) => need(plain(value) && Object.keys(value).sort().join('|') === [...names].sort().join('|'), code);
 const sorted = x => Array.isArray(x) ? x.map(sorted) : plain(x) ? Object.fromEntries(Object.keys(x).sort().map(k => [k, sorted(x[k])])) : x;
+export const G4_CHECKPOINTS = Object.freeze([
+  ['input_admitted', 0], ['retained_root', 0], ['open_store', 0], ['open_store', 1],
+  ['strict_account', 0], ['strict_account', 1], ['paid_consent', 0], ['paid_consent', 1],
+  ['fresh_remote', 0], ['seed', 0], ['publish_initial', 0], ['receive_initial', 1],
+  ['source_ready', 0], ['discovery', 0], ['round', 0], ['quote_proof', 0], ['local_activity', 0],
+  ['canonical_publication', 0], ['corroborate_writer', 0], ['receive_canonical', 1],
+  ['quote_proof', 1], ['discovery', 1], ['round', 1], ['quote_proof', 1], ['local_activity', 1],
+  ['corroborate_writer', 0], ['quote_proof', 0], ['strict_account', 0], ['strict_account', 1],
+].map(([step, index]) => Object.freeze({ step, index })));
+export const G4_MAX_QUEUED_EVENTS = G4_CHECKPOINTS.length + 3; // hello, initial-publication, complete
+const INITIAL_CHECKPOINTS = 12;
+const TRANSPORT_CODES = new Set(['g4_pipe_socket_error', 'g4_pipe_eof', 'g4_pipe_closed', 'g4_pipe_utf8_refused',
+  'g4_pipe_json_refused', 'g4_pipe_bounds_refused', 'g4_pipe_read_timeout', 'g4_pipe_global_deadline',
+  'g4_pipe_child_exit', 'g4_pipe_output_limit', 'g4_pipe_stdin_error', 'g4_pipe_write_refused', 'g4_pipe_transport_refused',
+  'g4_pipe_terminal_refused', 'g4_native_spawn_failed']);
+const DIAGNOSTIC_PHASES = new Set(['native_spawn', 'handshake', 'initial_publication', 'support_source', 'quote_round', 'native_result']);
+const NORMAL_PIPE_END = new Set(['g4_pipe_eof', 'g4_pipe_closed']);
+
+export function validateG4Checkpoint(event, position) {
+  closed(event, ['event', 'step', 'index'], 'closed_g4_checkpoint_required');
+  const expected = Number.isSafeInteger(position) && position >= 0 ? G4_CHECKPOINTS[position] : undefined;
+  need(expected && event.event === 'checkpoint' && event.step === expected.step && event.index === expected.index,
+    'g4_checkpoint_order_refused');
+  return `native_g4_${expected.step}_${expected.index}`;
+}
+
+export function validateG4Review(event, position) {
+  closed(event, ['event', 'index', 'confirmed', 'held', 'reviewRequired'], 'closed_g4_review_required');
+  const expected = Number.isSafeInteger(position) && position > 0 ? G4_CHECKPOINTS[position - 1] : undefined;
+  need(expected?.step === 'round' && event.event === 'review-required' && event.index === expected.index
+    && ['confirmed', 'held', 'reviewRequired'].every(field => Number.isSafeInteger(event[field]) && event[field] >= 0 && event[field] <= 20)
+    && event.reviewRequired > 0 && event.confirmed + event.held + event.reviewRequired <= 20, 'g4_review_observation_refused');
+  return Object.freeze({ confirmed: event.confirmed, held: event.held, reviewRequired: event.reviewRequired });
+}
+
+export function validateG4DiagnosticReceipt(value) {
+  closed(value, ['format', 'sourceSha', 'binarySha256', 'profileSha256', 'passed', 'nominalG4Passed', 'outcome', 'phase',
+    'code', 'lastCheckpoint', 'checkpointsSeen', 'counts', 'nativeSpawned', 'pipeConnected', 'helloValidated',
+    'nativeExited', 'nativeExitCode', 'nativeSignaled'], 'closed_g4_diagnostic_required');
+  need(value.format === 'zentra-a41-native-g4-diagnostic-v1' && typeof value.sourceSha === 'string' && /^[a-f0-9]{40}$/.test(value.sourceSha)
+    && typeof value.binarySha256 === 'string' && SHA.test(value.binarySha256) && value.profileSha256 === PROFILE && value.passed === false
+    && value.nominalG4Passed === false && ['needs_review', 'failed'].includes(value.outcome)
+    && DIAGNOSTIC_PHASES.has(value.phase) && Number.isSafeInteger(value.checkpointsSeen)
+    && value.checkpointsSeen >= 0 && value.checkpointsSeen <= G4_CHECKPOINTS.length,
+  'g4_diagnostic_scope_refused');
+  const expected = value.checkpointsSeen ? G4_CHECKPOINTS[value.checkpointsSeen - 1] : null;
+  need(value.lastCheckpoint === (expected ? `native_g4_${expected.step}_${expected.index}` : null), 'g4_diagnostic_checkpoint_refused');
+  for (const field of ['nativeSpawned', 'pipeConnected', 'helloValidated', 'nativeExited', 'nativeSignaled'])
+    need(typeof value[field] === 'boolean', 'g4_diagnostic_process_refused');
+  need((!value.pipeConnected || value.nativeSpawned) && (!value.helloValidated || value.pipeConnected)
+    && (!value.nativeExited || value.nativeSpawned) && (!value.nativeSignaled || value.nativeExited), 'g4_diagnostic_process_refused');
+  need(value.nativeExitCode === null || value.nativeExited && Number.isSafeInteger(value.nativeExitCode)
+    && value.nativeExitCode >= -2147483648 && value.nativeExitCode <= 4294967295, 'g4_diagnostic_process_refused');
+  if (value.outcome === 'needs_review') {
+    need(value.code === 'g4_review_required' && plain(value.counts), 'g4_diagnostic_review_refused');
+    closed(value.counts, ['confirmed', 'held', 'reviewRequired'], 'closed_g4_review_counts_required');
+    validateG4Review({ event: 'review-required', index: expected?.index, ...value.counts }, value.checkpointsSeen);
+  } else need(value.counts === null && (TRANSPORT_CODES.has(value.code) || value.code === 'g4_validation_refused'), 'g4_diagnostic_failure_refused');
+  const result = sorted(value);
+  need(Buffer.byteLength(JSON.stringify(result)) <= 4096, 'g4_diagnostic_bounds_refused');
+  return result;
+}
 export function assertFutureCiAdmission(env, platform = process.platform) {
   assertCiAdmission(env, platform);
   need(env.ZENTRA_RUN_LIVE_G4_RECIPE === 'true' && !EXCLUDED_SOURCES.has(env.CIRCLE_SHA1), 'future_g4_source_required');
@@ -128,36 +190,67 @@ async function futureHarness(env) {
   return { executable, sha256: live.binarySha256, source: live.source, catalogueCount: names.length };
 }
 
-class Channel {
-  #socket; #buffer = Buffer.alloc(0); #queue = []; #pending; #failed = false;
-  constructor(socket) {
+export class G4DiagnosticChannel {
+  #socket; #buffer = Buffer.alloc(0); #queue = []; #pending; #failure; #ended = false; #terminalPending; #setTimer; #clearTimer;
+  constructor(socket, { setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
     this.#socket = socket;
+    this.#setTimer = setTimer; this.#clearTimer = clearTimer;
     socket.on('data', bytes => {
-      try {
         this.#buffer = Buffer.concat([this.#buffer, bytes]);
         for (;;) {
           const end = this.#buffer.indexOf(10); if (end < 0) break;
-          need(end <= MAX && this.#queue.length < 8, 'g4_pipe_bounds_refused');
-          const value = parsePrivateJson(new TextDecoder('utf-8', { fatal: true }).decode(this.#buffer.subarray(0, end)));
+          if (end > MAX || this.#queue.length >= G4_MAX_QUEUED_EVENTS) { this.fail('g4_pipe_bounds_refused'); return; }
+          let text, value;
+          try { text = new TextDecoder('utf-8', { fatal: true }).decode(this.#buffer.subarray(0, end)); }
+          catch { this.fail('g4_pipe_utf8_refused'); return; }
+          try { value = parsePrivateJson(text); }
+          catch { this.fail('g4_pipe_json_refused'); return; }
           this.#buffer = this.#buffer.subarray(end + 1);
           if (this.#pending) { const pending = this.#pending; this.#pending = undefined; pending.resolve(value); }
           else this.#queue.push(value);
         }
-        need(this.#buffer.length <= MAX, 'g4_pipe_bounds_refused');
-      } catch { this.fail(); }
+        if (this.#buffer.length > MAX) this.fail('g4_pipe_bounds_refused');
     });
-    socket.on('error', () => this.fail()); socket.on('end', () => this.fail());
+    socket.on('error', () => this.fail('g4_pipe_socket_error'));
+    const ended = reason => {
+      this.#ended = true; this.fail(reason);
+      this.#terminalPending?.resolve(); this.#terminalPending = undefined;
+    };
+    socket.on('end', () => ended('g4_pipe_eof')); socket.on('close', () => ended('g4_pipe_closed'));
   }
-  fail() { this.#failed = true; this.#pending?.reject(new Refusal('g4_pipe_failed')); this.#pending = undefined; this.#socket.destroy(); }
+  fail(reason) {
+    const code = TRANSPORT_CODES.has(reason) ? reason : 'g4_pipe_transport_refused';
+    if (this.#failure && (!NORMAL_PIPE_END.has(this.#failure) || NORMAL_PIPE_END.has(code))) return;
+    this.#failure = code;
+    this.#pending?.reject(new Refusal(this.#failure)); this.#pending = undefined; this.#socket.destroy();
+    if (!NORMAL_PIPE_END.has(this.#failure)) {
+      this.#terminalPending?.reject(new Refusal(this.#failure)); this.#terminalPending = undefined;
+    }
+  }
   read() {
     if (this.#queue.length) return Promise.resolve(this.#queue.shift());
-    if (this.#failed) return Promise.reject(new Refusal('g4_pipe_failed'));
+    if (this.#failure) return Promise.reject(new Refusal(this.#failure));
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => this.fail(), 240000);
-      this.#pending = { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } };
+      const timer = this.#setTimer(() => this.fail('g4_pipe_read_timeout'), 240000);
+      this.#pending = { resolve: value => { this.#clearTimer(timer); resolve(value); }, reject: error => { this.#clearTimer(timer); reject(error); } };
     });
   }
-  write(value) { const text = JSON.stringify(value); need(!this.#failed && Buffer.byteLength(text) <= MAX, 'g4_pipe_write_refused'); this.#socket.write(text + '\n'); }
+  write(value) { const text = JSON.stringify(value); need(!this.#failure && Buffer.byteLength(text) <= MAX, 'g4_pipe_write_refused'); this.#socket.write(text + '\n'); }
+  assertTerminal() {
+    if (this.#failure && !NORMAL_PIPE_END.has(this.#failure)) throw new Refusal(this.#failure);
+    need(this.#ended && this.#queue.length === 0 && this.#buffer.length === 0 && !this.#pending, 'g4_pipe_terminal_refused');
+  }
+  async finalize() {
+    if (!this.#ended && (!this.#failure || NORMAL_PIPE_END.has(this.#failure))) {
+      need(!this.#terminalPending, 'g4_pipe_terminal_refused');
+      await new Promise((resolve, reject) => {
+        const timer = this.#setTimer(() => this.fail('g4_pipe_read_timeout'), 240000);
+        this.#terminalPending = { resolve: () => { this.#clearTimer(timer); resolve(); },
+          reject: error => { this.#clearTimer(timer); reject(error); } };
+      });
+    }
+    this.assertTerminal();
+  }
   close() { this.#socket.destroy(); }
 }
 
@@ -174,30 +267,60 @@ function childEnvironment(env, pipe) { return { ...publicEnvironment(env), RUST_
 async function nativeG4(harness, input, continuation, account, provisionSource, env) {
   const pipeName = `\\\\.\\pipe\\zentra-a41-g4-${randomUUID()}`, challenge = randomBytes(32).toString('base64url');
   const server = net.createServer(); let channel, child, accepted = false, completed = false, timer, stdout = '', stderr = '';
+  let phase = 'native_spawn', checkpointsSeen = 0, lastCheckpoint = null, reviewCounts = null;
+  let nativeSpawned = false, helloValidated = false, nativeExited = false, nativeExitCode = null, nativeSignaled = false;
+  const readEvent = async () => {
+    for (;;) {
+      const event = await channel.read();
+      if (event?.event === 'checkpoint') {
+        lastCheckpoint = validateG4Checkpoint(event, checkpointsSeen);
+        checkpointsSeen++;
+      } else if (event?.event === 'review-required') {
+        reviewCounts = validateG4Review(event, checkpointsSeen);
+        // An observed human-review outcome is terminal for this nominal recipe.
+        // Never retry preparation or promote it into a successful G4 result.
+        throw new Refusal('g4_review_required');
+      } else return event;
+    }
+  };
   let rejectConnection;
   const connected = new Promise((resolve, reject) => { rejectConnection = reject; server.once('error', () => reject(new Refusal('g4_pipe_server_failed')));
-    server.on('connection', socket => { if (accepted) { socket.destroy(); return; } accepted = true; channel = new Channel(socket); resolve(channel); }); });
+    server.on('connection', socket => { if (accepted) { socket.destroy(); return; } accepted = true; channel = new G4DiagnosticChannel(socket); resolve(channel); }); });
   connected.catch(() => {});
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(pipeName, resolve); });
     need(await shaFile(harness.executable) === harness.sha256, 'g4_library_changed_before_run');
     child = spawn(harness.executable, [TEST, '--exact', '--ignored', '--test-threads=1'], { cwd: ROOT,
       env: childEnvironment(env, pipeName), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    child.once('spawn', () => { nativeSpawned = true; });
     let rejectExit;
-    const exited = new Promise((resolve, reject) => { rejectExit = reject; child.once('error', () => reject(new Refusal('g4_native_spawn_failed')));
-      child.once('exit', (code, signal) => { if (!completed && !accepted) rejectConnection(new Refusal('g4_native_refused_before_pipe')); resolve({ code, signal }); }); });
+    const exited = new Promise((resolve, reject) => { rejectExit = reject;
+      child.once('error', () => {
+        const failure = new Refusal('g4_native_spawn_failed');
+        rejectConnection(failure); reject(failure);
+      });
+      child.once('exit', (code, signal) => {
+        nativeExited = true; nativeExitCode = code; nativeSignaled = signal !== null;
+        if (!completed && !accepted) rejectConnection(new Refusal('g4_native_refused_before_pipe'));
+        // Exit can precede the final named-pipe data/end events. Do not destroy
+        // the pipe here: preserve a queued review and drain the terminal frame.
+        resolve({ code, signal });
+      }); });
     exited.catch(() => {});
-    const stop = () => { rejectConnection(new Refusal('g4_native_deadline')); channel?.fail(); rejectExit(new Refusal('g4_native_deadline')); child.kill(); };
-    timer = setTimeout(stop, 600000);
-    child.stdout.on('data', bytes => { stdout += bytes.toString('utf8'); if (Buffer.byteLength(stdout) > 1024 * 1024) stop(); });
-    child.stderr.on('data', bytes => { stderr += bytes.toString('utf8'); if (Buffer.byteLength(stderr) > 1024 * 1024) stop(); });
-    child.stdin.on('error', stop); child.stdin.end(JSON.stringify({ challenge }) + '\n');
+    const stop = code => { rejectConnection(new Refusal(code)); channel?.fail(code); rejectExit(new Refusal(code)); child.kill(); };
+    timer = setTimeout(() => stop('g4_pipe_global_deadline'), 600000);
+    child.stdout.on('data', bytes => { stdout += bytes.toString('utf8'); if (Buffer.byteLength(stdout) > 1024 * 1024) stop('g4_pipe_output_limit'); });
+    child.stderr.on('data', bytes => { stderr += bytes.toString('utf8'); if (Buffer.byteLength(stderr) > 1024 * 1024) stop('g4_pipe_output_limit'); });
+    child.stdin.on('error', () => stop('g4_pipe_stdin_error')); child.stdin.end(JSON.stringify({ challenge }) + '\n');
     channel = await connected;
+    phase = 'handshake';
     const hello = await channel.read(); closed(hello, ['event', 'challenge'], 'closed_g4_hello_required');
     need(hello.event === 'hello' && hello.challenge === challenge, 'g4_pipe_challenge_refused');
+    helloValidated = true; phase = 'initial_publication';
     channel.write({ format: 'zentra-a41-g4-private-v1', sitesServiceToken: input.sitesServiceToken,
       rootDir: continuation.rootDir, installations: account.phases[1].installations });
-    const initial = await channel.read();
+    const initial = await readEvent();
+    need(checkpointsSeen === INITIAL_CHECKPOINTS, 'g4_checkpoint_incomplete');
     closed(initial, ['event', 'publication', 'customerId', 'articleId', 'consentRevisions'], 'closed_initial_publication_required');
     need(initial.event === 'initial-publication' && UUID.test(initial.customerId ?? '') && UUID.test(initial.articleId ?? '')
       && Array.isArray(initial.consentRevisions) && initial.consentRevisions.length === 2
@@ -206,18 +329,35 @@ async function nativeG4(harness, input, continuation, account, provisionSource, 
     // This hook is an external lifecycle handoff, NOT a transport/provider seam:
     // it can return ONE selector only, and all native handlers read/re-authorize
     // the durable source. Its implementation must use the actual Support path.
+    phase = 'support_source';
     const source = await provisionSource(Object.freeze({ ...seed, organizationId: ORG,
       browserCookieHeader: continuation.browserCookieHeader }));
     closed(source, ['sourceId'], 'closed_real_source_selector_required'); need(ID.test(source.sourceId ?? ''), 'real_source_selector_required');
     seed.sourceId = source.sourceId; channel.write({ event: 'source-ready', sourceId: source.sourceId });
-    const complete = validateComplete(await channel.read(), seed);
+    phase = 'quote_round';
+    const complete = validateComplete(await readEvent(), seed);
+    need(checkpointsSeen === G4_CHECKPOINTS.length, 'g4_checkpoint_incomplete');
+    phase = 'native_result';
     const result = await exited;
+    await channel.finalize();
     const name = TEST.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     need(result.code === 0 && !result.signal && stderr.trim() === ''
       && new RegExp(`^test ${name} \\.\\.\\. ok\\r?$`, 'm').test(stdout)
       && new RegExp(`^test result: ok\\. 1 passed; 0 failed; 0 ignored; 0 measured; ${harness.catalogueCount - 1} filtered out; finished in [0-9.]+s\\r?$`, 'm').test(stdout)
       && await shaFile(harness.executable) === harness.sha256, 'exact_g4_native_result_required');
+    channel.assertTerminal();
     completed = true; return complete;
+  } catch (error) {
+    const code = reviewCounts ? 'g4_review_required' : error instanceof Refusal && TRANSPORT_CODES.has(error.code)
+      ? error.code : 'g4_validation_refused';
+    const receipt = validateG4DiagnosticReceipt({ format: 'zentra-a41-native-g4-diagnostic-v1', sourceSha: harness.source,
+      binarySha256: harness.sha256, profileSha256: PROFILE, passed: false, nominalG4Passed: false,
+      outcome: reviewCounts ? 'needs_review' : 'failed', phase, code, lastCheckpoint, checkpointsSeen, counts: reviewCounts,
+      nativeSpawned, pipeConnected: accepted, helloValidated, nativeExited, nativeExitCode, nativeSignaled });
+    fs.writeFileSync(path.join(ROOT, 'desktop/artifacts/action-live-profile/native-g4-diagnostic.public.json'),
+      JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
+    process.stdout.write(`LIVE_G4_DIAGNOSTIC phase=${receipt.phase} code=${receipt.code} outcome=${receipt.outcome}\n`);
+    throw error;
   } finally {
     clearTimeout(timer); channel?.close(); if (!completed && child) child.kill();
     await new Promise(resolve => server.close(resolve));

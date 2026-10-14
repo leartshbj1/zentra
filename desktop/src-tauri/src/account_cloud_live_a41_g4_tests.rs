@@ -60,6 +60,11 @@ struct Consent {
 struct Pipe(std::fs::File);
 impl Pipe {
     fn read<T: DeserializeOwned>(&mut self) -> RecipeResult<T> { read_message(&mut self.0) }
+    // Only literal steps and bounded device indices. No application error,
+    // source content, identifiers, paths or credentials cross this diagnostic.
+    fn checkpoint(&mut self, step: &'static str, index: usize) -> RecipeResult<()> {
+        self.write(json!({"event":"checkpoint","step":step,"index":index}))
+    }
     fn write(&mut self, value: Value) -> RecipeResult<()> {
         let bytes = serde_json::to_vec(&value).map_err(|_| ())?;
         if bytes.len() > MAX_MESSAGE { return Err(()); }
@@ -221,7 +226,7 @@ async fn discovery(store: &LocalStore) -> RecipeResult<protocol::QuoteWorkDiscov
     protocol::parse_discovery_response(&bytes, &selection).map_err(|_| ())
 }
 
-async fn round(store: &LocalStore) -> RecipeResult<usize> {
+async fn round(store: &LocalStore, pipe: &mut Pipe, index: usize) -> RecipeResult<usize> {
     let mut round = action_engine::begin_quote_work_round(store).await.map_err(|_| ())?;
     let mut total = 0;
     // Bounded test execution, never a product scheduler. One opaque stamp is
@@ -233,7 +238,14 @@ async fn round(store: &LocalStore) -> RecipeResult<usize> {
                 if still_pending || has_more { return Err(()); }
             }
             action_engine::QuoteWorkBatchOutcome::Page { confirmed, held, review_required, round_complete } => {
-                if held != 0 || review_required != 0 { return Err(()); }
+                if review_required != 0 {
+                    // Observe the one real consumer result. No extra prepare,
+                    // decision read, retry or promotion into nominal G4 success.
+                    pipe.write(json!({"event":"review-required","index":index,"confirmed":confirmed,
+                        "held":held,"reviewRequired":review_required}))?;
+                    return Err(());
+                }
+                if held != 0 { return Err(()); }
                 total += confirmed;
                 if round_complete { return Ok(total); }
             }
@@ -286,18 +298,30 @@ fn quote_proof(store: &LocalStore, source: &str, customer: &str, article: &str) 
 
 async fn execute() -> RecipeResult<()> {
     let (mut pipe, input) = admitted_input()?;
+    pipe.checkpoint("input_admitted", 0)?;
+    pipe.checkpoint("retained_root", 0)?;
     let root = retained_root(&input.root_dir)?;
+    pipe.checkpoint("open_store", 0)?;
     let a = open_existing(&root, "device-a")?;
+    pipe.checkpoint("open_store", 1)?;
     let b = open_existing(&root, "device-b")?;
+    pipe.checkpoint("strict_account", 0)?;
     strict_account(&a, &input.installations[0]).await?;
+    pipe.checkpoint("strict_account", 1)?;
     strict_account(&b, &input.installations[1]).await?;
     // Both real paid/activation/seat+AE-consent HTTP checks precede fictitious
     // business writes. Work/A8/A7 recheck all actual progression predicates.
+    pipe.checkpoint("paid_consent", 0)?;
     let consent_a = paid_consent(&a).await?;
+    pipe.checkpoint("paid_consent", 1)?;
     let consent_b = paid_consent(&b).await?;
+    pipe.checkpoint("fresh_remote", 0)?;
     collaboration::require_fresh_remote(&a).await.map_err(|_| ())?;
+    pipe.checkpoint("seed", 0)?;
     let (customer, article) = seed(&a)?;
+    pipe.checkpoint("publish_initial", 0)?;
     let initial = collaboration::publish_initial(&a).await.map_err(|_| ())?;
+    pipe.checkpoint("receive_initial", 1)?;
     collaboration::receive_exact(&b, &initial, true).await.map_err(|_| ())?;
     pipe.write(json!({"event":"initial-publication","publication":initial.public_proof().map_err(|_| ())?,
         "customerId":customer,"articleId":article,"consentRevisions":[consent_a,consent_b]}))?;
@@ -307,30 +331,48 @@ async fn execute() -> RecipeResult<()> {
     let source: SourceReady = pipe.read()?;
     if source.event != "source-ready" || source.source_id.is_empty() || source.source_id.len() > 160
         || !source.source_id.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b,b'_'|b'-'|b'.'|b':'|b'@')) { return Err(()); }
+    pipe.checkpoint("source_ready", 0)?;
+    pipe.checkpoint("discovery", 0)?;
     let found = discovery(&a).await?;
     if found.source_ids != vec![source.source_id.clone()] || found.next_cursor.is_some() { return Err(()); }
-    if round(&a).await? != 1 { return Err(()); }
+    pipe.checkpoint("round", 0)?;
+    if round(&a, &mut pipe, 0).await? != 1 { return Err(()); }
+    pipe.checkpoint("quote_proof", 0)?;
     let proof_a = quote_proof(&a, &source.source_id, &customer, &article)?;
+    pipe.checkpoint("local_activity", 0)?;
     let activity = a.read_action_engine_quote_activity(origin(&a)?, None, 50).map_err(|_| ())?;
     if activity.entries.len() != 1 || activity.next_after_proposal_id.is_some()
         || activity.entries[0].quote_id != proof_a["quoteId"].as_str().ok_or(())? { return Err(()); }
+    pipe.checkpoint("canonical_publication", 0)?;
     let canonical = collaboration::acknowledged_publication(&a, proof_a["proposalId"].as_str().ok_or(())?).map_err(|_| ())?;
     if canonical.revision <= initial.revision { return Err(()); }
+    pipe.checkpoint("corroborate_writer", 0)?;
     collaboration::corroborate_writer(&a, &canonical).await.map_err(|_| ())?;
+    pipe.checkpoint("receive_canonical", 1)?;
     collaboration::receive_exact(&b, &canonical, false).await.map_err(|_| ())?;
+    pipe.checkpoint("quote_proof", 1)?;
     let proof_b = quote_proof(&b, &source.source_id, &customer, &article)?;
     if proof_a != proof_b { return Err(()); }
     // Confirmed work disappears from discovery. The second real installation
     // still runs the consumer but neither creates a second quote nor forges the
     // writer's private ACK/activity marker while receiving the shared receipt.
+    pipe.checkpoint("discovery", 1)?;
     let remaining = discovery(&b).await?;
-    if !remaining.source_ids.is_empty() || remaining.next_cursor.is_some() || round(&b).await? != 0
-        || quote_proof(&b, &source.source_id, &customer, &article)? != proof_a { return Err(()); }
+    if !remaining.source_ids.is_empty() || remaining.next_cursor.is_some() { return Err(()); }
+    pipe.checkpoint("round", 1)?;
+    if round(&b, &mut pipe, 1).await? != 0 { return Err(()); }
+    pipe.checkpoint("quote_proof", 1)?;
+    if quote_proof(&b, &source.source_id, &customer, &article)? != proof_a { return Err(()); }
+    pipe.checkpoint("local_activity", 1)?;
     let b_activity = b.read_action_engine_quote_activity(origin(&b)?, None, 50).map_err(|_| ())?;
     if !b_activity.entries.is_empty() || b_activity.next_after_proposal_id.is_some() { return Err(()); }
+    pipe.checkpoint("corroborate_writer", 0)?;
     collaboration::corroborate_writer(&a, &canonical).await.map_err(|_| ())?;
+    pipe.checkpoint("quote_proof", 0)?;
     if quote_proof(&a, &source.source_id, &customer, &article)? != proof_a { return Err(()); }
+    pipe.checkpoint("strict_account", 0)?;
     strict_account(&a, &input.installations[0]).await?;
+    pipe.checkpoint("strict_account", 1)?;
     strict_account(&b, &input.installations[1]).await?;
     pipe.write(json!({"event":"complete","profileSha256":PROFILE_SHA,"organizationId":ORGANIZATION,
         "initialPublication":initial.public_proof().map_err(|_| ())?,"canonicalPublication":canonical.public_proof().map_err(|_| ())?,

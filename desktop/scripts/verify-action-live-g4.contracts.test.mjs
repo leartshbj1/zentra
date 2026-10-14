@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { assertFutureCiAdmission, validatePublication, validateQuote, validateComplete, validateSourceProof, DESCRIPTION }
+import { assertFutureCiAdmission, validatePublication, validateQuote, validateComplete, validateSourceProof, DESCRIPTION, G4_CHECKPOINTS }
   from './verify-action-live-g4-windows.mjs';
 import { requirePaidA41Workspace, makeRealApiSupportSource } from './live-g4-api-support-source.mjs';
 // Manual pure contracts: no recipe entrypoint, native child, Cargo or real HTTP.
@@ -99,7 +99,7 @@ ok(()=>assert(rust.includes('#[ignore = ') && rust.includes('fn canonical_quote_
 ok(()=>assert(rust.indexOf('closed_guard()?;') < rust.indexOf('LocalStore::initialize(')));
 ok(()=>assert(rust.indexOf('let consent_b = paid_consent(&b).await?;') < rust.indexOf('let (customer, article) = seed(&a)?;')
   && rust.indexOf('collaboration::require_fresh_remote(&a)') < rust.indexOf('let (customer, article) = seed(&a)?;')));
-ok(()=>assert(rust.indexOf('collaboration::publish_initial(&a)') < rust.indexOf('if round(&a).await? != 1')));
+ok(()=>assert(rust.indexOf('collaboration::publish_initial(&a)') < rust.indexOf('if round(&a, &mut pipe, 0).await? != 1')));
 ok(()=>assert(rust.includes('begin_quote_work_round(store)') && rust.includes('advance_quote_work_round(store, &mut round)')));
 for(const fragment of ['frozen_quote_publication_matches','read_action_engine_quote_activity','corroborate_writer(&a','receive_exact(&b','strict_account(&b'])ok(()=>assert(rust.includes(fragment)));
 for(const fragment of ['prepare_for_send_worker','send(store, &session, true, true)','"action":"recover-publication"','reply["known"] != true','reply["committed"] != true','require_archive_content','download(store, &session, &head)','apply(&owned'])ok(()=>assert(bridge.includes(fragment)));
@@ -113,7 +113,8 @@ for (const [file, declaration] of [
   ok(()=>assert.equal(createHash('sha256').update(declared.replace(declaration,'')).digest('hex'),baselinePins[file]));
 }
 ok(()=>assert(coordinator.indexOf('const harness = await futureHarness(env);') < coordinator.indexOf('const account = await runLiveAccountRecipe(input')));
-ok(()=>assert(coordinator.includes("rejectExit(new Refusal('g4_native_deadline'))") && coordinator.includes('setTimeout(stop, 600000)')));
+ok(()=>assert(coordinator.includes('rejectExit(new Refusal(code))')
+  && coordinator.includes("setTimeout(() => stop('g4_pipe_global_deadline'), 600000)")));
 ok(()=>assert(coordinator.includes("['ls-files', '--error-unmatch'") && coordinator.includes("['status', '--porcelain', '--untracked-files=no']")));
 ok(()=>assert(!coordinator.includes('options.provisionSource') && coordinator.includes('makeRealApiSupportSource(input)')));
 ok(()=>assert(coordinator.includes("stdio: ['pipe', 'pipe', 'pipe']") && !coordinator.includes('process.stdout.write(stdout)')));
@@ -209,6 +210,21 @@ try {
   ok(()=>assert.equal(process.platform,'linux'));
 } finally { Object.defineProperty(process,'platform',originalPlatform); }
 ok(()=>assert(!read('.circleci/config.yml').includes('contracts.test.mjs')));
+const diagnosticRust = read('desktop/src-tauri/src/account_cloud_live_a41_g4_tests.rs');
+ok(()=>assert.deepEqual([...diagnosticRust.matchAll(/pipe\.checkpoint\("([a-z_]+)", ([01])\)\?/g)]
+  .map(match=>({step:match[1],index:Number(match[2])})),G4_CHECKPOINTS));
+ok(()=>assert.equal((diagnosticRust.match(/action_engine::advance_quote_work_round\(store, &mut round\)/g)??[]).length,1));
+ok(()=>assert(diagnosticRust.includes('"reviewRequired":review_required') && diagnosticRust.includes('return Err(());')));
+const diagnosticCoordinator=read('desktop/scripts/verify-action-live-g4-windows.mjs');
+ok(()=>assert(diagnosticCoordinator.includes("throw new Refusal('g4_review_required')")
+  && diagnosticCoordinator.includes('nominalG4Passed: false') && diagnosticCoordinator.includes('native-g4-diagnostic.public.json')));
+ok(()=>assert(diagnosticCoordinator.includes('G4_MAX_QUEUED_EVENTS = G4_CHECKPOINTS.length + 3')));
+ok(()=>assert(diagnosticCoordinator.indexOf('const result = await exited;') < diagnosticCoordinator.indexOf('await channel.finalize();')
+  && diagnosticCoordinator.indexOf('await channel.finalize();') < diagnosticCoordinator.indexOf('channel.assertTerminal();')
+  && diagnosticCoordinator.indexOf('channel.assertTerminal();') < diagnosticCoordinator.indexOf('completed = true; return complete;')));
+const exitListener=diagnosticCoordinator.slice(diagnosticCoordinator.indexOf("child.once('exit', (code, signal)"), diagnosticCoordinator.indexOf('exited.catch'));
+ok(()=>assert(!exitListener.includes('channel?.fail(') && !exitListener.includes('channel.fail(')));
+ok(()=>assert(diagnosticCoordinator.includes("const failure = new Refusal('g4_native_spawn_failed');\n        rejectConnection(failure); reject(failure);")));
 console.log(JSON.stringify({result:'PURE_G4_SUPPORT_COORDINATOR_CONTRACTS_OK',checks,
   baselineSource,sourceBaselinePinsChecked:Object.keys(baselinePins).length,
   ignoredQaDependency:false,gitHistoryRequired:false,automaticallyWiredIntoCi:false,
