@@ -114,12 +114,12 @@ test('default continuation retains its exact French envelope and hash',async()=>
   assert.equal(source.publicProof().sourceEnvelopeSha256,createHash('sha256').update(JSON.stringify(envelope)).digest('hex'));
 });
 test('G5 English template changes only subject and body, with exact SKU, envelope hash and one source attempt',async()=>{
-  const mock=sourceMock(()=>{},/^Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100\. Thank you\.$/),
+  const mock=sourceMock(()=>{},/^Please prepare a new quotation for 3 pieces of Radiateur A41 \(SKU A41-RAD-100\)\. Thank you\.$/),
     source=makeContinuationSource(input(),{fetcher:mock.fetcher,admit:()=>{},sourceTemplate:'en-g5-v1'});
   await source.provision(baseline());
   const envelope=mock.calls.find(call=>new URL(call.url).pathname.startsWith('/api/support/hooks/')).body;
   assert.deepEqual(envelope,{ticketId:`a41-continuation-${uuid(1)}`,subject:`Quotation request: 3 radiators A41-RAD-100 — ${uuid(1)}`,
-    body:'Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100. Thank you.',
+    body:'Please prepare a new quotation for 3 pieces of Radiateur A41 (SKU A41-RAD-100). Thank you.',
     senderEmail:'camille-a41@example.invalid',senderName:'Camille Recette A41',version:`a41-continuation-${uuid(1)}`});
   assert.equal(source.publicProof().sourceEnvelopeSha256,createHash('sha256').update(JSON.stringify(envelope)).digest('hex'));
   assert.deepEqual(mock.calls.filter(call=>call.body).map(call=>call.body.action??'hook'),['hook','approve']);

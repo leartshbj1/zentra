@@ -89,7 +89,16 @@ try {
     $releaseAst=[System.Management.Automation.Language.Parser]::ParseFile($ReleaseScriptPath,[ref]$tokens,[ref]$errors)
     Assert-Contract (@($errors).Count -eq 0) 'release parses without evaluation'
     $calls=@($releaseAst.FindAll({param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -ceq 'Invoke-Checked' -and $n.CommandElements.Count -ge 2 -and $n.CommandElements[1].Extent.Text -ceq 'cargo'},$true))
-    Assert-Contract ($calls.Count -eq 25) 'all 25 historical cargo call sites retained'
+    $autopilotCalls=@($calls | Where-Object { $_.Extent.Text.Contains("'account_cloud::action_engine::supervisor::tests::'") })
+    $historicalCalls=@($calls | Where-Object { -not $_.Extent.Text.Contains("'account_cloud::action_engine::supervisor::tests::'") })
+    Assert-Contract ($calls.Count -eq 26 -and $historicalCalls.Count -eq 25) 'all 25 historical cargo call sites retained with one product appendix'
+    Assert-Contract ($autopilotCalls.Count -eq 1) 'one exact supervisor call site'
+    $autopilotArray=$autopilotCalls[0].CommandElements[2].SubExpression.Statements[0].PipelineElements[0].Expression
+    $autopilotArguments=@($autopilotArray.Elements | ForEach-Object {
+        if ($_ -isnot [System.Management.Automation.Language.StringConstantExpressionAst]) { throw 'The supervisor selection must be static.' }
+        $_.Value
+    })
+    Assert-Contract (($autopilotArguments -join '|') -ceq 'test|--manifest-path|desktop/src-tauri/Cargo.toml|--locked|--lib|account_cloud::action_engine::supervisor::tests::|--|--test-threads=1') 'closed supervisor argv appendix'
     foreach ($call in $calls) {
         $array=$call.CommandElements[2].SubExpression.Statements[0].PipelineElements[0].Expression
         $arguments=@($array.Elements | ForEach-Object {

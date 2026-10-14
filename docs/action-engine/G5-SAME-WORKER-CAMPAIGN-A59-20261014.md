@@ -67,7 +67,8 @@ aucun token automatiquement.
 
 G5 choisit localement le template fermé `en-g5-v1`. Le sujet est
 `Quotation request: 3 radiators A41-RAD-100 — <campaign>` et le corps exact est
-`Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100. Thank you.`
+`Please prepare a new quotation for 3 pieces of Radiateur A41 (SKU A41-RAD-100). Thank you.`
+Les parenthèses délimitent le SKU complet avant la ponctuation de la phrase.
 Le nom du catalogue, la quantité, le client, l'identité de campagne et les
 comparateurs métier restent inchangés. Le hash couvre l'enveloppe réellement
 envoyée. Aucun champ du JSON privé ne choisit ce texte ; la continuation garde

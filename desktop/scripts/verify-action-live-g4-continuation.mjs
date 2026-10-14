@@ -234,7 +234,7 @@ export function makeContinuationSource(raw,{fetcher=globalThis.fetch,admit=()=>a
       const route=`/api/support?workspace=${input.workspaceId}`;
       const before=(await request(route)).value,prior=validateContinuationSupportState(before,input);
       const envelope={ticketId:`a41-continuation-${input.campaignId}`,subject:english?`Quotation request: 3 radiators A41-RAD-100 — ${input.campaignId}`:`Devis Radiateur A41 — ${input.campaignId}`,
-        body:english?'Please prepare a new quotation for 3 pieces of Radiateur A41, SKU A41-RAD-100. Thank you.':'Bonjour, pour Camille Recette A41, merci de préparer un devis pour 3 pièces de Radiateur A41, référence A41-RAD-100. Merci.',
+        body:english?'Please prepare a new quotation for 3 pieces of Radiateur A41 (SKU A41-RAD-100). Thank you.':'Bonjour, pour Camille Recette A41, merci de préparer un devis pour 3 pièces de Radiateur A41, référence A41-RAD-100. Merci.',
         senderEmail:'camille-a41@example.invalid',senderName:'Camille Recette A41',version:`a41-continuation-${input.campaignId}`};
       const received=await request(`/api/support/hooks/${input.connectionId}`,envelope,true),ticket=received.value.ticket;
       need(UUID.test(ticket?.id??'')&&ticket.id!==BASELINE.sourceId&&ticket.connectionId===input.connectionId&&ticket.externalId===envelope.ticketId

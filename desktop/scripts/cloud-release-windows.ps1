@@ -444,6 +444,11 @@ try {
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'interface_workspace_', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workspacePreferences.test.ts', 'src/workspacePersonalizationLanguage.test.ts', 'src/nativeNavigationSession.test.ts', 'src/companySyncPresentation.test.ts')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/companyAccount.test.ts', 'src/companyRealtime.test.ts', 'src/projectSyncScheduler.test.ts', 'src/automationCompanySession.test.ts', 'src/appReleaseNotes.test.ts', 'src/automationDailySummary.test.tsx', 'src/automationHub.test.tsx', 'src/automationJournal.test.tsx', 'src/automationNavigation.test.tsx', 'src/appearance.test.ts', 'src/supplierInboxReview.test.ts', 'src/supplierInboxBatch.test.ts', 'src/languageCatalogCoverage.test.ts', 'src/projectReport.test.ts')
+    # Autopilot product preflight: real UI/hook/budget suites and the separate
+    # supervisor namespace. This neither opens the gate nor runs a live recipe.
+    Invoke-Checked node @('--test', 'desktop/scripts/quote-autopilot-release.contracts.test.mjs')
+    Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/autopilotSession.test.ts', 'src/autopilotReview.test.ts', 'src/AutopilotPanel.test.tsx', 'src/autopilotBudget.test.ts', 'src/useAutopilot.test.tsx', 'src/confirmedQuoteDestination.test.ts')
+    Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'account_cloud::action_engine::supervisor::tests::', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'exec', 'vitest', 'run', 'src/workNotes.test.ts', 'src/workNotesBridge.test.ts')
     Invoke-Checked cargo @('test', '--manifest-path', 'desktop/src-tauri/Cargo.toml', '--locked', '--lib', 'work_notes', '--', '--test-threads=1')
     Invoke-Checked pnpm.cmd @('--dir', 'desktop', 'build:web')
