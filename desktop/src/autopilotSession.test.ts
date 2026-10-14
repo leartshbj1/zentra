@@ -55,10 +55,17 @@ it('backs off transport failures without focus events causing a tight retry loop
 it('uses bounded idle, continuation and blocked delays without replaying in a loop', async () => {
   vi.useFakeTimers(); const perform = vi.fn().mockResolvedValueOnce('more').mockResolvedValueOnce('blocked').mockResolvedValue('idle');
   const session = createAutopilotSession({ perform }); session.update(context); session.start(); await drain();
-  await vi.advanceTimersByTimeAsync(499); expect(perform).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(14_999); expect(perform).toHaveBeenCalledTimes(1);
   await vi.advanceTimersByTimeAsync(1); expect(perform).toHaveBeenCalledTimes(2);
   await vi.advanceTimersByTimeAsync(29_999); expect(perform).toHaveBeenCalledTimes(2);
   await vi.advanceTimersByTimeAsync(1); expect(perform).toHaveBeenCalledTimes(3); session.stop();
+});
+
+it('backs off an explicit quota refusal without a five-second retry loop', async () => {
+  vi.useFakeTimers(); const perform = vi.fn().mockResolvedValue('rate_limited');
+  const session = createAutopilotSession({ perform }); session.update(context); session.start(); await drain();
+  await vi.advanceTimersByTimeAsync(299_999); expect(perform).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1); expect(perform).toHaveBeenCalledTimes(2); session.stop();
 });
 
 it('serializes explicit consent with background work and refuses stale consent results', async () => {

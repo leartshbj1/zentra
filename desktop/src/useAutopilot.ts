@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { desktopApi, type QuoteAutopilotOrigin } from './bridge';
-import { createAutopilotSession, type AutopilotCycleGuard } from './autopilotSession';
+import { createAutopilotSession, type AutopilotCycleGuard, type AutopilotCycleResult } from './autopilotSession';
+import { autopilotBudget } from './autopilotBudget';
 import { normalizeConfirmedQuoteActivityPage } from './confirmedQuoteActivity';
 import { normalizeAutopilotReviewPage } from './autopilotReview';
 import type { AutopilotView } from './autopilotView';
@@ -53,6 +54,12 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
     setBound(updated);
   };
   const fail = (guard: AutopilotCycleGuard, error: AutopilotView['error'] = 'connection') => publish(guard, { ...empty('error'), error });
+  const pauseQuota = (guard: AutopilotCycleGuard, captured: AutopilotContext, reply?: ScopedReply) => {
+    if (reply?.code === 'rate_limited') autopilotBudget.rateLimited(captured.organizationId);
+    const previous = current.current.state;
+    publish(guard, { ...(previous.key === guard.scope && previous.state.status === 'ready' ? previous.state : empty('error')), error: 'rate_limited' });
+    return 'rate_limited' as const;
+  };
   const [session] = useState(() => createAutopilotSession({
     perform: async guard => {
       const captured = current.current.context;
@@ -67,44 +74,60 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
       // Consent management is owner/admin-only. Other admitted members read
       // shared history separately; their native tick checks both saved consents
       // on the server and never activates or simulates an authorization.
-      if (admitted.canManage && (!consent || Date.now() - timings.current.consentAt >= 30_000)) {
+      if (admitted.canManage && (!consent || Date.now() - timings.current.consentAt >= 90_000)) {
+        if (!autopilotBudget.reserve(captured.organizationId, 'consent')) return pauseQuota(guard, captured);
         const reply = await desktopApi.readQuoteAutopilotConsent(captured.origin);
         if (!guard.current()) return 'blocked';
         if (closedGate(reply)) { publish(guard, empty('unavailable')); return 'blocked'; }
+        if (reply.code === 'rate_limited') return pauseQuota(guard, captured, reply);
         consent = reply.status === 'available' && scoped(reply, captured) ? consentData(reply.data) : null;
         if (!consent) { fail(guard, problem(reply)); return 'blocked'; }
         timings.current.consentAt = timings.current.refreshVersion === freshness ? Date.now() : 0;
       }
       let next: AutopilotView = { ...previous, status: 'ready', consent, canManage: admitted.canManage && !captured.readOnly,
         error: null, saving: false };
-      let result: 'idle' | 'more' | 'blocked' = 'idle', changed = false, reviewChanged = false;
+      let result: AutopilotCycleResult = 'idle', changed = false, reviewChanged = false;
       if (!captured.readOnly && (!admitted.canManage || consent?.enabled && consent.consentVersion === consent.requiredConsentVersion)) {
-        const tick = await desktopApi.tickQuoteAutopilot(captured.origin);
-        if (!guard.current()) return 'blocked';
-        if (closedGate(tick)) { publish(guard, empty('unavailable')); return 'blocked'; }
-        if (!scoped(tick, captured) || tick.status === 'context_changed') { fail(guard, 'context_changed'); return 'blocked'; }
-        if (tick.status === 'error' && ['forbidden','conflict','revision_conflict','rate_limited'].includes(tick.code)) {
-          next = { ...next, error: problem(tick) }; result = 'blocked';
+        const charge = autopilotBudget.reserve(captured.organizationId, 'tick');
+        if (!charge) {
+          // A full execution budget pauses the producer, not separately
+          // authorized activity/review reads from the other collaborators.
+          next = { ...next, error: 'rate_limited' }; result = 'blocked';
         } else {
-          if (tick.status === 'error') throw new Error('AUTOPILOT_NATIVE_CYCLE_UNAVAILABLE');
-          if (!['idle','progress','needs_review','held','busy'].includes(tick.status)) { fail(guard, problem(tick)); return 'blocked'; }
-          changed = (tick.counts?.confirmed ?? 0) > 0;
-          reviewChanged = (tick.counts?.reviewRequired ?? 0) > 0 || tick.status === 'needs_review';
-          result = tick.hasMore ? 'more' : ['held','needs_review'].includes(tick.status) ? 'blocked' : 'idle';
-          if (changed && guard.current()) current.current.onWorkspaceChanged();
+          const tick = await desktopApi.tickQuoteAutopilot(captured.origin).finally(() => charge.finish());
+          if (!guard.current()) return 'blocked';
+          if (closedGate(tick)) { publish(guard, empty('unavailable')); return 'blocked'; }
+          const refused = tick.organizationId === null && tick.workspaceScope === null && tick.memberContextNonce === null;
+          if (tick.status === 'error' && (refused || scoped(tick, captured)) && ['forbidden','conflict','revision_conflict','rate_limited'].includes(tick.code)) {
+            if (tick.code === 'rate_limited') return pauseQuota(guard, captured, tick);
+            next = { ...next, error: problem(tick) }; result = 'blocked';
+          } else {
+            if (!scoped(tick, captured) || tick.status === 'context_changed') { fail(guard, 'context_changed'); return 'blocked'; }
+            if (tick.status === 'error') throw new Error('AUTOPILOT_NATIVE_CYCLE_UNAVAILABLE');
+            if (!['idle','progress','needs_review','held','busy'].includes(tick.status)) { fail(guard, problem(tick)); return 'blocked'; }
+            charge.settleTick(tick);
+            changed = (tick.counts?.confirmed ?? 0) > 0;
+            reviewChanged = (tick.counts?.reviewRequired ?? 0) > 0 || tick.status === 'needs_review';
+            result = tick.hasMore ? 'more' : ['held','needs_review'].includes(tick.status) ? 'blocked' : 'idle';
+            if (changed && guard.current()) current.current.onWorkspaceChanged();
+          }
         }
       }
       // Read actual canonical events. Tick counters only signal a refresh and
       // are never converted into activity rows, quotes or financial totals.
-      if (!next.activity || !next.reviews || changed || reviewChanged || Date.now() - timings.current.feedAt >= 15_000) {
+      if (!next.activity || !next.reviews || changed || reviewChanged || Date.now() - timings.current.feedAt >= 45_000) {
+        if (!autopilotBudget.reserve(captured.organizationId, 'activity')) return pauseQuota(guard, captured);
         const activity = await desktopApi.readQuoteAutopilotActivity(captured.origin, { limit: 50, cursor: null });
         if (!guard.current()) return 'blocked';
         if (closedGate(activity)) { publish(guard, empty('unavailable')); return 'blocked'; }
+        if (activity.code === 'rate_limited') return pauseQuota(guard, captured, activity);
         const activityPage = activity.status === 'available' && scoped(activity, captured)
           ? normalizeConfirmedQuoteActivityPage(activity.data, captured.organizationId) : null;
+        if (!autopilotBudget.reserve(captured.organizationId, 'review')) return pauseQuota(guard, captured);
         const reviews = await desktopApi.readQuoteAutopilotReview(captured.origin, { limit: 20, cursor: timings.current.reviewCursor });
         if (!guard.current()) return 'blocked';
         if (closedGate(reviews)) { publish(guard, empty('unavailable')); return 'blocked'; }
+        if (reviews.code === 'rate_limited') return pauseQuota(guard, captured, reviews);
         const reviewPage = reviews.status === 'available' && scoped(reviews, captured)
           ? normalizeAutopilotReviewPage(reviews.data, captured.organizationId) : null;
         if (!activityPage || !reviewPage) { fail(guard, problem(!activityPage ? activity : reviews)); return 'blocked'; }
@@ -143,11 +166,13 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
     const previous = current.current.state.key === originalKey ? current.current.state.state : null;
     if (!originalKey || !captured || !previous?.consent || previous.status !== 'ready' || !previous.canManage) return;
     const change = await session.exclusive(async guard => {
+      if (!autopilotBudget.reserve(captured.organizationId, 'consent')) { pauseQuota(guard, captured); return; }
       publish(guard, { ...previous, saving: true, error: null });
       try {
         const reply = await desktopApi.setQuoteAutopilotConsent(captured.origin, { schemaVersion: 1, enabled,
           consentVersion: enabled ? previous.consent!.requiredConsentVersion : null, expectedRevision: previous.consent!.revision });
         if (!guard.current()) return;
+        if (reply.code === 'rate_limited') { pauseQuota(guard, captured, reply); return; }
         const consent = reply.status === 'available' && scoped(reply, captured) ? consentData(reply.data) : null;
         if (!consent || consent.enabled !== enabled) {
           timings.current.consentAt = 0;
@@ -171,10 +196,12 @@ export function useAutopilot(context: AutopilotContext | null, onWorkspaceChange
     const cursor = previous.key === current.current.key ? previous.state.reviews?.nextCursor : null;
     if (!captured || !cursor) return;
     const read = await session.exclusive(async guard => {
+      if (!autopilotBudget.reserve(captured.organizationId, 'review')) { pauseQuota(guard, captured); return; }
       publish(guard, { ...previous.state, readingReviews: true });
       try {
         const reply = await desktopApi.readQuoteAutopilotReview(captured.origin, { limit: 20, cursor });
         if (!guard.current() || timings.current.refreshVersion !== freshness) return;
+        if (reply.code === 'rate_limited') { pauseQuota(guard, captured, reply); return; }
         const reviews = reply.status === 'available' && scoped(reply, captured) ? normalizeAutopilotReviewPage(reply.data, captured.organizationId) : null;
         if (!reviews) { publish(guard, { ...previous.state, readingReviews: false, reviewsUnavailable: true }); return; }
         timings.current.reviewCursor = cursor;

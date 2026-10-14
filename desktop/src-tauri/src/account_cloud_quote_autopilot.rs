@@ -254,31 +254,31 @@ async fn deliver_read(store: LocalStore, origin: Origin, task: tauri::async_runt
 }
 
 #[tauri::command]
-pub(crate) async fn quote_autopilot_state(store: State<'_, LocalStore>, origin: Origin) -> StateReply {
-    if let Err(code) = admission(&origin) { return StateReply { scope: Scope::refused(code), can_manage: false }; }
-    match admitted_stamp(&store, &origin).await {
+pub(crate) async fn quote_autopilot_state(store: State<'_, LocalStore>, origin: Origin) -> Result<StateReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(StateReply { scope: Scope::refused(code), can_manage: false }); }
+    Ok(match admitted_stamp(&store, &origin).await {
         Ok(stamp) if current(&store, &origin, &stamp).await => StateReply { scope: Scope::admitted("available", &stamp), can_manage: matches!(stamp.role.as_str(), "owner" | "admin") },
         _ => StateReply { scope: Scope::refused("context_changed"), can_manage: false },
-    }
+    })
 }
 #[tauri::command]
-pub(crate) async fn quote_autopilot_consent(store: State<'_, LocalStore>, origin: Origin) -> ReadReply {
-    if let Err(code) = admission(&origin) { return ReadReply::refused(code); }
+pub(crate) async fn quote_autopilot_consent(store: State<'_, LocalStore>, origin: Origin) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
     let owned = store.inner().clone(); let captured = origin.clone(); let worker = owned.clone();
     let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, CONSENT_PATH, None, None).await });
-    deliver_read(owned, origin, task).await
+    Ok(deliver_read(owned, origin, task).await)
 }
 #[tauri::command]
-pub(crate) async fn set_quote_autopilot_consent(store: State<'_, LocalStore>, supervisor: State<'_, Supervisor>, origin: Origin, input: ConsentInput) -> ReadReply {
-    if let Err(code) = admission(&origin) { return ReadReply::refused(code); }
-    if !input.valid() { return ReadReply::refused("invalid_request"); }
-    let Some(flight) = supervisor.consent_write.try_lock_owned() else { return ReadReply::refused("conflict"); };
+pub(crate) async fn set_quote_autopilot_consent(store: State<'_, LocalStore>, supervisor: State<'_, Supervisor>, origin: Origin, input: ConsentInput) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
+    let Some(flight) = supervisor.consent_write.try_lock_owned() else { return Ok(ReadReply::refused("conflict")); };
     let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
     let task = tauri::async_runtime::spawn(async move {
         let _flight = flight;
         read_at(&worker, &captured, CONSENT_PATH, None, Some(input)).await
     });
-    deliver_read(owned, origin, task).await
+    Ok(deliver_read(owned, origin, task).await)
 }
 async fn read_page(store: &LocalStore, origin: Origin, input: PageInput, path: &'static str) -> ReadReply {
     if let Err(code) = admission(&origin) { return ReadReply::refused(code); }
@@ -288,14 +288,14 @@ async fn read_page(store: &LocalStore, origin: Origin, input: PageInput, path: &
     deliver_read(owned, origin, task).await
 }
 #[tauri::command]
-pub(crate) async fn quote_autopilot_activity(store: State<'_, LocalStore>, origin: Origin, input: PageInput) -> ReadReply { read_page(&store, origin, input, ACTIVITY_PATH).await }
+pub(crate) async fn quote_autopilot_activity(store: State<'_, LocalStore>, origin: Origin, input: PageInput) -> Result<ReadReply, String> { Ok(read_page(&store, origin, input, ACTIVITY_PATH).await) }
 #[tauri::command]
-pub(crate) async fn quote_autopilot_review(store: State<'_, LocalStore>, origin: Origin, input: PageInput) -> ReadReply { read_page(&store, origin, input, REVIEW_PATH).await }
+pub(crate) async fn quote_autopilot_review(store: State<'_, LocalStore>, origin: Origin, input: PageInput) -> Result<ReadReply, String> { Ok(read_page(&store, origin, input, REVIEW_PATH).await) }
 
 #[tauri::command]
-pub(crate) async fn quote_autopilot_tick(store: State<'_, LocalStore>, supervisor: State<'_, Supervisor>, origin: Origin) -> TickReply {
-    if let Err(code) = admission(&origin) { return TickReply::refused(code); }
-    let Some(mut flight) = supervisor.round.try_lock_owned() else { return TickReply::refused("busy"); };
+pub(crate) async fn quote_autopilot_tick(store: State<'_, LocalStore>, supervisor: State<'_, Supervisor>, origin: Origin) -> Result<TickReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(TickReply::refused(code)); }
+    let Some(mut flight) = supervisor.round.try_lock_owned() else { return Ok(TickReply::refused("busy")); };
     let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
     // The owned lock lives in this detached task, not in the IPC waiter. A
     // cancelled WebView request cannot admit a second physical producer.
@@ -322,12 +322,12 @@ pub(crate) async fn quote_autopilot_tick(store: State<'_, LocalStore>, superviso
         // the retry authority; no IPC operation resets started/uncertain rows.
         (reply, Some(stamp))
     });
-    match task.await {
+    Ok(match task.await {
         Ok((reply, Some(stamp))) if current(&owned, &origin, &stamp).await => reply,
         Ok((reply, None)) => reply,
         Ok(_) => TickReply::refused("context_changed"),
         Err(_) => TickReply::refused("service_unavailable"),
-    }
+    })
 }
 
 #[cfg(test)]

@@ -3,10 +3,19 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useAutopilot, type AutopilotContext } from './useAutopilot';
+import { createAutopilotBudget } from './autopilotBudget';
 const api = vi.hoisted(() => ({ getQuoteAutopilotState: vi.fn(), readQuoteAutopilotConsent: vi.fn(),
   setQuoteAutopilotConsent: vi.fn(), tickQuoteAutopilot: vi.fn(), readQuoteAutopilotActivity: vi.fn(), readQuoteAutopilotReview: vi.fn() }));
 vi.mock('./bridge', () => ({ desktopApi: api }));
 vi.mock('./diagnostics', () => ({ classifyDiagnosticError: () => 'NETWORK', recordDiagnostic: vi.fn() }));
+const pacing = vi.hoisted(() => ({ current: null as ReturnType<typeof createAutopilotBudget> | null }));
+vi.mock('./autopilotBudget', async importOriginal => {
+  const actual = await importOriginal<typeof import('./autopilotBudget')>();
+  return { ...actual, autopilotBudget: {
+    reserve: (...args: Parameters<ReturnType<typeof actual.createAutopilotBudget>['reserve']>) => pacing.current!.reserve(...args),
+    rateLimited: (organizationId: string) => pacing.current!.rateLimited(organizationId),
+  } };
+});
 const origin = { expectedWorkspaceScope: 'workspace-a', expectedMemberContextNonce: 'a'.repeat(32) };
 const context: AutopilotContext = { organizationId: 'company-a', origin, readOnly: false };
 const common = { schemaVersion: 1, status: 'available', code: 'none', organizationId: 'company-a', workspaceScope: 'workspace-a', memberContextNonce: 'a'.repeat(32) };
@@ -20,6 +29,7 @@ async function mount(value: AutopilotContext|null = context) { host=document.cre
   await act(async () => root!.render(<Probe value={value}/>)); }
 beforeEach(() => {
   vi.useFakeTimers(); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true); vi.clearAllMocks(); renders=0;
+  pacing.current = createAutopilotBudget();
   vi.spyOn(navigator,'onLine','get').mockReturnValue(true); vi.spyOn(document,'visibilityState','get').mockReturnValue('visible');
   api.getQuoteAutopilotState.mockResolvedValue({...common,canManage:true}); api.readQuoteAutopilotConsent.mockResolvedValue({...common,data:consent});
   api.tickQuoteAutopilot.mockResolvedValue(tick);
@@ -75,10 +85,52 @@ it('keeps a refused member tick explicit and backs off while reading independent
   expect(result.state.error).toBe('permission'); expect(result.state.consent).toBeNull(); expect(result.state.activity?.items).toEqual([]);
   await act(async () => { await vi.advanceTimersByTimeAsync(29_999); }); expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(1);
 });
+it('recognizes the real closed native error scope without misreporting a quota refusal as an account change', async () => {
+  api.tickQuoteAutopilot.mockResolvedValue({ ...tick, organizationId: null, workspaceScope: null, memberContextNonce: null,
+    status: 'error', code: 'rate_limited', phase: 'none', counts: null });
+  await mount(); expect(result.state.error).toBe('rate_limited');
+  await act(async () => { await result.onRefresh(); await vi.advanceTimersByTimeAsync(300_000); });
+  expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(1);
+});
 it('does not re-render the workspace for an unchanged idle background cycle', async () => {
   await mount(); const before=renders;
-  await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
   expect(api.tickQuoteAutopilot).toHaveBeenCalledTimes(2); expect(renders).toBe(before);
+});
+
+it('paces a real-cost hour of idle work with refresh and reconnection headroom', async () => {
+  vi.setSystemTime(0); await mount();
+  for (let interval = 0; interval < 12; interval++) {
+    await act(async () => { await vi.advanceTimersByTimeAsync(300_000); });
+    await act(async () => { window.dispatchEvent(new Event('offline')); window.dispatchEvent(new Event('online')); await result.onRefresh(); });
+  }
+  expect(api.tickQuoteAutopilot.mock.calls.length).toBeLessThanOrEqual(270);
+  expect(api.readQuoteAutopilotConsent.mock.calls.length).toBeLessThanOrEqual(50);
+  expect(api.readQuoteAutopilotActivity.mock.calls.length).toBeLessThanOrEqual(100);
+  expect(api.readQuoteAutopilotReview.mock.calls.length).toBeLessThanOrEqual(100);
+  expect(result.state.error).toBeNull();
+});
+it('bounds a continuous twenty-source native backlog under both HTTP budgets for a full hour', async () => {
+  vi.setSystemTime(0);
+  api.tickQuoteAutopilot.mockResolvedValue({ ...tick, status: 'progress', counts: { confirmed: 20, held: 0, reviewRequired: 0 }, roundComplete: false, hasMore: true });
+  await mount(); await act(async () => { await vi.advanceTimersByTimeAsync(3_599_999); });
+  const nativePages = api.tickQuoteAutopilot.mock.calls.length;
+  expect(nativePages).toBe(10);
+  expect(nativePages * 21).toBeLessThanOrEqual(400);
+  expect(nativePages * 40).toBeLessThanOrEqual(400);
+  expect(api.readQuoteAutopilotActivity.mock.calls.length).toBeLessThanOrEqual(100);
+  expect(api.readQuoteAutopilotActivity.mock.calls.length).toBeGreaterThan(nativePages);
+});
+it('does not bypass server quota backoff with focus, refresh or online events', async () => {
+  vi.setSystemTime(1_800_000);
+  api.readQuoteAutopilotConsent.mockResolvedValue({ ...common, status: 'error', code: 'rate_limited', data: null });
+  await mount(); expect(result.state.error).toBe('rate_limited');
+  for (let count = 0; count < 10; count++) await act(async () => {
+    window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('offline')); window.dispatchEvent(new Event('online')); await result.onRefresh();
+  });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1_799_999); });
+  expect(api.readQuoteAutopilotConsent).toHaveBeenCalledTimes(1);
+  expect(api.tickQuoteAutopilot).not.toHaveBeenCalled();
 });
 it('keeps a refresh newer than an in-flight pagination response and returns to the latest page', async () => {
   const firstPage={organizationId:'company-a',items:[],nextCursor:'next_page'};

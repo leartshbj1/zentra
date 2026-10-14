@@ -6,15 +6,16 @@ export type AutopilotScheduleContext = Readonly<{
   visible: boolean;
   online: boolean;
 }>;
-export type AutopilotCycleResult = 'idle' | 'more' | 'blocked';
+export type AutopilotCycleResult = 'idle' | 'more' | 'blocked' | 'rate_limited';
 export type AutopilotCycleGuard = Readonly<{ scope: string; current: () => boolean }>;
 export type AutopilotExclusiveResult<T> =
   | Readonly<{ status: 'completed'; value: T }>
   | Readonly<{ status: 'busy' | 'unavailable' | 'context_changed' }>;
 
-const IDLE_DELAY = 5_000;
-const MORE_DELAY = 500;
+const IDLE_DELAY = 15_000;
+const MORE_DELAY = 15_000;
 const BLOCKED_DELAY = 30_000;
+const RATE_LIMIT_DELAY = 300_000;
 const ERROR_DELAY = 3_000;
 const MAX_ERROR_DELAY = 60_000;
 
@@ -62,7 +63,7 @@ export function createAutopilotSession({ perform, onError, clock = Date.now,
       .then(result => {
         if (!original.current() || result === null) return;
         failures = 0;
-        nextAt = clock() + (result === 'more' ? MORE_DELAY : result === 'blocked' ? BLOCKED_DELAY : IDLE_DELAY);
+        nextAt = clock() + (result === 'rate_limited' ? RATE_LIMIT_DELAY : result === 'more' ? MORE_DELAY : result === 'blocked' ? BLOCKED_DELAY : IDLE_DELAY);
       }, error => {
         if (!original.current()) return;
         failures = Math.min(failures + 1, 6);
