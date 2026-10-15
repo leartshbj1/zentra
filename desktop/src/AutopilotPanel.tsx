@@ -82,7 +82,8 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
           <div><strong>{item.reasons.includes('missing_article') ? catalogue.title : copy.request}</strong><time dateTime={new Date(item.createdAt * 1000).toISOString()}>
             {new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt * 1000)}
           </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul>
-          {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}</div>
+          {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}
+          {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}</div>
           <div className="quote-autopilot__request-actions">
           {item.reasons.includes('missing_article') && onCatalogue && <>
             <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'browse')}>{catalogue.browse}</button>

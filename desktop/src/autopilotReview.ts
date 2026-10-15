@@ -7,18 +7,21 @@ export type AutopilotReviewReason = typeof AUTOPILOT_REVIEW_REASONS[number];
 export type AutopilotReviewItem = Readonly<{
   proposalId: string; sourceId: string; createdAt: number; disposition: 'needs_review';
   reasons: readonly AutopilotReviewReason[]; requiresHumanValidation: true;
+  /** Optional server hint: the client asked for "the usual". Present only when true. */
+  usualRequested?: true;
 }>;
 export type AutopilotReviewPage = Readonly<{
   organizationId: string; items: readonly AutopilotReviewItem[]; nextCursor: string | null;
 }>;
 const identifier = (value: unknown): value is string => typeof value === 'string'
   && value.length >= 1 && value.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9_.:@-]*$/.test(value);
-function dataRecord(value: unknown, names: readonly string[]): Record<string, unknown> | null {
+function dataRecord(value: unknown, names: readonly string[], optional: readonly string[] = []): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) return null;
   const keys = Reflect.ownKeys(value);
-  if (keys.length !== names.length || keys.some(key => typeof key !== 'string' || !names.includes(key))) return null;
+  const present = optional.filter(name => keys.includes(name));
+  if (keys.length !== names.length + present.length || keys.some(key => typeof key !== 'string' || !names.includes(key) && !optional.includes(key))) return null;
   const result: Record<string, unknown> = Object.create(null);
-  for (const key of names) {
+  for (const key of [...names, ...present]) {
     const field = Object.getOwnPropertyDescriptor(value, key);
     if (!field?.enumerable || !('value' in field)) return null;
     result[key] = field.value;
@@ -47,7 +50,8 @@ export function normalizeAutopilotReviewPage(raw: unknown, organizationId?: stri
     const rows = dataArray(page.items, 50); if (!rows) return null;
     const items: AutopilotReviewItem[] = [], proposals = new Map<string, string>(), sources = new Map<string, string>();
     for (const rawItem of rows) {
-      const item = dataRecord(rawItem, ['proposalId', 'sourceId', 'createdAt', 'disposition', 'reasons', 'requiresHumanValidation']);
+      const item = dataRecord(rawItem, ['proposalId', 'sourceId', 'createdAt', 'disposition', 'reasons', 'requiresHumanValidation'], ['usualRequested']);
+      if (item && 'usualRequested' in item && typeof item.usualRequested !== 'boolean') return null;
       if (!item || !identifier(item.proposalId) || !identifier(item.sourceId) || item.disposition !== 'needs_review'
         || item.requiresHumanValidation !== true || typeof item.createdAt !== 'number' || !Number.isSafeInteger(item.createdAt)
         || item.createdAt < 1 || item.createdAt > 253402300799) return null;
@@ -55,7 +59,8 @@ export function normalizeAutopilotReviewPage(raw: unknown, organizationId?: stri
       if (!reasons || reasons.length < 1 || new Set(reasons).size !== reasons.length
         || reasons.some(reason => typeof reason !== 'string' || !AUTOPILOT_REVIEW_REASONS.includes(reason as AutopilotReviewReason))) return null;
       const captured: AutopilotReviewItem = Object.freeze({ proposalId: item.proposalId, sourceId: item.sourceId,
-        createdAt: item.createdAt, disposition: 'needs_review', reasons: Object.freeze(reasons as AutopilotReviewReason[]), requiresHumanValidation: true });
+        createdAt: item.createdAt, disposition: 'needs_review', reasons: Object.freeze(reasons as AutopilotReviewReason[]), requiresHumanValidation: true,
+        ...(item.usualRequested === true ? { usualRequested: true as const } : {}) });
       const serialized = JSON.stringify(captured);
       if (proposals.has(captured.proposalId) && proposals.get(captured.proposalId) !== serialized
         || sources.has(captured.sourceId) && sources.get(captured.sourceId) !== captured.proposalId) return null;

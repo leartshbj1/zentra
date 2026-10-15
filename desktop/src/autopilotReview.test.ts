@@ -22,6 +22,11 @@ it('does not invoke getters while validating a retained page', () => {
   Object.defineProperty(value, 'items', { enumerable: true, get() { reads++; return [item]; } });
   expect(normalizeAutopilotReviewPage(value, 'company-a')).toBeNull(); expect(reads).toBe(0);
 });
+it('accepts only a boolean usual-request hint and keeps it only when true', () => {
+  expect(normalizeAutopilotReviewPage({ ...page, items: [{ ...item, usualRequested: true }] }, 'company-a')?.items[0]).toEqual({ ...item, usualRequested: true });
+  expect(normalizeAutopilotReviewPage({ ...page, items: [{ ...item, usualRequested: false }] }, 'company-a')?.items[0]).toEqual(item);
+  expect(normalizeAutopilotReviewPage({ ...page, items: [{ ...item, usualRequested: 'yes' }] }, 'company-a')).toBeNull();
+});
 it('deduplicates identical rows and rejects conflicting proposal or source identities', () => {
   expect(normalizeAutopilotReviewPage({ ...page, items: [item,item] }, 'company-a')?.items).toHaveLength(1);
   for(const change of [{ sourceId: 'other' }, { proposalId: 'other' }])
