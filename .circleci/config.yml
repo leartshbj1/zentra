@@ -535,6 +535,25 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: windows
+  windows-release-large:
+    resource_class: windows.large
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_ONLY: "false"
+      ZENTRA_RELEASE_TEST_HARNESS: "true"
+    steps:
+      - checkout
+      - run:
+          name: Verify all native release tests and build the Windows installer on Windows Large
+          command: ./desktop/scripts/cloud-release-windows.ps1
+          no_output_timeout: 20m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: windows
   windows-release-1913:
     resource_class: windows.medium
     machine:
@@ -728,7 +747,7 @@ workflows:
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
-      - windows-release-1913
+      - windows-release-large
   quality-continuity-verification:
     when:
       and:
