@@ -719,6 +719,16 @@ workflows:
       - apple
       - android:
           build-mode: release
+  redesign-release-1916:
+    when:
+      and:
+        - not: << pipeline.parameters.verify-live-account-only >>
+        - equal: [claude/redesign-2026, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not:
+            equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
+    jobs:
+      - windows-release-1913
   quality-continuity-verification:
     when:
       and:
