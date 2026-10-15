@@ -25,4 +25,5 @@ for(const file of files){const root=postcss.parse(readFileSync(path.join(src,fil
  if(!declarations.length)return;
  const selectors=rule.selectors.filter(s=>!s.includes(':root')).map(s=>{const prefix='html[data-app-theme="dark"]';s=s.replace(/^html\b/,prefix);if(!s.startsWith(prefix))s=prefix+' '+s;return s.replace(/(::[\w-]+(?:\([^)]*\))?)?$/,exclusion+'$1');});if(selectors.length)output+=parents.join('')+selectors.join(',')+'{'+declarations.join(';')+'}'+parents.map(()=>'}').join('')+'\n';
  });}
-writeFileSync(path.join(src,'dark.generated.css'),'@media screen {\n'+output+'}\n');console.log(`Dark screen palette: ${files.length} stylesheets, ${Buffer.byteLength(output)} bytes`);
+// LF only, whatever the checkout's line endings, so a build never dirties the tracked file.
+writeFileSync(path.join(src,'dark.generated.css'),('@media screen {\n'+output+'}\n').replace(/\r\n?/g,'\n'));console.log(`Dark screen palette: ${files.length} stylesheets, ${Buffer.byteLength(output)} bytes`);

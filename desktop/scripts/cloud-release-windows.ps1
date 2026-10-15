@@ -552,6 +552,7 @@ try {
         # Export only observed schemas from this same checkout and package job.
         # List tracked paths changed by the build, so a refused receipt names them.
         & git status --porcelain=v1 --untracked-files=no | Write-Host
+        & git --no-pager diff -- desktop/src-tauri/Cargo.toml | Write-Host
         Invoke-Checked $schemaNode @('desktop/scripts/tauri-schema-readonly-receipt.mjs', 'after', $script:releasePreflightSource, $schemaBaselinePath, $schemaBaselineSha256)
         $schemaReceiptPath = Join-Path $artifacts 'tauri-schemas/receipt.public.json'
         $schemaReceiptSha256 = (Get-FileHash -LiteralPath $schemaReceiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
