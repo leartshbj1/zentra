@@ -555,7 +555,7 @@ jobs:
           path: desktop/artifacts/windows
           destination: windows
   windows-autopilot-release-large:
-    resource_class: windows.xlarge
+    resource_class: windows.large
     machine:
       image: windows-server-2022-gui:2026.05.1
       shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
