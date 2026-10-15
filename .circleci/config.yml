@@ -554,6 +554,25 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: windows
+  windows-autopilot-release-large:
+    resource_class: windows.xlarge
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      ZENTRA_VERIFY_ONLY: "false"
+      ZENTRA_RELEASE_TEST_HARNESS: "true"
+    steps:
+      - checkout
+      - run:
+          name: Verify OFF and ON native release tests and package the Windows product with Autopilote
+          command: ./desktop/scripts/cloud-release-windows.ps1 -WindowsAutopilotProductOn
+          no_output_timeout: 40m
+      - store_artifacts:
+          path: desktop/artifacts/windows
+          destination: windows
   windows-release-1913:
     resource_class: windows.medium
     machine:
@@ -615,12 +634,12 @@ jobs:
           command: bash desktop/scripts/codemagic-apple.sh macos
           no_output_timeout: 20m
       - run:
+          name: Launch the packaged Mac app in an isolated profile
+          command: python3 desktop/scripts/local-apple-package-smoke.py
+      - run:
           name: Build physical iPhone IPA and verify touch controls
           command: bash desktop/scripts/cloud-release-apple.sh iphone
           no_output_timeout: 20m
-      - run:
-          name: Launch the packaged Mac app in an isolated profile
-          command: python3 desktop/scripts/local-apple-package-smoke.py
       - run:
           name: Record the exact Apple pipeline revision
           command: |
@@ -747,7 +766,7 @@ workflows:
         - not:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
-      - windows-release-large
+      - windows-autopilot-release-large
       - apple
   quality-continuity-verification:
     when:
