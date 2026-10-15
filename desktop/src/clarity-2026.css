@@ -26,6 +26,7 @@
     --apple-radius-control: 12px;
     --apple-radius-group: 22px;
     --z-hover: #e9efea;
+    --z-pane: #f8faf8;
     --z-accent-hover: #173e2e;
     --z-hairline: rgb(28 41 35 / 0.08);
     --z-shadow: 0 1px 2px rgb(28 41 35 / 0.04), 0 10px 30px -14px rgb(28 41 35 / 0.16);
@@ -54,6 +55,7 @@
     --apple-warning: #f0d292;
     --apple-warning-surface: #352e1f;
     --z-hover: #2a2c2b;
+    --z-pane: #1d1d20;
     --z-accent-hover: #b6e0c7;
     --z-hairline: rgb(238 243 239 / 0.08);
     --z-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.5);
@@ -600,5 +602,107 @@
     color: var(--apple-accent);
     font-size: calc(13px * var(--zentra-ui-text-scale, 1));
     line-height: 1.45;
+  }
+}
+
+/* Second pass: one sheet per idea. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
+    align-items: center;
+  }
+
+  /* First steps read as one calm, centred invitation. */
+  html[data-app-theme] .desktop-app[data-experience] .finance-first-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: none;
+    margin: 0;
+    padding: 64px 32px;
+    border: 0;
+    border-radius: var(--apple-radius-group);
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+    text-align: center;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .finance-first-step h2 {
+    font-size: calc(26px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.03em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .finance-first-step p {
+    max-width: 52ch;
+    margin-inline: auto;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.finance-first-step__action, .finance-first-step__secondary) {
+    justify-content: center;
+  }
+
+  /* Toolbars are not sheets: the tabs float on the canvas. */
+  html[data-app-theme] .desktop-app[data-experience] :is(.reminder-toolbar, .accounting-toolbar).panel {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.reminder-toolbar, .accounting-toolbar) {
+    margin-bottom: 8px;
+  }
+
+  /* Index and detail share a single sheet; the index sits on a soft tint. */
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-workspace, .project-reports__layout, .settings-browser) {
+    overflow: clip;
+    border: 0;
+    border-radius: var(--apple-radius-group);
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-index, .project-reports__picker, .settings-browser__navigation) {
+    border: 0;
+    border-right: 1px solid var(--z-hairline);
+    border-radius: 0;
+    align-self: stretch;
+    background: var(--z-pane);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.notes-sheet, .project-reports__detail, .settings-browser__detail) {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail :is(.panel, .settings-card) {
+    box-shadow: none;
+  }
+}
+
+@media screen {
+  /* Row actions: compact and quiet until needed. */
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__actions .document-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__actions .button {
+    min-height: 32px;
+    padding: 5px 12px;
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__actions .button--icon {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__actions .button--secondary {
+    background: transparent;
+    box-shadow: none;
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__actions .button:hover:not(:disabled) {
+    background: var(--z-hover);
   }
 }
