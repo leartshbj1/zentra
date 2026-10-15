@@ -33,6 +33,8 @@
     --z-glass: rgb(245 247 245 / 0.78);
     --z-backdrop: rgb(16 26 21 / 0.32);
     --z-ring: rgb(43 106 80 / 0.22);
+    --z-shadow-press: 0 1px 2px rgb(0 0 0 / 0.12);
+    --z-shadow-pill: 0 1px 2px rgb(0 0 0 / 0.08), 0 2px 8px rgb(0 0 0 / 0.04);
     --work-shadow: var(--z-shadow);
   }
   html[data-app-theme='dark'] {
@@ -59,6 +61,8 @@
     --z-glass: rgb(22 22 24 / 0.8);
     --z-backdrop: rgb(0 0 0 / 0.5);
     --z-ring: rgb(159 211 181 / 0.25);
+    --z-shadow-press: 0 1px 2px rgb(0 0 0 / 0.12);
+    --z-shadow-pill: 0 1px 2px rgb(0 0 0 / 0.08), 0 2px 8px rgb(0 0 0 / 0.04);
     --work-shadow: var(--z-shadow);
   }
 
@@ -261,7 +265,7 @@
   html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--primary {
     background: var(--apple-accent);
     color: var(--apple-on-accent);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+    box-shadow: var(--z-shadow-press);
   }
   html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--secondary {
     background: var(--apple-paper);
@@ -452,9 +456,7 @@
   }
   html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs__selection, .section-navigation__selection) {
     border-radius: 999px;
-    box-shadow:
-      0 1px 2px rgb(0 0 0 / 0.08),
-      0 2px 8px rgb(0 0 0 / 0.04);
+    box-shadow: var(--z-shadow-pill);
   }
 
   /* Status: small, quiet pills. */
