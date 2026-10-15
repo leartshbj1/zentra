@@ -11,6 +11,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import {
   Archive,
   Check,
+  History,
   Package,
   Plus,
   Receipt,
@@ -22,6 +23,7 @@ import {
 import { desktopApi } from './bridge';
 import { CustomerCreditPanel } from './CustomerCreditPanel';
 import { activeCatalogItems, catalogItemToDocumentLine } from './catalog';
+import { findUsualArticles, withUsualArticles } from './usualArticles';
 import type { DocumentLine, Invoice, Project, Quote, Workspace } from './types';
 import {
   addDaysIso,
@@ -172,6 +174,11 @@ export function DocumentEditor({
     ? [...new Set(creditOriginal.lines.map((line) => line.vatRateBp))].filter((rate) => rate >= 0).sort((a, b) => a - b)
     : [...new Set([0, ...settings.billing.vatRatesBp])];
   const currency = creditOriginal?.currency || current?.currency || settings.billing.currency || 'CHF';
+  const usualArticles = useMemo(
+    () => entity === 'quotes' && !readOnly ? findUsualArticles(workspace, selectedClientId, currency, item?.id) : null,
+    [entity, readOnly, workspace, selectedClientId, currency, item?.id],
+  );
+  const [usualAdded, setUsualAdded] = useState<number | null>(null);
   const reservedTimeDraftChanged = Boolean(reservedTime && currentInvoice && (
     JSON.stringify(lines.map(timeInvoiceLineIdentity)) !== JSON.stringify(currentInvoice.lines.map(timeInvoiceLineIdentity)) ||
     selectedClientId !== currentInvoice.clientId || (selectedProjectId || null) !== currentInvoice.projectId ||
@@ -991,7 +998,22 @@ export function DocumentEditor({
                   }
                 >
                   <Plus size={15} />{t("Ligne libre")}</Button>
+                {usualArticles && usualArticles.lines.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="small"
+                    title={t('Reprend les articles commandés au moins deux fois par ce client, aux prix actuels du catalogue.')}
+                    onClick={() => {
+                      const before = new Set(lines.map(line => line.catalogItemId).filter(Boolean));
+                      setUsualAdded(usualArticles.lines.filter(entry => !before.has(entry.line.catalogItemId)).length);
+                      setLines(currentLines => withUsualArticles(currentLines, usualArticles));
+                    }}
+                  >
+                    <History size={15} />{t('Ajouter les articles habituels')}</Button>
+                ) : null}
               </div>
+              {usualAdded !== null ? <p className="line-editor__usual" role="status">{usualAdded ? t('{count} articles habituels ajoutés aux prix actuels. Vérifiez les quantités avant d’enregistrer.', { count: usualAdded }) : t('Les articles habituels de ce client sont déjà dans le document.')}</p> : null}
             </header>
             <div className="line-editor__head">
               <span>{t("Description")}</span>

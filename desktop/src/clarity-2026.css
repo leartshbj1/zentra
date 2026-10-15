@@ -590,3 +590,15 @@
     background: var(--apple-paper);
   }
 }
+
+@media screen {
+  html[data-app-theme] .line-editor .line-editor__usual {
+    margin: 10px 0 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--apple-selection);
+    color: var(--apple-accent);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.45;
+  }
+}
