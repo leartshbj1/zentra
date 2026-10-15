@@ -1,0 +1,48 @@
+/*
+ * Clarity 2026: refinement layer loaded last. Same palette and tokens; only
+ * hierarchy, air and calmer surfaces. Works in light and dark through the
+ * existing --apple-* variables. Selectors match the specificity of the
+ * existing experience layer so the refinement wins without !important.
+ */
+html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
+  padding: 40px 32px 28px;
+}
+html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+/* Surfaces and controls: rounder, softer, a touch of physical feedback. */
+html[data-app-theme] .desktop-app[data-experience] .app-main .metric-grid {
+  border-radius: 20px;
+}
+html[data-app-theme] .desktop-app[data-experience] .app-main .button:not(.button--icon) {
+  border-radius: 999px;
+}
+html[data-app-theme] .desktop-app[data-experience] .app-main .button {
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+html[data-app-theme] .desktop-app[data-experience] .app-main .button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-app-theme] .desktop-app[data-experience] .app-main .button {
+    transition: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .button:active:not(:disabled) {
+    transform: none;
+  }
+}
+@media (max-width: 760px) {
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
+    padding: 24px 20px 18px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
+    font-size: 30px;
+  }
+}
