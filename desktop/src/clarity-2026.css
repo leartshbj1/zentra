@@ -232,7 +232,6 @@
 
   /* One large title, one quiet line under it. */
   html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
-    padding: 36px var(--work-space) 32px;
     align-items: flex-end;
   }
   html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
@@ -244,9 +243,6 @@
   html[data-app-theme] .desktop-app[data-experience] .app-main .page-header p {
     margin-top: 8px;
     font-size: calc(15px * var(--zentra-ui-text-scale, 1));
-  }
-  html[data-app-theme] .desktop-app[data-experience] .app-main .page-content {
-    padding: 0 var(--work-space) 56px;
   }
 
   /* Controls: pills, a single deep green, soft hover, physical press. */
@@ -534,9 +530,6 @@
   @media (max-width: 760px) {
     html[data-app-theme] .desktop-app[data-experience] {
       --work-space: 20px;
-    }
-    html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
-      padding: 24px 20px 20px;
     }
     html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
       font-size: calc(30px * var(--zentra-ui-text-scale, 1));
@@ -828,5 +821,15 @@
   html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-card {
     padding: 0;
     background: transparent;
+  }
+}
+
+/* Desktop spacing only: the phone layout owns its safe areas and tab bar clearance. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
+    padding: 36px max(var(--work-space), var(--safe-right, 0px)) 32px max(var(--work-space), var(--safe-left, 0px));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-content {
+    padding: 0 max(var(--work-space), var(--safe-right, 0px)) 56px max(var(--work-space), var(--safe-left, 0px));
   }
 }
