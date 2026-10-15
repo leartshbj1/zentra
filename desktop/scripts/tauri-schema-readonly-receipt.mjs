@@ -131,8 +131,9 @@ export function reconcileWithPorts(source, helperSha256, baseline, ports) {
 
 function adapter(source) {
   need(process.env.CIRCLECI === 'true' && process.env.OS === 'Windows_NT'
-    && process.env.CIRCLE_JOB === 'windows-autopilot-product'
-    && process.env.CIRCLE_BRANCH === 'codex/action-engine-native-live-a41'
+    && ((process.env.CIRCLE_JOB === 'windows-autopilot-product' && process.env.CIRCLE_BRANCH === 'codex/action-engine-native-live-a41')
+      // The public release line packages the same no-context product build.
+      || (process.env.CIRCLE_JOB === 'windows-autopilot-release-large' && process.env.CIRCLE_BRANCH === 'claude/redesign-2026'))
     && process.env.CIRCLE_SHA1 === source && process.env.ZENTRA_RELEASE_TEST_HARNESS === 'true', 'schema_ci_required');
   const env = {};
   for (const key of ['PATH','Path','SystemRoot','WINDIR','TEMP','TMP']) if (typeof process.env[key] === 'string') env[key] = process.env[key];
