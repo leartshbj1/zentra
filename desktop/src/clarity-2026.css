@@ -27,6 +27,7 @@
     --apple-radius-group: 22px;
     --z-hover: #e9efea;
     --z-pane: #f8faf8;
+    --z-on-accent-tint: rgb(255 255 255 / 0.18);
     --z-accent-hover: #173e2e;
     --z-hairline: rgb(28 41 35 / 0.08);
     --z-shadow: 0 1px 2px rgb(28 41 35 / 0.04), 0 10px 30px -14px rgb(28 41 35 / 0.16);
@@ -56,6 +57,7 @@
     --apple-warning-surface: #352e1f;
     --z-hover: #2a2c2b;
     --z-pane: #1d1d20;
+    --z-on-accent-tint: rgb(15 42 30 / 0.16);
     --z-accent-hover: #b6e0c7;
     --z-hairline: rgb(238 243 239 / 0.08);
     --z-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.5);
@@ -473,10 +475,17 @@
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
   }
+  /* The base .modal scrolls (overflow:auto); never clip it, or long forms lose their buttons. */
   html[data-app-theme] .modal {
     border-radius: 26px;
     box-shadow: var(--z-shadow-lifted);
-    overflow: hidden;
+  }
+  /* Roomier default sizes; dialogs with their own size class keep it. */
+  :where(html[data-app-theme]) .modal {
+    width: min(680px, 100%);
+  }
+  :where(html[data-app-theme]) .modal--wide {
+    width: min(1000px, 100%);
   }
   html[data-app-theme] .modal__header {
     padding: 26px 28px 18px;
@@ -704,5 +713,120 @@
   }
   html[data-app-theme] .desktop-app[data-experience] .sales-document__actions .button:hover:not(:disabled) {
     background: var(--z-hover);
+  }
+}
+
+@media screen {
+  /* The main action of a dialog stays in view while its content scrolls. */
+  html[data-app-theme] .modal :is(.form-actions, .mail-actions) {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    padding-block: 14px;
+    background: var(--apple-paper);
+    box-shadow: 0 -1px 0 var(--z-hairline);
+  }
+}
+
+/* Settings: a calm index like a system preferences window. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__navigation {
+    padding: 18px 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__search {
+    min-height: 40px;
+    margin-bottom: 6px;
+    border-radius: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group h2 {
+    margin: 18px 10px 6px;
+    color: var(--apple-secondary);
+    font-size: calc(11px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link] {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    margin: 1px 0;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--apple-ink);
+    text-align: left;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link] > svg:last-child {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation .settings-browser__icon {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--apple-selection);
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation .settings-browser__icon svg {
+    width: 17px;
+    height: 17px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__label strong {
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__label small {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link]:not([aria-current]):hover {
+    background: var(--z-hover);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] {
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] .settings-browser__label strong {
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] .settings-browser__icon {
+    background: var(--z-on-accent-tint);
+    color: var(--apple-on-accent);
+  }
+
+  /* Detail: the open category reads as the page title. */
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail {
+    padding: 32px 36px 40px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-category > summary {
+    padding: 0 0 20px;
+    border: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-category > summary > svg {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-category > summary strong {
+    color: var(--apple-ink);
+    font-size: calc(26px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-category > summary small {
+    margin-top: 6px;
+    color: var(--apple-secondary);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-card {
+    padding: 0;
+    background: transparent;
   }
 }
