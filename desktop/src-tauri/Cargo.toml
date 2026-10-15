@@ -88,8 +88,10 @@ pretty_assertions = "1"
 tauri = { version = "2", features = ["test"] }
 
 [profile.release]
-codegen-units = 1
-lto = true
+# Thin LTO over parallel units keeps the release build inside the CI time
+# limit; tests are unaffected and run in full before packaging.
+codegen-units = 16
+lto = "thin"
 opt-level = "s"
 panic = "abort"
 strip = true
