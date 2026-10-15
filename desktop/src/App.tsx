@@ -1,4 +1,6 @@
-import { t } from './language';
+import { getAppLocale, t } from './language';
+import { formatPlanPrice, usePlanCatalog } from './planCatalog';
+import { markDemoWorkspace, seedDemoWorkspace } from './demoWorkspace';
 import { useAppLanguage } from './language';
 import {
   useCallback,
@@ -320,9 +322,15 @@ export function App() {
         onJoined={next=>{setWorkspace(next);void revalidateCloudAccess();}}
         cloudAccount={cloudAccount}
         onCloudAccountChange={handleCloudAccountChange}
-        onComplete={async (settings: AppSettings, scope) => {
+        onComplete={async (settings: AppSettings, scope, options) => {
           const organization = cloudAccount?.status === 'connected' ? cloudAccount.organizationId ?? null : null;
-          const next = await desktopApi.completeOnboarding(settings, scope);
+          let next = await desktopApi.completeOnboarding(settings, scope);
+          if (options?.demo) {
+            markDemoWorkspace();
+            // The company already exists: a seeding failure must not keep the user in setup.
+            try { await seedDemoWorkspace(desktopApi); } catch { /* Partial demo data stays visible and labelled. */ }
+            next = await desktopApi.loadWorkspace();
+          }
           setCreatedFor(organization);
           setWorkspace(next);
         }}
@@ -439,6 +447,7 @@ function LicenseActivation({
   onInstall: (token: string) => Promise<void>;
   onRefresh: () => Promise<void>;
 }) {
+  const plans = usePlanCatalog().plans;
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -575,7 +584,7 @@ function LicenseActivation({
       </details>
       <p>
         {license.reason ||
-          `Solo 49 CHF · Start 59 CHF · Pro 89 CHF par mois · toutes les fonctions actuelles et futures incluses`}
+          t('{plans} par mois · toutes les fonctions actuelles et futures incluses', { plans: plans.map(plan => `${plan.name} ${formatPlanPrice(plan.monthlyChfCents, getAppLocale())}`).join(' · ') })}
       </p>
     </aside>
   );

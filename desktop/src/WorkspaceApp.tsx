@@ -24,6 +24,7 @@ import { ElapsedTimer } from './ElapsedTimer';
 import { WorkspacePersonalization, shortcutMeta, quickActionMeta } from './WorkspacePersonalization';
 import { availableShortcuts, selectedShortcut, useWorkspacePreferences } from './workspacePreferences';
 import { ResetAppPanel } from './ResetAppPanel';
+import { DemoWorkspaceBanner } from './DemoWorkspaceBanner';
 import { SupplierPaymentOutcomeUnknownError, SupplierPaymentRefreshError, type SupplierPaymentResume } from './supplierPaymentWorkflow';
 import { SupplierInvoiceValidationOutcomeUnknownError, SupplierInvoiceValidationRefreshError } from './supplierInvoiceValidation';
 import { t, useAppLanguage, getAppLocale, getAppLanguage } from './language';
@@ -2090,6 +2091,7 @@ function WorkspaceContent({
             <CloudAccountAccess account={cloudAccount} onAccountChange={onCloudAccountChange} />
           </div>
         </header>
+        <DemoWorkspaceBanner />
 
         {availableUpdate && dismissedUpdate !== availableUpdate ? <div className="notice" role="status"><span><Download size={18} /> {t("Zentra {v0} est disponible", { v0: availableUpdate })}</span><Button size="small" onClick={openUpdater}>{t("Voir la mise à jour")}</Button><Button variant="ghost" size="icon" aria-label={t("Masquer la notification de mise à jour")} onClick={() => setDismissedUpdate(availableUpdate)}><X size={16} /></Button></div> : null}
 

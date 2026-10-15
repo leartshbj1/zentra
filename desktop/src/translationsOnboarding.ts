@@ -103,4 +103,6 @@ export const onboardingTranslations: Record<string, readonly [string,string,stri
   'Choisissez comment protéger votre travail.':['Wählen Sie, wie Sie Ihre Arbeit schützen.','Scegli come proteggere il tuo lavoro.','Choose how to protect your work.'],
   'Bientôt chez vous.':['Gleich sind Sie angekommen.','Quasi a casa.','Almost home.'],
   'Un dernier regard, et votre espace est prêt.':['Ein letzter Blick, und Ihr Arbeitsbereich ist bereit.','Un ultimo sguardo, e il tuo spazio è pronto.','One last look, and your workspace is ready.'],
+  'Commencer avec l’essentiel':['Mit dem Wesentlichen beginnen','Inizia con l’essenziale','Start with the essentials'],
+  'TVA, coordonnées bancaires, salaires et sauvegardes pourront être réglés plus tard, depuis l’accueil.':['MWST, Bankverbindung, Löhne und Sicherungen können Sie später auf der Startseite einrichten.','IVA, coordinate bancarie, salari e backup potranno essere configurati più tardi, dalla pagina iniziale.','VAT, bank details, payroll and backups can be set up later from the home screen.'],
 };

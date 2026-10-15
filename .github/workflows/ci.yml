@@ -1,0 +1,63 @@
+name: Zentra CI
+
+# Runs on every push and pull request. Releases stay on CircleCI; this only
+# guards the code: typecheck, frontend tests and build, and a Windows compile
+# of the native app and its tests.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck, tests, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm --dir desktop exec tsc --noEmit -p .
+      - name: Unit and interface tests
+        run: pnpm --dir desktop exec vitest run
+      - name: Production web build
+        run: pnpm --dir desktop build:web
+
+  windows:
+    name: Windows native compile
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Web assets embedded by the native app
+        run: pnpm --dir desktop build:web
+      - name: Rust toolchain
+        shell: pwsh
+        run: rustup toolchain install stable-x86_64-pc-windows-msvc --profile minimal
+      - name: Compile the app and all its tests
+        shell: pwsh
+        run: cargo check --locked --all-targets --manifest-path desktop/src-tauri/Cargo.toml

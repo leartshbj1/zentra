@@ -1,6 +1,6 @@
 import { SupplierCreditAllocationModal } from './SupplierCreditAllocationModal';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { t } from './language';
+import { t, useAppLanguage } from './language';
 import { MobileDetails, useCompactLayout } from './MobileDetails';
 import './purchase-inbox.css';
 import type { SupplierInboxState } from './supplierInbox';
@@ -497,31 +497,31 @@ function emptyCreditLine(workspace: Workspace): CreditDraftLine {
 function supplierName(workspace: Workspace, supplierId: string) {
   return (
     workspace.suppliers.find((supplier) => supplier.id === supplierId)?.name ||
-    'Fournisseur inconnu'
+    t('Fournisseur inconnu')
   );
 }
 
 function orderName(order: SupplierOrder) {
-  return order.number || order.title || 'Commande brouillon';
+  return order.number || order.title || t('Commande brouillon');
 }
 
 function receiptName(receipt: SupplierReceipt) {
-  return receipt.number || 'Réception brouillon';
+  return receipt.number || t('Réception brouillon');
 }
 
 function nextActionLabel(action: ReturnType<typeof supplierOrderNextAction>) {
-  if (action === 'confirm') return 'Contrôler et confirmer';
-  if (action === 'issue_receipt') return 'Contrôler la réception';
-  if (action === 'create_receipt') return 'Saisir la réception';
-  if (action === 'match_invoice') return 'Rapprocher une facture';
+  if (action === 'confirm') return t('Contrôler et confirmer');
+  if (action === 'issue_receipt') return t('Contrôler la réception');
+  if (action === 'create_receipt') return t('Saisir la réception');
+  if (action === 'match_invoice') return t('Rapprocher une facture');
   return '';
 }
 
 function invoiceMatchLabel(invoice: SupplierInvoice) {
-  if (invoice.matchStatus === 'matched') return 'Rapprochée';
-  if (invoice.matchStatus === 'partial') return 'Partiellement rapprochée';
-  if (invoice.matchStatus === 'mismatch') return 'Écart à corriger';
-  return 'À rapprocher';
+  if (invoice.matchStatus === 'matched') return t('Rapprochée');
+  if (invoice.matchStatus === 'partial') return t('Partiellement rapprochée');
+  if (invoice.matchStatus === 'mismatch') return t('Écart à corriger');
+  return t('À rapprocher');
 }
 
 export function supplierInvoiceNeedsAttention(
@@ -633,6 +633,7 @@ export function PurchaseOrdersScreen({
   onReadWorkspace: () => Promise<Workspace>;
   onOpenBank: () => void;
 }) {
+  useAppLanguage();
   const compact = useCompactLayout();
   const [section, setSection] = useState<PurchaseSection>('inbox');
   const [creditToReveal, setCreditToReveal] = useState<string | null>(null);
@@ -781,7 +782,7 @@ export function PurchaseOrdersScreen({
     setModalFailure(null);
     try {
       const success = await runAction(action, message, false, modal ? (reason) => {
-        setModalFailure({ requestId: modal.requestId, message: errorMessage(reason, 'L’opération n’a pas pu être enregistrée.') });
+        setModalFailure({ requestId: modal.requestId, message: errorMessage(reason, t('L’opération n’a pas pu être enregistrée.')) });
       } : undefined);
       if (success) { setModalState(nextModal ? { ...nextModal, requestId:createId() } : null); setModalFailure(null); }
       return success;
@@ -811,12 +812,12 @@ export function PurchaseOrdersScreen({
         disabled={busy || readOnly || !activeSuppliers.length}
         title={
           activeSuppliers.length
-            ? 'Créer une commande fournisseur'
-            : 'Ajoutez d’abord un fournisseur actif.'
+            ? t('Créer une commande fournisseur')
+            : t('Ajoutez d’abord un fournisseur actif.')
         }
         onClick={() => setModal({ type: 'order' })}
       >
-        <Plus size={16} /> Nouvelle commande
+        <Plus size={16} /> {t('Nouvelle commande')}
       </Button>
     ) : section === 'documents' ? (
       <div className="purchase-workflow__header-actions">
@@ -825,30 +826,30 @@ export function PurchaseOrdersScreen({
           disabled={busy || readOnly || !activeSuppliers.length}
           onClick={() => setModal({ type: 'credit' })}
         >
-          <FilePlus2 size={16} /> Nouvel avoir
+          <FilePlus2 size={16} /> {t('Nouvel avoir')}
         </Button>
         <Button disabled={busy || readOnly} onClick={onCreateSupplierInvoice}>
-          <Plus size={16} /> Nouvelle facture
+          <Plus size={16} /> {t('Nouvelle facture')}
         </Button>
       </div>
     ) : section === 'suppliers' ? (
       <Button disabled={busy || readOnly} onClick={onCreateSupplier}>
-        <Plus size={16} /> Nouveau fournisseur
+        <Plus size={16} /> {t('Nouveau fournisseur')}
       </Button>
     ) : null;
 
   const summary = (
       <div
         className="purchase-workflow__summary"
-        aria-label="Résumé des achats fournisseurs"
+        aria-label={t('Résumé des achats fournisseurs')}
       >
         <div>
-          <span>À traiter</span>
+          <span>{t('À traiter')}</span>
           <strong>{mailboxUnavailable ? '—' : inboxCount}</strong>
-          <small>{t(mailboxUnavailable ? 'Réception mail à actualiser' : mailbox?.linked ? 'Réception mail comprise' : 'Commandes, factures et avoirs')}</small>
+          <small>{mailboxUnavailable ? t('Réception mail à actualiser') : mailbox?.linked ? t('Réception mail comprise') : t('Commandes, factures et avoirs')}</small>
         </div>
         <div>
-          <span>Commandes actives</span>
+          <span>{t('Commandes actives')}</span>
           <strong>
             {
               workspace.supplierOrders.filter(
@@ -856,17 +857,17 @@ export function PurchaseOrdersScreen({
               ).length
             }
           </strong>
-          <small>hors brouillons et clôturées</small>
+          <small>{t('hors brouillons et clôturées')}</small>
         </div>
         <div>
-          <span>Réceptions à émettre</span>
+          <span>{t('Réceptions à émettre')}</span>
           <strong>{receiptDraftCount}</strong>
-          <small>le stock ne bouge qu’à l’émission</small>
+          <small>{t('le stock ne bouge qu’à l’émission')}</small>
         </div>
         <div>
-          <span>Solde fournisseurs</span>
+          <span>{t('Solde fournisseurs')}</span>
           <strong>{formatMoney(unpaidCents)}</strong>
-          <small>factures moins paiements et avoirs</small>
+          <small>{t('factures moins paiements et avoirs')}</small>
         </div>
       </div>
   );
@@ -880,33 +881,33 @@ export function PurchaseOrdersScreen({
         <div className="report-callout is-warning">
           <ShieldCheck size={20} />
           <div>
-            <strong>Comptabilité à configurer</strong>
+            <strong>{t('Comptabilité à configurer')}</strong>
             <p>
-              Complétez les comptes pour valider vos factures. Vos brouillons sont conservés.
+              {t('Complétez les comptes pour valider vos factures. Vos brouillons sont conservés.')}
             </p>
           </div>
           <Button variant="secondary" onClick={()=>onOpenAccounting()}>
-            Configurer
+            {t('Configurer')}
           </Button>
         </div>
       ) : null}
 
       <section className="panel purchase-workflow__panel">
         {section !== 'inbox' && <SectionHeading
-          title="Suivi des achats"
+          title={t('Suivi des achats')}
           action={primaryAction}
         />}
         <div className="purchase-workflow__toolbar">
           <label className="purchase-workflow__mobile-section">
-            <span>Section des achats</span>
-            <select aria-label="Section des achats" value={section} onChange={(event) => setSection(event.target.value as PurchaseSection)}>
-              {sectionLabels.map(({ id, label }) => <option key={id} value={id}>{label} ({sectionCount(id)})</option>)}
+            <span>{t('Section des achats')}</span>
+            <select aria-label={t('Section des achats')} value={section} onChange={(event) => setSection(event.target.value as PurchaseSection)}>
+              {sectionLabels.map(({ id, label }) => <option key={id} value={id}>{t(label)} ({sectionCount(id)})</option>)}
             </select>
           </label>
           <div
             className="purchase-workflow__tabs"
             role="tablist"
-            aria-label="Sections des achats fournisseurs"
+            aria-label={t('Sections des achats fournisseurs')}
           >
             {sectionLabels.map(({ id, label, icon: Icon }) => (
               <button
@@ -952,19 +953,19 @@ export function PurchaseOrdersScreen({
                   );
                 }}
               >
-                <Icon size={16} /> <span>{label}</span>
+                <Icon size={16} /> <span>{t(label)}</span>
                 <em>{sectionCount(id)}</em>
               </button>
             ))}
           </div>
           <label className="purchase-search">
             <Search size={15} />
-            <span className="sr-only">Rechercher dans les achats</span>
+            <span className="sr-only">{t('Rechercher dans les achats')}</span>
             <input
               type="search"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="N°, fournisseur, référence…"
+              placeholder={t('N°, fournisseur, référence…')}
             />
           </label>
         </div>
@@ -1047,20 +1048,20 @@ export function PurchaseOrdersScreen({
                 icon={<FilePenLine />}
                 title={
                   query.trim()
-                    ? 'Aucune commande trouvée'
-                    : 'Aucune commande fournisseur'
+                    ? t('Aucune commande trouvée')
+                    : t('Aucune commande fournisseur')
                 }
                 text={
                   query.trim()
-                    ? 'Modifiez votre recherche.'
+                    ? t('Modifiez votre recherche.')
                     : activeSuppliers.length
-                      ? 'Créez un brouillon, contrôlez ses lignes, puis confirmez-le.'
-                      : 'Ajoutez d’abord un fournisseur actif.'
+                      ? t('Créez un brouillon, contrôlez ses lignes, puis confirmez-le.')
+                      : t('Ajoutez d’abord un fournisseur actif.')
                 }
                 actionLabel={
                   activeSuppliers.length
-                    ? 'Créer une commande'
-                    : 'Ajouter un fournisseur'
+                    ? t('Créer une commande')
+                    : t('Ajouter un fournisseur')
                 }
                 onAction={
                   activeSuppliers.length
@@ -1115,7 +1116,7 @@ export function PurchaseOrdersScreen({
               onDeleteCredit={(credit) =>
                 void completeLocalAction(
                   () => desktopApi.deleteSupplierCreditNoteDraft(credit.id),
-                  'Le brouillon d’avoir a été supprimé.',
+                  t('Le brouillon d’avoir a été supprimé.'),
                 )
               }
               onApplyCredit={(credit) =>
@@ -1148,7 +1149,7 @@ export function PurchaseOrdersScreen({
           ) : null}
         </div>
       </section>
-      {compact && <MobileDetails title="Résumé des achats">{summary}</MobileDetails>}
+      {compact && <MobileDetails title={t('Résumé des achats')}>{summary}</MobileDetails>}
 
       {modal?.type === 'order' ? (
         <SupplierOrderForm
@@ -1161,8 +1162,8 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () => desktopApi.saveSupplierOrderDraft(input),
               modal.order
-                ? 'Le brouillon de commande a été mis à jour.'
-                : 'Le brouillon de commande a été créé. Contrôlez-le avant confirmation.',
+                ? t('Le brouillon de commande a été mis à jour.')
+                : t('Le brouillon de commande a été créé. Contrôlez-le avant confirmation.'),
             )
           }
         />
@@ -1177,7 +1178,7 @@ export function PurchaseOrdersScreen({
           onConfirm={() =>
             completeLocalAction(
               () => desktopApi.confirmSupplierOrder(modal.requestId, modal.order.id),
-              'La commande fournisseur est confirmée. Les quantités attendent maintenant une réception ou un rapprochement direct.',
+              t('La commande fournisseur est confirmée. Les quantités attendent maintenant une réception ou un rapprochement direct.'),
             )
           }
         />
@@ -1198,7 +1199,7 @@ export function PurchaseOrdersScreen({
                   reason,
                   lines,
                 ),
-              'Le reliquat non reçu et non rapproché a été annulé avec son motif.',
+              t('Le reliquat non reçu et non rapproché a été annulé avec son motif.'),
             )
           }
         />
@@ -1218,8 +1219,8 @@ export function PurchaseOrdersScreen({
             const success = await completeLocalAction(
               () => desktopApi.saveSupplierReceiptDraft(input),
               modal.receipt
-                ? 'Le brouillon de réception a été mis à jour.'
-                : 'La réception est enregistrée en brouillon. Vérifiez les quantités avant de la valider.',
+                ? t('Le brouillon de réception a été mis à jour.')
+                : t('La réception est enregistrée en brouillon. Vérifiez les quantités avant de la valider.'),
               { type:'issue_receipt', receiptId:input.id! },
             );
             if(success) setSection('receipts');
@@ -1243,7 +1244,7 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () =>
                 desktopApi.issueSupplierReceipt(modal.requestId, receipt.id, receipt),
-              'La réception est validée. Les articles suivis ont été ajoutés au stock.',
+              t('La réception est validée. Les articles suivis ont été ajoutés au stock.'),
             )
           }
         />
@@ -1267,7 +1268,7 @@ export function PurchaseOrdersScreen({
                   modal.receipt.id,
                   reason,
                 ),
-              'La réception est annulée et son motif est conservé. Les articles concernés ont été retirés du stock.',
+              t('La réception est annulée et son motif est conservé. Les articles concernés ont été retirés du stock.'),
             )
           }
         />
@@ -1284,8 +1285,8 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () => desktopApi.saveSupplierInvoiceMatch(input),
               input.allocations.length
-                ? 'Le rapprochement multi-commandes a été enregistré atomiquement. Contrôlez puis validez la facture : chaque commande complète sera clôturée.'
-                : 'Tous les rapprochements de cette facture ont été retirés. Les réceptions peuvent maintenant être corrigées et la facture reste en brouillon.',
+                ? t('Le rapprochement multi-commandes a été enregistré atomiquement. Contrôlez puis validez la facture : chaque commande complète sera clôturée.')
+                : t('Tous les rapprochements de cette facture ont été retirés. Les réceptions peuvent maintenant être corrigées et la facture reste en brouillon.'),
             )
           }
         />
@@ -1302,8 +1303,8 @@ export function PurchaseOrdersScreen({
             completeLocalAction(
               () => desktopApi.saveSupplierCreditNoteDraft(input),
               modal.credit
-                ? 'Le brouillon d’avoir a été mis à jour.'
-                : 'L’avoir est enregistré en brouillon. Contrôlez-le avant validation.',
+                ? t('Le brouillon d’avoir a été mis à jour.')
+                : t('L’avoir est enregistré en brouillon. Contrôlez-le avant validation.'),
             )
           }
         />
@@ -1322,7 +1323,7 @@ export function PurchaseOrdersScreen({
                   modal.requestId,
                   modal.credit.id,
                 ),
-              'L’avoir fournisseur a été validé et comptabilisé. Ses allocations réduisent les soldes liés.',
+              t('L’avoir fournisseur a été validé et comptabilisé. Ses allocations réduisent les soldes liés.'),
             )
           }
         />
@@ -1330,7 +1331,7 @@ export function PurchaseOrdersScreen({
       {modal?.type === 'apply_credit' ? <SupplierCreditAllocationModal
         creditId={modal.credit.id} workspace={workspace} busy={busy} readOnly={readOnly} actionError={modalError}
         onClose={() => setModal(null)} onRefresh={onReadWorkspace} onOpenAccounting={receiptLinks.onOpenAccounting}
-        onConfirm={input => completeLocalAction(() => desktopApi.applySupplierCredit(modal.requestId, modal.credit.id, input.invoiceId, input.amountCents, input.date, input.expectedBalances), 'L’avoir a réduit le reste à payer de la facture. Aucun virement n’a été envoyé.')}
+        onConfirm={input => completeLocalAction(() => desktopApi.applySupplierCredit(modal.requestId, modal.credit.id, input.invoiceId, input.amountCents, input.date, input.expectedBalances), t('L’avoir a réduit le reste à payer de la facture. Aucun virement n’a été envoyé.'))}
       /> : null}
       {modal?.type === 'refund_credit' ? <SupplierCreditRefundModal
         creditId={modal.credit.id} refundId={modal.reverse?.id} workspace={workspace}
@@ -1339,13 +1340,13 @@ export function PurchaseOrdersScreen({
         onConfirm={input => completeLocalAction(() => modal.reverse
           ? desktopApi.reverseSupplierCreditRefund({requestId:modal.requestId,refundId:modal.reverse.id,date:input.date,reason:input.reason,expectedReview:input.expectedReview})
           : desktopApi.recordSupplierCreditRefund({...input,requestId:modal.requestId,supplierCreditNoteId:modal.credit.id}),
-          modal.reverse ? 'La correction a rétabli le disponible sur l’avoir et corrigé l’écriture bancaire.' : 'Le remboursement reçu est enregistré dans l’avoir et la comptabilité.')}
+          modal.reverse ? t('La correction a rétabli le disponible sur l’avoir et corrigé l’écriture bancaire.') : t('Le remboursement reçu est enregistré dans l’avoir et la comptabilité.'))}
       /> : null}
       {modal?.type==='refund_attachment'?<RefundAttachmentForm workspaceScope={workspace.workNotesScope} supplierCredit refund={modal.refund} busy={busy} readOnly={readOnly} close={()=>setModal(null)} act={runAction}/>:null}
       {modal?.type === 'reverse_credit' ? <SupplierCreditAllocationModal
         creditId={modal.credit.id} allocationId={modal.allocation.id} workspace={workspace} busy={busy} readOnly={readOnly} actionError={modalError}
         onClose={() => setModal(null)} onRefresh={onReadWorkspace} onOpenAccounting={receiptLinks.onOpenAccounting}
-        onConfirm={input => completeLocalAction(() => desktopApi.reverseSupplierCreditAllocation(modal.requestId, modal.allocation.id, input.reason, input.date, input.expectedBalances), 'L’utilisation de l’avoir a été annulée. Le montant reste disponible et revient dans le reste à payer de la facture.')}
+        onConfirm={input => completeLocalAction(() => desktopApi.reverseSupplierCreditAllocation(modal.requestId, modal.allocation.id, input.reason, input.date, input.expectedBalances), t('L’utilisation de l’avoir a été annulée. Le montant reste disponible et revient dans le reste à payer de la facture.'))}
       /> : null}
       {modal?.type === 'reclassify' ? (
         <SupplierExpenseReclassificationModal
@@ -1357,7 +1358,7 @@ export function PurchaseOrdersScreen({
           onConfirm={(input) =>
             completeLocalAction(
               () => desktopApi.reclassifySupplierInvoiceExpense(input),
-              'L’imputation de charge a été corrigée par une nouvelle écriture traçable.',
+              t('L’imputation de charge a été corrigée par une nouvelle écriture traçable.'),
             )
           }
         />
@@ -1399,15 +1400,16 @@ function PurchaseInbox({
   onValidateCredit: (credit: SupplierCreditNote) => void;
   onCreateOrder: () => void;
 }) {
+  useAppLanguage();
   if (!orders.length && !invoices.length && !credits.length) {
     // The mail queue above owns pending imports; never announce completion below it.
     if (!query.trim() && (pendingMail > 0 || mailboxUnavailable)) return null;
     return (
       <EmptyState
         icon={<CheckCircle2 />}
-        title={t(query.trim() ? 'Aucun résultat' : 'Aucun achat enregistré à traiter')}
+        title={query.trim() ? t('Aucun résultat') : t('Aucun achat enregistré à traiter')}
         actionVariant="secondary"
-        text={t(query.trim() ? 'Essayez un autre fournisseur ou une autre référence.' : 'Les commandes, factures et avoirs enregistrés sont à jour.')}
+        text={query.trim() ? t('Essayez un autre fournisseur ou une autre référence.') : t('Les commandes, factures et avoirs enregistrés sont à jour.')}
         actionLabel={query.trim() ? undefined : t('Créer une commande')}
         onAction={query.trim() ? undefined : onCreateOrder}
         disabled={busy}
@@ -1418,7 +1420,7 @@ function PurchaseInbox({
     <div
       className="purchase-inbox"
       role="list"
-      aria-label="Actions achats à traiter"
+      aria-label={t('Actions achats à traiter')}
     >
       {orders.map((order) => {
         const action = supplierOrderNextAction(order, workspace);
@@ -1430,7 +1432,7 @@ function PurchaseInbox({
         );
         const actionLabel =
           action === 'match_invoice' && !hasDraftInvoice
-            ? 'Créer la facture fournisseur'
+            ? t('Créer la facture fournisseur')
             : nextActionLabel(action);
         return (
           <article
@@ -1443,13 +1445,13 @@ function PurchaseInbox({
             </div>
             <div>
               <small>
-                Commande · {supplierName(workspace, order.supplierId)}
+                {t('Commande')} · {supplierName(workspace, order.supplierId)}
               </small>
               <strong>{orderName(order)}</strong>
               <p>{actionLabel}</p>
             </div>
             <Button size="small" disabled={busy} onClick={() => onNext(order)}>
-              Continuer <ArrowRight size={15} />
+              {t('Continuer')} <ArrowRight size={15} />
             </Button>
           </article>
         );
@@ -1496,15 +1498,15 @@ function PurchaseInbox({
               <ReceiptText size={18} />
             </div>
             <div>
-              <small>Facture · {invoice.supplierName}</small>
-              <strong>{invoice.reference || 'Référence à compléter'}</strong>
+              <small>{t('Facture')} · {invoice.supplierName}</small>
+              <strong>{invoice.reference || t('Référence à compléter')}</strong>
               <p>
                 {invoice.documentStatus === 'draft'
-                  ? 'Contrôler et valider le brouillon'
+                  ? t('Contrôler et valider le brouillon')
                   : overdue
-                    ? `Échue depuis le ${formatDate(invoice.dueDate)}`
+                    ? t('Échue depuis le {date}', { date: formatDate(invoice.dueDate) })
                     : invoice.matchStatus !== 'matched'
-                      ? 'Déjà validée · rapprochement non modifiable'
+                      ? t('Déjà validée · rapprochement non modifiable')
                       : invoiceMatchLabel(invoice)}
               </p>
             </div>
@@ -1516,7 +1518,7 @@ function PurchaseInbox({
                 disabled={busy}
                 onClick={() => onMatchInvoice(invoice, order)}
               >
-                Rapprocher <ArrowRight size={15} />
+                {t('Rapprocher')} <ArrowRight size={15} />
               </Button>
             ) : invoice.documentStatus === 'draft' ? (
               <Button
@@ -1524,14 +1526,14 @@ function PurchaseInbox({
                 disabled={busy}
                 title={
                   !accountingReady
-                    ? 'Configurez d’abord les comptes fournisseurs et de TVA.'
+                    ? t('Configurez d’abord les comptes fournisseurs et de TVA.')
                     : validationMismatch
-                      ? 'Corrigez l’écart global de quantité, de prix ou de TVA avant validation.'
-                      : 'Valider et comptabiliser'
+                      ? t('Corrigez l’écart global de quantité, de prix ou de TVA avant validation.')
+                      : t('Valider et comptabiliser')
                 }
                 onClick={() => onValidateInvoice(invoice)}
               >
-                Valider <ArrowRight size={15} />
+                {t('Valider')} <ArrowRight size={15} />
               </Button>
             ) : (
               <Button
@@ -1539,7 +1541,7 @@ function PurchaseInbox({
                 variant="secondary"
                 onClick={() => onOpenInvoice(invoice)}
               >
-                Consulter <Eye size={15} />
+                {t('Consulter')} <Eye size={15} />
               </Button>
             )}
           </article>
@@ -1555,23 +1557,23 @@ function PurchaseInbox({
             <FilePlus2 size={18} />
           </div>
           <div>
-            <small>Avoir brouillon · {credit.supplierName}</small>
+            <small>{t('Avoir brouillon')} · {credit.supplierName}</small>
             <strong>
-              {credit.reference || credit.number || 'Sans référence'}
+              {credit.reference || credit.number || t('Sans référence')}
             </strong>
-            <p>Contrôler les montants et allocations avant validation</p>
+            <p>{t('Contrôler les montants et allocations avant validation')}</p>
           </div>
           <Button
             size="small"
             disabled={busy || !accountingReady}
             title={
               accountingReady
-                ? 'Contrôler puis valider'
-                : 'Configurez d’abord les comptes fournisseurs et de TVA.'
+                ? t('Contrôler puis valider')
+                : t('Configurez d’abord les comptes fournisseurs et de TVA.')
             }
             onClick={() => onValidateCredit(credit)}
           >
-            Contrôler <ArrowRight size={15} />
+            {t('Contrôler')} <ArrowRight size={15} />
           </Button>
         </article>
       ))}
@@ -1598,6 +1600,7 @@ function SupplierOrderCard({
   onMatchInvoice: (invoice: SupplierInvoice) => void;
   onOpenInvoice: (invoice: SupplierInvoice) => void;
 }) {
+  useAppLanguage();
   const progress = supplierOrderProgress(order, workspace);
   const display = supplierOrderDisplayStatus(order, workspace);
   const match = supplierThreeWayMatchStatus(order, workspace);
@@ -1638,24 +1641,24 @@ function SupplierOrderCard({
           <p>{order.title}</p>
         </div>
         <div className="supplier-order-card__statuses">
-          <StatusBadge status={display.status} label={display.label} />
+          <StatusBadge status={display.status} label={t(display.label)} />
           <span className={`match-pill match-pill--${match.status}`}>
-            {match.label}
+            {t(match.label)}
           </span>
         </div>
       </header>
       <div className="supplier-order-card__progress">
         <div>
           <span>
-            <strong>Réception</strong>
+            <strong>{t('Réception')}</strong>
             <small>
               {progress.receiptLineCount
-                ? `${progress.receiptCompletedLines}/${progress.receiptLineCount} lignes`
-                : 'Prestations directes'}
+                ? t('{done}/{total} lignes', { done: progress.receiptCompletedLines, total: progress.receiptLineCount })
+                : t('Prestations directes')}
             </small>
           </span>
           <progress
-            aria-label="Progression de la réception"
+            aria-label={t('Progression de la réception')}
             max="100"
             value={progress.receiptPercent}
           >
@@ -1664,13 +1667,13 @@ function SupplierOrderCard({
         </div>
         <div>
           <span>
-            <strong>Rapprochement</strong>
+            <strong>{t('Rapprochement')}</strong>
             <small>
-              {progress.matchCompletedLines}/{progress.matchLineCount} lignes
+              {t('{done}/{total} lignes', { done: progress.matchCompletedLines, total: progress.matchLineCount })}
             </small>
           </span>
           <progress
-            aria-label="Progression du rapprochement"
+            aria-label={t('Progression du rapprochement')}
             max="100"
             value={progress.matchPercent}
           >
@@ -1687,10 +1690,10 @@ function SupplierOrderCard({
                 <strong>{line.description}</strong>
                 <small>
                   {line.fulfillmentMode === 'direct'
-                    ? 'Prestation directe'
+                    ? t('Prestation directe')
                     : line.fulfillmentMode === 'stocked_receipt'
-                      ? 'Réception avec stock'
-                      : 'Réception sans stock'}
+                      ? t('Réception avec stock')
+                      : t('Réception sans stock')}
                 </small>
               </span>
               <span>
@@ -1699,8 +1702,7 @@ function SupplierOrderCard({
                   {line.unit}
                 </strong>
                 <small>
-                  reçu {formatCatalogQuantity(row.receivedQuantityMilli)} ·
-                  rapproché {formatCatalogQuantity(row.matchedQuantityMilli)}
+                  {t('reçu {received} · rapproché {matched}', { received: formatCatalogQuantity(row.receivedQuantityMilli), matched: formatCatalogQuantity(row.matchedQuantityMilli) })}
                 </small>
               </span>
             </div>
@@ -1712,14 +1714,14 @@ function SupplierOrderCard({
           <AlertTriangle size={16} />
           <div>
             {match.issues.map((issue) => (
-              <p key={issue}>{issue}</p>
+              <p key={issue}>{t(issue)}</p>
             ))}
           </div>
         </div>
       ) : null}
       {linkedInvoices.length ? (
         <div className="supplier-order-card__links">
-          <span>Factures liées</span>
+          <span>{t('Factures liées')}</span>
           {linkedInvoices.map((invoice) => (
             <Button
               key={invoice.id}
@@ -1745,7 +1747,7 @@ function SupplierOrderCard({
               disabled={busy}
               onClick={onEdit}
             >
-              <Pencil size={14} /> Modifier
+              <Pencil size={14} /> {t('Modifier')}
             </Button>
           ) : null}
           {order.status === 'confirmed' && cancelable ? (
@@ -1755,7 +1757,7 @@ function SupplierOrderCard({
               disabled={busy}
               onClick={onCancelRemainder}
             >
-              Corriger le reliquat
+              {t('Corriger le reliquat')}
             </Button>
           ) : null}
           {next === 'match_invoice' && potentialInvoices.length ? (
@@ -1765,13 +1767,13 @@ function SupplierOrderCard({
               disabled={busy}
               onClick={() => onMatchInvoice(potentialInvoices[0])}
             >
-              <ReceiptText size={14} /> Rapprocher
+              <ReceiptText size={14} /> {t('Rapprocher')}
             </Button>
           ) : null}
           {next !== 'none' ? (
             <Button size="small" disabled={busy} onClick={onNext}>
               {next === 'match_invoice' && !potentialInvoices.length
-                ? 'Créer la facture fournisseur'
+                ? t('Créer la facture fournisseur')
                 : nextActionLabel(next)}{' '}
               <ArrowRight size={14} />
             </Button>
@@ -1797,12 +1799,13 @@ function ReceiptsSection({
   onIssue: (receipt: SupplierReceipt) => void;
   onReverse: (receipt: SupplierReceipt) => void;
 }) {
+  useAppLanguage();
   if (!receipts.length)
     return (
       <EmptyState
         icon={<PackageCheck />}
-        title="Aucune réception"
-        text="Une commande confirmée proposera ici une réception partielle ou complète. Les prestations directes n’en créent pas."
+        title={t('Aucune réception')}
+        text={t('Une commande confirmée proposera ici une réception partielle ou complète. Les prestations directes n’en créent pas.')}
       />
     );
   return (
@@ -1838,23 +1841,24 @@ function ReceiptsSection({
                 {formatDate(receipt.receiptDate)} ·{' '}
                 {order
                   ? supplierName(workspace, order.supplierId)
-                  : 'Commande introuvable'}
+                  : t('Commande introuvable')}
               </small>
               <strong>{receiptName(receipt)}</strong>
               <p>
                 {order ? orderName(order) : receipt.supplierOrderId} ·{' '}
-                {receipt.lines.length} ligne
-                {receipt.lines.length > 1 ? 's' : ''}
+                {receipt.lines.length > 1
+                  ? t('{count} lignes', { count: receipt.lines.length })
+                  : t('{count} ligne', { count: receipt.lines.length })}
               </p>
               {receipt.reversalReason ? (
                 <small className="is-negative">
-                  Motif : {receipt.reversalReason}
+                  {t('Motif : {reason}', { reason: receipt.reversalReason })}
                 </small>
               ) : null}
             </div>
             <StatusBadge
               status={receipt.status}
-              label={receipt.status === 'reversed' ? 'Annulée' : receipt.status === 'issued' ? 'Validée' : undefined}
+              label={receipt.status === 'reversed' ? t('Annulée') : receipt.status === 'issued' ? t('Validée') : undefined}
             />
             <div className="row-actions">
               {receipt.status === 'draft' && order ? (
@@ -1865,14 +1869,14 @@ function ReceiptsSection({
                     disabled={busy}
                     onClick={() => onEdit(receipt, order)}
                   >
-                    <Pencil size={14} /> Modifier
+                    <Pencil size={14} /> {t('Modifier')}
                   </Button>
                   <Button
                     size="small"
                     disabled={busy}
                     onClick={() => onIssue(receipt)}
                   >
-                    Vérifier et valider
+                    {t('Vérifier et valider')}
                   </Button>
                 </>
               ) : null}
@@ -1883,14 +1887,14 @@ function ReceiptsSection({
                   disabled={busy}
                   onClick={() => onReverse(receipt)}
                 >
-                  <RotateCcw size={14} /> Annuler la réception
+                  <RotateCcw size={14} /> {t('Annuler la réception')}
                 </Button>
               ) : null}
               {receipt.status === 'issued' && hasLinkedMatch ? (
                 <small className="receipt-card__lock-reason">
                   {allLinkedInvoicesAreDraft
-                    ? 'Rapprochée à une facture : retirez d’abord le lien brouillon.'
-                    : 'Liée à une facture validée : la réception ne peut plus être extournée.'}
+                    ? t('Rapprochée à une facture : retirez d’abord le lien brouillon.')
+                    : t('Liée à une facture validée : la réception ne peut plus être extournée.')}
                 </small>
               ) : null}
             </div>
@@ -1957,12 +1961,13 @@ function DocumentsSection({
   onArchiveExpense: (expense: Expense) => void;
   onPayExpense: (expense: Expense) => void;
 }) {
+  useAppLanguage();
   if (!invoices.length && !credits.length && !expenses.length)
     return (
       <EmptyState
         icon={<ReceiptText />}
-        title="Aucune facture ni avoir"
-        text="Ajoutez un document fournisseur réel. Aucun exemple n’est créé automatiquement."
+        title={t('Aucune facture ni avoir')}
+        text={t('Ajoutez un document fournisseur réel. Aucun exemple n’est créé automatiquement.')}
       />
     );
   return (
@@ -2009,33 +2014,32 @@ function DocumentsSection({
           <article className="purchase-document-card" key={invoice.id}>
             <div>
               <small>
-                Facture fournisseur · {formatDate(invoice.documentDate)}
+                {t('Facture fournisseur')} · {formatDate(invoice.documentDate)}
               </small>
-              <h3>{invoice.reference || 'Référence à compléter'}</h3>
+              <h3>{invoice.reference || t('Référence à compléter')}</h3>
               <p>
-                {invoice.supplierName} · échéance {formatDate(invoice.dueDate)}
+                {invoice.supplierName} · {t('échéance {date}', { date: formatDate(invoice.dueDate) })}
               </p>
               {invoice.documentStatus === 'validated' &&
               invoice.matchStatus !== 'matched' ? (
                 <small className="purchase-document-card__warning">
-                  Facture déjà validée : le rapprochement n’est plus modifiable.
-                  Corrigez par avoir et nouveau brouillon si nécessaire.
+                  {t('Facture déjà validée : le rapprochement n’est plus modifiable. Corrigez par avoir et nouveau brouillon si nécessaire.')}
                 </small>
               ) : null}
               {invoice.documentStatus === 'draft' && shouldOfferMatching ? (
                 <small className="purchase-document-card__warning">
                   {linkedMatch
-                    ? 'Le rapprochement reste modifiable jusqu’à la validation.'
-                    : 'Une commande ouverte de ce fournisseur peut être rapprochée avant validation.'}
+                    ? t('Le rapprochement reste modifiable jusqu’à la validation.')
+                    : t('Une commande ouverte de ce fournisseur peut être rapprochée avant validation.')}
                 </small>
               ) : null}
             </div>
             <div>
               <strong>{formatMoney(invoice.totalCents, invoice.currency)}</strong>
               <small>
-                Solde {formatMoney(invoice.balanceCents, invoice.currency)}
+                {t('Solde {amount}', { amount: formatMoney(invoice.balanceCents, invoice.currency) })}
                 {invoice.creditedCents
-                  ? ` · avoirs ${formatMoney(invoice.creditedCents, invoice.currency)}`
+                  ? ` · ${t('avoirs {amount}', { amount: formatMoney(invoice.creditedCents, invoice.currency) })}`
                   : ''}
               </small>
             </div>
@@ -2048,7 +2052,7 @@ function DocumentsSection({
                       ? 'draft'
                       : invoice.paymentStatus || 'validated'
                 }
-                label={overdue ? 'En retard' : undefined}
+                label={overdue ? t('En retard') : undefined}
               />
               <span
                 className={`match-pill match-pill--${invoice.matchStatus === 'matched' ? 'green' : invoice.matchStatus === 'mismatch' ? 'red' : 'orange'}`}
@@ -2068,8 +2072,8 @@ function DocumentsSection({
                     >
                       <ClipboardCheck size={14} />{' '}
                       {linkedMatch
-                        ? 'Modifier le rapprochement'
-                        : 'Rapprocher avant validation'}
+                        ? t('Modifier le rapprochement')
+                        : t('Rapprocher avant validation')}
                     </Button>
                   ) : null}
                   <Button
@@ -2080,19 +2084,19 @@ function DocumentsSection({
                     disabled={busy}
                     title={
                       !accountingReady
-                        ? 'Configurez d’abord les comptes fournisseurs et de TVA.'
+                        ? t('Configurez d’abord les comptes fournisseurs et de TVA.')
                         : validationMismatch
-                          ? 'Corrigez l’écart de quantité, de prix ou de TVA avant validation.'
+                          ? t('Corrigez l’écart de quantité, de prix ou de TVA avant validation.')
                           : shouldOfferMatching && !linkedMatch
-                            ? 'Valider volontairement cette facture comme autonome : elle ne pourra plus être rapprochée.'
-                            : 'Valider et comptabiliser'
+                            ? t('Valider volontairement cette facture comme autonome : elle ne pourra plus être rapprochée.')
+                            : t('Valider et comptabiliser')
                     }
                     onClick={() => onValidateInvoice(invoice)}
                   >
                     <FileCheck2 size={14} />{' '}
                     {shouldOfferMatching && !linkedMatch
-                      ? 'Valider comme autonome'
-                      : 'Valider'}
+                      ? t('Valider comme autonome')
+                      : t('Valider')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -2100,18 +2104,18 @@ function DocumentsSection({
                     disabled={busy || Boolean(linkedMatch)}
                     title={
                       linkedMatch
-                        ? 'Retirez d’abord le rapprochement avant de modifier la facture.'
-                        : 'Modifier le brouillon'
+                        ? t('Retirez d’abord le rapprochement avant de modifier la facture.')
+                        : t('Modifier le brouillon')
                     }
                     onClick={() => onEditInvoice(invoice)}
                   >
-                    <Pencil size={14} /> Modifier
+                    <Pencil size={14} /> {t('Modifier')}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     disabled={busy}
-                    aria-label={`Supprimer la facture ${invoice.reference || invoice.id}`}
+                    aria-label={t('Supprimer la facture {reference}', { reference: invoice.reference || invoice.id })}
                     onClick={() => onDeleteInvoice(invoice)}
                   >
                     <Trash2 size={14} />
@@ -2124,7 +2128,7 @@ function DocumentsSection({
                     size="small"
                     onClick={() => onOpenInvoice(invoice)}
                   >
-                    <Eye size={14} /> Consulter
+                    <Eye size={14} /> {t('Consulter')}
                   </Button>
                   {invoice.balanceCents > 0 ? (
                     <Button
@@ -2133,7 +2137,7 @@ function DocumentsSection({
                       disabled={busy}
                       onClick={() => onPayInvoice(invoice)}
                     >
-                      <Banknote size={14} /> Paiement
+                      <Banknote size={14} /> {t('Paiement')}
                     </Button>
                   ) : null}
                   <Button
@@ -2142,7 +2146,7 @@ function DocumentsSection({
                     disabled={busy}
                     onClick={() => onCredit(invoice)}
                   >
-                    Créer un avoir
+                    {t('Créer un avoir')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -2150,12 +2154,12 @@ function DocumentsSection({
                     disabled={busy || !accountingReady}
                     title={
                       accountingReady
-                        ? 'Corriger par une écriture traçable'
-                        : 'Configurez d’abord les comptes fournisseurs et de TVA.'
+                        ? t('Corriger par une écriture traçable')
+                        : t('Configurez d’abord les comptes fournisseurs et de TVA.')
                     }
                     onClick={() => onReclassify(invoice)}
                   >
-                    Corriger l’imputation
+                    {t('Corriger l’imputation')}
                   </Button>
                 </>
               )}
@@ -2182,21 +2186,20 @@ function DocumentsSection({
       {expenses.map((expense) => (
         <article className="purchase-document-card is-legacy" key={expense.id}>
           <div>
-            <small>Achat historique · {formatDate(expense.date)}</small>
-            <h3>{expense.reference || expense.supplier || 'Achat'}</h3>
+            <small>{t('Achat historique')} · {formatDate(expense.date)}</small>
+            <h3>{expense.reference || expense.supplier || t('Achat')}</h3>
             <p>
-              {expense.supplier || 'Fournisseur non renseigné'} · saisie directe
-              antérieure
+              {expense.supplier || t('Fournisseur non renseigné')} · {t('saisie directe antérieure')}
             </p>
           </div>
           <div>
             <strong>{formatMoney(expense.totalCents)}</strong>
-            <small>TVA {formatMoney(expense.vatCents)}</small>
-            {expenseRefundTotals(expense).totalCents ? <small>Remboursé : {formatMoney(expenseRefundTotals(expense).totalCents)}</small> : null}
+            <small>{t('TVA')} {formatMoney(expense.vatCents)}</small>
+            {expenseRefundTotals(expense).totalCents ? <small>{t('Remboursé : {amount}', { amount: formatMoney(expenseRefundTotals(expense).totalCents) })}</small> : null}
           </div>
           <StatusBadge
             status={expense.paymentStatus === 'paid' ? 'paid' : 'draft'}
-            label={expenseRefundTotals(expense).totalCents >= expense.totalCents ? 'Remboursé' : expenseRefundTotals(expense).totalCents > 0 ? 'Remboursé en partie' : expense.paymentStatus === 'paid' ? 'Payé' : 'À payer'}
+            label={expenseRefundTotals(expense).totalCents >= expense.totalCents ? t('Remboursé') : expenseRefundTotals(expense).totalCents > 0 ? t('Remboursé en partie') : expense.paymentStatus === 'paid' ? t('Payé') : t('À payer')}
           />
           <div className="row-actions">
             {expense.paymentStatus === 'pending' ? (
@@ -2207,7 +2210,7 @@ function DocumentsSection({
                   disabled={busy}
                   onClick={() => onPayExpense(expense)}
                 >
-                  Marquer payé
+                  {t('Marquer payé')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -2215,13 +2218,13 @@ function DocumentsSection({
                   disabled={busy}
                   onClick={() => onEditExpense(expense)}
                 >
-                  <Pencil size={14} /> Modifier
+                  <Pencil size={14} /> {t('Modifier')}
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   disabled={busy}
-                  aria-label={`Supprimer l’achat ${expense.reference || expense.id}`}
+                  aria-label={t('Supprimer l’achat {reference}', { reference: expense.reference || expense.id })}
                   onClick={() => onArchiveExpense(expense)}
                 >
                   <Trash2 size={14} />
@@ -2233,7 +2236,7 @@ function DocumentsSection({
                 size="small"
                 onClick={() => onOpenExpense(expense)}
               >
-                <Eye size={14} /> Consulter
+                <Eye size={14} /> {t('Consulter')}
               </Button>
             )}
           </div>
@@ -2268,6 +2271,7 @@ function SupplierCreditDocumentCard({
   onAttach:(refund:SupplierCreditRefund)=>void;
   onReverse: (allocation: SupplierCreditAllocation) => void;
 }) {
+  useAppLanguage();
   const availableCents = supplierCreditAvailable(credit);
   const reversedIds = new Set(
     credit.allocations
@@ -2282,12 +2286,10 @@ function SupplierCreditDocumentCard({
   return (
     <article id={`supplier-credit-${credit.id}`} tabIndex={-1} className="purchase-document-card purchase-document-card--credit">
       <div>
-        <small>Avoir fournisseur · {formatDate(credit.documentDate)}</small>
-        <h3>{credit.number || credit.reference || 'Avoir brouillon'}</h3>
+        <small>{t('Avoir fournisseur')} · {formatDate(credit.documentDate)}</small>
+        <h3>{credit.number || credit.reference || t('Avoir brouillon')}</h3>
         <p>
-          {credit.supplierName} · utilisé {formatMoney(credit.allocatedCents, credit.currency)} ·
-          remboursé {formatMoney(credit.refundedCents, credit.currency)} ·
-          disponible {formatMoney(availableCents, credit.currency)}
+          {credit.supplierName} · {t('utilisé {used} · remboursé {refunded} · disponible {available}', { used: formatMoney(credit.allocatedCents, credit.currency), refunded: formatMoney(credit.refundedCents, credit.currency), available: formatMoney(availableCents, credit.currency) })}
         </p>
         {activeApplications.length ? (
           <div className="credit-application-list">
@@ -2300,7 +2302,7 @@ function SupplierCreditDocumentCard({
                   <small>
                     {invoice?.reference || allocation.supplierInvoiceId} ·{' '}
                     {formatMoney(allocation.amountCents, credit.currency)}
-                    {' · '}{allocation.effectiveDate ? formatDate(allocation.effectiveDate) : 'Date de compensation non renseignée'}
+                    {' · '}{allocation.effectiveDate ? formatDate(allocation.effectiveDate) : t('Date de compensation non renseignée')}
                   </small>
                   {credit.status === 'validated' ? (
                     <Button
@@ -2309,10 +2311,10 @@ function SupplierCreditDocumentCard({
                       disabled={busy}
                       onClick={() => onReverse(allocation)}
                     >
-                      <RotateCcw size={13} /> Annuler cette utilisation
+                      <RotateCcw size={13} /> {t('Annuler cette utilisation')}
                     </Button>
                   ) : (
-                    <small>Modifiable dans le brouillon</small>
+                    <small>{t('Modifiable dans le brouillon')}</small>
                   )}
                 </span>
               );
@@ -2321,13 +2323,13 @@ function SupplierCreditDocumentCard({
         ) : null}
         {credit.status === 'validated' && credit.allocations.length > 0 ? (
           <details className="credit-application-history">
-            <summary>Historique des compensations ({credit.allocations.length})</summary>
+            <summary>{t('Historique des compensations ({count})', { count: credit.allocations.length })}</summary>
             <ol>
               {[...credit.allocations].sort((left, right) => right.sequence - left.sequence).map((allocation) => {
                 const invoice = workspace.supplierInvoices.find((row) => row.id === allocation.supplierInvoiceId);
                 return <li key={allocation.id}>
-                  <strong>{allocation.eventType === 'reverse' ? 'Utilisation annulée' : 'Utilisation sur facture'} · {formatMoney(allocation.amountCents, credit.currency)}</strong>
-                  <span>{invoice?.reference || allocation.supplierInvoiceId} · {allocation.effectiveDate ? formatDate(allocation.effectiveDate) : 'Date effective non renseignée'}</span>
+                  <strong>{allocation.eventType === 'reverse' ? t('Utilisation annulée') : t('Utilisation sur facture')} · {formatMoney(allocation.amountCents, credit.currency)}</strong>
+                  <span>{invoice?.reference || allocation.supplierInvoiceId} · {allocation.effectiveDate ? formatDate(allocation.effectiveDate) : t('Date effective non renseignée')}</span>
                   {allocation.reason ? <span>{allocation.reason}</span> : null}
                 </li>;
               })}
@@ -2335,19 +2337,19 @@ function SupplierCreditDocumentCard({
           </details>
         ) : null}
         {credit.refunds.length > 0 ? <details className="credit-application-history" data-credit-refunds>
-          <summary>Remboursements et corrections ({credit.refunds.length})</summary>
+          <summary>{t('Remboursements et corrections ({count})', { count: credit.refunds.length })}</summary>
           <ol>{[...credit.refunds].sort((left, right) => right.date.localeCompare(left.date) || right.sequence - left.sequence).map((refund) => <li key={refund.id}>
-            <strong>{refund.eventType === 'reverse' ? 'Correction' : 'Remboursement reçu'} · {formatMoney(refund.amountCents, credit.currency)}</strong>
+            <strong>{refund.eventType === 'reverse' ? t('Correction') : t('Remboursement reçu')} · {formatMoney(refund.amountCents, credit.currency)}</strong>
             <span>{formatDate(refund.date)} · {refund.reference}</span><span>{refund.reason}</span>
             <RefundAttachmentList workspaceScope={workspace.workNotesScope} attachments={(workspace.attachments ?? []).filter(file=>file.entityType==='supplier_credit_refund'&&file.entityId===refund.id)}/>
-            <Button variant="ghost" size="small" disabled={busy} onClick={()=>onAttach(refund)}>Joindre un justificatif</Button>
-            {refund.eventType === 'refund' && !credit.refunds.some((row) => row.reversesId === refund.id) ? <Button variant="ghost" size="small" disabled={busy} onClick={() => onRefund(refund)}>Corriger ce remboursement</Button> : null}
+            <Button variant="ghost" size="small" disabled={busy} onClick={()=>onAttach(refund)}>{t('Joindre un justificatif')}</Button>
+            {refund.eventType === 'refund' && !credit.refunds.some((row) => row.reversesId === refund.id) ? <Button variant="ghost" size="small" disabled={busy} onClick={() => onRefund(refund)}>{t('Corriger ce remboursement')}</Button> : null}
           </li>)}</ol>
         </details> : null}
       </div>
       <div>
         <strong>− {formatMoney(credit.totalCents, credit.currency)}</strong>
-        <small>TVA {formatMoney(credit.vatCents, credit.currency)}</small>
+        <small>{t('TVA')} {formatMoney(credit.vatCents, credit.currency)}</small>
       </div>
       <StatusBadge status={credit.status} />
       <div className="row-actions">
@@ -2358,12 +2360,12 @@ function SupplierCreditDocumentCard({
               disabled={busy || validationDisabled}
               title={
                 validationDisabled
-                  ? 'Configurez d’abord les comptes fournisseurs et de TVA.'
-                  : 'Contrôler puis valider'
+                  ? t('Configurez d’abord les comptes fournisseurs et de TVA.')
+                  : t('Contrôler puis valider')
               }
               onClick={onValidate}
             >
-              Contrôler et valider
+              {t('Contrôler et valider')}
             </Button>
             <Button
               variant="ghost"
@@ -2371,13 +2373,13 @@ function SupplierCreditDocumentCard({
               disabled={busy}
               onClick={onEdit}
             >
-              <Pencil size={14} /> Modifier
+              <Pencil size={14} /> {t('Modifier')}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               disabled={busy}
-              aria-label={`Supprimer l’avoir ${credit.reference || credit.id}`}
+              aria-label={t('Supprimer l’avoir {reference}', { reference: credit.reference || credit.id })}
               onClick={onDelete}
             >
               <Trash2 size={14} />
@@ -2385,10 +2387,10 @@ function SupplierCreditDocumentCard({
           </>
         ) : availableCents > 0 ? (
           <><Button size="small" disabled={busy} onClick={onApply}>
-            Utiliser sur une facture
-          </Button><Button variant="secondary" size="small" disabled={busy || credit.currency !== 'CHF'} onClick={() => onRefund()}><Banknote size={14}/> Remboursement reçu</Button></>
+            {t('Utiliser sur une facture')}
+          </Button><Button variant="secondary" size="small" disabled={busy || credit.currency !== 'CHF'} onClick={() => onRefund()}><Banknote size={14}/> {t('Remboursement reçu')}</Button></>
         ) : (
-          <StatusBadge status="closed" label="Avoir entièrement réglé" />
+          <StatusBadge status="closed" label={t('Avoir entièrement réglé')} />
         )}
       </div>
     </article>
@@ -2410,13 +2412,14 @@ function SuppliersSection({
   onArchive: (supplier: Supplier) => void;
   onRestore: (supplier: Supplier) => void;
 }) {
+  useAppLanguage();
   if (!suppliers.length)
     return (
       <EmptyState
         icon={<Building2 />}
-        title="Aucun fournisseur"
-        text="Ajoutez les coordonnées réelles du premier fournisseur."
-        actionLabel="Ajouter un fournisseur"
+        title={t('Aucun fournisseur')}
+        text={t('Ajoutez les coordonnées réelles du premier fournisseur.')}
+        actionLabel={t('Ajouter un fournisseur')}
         onAction={onCreate}
         disabled={busy}
       />
@@ -2435,19 +2438,19 @@ function SuppliersSection({
           <div>
             <strong>{supplier.name}</strong>
             <p>
-              {supplier.contactName || 'Aucun contact'} ·{' '}
-              {supplier.email || 'Aucun e-mail'}
+              {supplier.contactName || t('Aucun contact')} ·{' '}
+              {supplier.email || t('Aucun e-mail')}
             </p>
             <small>
-              {supplier.iban || 'IBAN non renseigné'} ·{' '}
+              {supplier.iban || t('IBAN non renseigné')} ·{' '}
               {supplier.paymentTermsDays
-                ? `${supplier.paymentTermsDays} jours`
-                : 'Paiement immédiat'}
+                ? t('{days} jours', { days: supplier.paymentTermsDays })
+                : t('Paiement immédiat')}
             </small>
           </div>
           <StatusBadge
             status={supplier.archivedAt ? 'incomplete' : 'validated'}
-            label={supplier.archivedAt ? 'Archivé' : 'Actif'}
+            label={supplier.archivedAt ? t('Archivé') : t('Actif')}
           />
           <div className="row-actions">
             <Button
@@ -2456,7 +2459,7 @@ function SuppliersSection({
               disabled={busy}
               onClick={() => onEdit(supplier)}
             >
-              <Pencil size={14} /> Modifier
+              <Pencil size={14} /> {t('Modifier')}
             </Button>
             {supplier.archivedAt ? (
               <Button
@@ -2465,7 +2468,7 @@ function SuppliersSection({
                 disabled={busy}
                 onClick={() => onRestore(supplier)}
               >
-                Réactiver
+                {t('Réactiver')}
               </Button>
             ) : (
               <Button
@@ -2474,7 +2477,7 @@ function SuppliersSection({
                 disabled={busy}
                 onClick={() => onArchive(supplier)}
               >
-                Archiver
+                {t('Archiver')}
               </Button>
             )}
           </div>
@@ -2501,6 +2504,7 @@ function SupplierOrderForm({
     input: Parameters<typeof desktopApi.saveSupplierOrderDraft>[0],
   ) => void;
 }) {
+  useAppLanguage();
   const [draftId] = useState(() => order?.id || createId());
   const [supplierId, setSupplierId] = useState(
     order?.supplierId ||
@@ -2560,7 +2564,7 @@ function SupplierOrderForm({
   function submit() {
     if (!supplierId || !title.trim())
       return setError(
-        'Choisissez un fournisseur et donnez un titre à la commande.',
+        t('Choisissez un fournisseur et donnez un titre à la commande.'),
       );
     if (
       !lines.length ||
@@ -2573,7 +2577,7 @@ function SupplierOrderForm({
       )
     )
       return setError(
-        'Chaque ligne doit avoir une description, une quantité positive et une catégorie.',
+        t('Chaque ligne doit avoir une description, une quantité positive et une catégorie.'),
       );
     if (
       lines.some((line) => {
@@ -2585,10 +2589,10 @@ function SupplierOrderForm({
       })
     )
       return setError(
-        'Une ligne « Réception + stock » doit viser un produit du catalogue dont le suivi de stock est activé.',
+        t('Une ligne « Réception + stock » doit viser un produit du catalogue dont le suivi de stock est activé.'),
       );
     if (lines.some((line) => !vatOptions.includes(line.vatBp)))
-      return setError('Vérifiez les taux TVA signalés avant d’enregistrer.');
+      return setError(t('Vérifiez les taux TVA signalés avant d’enregistrer.'));
     setError('');
     onSave({
       id: draftId,
@@ -2623,10 +2627,10 @@ function SupplierOrderForm({
       wide
       title={
         order
-          ? 'Modifier la commande fournisseur'
-          : 'Nouvelle commande fournisseur'
+          ? t('Modifier la commande fournisseur')
+          : t('Nouvelle commande fournisseur')
       }
-      description="Enregistrez un brouillon modifiable. La confirmation se fait ensuite dans un écran de contrôle séparé."
+      description={t('Enregistrez un brouillon modifiable. La confirmation se fait ensuite dans un écran de contrôle séparé.')}
       onClose={onClose}
     >
       <form
@@ -2636,13 +2640,13 @@ function SupplierOrderForm({
           submit();
         }}
       >
-        {!workspace.settings?.organization.vatRegistered ? <div className="info-strip field--wide"><ReceiptText size={17} /><span>{nonRegisteredPurchaseVatHint}</span></div> : null}
-        <Field label="Fournisseur" required>
+        {!workspace.settings?.organization.vatRegistered ? <div className="info-strip field--wide"><ReceiptText size={17} /><span>{t(nonRegisteredPurchaseVatHint)}</span></div> : null}
+        <Field label={t('Fournisseur')} required>
           <select
             value={supplierId}
             onChange={(event) => setSupplierId(event.target.value)}
           >
-            <option value="">Choisir…</option>
+            <option value="">{t('Choisir…')}</option>
             {workspace.suppliers
               .filter(
                 (supplier) =>
@@ -2655,7 +2659,7 @@ function SupplierOrderForm({
               ))}
           </select>
         </Field>
-        <Field label="Date" required>
+        <Field label={t('Date')} required>
           <input
             type="date"
             value={orderDate}
@@ -2664,19 +2668,19 @@ function SupplierOrderForm({
             required
           />
         </Field>
-        <Field label="Titre" required wide>
+        <Field label={t('Titre')} required wide>
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             required
           />
         </Field>
-        <Field label="Projet">
+        <Field label={t('Projet')}>
           <select
             value={projectId}
             onChange={(event) => setProjectId(event.target.value)}
           >
-            <option value="">Aucun</option>
+            <option value="">{t('Aucun')}</option>
             {workspace.projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -2684,14 +2688,14 @@ function SupplierOrderForm({
             ))}
           </select>
         </Field>
-        <Field label="Conditions">
+        <Field label={t('Conditions')}>
           <input
             value={terms}
             onChange={(event) => setTerms(event.target.value)}
-            placeholder="Délais, livraison, conditions…"
+            placeholder={t('Délais, livraison, conditions…')}
           />
         </Field>
-        <Field label="Notes" wide>
+        <Field label={t('Notes')} wide>
           <textarea
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
@@ -2701,8 +2705,8 @@ function SupplierOrderForm({
         <div className="purchase-line-editor field--wide">
           <div className="purchase-line-editor__heading">
             <div>
-              <strong>Lignes de commande</strong>
-              <small>Le mode pilote la réception et le stock.</small>
+              <strong>{t('Lignes de commande')}</strong>
+              <small>{t('Le mode pilote la réception et le stock.')}</small>
             </div>
             <Button
               type="button"
@@ -2715,7 +2719,7 @@ function SupplierOrderForm({
                 ])
               }
             >
-              <Plus size={14} /> Ajouter une ligne
+              <Plus size={14} /> {t('Ajouter une ligne')}
             </Button>
           </div>
           {lines.map((line, index) => {
@@ -2725,14 +2729,14 @@ function SupplierOrderForm({
             return (
               <div className="purchase-line-editor__row" key={line.id}>
                 <div className="purchase-line-editor__index">{index + 1}</div>
-                <Field label="Article du catalogue">
+                <Field label={t('Article du catalogue')}>
                   <select
                     value={line.catalogItemId}
                     onChange={(event) =>
                       chooseCatalog(line, event.target.value)
                     }
                   >
-                    <option value="">Saisie libre</option>
+                    <option value="">{t('Saisie libre')}</option>
                     {catalog.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
@@ -2740,7 +2744,7 @@ function SupplierOrderForm({
                     ))}
                   </select>
                 </Field>
-                <Field label="Description" required>
+                <Field label={t('Description')} required>
                   <input
                     value={line.description}
                     onChange={(event) =>
@@ -2748,7 +2752,7 @@ function SupplierOrderForm({
                     }
                   />
                 </Field>
-                <Field label="Quantité" required>
+                <Field label={t('Quantité')} required>
                   <input
                     type="number"
                     min="0.001"
@@ -2761,7 +2765,7 @@ function SupplierOrderForm({
                     }
                   />
                 </Field>
-                <Field label="Unité">
+                <Field label={t('Unité')}>
                   <input
                     value={line.unit}
                     onChange={(event) =>
@@ -2769,7 +2773,7 @@ function SupplierOrderForm({
                     }
                   />
                 </Field>
-                <Field label="Prix achat HT">
+                <Field label={t('Prix achat HT')}>
                   <input
                     type="number"
                     min="0"
@@ -2782,7 +2786,7 @@ function SupplierOrderForm({
                     }
                   />
                 </Field>
-                <Field label="Rabais %">
+                <Field label={t('Rabais %')}>
                   <input
                     type="number"
                     min="0"
@@ -2796,7 +2800,7 @@ function SupplierOrderForm({
                     }
                   />
                 </Field>
-                <Field label="TVA %" error={!vatOptions.includes(line.vatBp) ? "Ce taux n’est plus configuré. Choisissez un taux disponible." : undefined}>
+                <Field label={t('TVA %')} error={!vatOptions.includes(line.vatBp) ? t('Ce taux n’est plus configuré. Choisissez un taux disponible.') : undefined}>
                   <select
                     value={line.vatBp / 100}
                     onChange={(event) =>
@@ -2807,12 +2811,12 @@ function SupplierOrderForm({
                   >
                     {[...new Set([...vatOptions, line.vatBp])].map((rate) => (
                       <option key={rate} value={rate / 100}>
-                        {(rate / 100).toLocaleString('fr-CH')} %{!vatOptions.includes(rate) ? ' (à vérifier)' : ''}
+                        {(rate / 100).toLocaleString('fr-CH')} %{!vatOptions.includes(rate) ? ` (${t('à vérifier')})` : ''}
                       </option>
                     ))}
                   </select>
                 </Field>
-                <Field label="Catégorie" required>
+                <Field label={t('Catégorie')} required>
                   <input
                     list="purchase-categories"
                     value={line.category}
@@ -2821,7 +2825,7 @@ function SupplierOrderForm({
                     }
                   />
                 </Field>
-                <Field label="Traitement" required>
+                <Field label={t('Traitement')} required>
                   <select
                     value={line.fulfillmentMode}
                     onChange={(event) =>
@@ -2839,16 +2843,16 @@ function SupplierOrderForm({
                         !selectedCatalog.trackStock
                       }
                     >
-                      Réception + stock
+                      {t('Réception + stock')}
                     </option>
                     <option value="untracked_receipt">
-                      Réception sans stock
+                      {t('Réception sans stock')}
                     </option>
-                    <option value="direct">Prestation directe</option>
+                    <option value="direct">{t('Prestation directe')}</option>
                   </select>
                 </Field>
                 <div className="purchase-line-editor__total">
-                  <small>Total TTC</small>
+                  <small>{t('Total TTC')}</small>
                   <strong>
                     {formatMoney(supplierDraftLineTotals(line).totalCents)}
                   </strong>
@@ -2861,7 +2865,7 @@ function SupplierOrderForm({
                   onClick={() =>
                     setLines((rows) => rows.filter((row) => row.id !== line.id))
                   }
-                  aria-label={`Supprimer la ligne ${index + 1}`}
+                  aria-label={t('Supprimer la ligne {number}', { number: index + 1 })}
                 >
                   <Trash2 size={15} />
                 </Button>
@@ -2875,13 +2879,13 @@ function SupplierOrderForm({
           </datalist>
           <div className="purchase-line-editor__summary">
             <span>
-              HT <strong>{formatMoney(totals.netCents)}</strong>
+              {t('HT')} <strong>{formatMoney(totals.netCents)}</strong>
             </span>
             <span>
-              TVA <strong>{formatMoney(totals.vatCents)}</strong>
+              {t('TVA')} <strong>{formatMoney(totals.vatCents)}</strong>
             </span>
             <span>
-              Total <strong>{formatMoney(totals.totalCents)}</strong>
+              {t('Total')} <strong>{formatMoney(totals.totalCents)}</strong>
             </span>
           </div>
         </div>
@@ -2913,17 +2917,18 @@ function ConfirmOrderModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  useAppLanguage();
   return (
     <Modal
       wide
-      title="Contrôler puis confirmer la commande"
-      description="Après confirmation, l’identité du fournisseur et les quantités pilotent les réceptions et le rapprochement."
+      title={t('Contrôler puis confirmer la commande')}
+      description={t('Après confirmation, l’identité du fournisseur et les quantités pilotent les réceptions et le rapprochement.')}
       onClose={onClose}
     >
       <div className="document-preview purchase-preview">
         <header>
           <div>
-            <small>Destinataire</small>
+            <small>{t('Destinataire')}</small>
             <h3>{supplierName(workspace, order.supplierId)}</h3>
             <p>
               {order.title} · {formatDate(order.orderDate)}
@@ -2938,10 +2943,10 @@ function ConfirmOrderModal({
                 <strong>{line.description}</strong>
                 <small>
                   {line.fulfillmentMode === 'direct'
-                    ? 'Sans réception'
+                    ? t('Sans réception')
                     : line.fulfillmentMode === 'stocked_receipt'
-                      ? 'Réception avec entrée en stock'
-                      : 'Réception sans stock'}
+                      ? t('Réception avec entrée en stock')
+                      : t('Réception sans stock')}
                 </small>
               </span>
               <span>
@@ -2953,29 +2958,28 @@ function ConfirmOrderModal({
         </div>
         {order.notes ? (
           <p>
-            <strong>Notes :</strong> {order.notes}
+            <strong>{t('Notes :')}</strong> {order.notes}
           </p>
         ) : null}
         {order.terms ? (
           <p>
-            <strong>Conditions :</strong> {order.terms}
+            <strong>{t('Conditions :')}</strong> {order.terms}
           </p>
         ) : null}
       </div>
       <div className="confirmation-callout">
         <ShieldCheck size={19} />
         <p>
-          Je confirme le fournisseur, les lignes, les modes de traitement et les
-          quantités ci-dessus. La commande ne sera plus modifiable directement.
+          {t('Je confirme le fournisseur, les lignes, les modes de traitement et les quantités ci-dessus. La commande ne sera plus modifiable directement.')}
         </p>
       </div>
       {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" onClick={onClose} disabled={busy}>
-          Retour au brouillon
+          {t('Retour au brouillon')}
         </Button>
         <Button onClick={onConfirm} disabled={busy}>
-          <FileCheck2 size={16} /> Confirmer la commande
+          <FileCheck2 size={16} /> {t('Confirmer la commande')}
         </Button>
       </div>
     </Modal>
@@ -3000,6 +3004,7 @@ function CancelSupplierRemainderModal({
     lines: Array<{ supplierOrderLineId: string; quantityMilli: number }>,
   ) => void;
 }) {
+  useAppLanguage();
   const cancelable = order.lines
     .map((line) => {
       const progress = supplierOrderLineProgress(order, line, workspace);
@@ -3026,13 +3031,13 @@ function CancelSupplierRemainderModal({
   return (
     <Modal
       wide
-      title="Corriger le reliquat de commande"
-      description="Annulez uniquement la part qui ne sera ni reçue ni rapprochée. Le motif restera dans l’historique."
+      title={t('Corriger le reliquat de commande')}
+      description={t('Annulez uniquement la part qui ne sera ni reçue ni rapprochée. Le motif restera dans l’historique.')}
       onClose={onClose}
     >
       <div className="receipt-quantity-grid">
         <div className="receipt-quantity-grid__heading">
-          <strong>Quantités à annuler</strong>
+          <strong>{t('Quantités à annuler')}</strong>
           <small>{supplierName(workspace, order.supplierId)}</small>
         </div>
         {cancelable.map(({ line, max }) => (
@@ -3040,7 +3045,7 @@ function CancelSupplierRemainderModal({
             <span>
               <strong>{line.description}</strong>
               <small>
-                Maximum {formatCatalogQuantity(max)} {line.unit}
+                {t('Maximum {quantity} {unit}', { quantity: formatCatalogQuantity(max), unit: line.unit })}
               </small>
             </span>
             <input
@@ -3059,7 +3064,7 @@ function CancelSupplierRemainderModal({
           </label>
         ))}
       </div>
-      <Field label="Motif de la correction" required>
+      <Field label={t('Motif de la correction')} required>
         <textarea
           value={reason}
           onChange={(event) => setReason(event.target.value)}
@@ -3067,7 +3072,7 @@ function CancelSupplierRemainderModal({
         />
       </Field>
       <div className="correction-preview">
-        <strong>Aperçu du reliquat annulé</strong>
+        <strong>{t('Aperçu du reliquat annulé')}</strong>
         {cancelable
           .filter(({ line }) => (quantities[line.id] || 0) > 0)
           .map(({ line }) => (
@@ -3080,7 +3085,7 @@ function CancelSupplierRemainderModal({
       {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
-          Annuler
+          {t('Annuler')}
         </Button>
         <Button
           variant="danger"
@@ -3097,7 +3102,7 @@ function CancelSupplierRemainderModal({
             )
           }
         >
-          Confirmer la correction
+          {t('Confirmer la correction')}
         </Button>
       </div>
     </Modal>
@@ -3123,6 +3128,7 @@ function SupplierInvoiceMatchModal({
     input: Parameters<typeof desktopApi.saveSupplierInvoiceMatch>[0],
   ) => void;
 }) {
+  useAppLanguage();
   const [requestId] = useState(createId);
   const supplierId = initialInvoice?.supplierId || initialOrder.supplierId;
   const eligibleOrders = workspace.supplierOrders.filter((candidate) => {
@@ -3401,23 +3407,25 @@ function SupplierInvoiceMatchModal({
     );
   });
   const error = !invoice
-    ? 'Aucune facture brouillon de ce fournisseur ne peut être rapprochée.'
+    ? t('Aucune facture brouillon de ce fournisseur ne peut être rapprochée.')
     : hasProtectedSplitMatches
-      ? `Cette facture contient ${protectedSplitItemIds.length} ligne${protectedSplitItemIds.length > 1 ? 's' : ''} déjà répartie${protectedSplitItemIds.length > 1 ? 's' : ''} sur plusieurs commandes. Pour éviter toute perte, retirez d’abord le rapprochement existant; aucune allocation ne sera remplacée par cet éditeur.`
+      ? protectedSplitItemIds.length > 1
+        ? t('Cette facture contient {count} lignes déjà réparties sur plusieurs commandes. Pour éviter toute perte, retirez d’abord le rapprochement existant; aucune allocation ne sera remplacée par cet éditeur.', { count: protectedSplitItemIds.length })
+        : t('Cette facture contient {count} ligne déjà répartie sur plusieurs commandes. Pour éviter toute perte, retirez d’abord le rapprochement existant; aucune allocation ne sera remplacée par cet éditeur.', { count: protectedSplitItemIds.length })
       : compatibleOrders.length === 0
-      ? 'Aucune commande confirmée de même fournisseur, devise et date ne peut être rapprochée.'
+      ? t('Aucune commande confirmée de même fournisseur, devise et date ne peut être rapprochée.')
       : overAllocatedOrderLine
-        ? 'Les allocations cumulées dépassent une ligne de commande.'
+        ? t('Les allocations cumulées dépassent une ligne de commande.')
         : invalidItem
-          ? 'Chaque ligne associée doit avoir une quantité encore disponible.'
+          ? t('Chaque ligne associée doit avoir une quantité encore disponible.')
           : preview.missingItemIds.length
-            ? 'Les réceptions émises ne couvrent pas toutes les quantités demandées.'
+            ? t('Les réceptions émises ne couvrent pas toutes les quantités demandées.')
             : preview.allocations.length === 0
-              ? 'Rapprochez au moins une ligne de facture à la commande.'
+              ? t('Rapprochez au moins une ligne de facture à la commande.')
               : '';
   const globalAmountWarning =
     globalAmountMismatch && previewAmountDifference
-      ? `L’écart global de la facture dépasse 1 centime (HT ${formatMoney(previewAmountDifference.netCents)}, TVA ${formatMoney(previewAmountDifference.vatCents)}, TTC ${formatMoney(previewAmountDifference.totalCents)}).`
+      ? t('L’écart global de la facture dépasse 1 centime (HT {net}, TVA {vat}, TTC {total}).', { net: formatMoney(previewAmountDifference.netCents), vat: formatMoney(previewAmountDifference.vatCents), total: formatMoney(previewAmountDifference.totalCents) })
       : '';
   const hasExistingMatches = Boolean(
     invoice &&
@@ -3453,17 +3461,17 @@ function SupplierInvoiceMatchModal({
   return (
     <Modal
       wide
-      title="Rapprocher commande, réception et facture"
-      description="Seules les factures brouillon sont rapprochables. Zentra répartit automatiquement une quantité sur toutes les réceptions partielles émises."
+      title={t('Rapprocher commande, réception et facture')}
+      description={t('Seules les factures brouillon sont rapprochables. Zentra répartit automatiquement une quantité sur toutes les réceptions partielles émises.')}
       onClose={onClose}
     >
       <div className="form-grid">
-        <Field label="Facture fournisseur" required>
+        <Field label={t('Facture fournisseur')} required>
           <select
             value={invoiceId}
             onChange={(event) => setInvoiceId(event.target.value)}
           >
-            <option value="">Choisir…</option>
+            <option value="">{t('Choisir…')}</option>
             {eligibleInvoices.map((row) => (
               <option key={row.id} value={row.id}>
                 {row.reference || row.id} · {formatMoney(row.totalCents)}
@@ -3472,24 +3480,24 @@ function SupplierInvoiceMatchModal({
           </select>
         </Field>
         <Field
-          label="Commandes compatibles"
-          hint="Chaque ligne peut pointer vers une commande différente. L’enregistrement remplace tous les liens en une seule opération."
+          label={t('Commandes compatibles')}
+          hint={t('Chaque ligne peut pointer vers une commande différente. L’enregistrement remplace tous les liens en une seule opération.')}
         >
           <output className="field-output">
-            {compatibleOrders.length} commande
-            {compatibleOrders.length > 1 ? 's' : ''} disponible
-            {compatibleOrders.length > 1 ? 's' : ''}
+            {compatibleOrders.length > 1
+              ? t('{count} commandes disponibles', { count: compatibleOrders.length })
+              : t('{count} commande disponible', { count: compatibleOrders.length })}
           </output>
         </Field>
       </div>
       {invoice ? (
         <div className="match-editor">
           <div className="match-editor__heading">
-            <span>Ligne de facture</span>
-            <span>Commande / ligne</span>
-            <span>Réceptions</span>
-            <span>Quantité</span>
-            <span>Contrôle prix</span>
+            <span>{t('Ligne de facture')}</span>
+            <span>{t('Commande / ligne')}</span>
+            <span>{t('Réceptions')}</span>
+            <span>{t('Quantité')}</span>
+            <span>{t('Contrôle prix')}</span>
           </div>
           {invoice.lines.map((item) => {
             const selected = selectedOrderAndLine(item.id);
@@ -3527,13 +3535,13 @@ function SupplierInvoiceMatchModal({
             );
             return (
               <div key={item.id}>
-                <span data-mobile-label="Ligne de facture">
+                <span data-mobile-label={t('Ligne de facture')}>
                   <strong>{item.description}</strong>
                   <small>{formatMoney(item.totalCents)}</small>
                 </span>
-                <label data-mobile-label="Commande / ligne">
+                <label data-mobile-label={t('Commande / ligne')}>
                   <select
-                    aria-label={`Commande et ligne pour ${item.description}`}
+                    aria-label={t('Commande et ligne pour {description}', { description: item.description })}
                     value={lineLinks[item.id] || ''}
                     disabled={hasProtectedSplitMatches}
                     onChange={(event) => {
@@ -3561,7 +3569,7 @@ function SupplierInvoiceMatchModal({
                       }));
                     }}
                   >
-                    <option value="">Hors commande / ne pas rapprocher</option>
+                    <option value="">{t('Hors commande / ne pas rapprocher')}</option>
                     {compatibleOrders.map((candidateOrder) => (
                       <optgroup
                         key={candidateOrder.id}
@@ -3591,23 +3599,23 @@ function SupplierInvoiceMatchModal({
                 {!line ? (
                   <span
                     className="match-editor__direct"
-                    data-mobile-label="Réceptions"
+                    data-mobile-label={t('Réceptions')}
                   >
-                    Hors commande
+                    {t('Hors commande')}
                   </span>
                 ) : line.fulfillmentMode === 'direct' ? (
                   <span
                     className="match-editor__direct"
-                    data-mobile-label="Réceptions"
+                    data-mobile-label={t('Réceptions')}
                   >
-                    Sans réception
+                    {t('Sans réception')}
                   </span>
                 ) : (
                   <span
                     className="match-editor__automatic"
-                    data-mobile-label="Réceptions"
+                    data-mobile-label={t('Réceptions')}
                   >
-                    <strong>Répartition automatique</strong>
+                    <strong>{t('Répartition automatique')}</strong>
                     <small>
                       {splitParts.length
                         ? splitParts
@@ -3626,16 +3634,16 @@ function SupplierInvoiceMatchModal({
                                     part.supplierReceiptLineId,
                                 )
                                 : undefined;
-                              return `${link ? receiptName(link.receipt) : 'Réception'} ${formatCatalogQuantity(part.quantityMilli)}`;
+                              return `${link ? receiptName(link.receipt) : t('Réception')} ${formatCatalogQuantity(part.quantityMilli)}`;
                             })
                             .join(' + ')
-                        : 'Aucune quantité disponible'}
+                        : t('Aucune quantité disponible')}
                     </small>
                   </span>
                 )}
-                <label data-mobile-label="Quantité">
+                <label data-mobile-label={t('Quantité')}>
                   <input
-                    aria-label={`Quantité rapprochée pour ${item.description}`}
+                    aria-label={t('Quantité rapprochée pour {description}', { description: item.description })}
                     type="number"
                     min={line ? '0.001' : '0'}
                     max={max / 1_000}
@@ -3651,7 +3659,7 @@ function SupplierInvoiceMatchModal({
                   />
                 </label>
                 <span
-                  data-mobile-label="Contrôle prix"
+                  data-mobile-label={t('Contrôle prix')}
                   className={
                     !line
                       ? 'match-control is-neutral'
@@ -3661,12 +3669,12 @@ function SupplierInvoiceMatchModal({
                   }
                 >
                   {!line
-                    ? 'Non rapprochée'
+                    ? t('Non rapprochée')
                     : amountsConcord
-                      ? 'Concorde'
+                      ? t('Concorde')
                       : globalAmountMismatch
-                        ? 'Écart global à corriger'
-                        : `Écart HT ${formatMoney(netDifference)} · TVA ${formatMoney(vatDifference)}`}
+                        ? t('Écart global à corriger')
+                        : t('Écart HT {net} · TVA {vat}', { net: formatMoney(netDifference), vat: formatMoney(vatDifference) })}
                 </span>
               </div>
             );
@@ -3675,44 +3683,36 @@ function SupplierInvoiceMatchModal({
       ) : null}
       {confirmClear ? (
         <div className="correction-preview" role="alert">
-          <strong>Confirmer le retrait du rapprochement ?</strong>
+          <strong>{t('Confirmer le retrait du rapprochement ?')}</strong>
           <p>
-            {
-              workspace.supplierInvoiceMatches.filter(
-                (match) => match.supplierInvoiceId === invoice?.id,
-              ).length
-            }{' '}
-            allocations sur {existingOrderIds.length} commande
-            {existingOrderIds.length > 1 ? 's' : ''} seront dissociées. La
-            facture restera en brouillon et aucune réception ne sera supprimée.
+            {existingOrderIds.length > 1
+              ? t('{count} allocations sur {orders} commandes seront dissociées. La facture restera en brouillon et aucune réception ne sera supprimée.', { count: workspace.supplierInvoiceMatches.filter((match) => match.supplierInvoiceId === invoice?.id).length, orders: existingOrderIds.length })
+              : t('{count} allocations sur {orders} commande seront dissociées. La facture restera en brouillon et aucune réception ne sera supprimée.', { count: workspace.supplierInvoiceMatches.filter((match) => match.supplierInvoiceId === invoice?.id).length, orders: existingOrderIds.length })}
           </p>
         </div>
       ) : error ? (
         <ErrorPanel message={error} />
       ) : globalAmountWarning ? (
         <div className="correction-preview" role="alert">
-          <strong>Écart global à corriger</strong>
+          <strong>{t('Écart global à corriger')}</strong>
           <p>
-            {globalAmountWarning} Le rapprochement peut rester en brouillon,
-            mais la facture ne sera ni marquée « Concorde » ni validable et
-            aucune commande ne sera clôturée.
+            {globalAmountWarning} {t('Le rapprochement peut rester en brouillon, mais la facture ne sera ni marquée « Concorde » ni validable et aucune commande ne sera clôturée.')}
           </p>
         </div>
       ) : (
         <div className="confirmation-callout">
           <ClipboardCheck size={19} />
           <p>
-            Contrôlez les associations sur {linkedOrderCount} commande
-            {linkedOrderCount > 1 ? 's' : ''}, la répartition des réceptions
-            partielles et les écarts. Chaque commande complète sera clôturée
-            lors de la validation de la facture si tout concorde.
+            {linkedOrderCount > 1
+              ? t('Contrôlez les associations sur {count} commandes, la répartition des réceptions partielles et les écarts. Chaque commande complète sera clôturée lors de la validation de la facture si tout concorde.', { count: linkedOrderCount })
+              : t('Contrôlez les associations sur {count} commande, la répartition des réceptions partielles et les écarts. Chaque commande complète sera clôturée lors de la validation de la facture si tout concorde.', { count: linkedOrderCount })}
           </p>
         </div>
       )}
       {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
-          Annuler
+          {t('Annuler')}
         </Button>
         {hasExistingMatches && invoice ? (
           <Button
@@ -3730,15 +3730,15 @@ function SupplierInvoiceMatchModal({
             }}
           >
             {confirmClear
-              ? 'Oui, retirer les liens'
-              : 'Retirer le rapprochement'}
+              ? t('Oui, retirer les liens')
+              : t('Retirer le rapprochement')}
           </Button>
         ) : null}
         <Button
           disabled={busy || Boolean(error) || confirmClear}
           onClick={save}
         >
-          Enregistrer le rapprochement
+          {t('Enregistrer le rapprochement')}
         </Button>
       </div>
     </Modal>
@@ -3764,6 +3764,7 @@ function SupplierCreditNoteForm({
     input: Parameters<typeof desktopApi.saveSupplierCreditNoteDraft>[0],
   ) => void;
 }) {
+  useAppLanguage();
   const [draftId] = useState(() => credit?.id || createId());
   const [supplierId, setSupplierId] = useState(
     credit?.supplierId ||
@@ -3848,7 +3849,7 @@ function SupplierCreditNoteForm({
   function save() {
     if (!supplierId || !reference.trim())
       return setError(
-        'Choisissez un fournisseur et renseignez la référence de l’avoir.',
+        t('Choisissez un fournisseur et renseignez la référence de l’avoir.'),
       );
     if (
       !lines.length ||
@@ -3860,23 +3861,23 @@ function SupplierCreditNoteForm({
       )
     )
       return setError(
-        'Chaque ligne doit avoir une description, une quantité positive et une catégorie.',
+        t('Chaque ligne doit avoir une description, une quantité positive et une catégorie.'),
       );
     if (
       allocatedCents > totals.totalCents ||
       invoices.some((row) => (allocations[row.id] || 0) > row.balanceCents)
     )
       return setError(
-        'Les allocations ne peuvent dépasser ni l’avoir ni le solde des factures.',
+        t('Les allocations ne peuvent dépasser ni l’avoir ni le solde des factures.'),
       );
     if (lines.some((line) => !vatOptions.includes(line.vatBp)))
-      return setError('Vérifiez les taux TVA signalés avant d’enregistrer.');
+      return setError(t('Vérifiez les taux TVA signalés avant d’enregistrer.'));
     for (const [invoiceId, amount] of Object.entries(allocations)) {
       if (amount <= 0) continue;
       const selected = invoices.find((row) => row.id === invoiceId);
-      if (!selected) return setError('Une facture sélectionnée n’est plus disponible. Vérifiez les compensations.');
+      if (!selected) return setError(t('Une facture sélectionnée n’est plus disponible. Vérifiez les compensations.'));
       const dateError = creditSettlementDateError(allocationDates[invoiceId] ?? todayIso(), [documentDate, selected.documentDate].sort().at(-1)!);
-      if (dateError) return setError(`${selected.reference || invoiceId} : ${dateError}`);
+      if (dateError) return setError(t('{name} : {message}', { name: selected.reference || invoiceId, message: t(dateError) }));
     }
     setError('');
     onSave({
@@ -3910,9 +3911,9 @@ function SupplierCreditNoteForm({
     <Modal
       wide
       title={
-        credit ? 'Modifier l’avoir fournisseur' : 'Nouvel avoir fournisseur'
+        credit ? t('Modifier l’avoir fournisseur') : t('Nouvel avoir fournisseur')
       }
-      description="Préparez le brouillon et choisissez les factures compensées. La validation comptable se fera dans un second contrôle."
+      description={t('Préparez le brouillon et choisissez les factures compensées. La validation comptable se fera dans un second contrôle.')}
       onClose={onClose}
     >
       <form
@@ -3922,8 +3923,8 @@ function SupplierCreditNoteForm({
           save();
         }}
       >
-        {!workspace.settings?.organization.vatRegistered ? <div className="info-strip field--wide"><ReceiptText size={17} /><span>{nonRegisteredPurchaseVatHint}</span></div> : null}
-        <Field label="Fournisseur" required>
+        {!workspace.settings?.organization.vatRegistered ? <div className="info-strip field--wide"><ReceiptText size={17} /><span>{t(nonRegisteredPurchaseVatHint)}</span></div> : null}
+        <Field label={t('Fournisseur')} required>
           <select
             value={supplierId}
             onChange={(event) => {
@@ -3932,7 +3933,7 @@ function SupplierCreditNoteForm({
               setAllocationDates({});
             }}
           >
-            <option value="">Choisir…</option>
+            <option value="">{t('Choisir…')}</option>
             {workspace.suppliers
               .filter(
                 (supplier) =>
@@ -3945,7 +3946,7 @@ function SupplierCreditNoteForm({
               ))}
           </select>
         </Field>
-        <Field label="Date" required>
+        <Field label={t('Date')} required>
           <input
             type="date"
             max={todayIso()}
@@ -3953,13 +3954,13 @@ function SupplierCreditNoteForm({
             onChange={(event) => setDocumentDate(event.target.value)}
           />
         </Field>
-        <Field label="Référence fournisseur" required>
+        <Field label={t('Référence fournisseur')} required>
           <input
             value={reference}
             onChange={(event) => setReference(event.target.value)}
           />
         </Field>
-        <Field label="Note">
+        <Field label={t('Note')}>
           <input
             value={note}
             onChange={(event) => setNote(event.target.value)}
@@ -3968,8 +3969,8 @@ function SupplierCreditNoteForm({
         <div className="purchase-line-editor field--wide">
           <div className="purchase-line-editor__heading">
             <div>
-              <strong>Lignes de l’avoir</strong>
-              <small>L’avoir réduit la dette et les achats. Après validation, classez sa TVA dans Comptabilité → TVA selon le traitement de l’achat concerné.</small>
+              <strong>{t('Lignes de l’avoir')}</strong>
+              <small>{t('L’avoir réduit la dette et les achats. Après validation, classez sa TVA dans Comptabilité → TVA selon le traitement de l’achat concerné.')}</small>
             </div>
             <Button
               type="button"
@@ -3979,7 +3980,7 @@ function SupplierCreditNoteForm({
                 setLines((rows) => [...rows, emptyCreditLine(workspace)])
               }
             >
-              <Plus size={14} /> Ajouter
+              <Plus size={14} /> {t('Ajouter')}
             </Button>
           </div>
           {lines.map((line, index) => (
@@ -3988,7 +3989,7 @@ function SupplierCreditNoteForm({
               key={line.id}
             >
               <div className="purchase-line-editor__index">{index + 1}</div>
-              <Field label="Description" required>
+              <Field label={t('Description')} required>
                 <input
                   value={line.description}
                   onChange={(event) =>
@@ -3996,7 +3997,7 @@ function SupplierCreditNoteForm({
                   }
                 />
               </Field>
-              <Field label="Quantité">
+              <Field label={t('Quantité')}>
                 <input
                   type="number"
                   min="0.001"
@@ -4009,7 +4010,7 @@ function SupplierCreditNoteForm({
                   }
                 />
               </Field>
-              <Field label="Unité">
+              <Field label={t('Unité')}>
                 <input
                   value={line.unit}
                   onChange={(event) =>
@@ -4017,7 +4018,7 @@ function SupplierCreditNoteForm({
                   }
                 />
               </Field>
-              <Field label="Prix HT">
+              <Field label={t('Prix HT')}>
                 <input
                   type="number"
                   min="0"
@@ -4030,7 +4031,7 @@ function SupplierCreditNoteForm({
                   }
                 />
               </Field>
-              <Field label="Rabais %">
+              <Field label={t('Rabais %')}>
                 <input
                   type="number"
                   min="0"
@@ -4044,7 +4045,7 @@ function SupplierCreditNoteForm({
                   }
                 />
               </Field>
-              <Field label="TVA %" error={!vatOptions.includes(line.vatBp) ? "Ce taux n’est plus configuré. Choisissez un taux disponible." : undefined}>
+              <Field label={t('TVA %')} error={!vatOptions.includes(line.vatBp) ? t('Ce taux n’est plus configuré. Choisissez un taux disponible.') : undefined}>
                 <select
                   value={line.vatBp / 100}
                   onChange={(event) =>
@@ -4055,12 +4056,12 @@ function SupplierCreditNoteForm({
                 >
                   {[...new Set([...vatOptions, line.vatBp])].map((rate) => (
                     <option key={rate} value={rate / 100}>
-                      {(rate / 100).toLocaleString('fr-CH')} %{!vatOptions.includes(rate) ? ' (à vérifier)' : ''}
+                      {(rate / 100).toLocaleString('fr-CH')} %{!vatOptions.includes(rate) ? ` (${t('à vérifier')})` : ''}
                     </option>
                   ))}
                 </select>
               </Field>
-              <Field label="Catégorie">
+              <Field label={t('Catégorie')}>
                 <input
                   value={line.category}
                   onChange={(event) =>
@@ -4069,7 +4070,7 @@ function SupplierCreditNoteForm({
                 />
               </Field>
               <div className="purchase-line-editor__total">
-                <small>Total</small>
+                <small>{t('Total')}</small>
                 <strong>
                   {formatMoney(supplierDraftLineTotals(line).totalCents)}
                 </strong>
@@ -4082,7 +4083,7 @@ function SupplierCreditNoteForm({
                 onClick={() =>
                   setLines((rows) => rows.filter((row) => row.id !== line.id))
                 }
-                aria-label={`Supprimer la ligne ${index + 1}`}
+                aria-label={t('Supprimer la ligne {number}', { number: index + 1 })}
               >
                 <Trash2 size={15} />
               </Button>
@@ -4090,21 +4091,21 @@ function SupplierCreditNoteForm({
           ))}
           <div className="purchase-line-editor__summary">
             <span>
-              HT <strong>{formatMoney(totals.netCents)}</strong>
+              {t('HT')} <strong>{formatMoney(totals.netCents)}</strong>
             </span>
             <span>
-              TVA <strong>{formatMoney(totals.vatCents)}</strong>
+              {t('TVA')} <strong>{formatMoney(totals.vatCents)}</strong>
             </span>
             <span>
-              Total avoir <strong>{formatMoney(totals.totalCents)}</strong>
+              {t('Total avoir')} <strong>{formatMoney(totals.totalCents)}</strong>
             </span>
           </div>
         </div>
         <div className="credit-allocation field--wide">
           <div>
-            <strong>Compensation des factures</strong>
+            <strong>{t('Compensation des factures')}</strong>
             <small>
-              Facultatif au brouillon · maximum {formatMoney(totals.totalCents)}
+              {t('Facultatif au brouillon · maximum {amount}', { amount: formatMoney(totals.totalCents) })}
             </small>
           </div>
           {invoices.length ? (
@@ -4113,7 +4114,7 @@ function SupplierCreditNoteForm({
                 <label>
                 <span>
                   <strong>{row.reference || row.id}</strong>
-                  <small>Solde {formatMoney(row.balanceCents)}</small>
+                  <small>{t('Solde {amount}', { amount: formatMoney(row.balanceCents) })}</small>
                 </span>
                 <input
                   type="number"
@@ -4129,15 +4130,15 @@ function SupplierCreditNoteForm({
                   }
                 />
                 </label>
-                {(allocations[row.id] || 0) > 0 ? <Field label={`Date de compensation · ${row.reference || row.id}`} required hint="Date à laquelle l’avoir compense réellement cette facture.">
+                {(allocations[row.id] || 0) > 0 ? <Field label={`${t('Date de compensation')} · ${row.reference || row.id}`} required hint={t('Date à laquelle l’avoir compense réellement cette facture.')}>
                   <input type="date" required value={allocationDates[row.id] ?? todayIso()} min={[documentDate, row.documentDate].sort().at(-1)} onChange={(event) => setAllocationDates((values) => ({ ...values, [row.id]: event.target.value }))} />
                 </Field> : null}
               </div>
             ))
           ) : (
-            <p>Aucune facture validée avec un solde pour ce fournisseur.</p>
+            <p>{t('Aucune facture validée avec un solde pour ce fournisseur.')}</p>
           )}
-          <strong>Alloué : {formatMoney(allocatedCents)}</strong>
+          <strong>{t('Alloué : {amount}', { amount: formatMoney(allocatedCents) })}</strong>
         </div>
         {error ? <ErrorPanel message={error} /> : null}
         {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
@@ -4167,6 +4168,7 @@ function ValidateCreditNoteModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  useAppLanguage();
   const allocatedCents = credit.allocations.reduce(
     (total, allocation) => total + allocation.amountCents,
     0,
@@ -4187,21 +4189,21 @@ function ValidateCreditNoteModal({
   });
   const allocationError =
     allocatedCents > credit.totalCents
-      ? 'Les factures compensées dépassent le total de l’avoir. Revenez au brouillon pour corriger les montants.'
+      ? t('Les factures compensées dépassent le total de l’avoir. Revenez au brouillon pour corriger les montants.')
       : invalidAllocation
-        ? 'Vérifiez les factures compensées, leur solde et la date effective de chaque compensation dans le brouillon.'
+        ? t('Vérifiez les factures compensées, leur solde et la date effective de chaque compensation dans le brouillon.')
         : '';
   return (
     <Modal
       wide
-      title="Contrôler puis valider l’avoir"
-      description="La validation fige l’avoir, crée l’écriture comptable et réduit les soldes selon les allocations."
+      title={t('Contrôler puis valider l’avoir')}
+      description={t('La validation fige l’avoir, crée l’écriture comptable et réduit les soldes selon les allocations.')}
       onClose={onClose}
     >
       <div className="document-preview purchase-preview">
         <header>
           <div>
-            <small>{credit.number || 'Avoir brouillon'}</small>
+            <small>{credit.number || t('Avoir brouillon')}</small>
             <h3>
               {credit.supplierName ||
                 supplierName(workspace, credit.supplierId)}
@@ -4226,7 +4228,7 @@ function ValidateCreditNoteModal({
           ))}
         </div>
         <div className="credit-preview-allocations">
-          <strong>Factures compensées</strong>
+          <strong>{t('Factures compensées')}</strong>
           {credit.allocations.length ? (
             credit.allocations.map((allocation) => {
               const invoice = workspace.supplierInvoices.find(
@@ -4236,14 +4238,14 @@ function ValidateCreditNoteModal({
                 <p key={allocation.id}>
                   <span>
                     {invoice?.reference || allocation.supplierInvoiceId}
-                    <small>{allocation.effectiveDate ? `Compensation le ${formatDate(allocation.effectiveDate)}` : 'Date de compensation à renseigner'}</small>
+                    <small>{allocation.effectiveDate ? t('Compensation le {date}', { date: formatDate(allocation.effectiveDate) }) : t('Date de compensation à renseigner')}</small>
                   </span>
                   <strong>{formatMoney(allocation.amountCents)}</strong>
                 </p>
               );
             })
           ) : (
-            <p>Aucune allocation : l’avoir restera disponible.</p>
+            <p>{t('Aucune allocation : l’avoir restera disponible.')}</p>
           )}
         </div>
       </div>
@@ -4253,21 +4255,20 @@ function ValidateCreditNoteModal({
         <div className="confirmation-callout">
           <FileCheck2 size={19} />
           <p>
-            Je confirme le fournisseur, les lignes, la TVA et les factures
-            compensées. Cette validation est définitive.
+            {t('Je confirme le fournisseur, les lignes, la TVA et les factures compensées. Cette validation est définitive.')}
           </p>
         </div>
       )}
       {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
       <div className="form-actions">
         <Button variant="secondary" disabled={busy} onClick={onClose}>
-          Retour au brouillon
+          {t('Retour au brouillon')}
         </Button>
         <Button
           disabled={busy || !credit.items.length || Boolean(allocationError)}
           onClick={onConfirm}
         >
-          Valider et comptabiliser
+          {t('Valider et comptabiliser')}
         </Button>
       </div>
     </Modal>
@@ -4291,6 +4292,7 @@ function SupplierExpenseReclassificationModal({
     input: Parameters<typeof desktopApi.reclassifySupplierInvoiceExpense>[0],
   ) => void;
 }) {
+  useAppLanguage();
   const [requestId] = useState(createId);
   const reclassifications = workspace.supplierExpenseReclassifications
     .filter((row) => row.supplierInvoiceId === invoice.id)
@@ -4331,7 +4333,7 @@ function SupplierExpenseReclassificationModal({
           setLoadError(
             errorMessage(
               reasonValue,
-              'Le plan comptable n’a pas pu être chargé.',
+              t('Le plan comptable n’a pas pu être chargé.'),
             ),
           );
       })
@@ -4361,21 +4363,21 @@ function SupplierExpenseReclassificationModal({
   return (
     <Modal
       wide
-      title="Corriger l’imputation de charge"
-      description="La facture validée reste intacte. Zentra crée une écriture de reclassement datée, motivée et traçable."
+      title={t('Corriger l’imputation de charge')}
+      description={t('La facture validée reste intacte. Zentra crée une écriture de reclassement datée, motivée et traçable.')}
       onClose={onClose}
     >
       {loadError ? (
         <ErrorPanel message={loadError} />
       ) : loading ? (
-        <p>Chargement du plan comptable…</p>
+        <p>{t('Chargement du plan comptable…')}</p>
       ) : (
         <>
           <div className="form-grid">
             <Field
-              label="Date d’effet"
+              label={t('Date d’effet')}
               required
-              hint={`Entre le ${formatDate(invoice.documentDate)} et aujourd’hui.`}
+              hint={t('Entre le {date} et aujourd’hui.', { date: formatDate(invoice.documentDate) })}
             >
               <input
                 type="date"
@@ -4385,7 +4387,7 @@ function SupplierExpenseReclassificationModal({
                 onChange={(event) => setEffectiveDate(event.target.value)}
               />
             </Field>
-            <Field label="Motif" required hint="Au moins 8 caractères.">
+            <Field label={t('Motif')} required hint={t('Au moins 8 caractères.')}>
               <input
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
@@ -4394,10 +4396,10 @@ function SupplierExpenseReclassificationModal({
           </div>
           <div className="reclassification-preview">
             <div className="reclassification-preview__heading">
-              <span>Ligne</span>
-              <span>Compte actuel</span>
-              <span>Nouveau compte</span>
-              <span>Montant HT</span>
+              <span>{t('Ligne')}</span>
+              <span>{t('Compte actuel')}</span>
+              <span>{t('Nouveau compte')}</span>
+              <span>{t('Montant HT')}</span>
             </div>
             {invoice.lines.map((line) => {
               const currentAccountId = currentAccountByItem[line.id];
@@ -4406,17 +4408,17 @@ function SupplierExpenseReclassificationModal({
               );
               return (
                 <div key={line.id}>
-                  <span data-mobile-label="Ligne">
+                  <span data-mobile-label={t('Ligne')}>
                     <strong>{line.description}</strong>
                   </span>
-                  <span data-mobile-label="Compte actuel">
+                  <span data-mobile-label={t('Compte actuel')}>
                     {currentAccount
                       ? `${currentAccount.code} · ${currentAccount.name}`
-                      : currentAccountId || 'Compte général'}
+                      : currentAccountId || t('Compte général')}
                   </span>
-                  <label data-mobile-label="Nouveau compte">
+                  <label data-mobile-label={t('Nouveau compte')}>
                     <select
-                      aria-label={`Nouveau compte pour ${line.description}`}
+                      aria-label={t('Nouveau compte pour {description}', { description: line.description })}
                       disabled={!currentAccountId}
                       value={accountByItem[line.id] || ''}
                       onChange={(event) =>
@@ -4426,16 +4428,16 @@ function SupplierExpenseReclassificationModal({
                         }))
                       }
                     >
-                      <option value="">Choisir…</option>
+                      <option value="">{t('Choisir…')}</option>
                       {accounts.map((account) => (
                         <option key={account.id} value={account.id}>
                           {account.code} · {account.name}
-                          {account.id === currentAccountId ? ' (actuel)' : ''}
+                          {account.id === currentAccountId ? ` (${t('actuel')})` : ''}
                         </option>
                       ))}
                     </select>
                   </label>
-                  <strong data-mobile-label="Montant HT">
+                  <strong data-mobile-label={t('Montant HT')}>
                     {formatMoney(line.netCents)}
                   </strong>
                 </div>
@@ -4443,23 +4445,22 @@ function SupplierExpenseReclassificationModal({
             })}
           </div>
           {unresolvedLines.length ? (
-            <ErrorPanel message="Le compte historiquement comptabilisé manque sur certaines anciennes lignes. Zentra les laisse intactes; seules les lignes dont la source est certaine peuvent être reclassées." />
+            <ErrorPanel message={t('Le compte historiquement comptabilisé manque sur certaines anciennes lignes. Zentra les laisse intactes; seules les lignes dont la source est certaine peuvent être reclassées.')} />
           ) : null}
           {!changedLines.length ? (
-            <ErrorPanel message="Choisissez un nouveau compte pour au moins une ligne. Les lignes inchangées ne seront pas réécrites." />
+            <ErrorPanel message={t('Choisissez un nouveau compte pour au moins une ligne. Les lignes inchangées ne seront pas réécrites.')} />
           ) : (
             <div className="confirmation-callout">
               <ShieldCheck size={19} />
               <p>
-                Aperçu : une écriture reclassera uniquement les lignes modifiées
-                sans changer la pièce fournisseur d’origine.
+                {t('Aperçu : une écriture reclassera uniquement les lignes modifiées sans changer la pièce fournisseur d’origine.')}
               </p>
             </div>
           )}
           {actionError ? <div className="field--wide"><ErrorPanel message={actionError} reveal /></div> : null}
           <div className="form-actions">
             <Button variant="secondary" disabled={busy} onClick={onClose}>
-              Annuler
+              {t('Annuler')}
             </Button>
             <Button
               disabled={busy || invalid}
@@ -4476,7 +4477,7 @@ function SupplierExpenseReclassificationModal({
                 })
               }
             >
-              Confirmer la correction
+              {t('Confirmer la correction')}
             </Button>
           </div>
         </>

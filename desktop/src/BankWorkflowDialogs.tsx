@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, FileUp, LoaderCircle } from 'lucide-react';
 import { desktopApi } from './bridge';
 import type { CamtImportResult } from './types';
@@ -7,21 +7,32 @@ import { bankProblemHelp, bankFileName } from './bankWorkflow';
 import { errorMessage } from './utils';
 import './bank-workflow.css';
 import { ErrorDetails } from './ErrorGuidance';
+import { t, useAppLanguage } from './language';
+
+/** Places a styled value inside a translated sentence, so each language keeps its own word order. */
+function withSlot(text: string, slot: string, node: ReactNode): ReactNode {
+  const marker = `{${slot}}`, index = text.indexOf(marker);
+  if (index < 0) return text;
+  return <>{text.slice(0, index)}{node}{text.slice(index + marker.length)}</>;
+}
 
 function Problem({ message, busy }: { message: string; busy: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (message && !busy) { ref.current?.focus(); ref.current?.scrollIntoView({ block: 'nearest' }); }
   }, [message, busy]);
+  useAppLanguage();
   if (!message) return null;
+  // The help copy is fixed French text keyed by the problem kind; the message itself stays as detail.
   const help = bankProblemHelp(message);
-  return <div ref={ref} tabIndex={-1} role="alert" className="bank-workflow-problem"><strong>{help.title}</strong><p>{help.text}</p><ErrorDetails error={message} /></div>;
+  return <div ref={ref} tabIndex={-1} role="alert" className="bank-workflow-problem"><strong>{t(help.title)}</strong><p>{t(help.text)}</p><ErrorDetails error={message} /></div>;
 }
 
 export function BankActionDialog({ title, description, rows, note, action, disabled, busy, onClose, onConfirm, onAccounting }: {
   title: string; description: string; rows: [string, string][]; note: string; action: string;
   disabled: boolean; busy: boolean; onClose: () => void; onConfirm: () => Promise<void>; onAccounting: (section: 'accounts' | 'periods') => void;
 }) {
+  useAppLanguage();
   const [message, setMessage] = useState(''), [saving, setSaving] = useState(false);
   const inFlight = useRef(false);
   const locked = busy || saving;
@@ -39,8 +50,8 @@ export function BankActionDialog({ title, description, rows, note, action, disab
       {accountingProblem && <Button type="submit" variant="ghost" disabled={locked || disabled}>{action}</Button>}
       <dl className="bank-workflow-summary">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
       <p>{note}</p>
-      {disabled && <p className="bank-workflow-hint">Revenez aux mouvements pour actualiser les données ou vérifier l’accès en écriture avant de poursuivre.</p>}
-      <div className="form-actions"><Button type="button" variant="secondary" disabled={locked} onClick={onClose}>Revenir aux mouvements</Button>{accountingProblem ? <Button type="button" disabled={locked} onClick={() => onAccounting(/clôtur|clotur|exercice fermé/i.test(message) ? 'periods' : 'accounts')}>Vérifier la comptabilité</Button> : <Button type="submit" disabled={locked || disabled}>{locked && <LoaderCircle size={16} className="spin" />}{action}</Button>}</div>
+      {disabled && <p className="bank-workflow-hint">{t('Revenez aux mouvements pour actualiser les données ou vérifier l’accès en écriture avant de poursuivre.')}</p>}
+      <div className="form-actions"><Button type="button" variant="secondary" disabled={locked} onClick={onClose}>{t('Revenir aux mouvements')}</Button>{accountingProblem ? <Button type="button" disabled={locked} onClick={() => onAccounting(/clôtur|clotur|exercice fermé/i.test(message) ? 'periods' : 'accounts')}>{t('Vérifier la comptabilité')}</Button> : <Button type="submit" disabled={locked || disabled}>{locked && <LoaderCircle size={16} className="spin" />}{action}</Button>}</div>
     </form>
   </Modal>;
 }
@@ -53,6 +64,7 @@ export function BankImportWizard({ automatic, onAutomaticChange, disabled, accou
   workspaceScope?: string;
   onReview: () => void; onAccounts: () => void; onAccounting: () => void; onRefresh: () => Promise<string[]>;
 }) {
+  useAppLanguage();
   const originalWorkspaceScope = useRef(workspaceScope).current;
   const [path, setPath] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
   const [outcome, setOutcome] = useState<BankImportOutcome>();
@@ -70,7 +82,7 @@ export function BankImportWizard({ automatic, onAutomaticChange, disabled, accou
   }
   const result = outcome?.result;
   const warnings = result ? [...result.warnings, ...(result.automaticReconciliation?.failures ?? [])] : [];
-  return <Modal title="Importer un relevé bancaire" description="Retrouvez les paiements de vos clients à partir du fichier fourni par votre banque." onClose={onClose} dismissible={!busy} className="bank-workflow-modal">
+  return <Modal title={t('Importer un relevé bancaire')} description={t('Retrouvez les paiements de vos clients à partir du fichier fourni par votre banque.')} onClose={onClose} dismissible={!busy} className="bank-workflow-modal">
     <form className="bank-workflow" onSubmit={async event => {
       event.preventDefault();
       if (busy || disabled || !path || outcome || inFlight.current) return;
@@ -81,25 +93,25 @@ export function BankImportWizard({ automatic, onAutomaticChange, disabled, accou
     }}>
       <Problem message={message} busy={busy} />
       {!result ? <>
-        <ol className="bank-import-steps" aria-label="Préparer le relevé"><li><strong>Depuis votre e-banking</strong><p>Ouvrez les mouvements ou documents du compte de votre entreprise. Téléchargez le relevé au format <b>XML camt.053</b> pour la période souhaitée.</p></li><li><strong>Choisissez le fichier téléchargé</strong><p>Il se trouve souvent dans Téléchargements. Un PDF, une photo ou un tableau Excel ne convient pas à cet import.</p></li></ol>
-        <div className="bank-import-file"><FileUp size={22} /><div><strong>{path ? bankFileName(path) : 'Aucun fichier choisi'}</strong><small>{path ? 'Prêt à être importé. Vous pouvez encore changer de fichier.' : 'Choisir un fichier ne lance pas encore l’import.'}</small></div><Button type="button" variant="secondary" disabled={busy || disabled} onClick={() => void choose()}>{path ? 'Changer de fichier' : 'Choisir le relevé XML'}</Button></div>
-        <label className="bank-import-option"><input type="checkbox" checked={automatic} disabled={busy || disabled} onChange={event => onAutomaticChange(event.target.checked)} /><span><strong>Enregistrer les paiements clients reconnus</strong><small>Zentra utilise la référence QR ou RF, le compte de l’entreprise et le montant. Un versement partiel laisse le reste à payer. Les autres mouvements restent à vérifier.</small></span></label>
-        {!accountingReady && <p className="bank-workflow-hint">Vous pouvez importer maintenant. Il faudra terminer la configuration comptable avant d’enregistrer les paiements.</p>}
-        <details className="bank-workflow-details"><summary>Quel fichier demander à ma banque ?</summary><p>Demandez un relevé camt.053 XML avec les détails des mouvements. Zentra accepte les versions 001.04 et 001.08. Les avis camt.054 des mêmes versions peuvent être importés ; le rapprochement automatique de Zentra attend le relevé camt.053 définitif.</p><p>Un mouvement déjà importé est reconnu : réimporter le même relevé ne crée pas un second paiement.</p></details>
-        <div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy || disabled || !path}>{busy && <LoaderCircle size={16} className="spin" />}Importer ce relevé</Button></div>
+        <ol className="bank-import-steps" aria-label={t('Préparer le relevé')}><li><strong>{t('Depuis votre e-banking')}</strong><p>{withSlot(t('Ouvrez les mouvements ou documents du compte de votre entreprise. Téléchargez le relevé au format {format} pour la période souhaitée.'), 'format', <b>XML camt.053</b>)}</p></li><li><strong>{t('Choisissez le fichier téléchargé')}</strong><p>{t('Il se trouve souvent dans Téléchargements. Un PDF, une photo ou un tableau Excel ne convient pas à cet import.')}</p></li></ol>
+        <div className="bank-import-file"><FileUp size={22} /><div><strong>{path ? bankFileName(path) : t('Aucun fichier choisi')}</strong><small>{path ? t('Prêt à être importé. Vous pouvez encore changer de fichier.') : t('Choisir un fichier ne lance pas encore l’import.')}</small></div><Button type="button" variant="secondary" disabled={busy || disabled} onClick={() => void choose()}>{path ? t('Changer de fichier') : t('Choisir le relevé XML')}</Button></div>
+        <label className="bank-import-option"><input type="checkbox" checked={automatic} disabled={busy || disabled} onChange={event => onAutomaticChange(event.target.checked)} /><span><strong>{t('Enregistrer les paiements clients reconnus')}</strong><small>{t('Zentra utilise la référence QR ou RF, le compte de l’entreprise et le montant. Un versement partiel laisse le reste à payer. Les autres mouvements restent à vérifier.')}</small></span></label>
+        {!accountingReady && <p className="bank-workflow-hint">{t('Vous pouvez importer maintenant. Il faudra terminer la configuration comptable avant d’enregistrer les paiements.')}</p>}
+        <details className="bank-workflow-details"><summary>{t('Quel fichier demander à ma banque ?')}</summary><p>{t('Demandez un relevé camt.053 XML avec les détails des mouvements. Zentra accepte les versions 001.04 et 001.08. Les avis camt.054 des mêmes versions peuvent être importés ; le rapprochement automatique de Zentra attend le relevé camt.053 définitif.')}</p><p>{t('Un mouvement déjà importé est reconnu : réimporter le même relevé ne crée pas un second paiement.')}</p></details>
+        <div className="form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={onClose}>{t('Annuler')}</Button><Button type="submit" disabled={busy || disabled || !path}>{busy && <LoaderCircle size={16} className="spin" />}{t('Importer ce relevé')}</Button></div>
       </> : <div className="bank-import-result" ref={resultRef} tabIndex={-1}>
-        <CheckCircle2 size={28} /><h3>{result.duplicate ? 'Ce relevé est déjà enregistré' : 'Le relevé est enregistré'}</h3>
+        <CheckCircle2 size={28} /><h3>{result.duplicate ? t('Ce relevé est déjà enregistré') : t('Le relevé est enregistré')}</h3>
         <p>{bankFileName(result.import.sourceName || path)}</p>
-        <dl className="bank-workflow-summary"><div><dt>Nouveaux mouvements</dt><dd>{result.importedCount}</dd></div><div><dt>Mouvements déjà connus</dt><dd>{result.skippedDuplicateCount}</dd></div>{result.automaticReconciliation?.enabled && <><div><dt>Factures entièrement payées</dt><dd>{result.automaticReconciliation.paidCount}</dd></div><div><dt>Versements partiels enregistrés</dt><dd>{result.automaticReconciliation.partialCount}</dd></div><div><dt>Encaissements à vérifier</dt><dd>{result.automaticReconciliation.reviewCount}</dd></div></>}</dl>
-        {result.ignoredCount > 0 && <p className="bank-workflow-hint">{result.ignoredCount} entrée(s) n’ont pas pu être utilisées. Consultez les détails avant de considérer la période comme complète.</p>}
-        {warnings.length > 0 && <details className="bank-workflow-details"><summary>Points signalés pendant l’import ({warnings.length})</summary><ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>}
-        {outcome!.refreshWarnings.length > 0 ? <div className="bank-workflow-hint"><strong>Import enregistré, affichage à actualiser</strong><p>Il reste à relire les factures et les mouvements. Ce bouton reprend uniquement la lecture.</p><Button type="button" disabled={busy} onClick={async () => { if (inFlight.current) return; inFlight.current = true; setBusy(true); try { const next = await onRefresh(); setOutcome(current => current && ({ ...current, refreshWarnings: next })); } finally { inFlight.current = false; setBusy(false); } }}>Actualiser les données</Button></div> : <>
-          <p>Vérifiez les comptes détectés, puis les mouvements restants. Les règlements fournisseurs se confirment séparément.</p>
-          {!accountingReady && <Button type="button" variant="secondary" onClick={onAccounting}>Terminer la configuration comptable</Button>}
-          <Button type="button" variant="secondary" onClick={onAccounts}>Vérifier les comptes du relevé</Button>
-          <Button type="button" onClick={onReview}>Voir les mouvements à vérifier</Button>
+        <dl className="bank-workflow-summary"><div><dt>{t('Nouveaux mouvements')}</dt><dd>{result.importedCount}</dd></div><div><dt>{t('Mouvements déjà connus')}</dt><dd>{result.skippedDuplicateCount}</dd></div>{result.automaticReconciliation?.enabled && <><div><dt>{t('Factures entièrement payées')}</dt><dd>{result.automaticReconciliation.paidCount}</dd></div><div><dt>{t('Versements partiels enregistrés')}</dt><dd>{result.automaticReconciliation.partialCount}</dd></div><div><dt>{t('Encaissements à vérifier')}</dt><dd>{result.automaticReconciliation.reviewCount}</dd></div></>}</dl>
+        {result.ignoredCount > 0 && <p className="bank-workflow-hint">{t('{count} entrée(s) n’ont pas pu être utilisées. Consultez les détails avant de considérer la période comme complète.', { count: result.ignoredCount })}</p>}
+        {warnings.length > 0 && <details className="bank-workflow-details"><summary>{t('Points signalés pendant l’import ({count})', { count: warnings.length })}</summary><ul>{warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></details>}
+        {outcome!.refreshWarnings.length > 0 ? <div className="bank-workflow-hint"><strong>{t('Import enregistré, affichage à actualiser')}</strong><p>{t('Il reste à relire les factures et les mouvements. Ce bouton reprend uniquement la lecture.')}</p><Button type="button" disabled={busy} onClick={async () => { if (inFlight.current) return; inFlight.current = true; setBusy(true); try { const next = await onRefresh(); setOutcome(current => current && ({ ...current, refreshWarnings: next })); } finally { inFlight.current = false; setBusy(false); } }}>{t('Actualiser les données')}</Button></div> : <>
+          <p>{t('Vérifiez les comptes détectés, puis les mouvements restants. Les règlements fournisseurs se confirment séparément.')}</p>
+          {!accountingReady && <Button type="button" variant="secondary" onClick={onAccounting}>{t('Terminer la configuration comptable')}</Button>}
+          <Button type="button" variant="secondary" onClick={onAccounts}>{t('Vérifier les comptes du relevé')}</Button>
+          <Button type="button" onClick={onReview}>{t('Voir les mouvements à vérifier')}</Button>
         </>}
-        <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Fermer</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>{t('Fermer')}</Button>
       </div>}
     </form>
   </Modal>;

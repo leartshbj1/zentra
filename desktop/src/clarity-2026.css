@@ -833,3 +833,26 @@
     padding: 0 max(var(--work-space), var(--safe-right, 0px)) 56px max(var(--work-space), var(--safe-left, 0px));
   }
 }
+
+@media screen {
+  /* Demo company: one calm line under the toolbar, with a way out. */
+  html[data-app-theme] .demo-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px var(--work-space, 24px) 0;
+    padding: 10px 12px 10px 16px;
+    border-radius: 14px;
+    background: var(--apple-selection);
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .demo-banner p {
+    flex: 1;
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .demo-banner p span {
+    color: var(--apple-secondary);
+  }
+}

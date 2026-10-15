@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, FolderOpen, LoaderCircle, Save, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, FolderOpen, LoaderCircle, Save, Sparkles, Users } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import type { AppSettings, NogaCatalog, PayrollRate, Workspace } from './types';
 import { t, useAppLanguage, appLanguages, languageNames, setAppLanguage, type AppLanguage } from './language';
@@ -18,6 +18,7 @@ import { AssistantHelpButton, useAssistantScreen } from './assistantContext';
 import { Button, ErrorPanel } from './ui';
 import { createId, errorMessage } from './utils';
 import { initialOnboardingSettings } from './onboardingDraft';
+import { demoCompanySettings } from './demoWorkspace';
 import { backendOnboardingIssue, normalizeOnboardingSettings, validateOnboarding, type OnboardingIssue, type OnboardingValidationScope } from './onboardingValidation';
 import { setupIssueText } from './setupLanguage';
 import { setupPages, setupChapters, setupPageForIssue, enabledSetupPages, parseSetupDraft, onboardingDraftKey, legacyOnboardingDraftKey, type SetupDraft } from './onboardingFlow';
@@ -32,7 +33,7 @@ function clearDraft() {
 }
 
 export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount, onCloudAccountChange, onJoined, accountNotice }: {
-  onComplete: (settings: AppSettings, scope: OnboardingValidationScope) => Promise<void>;
+  onComplete: (settings: AppSettings, scope: OnboardingValidationScope, options?: { demo?: boolean }) => Promise<void>;
   onRestore: (path: string) => Promise<void>;
   onCloudRestore?: (backupId: string) => Promise<void>;
   cloudAccount?: CloudAccountState | null;
@@ -144,6 +145,20 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
     setBackendIssues(values => values.filter(issue => setupPageForIssue(issue) !== step));
     goTo(pages[Math.min(position + 1, pages.length - 1)]);
   }
+  // A fictitious company with sample clients, quotes and projects, clearly
+  // labelled in the workspace and removable with the device reset.
+  async function exploreDemo() {
+    if (submitting.current) return;
+    if (!catalog) { setError(t('Le catalogue NOGA 2025 local n’a pas pu être chargé.')); return; }
+    submitting.current = true; setBusy(true); setError('');
+    try {
+      setSavePhase('Préparation de l’entreprise de démonstration…');
+      await onComplete(demoCompanySettings(initialOnboardingSettings, catalog), 'essential', { demo: true });
+      completed.current = true; clearDraft();
+    } catch (reason) {
+      setError(errorMessage(reason, 'La démonstration n’a pas pu être préparée.'));
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); setSavePhase(''); } }
+  }
   async function restore() {
     if (submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
@@ -154,16 +169,18 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
     } catch (reason) { setError(errorMessage(reason,'La restauration n’a pas pu être lancée.')); }
     finally { submitting.current = false; setBusy(false); }
   }
-  async function finish() {
+  // 'essential' starts with identity and activity only; billing, organisation
+  // and backups stay deferred and are guided later by the readiness centre.
+  async function finish(scope: OnboardingValidationScope = 'complete') {
     if (submitting.current) return;
     const normalized = normalizeOnboardingSettings(settings);
-    setValidatedPages(pages); setBackendIssues([]);
-    const issues = validateOnboarding(normalized,catalog,privacyConfirmed,'complete');
+    setValidatedPages(scope === 'essential' ? pages.filter(index => setupPages[index].chapter <= 1) : pages); setBackendIssues([]);
+    const issues = validateOnboarding(normalized,catalog,privacyConfirmed,scope);
     if (issues.length) { focusIssue(issues[0]); return; }
     submitting.current = true; setBusy(true); setError('');
     try {
       setSavePhase('Vérification de vos réglages…');
-      const result = await desktopApi.validateOnboarding(normalized,'complete');
+      const result = await desktopApi.validateOnboarding(normalized,scope);
       if (!mounted.current) return;
       if (!result.valid) {
         const serverIssues = result.issues.map(issue => ({...issue,step:Number(issue.step)}));
@@ -175,7 +192,7 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
         return;
       }
       setSavePhase('Création de votre espace…');
-      await onComplete(normalized,'complete');
+      await onComplete(normalized,scope);
       completed.current = true; clearDraft();
     } catch (reason) {
       const message = errorMessage(reason,'La configuration n’a pas pu être enregistrée.');
@@ -240,7 +257,7 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
               <StepHeader title={t('Tout commence avec vous.')} text={t('Retrouvez votre entreprise sur tous vos appareils avec votre compte Zentra.')}/>
               <CloudAccountPanel onAccountChange={onCloudAccountChange} joining setup/>
               {accountNotice && <details className="first-run__license"><summary>{t('Compte et licence')}</summary>{accountNotice}</details>}
-              <div className="first-run__recovery"><button type="button" onClick={()=>setJoining(true)}><Users size={18}/>{t('J’ai une invitation')}<ArrowRight size={17}/></button>
+              <div className="first-run__recovery"><button type="button" onClick={()=>void exploreDemo()} disabled={busy}><Sparkles size={18}/>{t('Explorer avec des données de démonstration')}<ArrowRight size={17}/></button><button type="button" onClick={()=>setJoining(true)}><Users size={18}/>{t('J’ai une invitation')}<ArrowRight size={17}/></button>
                 <details><summary>{t('Reprendre une sauvegarde')}</summary><Button variant="secondary" onClick={()=>void restore()}><FolderOpen size={17}/>{t('Choisir un fichier .zentra')}</Button>
                   {onJoined && <ResetRecovery onRestored={joined}/>}
                   {cloudAccount?.status==='connected' && onCloudRestore && <CloudBackupPanel recoveryOnly disabled={busy} onBusyChange={setBusy} onRestore={async id=>{await onCloudRestore(id);completed.current=true;clearDraft();}}/>}
@@ -261,8 +278,11 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
         </section>
         <footer className="first-run__actions">
           {step>0 && <Button variant="ghost" onClick={()=>goTo(pages[Math.max(0,position-1)])} disabled={busy}><ArrowLeft size={17}/>{t('Retour')}</Button>}
-          <Button size="large" disabled={busy} onClick={()=>page.id==='review'?void finish():next()}>{busy?<LoaderCircle size={18} className="spin"/>:null}{t(busy?'Enregistrement…':page.id==='review'?'Créer mon espace':page.id==='account'?'Créer une entreprise':'Continuer')}{!busy && <ArrowRight size={18}/>}</Button>
+          {page.id==='activity' && <Button variant="secondary" size="large" disabled={busy} onClick={next}>{t('Tout configurer maintenant')}</Button>}
+          {page.id==='activity' ? <Button size="large" disabled={busy} onClick={()=>void finish('essential')}>{busy?<LoaderCircle size={18} className="spin"/>:null}{t(busy?'Enregistrement…':'Commencer avec l’essentiel')}{!busy && <ArrowRight size={18}/>}</Button> :
+          <Button size="large" disabled={busy} onClick={()=>page.id==='review'?void finish():next()}>{busy?<LoaderCircle size={18} className="spin"/>:null}{t(busy?'Enregistrement…':page.id==='review'?'Créer mon espace':page.id==='account'?'Créer une entreprise':'Continuer')}{!busy && <ArrowRight size={18}/>}</Button>}
         </footer>
+        {page.id==='activity' && <p className="first-run__footnote">{t('TVA, coordonnées bancaires, salaires et sauvegardes pourront être réglés plus tard, depuis l’accueil.')}</p>}
         {page.id==='account' && cloudAccount?.status!=='connected' && <p className="first-run__footnote">{t('Vous débutez ? Configurez votre entreprise, puis reliez votre compte.')}</p>}
         {page.id==='account' && <div className="first-run__account-help"><AssistantHelpButton/></div>}
         {draftStatus==='failed' && <p className="first-run__draft-message" role="alert">{t('Brouillon non enregistré. Gardez l’app ouverte.')}</p>}

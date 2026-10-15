@@ -46,6 +46,8 @@ const ARCHIVE_PATH: &str = "/api/archive/invoices";
 const TEAM_PATH: &str = "/api/account/team";
 const AUTOMATION_PATH: &str = "/api/automation";
 const COMPANY_MAIL_PATH: &str = "/api/company-mail";
+/// Public price grid published by the site; the app shows it as returned.
+const PLANS_PATH: &str = "/api/plans";
 const ACCOUNT_SESSION_FILE: &str = "cloud-account-session.protected";
 const ACCOUNT_PENDING_FILE: &str = "cloud-account-link.protected";
 const ACCOUNT_EXCHANGE_FILE: &str = "cloud-account-exchange.protected";
@@ -440,6 +442,22 @@ pub async fn get_cloud_account_state(
 ) -> Result<CloudAccountState, String> {
     let store = state.inner().clone();
     finish_async_command(cloud_account_state(&store).await).await
+}
+
+/// Reads the public price grid without any account session. The frontend
+/// validates the shape and falls back to its bundled copy when offline.
+#[tauri::command]
+pub async fn get_plan_catalog() -> Result<serde_json::Value, String> {
+    let result: AppResult<serde_json::Value> = async {
+        let (status, bytes) = account_request(Method::GET, PLANS_PATH, None, None).await?;
+        if !status.is_success() {
+            return Err(AppError::Remote("La grille tarifaire est momentanément indisponible.".into()));
+        }
+        serde_json::from_slice(&bytes)
+            .map_err(|_| AppError::Validation("La grille tarifaire reçue est invalide.".into()))
+    }
+    .await;
+    finish_async_command(result).await
 }
 
 pub(crate) struct CompanyMailSession(CloudSession);
@@ -1625,7 +1643,7 @@ fn validate_verification_uri(value: &str, user_code: &str) -> AppResult<Url> {
 fn endpoint(path: &str) -> AppResult<Url> {
     if !matches!(
         path,
-        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH | AUTOMATION_PATH | COMPANY_MAIL_PATH
+        START_PATH | POLL_PATH | ME_PATH | SESSION_PATH | ARCHIVE_PATH | TEAM_PATH | AUTOMATION_PATH | COMPANY_MAIL_PATH | PLANS_PATH
             | "/api/projects/sync" | "/api/projects/sync/file"
             | "/api/backups" | "/api/backups/item" | "/api/backups/chunk"
             | "/api/sync/numbers" | "/api/account/subscription"

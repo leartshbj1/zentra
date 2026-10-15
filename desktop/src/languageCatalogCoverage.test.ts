@@ -9,6 +9,7 @@ it('provides all three translations for every explicit interface key currently w
   const files=['App.tsx','Onboarding.tsx','SettingsCategory.tsx','NavigationPalette.tsx','BusinessProfileEditor.tsx','ScreenHelp.tsx','ZentraAssistant.tsx','LocalAssistantSetup.tsx','CloudAccountAccess.tsx','CloudAccountPanel.tsx','PayrollOrganisationField.tsx','LanguageSetting.tsx','assistantContext.tsx','ui.tsx','WorkspaceApp.tsx','setupLanguage.ts','GuidedTour.tsx','GettingStartedChecklist.tsx','SupplierInboxBatchResult.tsx'];
   const missing:string[]=[];
   files.push('AppUpdater.tsx', 'appUpdaterLogic.ts');
+  files.push('SalesOrdersScreen.tsx', 'PurchaseOrdersScreen.tsx', 'SupplierReceiptForms.tsx', 'PayrollImportWizard.tsx', 'ClosingFolder.tsx', 'PaymentForm.tsx', 'BankWorkflowDialogs.tsx', 'subscription-overview.tsx');
   files.push('PlanningEditor.tsx', 'ProjectPlanningPanel.tsx', 'planningForm.ts');
   files.push('AgendaEditor.tsx', 'AgendaActionDialog.tsx', 'agendaForm.ts', 'agenda.ts');
   files.push('FixedAssetsPanel.tsx');

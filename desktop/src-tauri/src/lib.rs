@@ -445,6 +445,7 @@ pub fn run() {
             account_cloud::get_cloud_account_state,
             account_cloud::get_cached_cloud_account_state,
             account_cloud::cloud_team_request,
+            account_cloud::get_plan_catalog,
             account_cloud::automation_request,
             account_cloud::action_engine::supervisor::quote_autopilot_state,
             account_cloud::action_engine::supervisor::quote_autopilot_consent,

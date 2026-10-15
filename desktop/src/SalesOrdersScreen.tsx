@@ -22,6 +22,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { desktopApi } from './bridge';
 import { formatCatalogQuantity, stockQuantityFromInput } from './catalog';
+import { getAppLocale, t, useAppLanguage } from './language';
 import { RecurringDocumentsPanel } from './RecurringDocumentsPanel';
 import {
   pendingRecurringOccurrenceCount,
@@ -115,6 +116,7 @@ export function SalesOrdersScreen({
   onPrintOrder: (order: SalesOrder) => void;
   onPrintDelivery: (note: DeliveryNote) => void;
 }) {
+  useAppLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const previousQuery = useRef(query);
   useEffect(() => {
@@ -170,9 +172,9 @@ export function SalesOrdersScreen({
     return (
       <EmptyState
         icon={<ClipboardCheck size={27} />}
-        title="Aucune commande client"
-        text="Créez une commande depuis un devis accepté pour gérer une livraison ou préparer un modèle de facturation récurrente. Un service ponctuel peut rester dans le flux de facture simple."
-        actionLabel="Voir les devis"
+        title={t('Aucune commande client')}
+        text={t('Créez une commande depuis un devis accepté pour gérer une livraison ou préparer un modèle de facturation récurrente. Un service ponctuel peut rester dans le flux de facture simple.')}
+        actionLabel={t('Voir les devis')}
         onAction={onShowQuotes}
       />
     );
@@ -181,10 +183,10 @@ export function SalesOrdersScreen({
     <div className="stack-layout sales-orders-screen">
       <div
         className="summary-strip order-summary-strip"
-        aria-label="Résumé des commandes"
+        aria-label={t('Résumé des commandes')}
       >
         <div>
-          <span>À confirmer</span>
+          <span>{t('À confirmer')}</span>
           <strong>
             {
               workspace.salesOrders.filter((order) => order.status === 'draft')
@@ -193,7 +195,7 @@ export function SalesOrdersScreen({
           </strong>
         </div>
         <div>
-          <span>À exécuter</span>
+          <span>{t('À exécuter')}</span>
           <strong>
             {
               workspace.salesOrders.filter(
@@ -203,7 +205,7 @@ export function SalesOrdersScreen({
           </strong>
         </div>
         <div>
-          <span>Terminées</span>
+          <span>{t('Terminées')}</span>
           <strong>
             {
               workspace.salesOrders.filter((order) => order.status === 'closed')
@@ -214,9 +216,9 @@ export function SalesOrdersScreen({
       </div>
       <section className="panel sales-order-list-panel">
         <SectionHeading
-          eyebrow="Exécution commerciale"
-          title="Commandes client"
-          description="Chaque commande montre ce qui est réservé, livré et facturé. Zentra propose une seule prochaine action à la fois."
+          eyebrow={t('Exécution commerciale')}
+          title={t('Commandes client')}
+          description={t('Chaque commande montre ce qui est réservé, livré et facturé. Zentra propose une seule prochaine action à la fois.')}
         />
         <ul className="sales-order-list">
           {filtered.map((order) => {
@@ -230,12 +232,12 @@ export function SalesOrdersScreen({
             );
             const recurrenceLabel = recurrence
               ? recurrence.status === 'active'
-                ? 'Récurrence active'
+                ? t('Récurrence active')
                 : recurrence.status === 'paused'
-                  ? 'Récurrence en pause'
+                  ? t('Récurrence en pause')
                   : recurrence.status === 'review_required'
-                    ? 'Récurrence à contrôler'
-                    : 'Récurrence terminée'
+                    ? t('Récurrence à contrôler')
+                    : t('Récurrence terminée')
               : '';
             return (
               <li key={order.id}>
@@ -248,13 +250,13 @@ export function SalesOrdersScreen({
                     <ClipboardCheck size={19} />
                   </span>
                   <span className="sales-order-card__identity">
-                    <strong>{order.number || 'Commande à confirmer'}</strong>
+                    <strong>{order.number || t('Commande à confirmer')}</strong>
                     <small>{order.title}</small>
                   </span>
                   <span className="sales-order-card__client">
-                    <small>Client</small>
+                    <small>{t('Client')}</small>
                     <strong>
-                      {client?.company || client?.name || 'Client introuvable'}
+                      {client?.company || client?.name || t('Client introuvable')}
                     </strong>
                   </span>
                   <span className="sales-order-card__progress">
@@ -264,8 +266,17 @@ export function SalesOrdersScreen({
                       }
                     >
                       {recurrence
-                        ? `${recurrenceLabel} · prochaine échéance ${recurrence.status === 'completed' ? 'aucune' : formatDate(recurrence.nextScheduledFor)}`
-                        : `Livré ${progress.deliveryPercent} % · Préparé ${progress.invoicePreparedPercent} % · Émis ${progress.invoicePercent} %`}
+                        ? recurrence.status === 'completed'
+                          ? t('{label} · prochaine échéance aucune', { label: recurrenceLabel })
+                          : t('{label} · prochaine échéance {date}', {
+                              label: recurrenceLabel,
+                              date: formatDate(recurrence.nextScheduledFor),
+                            })
+                        : t('Livré {delivered} % · Préparé {prepared} % · Émis {issued} %', {
+                            delivered: progress.deliveryPercent,
+                            prepared: progress.invoicePreparedPercent,
+                            issued: progress.invoicePercent,
+                          })}
                     </small>
                     <i>
                       <span
@@ -288,7 +299,7 @@ export function SalesOrdersScreen({
                   </span>
                   <StatusBadge
                     status={recurrence?.status || display.status}
-                    label={recurrenceLabel || display.label}
+                    label={recurrenceLabel || t(display.label)}
                   />
                   <ArrowRight size={17} aria-hidden="true" />
                 </button>
@@ -298,8 +309,8 @@ export function SalesOrdersScreen({
         </ul>
         {!filtered.length ? (
           <EmptyState
-            title="Aucun résultat"
-            text="Aucune commande ne correspond à cette recherche."
+            title={t('Aucun résultat')}
+            text={t('Aucune commande ne correspond à cette recherche.')}
           />
         ) : null}
       </section>
@@ -330,6 +341,7 @@ function SalesOrderDetail({
   onPrintOrder: (order: SalesOrder) => void;
   onPrintDelivery: (note: DeliveryNote) => void;
 }) {
+  useAppLanguage();
   const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [deliveryDraft, setDeliveryDraft] = useState<
     DeliveryNote | undefined
@@ -349,6 +361,7 @@ function SalesOrderDetail({
   const progress = salesOrderProgress(order, workspace);
   const display = salesOrderDisplayStatus(order, workspace);
   const nextAction = nextSalesOrderAction(order, workspace);
+  const nextCopy = nextActionCopy()[nextAction];
   const currentDate = todayIso();
   const recurrenceSchedule = workspace.recurrenceSchedules.find(
     (schedule) => schedule.sourceSalesOrderId === order.id,
@@ -403,7 +416,7 @@ function SalesOrderDetail({
     }
     const ok = await act(
       () => desktopApi.issueDeliveryNote(requestId!, note.id),
-      'Le bon de livraison a été émis. La réservation et le stock ont été mis à jour ensemble.',
+      t('Le bon de livraison a été émis. La réservation et le stock ont été mis à jour ensemble.'),
       false,
       onError,
     );
@@ -422,24 +435,29 @@ function SalesOrderDetail({
       );
       if (shortages.length) {
         setClientError(
-          `Confirmation bloquée : ${shortages
-            .map(
-              (shortage) =>
-                `${shortage.catalogItem.name} demande ${formatCatalogQuantity(shortage.requiredMilli)}, ${formatCatalogQuantity(shortage.availableMilli)} disponible`,
-            )
-            .join(' · ')}. Enregistrez d’abord une entrée de stock.`,
+          t('Confirmation bloquée : {shortages}. Enregistrez d’abord une entrée de stock.', {
+            shortages: shortages
+              .map((shortage) =>
+                t('{item} demande {required}, {available} disponible', {
+                  item: shortage.catalogItem.name,
+                  required: formatCatalogQuantity(shortage.requiredMilli),
+                  available: formatCatalogQuantity(shortage.availableMilli),
+                }),
+              )
+              .join(' · '),
+          }),
         );
         return;
       }
       if (
         !window.confirm(
-          'Confirmer cette commande et réserver toutes les quantités suivies ?',
+          t('Confirmer cette commande et réserver toutes les quantités suivies ?'),
         )
       )
         return;
       await act(
         () => desktopApi.confirmSalesOrder(confirmRequestId.current, order.id),
-        'La commande est confirmée et les produits disponibles sont réservés.',
+        t('La commande est confirmée et les produits disponibles sont réservés.'),
         false,
       );
       return;
@@ -468,22 +486,22 @@ function SalesOrderDetail({
     <div className="stack-layout sales-order-detail">
       <div className="sales-order-detail__back">
         <Button variant="ghost" size="small" onClick={onBack}>
-          <ArrowLeft size={15} /> Toutes les commandes
+          <ArrowLeft size={15} /> {t('Toutes les commandes')}
         </Button>
       </div>
       <section className="panel sales-order-hero">
         <div>
-          <p className="eyebrow">Commande client</p>
+          <p className="eyebrow">{t('Commande client')}</p>
           <h2>
-            {order.number || 'À confirmer'} · {order.title}
+            {order.number || t('À confirmer')} · {order.title}
           </h2>
           <p>
-            {client?.company || client?.name || 'Client introuvable'}
+            {client?.company || client?.name || t('Client introuvable')}
             {project ? ` · ${project.name}` : ''}
           </p>
         </div>
         <div className="sales-order-hero__meta">
-          <StatusBadge status={display.status} label={display.label} />
+          <StatusBadge status={display.status} label={t(display.label)} />
           <strong>{formatMoney(order.totalCents)}</strong>
           <small>{formatDate(order.orderDate)}</small>
           {order.status !== 'draft' ? (
@@ -492,7 +510,7 @@ function SalesOrderDetail({
               size="small"
               onClick={() => onPrintOrder(order)}
             >
-              <Printer size={14} /> Aperçu commande
+              <Printer size={14} /> {t('Aperçu commande')}
             </Button>
           ) : null}
         </div>
@@ -502,21 +520,28 @@ function SalesOrderDetail({
         <>
           <section
             className="panel order-progress-panel"
-            aria-label="Avancement de la commande"
+            aria-label={t('Avancement de la commande')}
           >
             <OrderProgress
-              label="Livraison"
+              label={t('Livraison')}
               percent={progress.deliveryPercent}
               detail={
                 progress.deliveryLineCount
-                  ? `${progress.deliveryCompletedLines}/${progress.deliveryLineCount} lignes terminées`
-                  : 'Aucune livraison requise'
+                  ? t('{done}/{total} lignes terminées', {
+                      done: progress.deliveryCompletedLines,
+                      total: progress.deliveryLineCount,
+                    })
+                  : t('Aucune livraison requise')
               }
             />
             <OrderProgress
-              label="Factures émises"
+              label={t('Factures émises')}
               percent={progress.invoicePercent}
-              detail={`${progress.invoiceCompletedLines}/${progress.invoiceLineCount} lignes émises · ${progress.invoicePreparedPercent} % préparé en brouillon`}
+              detail={t('{done}/{total} lignes émises · {percent} % préparé en brouillon', {
+                done: progress.invoiceCompletedLines,
+                total: progress.invoiceLineCount,
+                percent: progress.invoicePreparedPercent,
+              })}
             />
           </section>
 
@@ -525,21 +550,21 @@ function SalesOrderDetail({
               <NextActionIcon action={nextAction} />
             </div>
             <div>
-              <p className="eyebrow">Prochaine étape</p>
-              <h3>{nextActionCopy[nextAction].title}</h3>
-              <p>{nextActionCopy[nextAction].description}</p>
+              <p className="eyebrow">{t('Prochaine étape')}</p>
+              <h3>{nextCopy.title}</h3>
+              <p>{nextCopy.description}</p>
             </div>
             {nextAction !== 'none' ? (
               <Button
                 disabled={busy || readOnly}
                 title={
                   readOnly
-                    ? 'Licence en lecture seule'
-                    : nextActionCopy[nextAction].button
+                    ? t('Licence en lecture seule')
+                    : nextCopy.button
                 }
                 onClick={() => void runNextAction()}
               >
-                {nextActionCopy[nextAction].button} <ArrowRight size={16} />
+                {nextCopy.button} <ArrowRight size={16} />
               </Button>
             ) : null}
           </section>
@@ -549,9 +574,9 @@ function SalesOrderDetail({
       <RecurringDocumentsPanel
         order={{
           id: order.id,
-          number: order.number || 'Sans numéro',
+          number: order.number || t('Sans numéro'),
           title: order.title,
-          clientName: client?.company || client?.name || 'Client introuvable',
+          clientName: client?.company || client?.name || t('Client introuvable'),
           orderDate: order.orderDate,
           status: order.status,
           eligible: recurrenceEligibility.eligible,
@@ -590,7 +615,7 @@ function SalesOrderDetail({
           let localReason: unknown;
           const ok = await act(
             () => desktopApi.createRecurrenceSchedule(input),
-            'La planification est créée. Chaque échéance préparera uniquement une facture brouillon à contrôler.',
+            t('La planification est créée. Chaque échéance préparera uniquement une facture brouillon à contrôler.'),
             false,
             (reason) => {
               localReason = reason;
@@ -599,19 +624,19 @@ function SalesOrderDetail({
           if (!ok)
             throw (
               localReason ??
-              new Error('La planification n’a pas pu être créée.')
+              new Error(t('La planification n’a pas pu être créée.'))
             );
         }}
         onUpdate={async (input) => {
           let localReason: unknown;
           const message =
             input.endDate !== recurrenceSchedule?.endDate
-              ? input.status === 'completed' ? 'La date de fin est enregistrée. La planification est terminée ; les factures existantes restent disponibles.' : 'La date de fin de la planification est enregistrée.'
+              ? input.status === 'completed' ? t('La date de fin est enregistrée. La planification est terminée ; les factures existantes restent disponibles.') : t('La date de fin de la planification est enregistrée.')
               : input.status === 'completed'
-              ? 'La planification est terminée définitivement. Son historique reste disponible.'
+              ? t('La planification est terminée définitivement. Son historique reste disponible.')
               : input.status === 'paused'
-                ? 'La planification est en pause.'
-                : 'La planification est reprise. Les échéances dues seront préparées par lots contrôlés.';
+                ? t('La planification est en pause.')
+                : t('La planification est reprise. Les échéances dues seront préparées par lots contrôlés.');
           const ok = await act(
             () => desktopApi.updateRecurrenceSchedule(input),
             message,
@@ -623,7 +648,7 @@ function SalesOrderDetail({
           if (!ok)
             throw (
               localReason ??
-              new Error('La planification n’a pas pu être mise à jour.')
+              new Error(t('La planification n’a pas pu être mise à jour.'))
             );
         }}
         onOpenDraftInvoice={(occurrence) => {
@@ -632,7 +657,7 @@ function SalesOrderDetail({
           );
           if (!invoice) {
             setClientError(
-              'La facture liée à cette occurrence est introuvable. Relancez Zentra puis contrôlez la sauvegarde locale.',
+              t('La facture liée à cette occurrence est introuvable. Relancez Zentra puis contrôlez la sauvegarde locale.'),
             );
             return;
           }
@@ -643,12 +668,12 @@ function SalesOrderDetail({
 
       <section className="panel order-lines-panel">
         <SectionHeading
-          eyebrow={recurrenceSchedule ? 'Contenu du modèle' : 'Quantités contrôlées'}
-          title={recurrenceSchedule ? 'Montants par occurrence' : 'Articles et exécution'}
+          eyebrow={recurrenceSchedule ? t('Contenu du modèle') : t('Quantités contrôlées')}
+          title={recurrenceSchedule ? t('Montants par occurrence') : t('Articles et exécution')}
           description={
             recurrenceSchedule
-              ? 'Chaque échéance reprend ces prestations et ces montants. Contrôlez le brouillon avant de l’émettre.'
-              : 'Retrouvez les quantités commandées, livrées et facturées pour chaque article.'
+              ? t('Chaque échéance reprend ces prestations et ces montants. Contrôlez le brouillon avant de l’émettre.')
+              : t('Retrouvez les quantités commandées, livrées et facturées pour chaque article.')
           }
         />
         <div className="order-line-list">
@@ -678,26 +703,29 @@ function SalesOrderDetail({
                 <div className="order-line-card__identity">
                   <strong>{line.description}</strong>
                   <small>
-                    {formatCatalogQuantity(line.quantityMilli)} {line.unit}{' '}
-                    commandé · {formatMoney(line.lineTotalCents)}
+                    {t('{quantity} {unit} commandé · {amount}', {
+                      quantity: formatCatalogQuantity(line.quantityMilli),
+                      unit: line.unit,
+                      amount: formatMoney(line.lineTotalCents),
+                    })}
                   </small>
                 </div>
                 {stock && item?.trackStock ? (
                   <div className="order-line-stock">
                     <small>
-                      <span>En main</span>
+                      <span>{t('En main')}</span>
                       <strong>
                         {formatCatalogQuantity(stock.onHandMilli)}
                       </strong>
                     </small>
                     <small>
-                      <span>Réservé</span>
+                      <span>{t('Réservé')}</span>
                       <strong>
                         {formatCatalogQuantity(stock.reservedMilli)}
                       </strong>
                     </small>
                     <small>
-                      <span>Disponible</span>
+                      <span>{t('Disponible')}</span>
                       <strong>
                         {formatCatalogQuantity(stock.availableMilli)}
                       </strong>
@@ -708,36 +736,36 @@ function SalesOrderDetail({
                     <ShieldCheck size={15} />
                     <span>
                       {line.fulfillmentMode === 'direct'
-                        ? 'Facturation directe'
-                        : 'Livraison sans stock suivi'}
+                        ? t('Facturation directe')
+                        : t('Livraison sans stock suivi')}
                     </span>
                   </div>
                 )}
                 {recurrenceSchedule ? (
                   <div className="order-line-progress-facts">
                     <small>
-                      <span>Quantité par occurrence</span>
+                      <span>{t('Quantité par occurrence')}</span>
                       <strong>
                         {formatCatalogQuantity(line.quantityMilli)} {line.unit}
                       </strong>
                     </small>
                     <small>
-                      <span>Montant par occurrence</span>
+                      <span>{t('Montant par occurrence')}</span>
                       <strong>{formatMoney(line.lineTotalCents)}</strong>
                     </small>
                     <small>
-                      <span>Brouillons à contrôler</span>
+                      <span>{t('Brouillons à contrôler')}</span>
                       <strong>{recurrenceDraftCount}</strong>
                     </small>
                     <small>
-                      <span>Factures émises</span>
+                      <span>{t('Factures émises')}</span>
                       <strong>{recurrenceIssuedCount}</strong>
                     </small>
                   </div>
                 ) : (
                   <div className="order-line-progress-facts">
                   <small>
-                    <span>Livré</span>
+                    <span>{t('Livré')}</span>
                     <strong>
                       {formatCatalogQuantity(
                         lineProgress.deliveredQuantityMilli,
@@ -745,7 +773,7 @@ function SalesOrderDetail({
                     </strong>
                   </small>
                   <small>
-                    <span>Préparé en brouillon</span>
+                    <span>{t('Préparé en brouillon')}</span>
                     <strong>
                       {formatCatalogQuantity(
                         lineProgress.allocatedQuantityMilli,
@@ -753,7 +781,7 @@ function SalesOrderDetail({
                     </strong>
                   </small>
                   <small>
-                    <span>Réellement facturé</span>
+                    <span>{t('Réellement facturé')}</span>
                     <strong>
                       {formatCatalogQuantity(
                         lineProgress.invoicedQuantityMilli,
@@ -762,7 +790,7 @@ function SalesOrderDetail({
                   </small>
                   {line.fulfillmentMode === 'stocked_delivery' ? (
                     <small>
-                      <span>Réservé pour cette ligne</span>
+                      <span>{t('Réservé pour cette ligne')}</span>
                       <strong>
                         {formatCatalogQuantity(
                           lineProgress.reservedQuantityMilli,
@@ -780,23 +808,25 @@ function SalesOrderDetail({
 
       {!recurrenceSchedule ? <div className="order-history-grid">
         <section className="panel order-history-card">
-          <SectionHeading eyebrow="Logistique" title="Bons de livraison" />
+          <SectionHeading eyebrow={t('Logistique')} title={t('Bons de livraison')} />
           {notes.length ? (
             notes.map((note) => (
               <article key={note.id}>
                 <div>
                   <Truck size={17} />
                   <span>
-                    <strong>{note.number || 'Brouillon de bon'}</strong>
+                    <strong>{note.number || t('Brouillon de bon')}</strong>
                     <small>
-                      {formatDate(note.deliveryDate)} · {note.lines.length}{' '}
-                      ligne{note.lines.length > 1 ? 's' : ''}
+                      {formatDate(note.deliveryDate)} ·{' '}
+                      {note.lines.length > 1
+                        ? t('{count} lignes', { count: note.lines.length })
+                        : t('{count} ligne', { count: note.lines.length })}
                     </small>
                   </span>
                 </div>
                 <StatusBadge
                   status={note.status}
-                  label={note.status === 'reversed' ? 'Extourné' : undefined}
+                  label={note.status === 'reversed' ? t('Extourné') : undefined}
                 />
                 <div className="order-history-actions">
                   {note.status === 'draft' && order.status === 'confirmed' ? (
@@ -810,14 +840,14 @@ function SalesOrderDetail({
                           setDeliveryOpen(true);
                         }}
                       >
-                        <FileText size={14} /> Modifier
+                        <FileText size={14} /> {t('Modifier')}
                       </Button>
                       <Button
                         size="small"
                         disabled={busy || readOnly}
                         onClick={() => setDeliveryIssueTarget(note)}
                       >
-                        <CheckCircle2 size={14} /> Contrôler et émettre
+                        <CheckCircle2 size={14} /> {t('Contrôler et émettre')}
                       </Button>
                     </>
                   ) : null}
@@ -827,7 +857,7 @@ function SalesOrderDetail({
                       size="small"
                       onClick={() => onPrintDelivery(note)}
                     >
-                      <Printer size={14} /> Aperçu
+                      <Printer size={14} /> {t('Aperçu')}
                     </Button>
                   ) : null}
                   {canReverseDeliveryNote(note, order, workspace) ? (
@@ -840,7 +870,7 @@ function SalesOrderDetail({
                         setCorrectionAction({ kind: 'reverse_delivery', note })
                       }
                     >
-                      <RotateCcw size={14} /> Extourner
+                      <RotateCcw size={14} /> {t('Extourner')}
                     </Button>
                   ) : null}
                 </div>
@@ -848,12 +878,12 @@ function SalesOrderDetail({
             ))
           ) : (
             <p className="order-history-empty">
-              Aucun bon de livraison préparé.
+              {t('Aucun bon de livraison préparé.')}
             </p>
           )}
         </section>
         <section className="panel order-history-card">
-          <SectionHeading eyebrow="Finances" title="Factures liées" />
+          <SectionHeading eyebrow={t('Finances')} title={t('Factures liées')} />
           {batches.length ? (
             batches.map(({ batch, invoice }) => (
               <article key={batch.id}>
@@ -863,11 +893,11 @@ function SalesOrderDetail({
                     <strong>
                       {invoice.number ||
                         (batch.role === 'final'
-                          ? 'Facture finale brouillon'
-                          : 'Situation brouillon')}
+                          ? t('Facture finale brouillon')
+                          : t('Situation brouillon'))}
                     </strong>
                     <small>
-                      {batch.role === 'final' ? 'Finale' : 'Partielle'} ·{' '}
+                      {batch.role === 'final' ? t('Finale') : t('Partielle')} ·{' '}
                       {formatMoney(documentTotals(invoice.lines).totalCents)}
                     </small>
                   </span>
@@ -881,7 +911,7 @@ function SalesOrderDetail({
                       disabled={busy || readOnly}
                       onClick={() => onIssueInvoice(invoice)}
                     >
-                      <CheckCircle2 size={14} /> Émettre
+                      <CheckCircle2 size={14} /> {t('Émettre')}
                     </Button>
                   ) : null}
                   {invoice.status === 'draft' ? (
@@ -894,7 +924,7 @@ function SalesOrderDetail({
                         setCorrectionAction({ kind: 'cancel_invoice', invoice })
                       }
                     >
-                      <Trash2 size={14} /> Supprimer le brouillon
+                      <Trash2 size={14} /> {t('Supprimer le brouillon')}
                     </Button>
                   ) : null}
                   <Button
@@ -902,14 +932,14 @@ function SalesOrderDetail({
                     size="small"
                     onClick={() => onOpenInvoice(invoice)}
                   >
-                    Contrôler
+                    {t('Contrôler')}
                   </Button>
                 </div>
               </article>
             ))
           ) : (
             <p className="order-history-empty">
-              Aucune facture créée depuis cette commande.
+              {t('Aucune facture créée depuis cette commande.')}
             </p>
           )}
         </section>
@@ -918,10 +948,10 @@ function SalesOrderDetail({
       {canCancelOrder || canCancelRemainder ? (
         <section className="panel order-correction-panel">
           <div>
-            <p className="eyebrow">Correction contrôlée</p>
-            <strong>Actions secondaires</strong>
+            <p className="eyebrow">{t('Correction contrôlée')}</p>
+            <strong>{t('Actions secondaires')}</strong>
             <small>
-              Un motif est obligatoire et l’historique déjà émis reste intact.
+              {t('Un motif est obligatoire et l’historique déjà émis reste intact.')}
             </small>
           </div>
           {canCancelOrder ? (
@@ -932,7 +962,7 @@ function SalesOrderDetail({
               disabled={busy || readOnly}
               onClick={() => setCorrectionAction({ kind: 'cancel_order' })}
             >
-              <Ban size={14} /> Annuler la commande
+              <Ban size={14} /> {t('Annuler la commande')}
             </Button>
           ) : null}
           {canCancelRemainder ? (
@@ -948,7 +978,7 @@ function SalesOrderDetail({
                 })
               }
             >
-              <Ban size={14} /> Annuler le reliquat
+              <Ban size={14} /> {t('Annuler le reliquat')}
             </Button>
           ) : null}
         </section>
@@ -1037,6 +1067,7 @@ function DeliveryNoteIssueReview({
   close: () => void;
   onIssue: (onError: (reason: unknown) => void) => Promise<boolean>;
 }) {
+  useAppLanguage();
   const [issueError, setIssueError] = useState('');
   const client = workspace.clients.find((item) => item.id === order.clientId);
   const project = workspace.projects.find(
@@ -1045,20 +1076,20 @@ function DeliveryNoteIssueReview({
   const recipient = client?.company || client?.name || '';
   return (
     <Modal
-      title="Contrôler le bon avant émission"
-      description="Vérifiez le destinataire et les quantités. L’émission attribue un numéro au bon et met à jour le stock des articles suivis."
+      title={t('Contrôler le bon avant émission')}
+      description={t('Vérifiez le destinataire et les quantités. L’émission attribue un numéro au bon et met à jour le stock des articles suivis.')}
       onClose={close}
       wide
     >
       <form onSubmit={submitForm(async () => {
         setIssueError('');
-        const ok = await onIssue((reason) => setIssueError(errorMessage(reason, 'Le bon n’a pas pu être émis.')));
+        const ok = await onIssue((reason) => setIssueError(errorMessage(reason, t('Le bon n’a pas pu être émis.'))));
         if (ok) close();
       })}>
         <div className="info-strip">
           <UserRound size={17} />
           <span>
-            <strong>{recipient || 'Destinataire introuvable'}</strong>
+            <strong>{recipient || t('Destinataire introuvable')}</strong>
             {client?.address ? ` · ${client.address}` : ''}
             {project ? ` · ${project.name}` : ''}
           </span>
@@ -1066,13 +1097,15 @@ function DeliveryNoteIssueReview({
         <div className="info-strip">
           <CalendarDays size={17} />
           <span>
-            Livraison prévue le {formatDate(note.deliveryDate)}
-            {note.reference ? ` · Référence ${note.reference}` : ''}
+            {t('Livraison prévue le {date}', { date: formatDate(note.deliveryDate) })}
+            {note.reference
+              ? ` · ${t('Référence {reference}', { reference: note.reference })}`
+              : ''}
           </span>
         </div>
         <div
           className="order-correction-impact"
-          aria-label="Quantités à émettre"
+          aria-label={t('Quantités à émettre')}
         >
           {note.lines.map((deliveryLine) => {
             const orderLine = order.lines.find(
@@ -1083,11 +1116,11 @@ function DeliveryNoteIssueReview({
                 <span>
                   {deliveryLine.description ||
                     orderLine?.description ||
-                    'Article'}
+                    t('Article')}
                 </span>
                 <strong>
                   {formatCatalogQuantity(deliveryLine.quantityMilli)}{' '}
-                  {deliveryLine.unit || orderLine?.unit || 'unité'}
+                  {deliveryLine.unit || orderLine?.unit || t('unité')}
                 </strong>
               </div>
             );
@@ -1101,13 +1134,13 @@ function DeliveryNoteIssueReview({
         ) : null}
         {issueError ? <ErrorPanel message={issueError} reveal /> : null}
         {!client ? (
-          <ErrorPanel message="Le client lié à cette commande est introuvable. Corrigez les données avant d’émettre le bon." />
+          <ErrorPanel message={t('Le client lié à cette commande est introuvable. Corrigez les données avant d’émettre le bon.')} />
         ) : null}
         <FormActions
           onCancel={close}
           busy={busy}
           disabled={!client || !note.lines.length}
-          submitLabel="Confirmer et émettre le bon"
+          submitLabel={t('Confirmer et émettre le bon')}
         />
       </form>
     </Modal>
@@ -1127,49 +1160,62 @@ function OrderCorrectionModal({
   act: ActionRunner;
   close: () => void;
 }) {
+  useAppLanguage();
   const requestId = useRef(createId());
   const [clientError, setClientError] = useState('');
   const copy =
     action.kind === 'cancel_order'
       ? {
-          title: 'Annuler la commande',
-          description:
+          title: t('Annuler la commande'),
+          description: t(
             'La commande passera en statut annulé. Les réservations encore actives seront libérées par le backend.',
-          confirmation:
+          ),
+          confirmation: t(
             'Confirmer l’annulation de toute la commande ? Cette action sera inscrite dans l’historique.',
-          submit: 'Annuler la commande',
-          success:
+          ),
+          submit: t('Annuler la commande'),
+          success: t(
             'La commande a été annulée et ses réservations ont été libérées.',
+          ),
         }
       : action.kind === 'cancel_remainder'
         ? {
-            title: 'Annuler le reliquat',
-            description:
+            title: t('Annuler le reliquat'),
+            description: t(
               'Seules les quantités restant à livrer ou facturer seront annulées. Les livraisons et factures existantes restent intactes.',
-            confirmation:
+            ),
+            confirmation: t(
               'Confirmer l’annulation de tout le reliquat affiché ? Les quantités déjà traitées resteront inchangées.',
-            submit: 'Annuler le reliquat',
-            success: 'Le reliquat de la commande a été annulé.',
+            ),
+            submit: t('Annuler le reliquat'),
+            success: t('Le reliquat de la commande a été annulé.'),
           }
         : action.kind === 'reverse_delivery'
           ? {
-              title: `Extourner ${action.note.number || 'le bon de livraison'}`,
-              description:
+              title: action.note.number
+                ? t('Extourner {number}', { number: action.note.number })
+                : t('Extourner le bon de livraison'),
+              description: t(
                 'Le bon émis restera visible. Une entrée de stock inverse sera créée et la réservation sera restaurée atomiquement.',
-              confirmation:
+              ),
+              confirmation: t(
                 'Confirmer l’extourne du bon de livraison ? Le document original restera dans l’historique.',
-              submit: 'Créer l’extourne',
-              success:
+              ),
+              submit: t('Créer l’extourne'),
+              success: t(
                 'Le bon de livraison a été extourné et le stock restauré.',
+              ),
             }
           : {
-              title: 'Supprimer la facture brouillon',
-              description:
+              title: t('Supprimer la facture brouillon'),
+              description: t(
                 'Seul ce brouillon lié à la commande sera supprimé. Les quantités redeviendront disponibles pour la prochaine facture.',
-              confirmation:
+              ),
+              confirmation: t(
                 'Confirmer la suppression de cette facture brouillon ? Une nouvelle facture pourra ensuite être préparée.',
-              submit: 'Supprimer le brouillon',
-              success: 'La facture brouillon liée a été supprimée.',
+              ),
+              submit: t('Supprimer le brouillon'),
+              success: t('La facture brouillon liée a été supprimée.'),
             };
 
   return (
@@ -1179,7 +1225,7 @@ function OrderCorrectionModal({
         onSubmit={submitForm(async (form) => {
           const reason = String(form.get('reason') ?? '').trim();
           if (!reason) {
-            setClientError('Indiquez un motif précis avant de confirmer.');
+            setClientError(t('Indiquez un motif précis avant de confirmer.'));
             return;
           }
           if (!window.confirm(copy.confirmation)) return;
@@ -1213,7 +1259,7 @@ function OrderCorrectionModal({
             },
             copy.success,
             false,
-            (reason) => setClientError(errorMessage(reason, 'La correction n’a pas pu être enregistrée.')),
+            (reason) => setClientError(errorMessage(reason, t('La correction n’a pas pu être enregistrée.'))),
           );
           if (ok) close();
         })}
@@ -1221,7 +1267,7 @@ function OrderCorrectionModal({
         {action.kind === 'cancel_remainder' ? (
           <div
             className="order-correction-impact"
-            aria-label="Reliquat à annuler"
+            aria-label={t('Reliquat à annuler')}
           >
             {action.lines.map((entry) => {
               const line = order.lines.find(
@@ -1229,24 +1275,24 @@ function OrderCorrectionModal({
               );
               return (
                 <div key={entry.salesOrderLineId}>
-                  <span>{line?.description || 'Ligne de commande'}</span>
+                  <span>{line?.description || t('Ligne de commande')}</span>
                   <strong>
                     {formatCatalogQuantity(entry.quantityMilli)}{' '}
-                    {line?.unit || 'unité'}
+                    {line?.unit || t('unité')}
                   </strong>
                 </div>
               );
             })}
           </div>
         ) : null}
-        <Field label="Motif" required wide>
+        <Field label={t('Motif')} required wide>
           <textarea
             name="reason"
             required
             maxLength={500}
             rows={4}
             autoFocus
-            placeholder="Ex. demande écrite du client, erreur de préparation…"
+            placeholder={t('Ex. demande écrite du client, erreur de préparation…')}
             onChange={() => setClientError('')}
           />
         </Field>
@@ -1264,53 +1310,61 @@ function NextActionIcon({ action }: { action: SalesOrderNextAction }) {
   return <CheckCircle2 size={21} />;
 }
 
-const nextActionCopy: Record<
+// Built on each render so the copy follows the current interface language.
+const nextActionCopy = (): Record<
   SalesOrderNextAction,
   { title: string; description: string; button: string }
-> = {
+> => ({
   confirm: {
-    title: 'Confirmer et réserver',
-    description:
+    title: t('Confirmer et réserver'),
+    description: t(
       'Toutes les quantités stockées doivent être disponibles. La réservation est atomique.',
-    button: 'Confirmer la commande',
+    ),
+    button: t('Confirmer la commande'),
   },
   create_delivery: {
-    title: 'Préparer le prochain bon',
-    description:
+    title: t('Préparer le prochain bon'),
+    description: t(
       'Les quantités restantes sont proposées; vous pouvez livrer seulement une partie.',
-    button: 'Préparer la livraison',
+    ),
+    button: t('Préparer la livraison'),
   },
   issue_delivery: {
-    title: 'Contrôler puis émettre le bon',
-    description:
+    title: t('Contrôler puis émettre le bon'),
+    description: t(
       'Relisez le destinataire et les quantités avant la sortie de stock définitive.',
-    button: 'Contrôler le bon',
+    ),
+    button: t('Contrôler le bon'),
   },
   create_partial_invoice: {
-    title: 'Facturer les quantités livrées',
-    description:
+    title: t('Facturer les quantités livrées'),
+    description: t(
       'Seules les quantités livrées et encore non facturées sont proposées.',
-    button: 'Créer la facture suivante',
+    ),
+    button: t('Créer la facture suivante'),
   },
   create_final_invoice: {
-    title: 'Créer la facture finale',
-    description:
+    title: t('Créer la facture finale'),
+    description: t(
       'Toutes les livraisons requises sont terminées. Le solde restant sera vérifié avant la création.',
-    button: 'Créer la facture finale',
+    ),
+    button: t('Créer la facture finale'),
   },
   issue_invoice: {
-    title: 'Contrôler le brouillon avant émission',
-    description:
+    title: t('Contrôler le brouillon avant émission'),
+    description: t(
       'Ouvrez directement la facture liée, puis revenez ici pour l’émettre après vérification.',
-    button: 'Contrôler la facture',
+    ),
+    button: t('Contrôler la facture'),
   },
   none: {
-    title: 'Cycle terminé',
-    description:
+    title: t('Cycle terminé'),
+    description: t(
       'Aucune action supplémentaire n’est requise pour cette commande.',
+    ),
     button: '',
   },
-};
+});
 
 function DeliveryNoteForm({
   note,
@@ -1327,6 +1381,7 @@ function DeliveryNoteForm({
   act: ActionRunner;
   close: () => void;
 }) {
+  useAppLanguage();
   const draftId = useRef(note?.id || createId());
   const available = useMemo(
     () => defaultDeliveryAllocations(order, workspace),
@@ -1360,13 +1415,13 @@ function DeliveryNoteForm({
     <Modal
       title={
         note
-          ? 'Modifier le bon de livraison brouillon'
-          : 'Préparer un bon de livraison'
+          ? t('Modifier le bon de livraison brouillon')
+          : t('Préparer un bon de livraison')
       }
       description={
         note
-          ? 'Corrigez les informations ou quantités, puis enregistrez. Aucun stock ne bougera avant le contrôle d’émission.'
-          : 'Les quantités restantes sont préremplies. Réduisez-les pour une livraison partielle; l’émission aura lieu après un second contrôle.'
+          ? t('Corrigez les informations ou quantités, puis enregistrez. Aucun stock ne bougera avant le contrôle d’émission.')
+          : t('Les quantités restantes sont préremplies. Réduisez-les pour une livraison partielle; l’émission aura lieu après un second contrôle.')
       }
       onClose={close}
       wide
@@ -1379,7 +1434,7 @@ function DeliveryNoteForm({
             deliveryDate,
           );
           if (dateError) {
-            setClientError(dateError);
+            setClientError(t(dateError));
             return;
           }
           const lines = available.flatMap((entry) => {
@@ -1399,13 +1454,13 @@ function DeliveryNoteForm({
           });
           if (!lines.length) {
             setClientError(
-              'Conservez au moins une ligne avec une quantité positive.',
+              t('Conservez au moins une ligne avec une quantité positive.'),
             );
             return;
           }
           if (exceeds) {
             setClientError(
-              'Une quantité dépasse le reliquat livrable. Actualisez la commande et recommencez.',
+              t('Une quantité dépasse le reliquat livrable. Actualisez la commande et recommencez.'),
             );
             return;
           }
@@ -1421,16 +1476,16 @@ function DeliveryNoteForm({
                 lines,
               }),
             note
-              ? 'Le bon de livraison brouillon a été corrigé. Contrôlez-le avant émission.'
-              : 'Le bon de livraison brouillon est prêt. Contrôlez-le puis émettez-le pour mouvementer le stock.',
+              ? t('Le bon de livraison brouillon a été corrigé. Contrôlez-le avant émission.')
+              : t('Le bon de livraison brouillon est prêt. Contrôlez-le puis émettez-le pour mouvementer le stock.'),
             false,
-            (reason) => setClientError(errorMessage(reason, 'Le brouillon n’a pas pu être enregistré.')),
+            (reason) => setClientError(errorMessage(reason, t('Le brouillon n’a pas pu être enregistré.'))),
           );
           if (ok) close();
         })}
       >
         <div className="form-grid">
-          <Field label="Date de livraison" required>
+          <Field label={t('Date de livraison')} required>
             <input
               name="deliveryDate"
               type="date"
@@ -1439,9 +1494,11 @@ function DeliveryNoteForm({
               onChange={() => setClientError('')}
               onBlur={(event) =>
                 setClientError(
-                  deliveryDateValidationError(
-                    order.orderDate,
-                    event.target.value,
+                  t(
+                    deliveryDateValidationError(
+                      order.orderDate,
+                      event.target.value,
+                    ),
                   ),
                 )
               }
@@ -1449,8 +1506,8 @@ function DeliveryNoteForm({
             />
           </Field>
           <Field
-            label="Référence"
-            hint="Facultatif : tournée, projet, référence client…"
+            label={t('Référence')}
+            hint={t('Facultatif : tournée, projet, référence client…')}
           >
             <input
               name="reference"
@@ -1463,8 +1520,8 @@ function DeliveryNoteForm({
           <header>
             <Truck size={18} />
             <div>
-              <strong>Quantités de ce bon</strong>
-              <p>Une valeur vide exclut la ligne de cette livraison.</p>
+              <strong>{t('Quantités de ce bon')}</strong>
+              <p>{t('Une valeur vide exclut la ligne de cette livraison.')}</p>
             </div>
           </header>
           <div className="guided-line-list">
@@ -1477,8 +1534,10 @@ function DeliveryNoteForm({
                   <span>
                     <strong>{line.description}</strong>
                     <small>
-                      Reste {formatCatalogQuantity(entry.quantityMilli)}{' '}
-                      {line.unit}
+                      {t('Reste {quantity} {unit}', {
+                        quantity: formatCatalogQuantity(entry.quantityMilli),
+                        unit: line.unit,
+                      })}
                     </small>
                   </span>
                   <span className="guided-quantity-input">
@@ -1495,7 +1554,7 @@ function DeliveryNoteForm({
                         }));
                         setClientError('');
                       }}
-                      aria-label={`Quantité livrée pour ${line.description}`}
+                      aria-label={t('Quantité livrée pour {line}', { line: line.description })}
                     />
                     <small>{line.unit}</small>
                   </span>
@@ -1504,7 +1563,7 @@ function DeliveryNoteForm({
             })}
           </div>
         </section>
-        <Field label="Note logistique" wide>
+        <Field label={t('Note logistique')} wide>
           <textarea
             name="notes"
             rows={3}
@@ -1515,8 +1574,7 @@ function DeliveryNoteForm({
         <div className="info-strip">
           <ShieldCheck size={17} />
           <span>
-            Ce brouillon prépare les quantités à livrer. Le stock des articles
-            suivis est mis à jour à l’émission du bon.
+            {t('Ce brouillon prépare les quantités à livrer. Le stock des articles suivis est mis à jour à l’émission du bon.')}
           </span>
         </div>
         {clientError ? <ErrorPanel message={clientError} reveal /> : null}
@@ -1525,8 +1583,8 @@ function DeliveryNoteForm({
           busy={busy}
           submitLabel={
             note
-              ? 'Enregistrer les corrections'
-              : 'Enregistrer le bon brouillon'
+              ? t('Enregistrer les corrections')
+              : t('Enregistrer le bon brouillon')
           }
         />
       </form>
@@ -1547,6 +1605,7 @@ function OrderInvoiceWizard({
   act: ActionRunner;
   close: () => void;
 }) {
+  useAppLanguage();
   const initialIssueDate = todayIso();
   const initialServiceDateFrom = order.orderDate || initialIssueDate;
   const initialServiceDateTo =
@@ -1590,7 +1649,7 @@ function OrderInvoiceWizard({
 
   const validateAllocations = (allocations: InvoiceAllocationDraft[]) => {
     if (!allocations.length)
-      return 'Conservez au moins une quantité à facturer.';
+      return t('Conservez au moins une quantité à facturer.');
     const excessive = allocations.some((allocation) => {
       const maximum = defaults.find(
         (entry) => allocationKey(entry) === allocationKey(allocation),
@@ -1598,7 +1657,7 @@ function OrderInvoiceWizard({
       return maximum === undefined || allocation.quantityMilli > maximum;
     });
     return excessive
-      ? 'Une quantité dépasse le disponible facturable. Actualisez la commande.'
+      ? t('Une quantité dépasse le disponible facturable. Actualisez la commande.')
       : '';
   };
 
@@ -1625,7 +1684,7 @@ function OrderInvoiceWizard({
     } catch (reason) {
       if (requestVersion !== previewRequestVersion.current) return null;
       setClientError(
-        errorMessage(reason, 'L’aperçu autoritaire n’a pas pu être calculé.'),
+        errorMessage(reason, t('L’aperçu autoritaire n’a pas pu être calculé.')),
       );
       return null;
     } finally {
@@ -1671,26 +1730,29 @@ function OrderInvoiceWizard({
   };
   const previewDocumentLabel = preview
     ? preview.role === 'final'
-      ? 'Facture finale'
-      : 'Facture de situation'
-    : 'Type à recalculer';
+      ? t('Facture finale')
+      : t('Facture de situation')
+    : t('Type à recalculer');
 
   return (
     <Modal
       title={
         preview
-          ? `Créer la ${previewDocumentLabel.toLowerCase()}`
-          : 'Créer la facture suivante'
+          ? preview.role === 'final'
+            ? t('Créer la facture finale')
+            : t('Créer la facture de situation')
+          : t('Créer la facture suivante')
       }
-      description="Le type de facture dépend des livraisons et des quantités déjà facturées."
+      description={t('Le type de facture dépend des livraisons et des quantités déjà facturées.')}
       onClose={close}
       wide
     >
       <form
         onSubmit={submitForm(async () => {
           setSaveError('');
-          const nextDateError =
-            salesOrderInvoiceDateValidationError(invoiceDates);
+          const nextDateError = t(
+            salesOrderInvoiceDateValidationError(invoiceDates),
+          );
           setDateError(nextDateError);
           if (nextDateError) return;
           const allocations = selectedAllocations();
@@ -1713,16 +1775,16 @@ function OrderInvoiceWizard({
                 allocations,
               }),
             authoritative.role === 'final'
-              ? 'La facture finale brouillon a été créée. Contrôlez-la puis émettez-la.'
-              : 'La facture de situation brouillon a été créée. Contrôlez-la puis émettez-la.',
+              ? t('La facture finale brouillon a été créée. Contrôlez-la puis émettez-la.')
+              : t('La facture de situation brouillon a été créée. Contrôlez-la puis émettez-la.'),
             false,
-            (reason) => setSaveError(errorMessage(reason, 'La facture n’a pas pu être créée.')),
+            (reason) => setSaveError(errorMessage(reason, t('La facture n’a pas pu être créée.'))),
           );
           if (ok) close();
         })}
       >
         <div className="form-grid">
-          <Field label="Date prévue d’émission" required>
+          <Field label={t('Date prévue d’émission')} required>
             <input
               name="issueDate"
               type="date"
@@ -1734,18 +1796,18 @@ function OrderInvoiceWizard({
               }}
               onBlur={() =>
                 setDateError(
-                  salesOrderInvoiceDateValidationError({
+                  t(salesOrderInvoiceDateValidationError({
                     ...invoiceDates,
                     issueDate,
-                  }),
+                  })),
                 )
               }
               required
             />
           </Field>
           <Field
-            label="Échéance"
-            hint="Laissez vide pour appliquer les conditions habituelles."
+            label={t('Échéance')}
+            hint={t('Laissez vide pour appliquer les conditions habituelles.')}
           >
             <input
               name="dueDate"
@@ -1758,15 +1820,15 @@ function OrderInvoiceWizard({
               }}
               onBlur={() =>
                 setDateError(
-                  salesOrderInvoiceDateValidationError({
+                  t(salesOrderInvoiceDateValidationError({
                     ...invoiceDates,
                     dueDate,
-                  }),
+                  })),
                 )
               }
             />
           </Field>
-          <Field label="Prestation du" required>
+          <Field label={t('Prestation du')} required>
             <input
               name="serviceDateFrom"
               type="date"
@@ -1778,16 +1840,16 @@ function OrderInvoiceWizard({
               }}
               onBlur={() =>
                 setDateError(
-                  salesOrderInvoiceDateValidationError({
+                  t(salesOrderInvoiceDateValidationError({
                     ...invoiceDates,
                     serviceDateFrom,
-                  }),
+                  })),
                 )
               }
               required
             />
           </Field>
-          <Field label="Prestation au" required>
+          <Field label={t('Prestation au')} required>
             <input
               name="serviceDateTo"
               type="date"
@@ -1799,10 +1861,10 @@ function OrderInvoiceWizard({
               }}
               onBlur={() =>
                 setDateError(
-                  salesOrderInvoiceDateValidationError({
+                  t(salesOrderInvoiceDateValidationError({
                     ...invoiceDates,
                     serviceDateTo,
-                  }),
+                  })),
                 )
               }
               required
@@ -1813,10 +1875,9 @@ function OrderInvoiceWizard({
           <header>
             <Receipt size={18} />
             <div>
-              <strong>Quantités éligibles</strong>
+              <strong>{t('Quantités éligibles')}</strong>
               <p>
-                Une livraison ne peut être allouée qu’une fois. Réduisez une
-                quantité pour une situation partielle.
+                {t('Une livraison ne peut être allouée qu’une fois. Réduisez une quantité pour une situation partielle.')}
               </p>
             </div>
           </header>
@@ -1842,10 +1903,12 @@ function OrderInvoiceWizard({
                       {note?.number
                         ? `${note.number} · `
                         : line.fulfillmentMode === 'direct'
-                          ? 'Direct · '
+                          ? `${t('Direct')} · `
                           : ''}
-                      maximum {formatCatalogQuantity(entry.quantityMilli)}{' '}
-                      {line.unit}
+                      {t('maximum {quantity} {unit}', {
+                        quantity: formatCatalogQuantity(entry.quantityMilli),
+                        unit: line.unit,
+                      })}
                     </small>
                   </span>
                   <span className="guided-quantity-input">
@@ -1862,7 +1925,7 @@ function OrderInvoiceWizard({
                         }));
                         invalidatePreview();
                       }}
-                      aria-label={`Quantité facturée pour ${line.description}`}
+                      aria-label={t('Quantité facturée pour {line}', { line: line.description })}
                     />
                     <small>{line.unit}</small>
                   </span>
@@ -1873,12 +1936,12 @@ function OrderInvoiceWizard({
         </section>
         <div className="invoice-preview-card" aria-live="polite">
           <div>
-            <small>Document proposé</small>
+            <small>{t('Document proposé')}</small>
             <strong>{previewDocumentLabel}</strong>
           </div>
           <div>
             <small>
-              {preview ? 'Total TTC' : 'Estimation TTC à recalculer'}
+              {preview ? t('Total TTC') : t('Estimation TTC à recalculer')}
             </small>
             <strong>{formatMoney(preview?.totalCents ?? fallbackTotal)}</strong>
           </div>
@@ -1889,14 +1952,13 @@ function OrderInvoiceWizard({
             disabled={previewBusy || busy}
             onClick={() => void refreshPreview()}
           >
-            {previewBusy ? 'Calcul…' : 'Recalculer l’aperçu'}
+            {previewBusy ? t('Calcul…') : t('Recalculer l’aperçu')}
           </Button>
         </div>
         <div className="info-strip">
           <LockKeyhole size={17} />
           <span>
-            La création réserve ces quantités à la facturation, mais ne déstocke
-            rien. Le stock a déjà été mouvementé par le bon de livraison.
+            {t('La création réserve ces quantités à la facturation, mais ne déstocke rien. Le stock a déjà été mouvementé par le bon de livraison.')}
           </span>
         </div>
         {dateError || clientError || saveError ? (
@@ -1906,7 +1968,7 @@ function OrderInvoiceWizard({
           onCancel={close}
           busy={busy || previewBusy}
           disabled={Boolean(dateError || clientError)}
-          submitLabel="Créer le brouillon contrôlé"
+          submitLabel={t('Créer le brouillon contrôlé')}
         />
       </form>
     </Modal>
@@ -1931,6 +1993,7 @@ export function SalesOrderPrintPreview({
   workspace: Workspace;
   onClose: () => void;
 }) {
+  useAppLanguage();
   const frozen = order.snapshot;
   const document = frozen?.order ?? order;
   const lines = frozen?.lines ?? order.lines;
@@ -1975,7 +2038,7 @@ export function SalesOrderPrintPreview({
     customer?.name ||
     currentClient?.company ||
     currentClient?.name ||
-    'Client non disponible';
+    t('Client non disponible');
   const customerAddress = customer
     ? [
         customer.addressLine1,
@@ -1986,30 +2049,32 @@ export function SalesOrderPrintPreview({
       ]
         .filter(Boolean)
         .join('\n')
-    : currentClient?.address || 'Adresse non renseignée';
+    : currentClient?.address || t('Adresse non renseignée');
   const logoPath = issuer?.logoPath || currentOrganization.logoPath;
   const logo = logoPath ? convertFileSrc(logoPath) : '';
   return (
     <div className="print-preview delivery-print-preview">
       <div className="print-preview__toolbar">
-        <strong>Aperçu de la commande</strong>
+        <strong>{t('Aperçu de la commande')}</strong>
         <span>
           {frozen
-            ? `Identité, destinataire et lignes figés le ${formatDate(frozen.capturedAt.slice(0, 10))}.`
-            : 'Ancienne commande sans snapshot complet · contrôlez les informations.'}
+            ? t('Identité, destinataire et lignes figés le {date}.', {
+                date: formatDate(frozen.capturedAt.slice(0, 10)),
+              })
+            : t('Ancienne commande sans snapshot complet · contrôlez les informations.')}
         </span>
         <Button variant="secondary" onClick={() => window.print()}>
-          <Printer size={16} /> Imprimer
+          <Printer size={16} /> {t('Imprimer')}
         </Button>
         <Button variant="ghost" onClick={onClose}>
-          Fermer
+          {t('Fermer')}
         </Button>
       </div>
       <article className="print-sheet delivery-print-sheet sales-order-print-sheet">
         <header className="delivery-print-header">
           <div className="delivery-print-brand">
             {logo ? (
-              <img src={logo} alt={`Logo ${issuerName}`} />
+              <img src={logo} alt={t('Logo {company}', { company: issuerName })} />
             ) : (
               <span>
                 <PackageCheck size={30} />
@@ -2021,13 +2086,13 @@ export function SalesOrderPrintPreview({
             </div>
           </div>
           <div className="delivery-print-title">
-            <span>COMMANDE CLIENT</span>
+            <span>{t('COMMANDE CLIENT')}</span>
             <strong>{document.number}</strong>
           </div>
         </header>
         <div className="delivery-print-addresses">
           <section>
-            <small>Émetteur</small>
+            <small>{t('Émetteur')}</small>
             <strong>{issuerName}</strong>
             <p>
               {issuerAddress.split('\n').map((line, index) => (
@@ -2043,7 +2108,7 @@ export function SalesOrderPrintPreview({
             </p>
           </section>
           <section>
-            <small>Client</small>
+            <small>{t('Client')}</small>
             <strong>{customerName}</strong>
             <p>
               {customerAddress.split('\n').map((line, index) => (
@@ -2057,25 +2122,25 @@ export function SalesOrderPrintPreview({
         </div>
         <div className="delivery-print-meta">
           <div>
-            <span>Date</span>
+            <span>{t('Date')}</span>
             <strong>{formatDate(document.orderDate)}</strong>
           </div>
           <div>
-            <span>Devise</span>
+            <span>{t('Devise')}</span>
             <strong>{document.currency}</strong>
           </div>
           <div>
-            <span>Total TTC</span>
+            <span>{t('Total TTC')}</span>
             <strong>{formatMoney(document.totalCents)}</strong>
           </div>
         </div>
         <table className="delivery-print-table sales-order-print-table">
           <thead>
             <tr>
-              <th>Article / prestation</th>
-              <th>Quantité</th>
-              <th>Prix unitaire</th>
-              <th>Total TTC</th>
+              <th>{t('Article / prestation')}</th>
+              <th>{t('Quantité')}</th>
+              <th>{t('Prix unitaire')}</th>
+              <th>{t('Total TTC')}</th>
             </tr>
           </thead>
           <tbody>
@@ -2085,8 +2150,13 @@ export function SalesOrderPrintPreview({
                   <strong>{line.description}</strong>
                   <small>
                     {line.discountBp
-                      ? `Remise ${(line.discountBp / 100).toLocaleString('fr-CH')} % · TVA ${(line.vatBp / 100).toLocaleString('fr-CH')} %`
-                      : `TVA ${(line.vatBp / 100).toLocaleString('fr-CH')} %`}
+                      ? t('Remise {discount} % · TVA {vat} %', {
+                          discount: (line.discountBp / 100).toLocaleString(getAppLocale()),
+                          vat: (line.vatBp / 100).toLocaleString(getAppLocale()),
+                        })
+                      : t('TVA {vat} %', {
+                          vat: (line.vatBp / 100).toLocaleString(getAppLocale()),
+                        })}
                   </small>
                 </td>
                 <td>
@@ -2100,7 +2170,7 @@ export function SalesOrderPrintPreview({
         </table>
         {document.notes || document.terms ? (
           <section className="delivery-print-notes">
-            <small>Conditions et remarques</small>
+            <small>{t('Conditions et remarques')}</small>
             <p>
               {[document.notes, document.terms].filter(Boolean).join('\n\n')}
             </p>
@@ -2108,14 +2178,13 @@ export function SalesOrderPrintPreview({
         ) : null}
         <footer className="delivery-print-footer">
           <div>
-            <span>Validation entreprise</span>
+            <span>{t('Validation entreprise')}</span>
           </div>
           <div>
-            <span>Acceptation client</span>
+            <span>{t('Acceptation client')}</span>
           </div>
           <p>
-            Cette commande reprend les prix et quantités acceptés. Les
-            livraisons et factures restent tracées séparément.
+            {t('Cette commande reprend les prix et quantités acceptés. Les livraisons et factures restent tracées séparément.')}
           </p>
         </footer>
       </article>
@@ -2134,6 +2203,7 @@ export function DeliveryNotePrintPreview({
   workspace: Workspace;
   onClose: () => void;
 }) {
+  useAppLanguage();
   const frozen = note.snapshot;
   const document = frozen?.deliveryNote ?? note;
   const printedOrder = frozen?.order ?? order;
@@ -2179,7 +2249,7 @@ export function DeliveryNotePrintPreview({
     customer?.name ||
     currentClient?.company ||
     currentClient?.name ||
-    'Client non disponible';
+    t('Client non disponible');
   const customerAddress = customer
     ? [
         customer.addressLine1,
@@ -2190,7 +2260,7 @@ export function DeliveryNotePrintPreview({
       ]
         .filter(Boolean)
         .join('\n')
-    : currentClient?.address || 'Adresse non renseignée';
+    : currentClient?.address || t('Adresse non renseignée');
   const project = workspace.projects.find(
     (item) => item.id === printedOrder.projectId,
   );
@@ -2199,24 +2269,24 @@ export function DeliveryNotePrintPreview({
   return (
     <div className="print-preview delivery-print-preview">
       <div className="print-preview__toolbar">
-        <strong>Aperçu du bon de livraison</strong>
+        <strong>{t('Aperçu du bon de livraison')}</strong>
         <span>
           {frozen
-            ? 'Document figé · identité, destinataire et quantités conservés.'
-            : 'Ancien document sans snapshot complet · contrôlez les informations.'}
+            ? t('Document figé · identité, destinataire et quantités conservés.')
+            : t('Ancien document sans snapshot complet · contrôlez les informations.')}
         </span>
         <Button variant="secondary" onClick={() => window.print()}>
-          <Printer size={16} /> Imprimer
+          <Printer size={16} /> {t('Imprimer')}
         </Button>
         <Button variant="ghost" onClick={onClose}>
-          Fermer
+          {t('Fermer')}
         </Button>
       </div>
       <article className="print-sheet delivery-print-sheet">
         <header className="delivery-print-header">
           <div className="delivery-print-brand">
             {logo ? (
-              <img src={logo} alt={`Logo ${issuerName}`} />
+              <img src={logo} alt={t('Logo {company}', { company: issuerName })} />
             ) : (
               <span>
                 <PackageCheck size={30} />
@@ -2228,13 +2298,13 @@ export function DeliveryNotePrintPreview({
             </div>
           </div>
           <div className="delivery-print-title">
-            <span>BON DE LIVRAISON</span>
+            <span>{t('BON DE LIVRAISON')}</span>
             <strong>{document.number}</strong>
           </div>
         </header>
         <div className="delivery-print-addresses">
           <section>
-            <small>Expéditeur</small>
+            <small>{t('Expéditeur')}</small>
             <strong>{issuerName}</strong>
             <p>
               {issuerAddress.split('\n').map((line, index) => (
@@ -2250,7 +2320,7 @@ export function DeliveryNotePrintPreview({
             </p>
           </section>
           <section>
-            <small>Destinataire</small>
+            <small>{t('Destinataire')}</small>
             <strong>{customerName}</strong>
             <p>
               {customerAddress.split('\n').map((line, index) => (
@@ -2262,7 +2332,7 @@ export function DeliveryNotePrintPreview({
             </p>
             {project ? (
               <p>
-                <strong>Livraison / projet :</strong> {project.name}
+                <strong>{t('Livraison / projet :')}</strong> {project.name}
                 <br />
                 {project.address}
               </p>
@@ -2271,23 +2341,23 @@ export function DeliveryNotePrintPreview({
         </div>
         <div className="delivery-print-meta">
           <div>
-            <span>Date</span>
+            <span>{t('Date')}</span>
             <strong>{formatDate(document.deliveryDate)}</strong>
           </div>
           <div>
-            <span>Commande</span>
+            <span>{t('Commande')}</span>
             <strong>{printedOrder.number || printedOrder.title}</strong>
           </div>
           <div>
-            <span>Référence</span>
+            <span>{t('Référence')}</span>
             <strong>{document.reference || '—'}</strong>
           </div>
         </div>
         <table className="delivery-print-table">
           <thead>
             <tr>
-              <th>Article / prestation</th>
-              <th>Quantité livrée</th>
+              <th>{t('Article / prestation')}</th>
+              <th>{t('Quantité livrée')}</th>
             </tr>
           </thead>
           <tbody>
@@ -2301,10 +2371,10 @@ export function DeliveryNotePrintPreview({
                     <strong>
                       {deliveryLine.description ||
                         orderLine?.description ||
-                        'Article'}
+                        t('Article')}
                     </strong>
                     {orderLine?.catalogItemId ? (
-                      <small>Référence catalogue liée</small>
+                      <small>{t('Référence catalogue liée')}</small>
                     ) : null}
                   </td>
                   <td>
@@ -2318,20 +2388,19 @@ export function DeliveryNotePrintPreview({
         </table>
         {document.notes ? (
           <section className="delivery-print-notes">
-            <small>Remarques</small>
+            <small>{t('Remarques')}</small>
             <p>{document.notes}</p>
           </section>
         ) : null}
         <footer className="delivery-print-footer">
           <div>
-            <span>Remis par</span>
+            <span>{t('Remis par')}</span>
           </div>
           <div>
-            <span>Reçu par / signature</span>
+            <span>{t('Reçu par / signature')}</span>
           </div>
           <p>
-            Ce bon constate uniquement les quantités livrées. Il ne constitue
-            pas une facture.
+            {t('Ce bon constate uniquement les quantités livrées. Il ne constitue pas une facture.')}
           </p>
         </footer>
       </article>

@@ -1,3 +1,9 @@
+import { demoTranslations } from './translationsDemo';
+import { plansTranslations } from './translationsPlans';
+import { salesOrdersTranslations } from './translationsSalesOrders';
+import { purchaseOrdersTranslations } from './translationsPurchaseOrders';
+import { payrollImportTranslations } from './translationsPayrollImport';
+import { bankPaymentsTranslations } from './translationsBankPayments';
 import { contactFormTranslations } from './translationsContactForms';
 import { documentSettingsTranslations } from './translationsDocumentSettings';
 import { documentNavigationTranslations } from './translationsDocumentNavigation';
@@ -50,6 +56,12 @@ import { purchaseInboxTranslations } from './translationsPurchaseInbox';
 import { notesTranslations } from './translationsNotes';
 import { customerCreditTranslations } from './translationsCustomerCredit';
 export const translations: Record<string, readonly [string, string, string]> = {
+  ...demoTranslations,
+  ...plansTranslations,
+  ...salesOrdersTranslations,
+  ...purchaseOrdersTranslations,
+  ...payrollImportTranslations,
+  ...bankPaymentsTranslations,
   ...contactFormTranslations,
   ...notesTranslations,
   ...customerCreditTranslations,
@@ -351,7 +363,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   'Confirmez avoir compris où vos données sont stockées.': ['Bestätigen Sie, dass Sie wissen, wo Ihre Daten gespeichert sind.','Conferma di aver capito dove vengono memorizzati i tuoi dati.','Confirm that you understand where your data is stored.'],
   'Confirmez votre stratégie de sauvegarde avant de terminer.': ['Bestätigen Sie Ihre Sicherungsstrategie, bevor Sie abschliessen.','Conferma la strategia di backup prima di terminare.','Confirm your backup strategy before finishing.'],
   'Rechercher dans {section}': ['In {section} suchen','Cerca in {section}','Search in {section}'],
-  'Commandes': ['Aufträge','Ordini','Orders'], 'Documents, planning et suivi de vos projets': ['Dokumente, Planung und Fortschritt Ihrer Projekte','Documenti, pianificazione e avanzamento dei tuoi progetti','Documents, planning and progress for your projects'],
+  'Commandes': ['Bestellungen','Ordini','Orders'], 'Documents, planning et suivi de vos projets': ['Dokumente, Planung und Fortschritt Ihrer Projekte','Documenti, pianificazione e avanzamento dei tuoi progetti','Documents, planning and progress for your projects'],
   'Pointage réel et heures par projet': ['Zeiterfassung und Stunden pro Projekt','Timbrature effettive e ore per progetto','Actual time entries and hours by project'],
   'L’essentiel de votre activité, en un coup d’œil': ['Das Wesentliche Ihres Unternehmens auf einen Blick','L’essenziale della tua attività a colpo d’occhio','Your business essentials at a glance'],
   'Rendez-vous et échéances réelles réunis au même endroit': ['Termine und tatsächliche Fristen an einem Ort','Appuntamenti e scadenze reali in un unico posto','Appointments and actual deadlines in one place'],
