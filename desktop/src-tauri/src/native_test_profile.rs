@@ -18,7 +18,7 @@ const LIVE_A41_SITE_ORIGIN: &str =
 const LIVE_A41_SUPABASE_ORIGIN: &str = "https://lanhvwpalnkuabtjcpgp.supabase.co";
 const LIVE_A41_PUBLIC_KEY: &str = "hLFfY6E43JD0Sz-gUOrhOHY8mxQHqyu2875H2oXPQb0";
 const LIVE_A41_KID: &str = "sandbox-action-engine-a41";
-const PRODUCTION_PUBLIC_KEY: &str = "FySkIPXpEIfZ9UCBlXuhFAgFx3LpchgBFWTh65Aa040";
+const PRODUCTION_PUBLIC_KEY: &str = "pokZJbZxpRqeNTojs1c0nYO1Zu6MMojT0cSw0q9_A68";
 const PRODUCTION_KID: &str = "hc-prod-v1";
 const PRODUCTION_HOSTS: [&str; 5] = [
     "zentraapp.ch",
