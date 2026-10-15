@@ -94,7 +94,7 @@ export const agendaTranslations: Record<string, readonly [string,string,string]>
   'Votre saisie reste présente. Pour chaque point modifié des deux côtés, choisissez la valeur à conserver.':['Ihre Eingaben bleiben erhalten. Wählen Sie für jede Angabe, die in beiden Versionen geändert wurde, den Wert, den Sie behalten möchten.','I tuoi dati inseriti restano presenti. Per ogni voce modificata in entrambe le versioni, scegli il valore da mantenere.','Your entries are preserved. For each item changed in both versions, choose the value to keep.'],
   '{label} à conserver':['{label} beibehalten','{label} da mantenere','{label} to keep'],
   'Ma saisie':['Meine Eingabe','I miei dati inseriti','My entry'],
-  'Version enregistrée':['Gespeicherte Version','Versione salvata','Saved version'],
+  'Version enregistrée':['Gespeicherte Version','Versione registrata','Saved version'],
   'Vos changements peuvent être réunis avec la version enregistrée.':['Ihre Änderungen können mit der gespeicherten Version zusammengeführt werden.','Le tue modifiche possono essere unite alla versione salvata.','Your changes can be combined with the saved version.'],
   'Vous pourrez relire le formulaire avant d’enregistrer. Aucun changement n’est envoyé par ce bouton.':['Sie können das Formular vor dem Speichern nochmals prüfen. Mit diesem Button werden keine Änderungen gesendet.','Potrai rileggere il modulo prima di salvarlo. Questo pulsante non invia alcuna modifica.','You can review the form before saving. This button does not send any changes.'],
   'Choisissez une valeur pour chaque point, puis continuez.':['Wählen Sie für jede Angabe einen Wert und fahren Sie dann fort.','Scegli un valore per ogni voce, poi continua.','Choose a value for each item, then continue.'],

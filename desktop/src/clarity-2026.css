@@ -1,48 +1,590 @@
 /*
- * Clarity 2026: refinement layer loaded last. Same palette and tokens; only
- * hierarchy, air and calmer surfaces. Works in light and dark through the
- * existing --apple-* variables. Selectors match the specificity of the
- * existing experience layer so the refinement wins without !important.
+ * Zentra 2026: the shared theme of the site and the app, loaded last.
+ * It retunes the existing --apple-* tokens to the site palette (green ink,
+ * quiet sage neutrals, one deep green for action) and simplifies the chrome:
+ * a seamless sidebar, a transparent toolbar, larger titles, pill buttons and
+ * borderless sheets. Literal colours live only in custom properties so the
+ * generated dark palette leaves this layer alone.
  */
-html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
-  padding: 40px 32px 28px;
-}
-html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
-  font-size: 36px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.08;
-}
-
-/* Surfaces and controls: rounder, softer, a touch of physical feedback. */
-html[data-app-theme] .desktop-app[data-experience] .app-main .metric-grid {
-  border-radius: 20px;
-}
-html[data-app-theme] .desktop-app[data-experience] .app-main .button:not(.button--icon) {
-  border-radius: 999px;
-}
-html[data-app-theme] .desktop-app[data-experience] .app-main .button {
-  transition:
-    background-color 160ms ease,
-    transform 160ms ease;
-}
-html[data-app-theme] .desktop-app[data-experience] .app-main .button:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html[data-app-theme] .desktop-app[data-experience] .app-main .button {
-    transition: none;
+@media screen {
+  :root {
+    --apple-canvas: #f5f7f5;
+    --apple-paper: #fff;
+    --apple-grouped: #eef2ef;
+    --apple-rail: #f5f7f5;
+    --apple-ink: #1c2923;
+    --apple-secondary: #5a6b61;
+    --apple-line: #dfe6e1;
+    --apple-accent: #214f3d;
+    --apple-on-accent: #fff;
+    --apple-selection: #e4eee6;
+    --apple-focus: #2b6a50;
+    --apple-danger: #a3322f;
+    --apple-danger-surface: #fcefed;
+    --apple-warning: #7a5a12;
+    --apple-warning-surface: #fbf4e3;
+    --apple-radius-control: 12px;
+    --apple-radius-group: 22px;
+    --z-hover: #e9efea;
+    --z-accent-hover: #173e2e;
+    --z-hairline: rgb(28 41 35 / 0.08);
+    --z-shadow: 0 1px 2px rgb(28 41 35 / 0.04), 0 10px 30px -14px rgb(28 41 35 / 0.16);
+    --z-shadow-lifted: 0 2px 6px rgb(28 41 35 / 0.06), 0 30px 70px -20px rgb(28 41 35 / 0.32);
+    --z-glass: rgb(245 247 245 / 0.78);
+    --z-backdrop: rgb(16 26 21 / 0.32);
+    --z-ring: rgb(43 106 80 / 0.22);
+    --work-shadow: var(--z-shadow);
   }
-  html[data-app-theme] .desktop-app[data-experience] .app-main .button:active:not(:disabled) {
-    transform: none;
+  html[data-app-theme='dark'] {
+    --apple-canvas: #161618;
+    --apple-paper: #232326;
+    --apple-grouped: #2c2c30;
+    --apple-rail: #161618;
+    --apple-ink: #f2f4f2;
+    --apple-secondary: #a9b0ab;
+    --apple-line: #36363b;
+    --apple-accent: #9fd3b5;
+    --apple-on-accent: #0f2a1e;
+    --apple-selection: #25392e;
+    --apple-focus: #9fd3b5;
+    --apple-danger: #ffaaa3;
+    --apple-danger-surface: #3a2422;
+    --apple-warning: #f0d292;
+    --apple-warning-surface: #352e1f;
+    --z-hover: #2a2c2b;
+    --z-accent-hover: #b6e0c7;
+    --z-hairline: rgb(238 243 239 / 0.08);
+    --z-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.5);
+    --z-shadow-lifted: 0 2px 6px rgb(0 0 0 / 0.35), 0 30px 70px -20px rgb(0 0 0 / 0.7);
+    --z-glass: rgb(22 22 24 / 0.8);
+    --z-backdrop: rgb(0 0 0 / 0.5);
+    --z-ring: rgb(159 211 181 / 0.25);
+    --work-shadow: var(--z-shadow);
   }
-}
-@media (max-width: 760px) {
+
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] {
+    --shell-sidebar: 252px;
+    --work-space: 40px;
+  }
+
+  /* Sidebar: no wall, no box. It sits on the same canvas as the work. */
+  html[data-app-theme] .desktop-app[data-experience] .sidebar {
+    padding: 18px 14px 14px;
+    background: var(--apple-rail);
+    border-right: 0;
+    box-shadow: inset -1px 0 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav {
+    scrollbar-width: none;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav:hover {
+    scrollbar-width: thin;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company {
+    border-radius: 14px;
+    padding: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__search {
+    min-height: 40px;
+    border-radius: 12px;
+    background: var(--apple-paper);
+    box-shadow: inset 0 0 0 1px var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav > div > p {
+    margin: 18px 12px 4px;
+    font-size: calc(11px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button {
+    min-height: 34px;
+    margin-block: 1px;
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-weight: 500;
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button > svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.6;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:is(.is-active, .is-active:hover, .is-active:focus) {
+    color: var(--apple-accent);
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__selection {
+    border-radius: 10px;
+    background: var(--apple-selection);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button em {
+    min-width: 20px;
+    border-radius: 999px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    font-style: normal;
+    font-weight: 600;
+    text-align: center;
+  }
+  /* The company name already titles the toolbar; the rail keeps only places. */
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__company {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__brand {
+    padding: 4px 10px 14px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__search {
+    margin-top: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sidebar__guide, .personalize-shortcuts) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+    margin: 0;
+    padding: 7px 12px;
+    border: 0;
+    border-top: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: left;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sidebar__guide, .personalize-shortcuts) > svg {
+    flex: 0 0 auto;
+    width: 17px;
+    height: 17px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__guide > svg:last-child {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__guide strong {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sidebar__guide, .personalize-shortcuts):hover {
+    background: var(--z-hover);
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__local {
+    margin-top: 6px;
+    padding: 10px 12px 2px;
+    border-top: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__local span {
+    display: none;
+  }
+
+  /* Help stays one click away, as a quiet round button. */
+  html[data-app-theme] .desktop-app[data-experience] .page-header .screen-help-launcher {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+    justify-content: center;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header .screen-help-launcher > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header .screen-help-launcher:hover {
+    background: var(--z-hover);
+    color: var(--apple-ink);
+  }
+
+  /* Toolbar: transparent glass, no rule. The title below carries the page. */
+  html[data-app-theme] .desktop-app[data-experience] .topbar {
+    min-height: 56px;
+    background: var(--z-glass);
+    border-bottom: 0;
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .button {
+    border-radius: 999px;
+  }
+
+  /* One large title, one quiet line under it. */
   html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
-    padding: 24px 20px 18px;
+    padding: 36px var(--work-space) 32px;
+    align-items: flex-end;
   }
   html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
-    font-size: 30px;
+    font-size: calc(40px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.038em;
+    line-height: 1.05;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header p {
+    margin-top: 8px;
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-content {
+    padding: 0 var(--work-space) 56px;
+  }
+
+  /* Controls: pills, a single deep green, soft hover, physical press. */
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button {
+    min-height: 40px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    font-weight: 600;
+    transition:
+      background-color 160ms ease,
+      color 160ms ease,
+      box-shadow 160ms ease,
+      transform 120ms ease;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--icon {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--primary {
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--secondary {
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    box-shadow: inset 0 0 0 1px var(--apple-line);
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--ghost {
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button:active:not(:disabled) {
+    transform: scale(0.97);
+    filter: none;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) :is(button, a, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--apple-focus);
+    outline-offset: 2px;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) :is(.field input, .field select, .field textarea, .search-input input) {
+    min-height: 44px;
+    border-radius: var(--apple-radius-control);
+    border-color: var(--apple-line);
+    background: var(--apple-paper);
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) :is(.field input, .field select, .field textarea, .search-input input):focus {
+    border-color: var(--apple-focus);
+    box-shadow: 0 0 0 4px var(--z-ring);
+    outline: 0;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .field__label {
+    font-weight: 600;
+  }
+
+  /* Sheets: white, borderless, softly lifted. Nested sheets stay flat. */
+  html[data-app-theme] .desktop-app[data-experience] :is(.panel, .table-panel, .settings-card, .employee-card, .project-card, .stat-card, .dashboard-summary, .setup-strip, .activity-shortcuts__items, .sales-documents) {
+    border: 0;
+    border-radius: var(--apple-radius-group);
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.panel, .settings-card, .table-panel) :is(.panel, .settings-card, .stat-card, .table-panel) {
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .panel {
+    padding: 28px;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .section-heading h2 {
+    font-size: calc(21px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.025em;
+  }
+
+  /* Home: four figures read like a statement, not a grid of boxes. */
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card {
+    padding: 26px 26px 22px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card + .metric-card {
+    border-left-color: var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card span {
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card strong {
+    margin: 10px 0 8px;
+    font-size: calc(28px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card strong.metric-card__multiple {
+    font-size: calc(22px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.dashboard-overview-heading h2, .activity-shortcuts__heading .eyebrow) {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(21px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+    text-transform: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-overview-heading {
+    margin-bottom: 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-overview-heading > span {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card {
+    cursor: pointer;
+    transition: background-color 160ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card:hover {
+    background: var(--z-hover);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card .metric-card__detail-link {
+    display: inline-block;
+    margin-top: 10px;
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary .metric-card:is(:hover, :focus-visible, [aria-expanded='true']) .metric-card__detail-link {
+    opacity: 1;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-finance-guide {
+    margin-top: 14px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-finance-guide > summary {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quick-actions {
+    gap: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions--toolbar .quick-actions > button {
+    min-height: 60px;
+    padding: 12px 18px;
+    gap: 12px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+    color: var(--apple-ink);
+    font-weight: 600;
+    transition:
+      background-color 160ms ease,
+      transform 120ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions--toolbar .quick-actions > button > svg {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    padding: 7px;
+    border-radius: 999px;
+    background: var(--apple-selection);
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions--toolbar .quick-actions > button:hover:not(:disabled) {
+    background: var(--z-hover);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions--toolbar .quick-actions > button:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__icon {
+    border-radius: 999px;
+    background: var(--apple-selection);
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items strong {
+    font-size: calc(26px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.03em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items > button + button {
+    border-left-color: var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .activity-shortcuts__items > button:hover {
+    background: var(--z-hover);
+  }
+
+  /* Tables: no header slab, hairlines only, generous rows. */
+  html[data-app-theme] .desktop-app[data-experience] .table-panel thead th {
+    padding: 14px 20px;
+    background: transparent;
+    border-bottom: 1px solid var(--z-hairline);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td {
+    padding: 18px 20px;
+    border-color: var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody tr:hover {
+    background: var(--z-hover);
+  }
+
+  /* Segmented controls: one floating white pill on a soft track. */
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip) {
+    padding: 4px;
+    border-radius: 999px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip) button {
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs__selection, .section-navigation__selection) {
+    border-radius: 999px;
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.08),
+      0 2px 8px rgb(0 0 0 / 0.04);
+  }
+
+  /* Status: small, quiet pills. */
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .status {
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+
+  /* Dialogs: one lifted sheet over a soft, blurred room. */
+  html[data-app-theme] .modal-backdrop {
+    background: var(--z-backdrop);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+  html[data-app-theme] .modal {
+    border-radius: 26px;
+    box-shadow: var(--z-shadow-lifted);
+    overflow: hidden;
+  }
+  html[data-app-theme] .modal__header {
+    padding: 26px 28px 18px;
+    border-bottom-color: var(--z-hairline);
+  }
+  html[data-app-theme] .modal__header h2 {
+    font-size: calc(26px * var(--zentra-ui-text-scale, 1));
+    letter-spacing: -0.03em;
+  }
+  html[data-app-theme] .modal__body {
+    padding: 26px 28px;
+  }
+  html[data-app-theme] .modal :is(.check-card, .radio-card) {
+    border-radius: 14px;
+  }
+
+  @media (hover: hover) {
+    html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--primary:hover:not(:disabled) {
+      background: var(--z-accent-hover);
+      filter: none;
+    }
+    html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--secondary:hover:not(:disabled) {
+      background: var(--z-hover);
+      filter: none;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:hover:not(.is-active) {
+      background: var(--z-hover);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button {
+      transition: none;
+    }
+    html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button:active:not(:disabled) {
+      transform: none;
+    }
+  }
+  @media (max-width: 1100px) {
+    html[data-app-theme] .desktop-app[data-experience] {
+      --work-space: 28px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
+      font-size: calc(34px * var(--zentra-ui-text-scale, 1));
+    }
+  }
+  @media (max-width: 760px) {
+    html[data-app-theme] .desktop-app[data-experience] {
+      --work-space: 20px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .app-main .page-header {
+      padding: 24px 20px 20px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .app-main .page-header h1 {
+      font-size: calc(30px * var(--zentra-ui-text-scale, 1));
+    }
+  }
+}
+
+@media screen {
+  /* Figures start on one baseline, whatever the number of currencies. */
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-summary > .metric-card {
+    display: flex;
+    align-items: flex-start;
+  }
+}
+
+@media screen {
+  /* Inputs inside labels must not inherit the label's weight. */
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) :is(.field input, .field select, .field textarea) {
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  /* Search wrappers draw their own focus ring; the inner input stays flat. */
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .search-input input:focus {
+    border-color: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .modal .modal__header h2 {
+    font-size: calc(24px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.028em;
+  }
+}
+
+@media screen {
+  html[data-app-theme] .navigation-palette .navigation-palette__search {
+    border-color: var(--apple-line);
+    border-radius: 14px;
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .navigation-palette .navigation-palette__search:focus-within {
+    border-color: var(--apple-focus);
+    outline: 0;
+    box-shadow: 0 0 0 4px var(--z-ring);
+  }
+  html[data-app-theme] .navigation-palette .navigation-palette__search input:is(:focus, :focus-visible) {
+    border: 0;
+    outline: 0;
+    box-shadow: none;
+  }
+  html[data-app-theme] .navigation-palette__results button {
+    border-radius: 14px;
+  }
+  html[data-app-theme] .navigation-palette__results button:is(:hover, :focus-visible) {
+    background: var(--z-hover);
+  }
+}
+
+@media screen {
+  html[data-app-theme] .modal,
+  html[data-app-theme] .modal :is(.modal__header, .modal__body, .form-actions) {
+    background: var(--apple-paper);
   }
 }
