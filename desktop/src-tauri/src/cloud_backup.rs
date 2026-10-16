@@ -169,7 +169,7 @@ impl LocalStore {
             .map_err(|e| AppError::Io(e.error))?;
         Ok(())
     }
-    fn validate_backup_organization(&self, prefs: &Preferences, org: &str) -> AppResult<()> {
+    fn validate_backup_organization(&self, prefs: &mut Preferences, org: &str) -> AppResult<()> {
         let project_org = self
             .connect()?
             .query_row(
@@ -178,6 +178,23 @@ impl LocalStore {
                 |row| row.get::<_, String>(0),
             )
             .optional()?;
+        // The company itself is bound to this account's organisation, but the
+        // backup settings still name an older one (for example after the account
+        // service moved and the company was linked again). The company binding
+        // is authoritative: follow it, and drop an upload prepared for the old
+        // organisation instead of refusing every backup.
+        if project_org.as_deref() == Some(org)
+            && prefs.organization_id.as_deref().is_some_and(|id| id != org)
+        {
+            if let Some(pending) = prefs.pending.take() {
+                if let Ok(path) = self.cloud_backup_path(&pending.backup_id) {
+                    let _ = fs::remove_file(path);
+                }
+            }
+            prefs.organization_id = Some(org.into());
+            prefs.last_error = None;
+            self.save_cloud_backup_preferences(prefs)?;
+        }
         if prefs.organization_id.as_deref().is_some_and(|id| id != org)
             || project_org.as_deref().is_some_and(|id| id != org)
         {
@@ -188,7 +205,7 @@ impl LocalStore {
     fn prepare_cloud_backup(&self, org: &str) -> AppResult<Pending> {
         let _lock = self.lock()?;
         let mut prefs = self.cloud_backup_preferences()?;
-        self.validate_backup_organization(&prefs, org)?;
+        self.validate_backup_organization(&mut prefs, org)?;
         if let Some(pending) = prefs.pending {
             if !self.cloud_backup_path(&pending.backup_id)?.is_file() {
                 return Err(validation("L’envoi en attente a perdu son fichier local. Abandonnez-le depuis les sauvegardes puis créez une nouvelle copie."));
@@ -415,7 +432,7 @@ pub async fn set_cloud_backup_enabled(
     let mut prefs = state.cloud_backup_preferences().map_err(command_error)?;
     if let Some(session) = current_session {
         state
-            .validate_backup_organization(&prefs, &session.organization_id)
+            .validate_backup_organization(&mut prefs, &session.organization_id)
             .map_err(command_error)?;
         prefs.organization_id = Some(session.organization_id);
     }
