@@ -112,6 +112,9 @@ it('treats the real closed native singleflight refusal as busy and keeps authori
 });
 
 it('recognizes the real closed native error scope without misreporting a quota refusal as an account change', async () => {
+  // The quota block lasts until the next UTC hour; start mid-hour so the five
+  // minutes below never cross it, whatever the real clock says.
+  vi.setSystemTime(new Date('2026-10-16T10:20:00Z'));
   api.tickQuoteAutopilot.mockResolvedValue({ ...tick, organizationId: null, workspaceScope: null, memberContextNonce: null,
     status: 'error', code: 'rate_limited', phase: 'none', counts: null });
   await mount(); expect(result.state.error).toBe('rate_limited');
