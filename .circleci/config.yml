@@ -571,6 +571,10 @@ jobs:
           name: Check out with repository line endings
           command: git config --global core.autocrlf false
       - checkout
+      # Crate downloads only; every crate is still compiled in this job.
+      - restore_cache:
+          keys:
+            - cargo-registry-windows-v1-{{ checksum "desktop/src-tauri/Cargo.lock" }}
       - run:
           name: Verify OFF and ON native release tests and package the Windows product with Autopilote
           command: ./desktop/scripts/cloud-release-windows.ps1 -WindowsAutopilotProductOn
@@ -578,6 +582,11 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: windows
+      - save_cache:
+          key: cargo-registry-windows-v1-{{ checksum "desktop/src-tauri/Cargo.lock" }}
+          paths:
+            - C:\Users\circleci\.cargo\registry\cache
+            - C:\Users\circleci\.cargo\registry\index
   windows-release-1913:
     resource_class: windows.medium
     machine:
