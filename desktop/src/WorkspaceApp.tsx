@@ -3965,6 +3965,8 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
   const status = statuses[entity];
   const [creatorFilters,setCreatorFilters]=useState({quotes:'all',invoices:'all'});
   const creators=documentCreators(documents),creator=creatorFilters[entity];
+  // Authors matter only once several people create documents.
+  const showCreators=creators.length>1;
   const filtered = documents.filter((document) =>
     matchesSalesDocumentSearch(document, [clientsById.get(document.clientId)?.company, clientsById.get(document.clientId)?.name].filter(Boolean).join(' '), query)
     && matchesSalesDocumentStatus(document, status, workspace.invoices, workspace.payments, todayIso())
@@ -4000,9 +4002,9 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
     }}>
       {Object.entries(documentOrders).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}
     </select></label>
-    <label><span>{t('Créé par')}</span><select aria-label={t('Créateur du document')} value={creator} onChange={event=>setCreatorFilters({...creatorFilters,[entity]:event.target.value})}>
+    {(showCreators || creator !== 'all') && <label><span>{t('Créé par')}</span><select aria-label={t('Créateur du document')} value={creator} onChange={event=>setCreatorFilters({...creatorFilters,[entity]:event.target.value})}>
       <option value="all">{t('Toute l’équipe')}</option>{creators.map(author=><option key={author.id} value={author.id}>{t(author.name)}</option>)}
-    </select></label>
+    </select></label>}
   </DocumentListToolbar>;
   if (!documents.length) {
     return (
@@ -4059,7 +4061,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           {quote.number || t('Devis en préparation')}
                         </strong>
                         <small>{quote.title}</small>
-                        <small className="sales-document__creator">{t(documentCreatorLabel(quote))}</small>
+                        {showCreators && <small className="sales-document__creator">{t(documentCreatorLabel(quote))}</small>}
                       </div>
                     </div>
                   </td>
@@ -4083,7 +4085,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                     {convertedOrder ? <small>Commande créée</small> : null}
                   </td>
                   <td className="sales-document__actions">
-                    <MobileDocumentActions metadata={<div className="mobile-document-metadata"><p>{t(documentCreatorLabel(quote))}</p><p>{t('Valable au {date}', { date: formatDate(quote.validUntil) })}</p></div>}>
+                    <MobileDocumentActions metadata={<div className="mobile-document-metadata">{showCreators && <p>{t(documentCreatorLabel(quote))}</p>}<p>{t('Valable au {date}', { date: formatDate(quote.validUntil) })}</p></div>}>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -4331,7 +4333,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         {item.number || t(entity === 'quotes' ? 'Devis en préparation' : invoice?.type === 'credit_note' ? 'Avoir en préparation' : invoice?.type === 'deposit' ? 'Acompte en préparation' : 'Facture en préparation')}
                       </strong>
                       <small>{item.title}</small>
-                      <small className="sales-document__creator">{t(documentCreatorLabel(item))}</small>
+                      {showCreators && <small className="sales-document__creator">{t(documentCreatorLabel(item))}</small>}
                       {invoice?.quoteId ? <Button variant="ghost" size="small" onClick={() => sourceProps.onOpenFolder(invoice.quoteId!)}>Voir le dossier du devis</Button> : null}
                       {!compact && invoice?.qrBill?.input.reference ? <small className="invoice-payment-reference" title={t('Référence à utiliser pour le virement')}>{t('Réf. {reference}',{reference:invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()})}</small> : null}
                     </div>
@@ -4388,7 +4390,7 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                   ) : null}
                 </td>
                 <td className="sales-document__actions">
-                  <MobileDocumentActions metadata={<div className="mobile-document-metadata"><p>{t(documentCreatorLabel(item))}</p>{invoice?.qrBill?.input.reference && <p>{t('Réf. {reference}', {reference: invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()})}</p>}</div>}>
+                  <MobileDocumentActions metadata={<div className="mobile-document-metadata">{showCreators && <p>{t(documentCreatorLabel(item))}</p>}{invoice?.qrBill?.input.reference && <p>{t('Réf. {reference}', {reference: invoice.qrBill.input.reference.replace(/(.{4})/g, '$1 ').trim()})}</p>}</div>}>
                     <Button disabled={busy || (readOnly && item.status === 'draft' && !linkedOrderDraftBatch)}
                       variant="ghost"
                       size="icon"
