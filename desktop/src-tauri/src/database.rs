@@ -1583,6 +1583,48 @@ impl LocalStore {
         Ok(connection)
     }
 
+    /// Keeps a plain copy of the database before a schema upgrade, so a
+    /// faulty or interrupted migration can still be recovered. Best effort:
+    /// a full disk must not prevent the app from opening.
+    fn keep_copy_before_migration(&self, connection: &Connection, from_version: i64) {
+        const PREFIX: &str = "Zentra-avant-mise-a-jour-v";
+        // Its own folder, apart from the backups the user manages.
+        let directory = self.data_dir.join("copies-avant-mise-a-jour");
+        let copy = (|| -> AppResult<()> {
+            fs::create_dir_all(&directory)?;
+            let stamp = Local::now().format("%Y%m%d-%H%M%S");
+            let destination = directory.join(format!("{PREFIX}{from_version}-{stamp}.sqlite"));
+            if destination.exists() {
+                return Ok(());
+            }
+            let mut target = Connection::open(&destination)?;
+            {
+                let backup = rusqlite::backup::Backup::new(connection, &mut target)?;
+                backup.run_to_completion(64, Duration::from_millis(10), None)?;
+            }
+            // The licence token stays in the protected vault, never in a copy.
+            let _ = target.execute("DELETE FROM license_state", []);
+            Ok(())
+        })();
+        if let Err(error) = copy {
+            eprintln!("Copie avant mise à jour de la base impossible : {error}");
+        }
+        // Keep the three most recent copies only.
+        let Ok(entries) = fs::read_dir(&directory) else { return };
+        let mut copies: Vec<PathBuf> = entries
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| {
+                path.file_name().and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with(PREFIX) && name.ends_with(".sqlite"))
+            })
+            .collect();
+        copies.sort_by_key(|path| fs::metadata(path).and_then(|meta| meta.modified()).ok());
+        let excess = copies.len().saturating_sub(3);
+        for path in copies.into_iter().take(excess) {
+            let _ = fs::remove_file(path);
+        }
+    }
+
     pub fn migrate(&self) -> AppResult<()> {
         let mut connection = self.connect()?;
         let current: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -1602,6 +1644,9 @@ impl LocalStore {
             workspace_read_indexes::ensure(&transaction)?;
             transaction.commit()?;
             return Ok(());
+        }
+        if current != 0 {
+            self.keep_copy_before_migration(&connection, current);
         }
         let moves_plaintext_license = current != 0 && current < 38;
         if moves_plaintext_license {

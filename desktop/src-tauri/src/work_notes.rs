@@ -171,7 +171,7 @@ impl LocalStore {
                 && matches(previous, &title, &body, project.as_deref(), input.pinned)
             {
                 let mut record = previous.clone();
-                record.as_object_mut().unwrap().remove("deleted_at");
+                if let Some(fields) = record.as_object_mut() { fields.remove("deleted_at"); }
                 tx.commit()?;
                 return Ok(record);
             }
@@ -180,7 +180,7 @@ impl LocalStore {
             }
             if matches(previous, &title, &body, project.as_deref(), input.pinned) {
                 let mut record = previous.clone();
-                record.as_object_mut().unwrap().remove("deleted_at");
+                if let Some(fields) = record.as_object_mut() { fields.remove("deleted_at"); }
                 tx.commit()?;
                 return Ok(record);
             }
@@ -203,7 +203,7 @@ impl LocalStore {
                 params![id,title,body,project,input.pinned,now,now])?;
         }
         let mut record = query_record_tx(&tx, "work_notes", &id)?;
-        record.as_object_mut().unwrap().remove("deleted_at");
+        if let Some(fields) = record.as_object_mut() { fields.remove("deleted_at"); }
         append_audit(
             &tx,
             action,

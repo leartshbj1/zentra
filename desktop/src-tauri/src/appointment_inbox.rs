@@ -78,11 +78,12 @@ pub async fn appointment_inbox_request(
     })();
     match result {
         Ok(result) => {
-            let _=session.request(Method::POST,PATH,&[],&[("Content-Type","application/json".into())],Some(serde_json::to_vec(&json!({"action":"finish","id":id,"claimToken":claim["claimToken"],"automatic":automatic})).unwrap()),false).await;
+            // A lost confirmation leaves the claim pending on the server: log it.
+            if let Err(error)=session.request(Method::POST,PATH,&[],&[("Content-Type","application/json".into())],Some(serde_json::to_vec(&json!({"action":"finish","id":id,"claimToken":claim["claimToken"],"automatic":automatic})).unwrap()),false).await { eprintln!("Import du rendez-vous non confirmé au serveur : {error}"); }
             Ok(result)
         }
         Err(reason) => {
-            let _=session.request(Method::POST,PATH,&[],&[("Content-Type","application/json".into())],Some(serde_json::to_vec(&json!({"action":"release","id":id,"claimToken":claim["claimToken"],"reason":reason})).unwrap()),false).await;
+            if let Err(error)=session.request(Method::POST,PATH,&[],&[("Content-Type","application/json".into())],Some(serde_json::to_vec(&json!({"action":"release","id":id,"claimToken":claim["claimToken"],"reason":reason})).unwrap()),false).await { eprintln!("Réservation du rendez-vous non libérée sur le serveur : {error}"); }
             Err(reason)
         }
     }
