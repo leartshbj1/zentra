@@ -257,6 +257,14 @@ export function DocumentEditor({
     return false;
   }
 
+  // A document needs a title; when none is typed, name it after the client.
+  function defaultDocumentTitle(clientId: string, type: DocumentFormDraft['invoiceType']) {
+    const client = workspace.clients.find((row) => row.id === clientId);
+    const name = client?.company || client?.name || '';
+    const template = entity === 'quotes' ? 'Devis – {client}' : type === 'credit_note' ? 'Avoir – {client}' : 'Facture – {client}';
+    return name ? t(template, { client: name }) : entity === 'quotes' ? t('Nouveau devis') : type === 'credit_note' ? t('Nouvel avoir') : t('Nouvelle facture');
+  }
+
   function validateStep(index: number, snapshot:DocumentFormDraft=persisted.value) {
     const {lines,quickClientOpen,documentTitle,invoiceType,issueDate,dueDate,serviceDateFrom,serviceDateTo,depositPercentage,originalInvoiceId}=snapshot;
     const creditOriginal=invoiceType==='credit_note'?workspace.invoices.find(invoice=>invoice.id===originalInvoiceId):undefined;
@@ -271,7 +279,7 @@ export function DocumentEditor({
       return showStepError(index, row ? t('Ligne {number} : {message}', {number: row.dataset.lineNumber || '', message}) : message, invalid);
     }
     if (index === 0 && quickClientOpen) return showStepError(0, t("Ajoutez le nouveau contact ou fermez sa fiche pour continuer."));
-    if (index === 0 && !documentTitle.trim()) return showStepError(0, t("Donnez un titre à votre document."), formRef.current?.querySelector<HTMLInputElement>('[name="title"]') || undefined);
+    if (index === 0 && !documentTitle.trim()) setDocumentTitle(defaultDocumentTitle(snapshot.selectedClientId, invoiceType));
     if (index === 1 && !reservedTime) {
       const issue = documentLineIssue(lines);
       if (issue) return showStepError(1, issue.message, formRef.current?.querySelector<HTMLElement>(`[data-line-number="${issue.index + 1}"] [aria-label="${t(issue.field)}"]`) || undefined);
@@ -390,7 +398,7 @@ export function DocumentEditor({
     if(entity==='invoices'&&(!invoiceType||!serviceDateFrom||!serviceDateTo||serviceDateFrom>serviceDateTo)){setLocalError(t('Choisissez le type et une période de prestation valide avant l’enregistrement.'));return;}
     if(invoiceType==='credit_note'&&!originalInvoiceId){setLocalError(t('Un avoir doit référencer explicitement la facture originale.'));return;}
     if(entity==='invoices'&&invoiceType==='deposit'&&!validDepositPercentageBp(depositPercentageBp)){setLocalError(t('Saisissez un acompte compris entre 0,01 et 100 % avant l’enregistrement.'));return;}
-    const data:Record<string,unknown>={clientId:creditOriginal?.clientId||selectedClientId,projectId:creditOriginal?creditOriginal.projectId:selectedProjectId||null,title:documentTitle,status:'draft',issueDate,currency,subtotalCents:totals.subtotalCents,discountCents:totals.discountCents,vatCents:totals.vatCents,totalCents:totals.totalCents,notes:documentNotes,terms:footerText};
+    const data:Record<string,unknown>={clientId:creditOriginal?.clientId||selectedClientId,projectId:creditOriginal?creditOriginal.projectId:selectedProjectId||null,title:documentTitle.trim()||defaultDocumentTitle(selectedClientId,invoiceType),status:'draft',issueDate,currency,subtotalCents:totals.subtotalCents,discountCents:totals.discountCents,vatCents:totals.vatCents,totalCents:totals.totalCents,notes:documentNotes,terms:footerText};
     if(entity==='quotes')data.validUntil=dueDate;
     else Object.assign(data,{dueDate:invoiceType==='credit_note'?'':dueDate,type:invoiceType,quoteId:quoteSource?.id??null,originalInvoiceId:invoiceType==='credit_note'?originalInvoiceId:null,serviceDateFrom,serviceDateTo,paidCents:0,depositPercentageBp:invoiceType==='deposit'?depositPercentageBp:null,depositBasisLines:invoiceType==='deposit'?lines:null});
     try{
@@ -743,20 +751,11 @@ export function DocumentEditor({
           <section className="document-step" data-document-step="0" hidden={!isLocked && step !== 0}>
             {stepHeading(0)}
           <div className="form-grid">
-            <Field label={t("Titre du document")} required wide>
-              <input
-                name="title"
-                placeholder={t("Ex. Aménagement du séjour")}
-                value={documentTitle}
-                onChange={(event) => setDocumentTitle(event.target.value)}
-                required
-                autoFocus
-              />
-            </Field>
             <Field label={t("Client")} required>
               <div className="document-client-picker">
                 <select
                   name="clientId"
+                  autoFocus
                   value={selectedClientId}
                   disabled={Boolean(creditOriginal) || reservedTime}
                   onChange={(event) => {
@@ -794,6 +793,14 @@ export function DocumentEditor({
                 </Button>
               </div>
             </Field>
+            <Field label={t("Titre du document")} wide>
+              <input
+                name="title"
+                placeholder={selectedClientId ? defaultDocumentTitle(selectedClientId, invoiceType) : t("Facultatif · ex. Aménagement du séjour")}
+                value={documentTitle}
+                onChange={(event) => setDocumentTitle(event.target.value)}
+              />
+            </Field>
             <Field label={t(terminology.singularTitle)}>
               <select
                 name="projectId"
@@ -830,7 +837,7 @@ export function DocumentEditor({
                 </select>
               </Field>
             ) : null}
-            <Field label={t("Devise")}><input value={currency} readOnly /></Field>
+            {currency !== 'CHF' ? <Field label={t("Devise")}><input value={currency} readOnly /></Field> : null}
             {invoiceType === 'credit_note' ? (
               <Field label={t("Facture originale")} required wide>
                 <select
