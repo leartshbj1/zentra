@@ -24,7 +24,7 @@ function Harness(){
  const open=(id:string)=>{setTarget(id);setView('agenda');};
  const inbox={state:appointmentInboxFixture,error:'',busy:false,act:async()=>{throw Error('No writes in this fixture');}};
  return <div className="desktop-app" data-experience="clarity" style={{display:'block'}}><main className="workspace" style={{minHeight:'100vh',display:'block',padding:query.get('size')==='small'?'12px':'24px',maxWidth:1120,margin:'0 auto'}}>
-  {view!=='automation'&&<button type="button" data-testid="back" onClick={()=>{setView('automation');setTarget(null);}}>Automation</button>}
+  {view!=='automation'&&<button type="button" data-testid="back" onClick={()=>{setView('automation');setTarget(null);}}>Autopilote</button>}
   {view==='automation'?<div className="automation-hub"><div className="automation-hub__journal"><div className="automation-centre automation-centre--embedded"><AutomationJournal organizationId={org} appointments={appointmentInboxFixture} runs={[{id:'older',title:'Document préparé',state:'completed',createdAt:1790510250,updatedAt:0}]} renderRun={run=><span>{run.title}</span>} openAppointment={open} openAppointments={()=>setView('received')}/></div></div></div>
    :view==='received'?<AppointmentInbox inbox={inbox} workspace={appointmentWorkspace} readOnly={readOnly} onAgenda={()=>setView('agenda')} onOpenAppointment={open}/>
    :<AgendaScreen workspace={{...appointmentWorkspace}} initialEventId={query.has('missing')?'missing':target} onInitialEventHandled={()=>setTarget(null)} readOnly={readOnly} busy={false} onSave={async()=>{throw Error('Unexpected write');}} onDelete={async()=>{throw Error('Unexpected delete');}} onNavigate={()=>{}}/>}

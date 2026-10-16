@@ -31,7 +31,7 @@ const labels = {
   attempts: ['Tentatives', 'Versuche', 'Tentativi', 'Attempts'],
   nextStep: ['Prochaine étape', 'Nächster Schritt', 'Passaggio successivo', 'Next step'],
   action_task: ['Créer une tâche', 'Aufgabe erstellen', 'Crea attività', 'Create task'],
-  action_notify: ['Notifier dans Automation', 'In Automation benachrichtigen', 'Notifica in Automation', 'Notify in Automation'],
+  action_notify: ['Notifier dans Autopilote', 'In Autopilote benachrichtigen', 'Notifica in Autopilote', 'Notify in Autopilote'],
   action_reply_draft: ['Préparer une réponse', 'Antwort vorbereiten', 'Prepara risposta', 'Prepare reply'],
   action_summary: ['Résumer le message reçu', 'Empfangene Nachricht zusammenfassen', 'Riassumi il messaggio ricevuto', 'Summarize received message'],
   action_review: ['Demander une vérification', 'Prüfung anfordern', 'Richiedi verifica', 'Request review'],

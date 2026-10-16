@@ -32,10 +32,10 @@ try {
       await page.waitForFunction(()=>document.querySelector('.zentra-arrival')?.getAttribute('data-phase')==='ready');
     } else await page.getByRole('button',{name:'Passer l’introduction',exact:true}).click();
     await page.waitForTimeout(700);await page.screenshot({path:`${output}/welcome-ready-${viewport.width}.png`});
-    const box=await page.getByRole('button',{name:'Découvrir Automation',exact:true}).boundingBox();
+    const box=await page.getByRole('button',{name:'Découvrir Autopilote',exact:true}).boundingBox();
     assert.ok(box.x>=0&&box.x+box.width<=viewport.width+1&&box.y>=0&&box.y+box.height<=viewport.height+1,'Primary action remains reachable');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
-    await page.getByRole('button',{name:'Découvrir Automation',exact:true}).click();
+    await page.getByRole('button',{name:'Découvrir Autopilote',exact:true}).click();
     await page.locator('.desktop-app[data-view="automation"]').waitFor();
     await page.reload();await page.waitForTimeout(1300);assert.equal(await welcome(page).count(),0,'Already welcomed company does not interrupt again');
     await page.evaluate(()=>window.dispatchEvent(new CustomEvent('zentra-automation-hub',{detail:'settings'})));
@@ -55,7 +55,7 @@ try {
   await update(page,{active:true,organizationId:'wrong-company'});await page.waitForTimeout(1300);assert.equal(await welcome(page).count(),0);
   await update(page,{organizationId:'automation-qa'});await welcome(page).waitFor();
   await page.evaluate(()=>{window.__automationWelcomeQa.state.organizationId='second-company';window.__qaSetWelcomeAccount('second-company');});
-  await welcome(page).waitFor();await page.getByRole('button',{name:'Découvrir Automation',exact:true}).click();
+  await welcome(page).waitFor();await page.getByRole('button',{name:'Découvrir Autopilote',exact:true}).click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('zentra.automation.welcome.v1:second-company')),'seen');
   assert.equal(await page.evaluate(()=>localStorage.getItem('zentra.automation.welcome.v1:automation-qa')),null,'Another company was not marked by switching');
   reports.push({activation:true,dialogDeferred:true,revocation:true,companyIsolation:true,reducedMotion:true});await page.close();

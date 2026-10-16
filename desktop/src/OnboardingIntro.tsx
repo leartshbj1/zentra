@@ -133,7 +133,7 @@ export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenK
     </figure>
     <div className="zentra-arrival__identity" aria-hidden={playing && phase!=='logo'}>
       <BrandWordmark/>
-      {product === 'automation' ? <><h1 aria-hidden={phase!=='ready'}>Automation</h1><p className="zentra-arrival__subtitle" aria-hidden={phase!=='ready'}>{t(subtitle || 'Votre accès Automation est actif pour cet espace.')}</p></> : <h1 aria-hidden={phase!=='ready'}>{t('Votre entreprise.')} <span>{t('Votre espace.')}</span></h1>}
+      {product === 'automation' ? <><h1 aria-hidden={phase!=='ready'}>Autopilote</h1><p className="zentra-arrival__subtitle" aria-hidden={phase!=='ready'}>{t(subtitle || 'Votre accès Autopilote est actif pour cet espace.')}</p></> : <h1 aria-hidden={phase!=='ready'}>{t('Votre entreprise.')} <span>{t('Votre espace.')}</span></h1>}
     </div>
     <div className="zentra-arrival__controls">
       {playing ? <button ref={skipRef} type="button" className="zentra-arrival__skip" onClick={skip}>{t('Passer l’introduction')}<ArrowRight size={17}/></button> : <>

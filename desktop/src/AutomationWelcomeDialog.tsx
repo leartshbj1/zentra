@@ -43,10 +43,10 @@ export function AutomationWelcome({ view }: { view: string }) {
   if (!open || !confirmed || !id || !company.state) return null;
   const needsSetup = company.state.canManage && !company.readOnly && (!company.state.settings.consent || !company.state.settings.enabled || !company.state.settings.flags.length);
   const close = () => { rememberAutomationWelcome(id); setDismissed(true); setRequested(false); setOpen(false); };
-  return <Modal className="automation-welcome" title={t('Bienvenue dans Zentra Automation')} assistantHelp={false} onClose={close}>
+  return <Modal className="automation-welcome" title={t('Bienvenue dans Zentra Autopilote')} assistantHelp={false} onClose={close}>
     <ZentraArrival product="automation" storageKey={automationWelcomeKey(id)} forceReplay={requested}
-      startLabel={needsSetup ? 'Configurer Automation' : 'Découvrir Automation'}
-      subtitle={needsSetup ? 'Choisissez ce qu’Automation fera pour votre équipe.' : 'Votre accès Automation est actif pour cet espace.'}
+      startLabel={needsSetup ? 'Configurer Autopilote' : 'Découvrir Autopilote'}
+      subtitle={needsSetup ? 'Choisissez ce qu’Autopilote fera pour votre équipe.' : 'Votre accès Autopilote est actif pour cet espace.'}
       onStart={() => { close(); setDestination(needsSetup ? 'settings' : 'overview'); }} />
   </Modal>;
 }

@@ -31,7 +31,7 @@ describe('native Apple navigation subscription', () => {
   it('updates personalized items and translations without closing the channel, and rejects removed items', async () => {
     const before = recentDiagnosticEvents().length;
     const navigate = vi.fn();
-    const state = { selected: 'agenda' as NativeDestination, visible: true, onNavigate: navigate, items: [{id:'agenda',label:'Agenda'},{id:'clients',label:'Clients'},{id:'invoices',label:'Factures'},{id:'automation',label:'Automation'},{id:'menu',label:'Menu'}] as NativeNavigationItem[] };
+    const state = { selected: 'agenda' as NativeDestination, visible: true, onNavigate: navigate, items: [{id:'agenda',label:'Agenda'},{id:'clients',label:'Clients'},{id:'invoices',label:'Factures'},{id:'automation',label:'Autopilote'},{id:'menu',label:'Menu'}] as NativeNavigationItem[] };
     const session = createNativeNavigationSession('plugin:zentra-mobile|configure_navigation', () => state, vi.fn());
     await session.update(); tap('agenda'); tap('automation');
     expect(navigate.mock.calls.map(([id])=>id)).toEqual(['agenda','automation']);

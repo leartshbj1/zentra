@@ -23,7 +23,7 @@ export const supplierInboxTranslations: Record<string, readonly [string,string,s
   "Chargement de la page…":["Seite wird geladen…","Caricamento della pagina…","Loading page…"],
   "Texte de la page":["Seitentext","Testo della pagina","Page text"],
   "Le compte de charges reste à vérifier.":["Das Aufwandskonto muss geprüft werden.","Il conto di costo deve essere verificato.","The expense account needs review."],
-  "La réception automatique est en pause. Vérifiez les réglages Automation.":["Der automatische Empfang ist pausiert. Prüfen Sie die Automation-Einstellungen.","La ricezione automatica è in pausa. Verifica le impostazioni Automation.","Automatic receipt is paused. Check your Automation settings."],
+  "La réception automatique est en pause. Vérifiez les réglages Autopilote.":["Der automatische Empfang ist pausiert. Prüfen Sie die Autopilote-Einstellungen.","La ricezione automatica è in pausa. Verifica le impostazioni Autopilote.","Automatic receipt is paused. Check your Autopilote settings."],
   "Ce PDF est protégé par un mot de passe. Ouvrez-le avec une application compatible.":["Dieses PDF ist passwortgeschützt. Öffnen Sie es mit einer kompatiblen Anwendung.","Questo PDF è protetto da password. Aprilo con un’applicazione compatibile.","This PDF is password protected. Open it with a compatible application."],
   "Ce PDF ne peut pas être affiché. Réessayez, ou ouvrez-le avec une application compatible.":["Dieses PDF kann nicht angezeigt werden. Versuchen Sie es erneut oder öffnen Sie es mit einer kompatiblen Anwendung.","Impossibile visualizzare questo PDF. Riprova o aprilo con un’applicazione compatibile.","This PDF cannot be displayed. Retry or open it with a compatible application."],
   "Boîte de réception fournisseurs": [
@@ -56,20 +56,20 @@ export const supplierInboxTranslations: Record<string, readonly [string,string,s
     "Collega Support",
     "Connect Support"
   ],
-  "Automation actif · les factures vérifiables sont comptabilisées à l’ouverture de Gestion.": [
-    "Automation aktiv · geprüfte Rechnungen werden verbucht, wenn Gestion geöffnet ist.",
-    "Automation attivo · le fatture verificabili vengono contabilizzate quando Gestion è aperto.",
-    "Automation active · eligible invoices are posted while Gestion is open."
+  "Autopilote actif · les factures vérifiables sont comptabilisées à l’ouverture de Gestion.": [
+    "Autopilote aktiv · geprüfte Rechnungen werden verbucht, wenn Gestion geöffnet ist.",
+    "Autopilote attivo · le fatture verificabili vengono contabilizzate quando Gestion è aperto.",
+    "Autopilote active · eligible invoices are posted while Gestion is open."
   ],
   "Vérification avant comptabilisation": [
     "Prüfung vor der Buchung",
     "Verifica prima della contabilizzazione",
     "Review before posting"
   ],
-  "Comptabilisée par Automation": [
-    "Von Automation verbucht",
-    "Contabilizzata da Automation",
-    "Posted by Automation"
+  "Comptabilisée par Autopilote": [
+    "Von Autopilote verbucht",
+    "Contabilizzata da Autopilote",
+    "Posted by Autopilote"
   ],
   "Brouillon enregistré": [
     "Entwurf gespeichert",

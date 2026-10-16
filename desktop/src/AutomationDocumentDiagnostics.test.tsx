@@ -27,7 +27,7 @@ async function trace(phase: 'success' | 'failure', original?: unknown, errorCode
   if (original) expect(d.resolveErrorIncident(original).code).toBe(`ZT-${events[1].id}`);
   expect(JSON.stringify(events)).not.toMatch(/private|alice@example|filename|base64|fileName|OCR|document-content|password|token|PDF structure/);
 }
-describe('Automation local document diagnostics', () => {
+describe('Autopilote local document diagnostics', () => {
   it.each(['txt', 'csv'])('preserves the %s excerpt and logs no file or extracted contents', async extension => {
     const { localDocumentExcerpt } = await import('./AutomationDocument');
     const text = 'private-document-content '.repeat(100), file = new File([text], `private-alice@example.ch.${extension}`);

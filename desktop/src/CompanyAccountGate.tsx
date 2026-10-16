@@ -97,7 +97,7 @@ export function CompanyAccountGate({ account, workspace, createdFor, onWorkspace
       <div className="company-account-opening__identity"><Building2 size={20} aria-hidden="true"/><div><span>{account?.organizationName}</span>{role && <small>{t(role)}</small>}</div></div>
       <h1>{t(remote ? 'Ouvrir l’espace du compte sur cet appareil ?' : local ? 'Relier cette entreprise à votre compte' : waiting ? 'Votre entreprise attend son premier envoi' : 'Ouverture de votre entreprise…')}</h1>
       {remote && <div className="company-account-choices">
-        <div><span>{t('Dans votre compte')}</span><strong>{account?.organizationName}</strong><p>{t('Documents, équipe et réglages Automation de cet espace.')}</p></div>
+        <div><span>{t('Dans votre compte')}</span><strong>{account?.organizationName}</strong><p>{t('Documents, équipe et réglages Autopilote de cet espace.')}</p></div>
         <div><span>{t('Sur cet appareil')}</span><strong>{workspace.settings?.organization.legalName || t('Mon entreprise')}</strong><p>{t('{quotes} devis · {invoices} factures', { quotes: workspace.quotes.length, invoices: workspace.invoices.length })}</p><small>{t('Une sauvegarde est conservée avant le changement. Les entreprises restent séparées.')}</small></div>
       </div>}
       {local && <div className="company-account-choices"><div><span>{t('Sur cet appareil')}</span><strong>{workspace.settings?.organization.legalName || t('Mon entreprise')}</strong><p>{t('{quotes} devis · {invoices} factures', { quotes: workspace.quotes.length, invoices: workspace.invoices.length })}</p></div></div>}

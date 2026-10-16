@@ -246,7 +246,7 @@ export function App() {
       setCloudAccount(next);
       if (cloudAccountChangeNeedsLicenseRefresh(next)) {
         // Native approval/account reads already checked the session. Repeating
-        // /me here delays the new licence and competes with Automation startup.
+        // /me here delays the new licence and competes with Autopilote startup.
         void readCloudAccessForAccount(desktopApi, next)
           .then(access => { if (epoch === accountEpoch.current) setLicense(access.license); })
           .catch(() => {});

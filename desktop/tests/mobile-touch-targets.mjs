@@ -32,7 +32,7 @@ for(const config of [
   for(const view of ['invoices','agenda','automation']){
    if(view==='automation'){
     if(width<=860)await page.locator('.menu-button').click();
-    await page.locator('.sidebar__nav button').filter({has:page.locator('span').filter({hasText:/Zentra Automation/})}).click();
+    await page.locator('.sidebar__nav button').filter({has:page.locator('span').filter({hasText:/Zentra Autopilote/})}).click();
    }else await page.evaluate(view=>window.dispatchEvent(new CustomEvent('zentra-automation-navigate',{detail:view==='agenda'?'planning':view})),view);
    await page.locator(`.desktop-app[data-view=${view}]`).waitFor();
    await page.evaluate(()=>window.scrollTo(0,0));

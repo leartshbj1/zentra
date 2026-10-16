@@ -17,11 +17,11 @@ import { replayAutomationWelcome } from './automationWelcomeState';
 export function AutomationSettings({ showHubLink = false, embedded = false }: { showHubLink?: boolean; embedded?: boolean }) {
   useAppLanguage();
   const { state, organizationId, status } = useCompanyAutomation();
-  if (status === 'loading') return <section className="automation-settings" role="status"><p>{t('Retrouvons votre espace Automation…')}</p></section>;
+  if (status === 'loading') return <section className="automation-settings" role="status"><p>{t('Retrouvons votre espace Autopilote…')}</p></section>;
   if (!organizationId) return <section className="automation-settings"><h3>{t('Reliez votre entreprise')}</h3><p>{t('Connectez cette entreprise à votre compte pour retrouver son accès partagé.')}</p><Button variant="secondary" onClick={() => window.dispatchEvent(new Event('zentra-automation-account'))}>{t('Ouvrir le compte')}</Button></section>;
   if (!state) return <AutomationConnectionNotice />;
   if (!state?.active) return <AutomationSetup />;
-  return <><CompanySettings key={state.organizationId} state={state} embedded={embedded} />{showHubLink && <Button variant="secondary" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Automation')}</Button>}</>;
+  return <><CompanySettings key={state.organizationId} state={state} embedded={embedded} />{showHubLink && <Button variant="secondary" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Autopilote')}</Button>}</>;
 }
 
 function CompanySettings({ state, embedded }: { state: AutomationState; embedded: boolean }) {
@@ -37,7 +37,7 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
     if (!dirty && !busy) { setDraft(state.settings); setBaseline(current); setConsent(state.settings.consent); }
   }, [current]);
   return <section className="automation-settings">
-    {!embedded && <header><Workflow size={26} /><div><h3>{t('Automation de cet espace')}</h3><p>{t('Ces réglages s’appliquent à toute son équipe.')}</p></div></header>}
+    {!embedded && <header><Workflow size={26} /><div><h3>{t('Autopilote de cet espace')}</h3><p>{t('Ces réglages s’appliquent à toute son équipe.')}</p></div></header>}
     <div className="automation-settings__welcome"><span className="automation-settings__status">{t(readinessLabels[automationReadiness(state)])}</span><Button variant="ghost" onClick={() => replayAutomationWelcome(state.organizationId)}>{t('Revoir l’introduction')}</Button></div>
     {!canManage && <p className="automation-settings__notice">{t('Vous bénéficiez des fonctions activées. Le titulaire ou un administrateur gère les réglages.')}</p>}
     {canManage && (!state.settings.consent || !state.settings.flags.length) && <div className="automation-settings__quickstart">
@@ -72,7 +72,7 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
           const result = await saveAutomationSettings(draft, consent);
           setDraft(result); setBaseline(JSON.stringify(result)); setConsent(result.consent);
           await refresh(); setMessage('Les réglages sont enregistrés pour toute votre équipe.');
-        } catch { await refresh(); setMessage('Les réglages n’ont pas été enregistrés. Réessayez après avoir vérifié l’état du compte et d’Automation.'); }
+        } catch { await refresh(); setMessage('Les réglages n’ont pas été enregistrés. Réessayez après avoir vérifié l’état du compte et d’Autopilote.'); }
         finally { setBusy(false); }
       }}><Check size={17} />{t(busy ? 'Enregistrement…' : 'Enregistrer pour toute l’équipe')}</Button>
     </>}

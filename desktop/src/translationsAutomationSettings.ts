@@ -33,7 +33,7 @@ export const automationSettingsTranslations: Record<string, readonly [string, st
   'Trouver le bon écran': ['Passende Ansicht finden', 'Trova la schermata giusta', 'Find the right screen'],
   'Classer un e-mail': ['E-Mail einordnen', 'Classifica un’e-mail', 'Classify an email'],
   'Les outils de cet écran': ['Werkzeuge für diese Ansicht', 'Gli strumenti di questa schermata', 'Tools for this screen'],
-  'Choisir un outil Automation': ['Automation-Werkzeug wählen', 'Scegli uno strumento Automation', 'Choose an Automation tool'],
+  'Choisir un outil Autopilote': ['Autopilote-Werkzeug wählen', 'Scegli uno strumento Autopilote', 'Choose an Autopilote tool'],
   'Facture à examiner': ['Zu prüfende Rechnung', 'Fattura da esaminare', 'Invoice to review'],
   'Aucune facture émise à examiner pour le moment.': ['Derzeit keine ausgestellte Rechnung zu prüfen.', 'Nessuna fattura emessa da esaminare al momento.', 'No issued invoice to review at the moment.'],
   'Que souhaitez-vous faire ?': ['Was möchten Sie tun?', 'Cosa desideri fare?', 'What would you like to do?'],

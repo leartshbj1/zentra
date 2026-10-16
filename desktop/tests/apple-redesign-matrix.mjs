@@ -14,7 +14,7 @@ const allViews = [
   ['reminders','Relances',''], ['time','Temps',''], ['team','Équipe & salaires',''],
   ['expenses','Achats & fournisseurs',''], ['bank','Banque','bank=1'],
   ['reports','Rapports','reportTest=1'], ['accounting','Comptabilité','finance=1'],
-  ['automation','Zentra Automation','automation=active&automationDesign=1'],
+  ['automation','Zentra Autopilote','automation=active&automationDesign=1'],
   ['settings','Paramètres',''],
 ];
 const requestedViews = process.env.ZENTRA_QA_VIEWS?.split(',');

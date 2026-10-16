@@ -41,8 +41,8 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   if (!state && status === 'unavailable') return <div className="automation-hub"><AutomationConnectionNotice /></div>;
   if (!state) return <section className="automation-hub automation-hub__empty" aria-busy={status === 'loading'}>
     <Workflow size={32} aria-hidden="true" />
-    <h2>{t(status === 'loading' ? 'Retrouvons votre espace Automation…' : status === 'disconnected' ? 'Reliez votre entreprise' : 'Automation attend la connexion')}</h2>
-    <p>{t(status === 'disconnected' ? 'Connectez cette entreprise à votre compte pour retrouver son accès partagé.' : status === 'loading' ? 'Les réglages de votre entreprise arrivent.' : 'Vos outils de gestion restent disponibles. Automation reviendra automatiquement avec la connexion.')}</p>
+    <h2>{t(status === 'loading' ? 'Retrouvons votre espace Autopilote…' : status === 'disconnected' ? 'Reliez votre entreprise' : 'Autopilote attend la connexion')}</h2>
+    <p>{t(status === 'disconnected' ? 'Connectez cette entreprise à votre compte pour retrouver son accès partagé.' : status === 'loading' ? 'Les réglages de votre entreprise arrivent.' : 'Vos outils de gestion restent disponibles. Autopilote reviendra automatiquement avec la connexion.')}</p>
     {status === 'disconnected' ? <Button onClick={() => onNavigate('settings')}>{t('Ouvrir le compte')}</Button> : status !== 'loading' && <Button variant="secondary" onClick={() => void refresh()}>{t('Réessayer')}</Button>}
   </section>;
   if (!state.active) return <div className="automation-hub"><AutomationSettings /></div>;
@@ -62,7 +62,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const openSourceMessage = (ticketId: string) => invoke('open_supplier_inbox_settings', { section: 'inbox', ticketId });
   return <div className="automation-hub">
     <header className="automation-hub__toolbar">
-    <nav className="automation-hub__navigation" aria-label={t('Espace Automation')}>
+    <nav className="automation-hub__navigation" aria-label={t('Espace Autopilote')}>
       {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{label(tab === 'overview' ? 'activity' : tab === 'centre' ? 'followup' : 'settings')}{tab === 'centre' && (pending > 0 || autopilotReview) && <span className="automation-hub__count">{autopilotReview ? autopilotCopy(language).reviewIndicator : pending}</span>}</button>)}
     </nav>
     <div className="automation-hub__mode" role="status">

@@ -473,7 +473,7 @@ const navigation: Array<{
   group?: string;
 }> = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-  { id: 'automation', label: 'Zentra Automation', icon: ListChecks },
+  { id: 'automation', label: 'Zentra Autopilote', icon: ListChecks },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'notes', label: 'Notes', icon: NotebookPen },
   { id: 'projects', label: 'Projets', icon: FolderKanban },
@@ -491,7 +491,7 @@ const navigation: Array<{
 ];
 
 const viewTitles: Record<View, [string, string]> = {
-  automation: ['Zentra Automation', 'Votre équipe, vos outils et vos réglages réunis'],
+  automation: ['Zentra Autopilote', 'Votre équipe, vos outils et vos réglages réunis'],
   notes: ['Notes', 'Vos observations, au même endroit'],
   dashboard: [
     'Tableau de bord',
@@ -5472,7 +5472,7 @@ function SettingsScreen({
       <span id="automation-account-target" tabIndex={-1} />
       <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
-      <SettingsCategory id="automation" lazy title="Zentra Automation" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink embedded /></SettingsCategory>
+      <SettingsCategory id="automation" lazy title="Zentra Autopilote" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink embedded /></SettingsCategory>
       <SettingsCategory id="mail" lazy title="E-mails" description="Messagerie, devis, factures et textes personnalisés" icon={Mail}>
         <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { await execute((scope, nonce) => refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace(scope, nonce)), 'Modèles enregistrés pour l’entreprise.'); }} />
       </SettingsCategory>

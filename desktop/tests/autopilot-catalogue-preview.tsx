@@ -26,7 +26,7 @@ const state:AutopilotView={status:'ready',canManage:true,consent:null,saving:fal
     disposition:'needs_review',reasons:['missing_article'],requiresHumanValidation:true}]}};
 function Preview(){const [editor,setEditor]=useState(false),[message,setMessage]=useState('');return <>
   <header className="preview-note">Aperçu visuel · données fictives · aucun appel métier</header>
-  <main className="desktop-app" data-experience="workspace"><h1>Automation</h1>
+  <main className="desktop-app" data-experience="workspace"><h1>Autopilote</h1>
     <AutopilotReviews state={state} organizationId="preview-org" canAddCatalogue onOpenSource={async()=>setMessage('Aperçu : le message s’ouvre dans Support.')}
       onCatalogue={(_item,mode)=>mode==='create'?setEditor(true):setMessage('Aperçu : le catalogue de l’entreprise s’ouvre.')}/>
     <AutopilotCatalogueNext canWrite onWriteQuote={()=>setMessage('Aperçu : l’assistant de devis manuel s’ouvre.')}

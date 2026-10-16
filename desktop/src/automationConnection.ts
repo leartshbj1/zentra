@@ -10,9 +10,9 @@ export function automationProblem(reason: unknown, online = true): AutomationPro
 }
 
 export const automationConnectionMessages = {
-  offline: { title: 'Connexion Internet interrompue', body: 'Automation reprendra dès le retour du réseau. Vos données restent disponibles.', account: false },
+  offline: { title: 'Connexion Internet interrompue', body: 'Autopilote reprendra dès le retour du réseau. Vos données restent disponibles.', account: false },
   session: { title: 'Reconnectez votre compte', body: 'La connexion au compte Zentra doit être renouvelée dans Compte et équipe.', account: true },
   company_mismatch: { title: 'Le compte et l’entreprise ne correspondent pas', body: 'Le compte connecté appartient à une autre entreprise. Ouvrez Compte et équipe pour rétablir le bon lien. Vos données sont conservées.', account: true },
-  company_unlinked: { title: 'Reliez cette entreprise', body: 'Dans Compte et équipe, activez le partage de cette entreprise pour retrouver Automation.', account: true },
-  service: { title: 'Automation est momentanément indisponible', body: 'Les réglages n’ont pas pu être chargés. Réessayez dans un instant ; ce message ne signifie pas que votre connexion Internet est coupée.', account: false },
+  company_unlinked: { title: 'Reliez cette entreprise', body: 'Dans Compte et équipe, activez le partage de cette entreprise pour retrouver Autopilote.', account: true },
+  service: { title: 'Autopilote est momentanément indisponible', body: 'Les réglages n’ont pas pu être chargés. Réessayez dans un instant ; ce message ne signifie pas que votre connexion Internet est coupée.', account: false },
 } as const;

@@ -14,7 +14,7 @@ export function hasConfirmedAutomationAccess(snapshot: AutomationCompanySnapshot
   return !!organizationId && snapshot.status === 'ready' && snapshot.state?.organizationId === organizationId && snapshot.state.active;
 }
 
-/** Presentation preference only. Does not enable, purchase or grant consent to Automation. */
+/** Presentation preference only. Does not enable, purchase or grant consent to Autopilote. */
 export function replayAutomationWelcome(organizationId: string) {
   window.dispatchEvent(new CustomEvent('zentra-automation-welcome', { detail: organizationId }));
 }

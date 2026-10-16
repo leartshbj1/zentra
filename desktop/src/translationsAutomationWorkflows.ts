@@ -5,7 +5,7 @@ export const automationWorkflowTranslations: Record<
 > = {
 'Suivi':['Übersicht','Attività','Follow-up'],
 'Règles de l’équipe':['Teamregeln','Regole del team','Team rules'],
-"Centre Automation":["Automation-Zentrale","Centro Automation","Automation centre"],
+"Centre Autopilote":["Autopilote-Zentrale","Centro Autopilote","Autopilote centre"],
 "{count} actions à vérifier":["{count} Aktionen zu prüfen","{count} azioni da verificare","{count} actions to review"],
 "{count} éléments pour votre équipe":["{count} Elemente für Ihr Team","{count} elementi per il team","{count} items for your team"],
 "{count} tâches préparées":["{count} Aufgaben vorbereitet","{count} attività preparate","{count} tasks prepared"],
@@ -13,9 +13,9 @@ export const automationWorkflowTranslations: Record<
 "{count} résumés de messages préparés":["{count} Nachrichtenzusammenfassungen erstellt","{count} riepiloghi di messaggi preparati","{count} message summaries prepared"],
 "{count} règles observées sans modification":["{count} Regeln ohne Änderungen beobachtet","{count} regole osservate senza modifiche","{count} rules observed without changes"],
   'Les montants ou la TVA doivent être vérifiés.': ['Die Beträge oder die MWST müssen geprüft werden.', 'Gli importi o l’IVA devono essere verificati.', 'The amounts or VAT need to be reviewed.'],
-  'Automation recherche le fournisseur…': ['Automation sucht den Lieferanten…', 'Automation cerca il fornitore…', 'Automation is finding the supplier…'],
-  'Fournisseur créé par Automation': ['Lieferant von Automation erstellt', 'Fornitore creato da Automation', 'Supplier created by Automation'],
-  'Fournisseur reconnu par Automation': ['Lieferant von Automation erkannt', 'Fornitore riconosciuto da Automation', 'Supplier identified by Automation'],
+  'Autopilote recherche le fournisseur…': ['Autopilote sucht den Lieferanten…', 'Autopilote cerca il fornitore…', 'Autopilote is finding the supplier…'],
+  'Fournisseur créé par Autopilote': ['Lieferant von Autopilote erstellt', 'Fornitore creato da Autopilote', 'Supplier created by Autopilote'],
+  'Fournisseur reconnu par Autopilote': ['Lieferant von Autopilote erkannt', 'Fornitore riconosciuto da Autopilote', 'Supplier identified by Autopilote'],
   'Le nom du fournisseur reste incertain. Choisissez sa fiche ou ajoutez-la.': ['Der Lieferantenname ist unklar. Wählen Sie den Eintrag aus oder erstellen Sie ihn.', 'Il nome del fornitore è incerto. Seleziona la sua scheda o aggiungila.', 'The supplier name is uncertain. Select its record or add one.'],
   'Plusieurs fournisseurs portent ce nom. Choisissez celui qui figure sur la facture.': ['Mehrere Lieferanten haben diesen Namen. Wählen Sie den auf der Rechnung.', 'Più fornitori hanno questo nome. Scegli quello riportato sulla fattura.', 'Several suppliers have this name. Select the one shown on the invoice.'],
   'Ce fournisseur est archivé. Réactivez sa fiche ou choisissez un autre fournisseur.': ['Dieser Lieferant ist archiviert. Reaktivieren Sie ihn oder wählen Sie einen anderen.', 'Questo fornitore è archiviato. Riattivalo o scegli un altro fornitore.', 'This supplier is archived. Reactivate it or select another supplier.'],
@@ -151,10 +151,10 @@ export const automationWorkflowTranslations: Record<
     'Aggiungi all’agenda',
     'Add to calendar',
   ],
-  'Ce qu’Automation a retenu': [
-    'Was Automation gespeichert hat',
-    'Cosa ha memorizzato Automation',
-    'What Automation remembers',
+  'Ce qu’Autopilote a retenu': [
+    'Was Autopilote gespeichert hat',
+    'Cosa ha memorizzato Autopilote',
+    'What Autopilote remembers',
   ],
   'Vos classements confirmés servent aux prochaines factures du même fournisseur. Les montants et la TVA restent ceux du justificatif.':
     [

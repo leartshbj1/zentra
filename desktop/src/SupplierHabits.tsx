@@ -70,7 +70,7 @@ export function SupplierHabits({
   return (
     <details className="automation-habits">
       <summary>
-        {t('Ce qu’Automation a retenu')}
+        {t('Ce qu’Autopilote a retenu')}
         <span>{rows.length}</span>
       </summary>
       <p>

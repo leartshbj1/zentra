@@ -34,7 +34,7 @@ const copy: Record<string, Copy> = {
   confirmed: ['Choix confirmés par l’équipe','Vom Team bestätigte Vorschläge','Scelte confermate dal team','Choices confirmed by the team'],
   clear: ['Aucune action en attente ici','Hier stehen keine Aktionen aus','Nessuna azione in attesa qui','No pending actions here'],
   empty: ['Les prochains résultats apparaîtront ici.','Die nächsten Ergebnisse erscheinen hier.','I prossimi risultati appariranno qui.','The next results will appear here.'],
-  pause: ['Automation est en pause','Automation ist pausiert','Automation è in pausa','Automation is paused'],
+  pause: ['Autopilote est en pause','Autopilote ist pausiert','Autopilote è in pausa','Autopilote is paused'],
   observe: ['Mode observation · aucune modification automatique','Beobachtungsmodus · keine automatischen Änderungen','Modalità osservazione · nessuna modifica automatica','Observation mode · no automatic changes'],
   live: ['Pour votre entreprise et votre équipe','Für Ihr Unternehmen und Ihr Team','Per la tua azienda e il tuo team','For your company and your team'],
   settings: ['Réglages','Einstellungen','Impostazioni','Settings'],
@@ -70,7 +70,7 @@ export function AutomationBrief({ activity, paused = false, observation = false,
   if (summaryOnly) {
     const period = activityDayLabel(activity?.date, activity?.timeZone, language);
     const heading = period === automationLabel('today', language) ? label('doneToday') : `${label('done')} · ${period}`;
-    return <section className="automation-brief automation-brief--summary" aria-label="Zentra Automation">
+    return <section className="automation-brief automation-brief--summary" aria-label="Zentra Autopilote">
       <div><h2>{heading}</h2>
         {!activity ? <p>{automationLabel('activityUnavailable',language)}</p> : done.length ? <ul>{done.slice(0,2).map(row => <li key={row.key}><button type="button" onClick={()=>onOpen(row.target)}><strong>{row.count}</strong><span>{label(row.key)}</span><ChevronRight size={16} aria-hidden="true"/></button></li>)}</ul> : <p>{label('empty')}</p>}
         {done.length>2 && <button type="button" className="automation-brief__text" onClick={()=>onOpen('history')}>{label('history')}<ChevronRight size={16} aria-hidden="true"/></button>}
@@ -85,9 +85,9 @@ export function AutomationBrief({ activity, paused = false, observation = false,
   const attention = !activity ? <p className="automation-brief__empty">{automationLabel('activityUnavailable',language)}</p> : pending.length ? <div className="automation-brief__list">{pending.map(({id,count,icon:Icon}) => <button type="button" key={id} onClick={() => onOpen(id)}>
     <Icon size={20}/><span>{label(id)}</span><strong>{count}</strong><ChevronRight size={17}/>
   </button>)}</div> : <p className="automation-brief__empty"><Check size={20}/>{label('clear')}</p>;
-  return <section className={`automation-brief${compact ? ' automation-brief--compact' : ''}${activityFirst ? ' automation-brief--activity' : ''}${attentionOnly ? ' automation-brief--attention' : ''}`} aria-label="Zentra Automation">
+  return <section className={`automation-brief${compact ? ' automation-brief--compact' : ''}${activityFirst ? ' automation-brief--activity' : ''}${attentionOnly ? ' automation-brief--attention' : ''}`} aria-label="Zentra Autopilote">
     {!attentionOnly && <header className="automation-brief__intro">
-      <div><h2>{compact ? 'Zentra Automation' : `${label('hello')}${activity?.displayName ? ', ' + activity.displayName : ''}.`}</h2>
+      <div><h2>{compact ? 'Zentra Autopilote' : `${label('hello')}${activity?.displayName ? ', ' + activity.displayName : ''}.`}</h2>
       <p>{paused ? label('pause') : observation ? label('observe') : label('live')}</p></div>
       <button className="automation-brief__icon" type="button" onClick={() => onOpen('settings')} aria-label={label('settings')}><Settings2 size={19}/></button>
     </header>}

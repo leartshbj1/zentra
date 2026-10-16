@@ -61,7 +61,7 @@ export function InvoiceScanPanel({disabled,onApply,onBusy}:{disabled:boolean;onA
   }
   const scan=result?.scan;
   return <div className="invoice-scan" aria-busy={busy}>
-    <div className="invoice-scan__start"><Button type="button" variant="secondary" disabled={disabled||company.readOnly||busy} onClick={()=>input.current?.click()}><ScanLine size={18}/>{busy?progress:'Scanner une facture'}</Button><span>PDF ou photo · Automation prépare la saisie.</span></div>
+    <div className="invoice-scan__start"><Button type="button" variant="secondary" disabled={disabled||company.readOnly||busy} onClick={()=>input.current?.click()}><ScanLine size={18}/>{busy?progress:'Scanner une facture'}</Button><span>PDF ou photo · Autopilote prépare la saisie.</span></div>
     <input ref={input} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)void read(file);}}/>
     <p className="sr-only" role="status">{busy?progress:''}</p>
     {scan&&result&&<section className="invoice-scan__review" aria-label="Informations lues sur la facture">

@@ -11,7 +11,7 @@ export const shortcutMeta = {
   clients: { label: 'Clients', icon: UserRound }, catalog: { label: 'Catalogue', icon: Package }, quotes: { label: 'Ventes', icon: Receipt },
   invoices: { label: 'Factures', icon: FileText }, reminders: { label: 'Relances', icon: MessageSquareWarning }, time: { label: 'Temps', icon: Clock3 },
   team: { label: 'Équipe', icon: Users }, expenses: { label: 'Achats', icon: WalletCards }, bank: { label: 'Banque', icon: Banknote },
-  reports: { label: 'Rapports', icon: BarChart3 }, accounting: { label: 'Comptabilité', icon: Landmark }, automation: { label: 'Automation', icon: ListChecks }, settings: { label: 'Réglages', icon: Settings },
+  reports: { label: 'Rapports', icon: BarChart3 }, accounting: { label: 'Comptabilité', icon: Landmark }, automation: { label: 'Autopilote', icon: ListChecks }, settings: { label: 'Réglages', icon: Settings },
 } satisfies Record<ShortcutId, { label: string; icon: typeof Home }>;
 export const quickActionMeta = {
   notes: { label: 'Écrire une note', icon: NotebookPen },
@@ -83,7 +83,7 @@ export function WorkspacePersonalization({ automationActive }: { automationActiv
       <button type="button" disabled={index === 0} aria-label={t('Monter {label}', { label: t(labelFor(id)) })} onClick={() => select(index, items[index - 1])}><ArrowUp size={18} aria-hidden="true" /></button>
       <button type="button" disabled={index === items.length - 1} aria-label={t('Descendre {label}', { label: t(labelFor(id)) })} onClick={() => select(index, items[index + 1])}><ArrowDown size={18} aria-hidden="true" /></button>
     </li>)}</ol>
-    {draft.shortcuts.includes('automation') && !automationActive && <p>{t('Le raccourci Automation apparaîtra lorsque ce produit sera actif dans cet espace.')}</p>}
+    {draft.shortcuts.includes('automation') && !automationActive && <p>{t('Le raccourci Autopilote apparaîtra lorsque ce produit sera actif dans cet espace.')}</p>}
     <div className="personalization-footer"><button className="personalization-reset" type="button" onClick={() => { setDraft({ ...defaultPreferences, shortcuts: [...defaultPreferences.shortcuts], actions: [...defaultPreferences.actions] }); setFeedback(null); }}>{t('Réglages par défaut')}</button>
       <div><Button variant="secondary" disabled={!dirty} onClick={() => { setDraft(saved); setFeedback(null); }}>{t('Annuler')}</Button><Button disabled={!dirty} onClick={() => { const persisted = saveWorkspacePreferences(draft); setFeedback(persisted ? 'Vos raccourcis sont enregistrés.' : 'Appliqué pour cette session. Le stockage de cet appareil est indisponible.'); }}><Check size={17} aria-hidden="true" />{t('Enregistrer')}</Button></div>
     </div>

@@ -27,7 +27,7 @@ export function SupplierInbox({inbox,workspace,readOnly,onOpen,onCreateSupplier,
   const items=filterMailInvoices(inbox.state?.items||[],filter,query);
   return <section className={`supplier-inbox${embedded?' supplier-inbox--embedded':''}`} aria-label={t('Boîte de réception fournisseurs')}>
     <header><span className="supplier-inbox__icon"><Inbox size={22} aria-hidden="true"/></span><div><h2>{t(embedded?'Factures reçues':'Boîte de réception fournisseurs')}{pending.length>0&&<span className="supplier-inbox__count">{pending.length}</span>}</h2><p>{t(!inbox.state?'Chargement…':ready?'Les factures de votre boîte mail, réunies pour toute l’équipe.':'Reliez votre boîte mail pour retrouver vos factures ici.')}</p></div>{inbox.state&&(!embedded||!ready)&&<Button variant="secondary" onClick={()=>ready?setOpen(!open):void invoke('open_supplier_inbox_settings')}>{t(ready?(open?'Réduire':'Voir les factures'):'Relier Support')}<ArrowRight size={16}/></Button>}</header>
-    {ready&&<div className="supplier-inbox__status"><Check size={14}/>{t(inbox.state?.autoPost?'Automation actif · les factures vérifiables sont comptabilisées à l’ouverture de Gestion.':'Vérification avant comptabilisation')}</div>}
+    {ready&&<div className="supplier-inbox__status"><Check size={14}/>{t(inbox.state?.autoPost?'Autopilote actif · les factures vérifiables sont comptabilisées à l’ouverture de Gestion.':'Vérification avant comptabilisation')}</div>}
     {inbox.error&&<p className="supplier-inbox__notice" role="status">{t(inbox.error)}</p>}
     {notice&&<div className="supplier-inbox__notice" role="status">{notice===savedInvoiceNotice.fr?savedInvoiceNotice[language]:t(notice)}{savedId&&embedded&&<Button variant="ghost" onClick={()=>onOpen(savedId)}>{t('Ouvrir la facture')}</Button>}</div>}
     {visible&&ready&&<>
@@ -55,9 +55,9 @@ function ReviewMailInvoice({habits,automationActive,item,workspace,busy,readOnly
     let alive=true;
     if(!automationActive||readOnly||supplier||defaults.supplierId)return;
     if(!canPrepareMailboxSupplier(item)){setSupplierStatus('Le nom du fournisseur reste incertain. Choisissez sa fiche ou ajoutez-la.');return;}
-    setPosting(true);setSupplierStatus('Automation recherche le fournisseur…');
+    setPosting(true);setSupplierStatus('Autopilote recherche le fournisseur…');
     void inboxRequest<{supplierId:string;created:boolean}>(withDiagnosticIntent({action:'prepareSupplier',id:item.id}, 'supplier_inbox_request', 'prepareSupplier'))
-      .then(result=>{if(alive){setSupplier(result.supplierId);setAddingSupplier(false);setSupplierStatus(result.created?'Fournisseur créé par Automation':'Fournisseur reconnu par Automation');}})
+      .then(result=>{if(alive){setSupplier(result.supplierId);setAddingSupplier(false);setSupplierStatus(result.created?'Fournisseur créé par Autopilote':'Fournisseur reconnu par Autopilote');}})
       .catch(reason=>{if(alive){setEditing(true);setSupplierStatus(String(reason instanceof Error?reason.message:reason));}})
       .finally(()=>{if(alive)setPosting(false);});
     return()=>{alive=false;};

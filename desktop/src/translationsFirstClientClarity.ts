@@ -131,6 +131,6 @@ export const firstClientClarityTranslations: Record<string,readonly [string,stri
   'Configurer la comptabilité':['Buchhaltung einrichten','Configura la contabilità','Set up accounting'],
   'Créer un projet':['Projekt erstellen','Crea un progetto','Create a project'],
   'Ouvrir le compte de {company}':['Konto von {company} öffnen','Apri l’account di {company}','Open the account for {company}'],
-  'Outils Automation pour {section}':['Automation-Werkzeuge für {section}','Strumenti Automation per {section}','Automation tools for {section}'],
-  'Fermer les outils Automation':['Automation-Werkzeuge schliessen','Chiudi gli strumenti Automation','Close Automation tools'],
+  'Outils Autopilote pour {section}':['Autopilote-Werkzeuge für {section}','Strumenti Autopilote per {section}','Autopilote tools for {section}'],
+  'Fermer les outils Autopilote':['Autopilote-Werkzeuge schliessen','Chiudi gli strumenti Autopilote','Close Autopilote tools'],
 };

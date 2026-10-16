@@ -77,7 +77,7 @@ function Harness() {
   const language = useAppLanguage();
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: 16 }}>
-      <h1>Zentra Automation · Recette</h1>
+      <h1>Zentra Autopilote · Recette</h1>
       <label>
         Langue{' '}
         <select

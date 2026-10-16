@@ -195,7 +195,7 @@ describe('fixed IPC diagnostic intent', () => {
     closedEvents(d.recentDiagnosticEvents());
   });
 
-  it('uses the real Automation state/settings callsites and preserves their result and failure fallback', async () => {
+  it('uses the real Autopilote state/settings callsites and preserves their result and failure fallback', async () => {
     const d = await api(), automation = await import('./automation');
     vi.stubGlobal('window', { dispatchEvent: vi.fn() });
     const state = { organizationId: 'private-org', active: true }, settings = { enabled: true, consent: true, mode: 'shadow', flags: [], thresholds: { medium: 1, high: 2 } } as const;

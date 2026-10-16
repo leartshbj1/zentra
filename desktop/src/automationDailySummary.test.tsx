@@ -11,7 +11,7 @@ const state: AutomationState = {
     totals: { analyzed: 4, suggestions: 3, confirmed: 2, needsReview: 1, observed: 0 },
     features: [{ feature: 'transaction_classification', analyzed: 4, suggestions: 3, confirmed: 2, needsReview: 1, observed: 0 }] },
 };
-it('renders no promotion, placeholder or activity for companies without Automation', () => {
+it('renders no promotion, placeholder or activity for companies without Autopilote', () => {
   expect(renderToStaticMarkup(<AutomationDailySummaryView state={{ ...state, active: false }} />)).toBe('');
   expect(renderToStaticMarkup(<AutomationDailySummaryView state={{ ...state, activity: null }} />)).toBe('');
 });

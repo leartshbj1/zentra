@@ -32,7 +32,7 @@ export function AutomationToolsLauncher({ screen, section, open, onToggle }: { s
   const { state } = useCompanyAutomation();
   const available = automationToolsForScreen(screen).some(key => featureReady(state, kinds[key].feature));
   if (!state?.active || !available) return null;
-  return <Button type="button" variant="ghost" className="automation-tools-launcher" id="workspace-automation-launcher" aria-label={t('Outils Automation pour {section}',{section})} title={t('Outils Automation pour {section}',{section})} aria-expanded={open} aria-controls="workspace-automation-tools" onClick={onToggle}><Workflow size={18} aria-hidden="true" /><span>Automation</span></Button>;
+  return <Button type="button" variant="ghost" className="automation-tools-launcher" id="workspace-automation-launcher" aria-label={t('Outils Autopilote pour {section}',{section})} title={t('Outils Autopilote pour {section}',{section})} aria-expanded={open} aria-controls="workspace-automation-tools" onClick={onToggle}><Workflow size={18} aria-hidden="true" /><span>Autopilote</span></Button>;
 }
 
 type ToolsReveal = { open: boolean; onClose: () => void };
@@ -52,17 +52,17 @@ export function AutomationTools({ screen, workspace, expanded = false, reveal }:
   if (!state?.active || !available.length) return null;
   const chosen = selected && available.includes(selected) ? selected : available[0];
   const content = <div className="automation-tools__content">
-      <div className="automation-tools__tabs" role="group" aria-label={t('Choisir un outil Automation')}>{available.map(key => <Button key={key} size="small" variant={chosen === key ? 'secondary' : 'ghost'} aria-pressed={chosen === key} onClick={() => setSelected(key)}>{t(kinds[key].title)}</Button>)}</div>
+      <div className="automation-tools__tabs" role="group" aria-label={t('Choisir un outil Autopilote')}>{available.map(key => <Button key={key} size="small" variant={chosen === key ? 'secondary' : 'ghost'} aria-pressed={chosen === key} onClick={() => setSelected(key)}>{t(kinds[key].title)}</Button>)}</div>
       <AutomationTool key={chosen} kind={chosen} workspace={workspace} />
-      {!expanded && <div className="automation-tools__manage"><Button size="small" variant="ghost" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Automation')}</Button></div>}
+      {!expanded && <div className="automation-tools__manage"><Button size="small" variant="ghost" onClick={() => openAutomationHub()}>{t('Ouvrir l’espace Autopilote')}</Button></div>}
     </div>;
   if (reveal) return <section id="workspace-automation-tools" className="automation-tools automation-tools--inline" hidden={!reveal.open} aria-labelledby="workspace-automation-title" onKeyDown={event=>{if(event.key==='Escape'&&!document.querySelector('[role="dialog"]')){event.preventDefault();event.stopPropagation();reveal.onClose();}}}>
-    <header><h2 id="workspace-automation-title" ref={heading} tabIndex={-1}>Zentra Automation</h2><Button type="button" variant="ghost" size="icon" aria-label={t('Fermer les outils Automation')} onClick={reveal.onClose}><X size={18} aria-hidden="true" /></Button></header>
+    <header><h2 id="workspace-automation-title" ref={heading} tabIndex={-1}>Zentra Autopilote</h2><Button type="button" variant="ghost" size="icon" aria-label={t('Fermer les outils Autopilote')} onClick={reveal.onClose}><X size={18} aria-hidden="true" /></Button></header>
     {reveal.open && content}
   </section>;
   if (expanded) return <div className="automation-tools__expanded">{content}</div>;
   return <details className="automation-tools" onToggle={e => setOpen(e.currentTarget.open)}>
-    <summary><Workflow size={17} aria-hidden="true" /><span>Zentra Automation</span><span className="automation-tools__hint">{t('Les outils de cet écran')}</span></summary>
+    <summary><Workflow size={17} aria-hidden="true" /><span>Zentra Autopilote</span><span className="automation-tools__hint">{t('Les outils de cet écran')}</span></summary>
     {open && content}
   </details>;
 }

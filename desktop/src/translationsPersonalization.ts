@@ -25,7 +25,7 @@ export const personalizationTranslations: Record<string, readonly [string, strin
   'Réglages par défaut': ['Standardeinstellungen', 'Impostazioni predefinite', 'Restore defaults'],
   'Vos raccourcis sont enregistrés.': ['Ihre Kurzbefehle wurden gespeichert.', 'Le scorciatoie sono state salvate.', 'Your shortcuts have been saved.'],
   'Appliqué pour cette session. Le stockage de cet appareil est indisponible.': ['Für diese Sitzung übernommen. Der Gerätespeicher ist nicht verfügbar.', 'Applicato per questa sessione. La memoria del dispositivo non è disponibile.', 'Applied for this session. Device storage is unavailable.'],
-  'Le raccourci Automation apparaîtra lorsque ce produit sera actif dans cet espace.': ['Der Automation-Kurzbefehl erscheint, sobald dieses Produkt in diesem Bereich aktiv ist.', 'La scorciatoia Automation apparirà quando il prodotto sarà attivo in questo spazio.', 'The Automation shortcut will appear when this product is active in this workspace.'],
+  'Le raccourci Autopilote apparaîtra lorsque ce produit sera actif dans cet espace.': ['Der Autopilote-Kurzbefehl erscheint, sobald dieses Produkt in diesem Bereich aktiv ist.', 'La scorciatoia Autopilote apparirà quando il prodotto sarà attivo in questo spazio.', 'The Autopilote shortcut will appear when this product is active in this workspace.'],
   'Préparer une facture': ['Rechnung vorbereiten', 'Prepara una fattura', 'Prepare an invoice'],
   'Trouver un client': ['Kunden finden', 'Trova un cliente', 'Find a customer'],
   'Réglages': ['Einstellungen', 'Impostazioni', 'Settings'],

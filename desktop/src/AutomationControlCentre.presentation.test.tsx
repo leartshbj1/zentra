@@ -73,7 +73,7 @@ it('does not claim that work is clear when a retained empty state cannot refresh
   const request = vi.fn().mockResolvedValueOnce({ ...centre, runs: [] }).mockRejectedValueOnce(new Error('Service indisponible'));
   const { host } = await mount(<AutomationControlCentre organizationId="company-a" initialTab="work" request={request} />);
   expect(host.textContent).toContain('Aucune tâche à faire');
-  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Actualiser le centre Automation"]')!.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Actualiser le centre Autopilote"]')!.click());
   expect(host.textContent).toContain('Service indisponible');
   expect(host.querySelector('.ac-empty')).toBeNull();
 });

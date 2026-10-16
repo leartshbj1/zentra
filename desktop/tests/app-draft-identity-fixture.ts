@@ -63,7 +63,7 @@ export function installAppDraftIdentityFixture(workspace: Workspace) {
     if (command === 'start_cloud_account_link') return {status:'pending',userCode:'SYNTHETIC-CODE',verificationUri:'https://example.invalid',authorizationExpiresAt:'2099-01-01T00:00:00Z',intervalSeconds:3};
     if (command === 'open_cloud_account_link') return 'https://example.invalid';
     if (command === 'poll_cloud_account_link') { updateAccount(linkTarget,linkMember); return structuredClone(account); }
-    // Existing Automation handlers accept read-only activity; never forward any
+    // Existing Autopilote handlers accept read-only activity; never forward any
     // business/account mutation outside the small synthetic link above.
     if (['automation_request','supplier_inbox_request','appointment_inbox_request'].includes(command)) {
       if ((args as {data?:unknown}|undefined)?.data) throw Error('Identity fixture forbids business writes');

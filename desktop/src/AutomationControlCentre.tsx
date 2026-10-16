@@ -94,7 +94,7 @@ const modes = {
 };
 const actions = {
   task: 'Créer une tâche',
-  notify: 'Notifier dans Automation',
+  notify: 'Notifier dans Autopilote',
   reply_draft: 'Préparer une réponse',
   summary: 'Résumé du message reçu',
   review: 'Demander une vérification',
@@ -121,11 +121,11 @@ const categories = {
   other: 'Autre',
 };
 const centreTranslations: Record<string, readonly [string, string, string]> = {
-  'Centre Automation': ['Automation-Zentrale', 'Centro Automation', 'Automation centre'],
-  'Votre centre Automation': ['Ihre Automation-Zentrale', 'Il tuo centro Automation', 'Your Automation centre'],
+  'Centre Autopilote': ['Autopilote-Zentrale', 'Centro Autopilote', 'Autopilote centre'],
+  'Votre centre Autopilote': ['Ihre Autopilote-Zentrale', 'Il tuo centro Autopilote', 'Your Autopilote centre'],
   'Les actions de votre équipe, au même endroit.': ['Die Aktionen Ihres Teams an einem Ort.', 'Le azioni del tuo team, in un solo posto.', 'Your team’s actions in one place.'],
-  'Actualiser le centre Automation': ['Automation-Zentrale aktualisieren', 'Aggiorna il centro Automation', 'Refresh Automation centre'],
-  'Vue du centre Automation': ['Ansicht der Automation-Zentrale', 'Vista del centro Automation', 'Automation centre view'],
+  'Actualiser le centre Autopilote': ['Autopilote-Zentrale aktualisieren', 'Aggiorna il centro Autopilote', 'Refresh Autopilote centre'],
+  'Vue du centre Autopilote': ['Ansicht der Autopilote-Zentrale', 'Vista del centro Autopilote', 'Autopilote centre view'],
   'À faire': ['Aufgaben', 'Da fare', 'Tasks'],
   'Règles': ['Regeln', 'Regole', 'Rules'],
   'Chargement du centre…': ['Zentrale wird geladen…', 'Caricamento del centro…', 'Loading the centre…'],
@@ -149,7 +149,7 @@ const centreTranslations: Record<string, readonly [string, string, string]> = {
   'Personnalisez-le et choisissez quand il peut agir.': ['Passen Sie die Vorlage an und legen Sie fest, wann sie handeln darf.', 'Personalizzalo e scegli quando può agire.', 'Customize it and choose when it can act.'],
   'Le titulaire ou un administrateur peut ajouter et modifier les règles de votre entreprise.': ['Der Inhaber oder ein Administrator kann Unternehmensregeln hinzufügen und bearbeiten.', 'Il titolare o un amministratore può aggiungere e modificare le regole aziendali.', 'The owner or an administrator can add and edit company rules.'],
   'Modification enregistrée.': ['Änderung gespeichert.', 'Modifica salvata.', 'Change saved.'],
-  'Le centre Automation est indisponible. Réessayez.': ['Die Automation-Zentrale ist nicht verfügbar. Versuchen Sie es erneut.', 'Il centro Automation non è disponibile. Riprova.', 'The Automation centre is unavailable. Try again.'],
+  'Le centre Autopilote est indisponible. Réessayez.': ['Die Autopilote-Zentrale ist nicht verfügbar. Versuchen Sie es erneut.', 'Il centro Autopilote non è disponibile. Riprova.', 'The Autopilote centre is unavailable. Try again.'],
   'Règle enregistrée. Elle s’applique aux prochains messages classés.': ['Regel gespeichert. Sie gilt für die nächsten eingeordneten Nachrichten.', 'Regola salvata. Si applica ai prossimi messaggi classificati.', 'Rule saved. It applies to future classified messages.'],
   'La règle n’a pas pu être enregistrée.': ['Die Regel konnte nicht gespeichert werden.', 'Impossibile salvare la regola.', 'The rule could not be saved.'],
   'Réessayez.': ['Versuchen Sie es erneut.', 'Riprova.', 'Try again.'],
@@ -217,7 +217,7 @@ const centreTranslations: Record<string, readonly [string, string, string]> = {
   'Exécuter si la confiance suffit': ['Bei ausreichender Konfidenz ausführen', 'Esegui con confidenza sufficiente', 'Run with sufficient confidence'],
   'Exécuter puis notifier': ['Ausführen und benachrichtigen', 'Esegui e notifica', 'Run then notify'],
   'Créer une tâche': ['Aufgabe erstellen', 'Crea attività', 'Create task'],
-  'Notifier dans Automation': ['In Automation benachrichtigen', 'Notifica in Automation', 'Notify in Automation'],
+  'Notifier dans Autopilote': ['In Autopilote benachrichtigen', 'Notifica in Autopilote', 'Notify in Autopilote'],
   'Préparer une réponse': ['Antwort vorbereiten', 'Prepara risposta', 'Prepare reply'],
   'Résumé du message reçu': ['Zusammenfassung der Nachricht', 'Riepilogo del messaggio ricevuto', 'Received message summary'],
   'Demander une vérification': ['Prüfung anfordern', 'Richiedi verifica', 'Request review'],
@@ -305,7 +305,7 @@ export function AutomationControlCentre({
         setError(
           e instanceof Error
             ? e.message
-            : 'Le centre Automation est indisponible. Réessayez.',
+            : 'Le centre Autopilote est indisponible. Réessayez.',
         );
     } finally {
       if (requestNumber === sequence.current) {
@@ -352,10 +352,10 @@ export function AutomationControlCentre({
       [],
     work = data?.items.filter((i) => i.state === 'open') || [];
   return (
-    <section className={`automation-centre${embedded ? " automation-centre--embedded" : ""}`} aria-label={c('Centre Automation')} aria-busy={busy || undefined}>
+    <section className={`automation-centre${embedded ? " automation-centre--embedded" : ""}`} aria-label={c('Centre Autopilote')} aria-busy={busy || undefined}>
       {!embedded && <header className="automation-centre__heading">
         <div>
-          <h2>{c("Votre centre Automation")}</h2>
+          <h2>{c("Votre centre Autopilote")}</h2>
           <p>{c("Les actions de votre équipe, au même endroit.")}</p>
         </div>
         <button
@@ -363,14 +363,14 @@ export function AutomationControlCentre({
           className="ac-quiet"
           onClick={() => void load()}
           disabled={busy}
-          aria-label={c("Actualiser le centre Automation")}
+          aria-label={c("Actualiser le centre Autopilote")}
         >
           <RotateCcw size={18} />
         </button>
       </header>}
       {!hideNavigation && <nav
         className="automation-centre__tabs"
-        aria-label={c('Vue du centre Automation')}
+        aria-label={c('Vue du centre Autopilote')}
       >
         {(
           [
