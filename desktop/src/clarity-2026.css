@@ -946,3 +946,32 @@
     scrollbar-width: thin;
   }
 }
+
+/* Purchases: the same readable pill tabs as Sales and Accounting. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px;
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 999px;
+    background: var(--apple-grouped);
+    scrollbar-width: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__tabs button {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__tabs button.is-active {
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow-pill);
+  }
+}
