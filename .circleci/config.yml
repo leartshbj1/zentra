@@ -565,6 +565,11 @@ jobs:
       ZENTRA_VERIFY_ONLY: "false"
       ZENTRA_RELEASE_TEST_HARNESS: "true"
     steps:
+      # Tauri and the palette generator rewrite tracked files with LF; an LF
+      # checkout keeps them byte-identical so the post-package receipt stays clean.
+      - run:
+          name: Check out with repository line endings
+          command: git config --global core.autocrlf false
       - checkout
       - run:
           name: Verify OFF and ON native release tests and package the Windows product with Autopilote
