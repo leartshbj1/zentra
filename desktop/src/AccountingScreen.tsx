@@ -538,20 +538,22 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   }
 
   return <div className={`stack-layout accounting-screen ${tab==='overview'?'accounting-screen--overview':''}`}>
-    {hasPeriodFilter&&tab!=='overview'?<div className="finance-period-shortcuts" role="group" aria-label={t('Choisir une période rapidement')}>{([['month','Ce mois'],['quarter','Ce trimestre'],['year','Cette année'],['all','Toutes les dates']] as const).map(([key,label])=><button type="button" key={key} disabled={busy} onClick={()=>changeFreeFilter(financePeriod(key,todayIso()))}>{t(label)}</button>)}</div>:null}
     <section className={`accounting-toolbar panel ${hasPeriodFilter ? '' : 'accounting-toolbar--global'}`}>
       <div className="finance-navigation">
         <SectionTabs items={primaryTabs} mobileItems={tabs} value={tab} onChange={setTab} label={t('Section comptable')} />
+        <label className="finance-navigation__more finance-navigation__more--tools"><span>{t('Comptabilité détaillée')}</span><select aria-label={t('Autres outils comptables')} value={everyday.includes(tab) ? '' : tab} onChange={event => { if (event.target.value) setTab(event.target.value as Tab); }}><option value="">{t('Choisir un outil…')}</option>{tabs.filter(([id]) => !everyday.includes(id)).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+      </div>
+      {/* Tabs and tools stay in place; the period always sits on the row below. */}
+      <div className="accounting-period-bar">
         {tab === 'overview' ? <label className="finance-navigation__more finance-navigation__more--period">
           <span>{t('Période')}</span>
           <span className="finance-navigation__period-value" aria-hidden="true"><span>{t(({ month: 'Ce mois', quarter: 'Ce trimestre', year: 'Cette année', custom: 'Période personnalisée' } as const)[overviewPeriod])}</span><ChevronDown size={18}/></span>
           <select aria-label={t('Période de la vue d’ensemble')} disabled={busy} value={overviewPeriod} onChange={event => { if (event.target.value !== 'custom') changeFreeFilter(financePeriod(event.target.value as 'month' | 'quarter' | 'year' | 'all', todayIso())); }}>
             <option value="month">{t('Ce mois')}</option><option value="quarter">{t('Ce trimestre')}</option><option value="year">{t('Cette année')}</option><option value="custom" disabled>{t('Période personnalisée')}</option>
           </select>
-        </label> : <label className="finance-navigation__more finance-navigation__more--tools"><span>{t('Comptabilité détaillée')}</span><select aria-label={t('Autres outils comptables')} value={everyday.includes(tab) ? '' : tab} onChange={event => { if (event.target.value) setTab(event.target.value as Tab); }}><option value="">{t('Choisir un outil…')}</option>{tabs.filter(([id]) => !everyday.includes(id)).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>}
-      </div>
-      <div className="accounting-period-bar" hidden={tab==='overview'}>
-        {hasPeriodFilter && <>
+        </label> : null}
+        {hasPeriodFilter && tab !== 'overview' && <>
+          <div className="finance-period-shortcuts" role="group" aria-label={t('Choisir une période rapidement')}>{([['month','Ce mois'],['quarter','Ce trimestre'],['year','Cette année'],['all','Toutes les dates']] as const).map(([key,label])=><button type="button" key={key} disabled={busy} onClick={()=>changeFreeFilter(financePeriod(key,todayIso()))}>{t(label)}</button>)}</div>
           <button type="button" className="accounting-period-toggle" aria-expanded={filtersExpanded} aria-controls={filtersId} onClick={() => setFiltersExpanded((expanded) => !expanded)}>
             <SlidersHorizontal size={17} aria-hidden="true" /><span><span>{t('Période')}</span><strong>{periodLabel}</strong></span><ChevronDown size={16} aria-hidden="true" />
           </button>

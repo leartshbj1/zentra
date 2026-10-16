@@ -472,6 +472,23 @@
     border-radius: 999px;
     box-shadow: var(--z-shadow-pill);
   }
+  /* Section tabs stay one row of pills. The older wide-container layout
+     stacked icon over label at full width, turning the strip into a disc. */
+  html[data-app-theme] .desktop-app[data-experience] .section-navigation__tabs {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .section-navigation__tabs button {
+    flex: 0 0 auto;
+    flex-direction: row;
+    width: auto;
+    height: auto;
+    min-height: 36px;
+    padding: 8px 16px;
+    white-space: nowrap;
+  }
 
   /* Status: small, quiet pills. */
   html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .status {
@@ -868,5 +885,64 @@
   }
   html[data-app-theme] .demo-banner p span {
     color: var(--apple-secondary);
+  }
+}
+
+/* Accounting: the tabs row never moves; the period row under it is the same
+   on every tab, including the overview. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview .accounting-period-bar {
+    display: flex;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-period-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-screen .accounting-filters {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-period-bar .finance-navigation__more--period > span:first-child {
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-period-bar {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-period-bar > :last-child {
+    margin-left: auto;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-period-bar .finance-navigation__more--period {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: auto;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .accounting-period-bar .finance-navigation__more--period select {
+    width: auto;
+    min-width: 180px;
+  }
+}
+
+/* Settings fills the window: the sheet reaches the bottom of the screen, its
+   tinted index runs the full height, and the index stays in view while a
+   long category scrolls. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser.settings-browser--guided {
+    min-height: calc(100dvh - 210px);
+    align-items: start;
+    background: linear-gradient(to right, var(--z-pane) 288px, var(--z-hairline) 288px, var(--z-hairline) 289px, var(--apple-paper) 289px);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation {
+    position: sticky;
+    top: 12px;
+    align-self: start;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    border-right: 0;
+    background: transparent;
+    scrollbar-width: thin;
   }
 }
