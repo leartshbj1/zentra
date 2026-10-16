@@ -975,3 +975,25 @@
     box-shadow: var(--z-shadow-pill);
   }
 }
+
+/* A blocked primary action: the button stays where every page has it, with
+   one quiet line of explanation underneath instead of a floating card. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions .creation-action {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions .creation-action__help {
+    display: contents;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions .creation-action__help p {
+    margin: 0;
+    max-width: 280px;
+    color: var(--apple-secondary);
+    font-size: 12.5px;
+    line-height: 1.4;
+    text-align: right;
+  }
+}
