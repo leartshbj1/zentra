@@ -148,7 +148,21 @@
     display: none;
   }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__brand {
-    padding: 4px 10px 14px;
+    padding: 4px 4px 14px 10px;
+  }
+  /* Keep the product name beside the logo in every language (Verwaltung,
+     Gestione); larger text sizes keep their own wrapping rule. */
+  html[data-app-theme]:is(:not([data-app-text-size]), [data-app-text-size="100"]) .desktop-app[data-experience] .sidebar__wordmark {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  html[data-app-theme]:is(:not([data-app-text-size]), [data-app-text-size="100"]) .desktop-app[data-experience] .sidebar__product {
+    min-width: 0;
+    overflow: hidden;
+    padding-left: 8px;
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   html[data-app-theme] .desktop-app[data-experience] .sidebar__search {
     margin-top: 4px;
