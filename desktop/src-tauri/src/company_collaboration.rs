@@ -918,6 +918,11 @@ fn prepare_locked(store: &LocalStore, organization: &str, activate: bool) -> App
 
 /// The caller already owns LocalStore's non-reentrant mutex. A historical
 /// receipt is recovered BEFORE this guard; it grants no new local write.
+/// The organisation this company is linked to for collaboration, if any.
+pub(crate) fn bound_organization(store: &LocalStore) -> AppResult<Option<String>> {
+    Ok(load(store)?.organization_id)
+}
+
 pub(crate) fn require_action_engine_quote_write_ready(store: &LocalStore, organization: &str) -> AppResult<()> {
     let prefs = load(store)?;
     if prefs.pending.is_some() || prefs.received.is_some() || prefs.conflict

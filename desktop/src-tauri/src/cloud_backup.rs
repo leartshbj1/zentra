@@ -182,8 +182,14 @@ impl LocalStore {
         // backup settings still name an older one (for example after the account
         // service moved and the company was linked again). The company binding
         // is authoritative: follow it, and drop an upload prepared for the old
-        // organisation instead of refusing every backup.
-        if project_org.as_deref() == Some(org)
+        // organisation instead of refusing every backup. The company is linked
+        // either through project sync or through company collaboration; every
+        // link that exists must name this organisation.
+        let collaboration_org = crate::company_collaboration::bound_organization(self)?;
+        let links = [project_org.as_deref(), collaboration_org.as_deref()];
+        let company_linked_here = links.iter().any(|link| *link == Some(org))
+            && links.iter().all(|link| link.is_none_or(|id| id == org));
+        if company_linked_here
             && prefs.organization_id.as_deref().is_some_and(|id| id != org)
         {
             if let Some(pending) = prefs.pending.take() {
