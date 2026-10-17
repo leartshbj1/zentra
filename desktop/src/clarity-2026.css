@@ -1190,7 +1190,7 @@
   html[data-app-theme] .desktop-app[data-experience] .page-header .page-header__actions .screen-help-launcher {
     inset-block-start: calc(15.75px * var(--zentra-ui-text-scale, 1) - 22px);
   }
-  html[data-app-theme] .desktop-app[data-experience] :is(.tab-strip, .team-navigation) {
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.reminder-toolbar .tab-strip, .tab-strip, .team-navigation) {
     display: flex;
     flex-wrap: nowrap;
     gap: 2px;
@@ -1199,7 +1199,7 @@
     overflow-x: auto;
     scrollbar-width: none;
   }
-  html[data-app-theme] .desktop-app[data-experience] :is(.tab-strip, .team-navigation) > button {
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.reminder-toolbar .tab-strip, .tab-strip, .team-navigation) > button {
     flex: 0 0 auto;
     width: auto;
     min-height: 40px;
