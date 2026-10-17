@@ -134,23 +134,6 @@ export function supplierOrderLineProgress(
   };
 }
 
-export function supplierOrderLineRemainingToReceiveMilli(
-  line: SupplierOrderLine,
-  workspace: PurchaseFlowWorkspace,
-  order?: SupplierOrder,
-): number {
-  if (!order) {
-    if (line.fulfillmentMode === 'direct') return 0;
-    return nonNegative(
-      line.quantityMilli -
-        line.cancelledQuantityMilli -
-        line.receivedQuantityMilli,
-    );
-  }
-  return supplierOrderLineProgress(order, line, workspace)
-    .remainingToReceiveMilli;
-}
-
 export function supplierOrderLineMatchableMilli(
   line: SupplierOrderLine,
   workspace: PurchaseFlowWorkspace,

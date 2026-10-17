@@ -3,7 +3,7 @@ import { t, useAppLanguage } from './language';
 import { createContext, useContext, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { ButtonHTMLAttributes, FormEvent, KeyboardEvent, ReactNode } from 'react';
-import { Archive, ChevronRight, Inbox, LoaderCircle, X } from 'lucide-react';
+import { ChevronRight, Inbox, LoaderCircle, X } from 'lucide-react';
 import { ErrorGuidance } from './ErrorGuidance';
 import type { UserErrorOperation } from './userErrors';
 
@@ -369,14 +369,6 @@ const statusLabels: Record<string, string> = {
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
   useAppLanguage();
   return <span className={`status status--${status}`}>{label ?? t(statusLabels[status] ?? status)}</span>;
-}
-
-export function DangerZone({ label, onArchive }: { label: string; onArchive: () => void }) {
-  return (
-    <Button variant="ghost" size="small" onClick={onArchive} aria-label={`Archiver ${label}`}>
-      <Archive size={15} /> Archiver
-    </Button>
-  );
 }
 
 export function ErrorPanel({

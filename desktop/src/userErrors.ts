@@ -175,4 +175,3 @@ export function getUserError(reason: unknown, options: { fallback?: string; lang
   return { kind, title: selected.title, message: authored || (kind === 'unknown' && fallback ? fallback : selected.message), action: uncertain ? `${selected.action} ${labels.uncertain}` : selected.action, technicalDetails: safeErrorDetails(reason) };
 }
 
-export function userErrorMessage(reason: unknown, fallback?: string): string { return getUserError(reason, { fallback }).message; }
