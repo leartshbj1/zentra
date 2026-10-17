@@ -710,6 +710,31 @@ fn clock(store: &LocalStore) -> AppResult<i64> {
         |r| r.get(0),
     )?)
 }
+/// Forget the revisions of a server that no longer has this organisation's
+/// workspace, keeping every local record; the next send publishes revision 1.
+fn restart_after_empty_server(store: &LocalStore, organization: &str) -> AppResult<()> {
+    let _lock = store.lock()?;
+    let mut prefs = load(store)?;
+    if prefs.organization_id.as_deref() != Some(organization) {
+        return Err(invalid("Reconnectez le compte correspondant à cette entreprise."));
+    }
+    if let Some(pending) = prefs.pending.take() {
+        if let Ok(path) = file_path(store, &pending.id) {
+            let _ = fs::remove_file(path);
+        }
+    }
+    if let Some(received) = prefs.received.take() {
+        if let Ok(path) = file_path(store, &received.id) {
+            let _ = fs::remove_file(path);
+        }
+    }
+    prefs.revision = 0;
+    prefs.conflict = false;
+    prefs.conflict_reason = None;
+    prefs.duplicate_receipt = None;
+    save(store, &prefs)
+}
+
 fn file_path(store: &LocalStore, id: &str) -> AppResult<PathBuf> {
     crate::cloud_backup::validate_id(id)?;
     Ok(folder(store)?.join(format!("{id}.zentra")))
@@ -1984,6 +2009,23 @@ pub async fn sync_company_workspace(
         .await
         .map_err(command_error)?;
     let mut revision = checked_head(&session, &head).map_err(command_error)?;
+    // The account service has no workspace at all for this organisation (it
+    // started empty after a migration) while this device still counts the
+    // old revisions. Nothing remote can be lost: share this device's company
+    // again as the first version instead of refusing every sync, so the
+    // company (and Autopilote's catalogue) is published once more.
+    if !accept_remote
+        && head["enabled"] == false
+        && revision == 0
+        && prefs.revision > 0
+        && ["owner", "admin"].contains(&session.role.as_str())
+    {
+        restart_after_empty_server(&store, &session.organization_id).map_err(command_error)?;
+        send(&store, &session, true, head["contentTransfer"] == 1)
+            .await
+            .map_err(command_error)?;
+        return status(&store).map_err(command_error);
+    }
     // A newer head may include this exact pending snapshot whose ACK was lost.
     // Recover that creation fact before attempting a merge/reference download,
     // especially when the original revision was 0 or transport copies pruned.
