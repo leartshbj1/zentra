@@ -18,6 +18,8 @@ const BLOCKED_DELAY = 30_000;
 const RATE_LIMIT_DELAY = 300_000;
 const ERROR_DELAY = 3_000;
 const MAX_ERROR_DELAY = 60_000;
+// Autopilote keeps working while Zentra is in the background, at a calmer pace.
+const HIDDEN_DELAY = 60_000;
 
 export function createAutopilotSession({ perform, onError, clock = Date.now,
   schedule = (run, delay) => setTimeout(run, delay), cancel = timer => clearTimeout(timer),
@@ -33,7 +35,7 @@ export function createAutopilotSession({ perform, onError, clock = Date.now,
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: Promise<unknown> | null = null;
   let resumeAfterPending = false;
-  const eligible = () => live && !!context.scope && context.available && context.visible && context.online;
+  const eligible = () => live && !!context.scope && context.available && context.online;
   const clearTimer = () => { if (timer !== null) cancel(timer); timer = null; };
   const guard = (): AutopilotCycleGuard | null => {
     if (!eligible() || !context.scope) return null;
@@ -63,7 +65,8 @@ export function createAutopilotSession({ perform, onError, clock = Date.now,
       .then(result => {
         if (!original.current() || result === null) return;
         failures = 0;
-        nextAt = clock() + (result === 'rate_limited' ? RATE_LIMIT_DELAY : result === 'more' ? MORE_DELAY : result === 'blocked' ? BLOCKED_DELAY : IDLE_DELAY);
+        const delay = result === 'rate_limited' ? RATE_LIMIT_DELAY : result === 'more' ? MORE_DELAY : result === 'blocked' ? BLOCKED_DELAY : IDLE_DELAY;
+        nextAt = clock() + (context.visible ? delay : Math.max(delay, HIDDEN_DELAY));
       }, error => {
         if (!original.current()) return;
         failures = Math.min(failures + 1, 6);

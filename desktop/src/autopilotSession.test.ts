@@ -35,10 +35,19 @@ it('keeps a stopped physical request single-flight through a Strict Mode restart
   pending.resolve('idle'); await drain(); await vi.advanceTimersByTimeAsync(0); expect(perform).toHaveBeenCalledTimes(2); session.stop();
 });
 
-it.each(['visible', 'online', 'available'] as const)('does not execute while %s is false and resumes when restored', async key => {
+it.each(['online', 'available'] as const)('does not execute while %s is false and resumes when restored', async key => {
   vi.useFakeTimers(); const perform = vi.fn().mockResolvedValue('idle'); const session = createAutopilotSession({ perform });
   session.update({ ...context, [key]: false }); session.start(); await vi.advanceTimersByTimeAsync(60_000); expect(perform).not.toHaveBeenCalled();
   session.update(context); await drain(); expect(perform).toHaveBeenCalledTimes(1); session.stop();
+});
+
+it('keeps working in the background at a calmer pace and resumes promptly when shown', async () => {
+  vi.useFakeTimers(); const perform = vi.fn().mockResolvedValue('idle'); const session = createAutopilotSession({ perform });
+  session.update({ ...context, visible: false }); session.start(); await drain(); expect(perform).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(59_999); expect(perform).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1); expect(perform).toHaveBeenCalledTimes(2);
+  session.update(context); await drain(); expect(perform).toHaveBeenCalledTimes(3);
+  await vi.advanceTimersByTimeAsync(15_000); expect(perform).toHaveBeenCalledTimes(4); session.stop();
 });
 
 it('backs off transport failures without focus events causing a tight retry loop', async () => {
