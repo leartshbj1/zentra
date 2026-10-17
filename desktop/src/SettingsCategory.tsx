@@ -63,11 +63,13 @@ export function SettingsBrowser({ children, initialCategory, hasDraft = false }:
     openSettingsCategory(detail);
     setActive(id);
     detail.querySelector('summary')?.focus({ preventScroll: true });
-    // A previous category can leave the page far down. Reveal the new heading
-    // on desktop too, accounting for the sticky application toolbar.
+    // A previous category can leave the page far down: reveal the new heading,
+    // accounting for the sticky toolbar. When the heading is already in view
+    // the page stays still, so the window title never jumps away.
     if (root.current) {
-      root.current.style.scrollMarginTop = `${(document.querySelector('.topbar')?.getBoundingClientRect().height || 0) + 16}px`;
-      root.current.scrollIntoView({ block: 'start' });
+      const toolbar = document.querySelector('.topbar')?.getBoundingClientRect().height || 0;
+      root.current.style.scrollMarginTop = `${toolbar + 16}px`;
+      if (root.current.getBoundingClientRect().top < toolbar) root.current.scrollIntoView({ block: 'start' });
     }
   }
 

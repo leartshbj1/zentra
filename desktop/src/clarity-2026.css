@@ -997,3 +997,290 @@
     text-align: right;
   }
 }
+
+/* Settings, third pass: one quiet index and one calm page.
+   - The index uses the same plain icons and soft selection as the app's
+     sidebar, so the selected row never turns into a heavy green slab
+     (or a pale mint slab in dark mode).
+   - The page title sits on its own, the scope reads as one small chip.
+   - Required fields say so in plain text, without a badge on every label. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group h2 {
+    margin: 22px 10px 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group:first-of-type h2 {
+    margin-top: 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link] {
+    min-height: 38px;
+    margin: 1px 0;
+    padding: 6px 10px;
+    gap: 11px;
+    border-radius: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation .settings-browser__icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation .settings-browser__icon svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.6;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] {
+    background: var(--apple-selection);
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] .settings-browser__icon {
+    background: transparent;
+    color: var(--apple-accent);
+  }
+
+  /* Page heading: title, one line, one chip. */
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-category > summary {
+    padding: 0 0 28px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail .settings-category > summary strong {
+    font-size: calc(28px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-category__scope {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin-top: 12px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--apple-grouped);
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  /* "obligatoire" is a word after the label, not a grey badge. */
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .field__label em {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-style: normal;
+    font-weight: 400;
+  }
+
+  /* Company logo: a single row — picture, name, rules, one button. */
+  html[data-app-theme] .desktop-app[data-experience] [data-settings-id="company"] .company-logo-setting {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 28px;
+    padding: 18px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--apple-grouped);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] [data-settings-id="company"] .company-logo-setting__preview {
+    flex: 0 0 auto;
+    width: 72px;
+    height: 72px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--apple-paper);
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] [data-settings-id="company"] .company-logo-setting__copy {
+    display: grid;
+    flex: 1;
+    gap: 4px;
+    justify-items: start;
+  }
+  html[data-app-theme] .desktop-app[data-experience] [data-settings-id="company"] .company-logo-setting__copy > strong {
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] [data-settings-id="company"] .company-logo-setting__copy > p {
+    margin: 0 0 8px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.45;
+  }
+  html[data-app-theme] .desktop-app[data-experience] [data-settings-id="company"] .company-logo-setting .path-note {
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* Setup readiness: the extra detail belongs to its row, under its text. */
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details {
+    margin: -10px 0 0;
+    padding: 0 0 14px 40px;
+    border: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details summary {
+    min-height: 28px;
+    padding: 0;
+    color: var(--apple-accent);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details summary::before {
+    content: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .setup-readiness__details p {
+    padding: 2px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* Account: no account yet reads as one tidy row with its action. */
+  html[data-app-theme] .desktop-app[data-experience] .cloud-account-panel .settings-cloud-intro {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 20px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--apple-grouped);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .cloud-account-panel .settings-cloud-intro > div {
+    display: grid;
+    flex: 1;
+    grid-template-columns: auto 1fr;
+    column-gap: 14px;
+    row-gap: 2px;
+    align-items: center;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .cloud-account-panel .settings-cloud-intro > div > svg {
+    grid-row: span 2;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .cloud-account-panel .settings-cloud-intro > div > p {
+    margin: 0;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+}
+@media screen and (max-width: 760px) {
+  html[data-app-theme] .desktop-app[data-experience] .cloud-account-panel .settings-cloud-intro {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+/* Desktop index: the tinted column is the index's own width, and the search
+   field reads as part of it. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__search {
+    min-height: 38px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--apple-grouped);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__search input {
+    min-height: 36px;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+}
+
+/* Phone: the help button sits on the title's line, and section tabs stay one
+   swipeable row of pills instead of wrapping into a second line. */
+@media screen and (max-width: 860px) {
+  html[data-app-theme][data-app-text-size] .desktop-app[data-experience] .page-header .page-header__actions .screen-help-launcher,
+  html[data-app-theme] .desktop-app[data-experience] .page-header .page-header__actions .screen-help-launcher {
+    inset-block-start: calc(15.75px * var(--zentra-ui-text-scale, 1) - 22px);
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.tab-strip, .team-navigation) {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.tab-strip, .team-navigation) > button {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 40px;
+    padding: 8px 14px;
+    white-space: nowrap;
+  }
+}
+
+/* The toolbar search is one field: its wrapper draws the shape, the input
+   inside stays flat (dark mode used to draw a second box inside it). */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .global-search input {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+/* Agenda: each figure reads with its label ("0 aujourd'hui"), not at the far
+   end of a wide cell; the month grid loses its grey slabs. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary > article {
+    justify-content: flex-start;
+    align-items: baseline;
+    gap: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary > article > strong {
+    order: -1;
+    font-size: calc(22px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .agenda-weekdays {
+    background: transparent;
+    border-bottom: 1px solid var(--z-hairline);
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-day.is-outside {
+    background: transparent;
+    color: var(--apple-secondary);
+    opacity: 0.55;
+  }
+}
+
+/* Home: Autopilote and "À suivre" share one row under the quick actions.
+   An older rule pinned Autopilote to row 2, which pushed the quick actions
+   between the two cards and left half of each row empty. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid.dashboard-grid--daily > :is(.automation-brief, .activity-shortcuts) {
+    grid-row: auto;
+    align-self: stretch;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid.dashboard-grid--daily > .automation-brief {
+    grid-column: 1;
+    margin-bottom: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid.dashboard-grid--daily > .activity-shortcuts {
+    grid-column: 2;
+  }
+}
+
+/* Home: every section title has the same size and weight. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid :is(.dashboard-personal-actions h2, .activity-shortcuts__heading .eyebrow, .automation-brief--compact .automation-brief__intro h2) {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(21px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+    text-transform: none;
+  }
+}
+
+/* The help button is the same quiet round icon on every page, home included. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .page-header .page-header__actions .screen-help-launcher:not(:hover) {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}

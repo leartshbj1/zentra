@@ -5558,7 +5558,7 @@ function SettingsScreen({
             </div>
             <div className="company-logo-setting__copy">
               <strong>{t('Logo de l’entreprise')}</strong>
-              <details><summary>{t('Formats acceptés')}</summary><p>{t('PNG, JPEG ou WebP · 16 à 4096 px par côté · 8 Mo maximum. Une copie du logo est conservée dans vos sauvegardes.')}</p></details>
+              <p>{t('PNG, JPEG ou WebP · 16 à 4096 px par côté · 8 Mo maximum. Une copie du logo est conservée dans vos sauvegardes.')}</p>
               <div className="settings-inline-actions">
                 <Button
                   type="button"
@@ -5585,9 +5585,7 @@ function SettingsScreen({
                   <ShieldCheck size={14} /> Copie locale ·{' '}
                   {org.logoPath.split(/[\\/]/).at(-1)}
                 </span>
-              ) : (
-                <span className="path-note">Aucun logo configuré.</span>
-              )}
+              ) : null}
             </div>
           </div>
           <div className="form-grid">
