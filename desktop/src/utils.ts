@@ -272,6 +272,3 @@ export function searchText(values: Array<string | null | undefined>, query: stri
   return normalize(values.join(' ')).includes(normalized);
 }
 
-export function countDocuments(quotes: Quote[], invoices: Invoice[]): number {
-  return quotes.length + invoices.length;
-}

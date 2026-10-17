@@ -18,11 +18,6 @@ const money=(v:number)=>`${new Intl.NumberFormat(getAppLocale(),{maximumFraction
 const number=(v:number)=>v.toLocaleString(getAppLocale());
 // Packs come from the site's single price grid (bundled copy offline).
 function usePacks(){return usePlanCatalog().complet.map(p=>({id:p.id,name:p.name,price:p.monthlyChfCents,people:p.people,analyses:p.supportAnalyses}));}
-export function QuickStart({initial}:{initial:JourneyView}){
-  useAppLanguage();
-  const [data,setData]=useState(initial),[error,setError]=useState('');
-  return <div className="zentra-subscription"><GettingStarted data={data} onSkip={(step,skip)=>{setError('');void webRequest(data.organizationId,{action:'skip',step,skip}).then(setData,e=>setError(e instanceof Error?e.message:t('Réessayez.')))}}/>{error&&<p role="alert">{error}</p>}</div>;
-}
 async function webRequest(organizationId:string,body?:Record<string,unknown>){
   const response=await fetch(`/api/account/subscription?organizationId=${encodeURIComponent(organizationId)}`,{method:body?'POST':'GET',credentials:'same-origin',headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify({...body,organizationId}):undefined,signal:AbortSignal.timeout(40000)});
   const data=await response.json() as JourneyView&{error?:string};if(!response.ok)throw new Error(data.error||t('Impossible de charger l’abonnement. Réessayez.'));return data;
