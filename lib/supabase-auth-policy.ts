@@ -1,2 +1,0 @@
-export const MIN_AUTH_PASSWORD_LENGTH = 12;
-export const MAX_AUTH_PASSWORD_LENGTH = 256;
