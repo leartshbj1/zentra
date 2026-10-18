@@ -125,3 +125,17 @@ it('still shows a linked line after leaving and coming back, and offers the quot
   expect(create).toHaveBeenCalledOnce();
   window.localStorage.clear();
 });
+it('after the quote is created, offers to send it by e-mail or open it instead of creating it again', async () => {
+  const copy = autopilotCopy('fr');
+  const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0],
+    suggestion: { customer: { kind: 'new', name: 'Atelier Rive' }, currency: 'CHF', netCents: 800,
+      lines: [{ articleId: 'a1', description: 'Pose', unit: 'h', quantityMilli: 1000, unitPriceCents: 800, taxRateBp: 810, netCents: 800 }] } }] } as AutopilotView['reviews'];
+  const send = vi.fn(), openQuote = vi.fn(), create = vi.fn();
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}}
+    onCreateQuote={create} createdQuote={() => ({ number: '', issued: false, clientEmail: '' })} onSendCreatedQuote={send} onOpenCreatedQuote={openQuote} />);
+  expect(host.textContent).toContain(copy.quoteDraftDone);
+  expect([...host.querySelectorAll('button')].some(item => item.textContent === copy.createQuote)).toBe(false);
+  await act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === copy.sendQuote)!.click(); });
+  await act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === copy.openQuote)!.click(); });
+  expect(send).toHaveBeenCalledOnce(); expect(openQuote).toHaveBeenCalledOnce(); expect(create).not.toHaveBeenCalled();
+});

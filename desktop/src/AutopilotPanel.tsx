@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Check, ChevronRight, ClipboardCheck, Workflow } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronRight, ClipboardCheck, Mail, Workflow } from 'lucide-react';
 import { useAppLanguage, getAppLocale } from './language';
 import { autopilotCopy, autopilotCatalogueCopy, autopilotReviewReason } from './autopilotPresentation';
 import { normalizeAutopilotReviewPage, type AutopilotReviewItem } from './autopilotReview';
@@ -117,13 +117,21 @@ function UnmatchedLines({ phrases, catalogue, disabled, onChoose, onCreate, link
   </div>;
 }
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
+/** What the review card shows about the quote created from a request. */
+export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boolean; clientEmail: string }>;
+
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
   canAddCatalogue?: boolean;
-  /** Opens the ordinary quote form filled from the suggestion; the person saves it. */
+  /** Creates the quote at once, with its client and lines. */
   onCreateQuote?: (item: AutopilotReviewItem) => void;
+  /** The quote already created from this request, if any. */
+  createdQuote?: (item: AutopilotReviewItem) => AutopilotCreatedQuoteView | null;
+  onOpenCreatedQuote?: (item: AutopilotReviewItem) => void;
+  /** Numbers the quote if needed, then opens the e-mail to send it. */
+  onSendCreatedQuote?: (item: AutopilotReviewItem) => void;
   /** Local catalogue offered for request lines without an article. */
   catalogueArticles?: readonly Readonly<{ id: string; name: string }>[];
   /** Saves "this wording means this article"; resolves with the remembered wording. */
@@ -166,17 +174,25 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
             const links = linksOf(item.proposalId), missing = item.suggestion?.unmatched ?? [];
             const linkedCount = missing.filter(phrase => links[phrase]).length;
             const canQuote = !!onCreateQuote && ((item.suggestion?.lines.length ?? 0) + linkedCount > 0);
-            const linksDone = linkedCount === missing.length;
+            const linksDone = linkedCount === missing.length, quote = createdQuote?.(item) ?? null;
             return <>
               <ol className="quote-autopilot__steps" aria-label={copy.request}>
-                <li data-state={linksDone ? 'done' : 'current'}><span>1</span>{missing.length ? copy.stepLink : copy.stepNothingMissing}</li>
-                <li data-state={linksDone && canQuote ? 'current' : 'next'}><span>2</span>{copy.stepQuote}</li>
-                <li data-state="next"><span>3</span>{copy.stepSend}</li>
+                <li data-state={linksDone || quote ? 'done' : 'current'}><span>1</span>{missing.length ? copy.stepLink : copy.stepNothingMissing}</li>
+                <li data-state={quote ? 'done' : linksDone && canQuote ? 'current' : 'next'}><span>2</span>{copy.stepQuote}</li>
+                <li data-state={quote ? 'current' : 'next'}><span>3</span>{copy.stepSendNow}</li>
               </ol>
-              {missing.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={missing}
+              {quote ? <div className="quote-autopilot__created" role="status">
+                <strong><Check size={16} aria-hidden="true" />{quote.issued ? copy.quoteDone.replace('{number}', quote.number) : copy.quoteDraftDone}</strong>
+                {!quote.issued && <p>{copy.sendQuoteHint}</p>}
+                <div>
+                  {onSendCreatedQuote && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={opening !== null} onClick={() => onSendCreatedQuote(item)}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>}
+                  {onOpenCreatedQuote && <button type="button" disabled={opening !== null} onClick={() => onOpenCreatedQuote(item)}>{copy.openQuote}</button>}
+                </div>
+              </div> : null}
+              {!quote && missing.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={missing}
                 catalogue={catalogueArticles} disabled={opening !== null} onChoose={onChooseArticle} links={links} onLinked={remember(item.proposalId)}
                 onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} /> : null}
-              {canQuote ? <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'}
+              {canQuote && !quote ? <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'}
                 disabled={opening !== null} onClick={() => onCreateQuote!(item)}>{copy.createQuote}</button> : null}
             </>;
           })()}</div>

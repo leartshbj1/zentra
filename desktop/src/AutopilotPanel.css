@@ -99,3 +99,8 @@
 .quote-autopilot__steps li[data-state="done"] span { background: var(--apple-green, currentColor); border-color: transparent; color: var(--apple-paper, #fff); }
 .quote-autopilot__create-quote { margin-top: 12px; justify-self: start; }
 .quote-autopilot__create-quote.is-ready { box-shadow: var(--z-shadow-pill); }
+.quote-autopilot__created { margin-top: 12px; display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--z-surface-raised, rgba(52, 199, 89, .08)); }
+.quote-autopilot__created strong { display: inline-flex; align-items: center; gap: 6px; }
+.quote-autopilot__created p { margin: 0; }
+.quote-autopilot__created > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.quote-autopilot__created .quote-autopilot__create-quote { margin-top: 0; display: inline-flex; align-items: center; gap: 6px; }
