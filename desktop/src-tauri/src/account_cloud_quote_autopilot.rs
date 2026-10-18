@@ -242,6 +242,37 @@ struct Suggestion {
     /// Request lines without a catalogue article yet (details=2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     unmatched: Option<Vec<String>>,
+    /// Who wrote the request (details=3), read from the signature or the
+    /// sender address. Kept raw here and checked on its own, so a malformed
+    /// sender only loses the client hint, never the suggestion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sender: Option<serde_json::Value>,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SuggestionSender {
+    email: String,
+    #[serde(deserialize_with = "required_nullable")] name: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] company: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] phone: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] street: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] postcode: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] city: Option<String>,
+    source: String,
+}
+impl SuggestionSender {
+    fn valid(&self) -> bool {
+        let email = self.email.is_empty() || (self.email.chars().count() <= 254 && self.email.contains('@')
+            && !self.email.chars().any(|c| c.is_whitespace() || c.is_control()) && self.email == self.email.to_lowercase());
+        let field = |value: &Option<String>, max: usize| value.as_deref().is_none_or(|v| text(v, max));
+        email && matches!(self.source.as_str(), "signature" | "envelope" | "none")
+            && field(&self.name, 200) && field(&self.company, 200) && field(&self.phone, 40)
+            && field(&self.street, 200) && field(&self.postcode, 16) && field(&self.city, 120)
+    }
+}
+fn sender(value: serde_json::Value) -> Option<serde_json::Value> {
+    let sender: SuggestionSender = serde_json::from_value(value).ok()?;
+    sender.valid().then(|| serde_json::to_value(sender).ok()).flatten()
 }
 const MONEY_LIMIT: u64 = 100_000_000_000;
 fn text(value: &str, max: usize) -> bool {
@@ -295,6 +326,7 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
     let mut data: Page<ReviewItem> = serde_json::from_slice(bytes).ok()?;
     // An unusable suggestion only loses the shortcut, never the review itself.
     for item in &mut data.items {
+        if let Some(found) = item.suggestion.as_mut() { found.sender = found.sender.take().and_then(sender); }
         if item.suggestion.as_ref().is_some_and(|s| !s.valid()) { item.suggestion = None; }
     }
     if data.organization_id != stamp.inbox.session.organization_id || data.items.len() > limit || !cursor(&data.next_cursor)
@@ -317,7 +349,7 @@ async fn read_at(store: &LocalStore, origin: &Origin, path: &'static str, page: 
     if let Some(page) = page {
         let mut query = url.query_pairs_mut(); query.append_pair("limit", &page.limit.to_string());
         if let Some(cursor) = page.cursor { query.append_pair("cursor", &cursor); }
-        if path == REVIEW_PATH { query.append_pair("details", "2"); }
+        if path == REVIEW_PATH { query.append_pair("details", "3"); }
     }
     let write = input.is_some();
     let body = match input.map(|v| serde_json::to_vec(&v)).transpose() {

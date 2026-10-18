@@ -124,6 +124,20 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
     lines["items"][0]["suggestion"]["unmatched"] = json!(["x".repeat(201)]);
     assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
+    // details=3: who wrote the request; a malformed sender is dropped alone.
+    let mut sent = suggested.clone();
+    sent["items"][0]["suggestion"]["sender"] = json!({"email":"marie@rive.ch","name":"Marie Rochat","company":"Atelier Rive SA","phone":null,
+        "street":"Rue du Lac 4","postcode":"1003","city":"Lausanne","source":"signature"});
+    assert_eq!(parse(&sent).unwrap()["items"][0]["suggestion"]["sender"]["company"], json!("Atelier Rive SA"));
+    for (field, bad) in [("email", json!("Marie@Rive.ch")), ("source", json!("guess")), ("postcode", json!("x".repeat(17))), ("name", json!(""))] {
+        let mut wrong = sent.clone(); wrong["items"][0]["suggestion"]["sender"][field] = bad;
+        let kept = parse(&wrong).unwrap(); let suggestion = &kept["items"][0]["suggestion"];
+        assert!(suggestion.get("sender").is_none()); assert_eq!(suggestion["netCents"], json!(17800));
+    }
+    let mut extra = sent.clone(); extra["items"][0]["suggestion"]["sender"]["extra"] = json!(1);
+    assert!(parse(&extra).unwrap()["items"][0]["suggestion"].get("sender").is_none());
+    let mut missing = sent.clone(); missing["items"][0]["suggestion"]["sender"].as_object_mut().unwrap().remove("phone");
+    assert!(parse(&missing).unwrap()["items"][0]["suggestion"].get("sender").is_none());
     // The remembered article choice.
     let choice = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), ALIAS_PATH, &stamp, 50);
     assert!(choice(json!({"schemaVersion":1,"term":"licences zentra support","articleId":"article-1"})).is_some());

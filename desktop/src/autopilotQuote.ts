@@ -26,21 +26,41 @@ export function autopilotQuoteLines(suggestion: AutopilotReviewSuggestion, links
 
 const normal = (value: string | undefined | null, locale: string) => (value ?? '').trim().toLocaleLowerCase(locale);
 
-/** The existing client for this request: same e-mail address first, else the same name or company. */
-export function findAutopilotClient(clients: readonly Client[], customer: Readonly<{ name?: string; email?: string }>, locale: string): Client | undefined {
-  const active = clients.filter(row => !row.archivedAt);
-  const email = normal(customer.email, locale);
-  if (email) { const byEmail = active.find(row => normal(row.email, locale) === email); if (byEmail) return byEmail; }
-  const name = normal(customer.name, locale);
-  return name ? active.find(row => [row.company, row.name, row.contactPerson].some(value => normal(value, locale) === name)) : undefined;
+/** Who the request is from: the sender read by the server, else the customer name Autopilote found. */
+export type AutopilotCustomer = Readonly<{ name?: string; company?: string; email?: string; phone?: string; street?: string; postcode?: string; city?: string }>;
+export function autopilotCustomer(suggestion: AutopilotReviewSuggestion): AutopilotCustomer {
+  const sender = suggestion.sender, value = (field: string | null | undefined) => field?.trim() || undefined;
+  return { name: value(sender?.name) ?? value(suggestion.customer?.name), company: value(sender?.company), email: value(sender?.email),
+    phone: value(sender?.phone), street: value(sender?.street), postcode: value(sender?.postcode), city: value(sender?.city) };
 }
 
-/** A client created from the request; the address can be completed later. */
-export function autopilotNewClient(id: string, customer: Readonly<{ name?: string; email?: string; company?: string }>) {
-  const company = customer.company?.trim() ?? '', person = customer.name?.trim() ?? '', email = customer.email?.trim() ?? '';
+/**
+ * The existing client for this request, looking in order at the e-mail address,
+ * the company, then the name. A single match is used; several are left to the person.
+ */
+export function findAutopilotClient(clients: readonly Client[], customer: AutopilotCustomer, locale: string): Client | 'ambiguous' | undefined {
+  const active = clients.filter(row => !row.archivedAt);
+  const tests: [string, (row: Client) => (string | undefined | null)[]][] = [
+    [normal(customer.email, locale), row => [row.email]],
+    [normal(customer.company, locale), row => [row.company, row.name]],
+    [normal(customer.name, locale), row => [row.name, row.contactPerson, row.company]],
+  ];
+  for (const [wanted, fields] of tests) {
+    if (!wanted) continue;
+    const found = active.filter(row => fields(row).some(field => normal(field, locale) === wanted));
+    if (found.length === 1) return found[0];
+    if (found.length > 1) return 'ambiguous';
+  }
+  return undefined;
+}
+
+/** A client created from the request with what the signature gave; the rest can be completed later. */
+export function autopilotNewClient(id: string, customer: AutopilotCustomer) {
+  const company = customer.company ?? '', person = customer.name ?? '', email = customer.email ?? '';
   const name = company || person || email;
   if (!name) return null;
-  return { id, name, contactPerson: person, company, email, phone: '', addressLine1: '', addressLine2: '', postalCode: '', city: '', canton: '', country: 'CH', notes: '' };
+  return { id, name, contactPerson: person, company, email, phone: customer.phone ?? '', addressLine1: customer.street ?? '', addressLine2: '',
+    postalCode: customer.postcode ?? '', city: customer.city ?? '', canton: '', country: 'CH', notes: '' };
 }
 
 /** Quotes created from a request, kept on this device so a second click opens the same quote. */

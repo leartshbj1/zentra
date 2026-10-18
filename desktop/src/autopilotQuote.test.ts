@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { autopilotCreatedQuote, autopilotNewClient, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import type { AutopilotReviewSuggestion } from './autopilotReview';
 import type { CatalogItem, Client } from './types';
 
@@ -23,18 +23,25 @@ describe('autopilot quote', () => {
     ]);
   });
 
-  it('finds the client by e-mail first, then by name or company', () => {
+  it('finds the client by e-mail, then company, then name, and leaves several matches to the person', () => {
     const clients = [client('c1', { name: 'Marie Rochat', email: 'marie@rive.ch' }), client('c2', { name: 'Atelier', company: 'Atelier Rive' }),
-      client('c3', { name: 'Ancien', email: 'old@x.ch', archivedAt: '2026-01-01' })];
-    expect(findAutopilotClient(clients, { name: 'Autre', email: 'MARIE@rive.ch ' }, 'fr-CH')?.id).toBe('c1');
-    expect(findAutopilotClient(clients, { name: 'atelier rive' }, 'fr-CH')?.id).toBe('c2');
+      client('c3', { name: 'Ancien', email: 'old@x.ch', archivedAt: '2026-01-01' }), client('c4', { name: 'Paul' }), client('c5', { name: 'Paul' })];
+    expect(findAutopilotClient(clients, { name: 'Paul', company: 'Atelier Rive', email: 'marie@rive.ch' }, 'fr-CH')).toMatchObject({ id: 'c1' });
+    expect(findAutopilotClient(clients, { name: 'Marie Rochat', company: 'atelier rive', email: 'new@x.ch' }, 'fr-CH')).toMatchObject({ id: 'c2' });
+    expect(findAutopilotClient(clients, { name: 'marie rochat' }, 'fr-CH')).toMatchObject({ id: 'c1' });
+    expect(findAutopilotClient(clients, { name: 'Paul' }, 'fr-CH')).toBe('ambiguous');
     expect(findAutopilotClient(clients, { email: 'old@x.ch' }, 'fr-CH')).toBeUndefined();
     expect(findAutopilotClient(clients, {}, 'fr-CH')).toBeUndefined();
   });
 
-  it('creates a client from the name, the company or the address', () => {
-    expect(autopilotNewClient('c9', { name: ' Marie ', email: 'm@r.ch' })).toMatchObject({ id: 'c9', name: 'Marie', contactPerson: 'Marie', email: 'm@r.ch' });
-    expect(autopilotNewClient('c9', { name: 'Marie', company: 'Rive SA' })?.name).toBe('Rive SA');
+  it('reads the customer from the sender, and creates a client with the signature details', () => {
+    const suggestion = { customer: { kind: 'new', name: 'Rochat' }, currency: 'CHF', netCents: 0, lines: [],
+      sender: { email: 'marie@rive.ch', name: 'Marie Rochat', company: 'Atelier Rive SA', phone: '+41 21 000 00 00', street: 'Rue du Lac 4', postcode: '1003', city: 'Lausanne', source: 'signature' } } as AutopilotReviewSuggestion;
+    const customer = autopilotCustomer(suggestion);
+    expect(customer).toEqual({ name: 'Marie Rochat', company: 'Atelier Rive SA', email: 'marie@rive.ch', phone: '+41 21 000 00 00', street: 'Rue du Lac 4', postcode: '1003', city: 'Lausanne' });
+    expect(autopilotNewClient('c9', customer)).toMatchObject({ id: 'c9', name: 'Atelier Rive SA', contactPerson: 'Marie Rochat', email: 'marie@rive.ch',
+      phone: '+41 21 000 00 00', addressLine1: 'Rue du Lac 4', postalCode: '1003', city: 'Lausanne' });
+    expect(autopilotCustomer({ ...suggestion, sender: undefined }).name).toBe('Rochat');
     expect(autopilotNewClient('c9', { email: 'm@r.ch' })?.name).toBe('m@r.ch');
     expect(autopilotNewClient('c9', {})).toBeNull();
   });

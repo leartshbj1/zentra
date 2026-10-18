@@ -12,7 +12,7 @@ import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type
 import type { AutopilotReviewItem } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
-import { autopilotCreatedQuote, autopilotNewClient, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import { prepareDocumentCreationRequest, type DocumentCreationInput } from './documentCreationRequest';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
@@ -781,9 +781,16 @@ function WorkspaceContent({
     const current = workspaceRef.current, locale = getAppLocale();
     const lines = autopilotQuoteLines(suggestion, autopilotLineLinks(organizationId, item.proposalId), current.catalogItems, createId);
     if (!lines.length) return;
-    const customer = { name: suggestion.customer?.name };
+    const customer = autopilotCustomer(suggestion);
+    const match = existing ? undefined : findAutopilotClient(current.clients, customer, locale);
+    if (match === 'ambiguous') {
+      // Several clients fit: the person picks one in the ordinary quote form.
+      setNotice({ tone: 'warning', text: copy.quoteAmbiguousCustomer });
+      setSearch(''); setView('quotes'); setModal({ type: 'document', entity: 'quotes', seed: { id: item.proposalId, lines } });
+      return;
+    }
     // The same ids on a retry, so a second click never makes a second client or quote.
-    const planned = existing ?? { quoteId: createId(), clientId: findAutopilotClient(current.clients, customer, locale)?.id ?? createId() };
+    const planned = existing ?? { quoteId: createId(), clientId: match?.id ?? createId() };
     saveAutopilotCreatedQuote(organizationId, item.proposalId, planned);
     if (!workspaceRef.current.clients.some(row => row.id === planned.clientId)) {
       const client = autopilotNewClient(planned.clientId, customer);

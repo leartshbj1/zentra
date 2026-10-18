@@ -21,7 +21,27 @@ export type AutopilotReviewSuggestion = Readonly<{
   currency: 'CHF' | 'EUR'; netCents: number; lines: readonly AutopilotSuggestionLine[];
   /** Request lines without a catalogue article yet, to choose or create one. */
   unmatched?: readonly string[];
+  /** Who wrote the request: from the signature, else the sender address. */
+  sender?: AutopilotSender;
 }>;
+export type AutopilotSender = Readonly<{
+  email: string; name: string | null; company: string | null; phone: string | null;
+  street: string | null; postcode: string | null; city: string | null; source: 'signature' | 'envelope' | 'none';
+}>;
+/** A malformed sender is dropped; the suggestion stays. */
+function senderFrom(raw: unknown): AutopilotSender | undefined {
+  const value = dataRecord(raw, ['email', 'name', 'company', 'phone', 'street', 'postcode', 'city', 'source']);
+  if (!value || typeof value.email !== 'string' || (value.email !== '' && !/^[^\s@]{1,128}@[^\s@]{1,125}$/.test(value.email))
+    || value.email !== value.email.toLowerCase() || !['signature', 'envelope', 'none'].includes(value.source as string)) return undefined;
+  const limits = { name: 200, company: 200, phone: 40, street: 200, postcode: 16, city: 120 } as const;
+  const fields: Record<string, string | null> = {};
+  for (const [key, max] of Object.entries(limits)) {
+    const field = value[key];
+    if (field !== null && !label(field, max)) return undefined;
+    fields[key] = field as string | null;
+  }
+  return Object.freeze({ email: value.email, ...fields, source: value.source } as AutopilotSender);
+}
 const MONEY_LIMIT = 100_000_000_000;
 const label = (value: unknown, max: number): value is string => typeof value === 'string'
   && value.trim().length > 0 && [...value].length <= max && !/[\u0000-\u001f\u007f]/.test(value);
@@ -29,7 +49,7 @@ const bounded = (value: unknown, min: number, max: number): value is number => t
   && Number.isSafeInteger(value) && value >= min && value <= max;
 /** A malformed suggestion is dropped; the review itself stays readable. */
 function suggestionFrom(raw: unknown): AutopilotReviewSuggestion | undefined {
-  const value = dataRecord(raw, ['customer', 'currency', 'netCents', 'lines'], ['unmatched']);
+  const value = dataRecord(raw, ['customer', 'currency', 'netCents', 'lines'], ['unmatched', 'sender']);
   if (!value || (value.currency !== 'CHF' && value.currency !== 'EUR') || !bounded(value.netCents, 0, MONEY_LIMIT)) return undefined;
   let customer: AutopilotReviewSuggestion['customer'] = null;
   if (value.customer !== null) {
@@ -53,7 +73,9 @@ function suggestionFrom(raw: unknown): AutopilotReviewSuggestion | undefined {
     if (!rows || rows.some(row => !label(row, 200)) || new Set(rows).size !== rows.length) return undefined;
     unmatched = Object.freeze(rows as string[]);
   }
-  return Object.freeze({ customer, currency: value.currency, netCents: value.netCents, lines: Object.freeze(lines), ...(unmatched ? { unmatched } : {}) });
+  const sender = 'sender' in value ? senderFrom(value.sender) : undefined;
+  return Object.freeze({ customer, currency: value.currency, netCents: value.netCents, lines: Object.freeze(lines),
+    ...(unmatched ? { unmatched } : {}), ...(sender ? { sender } : {}) });
 }
 export type AutopilotReviewPage = Readonly<{
   organizationId: string; items: readonly AutopilotReviewItem[]; nextCursor: string | null;

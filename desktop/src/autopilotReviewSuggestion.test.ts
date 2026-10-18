@@ -31,6 +31,18 @@ describe('Autopilote review suggestion', () => {
     }
   });
 
+  it('keeps who wrote the request (details=3) and drops only a malformed sender', () => {
+    const sender = { email: 'marie@rive.ch', name: 'Marie Rochat', company: null, phone: null, street: null, postcode: null, city: 'Lausanne', source: 'signature' };
+    const read = (value: unknown) => normalizeAutopilotReviewPage({ organizationId: 'org', nextCursor: null, items: [{ proposalId: 'p', sourceId: 's', createdAt: 1, disposition: 'needs_review',
+      reasons: ['low_confidence'], requiresHumanValidation: true, suggestion: { customer: null, currency: 'CHF', netCents: 0, lines: [], sender: value } }] }, 'org')?.items[0].suggestion;
+    expect(read(sender)?.sender).toEqual(sender);
+    expect(read({ ...sender, email: 'Marie@Rive.ch' })).toMatchObject({ currency: 'CHF' });
+    expect(read({ ...sender, email: 'Marie@Rive.ch' })?.sender).toBeUndefined();
+    expect(read({ ...sender, source: 'guess' })?.sender).toBeUndefined();
+    expect(read({ ...sender, extra: 1 })?.sender).toBeUndefined();
+    expect(read({ ...sender, email: '' })?.sender?.email).toBe('');
+  });
+
   it('keeps the request lines without an article (details=2) and drops malformed ones', () => {
     const withLines = normalizeAutopilotReviewPage(page({ ...item, suggestion: { ...suggestion, unmatched: ['3 licences Zentra Support'] } }), 'company-a');
     expect(withLines?.items[0].suggestion?.unmatched).toEqual(['3 licences Zentra Support']);
