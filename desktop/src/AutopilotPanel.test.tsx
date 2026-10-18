@@ -86,7 +86,7 @@ it('requires separate explicit actions for a manual quote and the original Suppo
 it('links a request line to a catalogue article, remembers it and explains a refusal precisely', async () => {
   const copy = autopilotCopy('fr');
   const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0], reasons: ['missing_article'],
-    suggestion: { customer: null, currency: 'CHF', netCents: 0, lines: [], unmatched: ['2 licences Zentra Gestion Pro'] } }] };
+    suggestion: { customer: null, currency: 'CHF', netCents: 0, lines: [], unmatched: ['2 licences Zentra Gestion Pro'] } }] } as AutopilotView['reviews'];
   const choose = vi.fn().mockRejectedValueOnce(new Error('forbidden')).mockResolvedValueOnce('licences zentra gestion pro');
   const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}}
     catalogueArticles={[{ id: 'article-pro', name: 'Zentra Gestion Pro' }, { id: 'article-solo', name: 'Zentra Gestion Solo' }]} onChooseArticle={choose} />);
