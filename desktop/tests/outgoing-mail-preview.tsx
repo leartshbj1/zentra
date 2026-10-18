@@ -22,6 +22,7 @@ import '../src/apple-operational.css';
 import '../src/apple-secondary.css';
 import '../src/apple-access.css';
 import '../src/clarity-2026.css';
+import '../src/zentra-2027.css';
 const params = new URLSearchParams(location.search);
 if (['fr','de','it','en'].includes(params.get('lang') ?? '')) setAppLanguage(params.get('lang') as 'fr'|'de'|'it'|'en');
 const logoCanvas=document.createElement('canvas');logoCanvas.width=360;logoCanvas.height=90;

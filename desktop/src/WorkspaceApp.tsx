@@ -57,7 +57,7 @@ import type { PdfExportReceipt as PdfReceipt } from './pdfExportDelivery';
 import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { AssistantLauncherSlot, useAssistantScreen } from './assistantContext';
-import { AutomationDailySummary } from './AutomationDailySummary';
+import { AutopilotHome } from './AutopilotHome';
 import { SupplierInbox } from './SupplierInboxPanel';
 import { useSupplierInbox } from './supplierInbox';
 import { createWorkspaceReception } from './workspaceReception';
@@ -2026,6 +2026,7 @@ function WorkspaceContent({
               <div key={item.id}>
                 {item.group ? <p>{t(item.group)}</p> : null}
                 <button
+                  data-nav={item.id}
                   aria-current={active ? 'page' : undefined}
                   className={active ? 'is-active' : ''}
                   onClick={() => {
@@ -3066,10 +3067,10 @@ function Dashboard({
       </section>
   );
 
-  if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} automation={<AutomationDailySummary link />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
+  if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} automation={<AutopilotHome />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
   if (!hasActivity)
     return (
-      <><AutomationDailySummary link /><GettingStartedChecklist
+      <><AutopilotHome /><GettingStartedChecklist
         workspace={workspace}
         readOnly={readOnly}
         onAction={runGettingStartedAction}
@@ -3079,7 +3080,7 @@ function Dashboard({
     <div className="dashboard-grid dashboard-grid--daily">
       <DashboardFinancialSummary workspace={workspace} onAccounting={()=>onNavigate('accounting')} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} />
       {quickActions}
-      <AutomationDailySummary link />
+      <AutopilotHome />
       <section className="activity-shortcuts" aria-label={t('À suivre')}>
         <div className="activity-shortcuts__heading"><span className="eyebrow">{t('À suivre')}</span><span>{new Intl.DateTimeFormat(getAppLocale(), { day: 'numeric', month: 'long' }).format(new Date())}</span></div>
         <div className="activity-shortcuts__items">
