@@ -52,11 +52,13 @@ export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; 
   </section>;
 }
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false }: {
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
   canAddCatalogue?: boolean;
+  /** Opens the ordinary quote form filled from the suggestion; the person saves it. */
+  onCreateQuote?: (item: AutopilotReviewItem) => void;
 }) {
   const language = useAppLanguage(), copy = autopilotCopy(language), catalogue = autopilotCatalogueCopy(language);
   const page = useMemo(() => normalizeAutopilotReviewPage(state.reviews, organizationId), [state.reviews, organizationId]);
@@ -83,8 +85,10 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
             {new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt * 1000)}
           </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul>
           {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}
-          {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}</div>
+          {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}
+          {onCreateQuote && item.suggestion?.lines.length ? <p className="quote-autopilot__catalogue-hint">{copy.createQuoteHint}</p> : null}</div>
           <div className="quote-autopilot__request-actions">
+          {onCreateQuote && item.suggestion?.lines.length ? <button type="button" className="quote-autopilot__create-quote" disabled={opening !== null} onClick={() => onCreateQuote(item)}>{copy.createQuote}</button> : null}
           {item.reasons.includes('missing_article') && onCatalogue && <>
             <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'browse')}>{catalogue.browse}</button>
             {canAddCatalogue && <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'create')}>{catalogue.add}</button>}

@@ -37,7 +37,7 @@ import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui'
 import { projectTerminology } from './terminology';
 import { FormDraftNotice, draftText, useFormDraft, useFormDraftScope, useFormDraftIdentity } from './useFormDraft';
 import { formDraftFingerprint } from './formDrafts';
-import { initialDocumentFormDraft, validDocumentFormDraft, type DocumentFormDraft } from './documentFormDraft';
+import { initialDocumentFormDraft, validDocumentFormDraft, type DocumentFormDraft, type DocumentSeed } from './documentFormDraft';
 import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
 import {WorkspaceCreationOutcomeUnknownError} from './workspaceCreation';
 import {documentQuickClientFields, emptyDocumentQuickClient, QuickClientCreationUnconfirmedError, quickClientCreationRecovery, validQuickClientCreationId} from './documentQuickClientDraft';
@@ -68,6 +68,7 @@ export function DocumentEditor({
   entity,
   item: suppliedItem,
   quoteSource,
+  seed,
   initialProject,
   initialStep = 0,
   workspace,
@@ -83,6 +84,7 @@ export function DocumentEditor({
   entity: 'quotes' | 'invoices';
   item?: Quote | Invoice;
   quoteSource?: Quote;
+  seed?: DocumentSeed;
   initialProject?: Project;
   initialStep?: 0 | 1 | 2 | 3;
   workspace: Workspace;
@@ -112,9 +114,9 @@ export function DocumentEditor({
   const [emptyLineId] = useState(()=>consultation?'consultation-line':createId());
   const [initialQuickClientId] = useState(()=>consultation?undefined:createId());
   const [initialDocumentCreationId] = useState(()=>consultation?.creationRequestId||createId());
-  const ordinaryScope=useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') : '');
+  const ordinaryScope=useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') + (seed ? ';seed:' + seed.id : '') : '');
   const persisted = useFormDraft({ scope: consultation?.scope??ordinaryScope,
-    initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep, initialQuickClientId, suppliedItem ? undefined : initialDocumentCreationId),
+    initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep, initialQuickClientId, suppliedItem ? undefined : initialDocumentCreationId, seed),
     fingerprint: consultation?.fingerprint??(suppliedItem ? currentRecord ? formDraftFingerprint(currentRecord) : 'missing' : quoteSource ? formDraftFingerprint(quoteSource) : 'new'), validate: consultation?(value):value is DocumentFormDraft=>validConsultationDraft(value,consultation):validDocumentFormDraft });
   // Do not overwrite an unreadable previous draft with a fresh client identity.
   const [initialDraftReadFailed] = useState(() => persisted.storageError && !persisted.dirty && !persisted.pending && !persisted.invalid);

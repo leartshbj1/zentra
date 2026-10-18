@@ -105,6 +105,18 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     invalid = page.clone(); invalid["items"].as_array_mut().unwrap().push(page["items"][0].clone()); assert!(parse(&invalid).is_none());
     invalid = page.clone(); invalid["nextCursor"] = json!("x".repeat(4097)); assert!(parse(&invalid).is_none());
     assert!(parse_public(&vec![b' '; 65537], REVIEW_PATH, &stamp, 1).is_none());
+    // A valid draft suggestion is kept; a malformed one is dropped, never the review.
+    let mut suggested = page.clone();
+    suggested["items"][0]["suggestion"] = json!({"customer":{"kind":"existing","name":"Atelier"},"currency":"CHF","netCents":17800,
+        "lines":[{"articleId":"article-1","description":"Zentra Gestion Pro","unit":"mois","quantityMilli":2000,"unitPriceCents":8900,"taxRateBp":0,"netCents":17800}]});
+    assert_eq!(parse(&suggested).unwrap()["items"][0]["suggestion"]["lines"][0]["quantityMilli"], json!(2000));
+    let mut malformed = suggested.clone(); malformed["items"][0]["suggestion"]["lines"][0]["quantityMilli"] = json!(0);
+    let kept = parse(&malformed).unwrap(); assert!(kept["items"][0].get("suggestion").is_none());
+    assert_eq!(kept["items"][0]["proposalId"], json!("proposal"));
+    malformed = suggested.clone(); malformed["items"][0]["suggestion"]["customer"]["kind"] = json!("invented");
+    assert!(parse(&malformed).unwrap()["items"][0].get("suggestion").is_none());
+    malformed = suggested.clone(); malformed["items"][0]["suggestion"]["extra"] = json!(1);
+    assert!(parse(&malformed).is_none());
     let mut activity = json!({"organizationId":"org-synthetic","items":[{"activityId":"activity","proposalId":"proposal","quoteId":"11111111-1111-4111-8111-111111111111","confirmedAt":1,"kind":"quote_draft_created","requiresHumanValidation":true}],"nextCursor":null});
     assert!(parse_public(&serde_json::to_vec(&activity).unwrap(), ACTIVITY_PATH, &stamp, 1).is_some());
     activity["items"][0]["quoteId"] = json!("11111111-1111-4111-7111-111111111111");

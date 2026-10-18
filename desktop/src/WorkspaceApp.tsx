@@ -10,6 +10,7 @@ import { autopilotCopy, autopilotCatalogueCopy } from './autopilotPresentation';
 import { selectAutopilotDraftNotices } from './autopilotDraftNotices';
 import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type AutopilotCatalogueRequest, type AutopilotCatalogueFollowup } from './autopilotCatalogue';
 import type { AutopilotReviewItem } from './autopilotReview';
+import type { DocumentSeed } from './documentFormDraft';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
 import './workspace-navigation.css';
@@ -433,6 +434,7 @@ type ModalState = (
       entity: 'quotes' | 'invoices';
       item?: Quote | Invoice;
       quoteSource?: Quote;
+      seed?: DocumentSeed;
       initialProject?: Project;
       initialStep?: 0 | 1 | 2 | 3;
       consultation?:DocumentCreationConsultation;
@@ -754,6 +756,24 @@ function WorkspaceContent({
     setSearch('');
     if (mode === 'browse') setView('catalog');
     else setModal({ type: 'catalogItem', autopilotRequest: selected });
+  };
+  // "Créer le devis" from Autopilote: the ordinary quote form, filled from the
+  // suggestion. The person checks and saves it; nothing is created before that.
+  const openAutopilotDraft = (item: AutopilotReviewItem) => {
+    const suggestion = item.suggestion;
+    if (!suggestion?.lines.length || busy || modal || readOnly) return;
+    const current = workspaceRef.current;
+    const wanted = suggestion.customer?.name.trim().toLocaleLowerCase(getAppLocale());
+    const client = wanted ? current.clients.find(row => !row.archivedAt
+      && [row.company, row.name].some(name => name?.trim().toLocaleLowerCase(getAppLocale()) === wanted)) : undefined;
+    const lines = suggestion.lines.map(line => {
+      const article = current.catalogItems.find(row => row.id === line.articleId);
+      return { id: createId(), catalogItemId: article ? article.id : null, description: line.description,
+        quantity: line.quantityMilli / 1000, unit: line.unit, unitPriceCents: line.unitPriceCents, discountBp: 0, vatRateBp: line.taxRateBp };
+    });
+    setSearch(''); setView('quotes');
+    setModal({ type: 'document', entity: 'quotes', seed: { id: item.proposalId, clientId: client?.id,
+      newClientName: client ? undefined : suggestion.customer?.name, lines } });
   };
   const catalogueItemCreated = (request: AutopilotCatalogueRequest, catalogItemId: string) => {
     const now = catalogueContext.current, next = resolveAutopilotCatalogueFollowup({ request, catalogItemId }, workspaceRef.current, now.identity, now);
@@ -2221,7 +2241,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: openAutopilotDraft, catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}
@@ -6436,7 +6456,7 @@ function WorkspaceModal({
   if (state.type === 'document')
     return (
       <DocumentEditor
-        key={JSON.stringify([workspace.workNotesScope, state.entity, state.item?.id || 'new', state.item ? '' : state.quoteSource?.id || '', state.item ? '' : state.initialProject?.id || '',state.consultation?.creationRequestId||''])}
+        key={JSON.stringify([workspace.workNotesScope, state.entity, state.item?.id || 'new', state.item ? '' : state.quoteSource?.id || '', state.item ? '' : state.initialProject?.id || '',state.consultation?.creationRequestId||'',state.item ? '' : state.seed?.id || ''])}
         onReadWorkspace={onReadWorkspace}
         onOpenSettlementHelp={destination=>destination==='bank'?onOpenBank():onOpenAccounting(destination)}
         entity={state.entity}
@@ -6445,6 +6465,7 @@ function WorkspaceModal({
         initialStep={state.initialStep}
         item={state.item}
         quoteSource={state.quoteSource}
+        seed={state.seed}
         workspace={workspace}
         busy={busy}
         readOnly={readOnly}

@@ -207,6 +207,40 @@ struct ActivityItem {
 struct ReviewItem {
     proposal_id: String, source_id: String, created_at: u64,
     disposition: String, reasons: Vec<String>, requires_human_validation: bool,
+    // Read-only draft prepared by Autopilote (details=1). A person opens it in
+    // the ordinary quote form and saves it; nothing is created from it here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    suggestion: Option<Suggestion>,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SuggestionCustomer { kind: String, name: String }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SuggestionLine {
+    article_id: String, description: String, unit: String, quantity_milli: u64,
+    unit_price_cents: u64, tax_rate_bp: u32, net_cents: u64,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Suggestion {
+    #[serde(deserialize_with = "required_nullable")]
+    customer: Option<SuggestionCustomer>,
+    currency: String, net_cents: u64, lines: Vec<SuggestionLine>,
+}
+const MONEY_LIMIT: u64 = 100_000_000_000;
+fn text(value: &str, max: usize) -> bool {
+    !value.trim().is_empty() && value.chars().count() <= max && !value.chars().any(char::is_control)
+}
+impl Suggestion {
+    fn valid(&self) -> bool {
+        matches!(self.currency.as_str(), "CHF" | "EUR") && self.net_cents <= MONEY_LIMIT
+            && self.lines.len() <= 8
+            && self.customer.as_ref().is_none_or(|c| matches!(c.kind.as_str(), "existing" | "new") && text(&c.name, 200))
+            && self.lines.iter().all(|l| id(&l.article_id) && text(&l.description, 500) && text(&l.unit, 32)
+                && (1..=1_000_000_000).contains(&l.quantity_milli) && l.unit_price_cents <= MONEY_LIMIT
+                && l.tax_rate_bp <= 10_000 && l.net_cents <= MONEY_LIMIT)
+    }
 }
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -238,7 +272,11 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
         return serde_json::to_value(data).ok();
     }
     if path != REVIEW_PATH { return None; }
-    let data: Page<ReviewItem> = serde_json::from_slice(bytes).ok()?;
+    let mut data: Page<ReviewItem> = serde_json::from_slice(bytes).ok()?;
+    // An unusable suggestion only loses the shortcut, never the review itself.
+    for item in &mut data.items {
+        if item.suggestion.as_ref().is_some_and(|s| !s.valid()) { item.suggestion = None; }
+    }
     if data.organization_id != stamp.inbox.session.organization_id || data.items.len() > limit || !cursor(&data.next_cursor)
         || !unique(data.items.iter().map(|v| v.proposal_id.as_str())) || data.items.iter().any(|v| {
             !id(&v.proposal_id) || !id(&v.source_id) || !timestamp(v.created_at) || v.disposition != "needs_review" || !v.requires_human_validation
@@ -259,6 +297,7 @@ async fn read_at(store: &LocalStore, origin: &Origin, path: &'static str, page: 
     if let Some(page) = page {
         let mut query = url.query_pairs_mut(); query.append_pair("limit", &page.limit.to_string());
         if let Some(cursor) = page.cursor { query.append_pair("cursor", &cursor); }
+        if path == REVIEW_PATH { query.append_pair("details", "1"); }
     }
     let write = input.is_some();
     let body = match input.map(|v| serde_json::to_vec(&v)).transpose() {
