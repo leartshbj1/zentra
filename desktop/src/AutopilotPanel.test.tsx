@@ -82,3 +82,28 @@ it('requires separate explicit actions for a manual quote and the original Suppo
   const buttons=host.querySelectorAll<HTMLButtonElement>('button');await act(async()=>buttons[0].click());expect(write).toHaveBeenCalledOnce();expect(source).not.toHaveBeenCalled();
   await act(async()=>buttons[1].click());expect(source).toHaveBeenCalledOnce();
 });
+
+it('links a request line to a catalogue article, remembers it and explains a refusal precisely', async () => {
+  const copy = autopilotCopy('fr');
+  const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0], reasons: ['missing_article'],
+    suggestion: { customer: null, currency: 'CHF', netCents: 0, lines: [], unmatched: ['2 licences Zentra Gestion Pro'] } }] };
+  const choose = vi.fn().mockRejectedValueOnce(new Error('forbidden')).mockResolvedValueOnce('licences zentra gestion pro');
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}}
+    catalogueArticles={[{ id: 'article-pro', name: 'Zentra Gestion Pro' }, { id: 'article-solo', name: 'Zentra Gestion Solo' }]} onChooseArticle={choose} />);
+  expect(host.textContent).toContain(copy.unmatchedIntro);
+  const input = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+  const link = () => [...host.querySelectorAll('button')].find(button => button.textContent === copy.linkArticle)!;
+  // Two partial matches: nothing is picked until the name is precise.
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Zentra Gestion');
+    input.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(link().disabled).toBe(true);
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Zentra Gestion Pro');
+    input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await act(async () => { link().click(); });
+  expect(choose).toHaveBeenCalledWith('2 licences Zentra Gestion Pro', 'article-pro');
+  expect(host.textContent).toContain(copy.chooseErrorRights);
+  await act(async () => { link().click(); });
+  expect(host.textContent).toContain(copy.linkedTo.replace('{name}', 'Zentra Gestion Pro'));
+  expect(host.textContent).toContain(copy.remembered.replace('{term}', 'licences zentra gestion pro'));
+  expect(host.textContent).toContain(copy.allLinked);
+});

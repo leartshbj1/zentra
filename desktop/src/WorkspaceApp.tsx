@@ -751,7 +751,7 @@ function WorkspaceContent({
   const chooseAutopilotArticle = async (phrase: string, articleId: string) => {
     if (!autopilotContext) throw Error('AUTOPILOT_CONTEXT_CHANGED');
     const reply = await desktopApi.setQuoteAutopilotArticleChoice(autopilotContext.origin, { phrase, articleId });
-    if (reply.status !== 'available' || !reply.data) throw Error('AUTOPILOT_ARTICLE_CHOICE_REFUSED');
+    if (reply.status !== 'available' || !reply.data) throw Error(reply.code || 'service_unavailable');
     return reply.data.term;
   };
   const openAutopilotCatalogue = (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create', phrase?: string) => {

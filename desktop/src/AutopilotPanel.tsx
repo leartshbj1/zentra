@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronRight, ClipboardCheck, Workflow } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ArrowUpRight, Check, ChevronRight, ClipboardCheck, Workflow } from 'lucide-react';
 import { useAppLanguage, getAppLocale } from './language';
 import { autopilotCopy, autopilotCatalogueCopy, autopilotReviewReason } from './autopilotPresentation';
 import { normalizeAutopilotReviewPage, type AutopilotReviewItem } from './autopilotReview';
@@ -53,29 +53,66 @@ export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; 
 }
 
 /** One request line without an article: pick one from the catalogue or create it; the choice is remembered. */
-function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate }: {
+function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate, onLinked }: {
   phrase: string; catalogue: readonly Readonly<{ id: string; name: string }>[]; disabled: boolean;
+  onChoose?: (phrase: string, articleId: string) => Promise<string>; onCreate?: (phrase: string) => void;
+  onLinked?: (phrase: string, linked: boolean) => void;
+}) {
+  const copy = autopilotCopy(useAppLanguage());
+  const listId = useId();
+  const [query, setQuery] = useState(''), [saving, setSaving] = useState(false);
+  const [linked, setLinked] = useState<Readonly<{ name: string; term: string }> | null>(null), [error, setError] = useState('');
+  // An exact name picks the article; otherwise the single partial match does.
+  const wanted = query.trim().toLocaleLowerCase(getAppLocale());
+  const exact = catalogue.find(article => article.name.toLocaleLowerCase(getAppLocale()) === wanted);
+  const partial = wanted ? catalogue.filter(article => article.name.toLocaleLowerCase(getAppLocale()).includes(wanted)) : [];
+  const article = exact ?? (partial.length === 1 ? partial[0] : undefined);
+  const choose = async () => {
+    if (!article || !onChoose || saving) return;
+    setSaving(true); setError('');
+    try {
+      const term = await onChoose(phrase, article.id);
+      setLinked({ name: article.name, term }); setQuery(''); onLinked?.(phrase, true);
+    } catch (reason) {
+      const code = reason instanceof Error ? reason.message : '';
+      setError(code === 'forbidden' ? copy.chooseErrorRights : code === 'invalid_request' ? copy.chooseErrorInvalid : copy.chooseErrorService);
+    } finally { setSaving(false); }
+  };
+  return <li className={linked ? 'is-linked' : undefined}>
+    <div className="quote-autopilot__unmatched-line"><q>{phrase}</q>
+      {linked && <span className="quote-autopilot__linked"><Check size={15} aria-hidden="true" />{copy.linkedTo.replace('{name}', linked.name)}</span>}</div>
+    {linked ? <>
+      <p className="quote-autopilot__remembered" role="status">{copy.remembered.replace('{term}', linked.term)}</p>
+      {onChoose && <button type="button" className="quote-autopilot__change" disabled={disabled} onClick={() => { setLinked(null); onLinked?.(phrase, false); }}>{copy.changeArticle}</button>}
+    </> : <form className="quote-autopilot__unmatched-actions" onSubmit={event => { event.preventDefault(); void choose(); }}>
+      {onChoose && <>
+        <input type="search" list={listId} value={query} placeholder={copy.searchArticle} aria-label={copy.searchArticle}
+          disabled={disabled || saving} onChange={event => { setQuery(event.target.value); setError(''); }} />
+        <datalist id={listId}>{catalogue.map(row => <option key={row.id} value={row.name} />)}</datalist>
+        <button type="submit" className="quote-autopilot__link" disabled={disabled || saving || !article}>{copy.linkArticle}</button>
+      </>}
+      {onCreate && <button type="button" disabled={disabled || saving} onClick={() => onCreate(phrase)}>{copy.createArticle}</button>}
+      {onChoose && wanted && !partial.length && <p className="quote-autopilot__hint">{copy.noMatch}</p>}
+    </form>}
+    {error && <p className="quote-autopilot__error" role="alert">{error}</p>}
+  </li>;
+}
+
+/** All request lines of one review; the intro turns into a go-ahead once every line is linked. */
+function UnmatchedLines({ phrases, catalogue, disabled, onChoose, onCreate }: {
+  phrases: readonly string[]; catalogue: readonly Readonly<{ id: string; name: string }>[]; disabled: boolean;
   onChoose?: (phrase: string, articleId: string) => Promise<string>; onCreate?: (phrase: string) => void;
 }) {
   const copy = autopilotCopy(useAppLanguage());
-  const [saving, setSaving] = useState(false), [term, setTerm] = useState(''), [failed, setFailed] = useState(false);
-  const choose = async (articleId: string) => {
-    if (!articleId || !onChoose || saving) return;
-    setSaving(true); setFailed(false);
-    try { setTerm(await onChoose(phrase, articleId)); } catch { setFailed(true); } finally { setSaving(false); }
-  };
-  return <li>
-    <q>{phrase}</q>
-    <div className="quote-autopilot__unmatched-actions">
-      {onChoose && <select aria-label={copy.chooseArticle} disabled={disabled || saving} value="" onChange={event => { void choose(event.target.value); }}>
-        <option value="">{copy.chooseArticle}</option>
-        {catalogue.map(article => <option key={article.id} value={article.id}>{article.name}</option>)}
-      </select>}
-      {onCreate && <button type="button" disabled={disabled || saving} onClick={() => onCreate(phrase)}>{copy.createArticle}</button>}
-    </div>
-    {term && <p className="quote-autopilot__remembered" role="status">{copy.remembered.replace('{term}', term)}</p>}
-    {failed && <p className="quote-autopilot__error" role="status">{copy.chooseError}</p>}
-  </li>;
+  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
+  const all = phrases.every(phrase => done.has(phrase));
+  return <div className="quote-autopilot__unmatched">
+    <strong>{copy.unmatchedTitle}</strong>
+    <p>{all ? copy.allLinked : copy.unmatchedIntro}</p>
+    <ul>{phrases.map(phrase => <UnmatchedLine key={phrase} phrase={phrase} catalogue={catalogue} disabled={disabled}
+      onChoose={onChoose} onCreate={onCreate} onLinked={(value, linked) => setDone(current => {
+        const next = new Set(current); if (linked) next.add(value); else next.delete(value); return next; })} />)}</ul>
+  </div>;
 }
 
 export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
@@ -119,11 +156,9 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
           {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}
           {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}
           {onCreateQuote && item.suggestion?.lines.length ? <p className="quote-autopilot__catalogue-hint">{copy.createQuoteHint}</p> : null}
-          {item.suggestion?.unmatched?.length && (onChooseArticle || onCreateArticle) ? <div className="quote-autopilot__unmatched">
-            <strong>{copy.unmatchedTitle}</strong>
-            <ul>{item.suggestion.unmatched.map(phrase => <UnmatchedLine key={phrase} phrase={phrase} catalogue={catalogueArticles}
-              disabled={opening !== null} onChoose={onChooseArticle} onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} />)}</ul>
-          </div> : null}</div>
+          {item.suggestion?.unmatched?.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={item.suggestion.unmatched}
+            catalogue={catalogueArticles} disabled={opening !== null} onChoose={onChooseArticle}
+            onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} /> : null}</div>
           <div className="quote-autopilot__request-actions">
           {onCreateQuote && item.suggestion?.lines.length ? <button type="button" className="quote-autopilot__create-quote" disabled={opening !== null} onClick={() => onCreateQuote(item)}>{copy.createQuote}</button> : null}
           {item.reasons.includes('missing_article') && onCatalogue && <>
