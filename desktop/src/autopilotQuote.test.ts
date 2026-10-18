@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import type { AutopilotReviewSuggestion } from './autopilotReview';
 import type { CatalogItem, Client } from './types';
 
@@ -52,5 +52,16 @@ describe('autopilot quote', () => {
     expect(autopilotCreatedQuote('other', 'p1')).toBeNull();
     saveAutopilotCreatedQuote('org', 'p1', null);
     expect(autopilotCreatedQuote('org', 'p1')).toBeNull();
+  });
+});
+describe('sent quotes', () => {
+  beforeEach(() => window.localStorage.clear());
+  it('marks the request done once, and keeps it across a restart', () => {
+    saveAutopilotCreatedQuote('org', 'p1', { quoteId: 'q1', clientId: 'c1' });
+    markAutopilotQuoteSent('org', 'p1', 1000); markAutopilotQuoteSent('org', 'p1', 2000);
+    expect(JSON.parse(window.localStorage.getItem('zentra.autopilot.created-quotes.v1')!).org.p1.sentAt).toBe(1000);
+    expect(autopilotCreatedQuote('org', 'p1')).toEqual({ quoteId: 'q1', clientId: 'c1', sentAt: 1000 });
+    markAutopilotQuoteSent('org', 'unknown', 1000);
+    expect(autopilotCreatedQuote('org', 'unknown')).toBeNull();
   });
 });

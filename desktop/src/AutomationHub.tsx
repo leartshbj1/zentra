@@ -62,7 +62,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const pending = (state.activity?.supplierInbox?.needsReview ?? 0) + (state.activity?.appointments?.pending ?? 0) + (state.activity?.workflows?.review ?? 0) + (state.activity?.workflows?.open ?? 0) + (state.activity?.totals.needsReview ?? 0);
   const autopilotReview = autopilot?.state.status === 'ready' && !autopilot.state.reviewsUnavailable
-    && (normalizeAutopilotReviewPage(autopilot.state.reviews, state.organizationId)?.items.length ?? 0) > 0;
+    && (normalizeAutopilotReviewPage(autopilot.state.reviews, state.organizationId)?.items.filter(item => !autopilot.createdQuote?.(item)?.sentAt).length ?? 0) > 0;
   const open = (destination: BriefDestination) => {
     if (destination === 'support') { void invoke('open_supplier_inbox_settings',{section:'inbox'}).catch(()=>onPage('settings')); return; }
     onPage(destination === 'review' ? 'centre' : destination);

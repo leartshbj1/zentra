@@ -118,7 +118,7 @@ function UnmatchedLines({ phrases, catalogue, disabled, onChoose, onCreate, link
 }
 
 /** What the review card shows about the quote created from a request. */
-export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boolean; clientEmail: string }>;
+export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boolean; clientEmail: string; clientName?: string; sentAt?: number }>;
 
 export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
@@ -157,13 +157,17 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
     finally { if (epoch.current === original) setOpening(null); }
   };
   const readable = state.status === 'ready' && !!page && !state.reviewsUnavailable;
-  return <section className="quote-autopilot quote-autopilot--reviews" aria-labelledby="quote-autopilot-review-title">
+  // A request whose quote was sent is done: it leaves the list to follow.
+  const sentOf = (item: AutopilotReviewItem) => createdQuote?.(item)?.sentAt ? createdQuote(item) : null;
+  const active = page ? page.items.filter(item => !sentOf(item)) : [];
+  const finished = page ? page.items.filter(item => sentOf(item)) : [];
+  return <><section className="quote-autopilot quote-autopilot--reviews" aria-labelledby="quote-autopilot-review-title">
     <header><div><h2 id="quote-autopilot-review-title">{copy.reviewTitle}</h2><p>{copy.reviewDescription}</p></div>
       {onRefresh && <button type="button" disabled={state.readingReviews} onClick={() => { void onRefresh(); }}>{copy.refresh}</button>}
     </header>
     {!readable ? <p className="quote-autopilot__context" role="status">{state.status !== 'ready' ? statusText(state, language) : state.readingReviews ? copy.loading : copy.readError}</p>
-      : page.items.length === 0 ? <p className="quote-autopilot__context">{copy.empty}</p>
-        : <ol className="quote-autopilot__requests">{page.items.map(item => <li key={item.proposalId}>
+      : active.length === 0 ? <p className="quote-autopilot__context">{finished.length ? copy.allDone : copy.empty}</p>
+        : <ol className="quote-autopilot__requests">{active.map(item => <li key={item.proposalId}>
           <ClipboardCheck size={21} aria-hidden="true" />
           <div><strong>{item.reasons.includes('missing_article') ? catalogue.title : copy.request}</strong><time dateTime={new Date(item.createdAt * 1000).toISOString()}>
             {new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt * 1000)}
@@ -208,7 +212,20 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
     {openFailed && <p className="quote-autopilot__error" role="status">{copy.openError}</p>}
     {state.error === 'busy' && <p className="quote-autopilot__context" role="status">{copy.busy}</p>}
     {readable && page.nextCursor && onNext && <footer><button type="button" disabled={state.readingReviews} onClick={() => { void onNext(); }}>{copy.more}<ChevronRight size={16} aria-hidden="true" /></button></footer>}
-  </section>;
+  </section>
+  {readable && finished.length > 0 && <section className="quote-autopilot quote-autopilot--done" aria-labelledby="quote-autopilot-done-title">
+    <header><div><h2 id="quote-autopilot-done-title">{copy.doneTitle}</h2><p>{copy.doneDescription}</p></div></header>
+    <ol className="quote-autopilot__requests quote-autopilot__requests--done">{finished.map(item => { const quote = sentOf(item)!; return <li key={item.proposalId} data-state="done">
+      <Check size={21} aria-hidden="true" />
+      <div><strong>{quote.number ? copy.doneQuote.replace('{number}', quote.number) : copy.doneQuoteDraft}</strong>
+        <time dateTime={new Date(quote.sentAt!).toISOString()}>{new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(quote.sentAt!)}</time>
+        <p className="quote-autopilot__done-summary">{quote.clientName ? copy.doneSentTo.replace('{client}', quote.clientName) : copy.doneSent}</p></div>
+      <div className="quote-autopilot__request-actions">
+        {onOpenCreatedQuote && <button type="button" onClick={() => onOpenCreatedQuote(item)}>{copy.openQuote}</button>}
+      </div>
+    </li>; })}</ol>
+  </section>}
+  </>;
 }
 
 export function AutopilotCatalogueNext({ canWrite, onWriteQuote, onReturnRequest, onDismiss }: {

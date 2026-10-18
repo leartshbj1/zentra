@@ -12,7 +12,7 @@ import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type
 import type { AutopilotReviewItem } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
-import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import { prepareDocumentCreationRequest, type DocumentCreationInput } from './documentCreationRequest';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
@@ -631,6 +631,8 @@ function WorkspaceContent({
   const [invoiceToIssueId, setInvoiceToIssueId] = useState<string | null>(null);
   const [mailAfterIssue, setMailAfterIssue] = useState<MailTarget | null>(null);
   const [, setAutopilotQuotesVersion] = useState(0);
+  // The quote e-mail opened from an Autopilote request; a successful send marks that request done.
+  const [autopilotMail, setAutopilotMail] = useState<{ target: MailTarget; organizationId: string; proposalId: string } | null>(null);
   const [invoiceIssueReturnId, setInvoiceIssueReturnId] = useState<string | null>(null);
   const [payslipPostingId, setPayslipPostingId] = useState<string | null>(null);
   const [payslipPostingReturnId, setPayslipPostingReturnId] = useState<string | null>(null);
@@ -821,7 +823,9 @@ function WorkspaceContent({
     if (!autopilotContext) return null;
     const entry = autopilotCreatedQuote(autopilotContext.organizationId, item.proposalId);
     const quote = entry && workspace.quotes.find(row => row.id === entry.quoteId);
-    return quote ? { number: quote.number, issued: quote.status !== 'draft', clientEmail: workspace.clients.find(row => row.id === quote.clientId)?.email ?? '' } : null;
+    const client = quote && workspace.clients.find(row => row.id === quote.clientId);
+    return quote ? { number: quote.number, issued: quote.status !== 'draft', clientEmail: client?.email ?? '',
+      clientName: client?.company || client?.name || '', ...(entry.sentAt ? { sentAt: entry.sentAt } : {}) } : null;
   };
   const openAutopilotCreatedQuote = (item: AutopilotReviewItem) => {
     const entry = autopilotContext && autopilotCreatedQuote(autopilotContext.organizationId, item.proposalId);
@@ -838,7 +842,7 @@ function WorkspaceContent({
       const issued = await act(() => desktopApi.issueDocument('quotes', quote.id, quote.issueDate, quote.validUntil), 'Le devis a été émis et numéroté.', false);
       if (!issued) return;
     }
-    setMailAfterIssue({ entity: 'quotes', id: quote.id });
+    setAutopilotMail({ target: { entity: 'quotes', id: quote.id }, organizationId: autopilotContext!.organizationId, proposalId: item.proposalId });
   };
   const catalogueItemCreated = (request: AutopilotCatalogueRequest, catalogItemId: string) => {
     if (request.phrase) {
@@ -2038,6 +2042,10 @@ function WorkspaceContent({
     <div className="desktop-app" data-experience="clarity" data-view={view} data-notes-editing={view === 'notes' && notesEditing ? 'true' : undefined} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       <CompanyReceivingGuard/>
       {mailAfterIssue && <MailComposer target={mailAfterIssue} onClose={() => setMailAfterIssue(null)} />}
+      {autopilotMail && <MailComposer target={autopilotMail.target} onClose={() => setAutopilotMail(null)} onSent={() => {
+        markAutopilotQuoteSent(autopilotMail.organizationId, autopilotMail.proposalId, Date.now());
+        setAutopilotQuotesVersion(version => version + 1);
+      }} />}
       <AutomationWelcome key={companyAutomation.organizationId || 'local'} view={view} />
       {updaterOpen ? <Modal title={t("Mise à jour de Zentra")} className="app-updater-modal" wide dismissible={!updateInstalling} onClose={() => { if (!updateInstalling) setUpdaterOpen(false); }}>
         <div className="standalone-updater-content"><AppUpdater onInstallingChange={setUpdateInstalling} /></div>

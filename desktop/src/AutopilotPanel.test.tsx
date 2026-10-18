@@ -139,3 +139,17 @@ it('after the quote is created, offers to send it by e-mail or open it instead o
   await act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === copy.openQuote)!.click(); });
   expect(send).toHaveBeenCalledOnce(); expect(openQuote).toHaveBeenCalledOnce(); expect(create).not.toHaveBeenCalled();
 });
+it('moves a request whose quote was sent to the Terminé section', async () => {
+  const copy = autopilotCopy('fr');
+  const reviews = { ...state.reviews!, items: [state.reviews!.items[0], { ...state.reviews!.items[0], proposalId: 'proposal-b', sourceId: 'exact-ticket-b' }] } as AutopilotView['reviews'];
+  const openQuote = vi.fn();
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}} onOpenCreatedQuote={openQuote}
+    createdQuote={item => item.proposalId === 'proposal-b' ? { number: 'D-2026-004', issued: true, clientEmail: 'm@r.ch', clientName: 'Atelier Rive', sentAt: Date.UTC(2026, 9, 18, 20) } : null} />);
+  const done = host.querySelector('.quote-autopilot--done')!;
+  expect(done.querySelectorAll('li[data-state="done"]')).toHaveLength(1);
+  expect(done.textContent).toContain(copy.doneQuote.replace('{number}', 'D-2026-004'));
+  expect(done.querySelector('.quote-autopilot__done-summary')!.textContent).toBe(copy.doneSentTo.replace('{client}', 'Atelier Rive'));
+  expect(host.querySelector('.quote-autopilot--reviews')!.querySelectorAll('.quote-autopilot__requests > li')).toHaveLength(1);
+  await act(async () => { done.querySelector('button')!.click(); });
+  expect(openQuote).toHaveBeenCalledOnce();
+});

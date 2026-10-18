@@ -64,7 +64,7 @@ export function autopilotNewClient(id: string, customer: AutopilotCustomer) {
 }
 
 /** Quotes created from a request, kept on this device so a second click opens the same quote. */
-export type AutopilotCreatedQuote = Readonly<{ quoteId: string; clientId: string }>;
+export type AutopilotCreatedQuote = Readonly<{ quoteId: string; clientId: string; /** Unix ms when the quote e-mail was accepted; the request is then done. */ sentAt?: number }>;
 type Store = Record<string, Record<string, AutopilotCreatedQuote>>;
 const KEY = 'zentra.autopilot.created-quotes.v1';
 const MAX = 200;
@@ -77,7 +77,14 @@ function read(): Store {
 }
 export function autopilotCreatedQuote(organizationId: string, proposalId: string): AutopilotCreatedQuote | null {
   const entry = read()[organizationId]?.[proposalId];
-  return entry && isId(entry.quoteId) && isId(entry.clientId) ? entry : null;
+  if (!entry || !isId(entry.quoteId) || !isId(entry.clientId)) return null;
+  const sentAt = Number.isSafeInteger(entry.sentAt) && entry.sentAt! > 0 ? entry.sentAt : undefined;
+  return { quoteId: entry.quoteId, clientId: entry.clientId, ...(sentAt ? { sentAt } : {}) };
+}
+/** The quote of this request was sent: the request moves to "Terminé". */
+export function markAutopilotQuoteSent(organizationId: string, proposalId: string, sentAt: number) {
+  const entry = autopilotCreatedQuote(organizationId, proposalId);
+  if (entry && !entry.sentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, sentAt });
 }
 export function saveAutopilotCreatedQuote(organizationId: string, proposalId: string, entry: AutopilotCreatedQuote | null) {
   const store = read(), company = { ...(store[organizationId] ?? {}) };
