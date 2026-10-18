@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { clearLocalAppPreferences } from './resetApp';
 import { isDemoWorkspace } from './demoWorkspace';
@@ -28,7 +28,7 @@ export function DemoWorkspaceBanner() {
   }
   return <>
     <div className="demo-banner" role="note">
-      <Sparkles size={18} aria-hidden="true" />
+      <Compass size={18} aria-hidden="true" />
       <p><strong>{t('Entreprise de démonstration')}</strong> <span>{t('Les clients, devis et projets affichés sont fictifs.')}</span></p>
       <Button variant="secondary" size="small" onClick={() => { setError(''); setOpen(true); }}>{t('Créer ma vraie entreprise')}</Button>
     </div>

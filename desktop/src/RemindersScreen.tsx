@@ -18,7 +18,8 @@ import {
   Send,
   Smartphone,
   ShieldCheck,
-  Sparkles,
+  Layers,
+  Download,
   X,
 } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -505,7 +506,7 @@ export function RemindersScreen({
                   disabled={busy || readOnly}
                   onClick={() => setSetupOpen(true)}
                 >
-                  <Sparkles size={15} /> Assistant 3 niveaux
+                  <Layers size={15} /> Assistant 3 niveaux
                 </Button>
                 <Button
                   disabled={busy || readOnly}
@@ -1144,7 +1145,7 @@ function SetupWizard({
             disabled={busy || readOnly || !confirmed}
             onClick={onInstall}
           >
-            <Sparkles size={16} /> Installer et activer
+            <Download size={16} /> Installer et activer
           </Button>
         )}
       </div>

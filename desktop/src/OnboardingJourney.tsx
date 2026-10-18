@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, FolderOpen, LoaderCircle, Save, Sparkles, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, FolderOpen, LoaderCircle, Save, Compass, Users } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import type { AppSettings, NogaCatalog, PayrollRate, Workspace } from './types';
 import { t, useAppLanguage, appLanguages, languageNames, setAppLanguage, type AppLanguage } from './language';
@@ -257,7 +257,7 @@ export function Onboarding({ onComplete, onRestore, onCloudRestore, cloudAccount
               <StepHeader title={t('Tout commence avec vous.')} text={t('Retrouvez votre entreprise sur tous vos appareils avec votre compte Zentra.')}/>
               <CloudAccountPanel onAccountChange={onCloudAccountChange} joining setup/>
               {accountNotice && <details className="first-run__license"><summary>{t('Compte et licence')}</summary>{accountNotice}</details>}
-              <div className="first-run__recovery"><button type="button" onClick={()=>void exploreDemo()} disabled={busy}><Sparkles size={18}/>{t('Explorer avec des données de démonstration')}<ArrowRight size={17}/></button><button type="button" onClick={()=>setJoining(true)}><Users size={18}/>{t('J’ai une invitation')}<ArrowRight size={17}/></button>
+              <div className="first-run__recovery"><button type="button" onClick={()=>void exploreDemo()} disabled={busy}><Compass size={18}/>{t('Explorer avec des données de démonstration')}<ArrowRight size={17}/></button><button type="button" onClick={()=>setJoining(true)}><Users size={18}/>{t('J’ai une invitation')}<ArrowRight size={17}/></button>
                 <details><summary>{t('Reprendre une sauvegarde')}</summary><Button variant="secondary" onClick={()=>void restore()}><FolderOpen size={17}/>{t('Choisir un fichier .zentra')}</Button>
                   {onJoined && <ResetRecovery onRestored={joined}/>}
                   {cloudAccount?.status==='connected' && onCloudRestore && <CloudBackupPanel recoveryOnly disabled={busy} onBusyChange={setBusy} onRestore={async id=>{await onCloudRestore(id);completed.current=true;clearDraft();}}/>}
