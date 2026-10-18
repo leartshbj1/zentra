@@ -6,7 +6,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, X } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { Button } from './ui';
 import { GUIDE_PROGRESS_KEY, guideLessons, restoredGuideIndex } from './guideLessons';
@@ -474,7 +474,7 @@ function GuidedTourDialog({
         <Button type="button" size="small" onClick={next}>
           {index === steps.length - 1
             ? <><CheckCircle2 size={15} /> {t('Terminer')}</>
-            : <>{index === 0 ? <Sparkles size={15} /> : null} {t('Suivant')} <ArrowRight size={15} /></>}
+            : <>{t('Suivant')} <ArrowRight size={15} /></>}
         </Button>
       </footer>
     </section>
