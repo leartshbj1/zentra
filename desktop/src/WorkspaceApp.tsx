@@ -835,7 +835,7 @@ function WorkspaceContent({
     const quote = entry && workspaceRef.current.quotes.find(row => row.id === entry.quoteId);
     if (!quote || busy || modal || readOnly) return;
     if (quote.status === 'draft') {
-      const issued = await act(() => desktopApi.issueDocument('quotes', quote.id, quote.issueDate, quote.validUntil), t('Le devis a été émis et numéroté.'), false);
+      const issued = await act(() => desktopApi.issueDocument('quotes', quote.id, quote.issueDate, quote.validUntil), 'Le devis a été émis et numéroté.', false);
       if (!issued) return;
     }
     setMailAfterIssue({ entity: 'quotes', id: quote.id });
