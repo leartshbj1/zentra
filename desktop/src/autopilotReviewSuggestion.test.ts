@@ -31,6 +31,15 @@ describe('Autopilote review suggestion', () => {
     }
   });
 
+  it('keeps the request lines without an article (details=2) and drops malformed ones', () => {
+    const withLines = normalizeAutopilotReviewPage(page({ ...item, suggestion: { ...suggestion, unmatched: ['3 licences Zentra Support'] } }), 'company-a');
+    expect(withLines?.items[0].suggestion?.unmatched).toEqual(['3 licences Zentra Support']);
+    for (const unmatched of [Array.from({ length: 9 }, (_, i) => 'ligne ' + i), ['x'.repeat(201)], ['même', 'même'], ['']]) {
+      const result = normalizeAutopilotReviewPage(page({ ...item, suggestion: { ...suggestion, unmatched } }), 'company-a');
+      expect(result?.items[0].suggestion).toBeUndefined();
+    }
+  });
+
   it('starts a new quote from a seed: lines, existing client or a new client name', () => {
     const line = { id: 'line-1', catalogItemId: 'article-pro', description: 'Zentra Gestion Pro', quantity: 2, unit: 'mois', unitPriceCents: 8900, discountBp: 0, vatRateBp: 0 };
     const existing = initialDocumentFormDraft('quotes', initialOnboardingSettings, 'empty', undefined, undefined, undefined, 0, undefined, undefined,

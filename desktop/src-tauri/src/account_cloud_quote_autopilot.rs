@@ -10,6 +10,7 @@ const PRODUCT_ENABLED: bool = cfg!(all(target_os = "windows", feature = "quote-a
 const CONSENT_PATH: &str = "/api/account/automation/quote-consent";
 const ACTIVITY_PATH: &str = "/api/account/automation/quote-activity";
 const REVIEW_PATH: &str = "/api/account/automation/quote-review";
+const ALIAS_PATH: &str = "/api/account/automation/quote-alias";
 const CONSENT_VERSION: &str = "action-engine-quote-draft-customer-2026-10-11";
 
 #[derive(Default)]
@@ -167,6 +168,17 @@ pub(crate) struct ConsentInput {
 }
 fn required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where D: serde::Deserializer<'de>, T: Deserialize<'de> { Option::<T>::deserialize(deserializer) }
+/// The person's choice: this request line means this catalogue article.
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct ArticleChoiceInput { phrase: String, article_id: String }
+impl ArticleChoiceInput {
+    fn valid(&self) -> bool { text(&self.phrase, 200) && id(&self.article_id) }
+    fn body(&self) -> serde_json::Value { serde_json::json!({ "schemaVersion": 1, "phrase": self.phrase, "articleId": self.article_id }) }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ArticleChoice { schema_version: u8, term: String, article_id: String }
 impl ConsentInput {
     fn valid(&self) -> bool {
         self.schema_version == 1 && self.expected_revision <= i32::MAX as u32
@@ -227,6 +239,9 @@ struct Suggestion {
     #[serde(deserialize_with = "required_nullable")]
     customer: Option<SuggestionCustomer>,
     currency: String, net_cents: u64, lines: Vec<SuggestionLine>,
+    /// Request lines without a catalogue article yet (details=2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unmatched: Option<Vec<String>>,
 }
 const MONEY_LIMIT: u64 = 100_000_000_000;
 fn text(value: &str, max: usize) -> bool {
@@ -240,6 +255,7 @@ impl Suggestion {
             && self.lines.iter().all(|l| id(&l.article_id) && text(&l.description, 500) && text(&l.unit, 32)
                 && (1..=1_000_000_000).contains(&l.quantity_milli) && l.unit_price_cents <= MONEY_LIMIT
                 && l.tax_rate_bp <= 10_000 && l.net_cents <= MONEY_LIMIT)
+            && self.unmatched.as_ref().is_none_or(|rows| rows.len() <= 8 && rows.iter().all(|row| text(row, 200)))
     }
 }
 #[derive(Deserialize, Serialize)]
@@ -257,6 +273,10 @@ fn unique<'a>(values: impl Iterator<Item = &'a str>) -> bool {
 }
 fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> Option<serde_json::Value> {
     if bytes.len() > 65536 { return None; }
+    if path == ALIAS_PATH {
+        let data: ArticleChoice = serde_json::from_slice(bytes).ok()?;
+        return (data.schema_version == 1 && text(&data.term, 200) && id(&data.article_id)).then(|| serde_json::to_value(data).ok()).flatten();
+    }
     if path == CONSENT_PATH {
         let data: Consent = serde_json::from_slice(bytes).ok()?;
         return data.valid().then(|| serde_json::to_value(data).ok()).flatten();
@@ -287,9 +307,9 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
 
 // These are the only transport routes of this IPC boundary. Body, bearer,
 // origin, query encoding, timeout and response limit are native-owned.
-async fn read_at(store: &LocalStore, origin: &Origin, path: &'static str, page: Option<PageInput>, input: Option<ConsentInput>) -> (ReadReply, Option<ActionStamp>) {
+async fn read_at(store: &LocalStore, origin: &Origin, path: &'static str, page: Option<PageInput>, input: Option<serde_json::Value>) -> (ReadReply, Option<ActionStamp>) {
     let stamp = match admitted_stamp(store, origin).await { Ok(v) => v, Err(c) => return (ReadReply::refused(c), None) };
-    if path == CONSENT_PATH && !matches!(stamp.role.as_str(), "owner" | "admin") {
+    if (path == CONSENT_PATH || path == ALIAS_PATH) && !matches!(stamp.role.as_str(), "owner" | "admin") {
         return (ReadReply::refused("forbidden"), Some(stamp));
     }
     let mut url = match endpoint(path) { Ok(v) => v, Err(_) => return (ReadReply::refused("service_unavailable"), Some(stamp)) };
@@ -297,7 +317,7 @@ async fn read_at(store: &LocalStore, origin: &Origin, path: &'static str, page: 
     if let Some(page) = page {
         let mut query = url.query_pairs_mut(); query.append_pair("limit", &page.limit.to_string());
         if let Some(cursor) = page.cursor { query.append_pair("cursor", &cursor); }
-        if path == REVIEW_PATH { query.append_pair("details", "1"); }
+        if path == REVIEW_PATH { query.append_pair("details", "2"); }
     }
     let write = input.is_some();
     let body = match input.map(|v| serde_json::to_vec(&v)).transpose() {
@@ -348,8 +368,16 @@ pub(crate) async fn set_quote_autopilot_consent(store: State<'_, LocalStore>, su
     let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
     let task = tauri::async_runtime::spawn(async move {
         let _flight = flight;
-        read_at(&worker, &captured, CONSENT_PATH, None, Some(input)).await
+        read_at(&worker, &captured, CONSENT_PATH, None, serde_json::to_value(input).ok()).await
     });
+    Ok(deliver_read(owned, origin, task).await)
+}
+#[tauri::command]
+pub(crate) async fn set_quote_autopilot_article_choice(store: State<'_, LocalStore>, origin: Origin, input: ArticleChoiceInput) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
+    let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
+    let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, ALIAS_PATH, None, Some(input.body())).await });
     Ok(deliver_read(owned, origin, task).await)
 }
 async fn read_page(store: &LocalStore, origin: Origin, input: PageInput, path: &'static str) -> ReadReply {

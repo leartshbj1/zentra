@@ -102,11 +102,20 @@ function quoteAutopilotArray(raw: unknown, maximum: number): readonly unknown[] 
     return value.value;
   });
 }
-export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review', limit = 50): QuoteAutopilotRead<T> {
+/** A remembered request line: the next requests with this wording use this article. */
+export type QuoteAutopilotArticleChoice = Readonly<{ schemaVersion: 1; term: string; articleId: string }>;
+export type QuoteAutopilotArticleChoiceInput = Readonly<{ phrase: string; articleId: string }>;
+export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias', limit = 50): QuoteAutopilotRead<T> {
   const value = quoteAutopilotEnvelope(raw, origin, ['data'], ['available', 'unavailable', 'context_changed', 'error']);
   if (value.status !== 'available') {
     if (value.data !== null) return quoteAutopilotInvalid();
     return Object.freeze({ ...value }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'alias') {
+    const choice = quoteAutopilotExact(value.data, ['schemaVersion', 'term', 'articleId']);
+    if (choice.schemaVersion !== 1 || typeof choice.term !== 'string' || !choice.term.trim() || choice.term.length > 200
+      || !quoteAutopilotIdentifier(choice.articleId)) return quoteAutopilotInvalid();
+    return Object.freeze({ ...value, data: Object.freeze({ ...choice }) }) as QuoteAutopilotRead<T>;
   }
   if (kind === 'consent') {
     const consent = quoteAutopilotExact(value.data, ['schemaVersion', 'enabled', 'revision', 'consentVersion', 'requiredConsentVersion']);
@@ -4980,6 +4989,12 @@ export const desktopApi = {
     const captured = captureQuoteAutopilotOrigin(origin);
     const request = captureQuoteAutopilotConsentInput(input);
     return quoteAutopilotReadFromRaw(await invoke<unknown>('set_quote_autopilot_consent', { origin: captured, input: request }), captured, 'consent');
+  },
+  async setQuoteAutopilotArticleChoice(origin: QuoteAutopilotOrigin, input: QuoteAutopilotArticleChoiceInput): Promise<QuoteAutopilotRead<QuoteAutopilotArticleChoice>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    const phrase = typeof input?.phrase === 'string' ? input.phrase : '', articleId = typeof input?.articleId === 'string' ? input.articleId : '';
+    if (!phrase.trim() || phrase.length > 200 || !quoteAutopilotIdentifier(articleId)) return quoteAutopilotInvalid();
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('set_quote_autopilot_article_choice', { origin: captured, input: { phrase, articleId } }), captured, 'alias');
   },
   async tickQuoteAutopilot(origin: QuoteAutopilotOrigin): Promise<QuoteAutopilotTick> {
     const captured = captureQuoteAutopilotOrigin(origin);

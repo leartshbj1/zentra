@@ -71,3 +71,13 @@
 }
 @media (prefers-reduced-motion: reduce) { .quote-autopilot button { transition: none; } }
 @media (forced-colors: active) { .quote-autopilot button { border: 1px solid ButtonText; } }
+
+/* Request lines without an article: choose one from the catalogue or create it. */
+.quote-autopilot__unmatched { margin-top: 10px; display: grid; gap: 6px; }
+.quote-autopilot__unmatched > strong { font-size: 13px; font-weight: 600; }
+.quote-autopilot__unmatched ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.quote-autopilot__unmatched li { display: grid; gap: 6px; }
+.quote-autopilot__unmatched q { font-style: italic; overflow-wrap: anywhere; }
+.quote-autopilot__unmatched-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.quote-autopilot__unmatched-actions select { max-width: 280px; min-height: 34px; }
+.quote-autopilot__remembered { margin: 0; color: var(--apple-green, #1f6b46); font-size: 13px; }

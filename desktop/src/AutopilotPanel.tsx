@@ -52,13 +52,45 @@ export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; 
   </section>;
 }
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote }: {
+/** One request line without an article: pick one from the catalogue or create it; the choice is remembered. */
+function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate }: {
+  phrase: string; catalogue: readonly Readonly<{ id: string; name: string }>[]; disabled: boolean;
+  onChoose?: (phrase: string, articleId: string) => Promise<string>; onCreate?: (phrase: string) => void;
+}) {
+  const copy = autopilotCopy(useAppLanguage());
+  const [saving, setSaving] = useState(false), [term, setTerm] = useState(''), [failed, setFailed] = useState(false);
+  const choose = async (articleId: string) => {
+    if (!articleId || !onChoose || saving) return;
+    setSaving(true); setFailed(false);
+    try { setTerm(await onChoose(phrase, articleId)); } catch { setFailed(true); } finally { setSaving(false); }
+  };
+  return <li>
+    <q>{phrase}</q>
+    <div className="quote-autopilot__unmatched-actions">
+      {onChoose && <select aria-label={copy.chooseArticle} disabled={disabled || saving} value="" onChange={event => { void choose(event.target.value); }}>
+        <option value="">{copy.chooseArticle}</option>
+        {catalogue.map(article => <option key={article.id} value={article.id}>{article.name}</option>)}
+      </select>}
+      {onCreate && <button type="button" disabled={disabled || saving} onClick={() => onCreate(phrase)}>{copy.createArticle}</button>}
+    </div>
+    {term && <p className="quote-autopilot__remembered" role="status">{copy.remembered.replace('{term}', term)}</p>}
+    {failed && <p className="quote-autopilot__error" role="status">{copy.chooseError}</p>}
+  </li>;
+}
+
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
   canAddCatalogue?: boolean;
   /** Opens the ordinary quote form filled from the suggestion; the person saves it. */
   onCreateQuote?: (item: AutopilotReviewItem) => void;
+  /** Local catalogue offered for request lines without an article. */
+  catalogueArticles?: readonly Readonly<{ id: string; name: string }>[];
+  /** Saves "this wording means this article"; resolves with the remembered wording. */
+  onChooseArticle?: (phrase: string, articleId: string) => Promise<string>;
+  /** Opens the article form filled with the request line; the choice is saved after creation. */
+  onCreateArticle?: (item: AutopilotReviewItem, phrase: string) => void;
 }) {
   const language = useAppLanguage(), copy = autopilotCopy(language), catalogue = autopilotCatalogueCopy(language);
   const page = useMemo(() => normalizeAutopilotReviewPage(state.reviews, organizationId), [state.reviews, organizationId]);
@@ -86,7 +118,12 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
           </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul>
           {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}
           {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}
-          {onCreateQuote && item.suggestion?.lines.length ? <p className="quote-autopilot__catalogue-hint">{copy.createQuoteHint}</p> : null}</div>
+          {onCreateQuote && item.suggestion?.lines.length ? <p className="quote-autopilot__catalogue-hint">{copy.createQuoteHint}</p> : null}
+          {item.suggestion?.unmatched?.length && (onChooseArticle || onCreateArticle) ? <div className="quote-autopilot__unmatched">
+            <strong>{copy.unmatchedTitle}</strong>
+            <ul>{item.suggestion.unmatched.map(phrase => <UnmatchedLine key={phrase} phrase={phrase} catalogue={catalogueArticles}
+              disabled={opening !== null} onChoose={onChooseArticle} onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} />)}</ul>
+          </div> : null}</div>
           <div className="quote-autopilot__request-actions">
           {onCreateQuote && item.suggestion?.lines.length ? <button type="button" className="quote-autopilot__create-quote" disabled={opening !== null} onClick={() => onCreateQuote(item)}>{copy.createQuote}</button> : null}
           {item.reasons.includes('missing_article') && onCatalogue && <>

@@ -117,6 +117,19 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     assert!(parse(&malformed).unwrap()["items"][0].get("suggestion").is_none());
     malformed = suggested.clone(); malformed["items"][0]["suggestion"]["extra"] = json!(1);
     assert!(parse(&malformed).is_none());
+    // details=2: request lines without an article, at most 8 of at most 200 characters.
+    let mut lines = suggested.clone(); lines["items"][0]["suggestion"]["unmatched"] = json!(["3 licences Zentra Support"]);
+    assert_eq!(parse(&lines).unwrap()["items"][0]["suggestion"]["unmatched"][0], json!("3 licences Zentra Support"));
+    lines["items"][0]["suggestion"]["unmatched"] = json!(vec!["ligne"; 9]);
+    assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
+    lines["items"][0]["suggestion"]["unmatched"] = json!(["x".repeat(201)]);
+    assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
+    // The remembered article choice.
+    let choice = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), ALIAS_PATH, &stamp, 50);
+    assert!(choice(json!({"schemaVersion":1,"term":"licences zentra support","articleId":"article-1"})).is_some());
+    assert!(choice(json!({"schemaVersion":2,"term":"licences","articleId":"article-1"})).is_none());
+    assert!(choice(json!({"schemaVersion":1,"term":"licences","articleId":"../article"})).is_none());
+    assert!(choice(json!({"schemaVersion":1,"term":"licences","articleId":"article-1","extra":true})).is_none());
     let mut activity = json!({"organizationId":"org-synthetic","items":[{"activityId":"activity","proposalId":"proposal","quoteId":"11111111-1111-4111-8111-111111111111","confirmedAt":1,"kind":"quote_draft_created","requiresHumanValidation":true}],"nextCursor":null});
     assert!(parse_public(&serde_json::to_vec(&activity).unwrap(), ACTIVITY_PATH, &stamp, 1).is_some());
     activity["items"][0]["quoteId"] = json!("11111111-1111-4111-7111-111111111111");

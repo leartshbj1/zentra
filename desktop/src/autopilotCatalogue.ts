@@ -5,6 +5,8 @@ import { captureWorkspaceMutationOrigin, WorkspaceMemberOriginChangedError, type
 
 export type AutopilotCatalogueRequest = Readonly<{
   organizationId: string; proposalId: string; sourceId: string; origin: WorkspaceMutationOrigin;
+  /** The request line the new article is created for; it is remembered after creation. */
+  phrase?: string;
 }>;
 export type AutopilotCatalogueFollowup = Readonly<{ request: AutopilotCatalogueRequest; catalogItemId: string }>;
 type Current = Readonly<{ active: boolean; readOnly: boolean }>;
@@ -29,8 +31,9 @@ export function resolveAutopilotCatalogueEntry(request: AutopilotCatalogueReques
   const item = page?.items.find(row => row.proposalId === request.proposalId && row.sourceId === request.sourceId);
   // missing_article can also mean ambiguous identity. Never claim proven absence.
   if (!item?.reasons.includes('missing_article')) return null;
+  const phrase = request.phrase && item.suggestion?.unmatched?.includes(request.phrase) ? request.phrase : undefined;
   return Object.freeze({ organizationId: request.organizationId, proposalId: item.proposalId, sourceId: item.sourceId,
-    origin: Object.freeze({ ...request.origin }) });
+    origin: Object.freeze({ ...request.origin }), ...(phrase ? { phrase } : {}) });
 }
 
 export function resolveAutopilotCatalogueFollowup(followup: AutopilotCatalogueFollowup | null,

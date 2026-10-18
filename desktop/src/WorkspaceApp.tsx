@@ -746,9 +746,17 @@ function WorkspaceContent({
     ready: autopilot.state.status === 'ready', active: cloudAccount?.status === 'connected', readOnly });
   catalogueContext.current = { identity: consultationIdentity, reviews: autopilot.state.reviews,
     ready: autopilot.state.status === 'ready', active: cloudAccount?.status === 'connected', readOnly };
-  const openAutopilotCatalogue = (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => {
+  // A request line means this catalogue article: remembered by Autopilote for
+  // the next requests. The request in review stays as it is.
+  const chooseAutopilotArticle = async (phrase: string, articleId: string) => {
+    if (!autopilotContext) throw Error('AUTOPILOT_CONTEXT_CHANGED');
+    const reply = await desktopApi.setQuoteAutopilotArticleChoice(autopilotContext.origin, { phrase, articleId });
+    if (reply.status !== 'available' || !reply.data) throw Error('AUTOPILOT_ARTICLE_CHOICE_REFUSED');
+    return reply.data.term;
+  };
+  const openAutopilotCatalogue = (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create', phrase?: string) => {
     if (!autopilotContext || busy || modal) return;
-    const request: AutopilotCatalogueRequest = { ...item, organizationId: autopilotContext.organizationId,
+    const request: AutopilotCatalogueRequest = { ...item, ...(phrase ? { phrase } : {}), organizationId: autopilotContext.organizationId,
       origin: { workspaceScope: autopilotContext.origin.expectedWorkspaceScope, memberContextNonce: autopilotContext.origin.expectedMemberContextNonce } };
     const now = catalogueContext.current;
     const selected = now.ready ? resolveAutopilotCatalogueEntry(request, now.reviews, workspaceRef.current, now.identity, now, mode) : null;
@@ -776,6 +784,12 @@ function WorkspaceContent({
       newClientName: client ? undefined : suggestion.customer?.name, lines } });
   };
   const catalogueItemCreated = (request: AutopilotCatalogueRequest, catalogItemId: string) => {
+    if (request.phrase) {
+      const phrase = request.phrase;
+      void chooseAutopilotArticle(phrase, catalogItemId).then(term => setNotice({ tone: 'success',
+        text: autopilotCopy(getAppLanguage()).remembered.replace('{term}', term) }))
+        .catch(() => setNotice({ tone: 'warning', text: autopilotCopy(getAppLanguage()).chooseError }));
+    }
     const now = catalogueContext.current, next = resolveAutopilotCatalogueFollowup({ request, catalogItemId }, workspaceRef.current, now.identity, now);
     if (next) { setCatalogueFollowup(next); setView('automation'); setAutomationPage('centre'); }
   };
@@ -2241,7 +2255,9 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: openAutopilotDraft, catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: openAutopilotDraft, catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+            onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
+            onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <SalesTabs
               active={view as SalesView}

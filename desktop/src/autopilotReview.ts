@@ -19,6 +19,8 @@ export type AutopilotSuggestionLine = Readonly<{
 export type AutopilotReviewSuggestion = Readonly<{
   customer: Readonly<{ kind: 'existing' | 'new'; name: string }> | null;
   currency: 'CHF' | 'EUR'; netCents: number; lines: readonly AutopilotSuggestionLine[];
+  /** Request lines without a catalogue article yet, to choose or create one. */
+  unmatched?: readonly string[];
 }>;
 const MONEY_LIMIT = 100_000_000_000;
 const label = (value: unknown, max: number): value is string => typeof value === 'string'
@@ -27,7 +29,7 @@ const bounded = (value: unknown, min: number, max: number): value is number => t
   && Number.isSafeInteger(value) && value >= min && value <= max;
 /** A malformed suggestion is dropped; the review itself stays readable. */
 function suggestionFrom(raw: unknown): AutopilotReviewSuggestion | undefined {
-  const value = dataRecord(raw, ['customer', 'currency', 'netCents', 'lines']);
+  const value = dataRecord(raw, ['customer', 'currency', 'netCents', 'lines'], ['unmatched']);
   if (!value || (value.currency !== 'CHF' && value.currency !== 'EUR') || !bounded(value.netCents, 0, MONEY_LIMIT)) return undefined;
   let customer: AutopilotReviewSuggestion['customer'] = null;
   if (value.customer !== null) {
@@ -45,7 +47,13 @@ function suggestionFrom(raw: unknown): AutopilotReviewSuggestion | undefined {
     lines.push(Object.freeze({ articleId: line.articleId, description: line.description, unit: line.unit, quantityMilli: line.quantityMilli,
       unitPriceCents: line.unitPriceCents, taxRateBp: line.taxRateBp, netCents: line.netCents }));
   }
-  return Object.freeze({ customer, currency: value.currency, netCents: value.netCents, lines: Object.freeze(lines) });
+  let unmatched: readonly string[] | undefined;
+  if ('unmatched' in value) {
+    const rows = dataArray(value.unmatched, 8);
+    if (!rows || rows.some(row => !label(row, 200)) || new Set(rows).size !== rows.length) return undefined;
+    unmatched = Object.freeze(rows as string[]);
+  }
+  return Object.freeze({ customer, currency: value.currency, netCents: value.netCents, lines: Object.freeze(lines), ...(unmatched ? { unmatched } : {}) });
 }
 export type AutopilotReviewPage = Readonly<{
   organizationId: string; items: readonly AutopilotReviewItem[]; nextCursor: string | null;

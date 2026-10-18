@@ -34,7 +34,7 @@ export function CatalogItemForm({ item, workspace, busy, readOnly, close, act, o
   const current = item ? workspace.catalogItems.find(row => row.id === item.id) : undefined;
   const [baseline, setBaseline] = useState(item);
   const persisted = useFormDraft({ scope: useFormDraftScope(workspace, 'catalog', item?.id, autopilotRequest ? `review:${autopilotRequest.proposalId}` : undefined),
-    initial: { ...catalogDraft(current, settings), ...(!item && autopilotRequest ? { vatBp: '', unit: '' } : {}), recordId: newId }, fingerprint: current ? formDraftFingerprint(current) : item ? 'missing' : 'new', validate: validCatalogDraft });
+    initial: { ...catalogDraft(current, settings), ...(!item && autopilotRequest ? { vatBp: '', unit: '', ...(autopilotRequest.phrase ? { name: autopilotRequest.phrase.slice(0, 120) } : {}) } : {}), recordId: newId }, fingerprint: current ? formDraftFingerprint(current) : item ? 'missing' : 'new', validate: validCatalogDraft });
   const draft = persisted.value, setDraft = persisted.setValue, id = draft.recordId;
   const closeForm = () => persisted.close(close);
   const [issue, setIssue] = useState<CatalogIssue | null>(null), [failure, setFailure] = useState('');

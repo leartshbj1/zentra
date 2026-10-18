@@ -450,6 +450,7 @@ pub fn run() {
             account_cloud::action_engine::supervisor::quote_autopilot_state,
             account_cloud::action_engine::supervisor::quote_autopilot_consent,
             account_cloud::action_engine::supervisor::set_quote_autopilot_consent,
+            account_cloud::action_engine::supervisor::set_quote_autopilot_article_choice,
             account_cloud::action_engine::supervisor::quote_autopilot_tick,
             account_cloud::action_engine::supervisor::quote_autopilot_activity,
             account_cloud::action_engine::supervisor::quote_autopilot_review,
