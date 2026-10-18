@@ -1395,7 +1395,7 @@ impl LocalStore {
         let current = current_date.format("%Y-%m-%d").to_string();
         let (status, read_only) = evaluate(&payload, &current, &anchor.max_seen_date)?;
         if read_only {
-            return Err(AppError::Validation(format!("Licence {status} : l'application est en lecture seule. Sauvegarde et export restent disponibles.")));
+            return Err(AppError::Validation(read_only_license_message(status)));
         }
         advance_anchor(&mut anchor, now_utc, current_date, &payload)?;
         self.write_clock_anchor(&anchor)
@@ -2013,6 +2013,16 @@ fn evaluate(
         Ok(("valid", payload.access_role == "read_only"))
     }
 }
+/// The reason in plain French; the status code itself is never shown.
+fn read_only_license_message(status: &str) -> String {
+    let reason = match status {
+        "expired" => "La licence a expiré",
+        "not_yet_valid" => "La licence n'est pas encore active",
+        "clock_error" => "La date de cet ordinateur est antérieure à la dernière utilisation",
+        _ => "La licence donne un accès en lecture seule",
+    };
+    format!("{reason} : l'application est en lecture seule. Sauvegarde et export restent disponibles.")
+}
 fn parse_date(value: &str, field: &str) -> AppResult<NaiveDate> {
     NaiveDate::parse_from_str(value, "%Y-%m-%d")
         .map_err(|_| AppError::Validation(format!("{field} doit être au format AAAA-MM-JJ.")))
@@ -2210,6 +2220,8 @@ mod tests {
             evaluate(&payload, "2026-02-01", "2026-01-20").unwrap(),
             ("expired", true)
         );
+        assert!(read_only_license_message("expired").starts_with("La licence a expiré : "));
+        assert!(!read_only_license_message("clock_error").contains("clock_error"));
         let mut tampered = token;
         tampered.push('A');
         assert!(verify_token_with_key(&tampered, &signing.verifying_key().to_bytes()).is_err());

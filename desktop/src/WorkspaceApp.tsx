@@ -1281,6 +1281,9 @@ function WorkspaceContent({
       }
     } catch (reason) {
       if (!isOriginWorkspace()) return;
+      // A licence that just ended refuses this background check; the read-only
+      // banner explains it, so the scan stays silent instead of raising an error.
+      if (/lecture seule/.test(reason instanceof Error ? reason.message : String(reason))) return;
       setNotice({
         tone: 'error',
         text: errorMessage(
