@@ -44,3 +44,4 @@ import './apple-secondary.css';
 import './apple-access.css';
 import './clarity-2026.css';
 import './zentra-2027.css';
+import './zentra-2027-pages.css';

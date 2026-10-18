@@ -1,0 +1,795 @@
+/*
+ * Zentra 2027, pages. Loaded after zentra-2027.css.
+ * Every working page follows the same grammar: one segmented control for its
+ * sections, airy lists instead of grids of lines, soft status pills, tiles
+ * for figures, and dialogs that read top to bottom. Autopilote gets its own
+ * hero and calm cards. Colours come only from custom properties, so
+ * scripts/build-dark-palette.mjs produces nothing for this file.
+ */
+@media screen {
+  :root {
+    --z7-pill-neutral: #ececef;
+    --z7-pill-neutral-ink: #48484d;
+    --z7-pill-green: #e3f4ec;
+    --z7-pill-green-ink: #0a6544;
+    --z7-pill-blue: #e6effd;
+    --z7-pill-blue-ink: #1f5fc4;
+    --z7-pill-amber: #fdf1dc;
+    --z7-pill-amber-ink: #8a5700;
+    --z7-pill-red: #fdeceb;
+    --z7-pill-red-ink: #b42318;
+    --z7-row-hover: #f5f5f7;
+    --z7-segment: #e9e9ec;
+    --z7-segment-thumb: #fff;
+    --z7-segment-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 3px 10px -4px rgb(0 0 0 / 0.16);
+    --z7-step-done: #0b7a52;
+  }
+  html[data-app-theme='dark'] {
+    --z7-pill-neutral: #2c2c2e;
+    --z7-pill-neutral-ink: #c7c7cc;
+    --z7-pill-green: #0e2c20;
+    --z7-pill-green-ink: #5fe0a6;
+    --z7-pill-blue: #142540;
+    --z7-pill-blue-ink: #8ab4ff;
+    --z7-pill-amber: #33270e;
+    --z7-pill-amber-ink: #ffd36b;
+    --z7-pill-red: #3a1a18;
+    --z7-pill-red-ink: #ff8a80;
+    --z7-row-hover: #242426;
+    --z7-segment: #1c1c1e;
+    --z7-segment-thumb: #3a3a3c;
+    --z7-segment-shadow: none;
+    --z7-step-done: #3ddc97;
+  }
+
+  /* ---------- Page headers: lighter, one line under the title ---------- */
+  html[data-app-theme] .desktop-app[data-experience]:not([data-view='dashboard']) .app-main .page-header h1 {
+    font-size: calc(36px * var(--zentra-ui-text-scale, 1));
+    letter-spacing: -0.03em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header__actions > .button--ghost {
+    color: var(--apple-secondary);
+  }
+
+  /* ---------- One segmented control for every page's sections ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip, .section-navigation__tabs, .purchase-workflow__tabs, .automation-hub__navigation),
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__navigation {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--z7-segment);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip, .section-navigation__tabs, .purchase-workflow__tabs, .automation-hub__navigation) > button,
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__navigation button {
+    min-height: 36px;
+    padding: 6px 18px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip, .section-navigation__tabs, .purchase-workflow__tabs) > button:is(.is-active, [aria-pressed='true'], [aria-selected='true'], [aria-current]),
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__navigation button[aria-current] {
+    background: var(--z7-segment-thumb);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z7-segment-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs__selection, .section-navigation__selection) {
+    border-radius: 999px;
+    background: var(--z7-segment-thumb);
+    box-shadow: var(--z7-segment-shadow);
+  }
+
+  /* ---------- Lists: airy rows, no grid of lines ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .table-panel {
+    padding: 8px 12px 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel thead th {
+    padding-block: 14px 10px;
+    border: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody td {
+    padding-block: 16px;
+    border: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody tr {
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody tr:hover {
+    background: var(--z7-row-hover);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody tr:hover td:first-child {
+    border-radius: 14px 0 0 14px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody tr:hover td:last-child {
+    border-radius: 0 14px 14px 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody tr:hover + tr,
+  html[data-app-theme] .desktop-app[data-experience] .table-panel tbody tr:hover {
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .document-cell > span:first-child {
+    border-radius: 12px;
+    background: var(--apple-grouped);
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-document__total strong {
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  /* Search and filters are pills. */
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-list-toolbar, .document-list-tools, .accounting-filters, .reminder-toolbar, .project-filter-bar) :is(input, select) {
+    min-height: 38px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--apple-grouped);
+  }
+
+  /* ---------- Status: one family of soft pills ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 2px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--z7-pill-neutral);
+    color: var(--z7-pill-neutral-ink);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .status:is(.status--paid, .status--accepted, .status--approved, .status--completed, .status--validated, .status--active, .status--entered) {
+    background: var(--z7-pill-green);
+    color: var(--z7-pill-green-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .status:is(.status--issued, .status--in_progress, .status--planned, .status--partially_paid) {
+    background: var(--z7-pill-blue);
+    color: var(--z7-pill-blue-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .status:is(.status--draft, .status--review_required, .status--incomplete, .status--paused) {
+    background: var(--z7-pill-amber);
+    color: var(--z7-pill-amber-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .status:is(.status--refused, .status--expired, .status--cancelled, .status--reversal) {
+    background: var(--z7-pill-red);
+    color: var(--z7-pill-red-ink);
+  }
+
+  /* ---------- Figures: one tile each ---------- */
+  html[data-app-theme] .desktop-app[data-experience] :is(.purchase-overview, .stat-grid, .agenda-summary) {
+    gap: 14px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.stat-card, .agenda-summary > article) {
+    border: 0;
+    border-radius: 20px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+
+  /* ---------- Empty states and first steps ---------- */
+  html[data-app-theme] .desktop-app[data-experience] :is(.empty-state, .finance-first-step) {
+    padding: 56px 32px;
+    border-radius: 28px;
+    text-align: center;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.empty-state, .finance-first-step) h2 {
+    font-size: calc(26px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  /* ---------- Document dialogs: one column, steps on top ---------- */
+  @media (min-width: 861px) {
+    html[data-app-theme] .document-editor-dialog.modal {
+      width: min(1040px, 94vw);
+      height: min(920px, 94dvh);
+      max-height: 94dvh;
+      border-radius: 30px;
+    }
+    html[data-app-theme] .document-editor-dialog .modal__header {
+      padding: 22px 32px 6px;
+      border-bottom: 0;
+    }
+    html[data-app-theme] .document-editor-dialog .modal__header h2 {
+      font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--apple-secondary);
+    }
+    html[data-app-theme] .document-editor-dialog .modal__body > .document-assistant {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper {
+      grid-column: 1;
+      grid-row: 1;
+      display: block;
+      overflow: visible;
+      padding: 6px 32px 0;
+      border: 0;
+      background: transparent;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant :is(.document-stepper__intro, .document-stepper__note, .document-stepper__track) {
+      display: none;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper ol {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 4px;
+      margin: 0;
+      padding: 4px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--z7-segment);
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper button {
+      justify-content: center;
+      min-height: 44px;
+      padding: 6px 12px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      box-shadow: none;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper button[aria-current] {
+      background: var(--z7-segment-thumb);
+      box-shadow: var(--z7-segment-shadow);
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper__label small {
+      display: none;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper__number {
+      width: 24px;
+      height: 24px;
+      font-size: 12px;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant > .error-panel {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant > .document-form {
+      grid-column: 1;
+      grid-row: 3;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant > .document-wizard-footer {
+      grid-column: 1;
+      grid-row: 4;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-step {
+      max-width: 820px;
+      margin-inline: auto;
+      padding: 40px 32px 40px;
+    }
+    html[data-app-theme] .document-editor-dialog .document-assistant .document-step__heading h3 {
+      font-size: calc(34px * var(--zentra-ui-text-scale, 1));
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+  }
+  html[data-app-theme] .document-editor-dialog .document-stepper button[aria-current] .document-stepper__number {
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+  html[data-app-theme] .document-editor-dialog .document-wizard-footer {
+    background: var(--z-glass);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .document-editor-dialog .document-wizard-footer::before {
+    display: none;
+  }
+  html[data-app-theme] .document-editor-dialog :is(.line-editor, .line-editor__row) {
+    border-color: var(--z-hairline);
+    border-radius: 18px;
+  }
+
+  /* ---------- Autopilote ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub {
+    max-width: 1180px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__toolbar {
+    margin-bottom: 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__count {
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    font-weight: 700;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__navigation button[aria-current] .automation-hub__count {
+    background: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__mode {
+    min-height: 32px;
+    padding: 0 14px 0 10px;
+    border-radius: 999px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z-shadow-pill);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__mode::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--z7-aura);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .autopilot-home {
+    margin-bottom: 24px;
+  }
+  /* The hero already summarises the day: the journal takes the full width. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub:has(> .autopilot-home) .automation-hub__summary {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub:has(> .autopilot-home) .automation-hub__activity {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot--status {
+    margin-bottom: 24px;
+    padding: 14px 18px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot--status > svg {
+    width: 30px;
+    height: 30px;
+    padding: 6px;
+    border-radius: 50%;
+    background: var(--z7-aura);
+    color: var(--z7-tile-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__journal {
+    padding: 28px 32px;
+    border-radius: 28px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__heading h2 {
+    font-size: calc(24px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters button {
+    min-height: 32px;
+    padding: 4px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-weight: 500;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters button:is([aria-pressed='true'], [aria-current], .is-active) {
+    background: var(--z7-segment-thumb);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z7-segment-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__filters button::after {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__search input {
+    border: 0;
+    border-radius: 999px;
+    background: var(--apple-grouped);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__group > h3 {
+    margin-top: 26px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__entry {
+    border: 0;
+    border-radius: 18px;
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+    transition: background-color 160ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__entry:hover {
+    background: var(--z7-row-hover);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__symbol {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: var(--apple-grouped);
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .ac-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--z7-pill-neutral);
+    color: var(--z7-pill-neutral-ink);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .ac-status:is([data-state='succeeded'], [data-state='done'], [data-state='imported'], [data-state='completed']) {
+    background: var(--z7-pill-green);
+    color: var(--z7-pill-green-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .ac-status:is([data-state='needs_review'], [data-state='review'], [data-state='pending'], [data-state='waiting']) {
+    background: var(--z7-pill-amber);
+    color: var(--z7-pill-amber-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .ac-status:is([data-state='failed'], [data-state='rejected']) {
+    background: var(--z7-pill-red);
+    color: var(--z7-pill-red-ink);
+  }
+
+  /* To follow up: each request is a card with the aura on its edge. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup {
+    display: grid;
+    gap: 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > :is(section, .automation-centre) {
+    margin: 0;
+    padding: 26px 28px;
+    border: 0;
+    border-radius: 26px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot--reviews {
+    position: relative;
+    overflow: hidden;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot--reviews::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: var(--z7-aura-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup :is(h2, .automation-brief__work > h3) {
+    font-size: calc(21px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .automation-brief__list {
+    border: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .automation-brief__list button {
+    border: 0;
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .automation-brief__list button:hover {
+    background: var(--z7-row-hover);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .automation-brief__list button > svg:first-child {
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .ac-run {
+    margin-top: 10px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--apple-grouped);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .ac-run > summary {
+    padding: 16px 18px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre__tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .automation-centre__tabs > button {
+    min-height: 32px;
+    padding: 4px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .automation-centre__tabs > button:is([aria-current], [aria-selected='true'], [aria-pressed='true'], .is-active) {
+    background: var(--z7-segment-thumb);
+    box-shadow: var(--z7-segment-shadow);
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .automation-centre__tabs > button::after {
+    display: none;
+  }
+
+  /* Settings of Autopilote read like the app's settings. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings > section,
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings .automation-settings > :is(section, details, div:not(:empty)) {
+    border: 0;
+    border-radius: 22px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+
+  /* Autopilote requests: a card per request, three steps, one clear action. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests {
+    display: grid;
+    gap: 14px;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 16px;
+    padding: 20px;
+    border: 0;
+    border-radius: 22px;
+    background: var(--apple-grouped);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > svg {
+    width: 40px;
+    height: 40px;
+    padding: 9px;
+    border-radius: 50%;
+    background: var(--z7-aura);
+    color: var(--z7-tile-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > div > strong {
+    font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 14px 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 3px 14px 3px 4px;
+    border-radius: 999px;
+    background: var(--apple-paper);
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li > span {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--apple-grouped);
+    color: var(--apple-secondary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li[data-state='current'] {
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1.5px var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li[data-state='current'] > span {
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li[data-state='done'] > span {
+    background: var(--z7-step-done);
+    color: var(--apple-on-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__create-quote {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    margin-top: 6px;
+    padding: 0 22px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z-shadow-pill);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__create-quote.is-ready {
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    box-shadow: var(--z-shadow-press);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created {
+    margin-top: 12px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: var(--z7-pill-green);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created > strong {
+    color: var(--z7-pill-green-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created > div > button:not(.quote-autopilot__create-quote) {
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__request-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__request-actions > button {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li {
+      grid-template-columns: 32px minmax(0, 1fr);
+      padding: 16px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > svg {
+      width: 32px;
+      height: 32px;
+      padding: 7px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__request-actions {
+      grid-column: 1 / -1;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+  }
+
+  /* ---------- Phone ---------- */
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .page-content :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip, .section-navigation__tabs, .purchase-workflow__tabs) {
+      display: flex;
+      max-width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .page-content :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip, .section-navigation__tabs, .purchase-workflow__tabs) > button {
+      flex: 1 0 auto;
+      padding-inline: 14px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__journal {
+      padding: 20px 16px;
+      border-radius: 24px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > :is(section, .automation-centre) {
+      padding: 20px 16px;
+      border-radius: 22px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .table-panel {
+      padding: 4px 8px 8px;
+    }
+  }
+}
+@media screen {
+  /* One required marker only, and a clean dialog footer. */
+  html[data-app-theme] .document-step .field__label em::after {
+    content: none;
+  }
+  html[data-app-theme] .document-editor-dialog .document-wizard-footer .form-actions {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .automation-centre__tabs > button:not([aria-current]) {
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-centre .automation-centre__tabs > button > span {
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    font-size: 11px;
+    font-weight: 700;
+  }
+}
+/* Phone document dialog: the four steps on one quiet line. */
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper {
+    padding: 4px 16px 0;
+    background: transparent;
+  }
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper :is(.document-stepper__intro, .document-stepper__note, .document-stepper__track) {
+    display: none;
+  }
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper ol {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    margin: 0;
+    padding: 3px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper button {
+    justify-content: center;
+    min-height: 40px;
+    padding: 4px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper button[aria-current] {
+    background: var(--z7-segment-thumb);
+    box-shadow: var(--z7-segment-shadow);
+  }
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper button:not([aria-current]) .document-stepper__label {
+    display: none;
+  }
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper__label small {
+    display: none;
+  }
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper__number {
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .ac-status {
+    justify-self: start;
+    width: fit-content;
+    max-width: 100%;
+  }
+}

@@ -21,6 +21,7 @@ import type { AutopilotView } from './autopilotView';
 import type { AutopilotReviewItem } from './autopilotReview';
 import { normalizeAutopilotReviewPage } from './autopilotReview';
 import { autopilotCopy } from './autopilotPresentation';
+import { AutopilotHome } from './AutopilotHome';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
@@ -81,7 +82,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
         <div><h2>{t(readiness === 'consent' ? 'Votre accès est actif. Commençons.' : 'Retrouvez vos suggestions')}</h2><p>{t(canManage ? 'Choisissez les fonctions de votre équipe dans les réglages. Tout se passe ici, dans Zentra.' : 'Votre accès est inclus. Le titulaire ou un administrateur peut terminer les réglages pour toute l’équipe.')}</p></div>
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
-    {activityPage && <>{autopilot && <AutopilotStatus state={autopilot.state} onSettings={() => onPage('settings')} />}<div className="automation-hub__activity">
+    {activityPage && <><AutopilotHome />{autopilot && <AutopilotStatus state={autopilot.state} onSettings={() => onPage('settings')} />}<div className="automation-hub__activity">
       <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} onOpenSourceMessage={openSourceMessage} initialTab="history" activity={state.activity} confirmedQuotes={autopilot?.state.status === 'ready' ? autopilot.state.activity : undefined} onOpenQuote={autopilot?.onOpenQuote} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></div>
       <aside className="automation-hub__summary"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} summaryOnly language={language} onOpen={open}/></aside>
     </div><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></>}
