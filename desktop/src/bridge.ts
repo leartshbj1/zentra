@@ -121,7 +121,10 @@ export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilo
   const identities = new Set<string>();
   const activityIds = new Set<string>(), quoteIds = new Set<string>();
   const items = quoteAutopilotArray(page.items, limit).map(rawItem => {
-    const fields = kind === 'activity' ? ['activityId', 'proposalId', 'quoteId', 'confirmedAt', 'kind', 'requiresHumanValidation'] : ['proposalId', 'sourceId', 'createdAt', 'disposition', 'reasons', 'requiresHumanValidation'];
+    // A review may carry Autopilote's draft suggestion; normalizeAutopilotReviewPage
+    // validates it and drops it when malformed.
+    const suggested = kind === 'review' && !!rawItem && typeof rawItem === 'object' && Object.hasOwn(rawItem, 'suggestion');
+    const fields = kind === 'activity' ? ['activityId', 'proposalId', 'quoteId', 'confirmedAt', 'kind', 'requiresHumanValidation'] : ['proposalId', 'sourceId', 'createdAt', 'disposition', 'reasons', 'requiresHumanValidation', ...(suggested ? ['suggestion'] : [])];
     const item = quoteAutopilotExact(rawItem, fields);
     if (!quoteAutopilotIdentifier(item.proposalId) || identities.has(item.proposalId) || item.requiresHumanValidation !== true) return quoteAutopilotInvalid();
     identities.add(item.proposalId);

@@ -72,6 +72,9 @@ test('review is read-only bounded reasons, with no plan or confidence', () => {
   const page={organizationId:'org',items:[review()],nextCursor:null};
   const parse=value=>exports.quoteAutopilotReadFromRaw(envelope('available',{data:value}),origin(),'review',1);
   assert.ok(Object.isFrozen(parse(page).data.items[0].reasons));
+  // The optional draft suggestion passes through for the app's own normaliser.
+  const suggestion={customer:null,currency:'CHF',netCents:0,lines:[]};
+  assert.deepEqual(parse({...page,items:[{...review(),suggestion}]}).data.items[0].suggestion,suggestion);
   for (const bad of [{...page,items:[{...review(),confidence:0.58}]},{...page,items:[{...review(),reasons:['override']}]},{...page,items:[{...review(),reasons:['low_confidence','low_confidence']}]},{...page,nextCursor:'x'.repeat(4097)},{...page,items:[review(),review()]}]) refused(()=>parse(bad));
 });
 test('arrays refuse holes, custom properties and accessors without reading them', () => {
