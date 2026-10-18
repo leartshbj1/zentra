@@ -107,3 +107,21 @@ it('links a request line to a catalogue article, remembers it and explains a ref
   expect(host.textContent).toContain(copy.remembered.replace('{term}', 'licences zentra gestion pro'));
   expect(host.textContent).toContain(copy.allLinked);
 });
+
+it('still shows a linked line after leaving and coming back, and offers the quote', async () => {
+  const copy = autopilotCopy('fr');
+  window.localStorage.setItem('zentra.autopilot.line-links.v1', JSON.stringify({ 'company-a': { 'proposal-a': {
+    '2 licences Zentra Gestion Pro': { articleId: 'article-pro', name: 'Zentra Gestion Pro', term: 'gestion pro zentra' } } } }));
+  const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0], reasons: ['missing_article'],
+    suggestion: { customer: null, currency: 'CHF', netCents: 0, lines: [], unmatched: ['2 licences Zentra Gestion Pro'] } }] } as AutopilotView['reviews'];
+  const create = vi.fn();
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}}
+    catalogueArticles={[{ id: 'article-pro', name: 'Zentra Gestion Pro' }]} onChooseArticle={vi.fn()} onCreateQuote={create} />);
+  expect(host.textContent).toContain(copy.linkedTo.replace('{name}', 'Zentra Gestion Pro'));
+  expect(host.textContent).toContain(copy.allLinked);
+  const button = [...host.querySelectorAll('button')].find(item => item.textContent === copy.createQuote)!;
+  expect(button.className).toContain('is-ready');
+  await act(async () => { button.click(); });
+  expect(create).toHaveBeenCalledOnce();
+  window.localStorage.clear();
+});

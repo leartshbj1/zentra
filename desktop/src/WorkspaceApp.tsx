@@ -11,6 +11,7 @@ import { selectAutopilotDraftNotices } from './autopilotDraftNotices';
 import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type AutopilotCatalogueRequest, type AutopilotCatalogueFollowup } from './autopilotCatalogue';
 import type { AutopilotReviewItem } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
+import { autopilotLineLinks, phraseQuantity, saveAutopilotLineLink } from './autopilotLinks';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
 import './workspace-navigation.css';
@@ -769,8 +770,14 @@ function WorkspaceContent({
   // suggestion. The person checks and saves it; nothing is created before that.
   const openAutopilotDraft = (item: AutopilotReviewItem) => {
     const suggestion = item.suggestion;
-    if (!suggestion?.lines.length || busy || modal || readOnly) return;
+    if (!suggestion || busy || modal || readOnly || !autopilotContext) return;
     const current = workspaceRef.current;
+    const links = autopilotLineLinks(autopilotContext.organizationId, item.proposalId);
+    const linked = (suggestion.unmatched ?? []).flatMap(phrase => {
+      const article = links[phrase] && current.catalogItems.find(row => row.id === links[phrase].articleId && !row.archivedAt);
+      return article ? [{ id: createId(), catalogItemId: article.id, description: article.name, quantity: phraseQuantity(phrase),
+        unit: article.unit, unitPriceCents: article.salesPriceCents, discountBp: 0, vatRateBp: article.vatBp }] : [];
+    });
     const wanted = suggestion.customer?.name.trim().toLocaleLowerCase(getAppLocale());
     const client = wanted ? current.clients.find(row => !row.archivedAt
       && [row.company, row.name].some(name => name?.trim().toLocaleLowerCase(getAppLocale()) === wanted)) : undefined;
@@ -779,14 +786,19 @@ function WorkspaceContent({
       return { id: createId(), catalogItemId: article ? article.id : null, description: line.description,
         quantity: line.quantityMilli / 1000, unit: line.unit, unitPriceCents: line.unitPriceCents, discountBp: 0, vatRateBp: line.taxRateBp };
     });
+    if (!lines.length && !linked.length) return;
     setSearch(''); setView('quotes');
     setModal({ type: 'document', entity: 'quotes', seed: { id: item.proposalId, clientId: client?.id,
-      newClientName: client ? undefined : suggestion.customer?.name, lines } });
+      newClientName: client ? undefined : suggestion.customer?.name, lines: [...lines, ...linked] } });
   };
   const catalogueItemCreated = (request: AutopilotCatalogueRequest, catalogItemId: string) => {
     if (request.phrase) {
       const phrase = request.phrase;
-      void chooseAutopilotArticle(phrase, catalogItemId).then(term => setNotice({ tone: 'success',
+      void chooseAutopilotArticle(phrase, catalogItemId).then(term => {
+        const article = workspaceRef.current.catalogItems.find(row => row.id === catalogItemId);
+        saveAutopilotLineLink(request.organizationId, request.proposalId, phrase, { articleId: catalogItemId, name: article?.name ?? phrase, term });
+        return term;
+      }).then(term => setNotice({ tone: 'success',
         text: autopilotCopy(getAppLanguage()).remembered.replace('{term}', term) }))
         .catch(() => setNotice({ tone: 'warning', text: autopilotCopy(getAppLanguage()).chooseError }));
     }

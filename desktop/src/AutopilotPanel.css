@@ -87,3 +87,15 @@
 .quote-autopilot__hint { flex-basis: 100%; margin: 0; color: var(--apple-secondary); font-size: 12.5px; }
 .quote-autopilot__remembered { margin: 0; color: var(--apple-secondary); font-size: 12.5px; }
 .quote-autopilot__change { justify-self: start; }
+
+/* One obvious path per request: link missing items, create and check the quote, send it. */
+.quote-autopilot__steps { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; counter-reset: none; }
+.quote-autopilot__steps li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--apple-secondary); }
+.quote-autopilot__steps li span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--z-hairline, rgba(0,0,0,.12)); font-size: 12px; font-weight: 600; flex: 0 0 auto; }
+.quote-autopilot__steps li[data-state="current"] { color: inherit; font-weight: 600; }
+.quote-autopilot__steps li[data-state="current"] span { border-color: currentColor; }
+.quote-autopilot__steps li[data-state="done"] { color: inherit; }
+.quote-autopilot__steps li[data-state="done"] span { background: var(--apple-green, currentColor); border-color: transparent; color: var(--apple-paper, #fff); }
+.quote-autopilot__create-quote { margin-top: 12px; justify-self: start; }
+.quote-autopilot__create-quote.is-ready { box-shadow: var(--z-shadow-pill); }

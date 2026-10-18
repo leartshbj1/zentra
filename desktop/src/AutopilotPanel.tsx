@@ -3,6 +3,7 @@ import { ArrowUpRight, Check, ChevronRight, ClipboardCheck, Workflow } from 'luc
 import { useAppLanguage, getAppLocale } from './language';
 import { autopilotCopy, autopilotCatalogueCopy, autopilotReviewReason } from './autopilotPresentation';
 import { normalizeAutopilotReviewPage, type AutopilotReviewItem } from './autopilotReview';
+import { autopilotLineLinks, saveAutopilotLineLink, type AutopilotLineLink } from './autopilotLinks';
 import type { AutopilotView } from './autopilotView';
 import './AutopilotPanel.css';
 
@@ -53,15 +54,16 @@ export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; 
 }
 
 /** One request line without an article: pick one from the catalogue or create it; the choice is remembered. */
-function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate, onLinked }: {
+function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate, onLinked, initial }: {
   phrase: string; catalogue: readonly Readonly<{ id: string; name: string }>[]; disabled: boolean;
   onChoose?: (phrase: string, articleId: string) => Promise<string>; onCreate?: (phrase: string) => void;
-  onLinked?: (phrase: string, linked: boolean) => void;
+  onLinked?: (phrase: string, link: AutopilotLineLink | null) => void;
+  initial?: AutopilotLineLink;
 }) {
   const copy = autopilotCopy(useAppLanguage());
   const listId = useId();
   const [query, setQuery] = useState(''), [saving, setSaving] = useState(false);
-  const [linked, setLinked] = useState<Readonly<{ name: string; term: string }> | null>(null), [error, setError] = useState('');
+  const [linked, setLinked] = useState<AutopilotLineLink | null>(initial ?? null), [error, setError] = useState('');
   // An exact name picks the article; otherwise the single partial match does.
   const wanted = query.trim().toLocaleLowerCase(getAppLocale());
   const exact = catalogue.find(article => article.name.toLocaleLowerCase(getAppLocale()) === wanted);
@@ -72,7 +74,8 @@ function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate, onLink
     setSaving(true); setError('');
     try {
       const term = await onChoose(phrase, article.id);
-      setLinked({ name: article.name, term }); setQuery(''); onLinked?.(phrase, true);
+      const link = { articleId: article.id, name: article.name, term };
+      setLinked(link); setQuery(''); onLinked?.(phrase, link);
     } catch (reason) {
       const code = reason instanceof Error ? reason.message : '';
       setError(code === 'forbidden' ? copy.chooseErrorRights : code === 'invalid_request' ? copy.chooseErrorInvalid : copy.chooseErrorService);
@@ -83,7 +86,7 @@ function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate, onLink
       {linked && <span className="quote-autopilot__linked"><Check size={15} aria-hidden="true" />{copy.linkedTo.replace('{name}', linked.name)}</span>}</div>
     {linked ? <>
       <p className="quote-autopilot__remembered" role="status">{copy.remembered.replace('{term}', linked.term)}</p>
-      {onChoose && <button type="button" className="quote-autopilot__change" disabled={disabled} onClick={() => { setLinked(null); onLinked?.(phrase, false); }}>{copy.changeArticle}</button>}
+      {onChoose && <button type="button" className="quote-autopilot__change" disabled={disabled} onClick={() => { setLinked(null); onLinked?.(phrase, null); }}>{copy.changeArticle}</button>}
     </> : <form className="quote-autopilot__unmatched-actions" onSubmit={event => { event.preventDefault(); void choose(); }}>
       {onChoose && <>
         <input type="search" list={listId} value={query} placeholder={copy.searchArticle} aria-label={copy.searchArticle}
@@ -99,19 +102,18 @@ function UnmatchedLine({ phrase, catalogue, disabled, onChoose, onCreate, onLink
 }
 
 /** All request lines of one review; the intro turns into a go-ahead once every line is linked. */
-function UnmatchedLines({ phrases, catalogue, disabled, onChoose, onCreate }: {
+function UnmatchedLines({ phrases, catalogue, disabled, onChoose, onCreate, links, onLinked }: {
   phrases: readonly string[]; catalogue: readonly Readonly<{ id: string; name: string }>[]; disabled: boolean;
   onChoose?: (phrase: string, articleId: string) => Promise<string>; onCreate?: (phrase: string) => void;
+  links: Readonly<Record<string, AutopilotLineLink>>; onLinked: (phrase: string, link: AutopilotLineLink | null) => void;
 }) {
   const copy = autopilotCopy(useAppLanguage());
-  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
-  const all = phrases.every(phrase => done.has(phrase));
+  const all = phrases.every(phrase => links[phrase]);
   return <div className="quote-autopilot__unmatched">
     <strong>{copy.unmatchedTitle}</strong>
     <p>{all ? copy.allLinked : copy.unmatchedIntro}</p>
     <ul>{phrases.map(phrase => <UnmatchedLine key={phrase} phrase={phrase} catalogue={catalogue} disabled={disabled}
-      onChoose={onChoose} onCreate={onCreate} onLinked={(value, linked) => setDone(current => {
-        const next = new Set(current); if (linked) next.add(value); else next.delete(value); return next; })} />)}</ul>
+      onChoose={onChoose} onCreate={onCreate} initial={links[phrase]} onLinked={onLinked} />)}</ul>
   </div>;
 }
 
@@ -130,6 +132,11 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
   onCreateArticle?: (item: AutopilotReviewItem, phrase: string) => void;
 }) {
   const language = useAppLanguage(), copy = autopilotCopy(language), catalogue = autopilotCatalogueCopy(language);
+  const [, setLinksVersion] = useState(0);
+  const linksOf = (proposalId: string) => autopilotLineLinks(organizationId, proposalId);
+  const remember = (proposalId: string) => (phrase: string, link: AutopilotLineLink | null) => {
+    saveAutopilotLineLink(organizationId, proposalId, phrase, link); setLinksVersion(version => version + 1);
+  };
   const page = useMemo(() => normalizeAutopilotReviewPage(state.reviews, organizationId), [state.reviews, organizationId]);
   const [opening, setOpening] = useState<string | null>(null), [openFailed, setOpenFailed] = useState(false);
   const epoch = useRef(0);
@@ -155,12 +162,25 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
           </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul>
           {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}
           {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}
-          {onCreateQuote && item.suggestion?.lines.length ? <p className="quote-autopilot__catalogue-hint">{copy.createQuoteHint}</p> : null}
-          {item.suggestion?.unmatched?.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={item.suggestion.unmatched}
-            catalogue={catalogueArticles} disabled={opening !== null} onChoose={onChooseArticle}
-            onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} /> : null}</div>
+          {(() => {
+            const links = linksOf(item.proposalId), missing = item.suggestion?.unmatched ?? [];
+            const linkedCount = missing.filter(phrase => links[phrase]).length;
+            const canQuote = !!onCreateQuote && ((item.suggestion?.lines.length ?? 0) + linkedCount > 0);
+            const linksDone = linkedCount === missing.length;
+            return <>
+              <ol className="quote-autopilot__steps" aria-label={copy.request}>
+                <li data-state={linksDone ? 'done' : 'current'}><span>1</span>{missing.length ? copy.stepLink : copy.stepNothingMissing}</li>
+                <li data-state={linksDone && canQuote ? 'current' : 'next'}><span>2</span>{copy.stepQuote}</li>
+                <li data-state="next"><span>3</span>{copy.stepSend}</li>
+              </ol>
+              {missing.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={missing}
+                catalogue={catalogueArticles} disabled={opening !== null} onChoose={onChooseArticle} links={links} onLinked={remember(item.proposalId)}
+                onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} /> : null}
+              {canQuote ? <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'}
+                disabled={opening !== null} onClick={() => onCreateQuote!(item)}>{copy.createQuote}</button> : null}
+            </>;
+          })()}</div>
           <div className="quote-autopilot__request-actions">
-          {onCreateQuote && item.suggestion?.lines.length ? <button type="button" className="quote-autopilot__create-quote" disabled={opening !== null} onClick={() => onCreateQuote(item)}>{copy.createQuote}</button> : null}
           {item.reasons.includes('missing_article') && onCatalogue && <>
             <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'browse')}>{catalogue.browse}</button>
             {canAddCatalogue && <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'create')}>{catalogue.add}</button>}
