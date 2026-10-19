@@ -1,0 +1,409 @@
+/*
+ * Zentra 2027, sober pass. Loaded last.
+ * No gradients, no glows, no coloured shadows, no translucent glass:
+ * plain surfaces, hairline edges, one green for action and rounded
+ * rectangles for controls, as in a desktop Apple app.
+ * Colours come only from custom properties, so the dark palette script
+ * produces nothing for this file.
+ */
+@media screen {
+  :root {
+    --apple-radius-control: 8px;
+    --apple-radius-group: 14px;
+    --z-shadow: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+    --z-shadow-pill: 0 0 0 1px rgb(0 0 0 / 0.08);
+    --z-shadow-press: none;
+    --z-shadow-lifted: 0 0 0 1px rgb(0 0 0 / 0.08), 0 20px 50px rgb(0 0 0 / 0.18);
+    --z-glass: #f2f2f4;
+    --work-shadow: var(--z-shadow);
+    --z7-aura: #0b7a52;
+    --z7-aura-line: #0b7a52;
+    --z7-aura-glow: none;
+    --z7-aura-glow-opacity: 0;
+    --z7-orb-core: #fff;
+    --z7-orb-halo: transparent;
+    --z7-orb-shadow: transparent;
+    --z7-hero-inset: #f5f5f7;
+    --z7-shadow-card: var(--z-shadow);
+    --z7-shadow-button: none;
+    --z7-radius-hero: 16px;
+    --z7-sidebar: #fff;
+    --z7-sidebar-shadow: 0 0 0 1px rgb(0 0 0 / 0.07);
+    --z7-segment: #e8e8eb;
+    --z7-segment-thumb: #fff;
+    --z7-segment-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.1), 0 1px 1px rgb(0 0 0 / 0.06);
+    --z7-button-line: #d2d2d7;
+    --z7-button-paper: #fff;
+  }
+  html[data-app-theme='dark'] {
+    --apple-accent: #34c47c;
+    --apple-on-accent: #04210f;
+    --apple-focus: #34c47c;
+    --z-accent-hover: #4fd08f;
+    --z-ring: rgb(52 196 124 / 0.3);
+    --z-shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
+    --z-shadow-pill: 0 0 0 1px rgb(255 255 255 / 0.1);
+    --z-shadow-lifted: 0 0 0 1px rgb(255 255 255 / 0.1), 0 20px 50px rgb(0 0 0 / 0.6);
+    --z-glass: #000;
+    --z7-aura: #34c47c;
+    --z7-aura-line: #34c47c;
+    --z7-orb-core: #1c1c1e;
+    --z7-hero-inset: #2c2c2e;
+    --z7-sidebar: #1c1c1e;
+    --z7-sidebar-shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
+    --z7-segment: #2c2c2e;
+    --z7-segment-thumb: #545458;
+    --z7-segment-shadow: none;
+    --z7-step-done: #34c47c;
+    --z7-pill-green-ink: #4fd08f;
+    --z7-button-line: #48484a;
+    --z7-button-paper: #2c2c2e;
+  }
+
+  /* ---------- No glass: plain surfaces ---------- */
+  html[data-app-theme] .desktop-app[data-experience] :is(.sidebar, .topbar, .mobile-navigation),
+  html[data-app-theme] .document-editor-dialog .document-wizard-footer {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .topbar {
+    background: var(--apple-canvas);
+  }
+  html[data-app-theme] .document-editor-dialog .document-wizard-footer {
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .modal-backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (min-width: 861px) {
+    html[data-app-theme] .desktop-app[data-experience]:not([data-native-desktop='true']) .sidebar {
+      border-radius: 14px;
+    }
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .mobile-navigation {
+      border-radius: 18px;
+      background: var(--apple-paper);
+    }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-navigation button {
+      border-radius: 12px;
+    }
+  }
+
+  /* ---------- Buttons: rounded rectangles with a clear edge ---------- */
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button {
+    min-height: 36px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--icon {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--primary {
+    border: 1px solid transparent;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    box-shadow: none;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--secondary {
+    border: 1px solid var(--z7-button-line);
+    background: var(--z7-button-paper);
+    color: var(--apple-ink);
+    box-shadow: none;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) .button--ghost {
+    border: 1px solid transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .account-launcher {
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--z7-button-paper);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .topbar__tools > .button {
+    border-radius: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions--toolbar .quick-actions > button {
+    border: 1px solid var(--z7-button-line);
+    border-radius: 10px;
+    background: var(--z7-button-paper);
+    box-shadow: none;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop, .onboarding) :is(.field input, .field select, .field textarea, .search-input input) {
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__search,
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__search,
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-list-toolbar, .document-list-tools, .accounting-filters, .reminder-toolbar, .project-filter-bar) :is(input, select),
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal__search input {
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--apple-paper);
+    box-shadow: none;
+  }
+
+  /* ---------- Segmented controls: macOS proportions ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip, .section-navigation__tabs, .purchase-workflow__tabs),
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__navigation,
+  html[data-app-theme] .desktop-app[data-experience] :is(.automation-journal__filters, .automation-centre .automation-centre__tabs),
+  html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper ol,
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper ol {
+    border-radius: 9px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.sales-tabs, .team-navigation, .accounting-tabs, .tab-strip, .section-navigation__tabs, .purchase-workflow__tabs) > button,
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__navigation button,
+  html[data-app-theme] .desktop-app[data-experience] :is(.automation-journal__filters button, .automation-centre .automation-centre__tabs > button),
+  html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs__selection, .section-navigation__selection),
+  html[data-app-theme] .document-editor-dialog .document-assistant .document-stepper button,
+  html[data-app-theme] .modal-backdrop .document-editor-dialog .document-stepper button {
+    border-radius: 7px;
+  }
+
+  /* ---------- Sheets: hairline edges, smaller radius ---------- */
+  html[data-app-theme] .desktop-app[data-experience] :is(.panel, .table-panel, .settings-card, .employee-card, .project-card, .stat-card, .dashboard-summary, .setup-strip, .sales-documents) {
+    border-radius: 14px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__group,
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser__detail :is(.panel, .settings-card),
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__journal,
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > :is(section, .automation-centre),
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot--status,
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-grid.dashboard-grid--daily > .activity-shortcuts .activity-shortcuts__items > button {
+    border-radius: 14px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link] {
+    border-radius: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation .settings-browser__icon {
+    border-radius: 7px;
+    box-shadow: none;
+  }
+  html[data-app-theme] .modal {
+    border-radius: 16px;
+  }
+  @media (min-width: 861px) {
+    html[data-app-theme] .document-editor-dialog.modal {
+      border-radius: 16px;
+    }
+  }
+
+  /* ---------- Autopilote: plain, no glow ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home {
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home::before {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home__orb,
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__mode::before {
+    width: 10px;
+    height: 10px;
+    background: var(--apple-accent);
+    box-shadow: none;
+    animation: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home__orb::after {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home__columns {
+    border-radius: 12px;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home__primary {
+    min-height: 40px;
+    padding: 0 18px;
+    border-radius: 8px;
+    font-size: 15px !important;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__mode {
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button[data-nav='automation'] {
+    border-radius: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button[data-nav='automation'] > svg {
+    border-radius: 7px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot--reviews::before {
+    width: 3px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li {
+    border-radius: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.quote-autopilot__requests > li > svg, .automation-hub .quote-autopilot--status > svg) {
+    border-radius: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.quote-autopilot__create-quote, .quote-autopilot__created > div > button, .quote-autopilot__request-actions > button) {
+    min-height: 36px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--z7-button-paper);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__create-quote.is-ready {
+    border-color: transparent;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created {
+    border-radius: 10px;
+  }
+
+  /* Done: requests whose quote went out, set apart and quieter. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > .quote-autopilot--done {
+    background: transparent;
+    box-shadow: none;
+    padding-inline: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot--done header h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--apple-secondary);
+    font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot--done header h2::before {
+    content: '';
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done > li {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done > li > svg {
+    width: 28px;
+    height: 28px;
+    padding: 5px;
+    border-radius: 50%;
+    background: var(--z7-pill-green);
+    color: var(--z7-pill-green-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done > li > div > strong {
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__done-summary {
+    margin: 2px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+}
+
+/* ---------- Navigation a beginner can read ---------- */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button:is(.is-active, .is-active:hover, .is-active:focus) {
+    color: var(--apple-ink);
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__selection {
+    border-radius: 8px;
+    background: var(--z7-pill-green);
+    box-shadow: inset 3px 0 0 var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button {
+    border-radius: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav > div > p {
+    margin-top: 18px;
+    color: var(--apple-ink);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav > div:has(> button[data-nav='settings']) {
+    margin-top: 12px;
+    padding-top: 10px;
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header .page-header__section {
+    margin: 0 0 4px;
+    color: var(--apple-accent);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+  }
+
+  /* The path of a sale. */
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow__step {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 0 12px 0 6px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--z7-button-paper);
+    color: var(--apple-ink);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow__number {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--apple-grouped);
+    color: var(--apple-secondary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow button[aria-current] {
+    border-color: var(--apple-accent);
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow button[aria-current] .sales-flow__number {
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .sales-flow {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+  }
+}
+
+/* An accepted quote waiting for its invoice: same card, marked in green. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li[data-state='accepted'] {
+    box-shadow: inset 3px 0 0 var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li[data-state='accepted'] > svg {
+    background: var(--z7-pill-green);
+    color: var(--z7-pill-green-ink);
+  }
+}

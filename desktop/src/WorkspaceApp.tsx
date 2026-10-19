@@ -61,6 +61,7 @@ import { deferView } from './DeferredView';
 import { LocalAssistantSetup } from './LocalAssistantSetup';
 import { AssistantLauncherSlot, useAssistantScreen } from './assistantContext';
 import { AutopilotHome } from './AutopilotHome';
+import { SalesFlow } from './SalesFlow';
 import { SupplierInbox } from './SupplierInboxPanel';
 import { useSupplierInbox } from './supplierInbox';
 import { createWorkspaceReception } from './workspaceReception';
@@ -481,19 +482,28 @@ const navigation: Array<{
   { id: 'automation', label: 'Zentra Autopilote', icon: ListChecks },
   { id: 'agenda', label: 'Agenda', icon: CalendarDays },
   { id: 'notes', label: 'Notes', icon: NotebookPen },
-  { id: 'projects', label: 'Projets', icon: FolderKanban },
-  { id: 'clients', label: 'Clients', icon: UserRound },
-  { id: 'catalog', label: 'Produits & services', icon: Package },
-  { id: 'quotes', label: 'Ventes', icon: BriefcaseBusiness, group: 'Gestion' },
+  { id: 'clients', label: 'Clients', icon: UserRound, group: 'Vendre' },
+  { id: 'quotes', label: 'Ventes', icon: BriefcaseBusiness },
   { id: 'reminders', label: 'Relances', icon: MessageSquareWarning },
+  { id: 'catalog', label: 'Produits & services', icon: Package },
+  { id: 'projects', label: 'Projets', icon: FolderKanban, group: 'Réaliser' },
   { id: 'time', label: 'Temps', icon: Clock3 },
   { id: 'team', label: 'Équipe & salaires', icon: Users },
-  { id: 'expenses', label: 'Achats & fournisseurs', icon: WalletCards },
+  { id: 'expenses', label: 'Achats & fournisseurs', icon: WalletCards, group: 'Acheter et payer' },
   { id: 'bank', label: 'Banque', icon: Banknote },
-  { id: 'reports', label: 'Rapports', icon: BarChart3, group: 'Pilotage' },
-  { id: 'accounting', label: 'Comptabilité', icon: Landmark },
+  { id: 'accounting', label: 'Comptabilité', icon: Landmark, group: 'Suivre' },
+  { id: 'reports', label: 'Rapports', icon: BarChart3 },
   { id: 'settings', label: 'Paramètres', icon: Settings },
 ];
+
+/** The navigation section each screen belongs to, shown above its title. */
+const viewSections: Partial<Record<View, string>> = (() => {
+  const sections: Partial<Record<View, string>> = {};
+  let current: string | undefined;
+  for (const item of navigation) { if (item.group) current = item.group; if (current) sections[item.id] = current; }
+  sections.orders = sections.quotes; sections.invoices = sections.quotes; delete sections.settings;
+  return sections;
+})();
 
 const viewTitles: Record<View, [string, string]> = {
   automation: ['Zentra Autopilote', 'Votre équipe, vos outils et vos réglages réunis'],
@@ -2280,6 +2290,7 @@ function WorkspaceContent({
 
         {!activeProjectFolder ? <div className="page-header">
           <div>
+            {viewSections[view] ? <p className="page-header__section">{t(viewSections[view]!)}</p> : null}
             <h1 key={view}>{t(view === 'quotes' ? 'Devis' : view === 'invoices' ? 'Factures' : view === 'orders' ? 'Commandes' : title[0])}</h1>
             <p>{view === 'dashboard' ? new Date().toLocaleDateString(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) : t(title[1])}</p>
           </div>
@@ -2374,13 +2385,14 @@ function WorkspaceContent({
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
+            <><SalesFlow active={view === 'invoices' ? 'invoices' : 'quotes'} showRequests={companyAutomation.knownActive} onNavigate={next => { if (next === 'automation') setAutomationPage('centre'); setView(next); setSearch(''); }} />
             <SalesTabs
               active={view as SalesView}
               onChange={(next) => {
                 setView(next);
                 setSearch('');
               }}
-            />
+            /></>
           ) : null}
           {view === 'dashboard' ? (
             <>

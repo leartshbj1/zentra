@@ -137,6 +137,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   'Relances': ['Mahnungen','Solleciti','Payment reminders'], 'Temps': ['Zeit','Tempo','Time'],
   'Équipe & salaires': ['Team & Löhne','Team e stipendi','Team & payroll'], 'Achats & fournisseurs': ['Einkauf & Lieferanten','Acquisti e fornitori','Purchases & suppliers'],
   'Banque': ['Bank','Banca','Banking'], 'Rapports': ['Berichte','Rapporti','Reports'], 'Comptabilité': ['Buchhaltung','Contabilità','Accounting'],
+  'Vendre': ['Verkaufen','Vendere','Sell'], 'Réaliser': ['Ausführen','Realizzare','Deliver'], 'Acheter et payer': ['Einkaufen und bezahlen','Acquistare e pagare','Buy and pay'], 'Suivre': ['Überblick','Monitorare','Track'], 'Demande': ['Anfrage','Richiesta','Request'], 'Le parcours d’une vente': ['Der Weg eines Verkaufs','Il percorso di una vendita','The path of a sale'],
   'Gestion': ['Verwaltung','Gestione','Management'], 'Pilotage': ['Unternehmensführung','Monitoraggio','Business overview'],
   'Devis': ['Offerten','Preventivi','Quotes'], 'Factures': ['Rechnungen','Fatture','Invoices'], 'Bilan': ['Bilanz','Bilancio','Balance sheet'],
   'Fiches de salaire': ['Lohnabrechnungen','Buste paga','Payslips'], 'Collaborateurs': ['Mitarbeitende','Collaboratori','Employees'],
