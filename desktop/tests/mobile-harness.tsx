@@ -361,3 +361,4 @@ import '../src/zentra-2027-menus.css';
 import '../src/zentra-2027-calm.css';
 import '../src/autopilot-simple.css';
 import '../src/filters-calm.css';
+import '../src/switch-calm.css';

@@ -290,43 +290,6 @@
     color: var(--apple-secondary);
     font-size: calc(13px * var(--zentra-ui-text-scale, 1));
   }
-  /* Checkboxes become switches. */
-  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings :is(.automation-settings__toggle, .quote-autopilot__consent) input[type='checkbox'] {
-    -webkit-appearance: none;
-    appearance: none;
-    position: relative;
-    flex: none;
-    width: 44px;
-    min-width: 44px;
-    height: 26px;
-    margin: 0;
-    border-radius: 13px;
-    background: var(--apple-line);
-    cursor: pointer;
-    transition: background-color 160ms ease;
-  }
-  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings :is(.automation-settings__toggle, .quote-autopilot__consent) input[type='checkbox']::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--apple-paper);
-    box-shadow: 0 1px 2px var(--z-hairline);
-    transition: transform 160ms ease;
-  }
-  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings :is(.automation-settings__toggle, .quote-autopilot__consent) input[type='checkbox']:checked {
-    background: var(--apple-accent);
-  }
-  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings :is(.automation-settings__toggle, .quote-autopilot__consent) input[type='checkbox']:checked::after {
-    transform: translateX(18px);
-  }
-  html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings :is(.automation-settings__toggle, .quote-autopilot__consent) input[type='checkbox']:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
   html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings :is(.automation-settings__welcome, .automation-settings__current-mode) {
     color: var(--apple-secondary);
     font-size: calc(13px * var(--zentra-ui-text-scale, 1));
@@ -417,5 +380,54 @@
   }
   html[data-app-theme] .desktop-app[data-experience] .automation-hub__settings .automation-settings > header {
     display: none;
+  }
+}
+@media screen {
+  /* Reminders due and signals (payment announced, quote refused…): same lines, the first button leads. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__followups > header {
+    padding: 16px 20px 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li {
+    display: block;
+    padding: 16px 20px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li :is(strong) {
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li :is(p, small, time) {
+    margin: 2px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li :is(div, footer):has(> button) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    margin-top: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li button {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font-weight: 500;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li button:first-of-type {
+    min-height: 36px;
+    padding: 0 16px;
+    border-radius: 8px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    font-weight: 600;
   }
 }
