@@ -1,3 +1,5 @@
+import { senderFrom } from './autopilotReview';
+import type { AutopilotAcceptance } from './autopilotAcceptance';
 import {WorkspaceOriginChangedError} from './workspaceOrigin';
 import { recordedDocumentAmounts } from './financialTraceability';
 import {freezeDocumentCreationRequest,readDocumentCreationAcknowledgement,readDocumentCreationReceipt,DocumentCreationUnconfirmedError,type DocumentCreationRequest,type DocumentCreationReceipt} from './documentCreationRequest';
@@ -105,11 +107,27 @@ function quoteAutopilotArray(raw: unknown, maximum: number): readonly unknown[] 
 /** A remembered request line: the next requests with this wording use this article. */
 export type QuoteAutopilotArticleChoice = Readonly<{ schemaVersion: 1; term: string; articleId: string }>;
 export type QuoteAutopilotArticleChoiceInput = Readonly<{ phrase: string; articleId: string }>;
-export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias', limit = 50): QuoteAutopilotRead<T> {
+export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias' | 'acceptances', limit = 50): QuoteAutopilotRead<T> {
   const value = quoteAutopilotEnvelope(raw, origin, ['data'], ['available', 'unavailable', 'context_changed', 'error']);
   if (value.status !== 'available') {
     if (value.data !== null) return quoteAutopilotInvalid();
     return Object.freeze({ ...value }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'acceptances') {
+    const page = quoteAutopilotExact(value.data, ['organizationId', 'items']);
+    if (page.organizationId !== value.organizationId) return quoteAutopilotInvalid();
+    const seen = new Set<string>();
+    const items = quoteAutopilotArray(page.items, 200).map(rawItem => {
+      const withSender = !!rawItem && typeof rawItem === 'object' && Object.hasOwn(rawItem, 'sender');
+      const item = quoteAutopilotExact(rawItem, ['sourceId', 'receivedAt', 'quoteReference', 'evidence', 'requiresHumanValidation', ...(withSender ? ['sender'] : [])]);
+      if (!quoteAutopilotIdentifier(item.sourceId) || seen.has(item.sourceId) || !quoteAutopilotInteger(item.receivedAt, 1, 253402300799)
+        || item.requiresHumanValidation !== true || typeof item.evidence !== 'string' || !item.evidence.trim() || item.evidence.length > 1000
+        || item.quoteReference !== null && (typeof item.quoteReference !== 'string' || !item.quoteReference.trim() || item.quoteReference.length > 64)) return quoteAutopilotInvalid();
+      seen.add(item.sourceId);
+      return Object.freeze({ sourceId: item.sourceId, receivedAt: item.receivedAt, quoteReference: item.quoteReference, evidence: item.evidence,
+        sender: withSender ? senderFrom(item.sender) ?? null : null, requiresHumanValidation: true });
+    });
+    return Object.freeze({ ...value, data: Object.freeze({ organizationId: page.organizationId, items: Object.freeze(items) }) }) as QuoteAutopilotRead<T>;
   }
   if (kind === 'alias') {
     const choice = quoteAutopilotExact(value.data, ['schemaVersion', 'term', 'articleId']);
@@ -5004,6 +5022,11 @@ export const desktopApi = {
     const captured = captureQuoteAutopilotOrigin(origin);
     const request = captureQuoteAutopilotPageInput(input);
     return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_activity', { origin: captured, input: request }), captured, 'activity', request.limit);
+  },
+  /** Client mails accepting a quote (last 30 days); the app matches the local quote. */
+  async readQuoteAutopilotAcceptances(origin: QuoteAutopilotOrigin): Promise<QuoteAutopilotRead<Readonly<{ organizationId: string; items: readonly AutopilotAcceptance[] }>>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_acceptances', { origin: captured }), captured, 'acceptances');
   },
   async readQuoteAutopilotReview(origin: QuoteAutopilotOrigin, input: QuoteAutopilotPageInput): Promise<QuoteAutopilotRead<QuoteAutopilotReviewPage>> {
     const captured = captureQuoteAutopilotOrigin(origin);

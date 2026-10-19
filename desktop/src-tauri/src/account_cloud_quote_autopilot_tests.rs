@@ -138,6 +138,20 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     assert!(parse(&extra).unwrap()["items"][0]["suggestion"].get("sender").is_none());
     let mut missing = sent.clone(); missing["items"][0]["suggestion"]["sender"].as_object_mut().unwrap().remove("phone");
     assert!(parse(&missing).unwrap()["items"][0]["suggestion"].get("sender").is_none());
+    // Quote acceptances read from client mails; a bad sender becomes null, a bad item refuses the page.
+    let accept = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), ACCEPT_PATH, &stamp, 50);
+    let accepted = json!({"organizationId":"org-synthetic","items":[{"sourceId":"ticket-1","receivedAt":1791947827,"quoteReference":"D-2026-0006",
+        "evidence":"Je confirme le devis.","sender":{"email":"marie@rive.ch","name":"Marie","company":null,"phone":null,"street":null,"postcode":null,"city":null,"source":"signature"},
+        "requiresHumanValidation":true}]});
+    assert_eq!(accept(accepted.clone()).unwrap()["items"][0]["quoteReference"], json!("D-2026-0006"));
+    let mut bad_sender = accepted.clone(); bad_sender["items"][0]["sender"]["source"] = json!("guess");
+    assert!(accept(bad_sender).unwrap()["items"][0].get("sender").is_none());
+    let mut no_reference = accepted.clone(); no_reference["items"][0]["quoteReference"] = json!(null);
+    assert!(accept(no_reference).is_some());
+    for (field, bad) in [("requiresHumanValidation", json!(false)), ("evidence", json!("")), ("receivedAt", json!(0)), ("extra", json!(1))] {
+        let mut wrong = accepted.clone(); wrong["items"][0][field] = bad; assert!(accept(wrong).is_none());
+    }
+    let mut other = accepted.clone(); other["organizationId"] = json!("org-other"); assert!(accept(other).is_none());
     // The remembered article choice.
     let choice = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), ALIAS_PATH, &stamp, 50);
     assert!(choice(json!({"schemaVersion":1,"term":"licences zentra support","articleId":"article-1"})).is_some());
@@ -175,7 +189,7 @@ fn product_routes_are_fixed_first_party_https_without_sites_credentials() {
     // cfg(test) may use only the already validated compiled public profile.
     // This unit test neither installs a Sites token nor performs HTTP.
     let expected_origin = account_api_origin().unwrap();
-    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH] {
+    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH] {
         let url = endpoint(path).unwrap(); assert_eq!(url.as_str(), format!("{expected_origin}{path}"));
         assert!(url.query().is_none() && url.fragment().is_none());
         for bad in [format!("{path}/"), format!("{path}?actor=x"), format!("https://example.test{path}")] { assert!(endpoint(&bad).is_err()); }

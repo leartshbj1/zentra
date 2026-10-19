@@ -92,6 +92,11 @@ export function markAutopilotQuoteSent(organizationId: string, proposalId: strin
   if (kind === 'quote' && !entry.sentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, sentAt });
   if (kind === 'invoice' && entry.invoiceId && !entry.invoiceSentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, invoiceSentAt: sentAt });
 }
+/** The request (or accepted-quote mail) that already follows this quote, if any. */
+export function autopilotLinkedRequest(organizationId: string, quoteId: string): string | null {
+  const rows = read()[organizationId] ?? {};
+  return Object.entries(rows).find(([, row]) => row?.quoteId === quoteId)?.[0] ?? null;
+}
 export function linkAutopilotInvoice(organizationId: string, proposalId: string, invoiceId: string) {
   const entry = autopilotCreatedQuote(organizationId, proposalId);
   if (entry && !entry.invoiceId) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, invoiceId });

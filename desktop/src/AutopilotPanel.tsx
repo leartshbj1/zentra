@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, Check, CheckCircle2, ChevronRight, ClipboardCheck, Mail, Workflow } from 'lucide-react';
 import { useAppLanguage, getAppLocale } from './language';
 import { autopilotCopy, autopilotCatalogueCopy, autopilotReviewReason } from './autopilotPresentation';
-import { normalizeAutopilotReviewPage, type AutopilotReviewItem } from './autopilotReview';
+import { normalizeAutopilotReviewPage, type AutopilotReviewItem, type AutopilotRequestKey } from './autopilotReview';
 import { autopilotLineLinks, saveAutopilotLineLink, type AutopilotLineLink } from './autopilotLinks';
 import { autopilotRequestStage } from './autopilotQuote';
 import type { AutopilotView } from './autopilotView';
@@ -118,6 +118,31 @@ function UnmatchedLines({ phrases, catalogue, disabled, onChoose, onCreate, link
   </div>;
 }
 
+/** A client mail accepting a quote, outside any request. */
+export type AutopilotAcceptanceCard = Readonly<{ key: string; sourceId: string; receivedAt: number; evidence: string; sender: string;
+  /** Present when the quote could not be found alone: the person picks it. */ candidates?: readonly Readonly<{ id: string; label: string }>[] }>;
+
+function AcceptanceChoice({ card, disabled, onChoose }: { card: AutopilotAcceptanceCard; disabled: boolean; onChoose?: (sourceId: string, quoteId: string | null) => void }) {
+  const copy = autopilotCopy(useAppLanguage());
+  const [quoteId, setQuoteId] = useState(card.candidates?.length === 1 ? card.candidates[0].id : '');
+  return <li data-state="choose">
+    <CheckCircle2 size={21} aria-hidden="true" />
+    <div><strong>{copy.acceptanceChooseTitle.replace('{sender}', card.sender || copy.acceptanceUnknownSender)}</strong>
+      <time dateTime={new Date(card.receivedAt * 1000).toISOString()}>{new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(card.receivedAt * 1000)}</time>
+      <blockquote className="quote-autopilot__evidence">{card.evidence}</blockquote>
+      {card.candidates?.length ? <label className="quote-autopilot__acceptance-pick">{copy.acceptanceWhichQuote}
+        <select value={quoteId} disabled={disabled} onChange={event => setQuoteId(event.target.value)}>
+          <option value="">{copy.acceptancePick}</option>
+          {card.candidates.map(row => <option key={row.id} value={row.id}>{row.label}</option>)}
+        </select></label> : <p className="quote-autopilot__done-summary">{copy.acceptanceNoQuote}</p>}
+    </div>
+    <div className="quote-autopilot__request-actions">
+      {onChoose && card.candidates?.length ? <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled || !quoteId} onClick={() => onChoose(card.sourceId, quoteId)}>{copy.acceptanceConfirm}</button> : null}
+      {onChoose && <button type="button" disabled={disabled} onClick={() => onChoose(card.sourceId, null)}>{copy.acceptanceDismiss}</button>}
+    </div>
+  </li>;
+}
+
 /** A request whose quote the client accepted: the invoice is made, then sent, the same way. */
 function AcceptedRequest({ quote, disabled, onCreate, onSend, onOpen }: { quote: AutopilotCreatedQuoteView; disabled: boolean;
   onCreate?: () => void; onSend?: () => void; onOpen?: () => void }) {
@@ -148,23 +173,26 @@ export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boole
   /** The client accepted the quote; an invoice is the next step. */ accepted?: boolean;
   invoice?: Readonly<{ number: string; issued: boolean }>; invoiceSentAt?: number }>;
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, acceptances = [], onChooseAcceptance, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
   canAddCatalogue?: boolean;
+  /** Client mails accepting a quote, outside any request. */
+  acceptances?: readonly AutopilotAcceptanceCard[];
+  onChooseAcceptance?: (sourceId: string, quoteId: string | null) => void;
   /** Creates the quote at once, with its client and lines. */
   onCreateQuote?: (item: AutopilotReviewItem) => void;
   /** The quote already created from this request, if any. */
-  createdQuote?: (item: AutopilotReviewItem) => AutopilotCreatedQuoteView | null;
-  onOpenCreatedQuote?: (item: AutopilotReviewItem) => void;
+  createdQuote?: (item: AutopilotRequestKey) => AutopilotCreatedQuoteView | null;
+  onOpenCreatedQuote?: (item: AutopilotRequestKey) => void;
   /** Numbers the quote if needed, then opens the e-mail to send it. */
-  onSendCreatedQuote?: (item: AutopilotReviewItem) => void;
+  onSendCreatedQuote?: (item: AutopilotRequestKey) => void;
   /** Makes the invoice from the accepted quote in one step. */
-  onCreateInvoice?: (item: AutopilotReviewItem) => void;
+  onCreateInvoice?: (item: AutopilotRequestKey) => void;
   /** Issues the invoice after the usual confirmation, then opens the e-mail. */
-  onSendInvoice?: (item: AutopilotReviewItem) => void;
-  onOpenInvoice?: (item: AutopilotReviewItem) => void;
+  onSendInvoice?: (item: AutopilotRequestKey) => void;
+  onOpenInvoice?: (item: AutopilotRequestKey) => void;
   /** Local catalogue offered for request lines without an article. */
   catalogueArticles?: readonly Readonly<{ id: string; name: string }>[];
   /** Saves "this wording means this article"; resolves with the remembered wording. */
@@ -191,16 +219,19 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
   };
   const readable = state.status === 'ready' && !!page && !state.reviewsUnavailable;
   // A request whose quote was sent is done: it leaves the list to follow.
-  const stageOf = (item: AutopilotReviewItem) => autopilotRequestStage(createdQuote?.(item) ?? null);
-  const sentOf = (item: AutopilotReviewItem) => stageOf(item) === 'done' ? createdQuote!(item) : null;
+  const stageOf = (item: AutopilotRequestKey) => autopilotRequestStage(createdQuote?.(item) ?? null);
+  const sentOf = (item: AutopilotRequestKey) => stageOf(item) === 'done' ? createdQuote!(item) : null;
   const active = page ? page.items.filter(item => stageOf(item) !== 'done') : [];
-  const finished = page ? page.items.filter(item => stageOf(item) === 'done') : [];
+  const finished: AutopilotRequestKey[] = page ? page.items.filter(item => stageOf(item) === 'done') : [];
+  const acceptedCards = acceptances.filter(card => !card.candidates && stageOf({ proposalId: card.key }) === 'accepted');
+  const choiceCards = acceptances.filter(card => card.candidates);
+  finished.push(...acceptances.filter(card => !card.candidates && stageOf({ proposalId: card.key }) === 'done').map(card => ({ proposalId: card.key })));
   return <><section className="quote-autopilot quote-autopilot--reviews" aria-labelledby="quote-autopilot-review-title">
     <header><div><h2 id="quote-autopilot-review-title">{copy.reviewTitle}</h2><p>{copy.reviewDescription}</p></div>
       {onRefresh && <button type="button" disabled={state.readingReviews} onClick={() => { void onRefresh(); }}>{copy.refresh}</button>}
     </header>
     {!readable ? <p className="quote-autopilot__context" role="status">{state.status !== 'ready' ? statusText(state, language) : state.readingReviews ? copy.loading : copy.readError}</p>
-      : active.length === 0 ? <p className="quote-autopilot__context">{finished.length ? copy.allDone : copy.empty}</p>
+      : active.length === 0 ? (choiceCards.length || acceptedCards.length ? null : <p className="quote-autopilot__context">{finished.length ? copy.allDone : copy.empty}</p>)
         : <ol className="quote-autopilot__requests">{active.map(item => stageOf(item) === 'accepted' ? <AcceptedRequest key={item.proposalId}
           quote={createdQuote!(item)!} disabled={opening !== null} onCreate={onCreateInvoice ? () => onCreateInvoice(item) : undefined}
           onSend={onSendInvoice ? () => onSendInvoice(item) : undefined} onOpen={onOpenInvoice ? () => onOpenInvoice(item) : undefined} /> : <li key={item.proposalId}>
@@ -245,6 +276,12 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
             {copy.openRequest}<ArrowUpRight size={16} aria-hidden="true" />
           </button></div>
         </li>)}</ol>}
+    {readable && (choiceCards.length > 0 || acceptedCards.length > 0) && <ol className="quote-autopilot__requests quote-autopilot__requests--acceptances" aria-label={copy.acceptanceListTitle}>
+      {choiceCards.map(card => <AcceptanceChoice key={card.key} card={card} disabled={opening !== null} onChoose={onChooseAcceptance} />)}
+      {acceptedCards.map(card => { const key = { proposalId: card.key }; return <AcceptedRequest key={card.key} quote={createdQuote!(key)!} disabled={opening !== null}
+        onCreate={onCreateInvoice ? () => onCreateInvoice(key) : undefined} onSend={onSendInvoice ? () => onSendInvoice(key) : undefined}
+        onOpen={onOpenInvoice ? () => onOpenInvoice(key) : undefined} />; })}
+    </ol>}
     {openFailed && <p className="quote-autopilot__error" role="status">{copy.openError}</p>}
     {state.error === 'busy' && <p className="quote-autopilot__context" role="status">{copy.busy}</p>}
     {readable && page.nextCursor && onNext && <footer><button type="button" disabled={state.readingReviews} onClick={() => { void onNext(); }}>{copy.more}<ChevronRight size={16} aria-hidden="true" /></button></footer>}

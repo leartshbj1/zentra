@@ -29,7 +29,7 @@ export type AutopilotSender = Readonly<{
   street: string | null; postcode: string | null; city: string | null; source: 'signature' | 'envelope' | 'none';
 }>;
 /** A malformed sender is dropped; the suggestion stays. */
-function senderFrom(raw: unknown): AutopilotSender | undefined {
+export function senderFrom(raw: unknown): AutopilotSender | undefined {
   const value = dataRecord(raw, ['email', 'name', 'company', 'phone', 'street', 'postcode', 'city', 'source']);
   if (!value || typeof value.email !== 'string' || (value.email !== '' && !/^[^\s@]{1,128}@[^\s@]{1,125}$/.test(value.email))
     || value.email !== value.email.toLowerCase() || !['signature', 'envelope', 'none'].includes(value.source as string)) return undefined;
@@ -138,3 +138,6 @@ export function normalizeAutopilotReviewPage(raw: unknown, organizationId?: stri
     return Object.freeze({ organizationId, items: Object.freeze(items), nextCursor: page.nextCursor as string | null });
   } catch { return null; }
 }
+
+/** What identifies a followed request: its proposal, or an accepted-quote mail outside any request. */
+export type AutopilotRequestKey = Readonly<{ proposalId: string }>;

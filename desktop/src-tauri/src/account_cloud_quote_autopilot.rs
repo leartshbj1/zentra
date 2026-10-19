@@ -11,6 +11,7 @@ const CONSENT_PATH: &str = "/api/account/automation/quote-consent";
 const ACTIVITY_PATH: &str = "/api/account/automation/quote-activity";
 const REVIEW_PATH: &str = "/api/account/automation/quote-review";
 const ALIAS_PATH: &str = "/api/account/automation/quote-alias";
+const ACCEPT_PATH: &str = "/api/account/automation/quote-acceptances";
 const CONSENT_VERSION: &str = "action-engine-quote-draft-customer-2026-10-11";
 
 #[derive(Default)]
@@ -299,6 +300,23 @@ fn reason(value: &str) -> bool {
         "invalid_decision" | "provider_unavailable")
 }
 fn timestamp(value: u64) -> bool { (1..=253402300799).contains(&value) }
+/// Mails of the last 30 days in which a client accepts a quote. The server
+/// does not know local quotes; the app matches them and a person confirms.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AcceptancePage { organization_id: String, items: Vec<Acceptance> }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Acceptance {
+    source_id: String, received_at: u64,
+    #[serde(deserialize_with = "required_nullable")] quote_reference: Option<String>,
+    evidence: String,
+    /// Checked on its own; a malformed sender becomes null, the item stays.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sender: Option<serde_json::Value>,
+    requires_human_validation: bool,
+}
+const ACCEPT_LIMIT: usize = 200;
 fn unique<'a>(values: impl Iterator<Item = &'a str>) -> bool {
     let mut seen = HashSet::new(); values.into_iter().all(|v| seen.insert(v))
 }
@@ -311,6 +329,16 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
     if path == CONSENT_PATH {
         let data: Consent = serde_json::from_slice(bytes).ok()?;
         return data.valid().then(|| serde_json::to_value(data).ok()).flatten();
+    }
+    if path == ACCEPT_PATH {
+        let mut data: AcceptancePage = serde_json::from_slice(bytes).ok()?;
+        for item in &mut data.items { item.sender = item.sender.take().and_then(sender); }
+        if data.organization_id != stamp.inbox.session.organization_id || data.items.len() > ACCEPT_LIMIT
+            || !unique(data.items.iter().map(|v| v.source_id.as_str())) || data.items.iter().any(|v| {
+                !id(&v.source_id) || !timestamp(v.received_at) || !text(&v.evidence, 1000) || !v.requires_human_validation
+                    || v.quote_reference.as_deref().is_some_and(|r| !text(r, 64))
+            }) { return None; }
+        return serde_json::to_value(data).ok();
     }
     if path == ACTIVITY_PATH {
         let data: Page<ActivityItem> = serde_json::from_slice(bytes).ok()?;
@@ -410,6 +438,13 @@ pub(crate) async fn set_quote_autopilot_article_choice(store: State<'_, LocalSto
     if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
     let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
     let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, ALIAS_PATH, None, Some(input.body())).await });
+    Ok(deliver_read(owned, origin, task).await)
+}
+#[tauri::command]
+pub(crate) async fn quote_autopilot_acceptances(store: State<'_, LocalStore>, origin: Origin) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
+    let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, ACCEPT_PATH, None, None).await });
     Ok(deliver_read(owned, origin, task).await)
 }
 async fn read_page(store: &LocalStore, origin: Origin, input: PageInput, path: &'static str) -> ReadReply {

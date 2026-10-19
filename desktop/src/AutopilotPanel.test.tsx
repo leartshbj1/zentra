@@ -172,3 +172,17 @@ it('brings an accepted quote back to follow, to create then send its invoice', a
   await act(async () => root.render(render()));
   expect(host.querySelector('.quote-autopilot--done')!.textContent).toContain(copy.doneInvoice.replace('{number}', 'F-2026-010'));
 });
+it('asks which quote a client mail accepts when it is not found alone', async () => {
+  const copy = autopilotCopy('fr');
+  const choose = vi.fn();
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews: { ...state.reviews!, items: [] } }} organizationId="company-a" onOpenSource={async () => {}}
+    acceptances={[{ key: 'acceptance:s1', sourceId: 's1', receivedAt: 1791947827, evidence: 'Nous acceptons votre offre.', sender: 'Atelier Rive',
+      candidates: [{ id: 'q1', label: 'D-2026-0006 · Atelier Rive' }, { id: 'q2', label: 'D-2026-0007 · Paul' }] }]} onChooseAcceptance={choose} />);
+  expect(host.textContent).toContain(copy.acceptanceChooseTitle.replace('{sender}', 'Atelier Rive'));
+  const confirm = [...host.querySelectorAll('button')].find(item => item.textContent === copy.acceptanceConfirm)!;
+  expect(confirm.disabled).toBe(true);
+  const select = host.querySelector('select')!;
+  await act(async () => { select.value = 'q2'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  await act(async () => { confirm.click(); });
+  expect(choose).toHaveBeenCalledWith('s1', 'q2');
+});
