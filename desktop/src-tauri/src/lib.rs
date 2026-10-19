@@ -107,6 +107,20 @@ pub async fn repair_empty_company_link(profile: std::path::PathBuf, email: &str,
     company_collaboration::repair::run(&store, email, previous_org).await.map_err(error::command_error)
 }
 
+/// F11 (and Échap to leave) put the desktop window in or out of full screen.
+/// "toggle" switches, "exit" only leaves; returns whether it is now full screen.
+#[cfg(desktop)]
+#[tauri::command]
+fn set_window_fullscreen(window: tauri::WebviewWindow, mode: String) -> Result<bool, String> {
+    let current = window.is_fullscreen().map_err(|_| "Le plein écran n'est pas disponible.".to_string())?;
+    let next = match mode.as_str() { "toggle" => !current, "exit" => false, _ => return Err("Mode de plein écran inconnu.".into()) };
+    if next != current { window.set_fullscreen(next).map_err(|_| "Le plein écran n'est pas disponible.".to_string())?; }
+    Ok(next)
+}
+#[cfg(mobile)]
+#[tauri::command]
+fn set_window_fullscreen(_mode: String) -> Result<bool, String> { Ok(false) }
+
 #[tauri::command]
 fn is_native_ready(app: tauri::AppHandle) -> Result<bool, String> {
     startup_recovery::readiness(&app)
@@ -233,6 +247,7 @@ pub fn run() {
             appearance::set_app_appearance,
             macos_navigation::configure_macos_navigation,
             is_native_ready,
+            set_window_fullscreen,
             diagnostics::append_diagnostic_events,
             diagnostics::get_diagnostics_summary,
             diagnostics::export_diagnostics,

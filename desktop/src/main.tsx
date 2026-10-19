@@ -5,6 +5,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import {installDiagnosticCapture} from './diagnostics';
+import { installFullscreenShortcuts } from './windowFullscreen';
 import {DiagnosticBoundary} from './DiagnosticBoundary';
 import { LanguageBoot } from './LanguageStatus';
 import './styles.css';
@@ -19,6 +20,7 @@ import './assistant.css';
 
 const root = document.getElementById('root');
 installDiagnosticCapture();
+installFullscreenShortcuts();
 if (!root) throw new Error('Le point de montage de l’application est introuvable.');
 
 createRoot(root).render(
