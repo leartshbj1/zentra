@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import type { MailSignal } from './autopilotSignals';
-import type { CatalogItem, Supplier, SupplierInvoice, SupplierOrder } from './types';
+import type { CatalogItem, Supplier, SupplierInvoice, SupplierOrder, SupplierOrderLine } from './types';
 
 const invoice = (id: string, dueDate: string, values: Partial<SupplierInvoice> = {}) => ({ id, dueDate, documentStatus: 'validated', balanceCents: 100, ...values }) as SupplierInvoice;
-const line = (values: Record<string, unknown>) => ({ id: 'l', catalogItemId: 'a', quantityMilli: 5000, remainingReceivableMilli: 0, ...values });
+const line = (values: Record<string, unknown>) => ({ id: 'l', catalogItemId: 'a', quantityMilli: 5000, remainingReceivableMilli: 0, ...values }) as unknown as SupplierOrderLine;
 const order = (id: string, values: Partial<SupplierOrder> & { lines?: unknown[] }) => ({ id, supplierId: 'sup', status: 'confirmed', orderDate: '2026-10-01', lines: [], ...values }) as SupplierOrder;
 const signal = (subject: string): MailSignal => ({ kind: 'supplier_order', sourceId: 's', receivedAt: 1, subject, evidence: '', quoteReference: null, invoiceReference: null,
   amountCents: null, currency: null, documentType: null, sender: { email: 'billing@acme.ch', name: null, company: null, phone: null, street: null, postcode: null, city: null, source: 'envelope' }, requiresHumanValidation: true });

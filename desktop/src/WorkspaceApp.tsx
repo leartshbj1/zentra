@@ -14,6 +14,7 @@ import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { appointmentsToShow, clientFromSender, contactProposals } from './autopilotContacts';
+import { bankProposals, hasLinkedBank, statementDue } from './autopilotBank';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { AutopilotActionCard } from './AutopilotActionList';
@@ -276,6 +277,7 @@ import type {
   ProjectTask,
   Quote,
   Reminder,
+  BankWorkspace,
   ReminderHistory,
   ReminderSettings,
   ReminderTemplate,
@@ -970,8 +972,9 @@ function WorkspaceContent({
       const sender = signal.sender?.company || signal.sender?.name || signal.sender?.email || '';
       const base = { sourceId: signal.sourceId, receivedAt: signal.receivedAt, evidence: signal.evidence, sender };
       const money = (cents: number) => formatMoney(cents, signal.currency ?? 'CHF');
-      if (proposal.action === 'record_payment') return { ...base, title: copy.signalPayment,
-        actionLabel: copy.signalPaymentAction.replace('{amount}', money(proposal.amountCents)).replace('{number}', proposal.invoice.number) };
+      if (proposal.action === 'record_payment') return hasLinkedBank(autopilotBank)
+        ? { ...base, title: copy.waitStatementTitle + ' · ' + proposal.invoice.number, actionLabel: copy.waitStatementAction }
+        : { ...base, title: copy.signalPayment, actionLabel: copy.signalPaymentAction.replace('{amount}', money(proposal.amountCents)).replace('{number}', proposal.invoice.number) };
       if (proposal.action === 'choose_invoice') return { ...base, title: copy.signalPayment, actionLabel: copy.signalChooseAction,
         candidates: proposal.candidates.map(invoice => ({ id: invoice.id, label: [invoice.number, money(invoiceOpenBalance(invoice, workspace.invoices, workspace.payments))].join(' · ') })) };
       if (proposal.action === 'decline_quote') return { ...base, title: copy.signalDeclined, actionLabel: copy.signalDeclineAction.replace('{number}', proposal.quote.number) };
@@ -1025,6 +1028,7 @@ function WorkspaceContent({
   };
   // Reminders and quote follow-ups, prepared by the native cycle and sent by a person.
   const [dueReminders, setDueReminders] = useState<readonly Reminder[]>([]);
+  const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
   const [followUpMail, setFollowUpMail] = useState<{ target: MailTarget; key: string; subject?: string } | null>(null);
   const [, setFollowUpVersion] = useState(0);
@@ -1035,6 +1039,7 @@ function WorkspaceContent({
       setRemindersOn(settings.enabled);
       setDueReminders(settings.enabled ? await desktopApi.listReminders({ status: 'due' }) : []);
     } catch { /* read again next time */ }
+    try { setAutopilotBank(await desktopApi.getBankWorkspace(workspaceRef.current.workNotesScope)); } catch { /* read again next time */ }
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
     if (!autopilotContext) return { cards: [], summary: '' };
@@ -1105,6 +1110,23 @@ function WorkspaceContent({
       cards.push({ key, title: copy.tomorrowTitle.replace('{time}', item.extraction.allDay ? '' : item.extraction.startTime).replace('{title}', item.extraction.title || item.subject),
         detail: item.extraction.location || item.sender, actions: [{ id: 'open-agenda', label: copy.actionOpenAgenda, primary: true }, { id: 'ignore', label: copy.actionDone }] });
     }
+    // Bank: movements to confirm (the surest first), then those to identify.
+    const bankRows = bankProposals(autopilotBank, mailSignals, workspace.invoices, workspace.clients).filter(row => !entries['bank:' + row.movement.id]?.ignored);
+    let toConfirm = 0, toIdentify = 0;
+    if (statementDue(autopilotBank, today) && !(entries['statement']?.until && entries['statement'].until > today))
+      cards.push({ key: 'statement', title: copy.statementTitle, detail: copy.statementDetail, actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-bank', label: copy.actionImportStatement, primary: true }] });
+    for (const row of bankRows) {
+      const amount = formatMoney(Math.abs(row.movement.amountCents), row.movement.currency || 'CHF');
+      const who = row.movement.counterpartyName || row.movement.unstructured || row.movement.reference;
+      const note = row.announcedBy ? copy.bankAnnounced.replace('{date}', new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(row.announcedBy.receivedAt * 1000)) : undefined;
+      if (row.action === 'choose') { toIdentify++; cards.push({ key: 'bank:' + row.movement.id, title: copy.bankUnknown.replace('{amount}', amount), detail: [who, date(row.movement.bookingDate)].filter(Boolean).join(' · '), note,
+        actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-bank', label: copy.actionChooseInvoice, primary: true }] }); continue; }
+      toConfirm++;
+      const title = (row.movement.creditDebit === 'CRDT' ? copy.bankReceived.replace('{from}', who) : copy.bankPaid.replace('{to}', who)).replace('{amount}', amount);
+      const detail = [row.invoiceNumber ? copy.bankInvoice.replace('{number}', row.invoiceNumber) : row.label, row.movement.suggestion?.kind === 'automatic_partial' && row.action === 'confirm_invoice' ? copy.bankPartial : '', date(row.movement.bookingDate)].filter(Boolean).join(' · ');
+      cards.push({ key: 'bank:' + row.movement.id, title, detail, note, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
+    }
+    const bankSummary = [toConfirm ? copy.summaryBankConfirm.replace('{n}', String(toConfirm)) : '', toIdentify ? copy.summaryBankIdentify.replace('{n}', String(toIdentify)) : ''];
     // Purchases: supplier invoices to pay soon, low stock, deliveries announced.
     const toPay = invoicesToPay(workspace.supplierInvoices, today).filter(invoice => !entries['pay:' + invoice.id]?.ignored && !(entries['pay:' + invoice.id]?.until && entries['pay:' + invoice.id]!.until! > today));
     for (const invoice of toPay) {
@@ -1131,7 +1153,8 @@ function WorkspaceContent({
     const summary = [ready ? copy.followUpSummaryReady.replace('{n}', String(ready)) : '', waiting ? copy.followUpSummaryWaiting.replace('{n}', String(waiting)) : '',
       contacts ? copy.summaryContacts.replace('{n}', String(contacts)) : '', appointments ? copy.summaryAppointments.replace('{n}', String(appointments)) : '',
       toPay.length ? copy.summaryToPay.replace('{n}', String(toPay.length)) : '', lowStock.length ? copy.summaryLowStock.replace('{n}', String(lowStock.length)) : '',
-      deliveries ? copy.summaryDeliveries.replace('{n}', String(deliveries)) : ''].filter(Boolean).join(' · ');
+      deliveries ? copy.summaryDeliveries.replace('{n}', String(deliveries)) : '',
+      ...bankSummary].filter(Boolean).join(' · ');
     return { cards, summary };
   };
   const runFollowUp = async (key: string, actionId: string) => {
@@ -1139,6 +1162,23 @@ function WorkspaceContent({
     const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage()), today = todayIso();
     const refresh = () => setFollowUpVersion(version => version + 1);
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
+    if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
+    if (key.startsWith('bank:') && actionId === 'confirm-bank') {
+      const row = bankProposals(autopilotBank, mailSignals, workspaceRef.current.invoices, workspaceRef.current.clients).find(item => 'bank:' + item.movement.id === key);
+      if (!row) return;
+      const confirmed = await act(async () => {
+        if (row.action === 'confirm_invoice') await desktopApi.confirmBankReconciliation(row.movement.id, row.invoiceId!);
+        else if (row.action === 'confirm_supplier') await desktopApi.confirmSupplierBankReconciliation(row.movement.id, row.supplierInvoiceId!);
+        else if (row.action === 'confirm_expense') await desktopApi.confirmExpenseBankReconciliation(row.movement.id, row.expenseId!, undefined, createId());
+        return desktopApi.loadWorkspace();
+      }, copy.bankConfirmed, false);
+      if (confirmed) {
+        // The mail that announced this payment is settled too.
+        if (row.announcedBy) saveSignalDecision(organizationId, row.announcedBy.sourceId, 'done');
+        void readFollowUps(); refresh();
+      }
+      return;
+    }
     if (key.startsWith('pay:')) {
       const invoice = workspaceRef.current.supplierInvoices.find(row => 'pay:' + row.id === key);
       if (!invoice) return;
