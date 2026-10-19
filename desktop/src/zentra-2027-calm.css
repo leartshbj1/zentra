@@ -1,0 +1,565 @@
+/*
+ * Zentra 2027, calm pass. Loaded last.
+ * Removes the patterns that make an interface look generated: coloured bars
+ * on the edge of cards, cards inside cards, icons in tinted squares, dots in
+ * every pill, numbered badges everywhere and green on everything. Green is
+ * kept for the main action and for "done"; the rest is ink and grey.
+ * Custom properties only, so the dark palette script produces nothing here.
+ */
+@media screen {
+  /* ---------- Navigation ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__selection {
+    background: var(--z7-selected);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button.is-active > svg {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button em,
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button[data-nav='automation'] em {
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button[data-nav='automation'] {
+    min-height: 36px;
+    margin-bottom: 6px;
+    padding: 6px 10px;
+    background: transparent;
+    box-shadow: none;
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button[data-nav='automation'].is-active {
+    box-shadow: none;
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav button[data-nav='automation'] > svg {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+    stroke-width: 1.7;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header .page-header__section {
+    color: var(--apple-secondary);
+    font-weight: 600;
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .mobile-navigation button[aria-current] {
+      background: transparent;
+      color: var(--apple-ink);
+      font-weight: 650;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .mobile-navigation button[aria-current] > svg {
+      color: var(--apple-ink);
+    }
+  }
+
+  /* Counts next to tabs are plain numbers. */
+  html[data-app-theme] .desktop-app[data-experience] :is(.automation-hub__count, .automation-centre .automation-centre__tabs > button > span) {
+    min-width: 0;
+    margin-left: 6px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent !important;
+    color: var(--apple-secondary) !important;
+    font-size: inherit;
+    font-weight: 600;
+  }
+
+  /* ---------- Status: tinted words, no dots ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .status::before {
+    content: none;
+  }
+
+  /* ---------- Icons: no tinted squares ---------- */
+  html[data-app-theme] .desktop-app[data-experience] :is(.activity-shortcuts__icon, .automation-journal__symbol, .document-cell > span:first-child) {
+    background: transparent;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation .settings-browser__icon,
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] .settings-browser__icon {
+    width: 22px;
+    height: 22px;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation .settings-browser__icon svg {
+    color: var(--apple-secondary);
+    stroke-width: 1.7;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .settings-browser--guided .settings-browser__navigation [data-settings-link][aria-current] .settings-browser__icon svg {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .dashboard-personal-actions--toolbar .quick-actions > button > svg {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+  }
+
+  /* ---------- Menu guide and the path of a sale: text, not badges ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide li {
+    padding: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide li > span {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide li > span::after {
+    content: '.';
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide ol {
+    gap: 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow {
+    gap: 2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow button {
+    min-height: 32px;
+    padding: 0 6px;
+    border: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow__number {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: transparent !important;
+    color: inherit !important;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow__number::after {
+    content: '.';
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow button[aria-current] {
+    border: 0;
+    color: var(--apple-ink);
+    font-weight: 650;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 6px;
+  }
+
+  /* ---------- Autopilote hero: no dot, no inner box ---------- */
+  html[data-app-theme] .desktop-app[data-experience] :is(.autopilot-home__orb, .automation-hub__mode::before) {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub.automation-hub .automation-hub__mode {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home__columns {
+    padding: 0 0 0 32px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: inset 1px 0 0 var(--z-hairline);
+  }
+  @media (max-width: 1100px) {
+    html[data-app-theme] .desktop-app[data-experience] .autopilot-home__columns {
+      padding: 20px 0 0;
+      box-shadow: inset 0 1px 0 var(--z-hairline);
+    }
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-home__columns li button > svg:first-child {
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot--status > svg {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+  }
+
+  /* ---------- Autopilote follow-up: one card per request, read top to bottom ---------- */
+  /* The attention list repeats the counts of the hero; the requests come first. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > .automation-brief--attention {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > :is(.quote-autopilot--reviews, .quote-autopilot--done) {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot--reviews::before {
+    content: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot :is(header h2, .quote-autopilot__context) {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot--done header h2::before {
+    content: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot > header > button {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--z7-button-paper);
+    color: var(--apple-ink);
+    font-weight: 600;
+  }
+
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li,
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li,
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li:is([data-state='accepted'], [data-state='choose']),
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li[data-state='accepted'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 6px 16px;
+    padding: 20px 22px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > svg {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > div:not(.quote-autopilot__request-actions) {
+    display: contents;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > div > * {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > div > strong {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > div > time {
+    grid-column: 1;
+    grid-row: 2;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > .quote-autopilot__request-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px 14px;
+  }
+  /* Secondary actions read as links; only the next step is a button. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > .quote-autopilot__request-actions > button,
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li > .quote-autopilot__request-actions > button:not(.is-ready) {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > .quote-autopilot__request-actions > button:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > div > ul {
+    margin-top: 10px;
+    padding: 0;
+    list-style: none;
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > div > .quote-autopilot__catalogue-hint {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* Steps: one plain line, the current step in bold. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps {
+    gap: 4px 18px;
+    margin: 14px 0 4px !important;
+    padding: 12px 0 0;
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li,
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li[data-state='current'] {
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--apple-secondary);
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li > span,
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li:is([data-state='current'], [data-state='done']) > span {
+    width: auto;
+    height: auto;
+    margin-right: 2px;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li > span::after {
+    content: '.';
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li[data-state='current'] {
+    color: var(--apple-ink);
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__steps > li[data-state='done'] {
+    color: var(--apple-secondary);
+    text-decoration: line-through;
+    text-decoration-color: var(--apple-line);
+  }
+
+  /* Lines to match: a plain list inside the card, no second box. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > div > :is(.quote-autopilot__unmatched, .quote-autopilot__lines, section, fieldset):not(.quote-autopilot__created) {
+    margin-top: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li input:not([type='checkbox']) {
+    min-height: 36px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > div button:not(.quote-autopilot__create-quote) {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--z7-button-paper);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > div button:disabled {
+    opacity: 0.45;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__create-quote {
+    justify-self: start;
+    margin-top: 10px !important;
+  }
+
+  /* Created quote or invoice: a short confirmation line, then the actions. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created {
+    margin-top: 10px !important;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created > strong {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created > strong > svg {
+    color: var(--z7-step-done);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created > p {
+    color: var(--apple-secondary);
+  }
+
+  /* Accepted quotes and quote choices: same card, no coloured edge. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances {
+    margin-top: 14px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li > .quote-autopilot__request-actions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-content: flex-start;
+    margin-top: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__evidence {
+    border-left: 2px solid var(--apple-line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+  }
+
+  /* Done: a quiet list, one line each. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot--done {
+    margin-top: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done {
+    display: block;
+    margin-top: 10px;
+    border-radius: 12px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done > li {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    padding: 14px 18px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done > li + li {
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done > li > svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--z7-step-done);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--done > li .quote-autopilot__request-actions > button {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font-weight: 500;
+  }
+
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 16px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > .quote-autopilot__request-actions {
+      grid-column: 1;
+      grid-row: auto;
+      justify-content: flex-start;
+      order: 99;
+    }
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li .quote-autopilot__unmatched {
+    margin-top: 8px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li .quote-autopilot__unmatched li {
+    padding: 12px 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: inset 0 1px 0 var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li .quote-autopilot__unmatched :is(.quote-autopilot__unmatched-actions button, .quote-autopilot__change) {
+    border-radius: 8px;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__steps > li > span {
+    display: inline;
+    border: 0;
+    outline: 0;
+    box-shadow: none;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li > .quote-autopilot__request-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li > .quote-autopilot__request-actions > button:not(.is-ready) {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li > .quote-autopilot__request-actions > button.is-ready {
+    min-height: 36px;
+    margin: 0;
+    padding: 0 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li > .quote-autopilot__request-actions > button.is-ready:disabled {
+    opacity: 0.45;
+  }
+}
+@media screen {
+  /* Links to the source come last, under the next step. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:not(.quote-autopilot__requests--done) > li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > div > :is(strong, time) {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:not(.quote-autopilot__requests--done) > li > .quote-autopilot__request-actions {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+    margin-top: 6px;
+    order: 99;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created > div {
+    align-items: center;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__created > div > button {
+    min-height: 36px;
+    margin: 0;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li > .quote-autopilot__request-actions > button {
+    width: auto;
+    flex: 0 0 auto;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li > .quote-autopilot__request-actions {
+    inline-size: auto;
+    max-inline-size: none;
+    align-items: center;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide li {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.menu-guide li > span, .sales-flow__number) {
+    display: inline;
+    white-space: nowrap;
+  }
+  /* The Autopilote hero already says what to do on that page. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content[data-screen='automation'] > .menu-guide {
+    display: none;
+  }
+}
