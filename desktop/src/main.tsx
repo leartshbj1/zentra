@@ -46,3 +46,4 @@ import './clarity-2026.css';
 import './zentra-2027.css';
 import './zentra-2027-pages.css';
 import './zentra-2027-sober.css';
+import './zentra-2027-menus.css';
