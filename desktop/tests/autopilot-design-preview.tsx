@@ -67,6 +67,14 @@ const followUps: AutopilotActionCard[] = [
     evidence: '« Nous réglerons la facture le 30 octobre. »', actions: [{ id: 'postpone', label: 'Reporter de 7 jours', primary: true }, { id: 'send', label: 'Envoyer quand même' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'quote:q7', title: 'Relancer le devis D-2026-0007', detail: 'Atelier du Lac · envoyé le 12 oct. 2026 · valable jusqu’au 11 nov. 2026',
     actions: [{ id: 'send-quote', label: 'Envoyer', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'bank:b1', title: 'CHF 1 780.00 reçu de Résidence Bellevue', detail: 'facture F-2026-0012 · 18 oct. 2026', note: 'Le client l’avait annoncé le 17 oct. 2026.', actions: [{ id: 'confirm', label: 'Confirmer', primary: true }, { id: 'choose', label: 'Choisir la facture' }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'pay:p1', title: 'À payer · Bois & Parquets SA', detail: 'FA-8812 · CHF 2 340.00 · échéance 24 oct. 2026', actions: [{ id: 'pay', label: 'Payer', primary: true }, { id: 'iban', label: 'Copier IBAN et référence' }, { id: 'view', label: 'Voir la facture' }] },
+  { key: 'stock:s1', title: 'Stock bas · Vitrificateur mat 5 l', detail: '2 restants (seuil 5)', actions: [{ id: 'order', label: 'Préparer la commande', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'contact:c1', title: 'Nouvelles coordonnées · Atelier du Lac', detail: 'Rue du Port 4, 1006 Lausanne · 021 555 01 02', actions: [{ id: 'update', label: 'Mettre à jour la fiche', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'appt:a1', title: 'Rendez-vous : visite chantier Morel', detail: 'mardi 21 oct. 2026, 10:00 · Lausanne', actions: [{ id: 'agenda', label: 'Ajouter à l’agenda', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'hours:h1', title: '12 h non facturées · Résidence Bellevue · projet Rénovation hall', detail: 'Environ CHF 1 140.00 selon les tarifs saisis', actions: [{ id: 'invoice', label: 'Préparer la facture', primary: true }, { id: 'project', label: 'Voir le projet' }] },
+  { key: 'vat:v1', title: 'Décompte TVA T3 2026 prêt à contrôler', detail: 'Échéance indicative 30 nov. 2026', actions: [{ id: 'vat', label: 'Ouvrir la TVA', primary: true }] },
+
 ];
 const signals: AutopilotSignalCard[] = [
   { sourceId: 'm1', receivedAt: at - 7200, title: 'Paiement annoncé', sender: 'Résidence Bellevue', evidence: '« Le virement de CHF 178.00 a été effectué ce matin. »', actionLabel: 'Enregistrer le paiement de CHF 178.00 sur F-2026-0012' },
@@ -78,7 +86,7 @@ const noop = () => undefined;
 function Preview() {
   return <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><main className="app-main" style={{ marginLeft: 0, padding: '32px 40px' }}>
     <section className="page-content" data-screen="automation"><div className="automation-hub automation-hub--preview"><div className="automation-hub__followup">
-      <AutopilotReviews state={state} organizationId="preview-org" onOpenSource={async () => undefined} onRefresh={async () => undefined} onCatalogue={noop} canAddCatalogue
+      <AutopilotReviews onAsk={noop} askNotUnderstood={query.get('ask') === 'help'} state={state} organizationId="preview-org" onOpenSource={async () => undefined} onRefresh={async () => undefined} onCatalogue={noop} canAddCatalogue
         acceptances={acceptances} onChooseAcceptance={noop} followUps={followUps} followUpSummary="2 relances prêtes · 1 en attente (promesse de paiement)" onFollowUp={noop} signals={signals} onSignal={noop} onIgnoreSignal={noop} onCreateQuote={noop} createdQuote={item => created[item.proposalId] ?? null}
         onOpenCreatedQuote={noop} onSendCreatedQuote={noop} onCreateInvoice={noop} onSendInvoice={noop} onOpenInvoice={noop}
         catalogueArticles={[{ id: 'c1', name: 'Vitrification parquet' }, { id: 'c2', name: 'Plinthes' }]} onChooseArticle={async phrase => phrase} onCreateArticle={noop} />

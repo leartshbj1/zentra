@@ -652,3 +652,13 @@ html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-
 html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > .autopilot-command__help button:hover:not(:disabled) {
   text-decoration: underline;
 }
+
+/* Inside the Autopilote card the bar keeps the card's own margins. */
+html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > .autopilot-command.autopilot-command {
+  margin: 20px 20px 8px;
+}
+@media (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup > .autopilot-command.autopilot-command {
+    margin: 16px 16px 8px;
+  }
+}
