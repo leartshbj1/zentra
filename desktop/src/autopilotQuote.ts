@@ -64,7 +64,9 @@ export function autopilotNewClient(id: string, customer: AutopilotCustomer) {
 }
 
 /** Quotes created from a request, kept on this device so a second click opens the same quote. */
-export type AutopilotCreatedQuote = Readonly<{ quoteId: string; clientId: string; /** Unix ms when the quote e-mail was accepted; the request is then done. */ sentAt?: number }>;
+export type AutopilotCreatedQuote = Readonly<{ quoteId: string; clientId: string;
+  /** Unix ms when the quote e-mail was accepted; the request is then done. */ sentAt?: number;
+  /** The invoice made once the client accepted the quote, and when it was sent. */ invoiceId?: string; invoiceSentAt?: number }>;
 type Store = Record<string, Record<string, AutopilotCreatedQuote>>;
 const KEY = 'zentra.autopilot.created-quotes.v1';
 const MAX = 200;
@@ -78,13 +80,31 @@ function read(): Store {
 export function autopilotCreatedQuote(organizationId: string, proposalId: string): AutopilotCreatedQuote | null {
   const entry = read()[organizationId]?.[proposalId];
   if (!entry || !isId(entry.quoteId) || !isId(entry.clientId)) return null;
-  const sentAt = Number.isSafeInteger(entry.sentAt) && entry.sentAt! > 0 ? entry.sentAt : undefined;
-  return { quoteId: entry.quoteId, clientId: entry.clientId, ...(sentAt ? { sentAt } : {}) };
+  const time = (value: unknown) => Number.isSafeInteger(value) && (value as number) > 0 ? value as number : undefined;
+  const sentAt = time(entry.sentAt), invoiceSentAt = time(entry.invoiceSentAt), invoiceId = isId(entry.invoiceId) ? entry.invoiceId : undefined;
+  return { quoteId: entry.quoteId, clientId: entry.clientId, ...(sentAt ? { sentAt } : {}),
+    ...(invoiceId ? { invoiceId } : {}), ...(invoiceId && invoiceSentAt ? { invoiceSentAt } : {}) };
 }
-/** The quote of this request was sent: the request moves to "Terminé". */
-export function markAutopilotQuoteSent(organizationId: string, proposalId: string, sentAt: number) {
+/** The quote (or, later, the invoice) of this request was sent by e-mail. */
+export function markAutopilotQuoteSent(organizationId: string, proposalId: string, sentAt: number, kind: 'quote' | 'invoice' = 'quote') {
   const entry = autopilotCreatedQuote(organizationId, proposalId);
-  if (entry && !entry.sentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, sentAt });
+  if (!entry) return;
+  if (kind === 'quote' && !entry.sentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, sentAt });
+  if (kind === 'invoice' && entry.invoiceId && !entry.invoiceSentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, invoiceSentAt: sentAt });
+}
+export function linkAutopilotInvoice(organizationId: string, proposalId: string, invoiceId: string) {
+  const entry = autopilotCreatedQuote(organizationId, proposalId);
+  if (entry && !entry.invoiceId) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, invoiceId });
+}
+/**
+ * Where a request stands once its quote exists: waiting to be sent, sent
+ * (done), accepted by the client (to invoice), or invoiced and sent (done).
+ */
+export function autopilotRequestStage(quote: Readonly<{ sentAt?: number; accepted?: boolean; invoiceSentAt?: number }> | null): 'open' | 'accepted' | 'done' {
+  if (!quote) return 'open';
+  if (quote.invoiceSentAt) return 'done';
+  if (quote.accepted) return 'accepted';
+  return quote.sentAt ? 'done' : 'open';
 }
 export function saveAutopilotCreatedQuote(organizationId: string, proposalId: string, entry: AutopilotCreatedQuote | null) {
   const store = read(), company = { ...(store[organizationId] ?? {}) };

@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus } from './AutopilotPanel';
+import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus, type AutopilotCreatedQuoteView } from './AutopilotPanel';
 import { autopilotCopy, autopilotCatalogueCopy } from './autopilotPresentation';
 import type { AutopilotView } from './autopilotView';
 const locale = vi.hoisted(() => ({ language: 'fr' }));
@@ -152,4 +152,23 @@ it('moves a request whose quote was sent to the Terminé section', async () => {
   expect(host.querySelector('.quote-autopilot--reviews')!.querySelectorAll('.quote-autopilot__requests > li')).toHaveLength(1);
   await act(async () => { done.querySelector('button')!.click(); });
   expect(openQuote).toHaveBeenCalledOnce();
+});
+it('brings an accepted quote back to follow, to create then send its invoice', async () => {
+  const copy = autopilotCopy('fr');
+  const create = vi.fn(), send = vi.fn();
+  let view: AutopilotCreatedQuoteView = { number: 'D-2026-004', issued: true, clientEmail: 'm@r.ch', clientName: 'Atelier Rive', sentAt: 1, accepted: true };
+  const render = () => <AutopilotReviews state={state} organizationId="company-a" onOpenSource={async () => {}} createdQuote={() => view}
+    onCreateInvoice={create} onSendInvoice={send} onOpenInvoice={vi.fn()} />;
+  const { root, host } = await mount(render());
+  expect(host.querySelector('.quote-autopilot--done')).toBeNull();
+  expect(host.querySelector('li[data-state="accepted"]')!.textContent).toContain(copy.acceptedTitle.replace('{number}', 'D-2026-004'));
+  await act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === copy.createInvoice)!.click(); });
+  expect(create).toHaveBeenCalledOnce();
+  view = { ...view, invoice: { number: '', issued: false } };
+  await act(async () => root.render(render()));
+  await act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === copy.sendQuote)!.click(); });
+  expect(send).toHaveBeenCalledOnce();
+  view = { ...view, invoice: { number: 'F-2026-010', issued: true }, invoiceSentAt: 2 };
+  await act(async () => root.render(render()));
+  expect(host.querySelector('.quote-autopilot--done')!.textContent).toContain(copy.doneInvoice.replace('{number}', 'F-2026-010'));
 });

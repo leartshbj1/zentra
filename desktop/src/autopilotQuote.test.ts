@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotRequestStage, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import type { AutopilotReviewSuggestion } from './autopilotReview';
 import type { CatalogItem, Client } from './types';
 
@@ -63,5 +63,23 @@ describe('sent quotes', () => {
     expect(autopilotCreatedQuote('org', 'p1')).toEqual({ quoteId: 'q1', clientId: 'c1', sentAt: 1000 });
     markAutopilotQuoteSent('org', 'unknown', 1000);
     expect(autopilotCreatedQuote('org', 'unknown')).toBeNull();
+  });
+});
+describe('request stages', () => {
+  beforeEach(() => window.localStorage.clear());
+  it('goes from open to done, back to accepted, then done once the invoice is sent', () => {
+    expect(autopilotRequestStage(null)).toBe('open');
+    expect(autopilotRequestStage({})).toBe('open');
+    expect(autopilotRequestStage({ sentAt: 1 })).toBe('done');
+    expect(autopilotRequestStage({ sentAt: 1, accepted: true })).toBe('accepted');
+    expect(autopilotRequestStage({ sentAt: 1, accepted: true, invoiceSentAt: 2 })).toBe('done');
+  });
+  it('remembers the invoice of the request and when it was sent', () => {
+    saveAutopilotCreatedQuote('org', 'p1', { quoteId: 'q1', clientId: 'c1', sentAt: 5 });
+    markAutopilotQuoteSent('org', 'p1', 9, 'invoice');
+    expect(autopilotCreatedQuote('org', 'p1')?.invoiceSentAt).toBeUndefined();
+    linkAutopilotInvoice('org', 'p1', 'i1'); linkAutopilotInvoice('org', 'p1', 'i2');
+    markAutopilotQuoteSent('org', 'p1', 9, 'invoice');
+    expect(autopilotCreatedQuote('org', 'p1')).toEqual({ quoteId: 'q1', clientId: 'c1', sentAt: 5, invoiceId: 'i1', invoiceSentAt: 9 });
   });
 });

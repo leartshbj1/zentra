@@ -12,7 +12,7 @@ import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type
 import type { AutopilotReviewItem } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
-import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import { prepareDocumentCreationRequest, type DocumentCreationInput } from './documentCreationRequest';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
@@ -632,7 +632,8 @@ function WorkspaceContent({
   const [mailAfterIssue, setMailAfterIssue] = useState<MailTarget | null>(null);
   const [, setAutopilotQuotesVersion] = useState(0);
   // The quote e-mail opened from an Autopilote request; a successful send marks that request done.
-  const [autopilotMail, setAutopilotMail] = useState<{ target: MailTarget; organizationId: string; proposalId: string } | null>(null);
+  const [autopilotMail, setAutopilotMail] = useState<{ target: MailTarget; organizationId: string; proposalId: string; kind?: 'quote' | 'invoice' } | null>(null);
+  const autopilotInvoiceMail = useRef<{ target: MailTarget; organizationId: string; proposalId: string; kind: 'invoice' } | null>(null);
   const [invoiceIssueReturnId, setInvoiceIssueReturnId] = useState<string | null>(null);
   const [payslipPostingId, setPayslipPostingId] = useState<string | null>(null);
   const [payslipPostingReturnId, setPayslipPostingReturnId] = useState<string | null>(null);
@@ -824,8 +825,46 @@ function WorkspaceContent({
     const entry = autopilotCreatedQuote(autopilotContext.organizationId, item.proposalId);
     const quote = entry && workspace.quotes.find(row => row.id === entry.quoteId);
     const client = quote && workspace.clients.find(row => row.id === quote.clientId);
+    const invoice = quote && entry.invoiceId ? workspace.invoices.find(row => row.id === entry.invoiceId) : undefined;
     return quote ? { number: quote.number, issued: quote.status !== 'draft', clientEmail: client?.email ?? '',
-      clientName: client?.company || client?.name || '', ...(entry.sentAt ? { sentAt: entry.sentAt } : {}) } : null;
+      clientName: client?.company || client?.name || '', ...(entry.sentAt ? { sentAt: entry.sentAt } : {}),
+      accepted: quote.status === 'accepted' || !!invoice,
+      ...(invoice ? { invoice: { number: invoice.number, issued: invoice.status !== 'draft' } } : {}),
+      ...(invoice && entry.invoiceSentAt ? { invoiceSentAt: entry.invoiceSentAt } : {}) } : null;
+  };
+  // The client accepted the quote: the full invoice is made in one step, like the quote.
+  const createAutopilotInvoice = async (item: AutopilotReviewItem) => {
+    if (!autopilotContext || busy || modal || readOnly) return;
+    const organizationId = autopilotContext.organizationId, entry = autopilotCreatedQuote(organizationId, item.proposalId);
+    const quote = entry && workspaceRef.current.quotes.find(row => row.id === entry.quoteId);
+    if (!entry || !quote) return;
+    const existing = (entry.invoiceId && workspaceRef.current.invoices.find(row => row.id === entry.invoiceId))
+      || workspaceRef.current.invoices.find(row => row.quoteId === quote.id && row.type !== 'credit_note' && row.status !== 'cancelled');
+    if (existing) { linkAutopilotInvoice(organizationId, item.proposalId, existing.id); setAutopilotQuotesVersion(version => version + 1); return; }
+    const before = new Set(workspaceRef.current.invoices.map(row => row.id));
+    const created = await act(() => desktopApi.convertQuote(quote, null), autopilotCopy(getAppLanguage()).invoiceCreated, false);
+    if (!created) return;
+    const invoice = workspaceRef.current.invoices.find(row => row.quoteId === quote.id && !before.has(row.id));
+    if (invoice) linkAutopilotInvoice(organizationId, item.proposalId, invoice.id);
+    setAutopilotQuotesVersion(version => version + 1);
+  };
+  const autopilotInvoiceOf = (item: AutopilotReviewItem) => {
+    const entry = autopilotContext && autopilotCreatedQuote(autopilotContext.organizationId, item.proposalId);
+    return entry?.invoiceId ? workspaceRef.current.invoices.find(row => row.id === entry.invoiceId) : undefined;
+  };
+  const openAutopilotInvoice = (item: AutopilotReviewItem) => {
+    const invoice = autopilotInvoiceOf(item);
+    if (!invoice || busy || modal) return;
+    setSearch(''); setView('invoices'); setModal({ type: 'document', entity: 'invoices', item: invoice });
+  };
+  // Issuing an invoice keeps its usual confirmation; the e-mail then opens for this request.
+  const sendAutopilotInvoice = (item: AutopilotReviewItem) => {
+    const invoice = autopilotInvoiceOf(item);
+    if (!invoice || !autopilotContext || busy || modal || readOnly) return;
+    const mail = { target: { entity: 'invoices' as const, id: invoice.id }, organizationId: autopilotContext.organizationId, proposalId: item.proposalId, kind: 'invoice' as const };
+    if (invoice.status !== 'draft') { setAutopilotMail(mail); return; }
+    autopilotInvoiceMail.current = mail;
+    void issueInvoice(invoice);
   };
   const openAutopilotCreatedQuote = (item: AutopilotReviewItem) => {
     const entry = autopilotContext && autopilotCreatedQuote(autopilotContext.organizationId, item.proposalId);
@@ -1508,7 +1547,10 @@ function WorkspaceContent({
     if (!issued) throw issueReason || new Error('L’émission n’a pas été effectuée. Actualisez les données puis réessayez.');
     setInvoiceToIssueId(null);
     setInvoiceIssueReturnId(null);
-    if (workspaceRef.current.clients.find(client => client.id === item.clientId)?.email) {
+    const autopilotPending = autopilotInvoiceMail.current;
+    autopilotInvoiceMail.current = null;
+    if (autopilotPending?.target.id === item.id) setAutopilotMail(autopilotPending);
+    else if (workspaceRef.current.clients.find(client => client.id === item.clientId)?.email) {
       setMailAfterIssue({ entity: 'invoices', id: item.id });
     }
     if (issued && cloudAccount?.status === 'connected') {
@@ -2043,7 +2085,7 @@ function WorkspaceContent({
       <CompanyReceivingGuard/>
       {mailAfterIssue && <MailComposer target={mailAfterIssue} onClose={() => setMailAfterIssue(null)} />}
       {autopilotMail && <MailComposer target={autopilotMail.target} onClose={() => setAutopilotMail(null)} onSent={() => {
-        markAutopilotQuoteSent(autopilotMail.organizationId, autopilotMail.proposalId, Date.now());
+        markAutopilotQuoteSent(autopilotMail.organizationId, autopilotMail.proposalId, Date.now(), autopilotMail.kind ?? 'quote');
         setAutopilotQuotesVersion(version => version + 1);
       }} />}
       <AutomationWelcome key={companyAutomation.organizationId || 'local'} view={view} />
@@ -2328,7 +2370,7 @@ function WorkspaceContent({
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, onSendCreatedQuote: item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, onCreateInvoice: item => void createAutopilotInvoice(item), onSendInvoice: sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
