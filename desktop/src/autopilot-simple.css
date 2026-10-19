@@ -387,7 +387,7 @@
   html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__followups > header {
     padding: 16px 20px 0;
   }
-  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li {
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li {
     display: block;
     padding: 16px 20px;
     border: 0;
@@ -412,7 +412,7 @@
     gap: 6px 16px;
     margin-top: 10px;
   }
-  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li button {
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li button {
     min-height: 32px;
     padding: 0;
     border: 0;
@@ -422,12 +422,118 @@
     font-weight: 500;
     box-shadow: none;
   }
-  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li button:first-of-type {
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li button:first-of-type {
     min-height: 36px;
     padding: 0 16px;
     border-radius: 8px;
     background: var(--apple-accent);
     color: var(--apple-on-accent);
     font-weight: 600;
+  }
+}
+@media screen {
+  /* Reminders and signals: text on the left, the main button on the right, like the to-do lines. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > svg {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > div:not(.quote-autopilot__request-actions) {
+    display: grid;
+    grid-column: 1;
+    gap: 2px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > div:not(.quote-autopilot__request-actions) > * {
+    grid-column: auto;
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > div:not(.quote-autopilot__request-actions) > :is(blockquote, label) {
+    margin-top: 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px 16px;
+    max-inline-size: 360px;
+    inline-size: auto;
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions > button {
+    width: auto;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font-weight: 500;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions > button.is-ready {
+    order: 9;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 16px;
+    border-radius: 8px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions > button.is-ready:disabled {
+    opacity: 0.45;
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions {
+      grid-column: 1;
+      grid-row: auto;
+      justify-content: flex-start;
+      max-inline-size: none;
+    }
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__followups,
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests--signals,
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests--followups {
+    display: block;
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__followups > .quote-autopilot__context {
+    padding: 14px 20px 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > div > strong {
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+}
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions {
+    flex-wrap: nowrap;
+    max-inline-size: 560px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions > button {
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions > button.is-ready {
+    max-width: none;
+    white-space: nowrap;
+    text-align: center;
+    line-height: 1.25;
   }
 }
