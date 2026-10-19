@@ -1872,6 +1872,7 @@ function WorkspaceContent({
     };
   }, [readOnly, recurrenceScheduleSignal, runRecurrenceScan]);
 
+  const runReminderScanRef = useRef<(() => Promise<void>) | null>(null);
   const runReminderScan = useCallback(async () => {
     if (readOnly || reminderScanInFlight.current || isWorkspaceRecoveryPending()) return;
     if (
@@ -1915,7 +1916,11 @@ function WorkspaceContent({
       if (!isOriginWorkspace()) return;
       // A licence that just ended refuses this background check; the read-only
       // banner explains it, so the scan stays silent instead of raising an error.
-      if (/lecture seule/.test(reason instanceof Error ? reason.message : String(reason))) return;
+      const text = reason instanceof Error ? reason.message : String(reason);
+      if (/lecture seule/.test(text)) return;
+      // A file briefly held by another program (antivirus, backup, the previous
+      // window still closing) is not the person's problem: the next scan retries.
+      if (/os error (5|32|33)|fichier local/i.test(text)) { window.setTimeout(() => void runReminderScanRef.current?.(), 30_000); return; }
       setNotice({
         tone: 'error',
         text: errorMessage(
@@ -1927,6 +1932,7 @@ function WorkspaceContent({
       reminderScanInFlight.current = false;
     }
   }, [readOnly, isWorkspaceRecoveryPending]);
+  runReminderScanRef.current = runReminderScan;
 
   useEffect(() => {
     if (readOnly) return;
