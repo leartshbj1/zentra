@@ -537,3 +537,118 @@
     line-height: 1.25;
   }
 }
+
+/* "Demander à Autopilote": one field, like Spotlight. The send button sits
+   inside the field as plain text; examples are quiet links. */
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command {
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 0;
+  padding: 0 6px 0 16px;
+  border: 1px solid var(--z7-button-line);
+  border-radius: 12px;
+  background: var(--apple-paper);
+  box-shadow: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form:focus-within {
+  border-color: var(--apple-focus);
+  box-shadow: 0 0 0 3px var(--z-ring);
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--apple-secondary);
+  opacity: 1;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form > svg.lucide-sparkles {
+  display: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form > input {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  min-height: 46px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--apple-ink);
+  font: inherit;
+  font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+  box-shadow: none;
+  outline: 0;
+  appearance: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form > input::placeholder {
+  color: var(--apple-secondary);
+  opacity: 1;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form > input::-webkit-search-cancel-button {
+  display: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form > button[type='submit'] {
+  flex: none;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--apple-accent);
+  color: var(--apple-on-accent, var(--apple-paper));
+  font: inherit;
+  font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  font-weight: 600;
+  box-shadow: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > form > button[type='submit']:disabled {
+  background: transparent;
+  color: var(--apple-secondary);
+  opacity: 1;
+  cursor: default;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > .autopilot-command__help {
+  margin: 12px 0 0;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > .autopilot-command__help > p {
+  margin: 0 0 6px;
+  color: var(--apple-secondary);
+  font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > .autopilot-command__help > ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > .autopilot-command__help button {
+  min-height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--apple-accent);
+  font: inherit;
+  font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  font-weight: 400;
+  text-align: left;
+  box-shadow: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-command.autopilot-command > .autopilot-command__help button:hover:not(:disabled) {
+  text-decoration: underline;
+}
