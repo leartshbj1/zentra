@@ -121,8 +121,8 @@ export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilo
       const withSender = !!rawItem && typeof rawItem === 'object' && Object.hasOwn(rawItem, 'sender');
       const item = quoteAutopilotExact(rawItem, ['sourceId', 'receivedAt', 'quoteReference', 'evidence', 'requiresHumanValidation', ...(withSender ? ['sender'] : [])]);
       if (!quoteAutopilotIdentifier(item.sourceId) || seen.has(item.sourceId) || !quoteAutopilotInteger(item.receivedAt, 1, 253402300799)
-        || item.requiresHumanValidation !== true || typeof item.evidence !== 'string' || !item.evidence.trim() || item.evidence.length > 1000
-        || item.quoteReference !== null && (typeof item.quoteReference !== 'string' || !item.quoteReference.trim() || item.quoteReference.length > 64)) return quoteAutopilotInvalid();
+        || item.requiresHumanValidation !== true || typeof item.evidence !== 'string' || !item.evidence.trim() || [...item.evidence].length > 1000
+        || item.quoteReference !== null && (typeof item.quoteReference !== 'string' || !item.quoteReference.trim() || [...item.quoteReference].length > 64)) return quoteAutopilotInvalid();
       seen.add(item.sourceId);
       return Object.freeze({ sourceId: item.sourceId, receivedAt: item.receivedAt, quoteReference: item.quoteReference, evidence: item.evidence,
         sender: withSender ? senderFrom(item.sender) ?? null : null, requiresHumanValidation: true });

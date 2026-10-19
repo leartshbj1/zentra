@@ -113,7 +113,7 @@ export function DocumentEditor({
   const hasCustomerCredit = Boolean(currentInvoice && currentInvoice.status !== 'draft' && workspace.invoices.some((invoice)=>invoice.customerCredit && (invoice.id===currentInvoice.id || invoice.originalInvoiceId===currentInvoice.id || invoice.creditSettlements?.some((event)=>event.invoiceId===currentInvoice.id))));
   const [emptyLineId] = useState(()=>consultation?'consultation-line':createId());
   const [initialQuickClientId] = useState(()=>consultation?undefined:createId());
-  const [initialDocumentCreationId] = useState(()=>consultation?.creationRequestId||createId());
+  const [initialDocumentCreationId] = useState(()=>consultation?.creationRequestId||(suppliedItem?undefined:seed?.creationId)||createId());
   const ordinaryScope=useFormDraftScope(workspace, entity, suppliedItem?.id, !suppliedItem ? 'quote:' + (quoteSource?.id || '') + ';project:' + (initialProject?.id || '') + (seed ? ';seed:' + seed.id : '') : '');
   const persisted = useFormDraft({ scope: consultation?.scope??ordinaryScope,
     initial: initialDocumentFormDraft(entity, settings, emptyLineId, item, quoteSource, initialProject, initialStep, initialQuickClientId, suppliedItem ? undefined : initialDocumentCreationId, seed),

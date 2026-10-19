@@ -12,8 +12,8 @@ import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type
 import type { AutopilotReviewItem, AutopilotRequestKey } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
-import { acceptanceDecisions, acceptanceKey, matchAcceptance, saveAcceptanceDecision, type AutopilotAcceptance } from './autopilotAcceptance';
-import { autopilotCreatedQuote, autopilotCustomer, autopilotLinkedRequest, autopilotNewClient, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { acceptanceDecisions, acceptanceKey, acceptanceSettles, matchAcceptance, saveAcceptanceDecision, type AutopilotAcceptance } from './autopilotAcceptance';
+import { AUTOPILOT_FORM_CLIENT, AUTOPILOT_SENT_EVENT, autopilotCreatedQuote, autopilotCustomer, autopilotLinkedRequest, autopilotNewClient, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import { prepareDocumentCreationRequest, type DocumentCreationInput } from './documentCreationRequest';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
@@ -643,6 +643,12 @@ function WorkspaceContent({
   const [invoiceToIssueId, setInvoiceToIssueId] = useState<string | null>(null);
   const [mailAfterIssue, setMailAfterIssue] = useState<MailTarget | null>(null);
   const [, setAutopilotQuotesVersion] = useState(0);
+  // A followed quote or invoice sent from any screen moves its request on.
+  useEffect(() => {
+    const refresh = () => setAutopilotQuotesVersion(version => version + 1);
+    window.addEventListener(AUTOPILOT_SENT_EVENT, refresh);
+    return () => window.removeEventListener(AUTOPILOT_SENT_EVENT, refresh);
+  }, []);
   // The quote e-mail opened from an Autopilote request; a successful send marks that request done.
   const [autopilotMail, setAutopilotMail] = useState<{ target: MailTarget; organizationId: string; proposalId: string; kind?: 'quote' | 'invoice' } | null>(null);
   const autopilotInvoiceMail = useRef<{ target: MailTarget; organizationId: string; proposalId: string; kind: 'invoice' } | null>(null);
@@ -797,15 +803,21 @@ function WorkspaceContent({
     const lines = autopilotQuoteLines(suggestion, autopilotLineLinks(organizationId, item.proposalId), current.catalogItems, createId);
     if (!lines.length) return;
     const customer = autopilotCustomer(suggestion);
-    const match = existing ? undefined : findAutopilotClient(current.clients, customer, locale);
+    // A quote deleted since keeps nothing: the request starts again with new ids.
+    const reusable = existing && existing.clientId !== AUTOPILOT_FORM_CLIENT && !existing.sentAt ? existing : null;
+    const match = reusable ? undefined : findAutopilotClient(current.clients, customer, locale);
     if (match === 'ambiguous') {
-      // Several clients fit: the person picks one in the ordinary quote form.
+      // Several clients fit: the person picks one in the ordinary quote form, whose quote is then followed.
+      const quoteId = createId();
+      saveAutopilotCreatedQuote(organizationId, item.proposalId, { quoteId, clientId: AUTOPILOT_FORM_CLIENT });
       setNotice({ tone: 'warning', text: copy.quoteAmbiguousCustomer });
-      setSearch(''); setView('quotes'); setModal({ type: 'document', entity: 'quotes', seed: { id: item.proposalId, lines } });
+      setSearch(''); setView('quotes');
+      setModal({ type: 'document', entity: 'quotes', seed: { id: item.proposalId + ':' + quoteId, creationId: quoteId, lines } });
       return;
     }
-    // The same ids on a retry, so a second click never makes a second client or quote.
-    const planned = existing ?? { quoteId: createId(), clientId: match?.id ?? createId() };
+    // The same client on a retry, so a second click never makes a second client.
+    // A new quote id every time: a deleted quote keeps its creation receipt, so its id cannot be reused.
+    const planned = { quoteId: createId(), clientId: reusable?.clientId ?? match?.id ?? createId() };
     saveAutopilotCreatedQuote(organizationId, item.proposalId, planned);
     if (!workspaceRef.current.clients.some(row => row.id === planned.clientId)) {
       const client = autopilotNewClient(planned.clientId, customer);
@@ -882,8 +894,16 @@ function WorkspaceContent({
   // the person then creates and sends the invoice. Each mail is handled once.
   const [acceptances, setAcceptances] = useState<readonly AutopilotAcceptance[]>([]);
   const acceptanceRun = useRef(false);
-  const settleAcceptance = async (organizationId: string, acceptance: AutopilotAcceptance, quote: Quote) => {
-    if (quote.status === 'issued') {
+  const settleAcceptance = async (organizationId: string, acceptance: AutopilotAcceptance, quote: Quote, chosen = false) => {
+    const found = acceptanceSettles(quote, workspaceRef.current.invoices);
+    // The person's own choice of a refused or expired quote still counts as acceptance.
+    const outcome = chosen && found === 'choose' ? 'accept' : found;
+    // Already invoiced: nothing left to do. Refused or expired: the person decides.
+    if (outcome !== 'accept') {
+      saveAcceptanceDecision(organizationId, acceptance.sourceId, { quoteId: outcome === 'invoiced' ? quote.id : null, state: outcome === 'invoiced' ? 'dismissed' : 'choose' });
+      return true;
+    }
+    if (quote.status !== 'accepted') {
       const accepted = await act(() => desktopApi.updateQuoteStatus(quote.id, 'accepted'),
         autopilotCopy(getAppLanguage()).acceptanceApplied.replace('{number}', quote.number), false);
       if (!accepted) return false;
@@ -896,7 +916,7 @@ function WorkspaceContent({
     return true;
   };
   const readAcceptances = async () => {
-    if (!autopilotContext || readOnly || acceptanceRun.current) return;
+    if (!autopilotContext || readOnly || acceptanceRun.current || busy || modal || actionInFlight.current) return;
     acceptanceRun.current = true;
     const organizationId = autopilotContext.organizationId;
     try {
@@ -920,7 +940,7 @@ function WorkspaceContent({
     if (!acceptance) return;
     if (quoteId === null) { saveAcceptanceDecision(organizationId, sourceId, { quoteId: null, state: 'dismissed' }); setAutopilotQuotesVersion(version => version + 1); return; }
     const quote = workspaceRef.current.quotes.find(row => row.id === quoteId);
-    if (quote) await settleAcceptance(organizationId, acceptance, quote);
+    if (quote) await settleAcceptance(organizationId, acceptance, quote, true);
   };
   const acceptanceCards = () => {
     if (!autopilotContext) return [];
@@ -2453,7 +2473,7 @@ function WorkspaceContent({
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {!activeProjectFolder && <MenuGuide key={`guide-${view}`} view={view} />}
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), onCreateInvoice: item => void createAutopilotInvoice(item), onSendInvoice: sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
@@ -3069,7 +3089,7 @@ function WorkspaceContent({
       ) : null}
       {invoiceToIssueId && (() => {
         const invoice = workspace.invoices.find(row => row.id === invoiceToIssueId);
-        return invoice ? <InvoiceIssueDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => setInvoiceToIssueId(null)} onConfirm={confirmInvoiceIssue} onResolve={target => resolveInvoiceIssue(invoice, target)} /> : <Modal title={t("Facture indisponible")} onClose={() => setInvoiceToIssueId(null)}><p>{t("Ce document n’est plus présent dans les données chargées. Revenez à la liste des factures pour vérifier son état.")}</p><Button onClick={() => { setInvoiceToIssueId(null); setModal(null); setView('invoices'); setSearch(''); }}>{t("Voir les factures")}</Button></Modal>;
+        return invoice ? <InvoiceIssueDialog key={invoice.id} invoice={invoice} workspace={workspace} busy={busy} readOnly={readOnly} close={() => { autopilotInvoiceMail.current = null; setInvoiceToIssueId(null); }} onConfirm={confirmInvoiceIssue} onResolve={target => resolveInvoiceIssue(invoice, target)} /> : <Modal title={t("Facture indisponible")} onClose={() => setInvoiceToIssueId(null)}><p>{t("Ce document n’est plus présent dans les données chargées. Revenez à la liste des factures pour vérifier son état.")}</p><Button onClick={() => { setInvoiceToIssueId(null); setModal(null); setView('invoices'); setSearch(''); }}>{t("Voir les factures")}</Button></Modal>;
       })()}
       {supplierInvoiceReviewId && (() => {
         const invoice = workspace.supplierInvoices.find(row => row.id === supplierInvoiceReviewId);

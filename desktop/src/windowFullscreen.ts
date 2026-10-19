@@ -8,10 +8,10 @@ const openDialog = () => !!document.querySelector('dialog[open], [role="dialog"]
 
 /** Which key, if any, changes full screen: F11 switches, Échap leaves it when nothing else is open. */
 export function fullscreenAction(event: Pick<KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'defaultPrevented' | 'repeat'>,
-  isFullscreen: boolean, dialogOpen: boolean): 'toggle' | 'exit' | null {
+  isFullscreen: boolean, dialogOpen: boolean): 'toggle' | 'exit' | 'sync' | null {
   if (event.defaultPrevented || event.repeat) return null;
   if (event.key === 'F11' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) return 'toggle';
-  if (event.key === 'Escape' && isFullscreen && !dialogOpen) return 'exit';
+  if (event.key === 'Escape' && !dialogOpen) return isFullscreen ? 'exit' : 'sync';
   return null;
 }
 
@@ -23,7 +23,8 @@ export function installFullscreenShortcuts(): () => void {
     if (!mode || pending) return;
     if (mode === 'toggle') event.preventDefault();
     pending = true;
-    void invoke<boolean>('set_window_fullscreen', { mode })
+    // "sync": the window may be full screen through the system button; leaving is harmless otherwise.
+    void invoke<boolean>('set_window_fullscreen', { mode: mode === 'sync' ? 'exit' : mode })
       .then(value => { fullscreen = value === true; })
       .catch(() => { /* The window stays as it is. */ })
       .finally(() => { pending = false; });

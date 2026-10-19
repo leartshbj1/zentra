@@ -92,6 +92,20 @@ export function markAutopilotQuoteSent(organizationId: string, proposalId: strin
   if (kind === 'quote' && !entry.sentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, sentAt });
   if (kind === 'invoice' && entry.invoiceId && !entry.invoiceSentAt) saveAutopilotCreatedQuote(organizationId, proposalId, { ...entry, invoiceSentAt: sentAt });
 }
+/** A quote or invoice followed by Autopilote was sent from anywhere in the app. Ids are unique, so every company is searched. */
+export function markAutopilotDocumentSent(entity: 'quotes' | 'invoices' | 'reminders', documentId: string, at: number): boolean {
+  if (entity === 'reminders') return false;
+  const store = read();
+  for (const [organizationId, rows] of Object.entries(store)) for (const [key, row] of Object.entries(rows ?? {})) {
+    if (entity === 'quotes' && row?.quoteId === documentId) { markAutopilotQuoteSent(organizationId, key, at, 'quote'); return true; }
+    if (entity === 'invoices' && row?.invoiceId === documentId) { markAutopilotQuoteSent(organizationId, key, at, 'invoice'); return true; }
+  }
+  return false;
+}
+export const AUTOPILOT_SENT_EVENT = 'zentra:autopilot-document-sent';
+/** Client id placeholder while the person picks the client in the quote form. */
+export const AUTOPILOT_FORM_CLIENT = 'chosen-in-form';
+
 /** The request (or accepted-quote mail) that already follows this quote, if any. */
 export function autopilotLinkedRequest(organizationId: string, quoteId: string): string | null {
   const rows = read()[organizationId] ?? {};

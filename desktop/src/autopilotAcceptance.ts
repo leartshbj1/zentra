@@ -23,6 +23,7 @@ const sentQuote = (quote: Quote) => quote.status === 'issued' || quote.status ==
 export function matchAcceptance(acceptance: AutopilotAcceptance, quotes: readonly Quote[], clients: readonly Client[],
   invoices: readonly Invoice[]): Readonly<{ quote: Quote }> | Readonly<{ candidates: readonly Quote[] }> {
   const live = quotes.filter(quote => quote.status !== 'cancelled' && quote.status !== 'draft');
+  const newest = (a: Quote, b: Quote) => (b.issueDate + b.createdAt).localeCompare(a.issueDate + a.createdAt);
   if (acceptance.quoteReference) {
     const wanted = reference(acceptance.quoteReference);
     const numbered = live.filter(quote => quote.number && reference(quote.number) === wanted);
@@ -32,10 +33,17 @@ export function matchAcceptance(acceptance: AutopilotAcceptance, quotes: readonl
   const address = email(acceptance.sender?.email);
   const owners = new Set(address ? clients.filter(client => !client.archivedAt && email(client.email) === address).map(client => client.id) : []);
   const invoiced = new Set(invoices.filter(invoice => invoice.quoteId && invoice.status !== 'cancelled' && invoice.type !== 'credit_note').map(invoice => invoice.quoteId!));
-  const open = live.filter(quote => owners.has(quote.clientId) && sentQuote(quote) && !invoiced.has(quote.id))
-    .sort((a, b) => (b.issueDate + b.createdAt).localeCompare(a.issueDate + a.createdAt));
-  if (open.length) return { quote: open[0] };
-  return { candidates: live.filter(quote => sentQuote(quote) && !invoiced.has(quote.id)).slice(0, 20) };
+  const open = live.filter(quote => owners.has(quote.clientId) && sentQuote(quote) && !invoiced.has(quote.id)).sort(newest);
+  if (open.length === 1) return { quote: open[0] };
+  if (open.length > 1) return { candidates: open.slice(0, 20) };
+  const others = live.filter(quote => sentQuote(quote) && !invoiced.has(quote.id)).sort(newest);
+  return { candidates: others.slice(0, 20) };
+}
+
+/** The quote can simply be marked accepted: it was sent and is not refused, expired or already invoiced. */
+export function acceptanceSettles(quote: Quote, invoices: readonly Invoice[]): 'accept' | 'invoiced' | 'choose' {
+  if (invoices.some(invoice => invoice.quoteId === quote.id && invoice.status !== 'cancelled' && invoice.type !== 'credit_note')) return 'invoiced';
+  return sentQuote(quote) ? 'accept' : 'choose';
 }
 
 /** What this device did with each acceptance mail, so it is handled once. */

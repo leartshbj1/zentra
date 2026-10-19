@@ -16,7 +16,8 @@ export type DocumentFormDraft = {
   step: number; documentTitle: string; documentNotes: string; numberInputs: Record<string, string>;
 };
 /** Values to start a new document with; the person reviews and saves them. */
-export type DocumentSeed = Readonly<{ id: string; clientId?: string; newClientName?: string; title?: string; lines: readonly DocumentLine[] }>;
+export type DocumentSeed = Readonly<{ id: string; clientId?: string; newClientName?: string; title?: string; lines: readonly DocumentLine[];
+  /** The id the saved document will have, so the caller can follow it. */ creationId?: string }>;
 export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings: AppSettings, emptyLineId: string, item?: Quote | Invoice, quoteSource?: Quote, initialProject?: Project, initialStep = 0, quickClientCreationId?: string, documentCreationId?:string, seed?: DocumentSeed): DocumentFormDraft {
   const current = item ?? quoteSource, invoice = entity === 'invoices' ? item as Invoice | undefined : undefined;
   const seeded = !current && seed?.lines.length ? seed : undefined;

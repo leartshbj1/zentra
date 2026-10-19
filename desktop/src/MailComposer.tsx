@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Paperclip, Send } from 'lucide-react';
 import { Button, ErrorPanel, Field, Modal } from './ui';
 import { errorMessage } from './utils';
+import { AUTOPILOT_SENT_EVENT, markAutopilotDocumentSent } from './autopilotQuote';
 import { t, getAppLocale, useAppLanguage } from './language';
 import {
   outgoingMail,
@@ -176,6 +177,8 @@ function MailComposerSession({
     if (result.status === 'accepted') {
       setHistoryWarning(Boolean(result.historyWarning));
       setSent(true);
+      // A quote or invoice followed by Autopilote moves its request on, whichever screen sent it.
+      if (markAutopilotDocumentSent(target.entity, target.id, Date.now())) window.dispatchEvent(new Event(AUTOPILOT_SENT_EVENT));
       onSent?.();
     }
   }

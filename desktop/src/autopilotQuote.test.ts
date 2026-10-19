@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotRequestStage, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotRequestStage, linkAutopilotInvoice, markAutopilotDocumentSent, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import type { AutopilotReviewSuggestion } from './autopilotReview';
 import type { CatalogItem, Client } from './types';
 
@@ -81,5 +81,15 @@ describe('request stages', () => {
     linkAutopilotInvoice('org', 'p1', 'i1'); linkAutopilotInvoice('org', 'p1', 'i2');
     markAutopilotQuoteSent('org', 'p1', 9, 'invoice');
     expect(autopilotCreatedQuote('org', 'p1')).toEqual({ quoteId: 'q1', clientId: 'c1', sentAt: 5, invoiceId: 'i1', invoiceSentAt: 9 });
+  });
+});
+describe('sent from any screen', () => {
+  beforeEach(() => window.localStorage.clear());
+  it('marks the request of a followed quote or invoice, wherever it was sent from', () => {
+    saveAutopilotCreatedQuote('org', 'p1', { quoteId: 'q1', clientId: 'c1', sentAt: 5, invoiceId: 'i1' });
+    expect(markAutopilotDocumentSent('quotes', 'unknown', 9)).toBe(false);
+    expect(markAutopilotDocumentSent('invoices', 'i1', 9)).toBe(true);
+    expect(autopilotCreatedQuote('org', 'p1')?.invoiceSentAt).toBe(9);
+    expect(markAutopilotDocumentSent('reminders', 'i1', 9)).toBe(false);
   });
 });
