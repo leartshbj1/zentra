@@ -186,3 +186,10 @@
     }
   }
 }
+
+/* The label of a segment is text, not a count: it follows the segment colour,
+   so the selected segment stays readable on the dark thumb. */
+html[data-app-theme] .desktop-app[data-experience] .page-content .section-navigation__tabs > button > span.section-navigation__title,
+html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs, .client-directory-toolbar) > button:is([aria-pressed='true'], [aria-selected='true'], [aria-current], .is-active) > span {
+  color: inherit !important;
+}
