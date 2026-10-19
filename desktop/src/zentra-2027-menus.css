@@ -1,0 +1,117 @@
+/*
+ * Zentra 2027, menus a beginner can use. Loaded after the sober layer.
+ * Each menu opens with a three-step "Comment ça marche", its main action is
+ * the most visible button, and empty pages say what to do first.
+ * Custom properties only, so the dark palette script produces nothing here.
+ */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide {
+    grid-column: 1 / -1;
+    margin: 0 0 20px;
+    padding: 16px 20px 18px;
+    border-radius: 14px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide h2 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide header button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--z7-button-paper);
+    color: var(--apple-ink);
+    font: inherit;
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide ol {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide li {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--apple-grouped);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide li > span {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .menu-guide li p {
+    margin: 2px 0 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.45;
+  }
+
+  /* The main action of each menu is the clearest button on the page. */
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header__actions .button--primary {
+    min-height: 40px;
+    padding: 0 18px;
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* Empty pages say what to do, with the action under the sentence. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.empty-state, .empty) {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding: 48px 24px;
+    text-align: center;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.empty-state, .empty) > svg {
+    width: 40px;
+    height: 40px;
+    padding: 9px;
+    border-radius: 12px;
+    background: var(--apple-grouped);
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.empty-state, .empty) :is(h2, h3, strong) {
+    font-size: calc(19px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .menu-guide {
+      padding: 14px 14px 16px;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .menu-guide ol {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+  }
+}

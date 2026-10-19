@@ -137,6 +137,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   'Relances': ['Mahnungen','Solleciti','Payment reminders'], 'Temps': ['Zeit','Tempo','Time'],
   'Équipe & salaires': ['Team & Löhne','Team e stipendi','Team & payroll'], 'Achats & fournisseurs': ['Einkauf & Lieferanten','Acquisti e fornitori','Purchases & suppliers'],
   'Banque': ['Bank','Banca','Banking'], 'Rapports': ['Berichte','Rapporti','Reports'], 'Comptabilité': ['Buchhaltung','Contabilità','Accounting'],
+  'Comment ça marche': ['So funktioniert es','Come funziona','How it works'], 'Compris': ['Verstanden','Capito','Got it'], 'Masquer le mode d’emploi': ['Anleitung ausblenden','Nascondi le istruzioni','Hide the instructions'], 'Choisissez « Nouveau client » en haut à droite.': ['Wählen Sie oben rechts « Neuer Kunde ».','Scegli « Nuovo cliente » in alto a destra.','Choose “New customer” at the top right.'],
   'Vendre': ['Verkaufen','Vendere','Sell'], 'Réaliser': ['Ausführen','Realizzare','Deliver'], 'Acheter et payer': ['Einkaufen und bezahlen','Acquistare e pagare','Buy and pay'], 'Suivre': ['Überblick','Monitorare','Track'], 'Demande': ['Anfrage','Richiesta','Request'], 'Le parcours d’une vente': ['Der Weg eines Verkaufs','Il percorso di una vendita','The path of a sale'],
   'Gestion': ['Verwaltung','Gestione','Management'], 'Pilotage': ['Unternehmensführung','Monitoraggio','Business overview'],
   'Devis': ['Offerten','Preventivi','Quotes'], 'Factures': ['Rechnungen','Fatture','Invoices'], 'Bilan': ['Bilanz','Bilancio','Balance sheet'],
