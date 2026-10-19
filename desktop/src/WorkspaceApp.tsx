@@ -934,6 +934,9 @@ function WorkspaceContent({
     } catch { /* read again next time */ }
     finally { acceptanceRun.current = false; }
   };
+  // The timers call the latest version, which sees the current busy state and workspace.
+  const readAcceptancesRef = useRef(readAcceptances);
+  readAcceptancesRef.current = readAcceptances;
   const chooseAcceptanceQuote = async (sourceId: string, quoteId: string | null) => {
     if (!autopilotContext || busy || modal || readOnly) return;
     const organizationId = autopilotContext.organizationId, acceptance = acceptances.find(row => row.sourceId === sourceId);
@@ -961,12 +964,16 @@ function WorkspaceContent({
       return { id: quote.id, label: [quote.number, client?.company || client?.name].filter(Boolean).join(' · ') }; });
   };
   useEffect(() => {
-    if (!autopilotContext || readOnly || view !== 'automation') return;
-    void readAcceptances();
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void readAcceptances(); }, 10 * 60_000);
-    return () => window.clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autopilotContext, readOnly, view]);
+    // A client's reply must show quickly, wherever the person is in the app:
+    // read on opening, every two minutes while the window is visible, and on focus.
+    if (!autopilotContext || readOnly) return;
+    const run = () => { if (document.visibilityState === 'visible') void readAcceptancesRef.current(); };
+    run();
+    const timer = window.setInterval(run, 2 * 60_000);
+    window.addEventListener('focus', run);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', run); };
+  }, [autopilotContext, readOnly]);
+  useEffect(() => { if (view === 'automation') void readAcceptancesRef.current(); }, [view]);
   const openAutopilotCreatedQuote = (item: AutopilotRequestKey) => {
     const entry = autopilotContext && autopilotCreatedQuote(autopilotContext.organizationId, item.proposalId);
     const quote = entry && workspaceRef.current.quotes.find(row => row.id === entry.quoteId);
