@@ -52,7 +52,7 @@ const labels = {
   journal: ['Journal d’activité', 'Aktivitätsverlauf', 'Registro attività', 'Activity log'],
   all: ['Tout', 'Alle', 'Tutto', 'All'],
   invoices: ['Factures', 'Rechnungen', 'Fatture', 'Invoices'],
-  rules: ['Automatismes', 'Automatisierungen', 'Automatismi', 'Workflows'],
+  rules: ['Autopilote', 'Autopilote', 'Autopilote', 'Autopilote'],
   search: ['Rechercher dans l’activité', 'Aktivität durchsuchen', 'Cerca nelle attività', 'Search activity'],
   noResults: ['Aucun résultat pour cette recherche.', 'Keine Ergebnisse für diese Suche.', 'Nessun risultato per questa ricerca.', 'No results for this search.'],
   clear: ['Effacer la recherche', 'Suche löschen', 'Cancella ricerca', 'Clear search'],

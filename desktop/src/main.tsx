@@ -51,3 +51,4 @@ import './zentra-2027-sober.css';
 import './zentra-2027-menus.css';
 import './zentra-2027-calm.css';
 import './autopilot-simple.css';
+import './filters-calm.css';

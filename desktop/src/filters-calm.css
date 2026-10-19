@@ -1,0 +1,188 @@
+/*
+ * Filters and search, one pattern everywhere. Loaded last.
+ * Sections and filters are a plain segmented control (grey track, one white
+ * thumb, no underline, no panel around it); search is one field with its
+ * icon inside, never a box inside a box. Custom properties only.
+ */
+@media screen {
+  /* ---------- No panel around filter rows ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__toolbar, .purchase-workflow__toolbar, .section-navigation, .client-directory-toolbar) {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px 16px;
+    margin-bottom: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .client-directory-toolbar > p {
+    margin: 0 0 0 auto;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* ---------- Segmented control ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs) {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    width: auto;
+    max-width: 100%;
+    margin: 0;
+    padding: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border: 0;
+    border-radius: 9px;
+    background: var(--z7-segment);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs) > button,
+  html[data-app-theme] .desktop-app[data-experience] .page-content .client-directory-toolbar > button {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    margin: 0;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--apple-secondary);
+    font: inherit;
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs) > button::after,
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs) > button::before,
+  html[data-app-theme] .desktop-app[data-experience] .page-content .client-directory-toolbar > button::after {
+    content: none;
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs) > button:is([aria-pressed='true'], [aria-selected='true'], [aria-current], .is-active),
+  html[data-app-theme] .desktop-app[data-experience] .page-content .client-directory-toolbar > button:is([aria-pressed='true'], .is-active) {
+    background: var(--z7-segment-thumb);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z7-segment-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs) > button:hover:not(:is([aria-pressed='true'], [aria-selected='true'], [aria-current], .is-active)) {
+    color: var(--apple-ink);
+  }
+  /* Counts are plain numbers, icons are left out. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__filters, .purchase-workflow__tabs, .section-navigation__tabs, .automation-centre .automation-centre__tabs, .client-directory-toolbar) > button > span {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent !important;
+    color: var(--apple-secondary) !important;
+    font-size: inherit;
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.purchase-workflow__tabs, .section-navigation__tabs) > button > svg,
+  html[data-app-theme] .desktop-app[data-experience] .page-content .section-navigation__tabs > button .section-navigation__icon {
+    display: none;
+  }
+
+  /* ---------- Search: one field ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__search, .purchase-search, .document-list-search),
+  html[data-app-theme] .desktop-app[data-experience] .page-content .automation-centre.automation-centre .automation-journal__search {
+    display: flex;
+    flex: 1 1 220px;
+    align-items: center;
+    gap: 8px;
+    max-width: 320px;
+    min-height: 34px;
+    margin: 0 0 0 auto;
+    padding: 0 10px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--apple-paper);
+    color: var(--apple-secondary);
+    box-shadow: none;
+    outline: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__search, .purchase-search, .document-list-search):focus-within {
+    border-color: var(--apple-focus);
+    box-shadow: 0 0 0 3px var(--z-ring);
+    outline: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__search, .purchase-search, .document-list-search) > svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__search, .purchase-search, .document-list-search) input,
+  html[data-app-theme] .desktop-app[data-experience] .page-content .automation-centre.automation-centre .automation-journal__search input {
+    flex: 1;
+    min-width: 0;
+    min-height: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-ink);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    box-shadow: none;
+    outline: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__search, .purchase-search, .document-list-search) input:focus {
+    border: 0;
+    box-shadow: none;
+    outline: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__search, .purchase-search) > button {
+    min-width: 0;
+    min-height: 28px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .document-list-search > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* Journal rows: one action link, statuses on one line. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal .ac-status {
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal .automation-journal__direct .ac-quiet,
+  html[data-app-theme] .desktop-app[data-experience] .automation-journal .ac-run__detail .ac-quiet {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font-weight: 500;
+  }
+
+  @media (max-width: 860px) {
+    html[data-app-theme] .desktop-app[data-experience] .page-content :is(.automation-journal__search, .purchase-search, .document-list-search) {
+      flex-basis: 100%;
+      max-width: none;
+      margin-left: 0;
+    }
+    html[data-app-theme] .desktop-app[data-experience] .page-content .client-directory-toolbar > p {
+      margin-left: 0;
+    }
+  }
+}
