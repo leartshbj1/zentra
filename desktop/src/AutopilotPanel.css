@@ -104,3 +104,12 @@
 .quote-autopilot__created p { margin: 0; }
 .quote-autopilot__created > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .quote-autopilot__created .quote-autopilot__create-quote { margin-top: 0; display: inline-flex; align-items: center; gap: 6px; }
+.autopilot-command { margin-bottom: 16px; }
+.autopilot-command form { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border: 1px solid var(--apple-separator, rgba(0, 0, 0, .12)); border-radius: 12px; background: var(--apple-surface, transparent); }
+.autopilot-command form > svg { flex: none; opacity: .7; }
+.autopilot-command input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; color: inherit; outline: none; }
+.autopilot-command button[type='submit'] { flex: none; }
+.autopilot-command__help { margin-top: 10px; }
+.autopilot-command__help p { margin: 0 0 6px; }
+.autopilot-command__help ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.autopilot-command__help button { font-size: 13px; }

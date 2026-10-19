@@ -7,6 +7,7 @@ import { autopilotLineLinks, saveAutopilotLineLink, type AutopilotLineLink } fro
 import { autopilotRequestStage } from './autopilotQuote';
 import { AutopilotSignals, type AutopilotSignalCard } from './AutopilotSignalList';
 import { AutopilotActionList, type AutopilotActionCard } from './AutopilotActionList';
+import { AutopilotCommandBar } from './AutopilotCommandBar';
 import type { AutopilotView } from './autopilotView';
 import './AutopilotPanel.css';
 
@@ -171,11 +172,15 @@ export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boole
   /** The client accepted the quote; an invoice is the next step. */ accepted?: boolean;
   invoice?: Readonly<{ number: string; issued: boolean }>; invoiceSentAt?: number }>;
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, acceptances = [], onChooseAcceptance, signals = [], onSignal, onIgnoreSignal, followUps = [], followUpSummary, onFollowUp, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onAsk, asking = false, askNotUnderstood = false, acceptances = [], onChooseAcceptance, signals = [], onSignal, onIgnoreSignal, followUps = [], followUpSummary, onFollowUp, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
   canAddCatalogue?: boolean;
+  /** "Demander à Autopilote": a typed sentence opens the matching form, prefilled. */
+  onAsk?: (text: string) => void;
+  asking?: boolean;
+  askNotUnderstood?: boolean;
   /** Client mails accepting a quote, outside any request. */
   acceptances?: readonly AutopilotAcceptanceCard[];
   onChooseAcceptance?: (sourceId: string, quoteId: string | null) => void;
@@ -232,7 +237,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
   const acceptedCards = acceptances.filter(card => !card.candidates && stageOf({ proposalId: card.key }) === 'accepted');
   const choiceCards = acceptances.filter(card => card.candidates);
   finished.push(...acceptances.filter(card => !card.candidates && stageOf({ proposalId: card.key }) === 'done').map(card => ({ proposalId: card.key })));
-  return <><section className="quote-autopilot quote-autopilot--reviews" aria-labelledby="quote-autopilot-review-title">
+  return <>{onAsk && <AutopilotCommandBar onAsk={onAsk} busy={asking} notUnderstood={askNotUnderstood} />}<section className="quote-autopilot quote-autopilot--reviews" aria-labelledby="quote-autopilot-review-title">
     <header><div><h2 id="quote-autopilot-review-title">{copy.reviewTitle}</h2><p>{copy.reviewDescription}</p></div>
       {onRefresh && <button type="button" disabled={state.readingReviews} onClick={() => { void onRefresh(); }}>{copy.refresh}</button>}
     </header>

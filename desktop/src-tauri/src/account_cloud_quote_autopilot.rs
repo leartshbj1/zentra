@@ -13,6 +13,7 @@ const REVIEW_PATH: &str = "/api/account/automation/quote-review";
 const ALIAS_PATH: &str = "/api/account/automation/quote-alias";
 const ACCEPT_PATH: &str = "/api/account/automation/quote-acceptances";
 const SIGNALS_PATH: &str = "/api/account/automation/mail-signals";
+const COMMAND_PATH: &str = "/api/account/automation/command";
 const CONSENT_VERSION: &str = "action-engine-quote-draft-customer-2026-10-11";
 
 #[derive(Default)]
@@ -337,6 +338,44 @@ struct MailSignal {
     requires_human_validation: bool,
 }
 const SIGNAL_LIMIT: usize = 50;
+/// A sentence typed in "Demander à Autopilote", read by the server without
+/// keeping it. The app only opens a prefilled form from the answer.
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct CommandInput { text: String }
+impl CommandInput {
+    fn valid(&self) -> bool { !self.text.trim().is_empty() && self.text.chars().count() <= 500 && !self.text.chars().any(|c| c.is_control() && c != '\n') }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CommandLine { evidence: String, #[serde(deserialize_with = "required_nullable")] quantity_milli: Option<u64>, #[serde(deserialize_with = "required_nullable")] unit: Option<String> }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CommandReading {
+    schema_version: u8, organization_id: String, action: String,
+    #[serde(deserialize_with = "required_nullable")] party: Option<String>,
+    lines: Vec<CommandLine>,
+    #[serde(deserialize_with = "required_nullable")] date: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] time: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] amount_cents: Option<u64>,
+    #[serde(deserialize_with = "required_nullable")] currency: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] quote_reference: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] invoice_reference: Option<String>,
+    text: String, requires_human_validation: bool,
+}
+impl CommandReading {
+    fn valid(&self) -> bool {
+        let short = |v: &Option<String>, max: usize| v.as_deref().is_none_or(|v| text(v, max));
+        let shape = |v: &Option<String>, len: usize| v.as_deref().is_none_or(|v| v.len() == len && v.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':'));
+        self.schema_version == 1 && self.requires_human_validation
+            && matches!(self.action.as_str(), "create_quote" | "create_invoice" | "send_reminder" | "record_payment" | "create_client" | "create_appointment" | "create_task" | "search" | "unknown")
+            && short(&self.party, 200) && shape(&self.date, 10) && shape(&self.time, 5)
+            && self.amount_cents.is_none_or(|a| a <= MONEY_LIMIT) && self.currency.as_deref().is_none_or(|c| matches!(c, "CHF" | "EUR"))
+            && short(&self.quote_reference, 64) && short(&self.invoice_reference, 64) && self.text.chars().count() <= 500
+            && self.lines.len() <= 20 && self.lines.iter().all(|l| text(&l.evidence, 200) && l.quantity_milli.is_none_or(|q| q <= 1_000_000_000)
+                && l.unit.as_deref().is_none_or(|u| text(u, 32)))
+    }
+}
 impl MailSignal {
     fn valid(&self) -> bool {
         matches!(self.kind.as_str(), "quote_accepted" | "quote_declined" | "supplier_document" | "supplier_order" | "payment_announced" | "payment_promised" | "contact_update" | "follow_up")
@@ -362,6 +401,10 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
     if path == CONSENT_PATH {
         let data: Consent = serde_json::from_slice(bytes).ok()?;
         return data.valid().then(|| serde_json::to_value(data).ok()).flatten();
+    }
+    if path == COMMAND_PATH {
+        let data: CommandReading = serde_json::from_slice(bytes).ok()?;
+        return (data.valid() && data.organization_id == stamp.inbox.session.organization_id).then(|| serde_json::to_value(data).ok()).flatten();
     }
     if path == SIGNALS_PATH {
         let mut data: SignalPage = serde_json::from_slice(bytes).ok()?;
@@ -480,6 +523,15 @@ pub(crate) async fn set_quote_autopilot_article_choice(store: State<'_, LocalSto
     if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
     let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
     let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, ALIAS_PATH, None, Some(input.body())).await });
+    Ok(deliver_read(owned, origin, task).await)
+}
+#[tauri::command]
+pub(crate) async fn quote_autopilot_command(store: State<'_, LocalStore>, origin: Origin, input: CommandInput) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
+    let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
+    let body = serde_json::json!({ "text": input.text });
+    let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, COMMAND_PATH, None, Some(body)).await });
     Ok(deliver_read(owned, origin, task).await)
 }
 #[tauri::command]

@@ -14,6 +14,7 @@ import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { appointmentsToShow, clientFromSender, contactProposals } from './autopilotContacts';
+import { commandLines, findInvoice, findParty, rememberCommand, searchView, type CommandReading } from './autopilotCommand';
 import { bankProposals, hasLinkedBank, statementDue } from './autopilotBank';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
@@ -1279,6 +1280,71 @@ function WorkspaceContent({
         if (closed) { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); refresh(); }
       }
     }
+  };
+  // "Demander à Autopilote": the sentence is read by the server, then the matching form opens prefilled.
+  const [asking, setAsking] = useState(false), [askNotUnderstood, setAskNotUnderstood] = useState(false);
+  const askAutopilot = async (text: string) => {
+    if (!autopilotContext || asking || busy || modal) return;
+    const copy = autopilotCopy(getAppLanguage());
+    setAsking(true); setAskNotUnderstood(false);
+    let reading: CommandReading | null = null;
+    try {
+      const reply = await desktopApi.readQuoteAutopilotCommand(autopilotContext.origin, text);
+      reading = reply.status === 'available' ? reply.data : null;
+    } catch { reading = null; }
+    finally { setAsking(false); }
+    if (!reading) { setNotice({ tone: 'warning', text: copy.commandUnavailable }); return; }
+    rememberCommand(text);
+    const current = workspaceRef.current, notes: string[] = [];
+    const party = findParty(reading.party, current.clients, current.suppliers);
+    const when = [reading.date ? new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(Date.parse(reading.date + 'T12:00:00Z')) : '', reading.time ?? ''].filter(Boolean).join(' ');
+    switch (reading.action) {
+      case 'create_quote': case 'create_invoice': {
+        const entity = reading.action === 'create_quote' ? 'quotes' : 'invoices';
+        const { lines, missing } = commandLines(reading, current.catalogItems, createId);
+        if (reading.party && party?.kind !== 'client') notes.push(copy.commandPartyMissing.replace('{name}', reading.party));
+        if (missing.length) notes.push(copy.commandLinesMissing.replace('{lines}', missing.join(', ')));
+        setSearch(''); setView(entity);
+        setModal({ type: 'document', entity, seed: { id: 'ask:' + createId(), clientId: party?.kind === 'client' ? party.client.id : undefined,
+          newClientName: party?.kind === 'client' ? undefined : reading.party ?? undefined, lines: lines.length ? lines : [] } });
+        break;
+      }
+      case 'record_payment': {
+        const invoice = findInvoice(reading.invoiceReference, current.invoices);
+        if (!invoice) { notes.push(copy.commandInvoiceMissing.replace('{number}', reading.invoiceReference ?? '')); setSearch(reading.invoiceReference ?? ''); setView('invoices'); break; }
+        setSearch(''); setView('invoices');
+        setModal({ type: 'payment', invoice, prefill: { amountCents: reading.amountCents ?? invoiceOpenBalance(invoice, current.invoices, current.payments) } });
+        break;
+      }
+      case 'send_reminder': {
+        const invoice = findInvoice(reading.invoiceReference, current.invoices);
+        const reminder = invoice && dueReminders.find(row => row.invoiceId === invoice.id);
+        if (reminder) { setFollowUpMail({ target: { entity: 'reminders', id: reminder.id }, key: reminderKey(reminder.id) }); break; }
+        notes.push(invoice ? copy.commandReminderNone : copy.commandInvoiceMissing.replace('{number}', reading.invoiceReference ?? ''));
+        setSearch(''); setView('reminders');
+        break;
+      }
+      case 'create_client':
+        notes.push(copy.commandClientName.replace('{name}', reading.party ?? ''));
+        setSearch(''); setView('clients'); setModal({ type: 'client' });
+        break;
+      case 'create_appointment':
+        notes.push(copy.commandAppointment.replace('{when}', when).replace('{party}', reading.party ? ' · ' + reading.party : ''));
+        setSearch(''); setView('agenda');
+        break;
+      case 'create_task':
+        notes.push(copy.commandTask.replace('{text}', reading.text).replace('{when}', when ? ' · ' + when : ''));
+        setSearch(''); setView('projects');
+        break;
+      case 'search': {
+        const target = searchView(reading.text);
+        if (target) { setView(target); setSearch(reading.party ?? reading.invoiceReference ?? reading.quoteReference ?? ''); }
+        else setAskNotUnderstood(true);
+        break;
+      }
+      default: setAskNotUnderstood(true);
+    }
+    if (notes.length) setNotice({ tone: 'warning', text: notes.join(' ') });
   };
   // The timers call the latest version, which sees the current busy state and workspace.
   const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); });
@@ -2830,7 +2896,7 @@ function WorkspaceContent({
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {!activeProjectFolder && <MenuGuide key={`guide-${view}`} view={view} />}
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignal(sourceId, choiceId), onIgnoreSignal: ignoreSignal, ...(() => { const followUps = followUpCards(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUp(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignal(sourceId, choiceId), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = followUpCards(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUp(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (

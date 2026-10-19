@@ -164,6 +164,18 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     let mut extra = page.clone(); extra["items"][0]["extra"] = json!(1); assert!(signals(extra).is_none());
     let mut version = page.clone(); version["schemaVersion"] = json!(2); assert!(signals(version).is_none());
     let mut other = page.clone(); other["organizationId"] = json!("org-other"); assert!(signals(other).is_none());
+    // A typed command: the reading is checked field by field.
+    let command = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), COMMAND_PATH, &stamp, 50);
+    let reading = json!({"schemaVersion":1,"organizationId":"org-synthetic","action":"create_quote","party":"Dupont SA",
+        "lines":[{"evidence":"3 Zentra Pro","quantityMilli":3000,"unit":null},{"evidence":"installation","quantityMilli":2000,"unit":"hour"}],
+        "date":null,"time":null,"amountCents":null,"currency":null,"quoteReference":null,"invoiceReference":null,
+        "text":"Fais un devis pour Dupont SA","requiresHumanValidation":true});
+    assert_eq!(command(reading.clone()).unwrap()["lines"][1]["unit"], json!("hour"));
+    for (field, bad) in [("action", json!("delete_everything")), ("date", json!("demain")), ("requiresHumanValidation", json!(false)), ("extra", json!(1))] {
+        let mut wrong = reading.clone(); wrong[field] = bad; assert!(command(wrong).is_none());
+    }
+    assert!(CommandInput { text: "Relance la facture F-2026-0012".into() }.valid());
+    assert!(!CommandInput { text: "x".repeat(501) }.valid());
     // The remembered article choice.
     let choice = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), ALIAS_PATH, &stamp, 50);
     assert!(choice(json!({"schemaVersion":1,"term":"licences zentra support","articleId":"article-1"})).is_some());
@@ -201,7 +213,7 @@ fn product_routes_are_fixed_first_party_https_without_sites_credentials() {
     // cfg(test) may use only the already validated compiled public profile.
     // This unit test neither installs a Sites token nor performs HTTP.
     let expected_origin = account_api_origin().unwrap();
-    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH, SIGNALS_PATH] {
+    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH, SIGNALS_PATH, COMMAND_PATH] {
         let url = endpoint(path).unwrap(); assert_eq!(url.as_str(), format!("{expected_origin}{path}"));
         assert!(url.query().is_none() && url.fragment().is_none());
         for bad in [format!("{path}/"), format!("{path}?actor=x"), format!("https://example.test{path}")] { assert!(endpoint(&bad).is_err()); }
