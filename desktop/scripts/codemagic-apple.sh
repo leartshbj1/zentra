@@ -39,6 +39,15 @@ iphone)
   sdk=$(xcrun --sdk iphoneos --show-sdk-version)
   [[ "${sdk%%.*}" -ge 26 ]]
   rustup target add aarch64-apple-ios
+  # The Tauri CLI reinstalls these with brew when missing, and a failing
+  # post-install of a shared dependency (openssl, ca-certificates) on the CI
+  # image then aborts the whole build. Install them first and accept such a
+  # warning as long as the package itself is installed.
+  export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1
+  for package in xcodegen libimobiledevice; do
+    brew list --versions "$package" >/dev/null 2>&1 || brew install "$package" || true
+    brew list --versions "$package" >/dev/null
+  done
   pnpm --dir desktop exec tauri ios init --ci --skip-targets-install
   python3 desktop/scripts/ios_icons.py prepare
   pnpm --dir desktop mobile:ios:ipa
