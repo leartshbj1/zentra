@@ -16,6 +16,7 @@ import { withDiagnosticIntent } from './diagnosticIntent';
 import { appointmentsToShow, clientFromSender, contactProposals } from './autopilotContacts';
 import { commandLines, findInvoice, findParty, rememberCommand, searchView, type CommandReading } from './autopilotCommand';
 import { bankProposals, hasLinkedBank, statementDue } from './autopilotBank';
+import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { AutopilotActionCard } from './AutopilotActionList';
@@ -1127,7 +1128,43 @@ function WorkspaceContent({
       const detail = [row.invoiceNumber ? copy.bankInvoice.replace('{number}', row.invoiceNumber) : row.label, row.movement.suggestion?.kind === 'automatic_partial' && row.action === 'confirm_invoice' ? copy.bankPartial : '', date(row.movement.bookingDate)].filter(Boolean).join(' · ');
       cards.push({ key: 'bank:' + row.movement.id, title, detail, note, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
     }
-    const bankSummary = [toConfirm ? copy.summaryBankConfirm.replace('{n}', String(toConfirm)) : '', toIdentify ? copy.summaryBankIdentify.replace('{n}', String(toIdentify)) : ''];
+    // Projects and hours.
+    const projectName = (id: string) => workspace.projects.find(row => row.id === id)?.name ?? '';
+    const clientName = (id: string) => { const client = workspace.clients.find(row => row.id === id); return client?.company || client?.name || ''; };
+    const hourGroups = hoursToBill(readyTimeEntries(workspace), workspace.projects, today).filter(group => !entries['hours:' + group.project.id]?.until || entries['hours:' + group.project.id]!.until! <= today);
+    for (const group of hourGroups) cards.push({ key: 'hours:' + group.project.id,
+      title: copy.hoursTitle.replace('{hours}', formatMinutes(group.minutes)).replace('{client}', clientName(group.project.clientId)).replace('{project}', group.project.name),
+      detail: copy.hoursDetail.replace('{amount}', formatMoney(group.amountCents)), actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'time-billing', label: copy.actionPrepareInvoice, primary: true }] });
+    const timer = forgottenTimer(workspace.activeTimer, new Date());
+    if (timer) cards.push({ key: 'timer', title: copy.timerTitle.replace('{hours}', String(timer.hours)), detail: copy.timerDetail.replace('{project}', projectName(timer.timer!.projectId)),
+      actions: [{ id: 'view-project', label: copy.actionViewProject }, { id: 'stop-timer', label: copy.actionStopTimer, primary: true }] });
+    const lateTasks = overdueTasks(workspace.projectTasks, today).filter(task => !(entries['task:' + task.id]?.until && entries['task:' + task.id]!.until! > today) && !entries['task:' + task.id]?.ignored);
+    for (const task of lateTasks.slice(0, 10)) cards.push({ key: 'task:' + task.id, title: copy.taskLateTitle.replace('{task}', task.title),
+      detail: copy.taskLateDetail.replace('{project}', projectName(task.projectId)).replace('{date}', date(task.dueDate)),
+      actions: [{ id: 'postpone', label: copy.actionPostponeWeek }, { id: 'task-done', label: copy.actionTaskDone, primary: true }] });
+    for (const alert of budgetAlerts(workspace.projects, project => { const money = projectFinancials(project, workspace.invoices, workspace.payments, workspace.timeEntries, workspace.expenses, workspace.supplierInvoices, workspace.supplierCreditNotes); return money.laborCost + money.expenseNet; })) {
+      const key = `budget:${alert.project.id}:${alert.level}`;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.budgetTitle.replace('{project}', alert.project.name).replace('{percent}', String(alert.percent)),
+        detail: copy.budgetDetail.replace('{budget}', formatMoney(alert.project.budgetCents)), actions: [{ id: 'ignore', label: copy.actionDone }, { id: 'view-project', label: copy.actionViewProject, primary: true }] });
+    }
+    for (const project of projectsPastEnd(workspace.projects, today).filter(row => !entries['end:' + row.id]?.ignored && !(entries['end:' + row.id]?.until && entries['end:' + row.id]!.until! > today)))
+      cards.push({ key: 'end:' + project.id, title: copy.projectEndTitle.replace('{project}', project.name), detail: copy.projectEndDetail.replace('{date}', date(project.plannedEnd)),
+        actions: [{ id: 'postpone', label: copy.actionPostponeWeek }, { id: 'view-project', label: copy.actionViewProject, primary: true }] });
+    // Payroll and year-end moments: each card opens the screen that prepares them.
+    const payroll = payrollToPrepare(workspace.employees, workspace.payslips, today);
+    if (payroll && !entries['payroll:' + payroll.period]?.ignored) cards.push({ key: 'payroll:' + payroll.period,
+      title: copy.payrollTitle.replace('{month}', new Intl.DateTimeFormat(getAppLocale(), { month: 'long', year: 'numeric' }).format(Date.parse(payroll.period + '-15T12:00:00Z'))),
+      detail: copy.payrollDetail.replace('{n}', String(payroll.employees.length)), actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-payroll', label: copy.actionOpenPayroll, primary: true }] });
+    const moments = yearEndMoments(today);
+    if (moments.closingYear && !entries['closing:' + moments.closingYear]?.ignored) cards.push({ key: 'closing:' + moments.closingYear, title: copy.closingTitle.replace('{year}', String(moments.closingYear)),
+      detail: copy.closingDetail, actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-closing', label: copy.actionOpenClosing, primary: true }] });
+    if (moments.certificatesYear && workspace.payslips.some(slip => slip.period.startsWith(String(moments.certificatesYear))) && !entries['certificates:' + moments.certificatesYear]?.ignored)
+      cards.push({ key: 'certificates:' + moments.certificatesYear, title: copy.certificatesTitle.replace('{year}', String(moments.certificatesYear)),
+        detail: copy.certificatesDetail.replace('{year}', String(moments.certificatesYear)), actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-certificates', label: copy.actionOpenCertificates, primary: true }] });
+    const operationsSummary = [hourGroups.length ? copy.summaryHours.replace('{n}', String(hourGroups.length)) : '', timer ? copy.summaryTimer : '',
+      lateTasks.length ? copy.summaryTasks.replace('{n}', String(lateTasks.length)) : ''];
+    const bankSummary = [...operationsSummary, toConfirm ? copy.summaryBankConfirm.replace('{n}', String(toConfirm)) : '', toIdentify ? copy.summaryBankIdentify.replace('{n}', String(toIdentify)) : ''];
     // Purchases: supplier invoices to pay soon, low stock, deliveries announced.
     const toPay = invoicesToPay(workspace.supplierInvoices, today).filter(invoice => !entries['pay:' + invoice.id]?.ignored && !(entries['pay:' + invoice.id]?.until && entries['pay:' + invoice.id]!.until! > today));
     for (const invoice of toPay) {
@@ -1164,6 +1201,24 @@ function WorkspaceContent({
     const refresh = () => setFollowUpVersion(version => version + 1);
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
+    if (actionId === 'time-billing') { setSearch(''); setView('time'); setModal({ type: 'timeBilling' }); return; }
+    if (actionId === 'view-project') {
+      const id = key.startsWith('timer') ? workspaceRef.current.activeTimer?.projectId : key.split(':')[1];
+      setSearch(''); if (id) setProjectFolderId(id); setView('projects'); return;
+    }
+    if (actionId === 'stop-timer') {
+      const stopped = await act(origin => desktopApi.stopTimer(origin.workspaceScope, origin.memberContextNonce), copy.timerStopped, false);
+      if (stopped) refresh();
+      return;
+    }
+    if (actionId === 'task-done') {
+      const id = key.slice('task:'.length);
+      const done = await act(() => desktopApi.setProjectTaskStatus(id, 'done'), copy.taskDone, false);
+      if (done) refresh();
+      return;
+    }
+    if (actionId === 'open-payroll' || actionId === 'open-certificates') { setSearch(''); setView('team'); setTeamStartSection('payslips'); return; }
+    if (actionId === 'open-closing') { setSearch(''); setAccountingStartTab('periods'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (key.startsWith('bank:') && actionId === 'confirm-bank') {
       const row = bankProposals(autopilotBank, mailSignals, workspaceRef.current.invoices, workspaceRef.current.clients).find(item => 'bank:' + item.movement.id === key);
       if (!row) return;
