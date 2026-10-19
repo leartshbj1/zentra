@@ -37,3 +37,10 @@ describe('typed commands', () => {
     expect(commandHistory()).toHaveLength(20);
   });
 });
+describe('examples', () => {
+  it('are written in each app language', async () => {
+    const { COMMAND_EXAMPLES } = await import('./autopilotCommand');
+    expect(COMMAND_EXAMPLES.fr.some(example => /Offerte|Termin/.test(example))).toBe(false);
+    expect(Object.values(COMMAND_EXAMPLES).every(list => list.length === 7)).toBe(true);
+  });
+});

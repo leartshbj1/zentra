@@ -97,8 +97,14 @@ export function rememberCommand(text: string) {
   const next = [text, ...commandHistory().filter(row => row !== text)].slice(0, 20);
   try { window.localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* best effort */ }
 }
-export const COMMAND_EXAMPLES = [
-  'Facture Müller pour 3 h de conseil', 'Erstelle eine Offerte für Meier AG: 5 Zentra Gestion Pro', 'Relance la facture F-2026-0012',
-  'Dupont a payé la facture F-2026-0012, CHF 178.00', 'Rdv avec Martin demain à 14h30', 'Termin mit Keller am Freitag um 9 Uhr',
-  'Rappelle-moi de rappeler Dupont lundi', 'Montre les factures impayées',
-];
+/** What the server understands, shown in the app's language when a sentence was not understood. */
+export const COMMAND_EXAMPLES: Readonly<Record<'fr' | 'de' | 'it' | 'en', readonly string[]>> = {
+  fr: ['Facture Müller pour 3 h de conseil', 'Fais un devis pour Meier SA : 5 Zentra Gestion Pro', 'Relance la facture F-2026-0012', 'Dupont a payé la facture F-2026-0012, CHF 178.00',
+    'Rdv avec Martin demain à 14h30', 'Rappelle-moi de rappeler Dupont lundi', 'Montre les factures impayées'],
+  de: ['Rechnung Müller für 3 h Beratung', 'Erstelle eine Offerte für Meier AG: 5 Zentra Gestion Pro', 'Mahne die Rechnung F-2026-0012', 'Dupont hat die Rechnung F-2026-0012 bezahlt, CHF 178.00',
+    'Termin mit Keller am Freitag um 9 Uhr', 'Erinnere mich, Dupont am Montag anzurufen', 'Zeige die unbezahlten Rechnungen'],
+  it: ['Fattura Müller per 3 h di consulenza', 'Fai un preventivo per Meier SA: 5 Zentra Gestion Pro', 'Sollecita la fattura F-2026-0012', 'Dupont ha pagato la fattura F-2026-0012, CHF 178.00',
+    'Appuntamento con Martin domani alle 14:30', 'Ricordami di richiamare Dupont lunedì', 'Mostra le fatture non pagate'],
+  en: ['Invoice Müller for 3 h of consulting', 'Make a quote for Meier Ltd: 5 Zentra Gestion Pro', 'Send a reminder for invoice F-2026-0012', 'Dupont paid invoice F-2026-0012, CHF 178.00',
+    'Meeting with Martin tomorrow at 2:30 pm', 'Remind me to call Dupont on Monday', 'Show unpaid invoices'],
+};

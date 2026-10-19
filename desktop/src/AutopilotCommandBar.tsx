@@ -10,7 +10,7 @@ import { COMMAND_EXAMPLES, commandHistory } from './autopilotCommand';
  */
 export function AutopilotCommandBar({ onAsk, busy = false, notUnderstood = false }: {
   onAsk: (text: string) => void; busy?: boolean; notUnderstood?: boolean }) {
-  const copy = autopilotCopy(useAppLanguage());
+  const language = useAppLanguage(), copy = autopilotCopy(language);
   const [text, setText] = useState('');
   const listId = useId();
   const ask = (value: string) => { const sentence = value.trim(); if (!sentence || busy) return; onAsk(sentence); setText(''); };
@@ -24,7 +24,7 @@ export function AutopilotCommandBar({ onAsk, busy = false, notUnderstood = false
     </form>
     {notUnderstood ? <div className="autopilot-command__help" role="status">
       <p>{copy.commandNotUnderstood}</p>
-      <ul>{COMMAND_EXAMPLES.map(example => <li key={example}><button type="button" disabled={busy} onClick={() => ask(example)}>{example}</button></li>)}</ul>
+      <ul>{(COMMAND_EXAMPLES[language as keyof typeof COMMAND_EXAMPLES] ?? COMMAND_EXAMPLES.fr).map(example => <li key={example}><button type="button" disabled={busy} onClick={() => ask(example)}>{example}</button></li>)}</ul>
     </div> : null}
   </section>;
 }
