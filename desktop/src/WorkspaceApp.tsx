@@ -16,7 +16,7 @@ import { withDiagnosticIntent } from './diagnosticIntent';
 import { appointmentsToShow, clientFromSender, contactProposals } from './autopilotContacts';
 import { commandLines, findInvoice, findParty, rememberCommand, searchView, type CommandReading } from './autopilotCommand';
 import { bankProposals, hasLinkedBank, statementDue } from './autopilotBank';
-import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, yearEndMoments } from './autopilotOperations';
+import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, vatReturnDue, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { AutopilotActionCard } from './AutopilotActionList';
@@ -280,6 +280,8 @@ import type {
   Quote,
   Reminder,
   BankWorkspace,
+  VatProfile,
+  VatReturnExport,
   ReminderHistory,
   ReminderSettings,
   ReminderTemplate,
@@ -675,7 +677,7 @@ function WorkspaceContent({
   const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
   const [clientFolderReturnId, setClientFolderReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
-  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods'>();
+  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods' | 'vat' | 'closing'>();
   const [accountingSourceReturnContext, setAccountingSourceReturnContext] = useState<AccountingNavigationContext | null>(null);
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
   const [accountingEntryFocus, setAccountingEntryFocus] =
@@ -1031,6 +1033,7 @@ function WorkspaceContent({
   // Reminders and quote follow-ups, prepared by the native cycle and sent by a person.
   const [dueReminders, setDueReminders] = useState<readonly Reminder[]>([]);
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
+  const [vatState, setVatState] = useState<{ profiles: VatProfile[]; exports: VatReturnExport[] } | null>(null);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
   const [followUpMail, setFollowUpMail] = useState<{ target: MailTarget; key: string; subject?: string } | null>(null);
   const [, setFollowUpVersion] = useState(0);
@@ -1042,6 +1045,7 @@ function WorkspaceContent({
       setDueReminders(settings.enabled ? await desktopApi.listReminders({ status: 'due' }) : []);
     } catch { /* read again next time */ }
     try { setAutopilotBank(await desktopApi.getBankWorkspace(workspaceRef.current.workNotesScope)); } catch { /* read again next time */ }
+    try { setVatState({ profiles: await desktopApi.listVatProfiles(), exports: await desktopApi.listVatReturnExports({}) }); } catch { /* VAT not set up */ }
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
     if (!autopilotContext) return { cards: [], summary: '' };
@@ -1162,6 +1166,15 @@ function WorkspaceContent({
     if (moments.certificatesYear && workspace.payslips.some(slip => slip.period.startsWith(String(moments.certificatesYear))) && !entries['certificates:' + moments.certificatesYear]?.ignored)
       cards.push({ key: 'certificates:' + moments.certificatesYear, title: copy.certificatesTitle.replace('{year}', String(moments.certificatesYear)),
         detail: copy.certificatesDetail.replace('{year}', String(moments.certificatesYear)), actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-certificates', label: copy.actionOpenCertificates, primary: true }] });
+    const vat = vatState ? vatReturnDue(vatState.profiles, vatState.exports, today) : null;
+    if (vat && !(entries['vat:' + vat.from]?.until && entries['vat:' + vat.from]!.until! > today)) {
+      const period = `${date(vat.from)} – ${date(vat.to)}`;
+      cards.push(vat.needsAfc
+        ? { key: 'vat:' + vat.from, title: copy.vatAfcTitle, detail: copy.vatAfcDetail.replace('{period}', period), actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-vat', label: copy.actionOpenVat, primary: true }] }
+        : { key: 'vat:' + vat.from, title: copy.vatTitle.replace('{period}', period), detail: copy.vatDetail.replace('{date}', date(vat.due)),
+          note: vat.daysLeft <= 30 ? copy.vatSoon.replace('{n}', String(Math.max(0, vat.daysLeft))) : undefined,
+          actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-vat', label: copy.actionOpenVat, primary: true }] });
+    }
     const operationsSummary = [hourGroups.length ? copy.summaryHours.replace('{n}', String(hourGroups.length)) : '', timer ? copy.summaryTimer : '',
       lateTasks.length ? copy.summaryTasks.replace('{n}', String(lateTasks.length)) : ''];
     const bankSummary = [...operationsSummary, toConfirm ? copy.summaryBankConfirm.replace('{n}', String(toConfirm)) : '', toIdentify ? copy.summaryBankIdentify.replace('{n}', String(toIdentify)) : ''];
@@ -1218,7 +1231,8 @@ function WorkspaceContent({
       return;
     }
     if (actionId === 'open-payroll' || actionId === 'open-certificates') { setSearch(''); setView('team'); setTeamStartSection('payslips'); return; }
-    if (actionId === 'open-closing') { setSearch(''); setAccountingStartTab('periods'); setAccountingEntryFocus(null); setView('accounting'); return; }
+    if (actionId === 'open-closing') { setSearch(''); setAccountingStartTab('closing'); setAccountingEntryFocus(null); setView('accounting'); return; }
+    if (actionId === 'open-vat') { setSearch(''); setAccountingStartTab('vat'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (key.startsWith('bank:') && actionId === 'confirm-bank') {
       const row = bankProposals(autopilotBank, mailSignals, workspaceRef.current.invoices, workspaceRef.current.clients).find(item => 'bank:' + item.movement.id === key);
       if (!row) return;

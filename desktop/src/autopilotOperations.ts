@@ -1,4 +1,5 @@
-import type { ActiveTimer, Employee, Payslip, Project, ProjectTask, TimeEntry } from './types';
+import type { ActiveTimer, Employee, Payslip, Project, ProjectTask, TimeEntry, VatProfile, VatReturnExport } from './types';
+import { vatProfileRequiresAfcConfirmation } from './vatCenterLogic';
 
 /**
  * Projects, hours and payroll moments Autopilote points out. Each card opens
@@ -69,3 +70,28 @@ export function yearEndMoments(today: string) {
   };
 }
 export const weekLater = (today: string) => addDays(today, 7);
+
+/**
+ * The VAT return to prepare: the last calendar period closed under the profile
+ * active today, not exported yet. The due date shown is indicative (end of
+ * period plus 60 days, art. 71 LTVA).
+ */
+export function vatReturnDue(profiles: readonly VatProfile[], exports: readonly VatReturnExport[], today: string) {
+  const profile = profiles.find(row => row.effectiveFrom <= today && (!row.effectiveTo || row.effectiveTo >= today));
+  if (!profile) return null;
+  const months = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }[profile.periodicity];
+  if (!months) return null;
+  const year = Number(today.slice(0, 4)), month = Number(today.slice(5, 7));
+  // The period that ended before the current one starts.
+  const currentStart = Math.floor((month - 1) / months) * months;
+  const startIndex = year * 12 + currentStart - months;
+  const from = `${Math.floor(startIndex / 12)}-${String(startIndex % 12 + 1).padStart(2, '0')}-01`;
+  const endIndex = startIndex + months;
+  const to = new Date(Date.UTC(Math.floor(endIndex / 12), endIndex % 12, 0)).toISOString().slice(0, 10);
+  if (from < profile.effectiveFrom) return null;
+  if (exports.some(row => row.profileId === profile.id && row.dateFrom === from && row.dateTo === to)) return null;
+  const due = addDays(to, 60);
+  const needsAfc = !profile.afcAuthorizationConfirmed && vatProfileRequiresAfcConfirmation({ method: profile.reportingMethod, basis: profile.formOfReporting, periodicity: profile.periodicity });
+  const daysLeft = Math.round((Date.parse(due) - Date.parse(today)) / 86_400_000);
+  return { profile, from, to, due, needsAfc, daysLeft };
+}

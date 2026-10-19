@@ -29,3 +29,16 @@ describe('projects, hours and payroll moments', () => {
     expect(yearEndMoments('2026-10-20')).toEqual({ closingYear: null, certificatesYear: null });
   });
 });
+import { vatReturnDue } from './autopilotOperations';
+import type { VatProfile, VatReturnExport } from './types';
+describe('VAT return due', () => {
+  const profile = (values: Partial<VatProfile>) => ({ id: 'v1', effectiveFrom: '2025-01-01', effectiveTo: null, reportingMethod: 'effective', formOfReporting: 'agreed',
+    periodicity: 'quarterly', afcAuthorizationConfirmed: false, ...values }) as VatProfile;
+  it('finds the last closed period, hides it once exported and asks for the AFC first when needed', () => {
+    expect(vatReturnDue([profile({})], [], '2026-10-20')).toMatchObject({ from: '2026-07-01', to: '2026-09-30', due: '2026-11-29', needsAfc: false });
+    expect(vatReturnDue([profile({ periodicity: 'monthly' })], [], '2026-01-10')).toMatchObject({ from: '2025-12-01', to: '2025-12-31', needsAfc: true });
+    expect(vatReturnDue([profile({ periodicity: 'semiannual' })], [], '2026-10-20')).toMatchObject({ from: '2026-01-01', to: '2026-06-30' });
+    expect(vatReturnDue([profile({})], [{ profileId: 'v1', dateFrom: '2026-07-01', dateTo: '2026-09-30' } as VatReturnExport], '2026-10-20')).toBeNull();
+    expect(vatReturnDue([], [], '2026-10-20')).toBeNull();
+  });
+});

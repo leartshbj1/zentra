@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useAppLanguage } from './language';
 import { autopilotCopy } from './autopilotPresentation';
 import { COMMAND_EXAMPLES, commandHistory } from './autopilotCommand';
@@ -16,7 +16,7 @@ export function AutopilotCommandBar({ onAsk, busy = false, notUnderstood = false
   const ask = (value: string) => { const sentence = value.trim(); if (!sentence || busy) return; onAsk(sentence); setText(''); };
   return <section className="autopilot-command" aria-label={copy.commandLabel}>
     <form onSubmit={event => { event.preventDefault(); ask(text); }}>
-      <Sparkles size={18} aria-hidden="true" />
+      <Search size={18} aria-hidden="true" />
       <input type="search" value={text} maxLength={500} list={listId} placeholder={copy.commandPlaceholder} aria-label={copy.commandLabel}
         disabled={busy} onChange={event => setText(event.target.value)} />
       <datalist id={listId}>{commandHistory().map(row => <option key={row} value={row} />)}</datalist>
