@@ -126,19 +126,22 @@ function AcceptanceChoice({ card, disabled, onChoose }: { card: AutopilotAccepta
   const copy = autopilotCopy(useAppLanguage());
   const [quoteId, setQuoteId] = useState(card.candidates?.length === 1 ? card.candidates[0].id : '');
   return <li data-state="choose">
-    <CheckCircle2 size={21} aria-hidden="true" />
-    <div><strong>{copy.acceptanceChooseTitle.replace('{sender}', card.sender || copy.acceptanceUnknownSender)}</strong>
-      <time dateTime={new Date(card.receivedAt * 1000).toISOString()}>{new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(card.receivedAt * 1000)}</time>
+    <div className="quote-autopilot__row">
+      <div className="quote-autopilot__row-text"><strong>{copy.acceptanceChooseTitle.replace('{sender}', card.sender || copy.acceptanceUnknownSender)}</strong>
+        <span>{card.candidates?.length ? copy.rowChoose : copy.acceptanceNoQuote}</span></div>
+    </div>
+    <div className="quote-autopilot__body">
       <blockquote className="quote-autopilot__evidence">{card.evidence}</blockquote>
       {card.candidates?.length ? <label className="quote-autopilot__acceptance-pick">{copy.acceptanceWhichQuote}
         <select value={quoteId} disabled={disabled} onChange={event => setQuoteId(event.target.value)}>
           <option value="">{copy.acceptancePick}</option>
           {card.candidates.map(row => <option key={row.id} value={row.id}>{row.label}</option>)}
-        </select></label> : <p className="quote-autopilot__done-summary">{copy.acceptanceNoQuote}</p>}
-    </div>
-    <div className="quote-autopilot__request-actions">
-      {onChoose && card.candidates?.length ? <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled || !quoteId} onClick={() => onChoose(card.sourceId, quoteId)}>{copy.acceptanceConfirm}</button> : null}
-      {onChoose && <button type="button" disabled={disabled} onClick={() => onChoose(card.sourceId, null)}>{copy.acceptanceDismiss}</button>}
+        </select></label> : null}
+      <div className="quote-autopilot__request-actions">
+        {onChoose && card.candidates?.length ? <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled || !quoteId} onClick={() => onChoose(card.sourceId, quoteId)}>{copy.acceptanceConfirm}</button> : null}
+        {onChoose && <button type="button" disabled={disabled} onClick={() => onChoose(card.sourceId, null)}>{copy.acceptanceDismiss}</button>}
+      </div>
+      <time dateTime={new Date(card.receivedAt * 1000).toISOString()}>{new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(card.receivedAt * 1000)}</time>
     </div>
   </li>;
 }
@@ -149,22 +152,15 @@ function AcceptedRequest({ quote, disabled, onCreate, onSend, onOpen }: { quote:
   const copy = autopilotCopy(useAppLanguage());
   const invoice = quote.invoice;
   return <li data-state="accepted">
-    <CheckCircle2 size={21} aria-hidden="true" />
-    <div><strong>{copy.acceptedTitle.replace('{number}', quote.number)}</strong>
-      {quote.clientName && <p className="quote-autopilot__done-summary">{quote.clientName}</p>}
-      <ol className="quote-autopilot__steps" aria-label={copy.acceptedTitle.replace('{number}', quote.number)}>
-        <li data-state={invoice ? 'done' : 'current'}><span>1</span>{copy.stepInvoice}</li>
-        <li data-state={invoice ? 'current' : 'next'}><span>2</span>{copy.stepSendInvoice}</li>
-      </ol>
-      {invoice ? <div className="quote-autopilot__created" role="status">
-        <strong><Check size={16} aria-hidden="true" />{invoice.issued ? copy.invoiceDone.replace('{number}', invoice.number) : copy.invoiceDraftDone}</strong>
-        {!invoice.issued && <p>{copy.sendInvoiceHint}</p>}
-        <div>
-          {onSend && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onSend}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>}
-          {onOpen && <button type="button" disabled={disabled} onClick={onOpen}>{copy.openInvoice}</button>}
-        </div>
-      </div> : onCreate && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onCreate}>{copy.createInvoice}</button>}
+    <div className="quote-autopilot__row">
+      <div className="quote-autopilot__row-text"><strong>{copy.acceptedTitle.replace('{number}', quote.number)}{quote.clientName ? ` · ${quote.clientName}` : ''}</strong>
+        <span>{invoice ? (invoice.issued ? copy.invoiceDone.replace('{number}', invoice.number) : `${copy.invoiceDraftDone} ${copy.sendInvoiceHint}`) : copy.rowAccepted}</span></div>
+      <div className="quote-autopilot__row-action">
+        {invoice ? onSend && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onSend}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>
+          : onCreate && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onCreate}>{copy.createInvoice}</button>}
+      </div>
     </div>
+    {invoice && onOpen && <div className="quote-autopilot__request-actions"><button type="button" disabled={disabled} onClick={onOpen}>{copy.openInvoice}</button></div>}
   </li>;
 }
 
@@ -234,48 +230,53 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
       : active.length === 0 ? (choiceCards.length || acceptedCards.length ? null : <p className="quote-autopilot__context">{finished.length ? copy.allDone : copy.empty}</p>)
         : <ol className="quote-autopilot__requests">{active.map(item => stageOf(item) === 'accepted' ? <AcceptedRequest key={item.proposalId}
           quote={createdQuote!(item)!} disabled={opening !== null} onCreate={onCreateInvoice ? () => onCreateInvoice(item) : undefined}
-          onSend={onSendInvoice ? () => onSendInvoice(item) : undefined} onOpen={onOpenInvoice ? () => onOpenInvoice(item) : undefined} /> : <li key={item.proposalId}>
-          <ClipboardCheck size={21} aria-hidden="true" />
-          <div><strong>{item.reasons.includes('missing_article') ? catalogue.title : copy.request}</strong><time dateTime={new Date(item.createdAt * 1000).toISOString()}>
-            {new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt * 1000)}
-          </time><ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul>
-          {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}
-          {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}
-          {(() => {
-            const links = linksOf(item.proposalId), missing = item.suggestion?.unmatched ?? [];
-            const linkedCount = missing.filter(phrase => links[phrase]).length;
-            const canQuote = !!onCreateQuote && ((item.suggestion?.lines.length ?? 0) + linkedCount > 0);
-            const linksDone = linkedCount === missing.length, quote = createdQuote?.(item) ?? null;
-            return <>
-              <ol className="quote-autopilot__steps" aria-label={copy.request}>
-                <li data-state={linksDone || quote ? 'done' : 'current'}><span>1</span>{missing.length ? copy.stepLink : copy.stepNothingMissing}</li>
-                <li data-state={quote ? 'done' : linksDone && canQuote ? 'current' : 'next'}><span>2</span>{copy.stepQuote}</li>
-                <li data-state={quote ? 'current' : 'next'}><span>3</span>{copy.stepSendNow}</li>
-              </ol>
-              {quote ? <div className="quote-autopilot__created" role="status">
-                <strong><Check size={16} aria-hidden="true" />{quote.issued ? copy.quoteDone.replace('{number}', quote.number) : copy.quoteDraftDone}</strong>
-                {!quote.issued && <p>{copy.sendQuoteHint}</p>}
-                <div>
-                  {onSendCreatedQuote && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={opening !== null} onClick={() => onSendCreatedQuote(item)}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>}
-                  {onOpenCreatedQuote && <button type="button" disabled={opening !== null} onClick={() => onOpenCreatedQuote(item)}>{copy.openQuote}</button>}
+          onSend={onSendInvoice ? () => onSendInvoice(item) : undefined} onOpen={onOpenInvoice ? () => onOpenInvoice(item) : undefined} /> : (() => {
+          const links = linksOf(item.proposalId), missing = item.suggestion?.unmatched ?? [];
+          const linkedCount = missing.filter(phrase => links[phrase]).length;
+          const canQuote = !!onCreateQuote && ((item.suggestion?.lines.length ?? 0) + linkedCount > 0);
+          const linksDone = linkedCount === missing.length, quote = createdQuote?.(item) ?? null;
+          const needsLinks = !quote && missing.length > 0 && !linksDone && !!(onChooseArticle || onCreateArticle);
+          const customer = item.suggestion?.customer?.name;
+          const title = `${item.reasons.includes('missing_article') ? catalogue.title : copy.request}${customer ? ` · ${customer}` : ''}`;
+          const sentence = quote ? (quote.issued ? copy.quoteDone.replace('{number}', quote.number) : `${copy.quoteDraftDone} ${copy.sendQuoteHint}`)
+            : needsLinks ? copy.rowLink : canQuote ? copy.rowReady : copy.rowManual;
+          return <li key={item.proposalId} data-state={quote ? 'created' : needsLinks ? 'link' : canQuote ? 'ready' : 'manual'}>
+            <div className="quote-autopilot__row">
+              <div className="quote-autopilot__row-text"><strong>{title}</strong><span>{sentence}</span></div>
+              <div className="quote-autopilot__row-action">
+                {quote ? onSendCreatedQuote && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={opening !== null} onClick={() => onSendCreatedQuote(item)}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>
+                  : canQuote ? <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'} disabled={opening !== null} onClick={() => onCreateQuote!(item)}>{copy.createQuote}</button>
+                    : !needsLinks ? <button type="button" className="quote-autopilot__create-quote is-ready" disabled={opening !== null} onClick={() => { void open(item.proposalId, item.sourceId); }}>{copy.openRequest}<ArrowUpRight size={16} aria-hidden="true" /></button> : null}
+              </div>
+            </div>
+            {!quote && missing.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={missing} catalogue={catalogueArticles} disabled={opening !== null} onChoose={onChooseArticle} links={links} onLinked={remember(item.proposalId)}
+              onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} /> : null}
+            <details className="quote-autopilot__more">
+              <summary>{copy.details}</summary>
+              <div className="quote-autopilot__body">
+                <time dateTime={new Date(item.createdAt * 1000).toISOString()}>{new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt * 1000)}</time>
+                <ul>{item.reasons.map(reason => <li key={reason}>{autopilotReviewReason(reason, language)}</li>)}</ul>
+                {item.reasons.includes('missing_article') && onCatalogue && <p className="quote-autopilot__catalogue-hint">{catalogue.hint}</p>}
+                {item.usualRequested && <p className="quote-autopilot__catalogue-hint">{catalogue.usual}</p>}
+                <ol className="quote-autopilot__steps" aria-label={copy.request}>
+                  <li data-state={linksDone || quote ? 'done' : 'current'}><span>1</span>{missing.length ? copy.stepLink : copy.stepNothingMissing}</li>
+                  <li data-state={quote ? 'done' : linksDone && canQuote ? 'current' : 'next'}><span>2</span>{copy.stepQuote}</li>
+                  <li data-state={quote ? 'current' : 'next'}><span>3</span>{copy.stepSendNow}</li>
+                </ol>
+                <div className="quote-autopilot__request-actions">
+                  {quote && onOpenCreatedQuote && <button type="button" disabled={opening !== null} onClick={() => onOpenCreatedQuote(item)}>{copy.openQuote}</button>}
+                  {item.reasons.includes('missing_article') && onCatalogue && <>
+                    <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'browse')}>{catalogue.browse}</button>
+                    {canAddCatalogue && <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'create')}>{catalogue.add}</button>}
+                  </>}
+                  <button type="button" className="quote-autopilot__source-action" disabled={opening !== null} onClick={() => { void open(item.proposalId, item.sourceId); }}>
+                    {copy.openRequest}<ArrowUpRight size={16} aria-hidden="true" />
+                  </button>
                 </div>
-              </div> : null}
-              {!quote && missing.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={missing}
-                catalogue={catalogueArticles} disabled={opening !== null} onChoose={onChooseArticle} links={links} onLinked={remember(item.proposalId)}
-                onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} /> : null}
-              {canQuote && !quote ? <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'}
-                disabled={opening !== null} onClick={() => onCreateQuote!(item)}>{copy.createQuote}</button> : null}
-            </>;
-          })()}</div>
-          <div className="quote-autopilot__request-actions">
-          {item.reasons.includes('missing_article') && onCatalogue && <>
-            <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'browse')}>{catalogue.browse}</button>
-            {canAddCatalogue && <button type="button" disabled={opening !== null} onClick={() => onCatalogue(item, 'create')}>{catalogue.add}</button>}
-          </>}
-          <button type="button" className="quote-autopilot__source-action" disabled={opening !== null} onClick={() => { void open(item.proposalId, item.sourceId); }}>
-            {copy.openRequest}<ArrowUpRight size={16} aria-hidden="true" />
-          </button></div>
-        </li>)}</ol>}
+              </div>
+            </details>
+          </li>;
+        })())}</ol>}
     {readable && (choiceCards.length > 0 || acceptedCards.length > 0) && <ol className="quote-autopilot__requests quote-autopilot__requests--acceptances" aria-label={copy.acceptanceListTitle}>
       {choiceCards.map(card => <AcceptanceChoice key={card.key} card={card} disabled={opening !== null} onChoose={onChooseAcceptance} />)}
       {acceptedCards.map(card => { const key = { proposalId: card.key }; return <AcceptedRequest key={card.key} quote={createdQuote!(key)!} disabled={opening !== null}

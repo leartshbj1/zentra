@@ -50,3 +50,4 @@ import './zentra-2027-pages.css';
 import './zentra-2027-sober.css';
 import './zentra-2027-menus.css';
 import './zentra-2027-calm.css';
+import './autopilot-simple.css';

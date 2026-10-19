@@ -359,3 +359,4 @@ import '../src/zentra-2027-pages.css';
 import '../src/zentra-2027-sober.css';
 import '../src/zentra-2027-menus.css';
 import '../src/zentra-2027-calm.css';
+import '../src/autopilot-simple.css';

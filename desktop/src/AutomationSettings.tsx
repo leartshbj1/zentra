@@ -49,7 +49,7 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
       <label className="automation-settings__toggle"><span><strong>{t('Activer les suggestions')}</strong><small>{t('Vous gardez la validation des actions importantes.')}</small></span><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /></label>
       <p className="automation-settings__current-mode">{t(draft.mode === 'shadow' ? 'Observation · sans modifier vos choix' : 'Suggestions · vérifier puis confirmer')}</p>
     </fieldset>
-    <details className="workflow-options"><summary>{t('Fonctions activées')} <span>{draft.flags.filter(feature => state.available.includes(feature)).length} / {state.available.length}</span></summary><fieldset disabled={!canManage || busy}>
+    <details className="workflow-options automation-settings__functions" open><summary>{t('Fonctions activées')} <span>{draft.flags.filter(feature => state.available.includes(feature)).length} / {state.available.length}</span></summary><fieldset disabled={!canManage || busy}>
       <legend>{t('Les fonctions de votre équipe')}</legend>
       <div className="automation-settings__features">{Object.entries(automationFeatures).map(([key, item]) => {
         const feature = key as keyof typeof automationFeatures;

@@ -27,6 +27,7 @@ import '../src/zentra-2027-pages.css';
 import '../src/zentra-2027-sober.css';
 import '../src/zentra-2027-menus.css';
 import '../src/zentra-2027-calm.css';
+import '../src/autopilot-simple.css';
 const params = new URLSearchParams(location.search);
 if (['fr','de','it','en'].includes(params.get('lang') ?? '')) setAppLanguage(params.get('lang') as 'fr'|'de'|'it'|'en');
 const logoCanvas=document.createElement('canvas');logoCanvas.width=360;logoCanvas.height=90;

@@ -32,6 +32,7 @@ import '../src/zentra-2027-pages.css';
 import '../src/zentra-2027-sober.css';
 import '../src/zentra-2027-menus.css';
 import '../src/zentra-2027-calm.css';
+import '../src/autopilot-simple.css';
 
 const query = new URLSearchParams(location.search);
 document.documentElement.dataset.appTheme = query.get('theme') === 'dark' ? 'dark' : 'light';

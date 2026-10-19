@@ -2,6 +2,7 @@ import type { AutopilotReviewReason } from './autopilotReview';
 
 const copy = {
   fr: {
+    details: 'Détails', rowReady: 'Tout est prêt. Créez le devis en un clic.', rowLink: 'Des articles sont à associer avant de créer le devis.', rowManual: 'Autopilote n’a pas pu préparer de devis. Ouvrez la demande pour la traiter.', rowAccepted: 'Le client a accepté. Créez la facture en un clic.', rowChoose: 'Choisissez le devis accepté.',
     title: 'Autopilote', checking: 'Vérification de l’accès…', unavailable: 'Indisponible pour cet espace',
     newDraft: 'Un nouveau brouillon de devis est prêt à vérifier.', openDraft: 'Ouvrir le devis', reviewIndicator: 'À vérifier',
     active: 'Préparation activée', paused: 'Préparation en pause', offline: 'Reprise au retour du réseau',
@@ -22,6 +23,7 @@ const copy = {
     conflict: 'Les réglages ont changé. Relisez leur état avant de réessayer.', rateLimited: 'Limite temporaire atteinte. Autopilote reprendra automatiquement.',
   },
   de: {
+    details: 'Details', rowReady: 'Alles ist bereit. Erstellen Sie die Offerte mit einem Klick.', rowLink: 'Vor der Offerte sind Artikel zuzuordnen.', rowManual: 'Autopilote konnte keine Offerte vorbereiten. Öffnen Sie die Anfrage, um sie zu bearbeiten.', rowAccepted: 'Der Kunde hat angenommen. Erstellen Sie die Rechnung mit einem Klick.', rowChoose: 'Wählen Sie die angenommene Offerte.',
     title: 'Autopilot', checking: 'Zugriff wird geprüft…', unavailable: 'Für diesen Arbeitsbereich nicht verfügbar',
     newDraft: 'Ein neuer Offertenentwurf ist zur Prüfung bereit.', openDraft: 'Offerte öffnen', reviewIndicator: 'Zu prüfen',
     active: 'Vorbereitung aktiviert', paused: 'Vorbereitung pausiert', offline: 'Fortsetzung bei erneuter Verbindung',
@@ -42,6 +44,7 @@ const copy = {
     conflict: 'Die Einstellungen haben sich geändert. Prüfen Sie den aktuellen Status vor einem erneuten Versuch.', rateLimited: 'Vorübergehendes Limit erreicht. Autopilot wird automatisch fortgesetzt.',
   },
   it: {
+    details: 'Dettagli', rowReady: 'È tutto pronto. Crea il preventivo con un clic.', rowLink: 'Alcuni articoli vanno associati prima di creare il preventivo.', rowManual: 'Autopilote non ha potuto preparare il preventivo. Apri la richiesta per gestirla.', rowAccepted: 'Il cliente ha accettato. Crea la fattura con un clic.', rowChoose: 'Scegli il preventivo accettato.',
     title: 'Autopilota', checking: 'Verifica dell’accesso…', unavailable: 'Non disponibile per questo spazio',
     newDraft: 'Una nuova bozza di preventivo è pronta da verificare.', openDraft: 'Apri preventivo', reviewIndicator: 'Da verificare',
     active: 'Preparazione attiva', paused: 'Preparazione in pausa', offline: 'Ripresa al ritorno della connessione',
@@ -62,6 +65,7 @@ const copy = {
     monthlyQuota: 'Quota mensile di analisi raggiunta. Verifica l’abbonamento Zentra Support. Le richieste ricevute restano disponibili.',
   },
   en: {
+    details: 'Details', rowReady: 'Everything is ready. Create the quote in one click.', rowLink: 'Some items must be matched before the quote can be created.', rowManual: 'Autopilote could not prepare a quote. Open the request to handle it.', rowAccepted: 'The client accepted. Create the invoice in one click.', rowChoose: 'Choose the accepted quote.',
     title: 'Autopilot', checking: 'Checking access…', unavailable: 'Unavailable for this workspace',
     newDraft: 'A new quote draft is ready to review.', openDraft: 'Open quote', reviewIndicator: 'To review',
     active: 'Preparation enabled', paused: 'Preparation paused', offline: 'Resumes when back online',

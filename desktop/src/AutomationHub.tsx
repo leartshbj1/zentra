@@ -1,5 +1,5 @@
 import { copyDiagnosticIntent } from './diagnosticIntent';
-import { ArrowLeft, ArrowRight, Banknote, Eye, FileText, Package, Receipt, Workflow } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Banknote, FileText, Package, Receipt, Settings2, Workflow } from 'lucide-react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationBrief, type BriefDestination } from './AutomationBrief';
 import { AutomationSettings } from './AutomationSettings';
@@ -16,13 +16,12 @@ import { AutomationControlCentre } from './AutomationControlCentre';
 import { automationLabel } from './automationPresentation';
 import './automation-design.css';
 import type { AppointmentInboxState } from './AppointmentInbox';
-import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus, type AutopilotAcceptanceCard, type AutopilotCreatedQuoteView } from './AutopilotPanel';
+import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, type AutopilotAcceptanceCard, type AutopilotCreatedQuoteView } from './AutopilotPanel';
 import type { AutopilotView } from './autopilotView';
 import type { AutopilotReviewItem, AutopilotRequestKey } from './autopilotReview';
 import { normalizeAutopilotReviewPage } from './autopilotReview';
 import { autopilotRequestStage } from './autopilotQuote';
 import { autopilotCopy } from './autopilotPresentation';
-import { AutopilotHome } from './AutopilotHome';
 
 const icons = { bank: Banknote, projects: FileText, expenses: Receipt, invoices: Receipt, catalog: Package, settings: Workflow };
 
@@ -65,6 +64,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const canManage = state.canManage && !readOnly;
   const followup = ['centre','work'].includes(page);
   const activityPage = page === 'overview' || page === 'history';
+  const main = activityPage || followup;
   const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const pending = (state.activity?.supplierInbox?.needsReview ?? 0) + (state.activity?.appointments?.pending ?? 0) + (state.activity?.workflows?.review ?? 0) + (state.activity?.workflows?.open ?? 0) + (state.activity?.totals.needsReview ?? 0);
   const autopilotReview = autopilot?.state.status === 'ready' && !autopilot.state.reviewsUnavailable
@@ -75,23 +75,13 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   };
   const openSourceMessage = (ticketId: string) => invoke('open_supplier_inbox_settings', { section: 'inbox', ticketId });
   return <div className="automation-hub">
-    <header className="automation-hub__toolbar">
-    <nav className="automation-hub__navigation" aria-label={t('Espace Autopilote')}>
-      {(['overview', 'centre', 'settings'] as const).map(tab => <button key={tab} type="button" aria-current={(tab==='centre'?followup:tab==='settings'?page==='settings'||page==='rules':!followup&&page!=='settings'&&page!=='rules') ? 'page' : undefined} onClick={() => onPage(tab)}>{label(tab === 'overview' ? 'activity' : tab === 'centre' ? 'followup' : 'settings')}{tab === 'centre' && (pending > 0 || autopilotReview) && <span className="automation-hub__count">{autopilotReview ? autopilotCopy(language).reviewIndicator : pending}</span>}</button>)}
-    </nav>
-    <div className="automation-hub__mode" role="status">
-      {readiness === 'observation' && <Eye size={16} aria-hidden="true" />}
-      <span>{t(ready ? (readiness === 'observation' ? 'Observation' : 'Suggestions actives') : 'À configurer')}</span>
-    </div>
-    </header>
+    {main ? <header className="automation-hub__head"><div><h2>{t('À faire')}</h2><p>{t(ready ? (readiness === 'observation' ? 'Autopilote observe, sans rien modifier.' : 'Autopilote prépare le travail. Vous validez.') : 'Autopilote est à configurer.')}</p></div>
+      <Button variant="secondary" onClick={() => onPage('settings')}><Settings2 size={16} aria-hidden="true" />{t('Réglages')}</Button></header>
+      : page === 'settings' || page === 'rules' ? <header className="automation-hub__head automation-hub__head--back"><Button variant="ghost" onClick={() => onPage(page === 'rules' ? 'settings' : 'overview')}><ArrowLeft size={16} aria-hidden="true" />{t(page === 'rules' ? 'Réglages' : 'À faire')}{page === 'settings' && (pending > 0 || autopilotReview) && <span className="automation-hub__count">{autopilotReview ? autopilotCopy(language).reviewIndicator : pending}</span>}</Button></header> : null}
     {!ready && <div className="automation-hub__welcome">
         <div><h2>{t(readiness === 'consent' ? 'Votre accès est actif. Commençons.' : 'Retrouvez vos suggestions')}</h2><p>{t(canManage ? 'Choisissez les fonctions de votre équipe dans les réglages. Tout se passe ici, dans Zentra.' : 'Votre accès est inclus. Le titulaire ou un administrateur peut terminer les réglages pour toute l’équipe.')}</p></div>
         <Button onClick={() => onPage('settings')}>{t(canManage ? 'Configurer mon équipe' : 'Voir les réglages')}<ArrowRight size={17} aria-hidden="true" /></Button>
       </div>}
-    {activityPage && <><AutopilotHome />{autopilot && <AutopilotStatus state={autopilot.state} onSettings={() => onPage('settings')} />}<div className="automation-hub__activity">
-      <div className="automation-hub__journal"><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} onOpenSourceMessage={openSourceMessage} initialTab="history" activity={state.activity} confirmedQuotes={autopilot?.state.status === 'ready' ? autopilot.state.activity : undefined} onOpenQuote={autopilot?.onOpenQuote} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideNavigation hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></div>
-      <aside className="automation-hub__summary"><AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} summaryOnly language={language} onOpen={open}/></aside>
-    </div><div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></>}
     {(page === 'invoices' || page === 'appointments') && <section className="automation-hub__focused"><Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>{page==='invoices'?inboxPanel:appointmentPanel}</section>}
     {page === 'tools' && <section aria-label={t('Outils')}>
       <Button variant="ghost" onClick={()=>onPage('overview')}><ArrowLeft size={16}/>{t('Aujourd’hui')}</Button>
@@ -108,8 +98,10 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       })}</div>
       {ready ? <AutomationTools screen="automation" workspace={workspace} expanded /> : <div className="automation-hub__welcome"><p>{t('Terminez les réglages pour retrouver les outils de votre équipe.')}</p><Button onClick={() => onPage('settings')}>{t('Voir les réglages')}</Button></div>}
     </section>}
-    {followup && <div className="automation-hub__followup">{autopilot?.state.status === 'ready' && autopilot.catalogueNext && <AutopilotCatalogueNext key={state.organizationId} {...autopilot.catalogueNext} />}{autopilot && <AutopilotReviews state={autopilot.state} organizationId={state.organizationId} onOpenSource={openSourceMessage} onNext={autopilot.onNextReviews} onRefresh={autopilot.onRefresh} onCatalogue={autopilot.onCatalogue} canAddCatalogue={autopilot.canAddCatalogue} onCreateQuote={autopilot.onCreateQuote} acceptances={autopilot.acceptances} onChooseAcceptance={autopilot.onChooseAcceptance} createdQuote={autopilot.createdQuote} onOpenCreatedQuote={autopilot.onOpenCreatedQuote} onSendCreatedQuote={autopilot.onSendCreatedQuote} onCreateInvoice={autopilot.onCreateInvoice} onSendInvoice={autopilot.onSendInvoice} onOpenInvoice={autopilot.onOpenInvoice} catalogueArticles={autopilot.catalogueArticles} onChooseArticle={autopilot.onChooseArticle} onCreateArticle={autopilot.onCreateArticle} />}<AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab={page==='work'?'work':'review'} embedded hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))} /></div>}
+    {main && <div className="automation-hub__followup">{autopilot?.state.status === 'ready' && autopilot.catalogueNext && <AutopilotCatalogueNext key={state.organizationId} {...autopilot.catalogueNext} />}{autopilot && <AutopilotReviews state={autopilot.state} organizationId={state.organizationId} onOpenSource={openSourceMessage} onNext={autopilot.onNextReviews} onRefresh={autopilot.onRefresh} onCatalogue={autopilot.onCatalogue} canAddCatalogue={autopilot.canAddCatalogue} onCreateQuote={autopilot.onCreateQuote} acceptances={autopilot.acceptances} onChooseAcceptance={autopilot.onChooseAcceptance} createdQuote={autopilot.createdQuote} onOpenCreatedQuote={autopilot.onOpenCreatedQuote} onSendCreatedQuote={autopilot.onSendCreatedQuote} onCreateInvoice={autopilot.onCreateInvoice} onSendInvoice={autopilot.onSendInvoice} onOpenInvoice={autopilot.onOpenInvoice} catalogueArticles={autopilot.catalogueArticles} onChooseArticle={autopilot.onChooseArticle} onCreateArticle={autopilot.onCreateArticle} />}<AutomationBrief activity={state.activity} paused={!ready} observation={readiness==='observation'} language={language} onOpen={open} attentionOnly/></div>}
+    {main && <details className="automation-hub__history" open={followup || undefined}><summary>{t('Historique et vérifications')}</summary><div className="automation-hub__journal"><AutomationControlCentre key={`${state.organizationId}-${followup ? page : 'history'}`} organizationId={state.organizationId} appointments={appointments} appointmentsUnavailable={appointmentsUnavailable} onOpenAppointment={onOpenAppointment} onOpenSourceMessage={openSourceMessage} initialTab={followup ? (page === 'work' ? 'work' : 'review') : 'history'} activity={state.activity} confirmedQuotes={autopilot?.state.status === 'ready' ? autopilot.state.activity : undefined} onOpenQuote={autopilot?.onOpenQuote} onOpen={open} onOpenInvoice={onOpenInvoice} embedded hideRules request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></div>
+      <div className="automation-hub__more"><Button variant="ghost" onClick={()=>onPage('tools')}>{t('Les outils de cet écran')}<ArrowRight size={16}/></Button></div></details>}
     {page === 'settings' && <section aria-label={t('Réglages')} className="automation-hub__settings">{autopilot && <AutopilotSettings state={autopilot.state} onConsent={autopilot.onConsent} />}<Button variant="secondary" onClick={()=>onPage('rules')}>{t('Règles de l’équipe')}<ArrowRight size={16}/></Button><AutomationSettings /></section>}
-    {page === 'rules' && <><Button variant="ghost" onClick={()=>onPage('settings')}><ArrowLeft size={16}/>{t('Réglages')}</Button><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></>}
+    {page === 'rules' && <><AutomationControlCentre key={state.organizationId} organizationId={state.organizationId} onOpenSourceMessage={openSourceMessage} initialTab="rules" embedded hideNavigation request={data=>invoke('automation_request',copyDiagnosticIntent(data, {data}, 'automation_request'))}/></>}
   </div>;
 }
