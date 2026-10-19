@@ -407,3 +407,61 @@
     color: var(--z7-pill-green-ink);
   }
 }
+
+/* Accepted quotes and quote choices, shown before new requests. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances {
+    margin-bottom: 18px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li {
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li[data-state='accepted'] {
+    box-shadow: inset 3px 0 0 var(--apple-accent), var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li[data-state='choose'] {
+    box-shadow: inset 3px 0 0 var(--z7-pill-amber-ink), var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances > li[data-state='choose'] > svg {
+    background: var(--z7-pill-amber);
+    color: var(--z7-pill-amber-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__evidence {
+    margin: 10px 0;
+    padding: 10px 14px;
+    border: 0;
+    border-left: 3px solid var(--apple-line);
+    border-radius: 0 8px 8px 0;
+    background: var(--apple-grouped);
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-style: normal;
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances select {
+    min-height: 36px;
+    max-width: 100%;
+    padding: 0 32px 0 12px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background-color: var(--apple-paper);
+    color: var(--apple-ink);
+    font: inherit;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances li[data-state='choose'] button {
+    min-height: 36px;
+    padding: 0 16px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 8px;
+    background: var(--z7-button-paper);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests--acceptances li[data-state='choose'] button:first-of-type:not(.quote-autopilot__source-action) {
+    border-color: transparent;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+}
