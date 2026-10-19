@@ -12,6 +12,8 @@ import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type
 import type { AutopilotReviewItem, AutopilotRequestKey } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
+import { withDiagnosticIntent } from './diagnosticIntent';
+import { appointmentsToShow, clientFromSender, contactProposals } from './autopilotContacts';
 import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { AutopilotActionCard } from './AutopilotActionList';
 import { proposeForSignal, saveSignalDecision, signalDecisions, type MailSignal } from './autopilotSignals';
@@ -952,7 +954,9 @@ function WorkspaceContent({
     if (!autopilotContext) return [];
     const decided = signalDecisions(autopilotContext.organizationId);
     // Payment promises only change reminders; accepted quotes have their own flow.
-    return mailSignals.filter(signal => signal.kind !== 'quote_accepted' && signal.kind !== 'payment_promised' && !decided[signal.sourceId]).flatMap(signal => {
+    // Promises change reminders, contact changes and supplier orders have their own cards.
+    const elsewhere: readonly MailSignal['kind'][] = ['quote_accepted', 'payment_promised', 'contact_update', 'supplier_order'];
+    return mailSignals.filter(signal => !elsewhere.includes(signal.kind) && !decided[signal.sourceId]).flatMap(signal => {
       const proposal = proposeForSignal(signal, workspace);
       // A payment already recorded from this mail is done.
       if (proposal.action === 'record_payment' && workspace.payments.some(payment => payment.notes?.includes(signal.sourceId))) return [];
@@ -1066,14 +1070,76 @@ function WorkspaceContent({
         detail: copy.quoteFollowUpDetail.replace('{client}', name).replace('{date}', date(quote.issueDate)).replace('{until}', date(quote.validUntil)),
         actions: [{ id: 'send-quote', label: copy.actionSendQuoteFollowUp, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
     }
-    const summary = [ready ? copy.followUpSummaryReady.replace('{n}', String(ready)) : '', waiting ? copy.followUpSummaryWaiting.replace('{n}', String(waiting)) : ''].filter(Boolean).join(' · ');
+    // Client and supplier records from mails.
+    const fieldLabel = { addressLine1: copy.fieldAddressLine1, postalCode: copy.fieldPostalCode, city: copy.fieldCity, phone: copy.fieldPhone, address: copy.fieldAddress };
+    const decidedSignals = signalDecisions(organizationId);
+    let contacts = 0;
+    for (const proposal of contactProposals(mailSignals.filter(signal => !decidedSignals['contact:' + signal.sourceId]), workspace.clients, workspace.suppliers)) {
+      contacts++;
+      const sender = proposal.signal.sender!;
+      if (proposal.kind === 'create') cards.push({ key: proposal.key, title: copy.contactCreateTitle.replace('{name}', sender.company || sender.name || sender.email),
+        detail: [sender.name, sender.email, sender.phone, [sender.street, [sender.postcode, sender.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')].filter(Boolean).join(' · '),
+        actions: [{ id: 'create-client', label: copy.actionCreateClient, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      else cards.push({ key: proposal.key, title: (proposal.kind === 'update' ? copy.contactUpdateTitle : copy.contactCompleteTitle).replace('{name}', proposal.target!.name),
+        detail: proposal.changes.map(change => `${fieldLabel[change.field]} : ${change.before ? change.before + ' → ' : ''}${change.after}`).join(' · '),
+        evidence: proposal.kind === 'update' ? proposal.signal.evidence : undefined,
+        actions: [{ id: 'update-record', label: proposal.kind === 'update' ? copy.actionUpdateRecord : copy.actionCompleteRecord, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // Appointments read from mails, and the reminder the day before.
+    let appointments = 0;
+    const agenda = appointmentInbox.state?.active ? appointmentsToShow(appointmentInbox.state.items, today) : { waiting: [], tomorrow: [] };
+    for (const item of agenda.waiting) {
+      if (entries['appointment:' + item.id]?.ignored) continue;
+      appointments++;
+      const when = [date(item.extraction.startDate), item.extraction.allDay ? '' : item.extraction.startTime].filter(Boolean).join(' ');
+      cards.push({ key: 'appointment:' + item.id, title: copy.appointmentTitle.replace('{title}', item.extraction.title || item.subject),
+        detail: copy.appointmentDetail.replace('{when}', when).replace('{place}', item.extraction.location ? ' · ' + item.extraction.location : ''),
+        note: item.extraction.issues.length ? item.extraction.issues.join(' ') : undefined,
+        actions: [item.extraction.issues.length ? { id: 'check-appointment', label: copy.actionCheckAppointment, primary: true } : { id: 'add-appointment', label: copy.actionAddAgenda, primary: true },
+          { id: 'ignore-appointment', label: copy.acceptanceDismiss }] });
+    }
+    for (const item of agenda.tomorrow) {
+      const key = 'tomorrow:' + item.id;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.tomorrowTitle.replace('{time}', item.extraction.allDay ? '' : item.extraction.startTime).replace('{title}', item.extraction.title || item.subject),
+        detail: item.extraction.location || item.sender, actions: [{ id: 'open-agenda', label: copy.actionOpenAgenda, primary: true }, { id: 'ignore', label: copy.actionDone }] });
+    }
+    const summary = [ready ? copy.followUpSummaryReady.replace('{n}', String(ready)) : '', waiting ? copy.followUpSummaryWaiting.replace('{n}', String(waiting)) : '',
+      contacts ? copy.summaryContacts.replace('{n}', String(contacts)) : '', appointments ? copy.summaryAppointments.replace('{n}', String(appointments)) : ''].filter(Boolean).join(' · ');
     return { cards, summary };
   };
   const runFollowUp = async (key: string, actionId: string) => {
     if (!autopilotContext || busy || modal || readOnly) return;
     const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage()), today = todayIso();
     const refresh = () => setFollowUpVersion(version => version + 1);
+    if (actionId === 'ignore' && key.startsWith('contact:')) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'ignore') { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); refresh(); return; }
+    if (key.startsWith('contact:')) {
+      const proposal = contactProposals(mailSignals, workspaceRef.current.clients, workspaceRef.current.suppliers).find(row => row.key === key);
+      if (!proposal) return;
+      if (actionId === 'create-client') {
+        const client = clientFromSender(createId(), proposal.signal);
+        const created = await act(origin => desktopApi.createEntity('clients', client, origin.workspaceScope, origin.memberContextNonce), copy.contactCreated.replace('{name}', client.name), false);
+        if (created) { saveSignalDecision(organizationId, key, 'done'); refresh(); }
+      } else if (actionId === 'update-record' && proposal.target) {
+        const data = Object.fromEntries(proposal.changes.map(change => [change.field, change.after]));
+        const updated = await act(origin => desktopApi.updateEntity(proposal.target!.entity, proposal.target!.id, data, origin.workspaceScope, origin.memberContextNonce),
+          copy.contactUpdated.replace('{name}', proposal.target.name), false);
+        if (updated) { saveSignalDecision(organizationId, key, 'done'); refresh(); }
+      }
+      return;
+    }
+    if (key.startsWith('appointment:')) {
+      const id = key.slice('appointment:'.length);
+      if (actionId === 'ignore-appointment') { try { await appointmentInbox.act(withDiagnosticIntent({ action: 'ignore', id }, 'appointment_inbox_request', 'ignore')); } catch (reason) { setNotice({ tone: 'error', text: errorMessage(reason, copy.quoteCreateError) }); } return; }
+      if (actionId === 'check-appointment') { setAutomationPage('appointments'); return; }
+      if (actionId === 'add-appointment') {
+        try { await appointmentInbox.act(withDiagnosticIntent({ action: 'import', id, automatic: true }, 'appointment_inbox_request', 'import')); setNotice({ tone: 'success', text: copy.appointmentAdded }); }
+        catch (reason) { setNotice({ tone: 'error', text: errorMessage(reason, copy.quoteCreateError) }); }
+      }
+      return;
+    }
+    if (key.startsWith('tomorrow:') && actionId === 'open-agenda') { openAutomationAppointment(key.slice('tomorrow:'.length)); return; }
     if (actionId === 'postpone') { saveFollowUp(organizationId, key, entry => ({ ...entry, until: addDays(today, 7) })); refresh(); return; }
     if (key === 'reminders-offer' && actionId === 'enable') {
       const enabled = await act(async () => { await desktopApi.installReminderCycle(createId()); return desktopApi.loadWorkspace(); }, copy.remindersEnabled, false);

@@ -7,14 +7,14 @@ import { invoiceOpenBalance } from './utils';
  * Amounts and numbers are copied from the mail. Nothing runs from a signal:
  * the app finds the local object and proposes one action that a person clicks.
  */
-export type MailSignalKind = 'quote_accepted' | 'quote_declined' | 'supplier_document' | 'payment_announced' | 'payment_promised' | 'follow_up';
+export type MailSignalKind = 'quote_accepted' | 'quote_declined' | 'supplier_document' | 'supplier_order' | 'payment_announced' | 'payment_promised' | 'contact_update' | 'follow_up';
 export type MailSignal = Readonly<{
   kind: MailSignalKind; sourceId: string; receivedAt: number; subject: string; evidence: string;
   quoteReference: string | null; invoiceReference: string | null; amountCents: number | null; currency: 'CHF' | 'EUR' | null;
   documentType: 'supplier_invoice' | 'payment_reminder' | 'credit_note' | 'receipt' | null;
   sender: AutopilotSender | null; requiresHumanValidation: true;
 }>;
-const KINDS: readonly MailSignalKind[] = ['quote_accepted', 'quote_declined', 'supplier_document', 'payment_announced', 'payment_promised', 'follow_up'];
+const KINDS: readonly MailSignalKind[] = ['quote_accepted', 'quote_declined', 'supplier_document', 'supplier_order', 'payment_announced', 'payment_promised', 'contact_update', 'follow_up'];
 const DOCUMENTS = ['supplier_invoice', 'payment_reminder', 'credit_note', 'receipt'];
 const short = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && [...value].length <= max;
 
