@@ -1657,6 +1657,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | "/api/account/automation/quote-review"
             | "/api/account/automation/quote-alias"
             | "/api/account/automation/quote-acceptances"
+            | "/api/account/automation/mail-signals"
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

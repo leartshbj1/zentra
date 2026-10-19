@@ -12,6 +12,7 @@ const ACTIVITY_PATH: &str = "/api/account/automation/quote-activity";
 const REVIEW_PATH: &str = "/api/account/automation/quote-review";
 const ALIAS_PATH: &str = "/api/account/automation/quote-alias";
 const ACCEPT_PATH: &str = "/api/account/automation/quote-acceptances";
+const SIGNALS_PATH: &str = "/api/account/automation/mail-signals";
 const CONSENT_VERSION: &str = "action-engine-quote-draft-customer-2026-10-11";
 
 #[derive(Default)]
@@ -317,6 +318,38 @@ struct Acceptance {
     requires_human_validation: bool,
 }
 const ACCEPT_LIMIT: usize = 200;
+/// One typed signal per client or supplier mail (last 30 days). Nothing runs
+/// from it: the app proposes the matching action and a person clicks.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SignalPage { schema_version: u8, organization_id: String, items: Vec<MailSignal> }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MailSignal {
+    kind: String, source_id: String, received_at: u64, subject: String, evidence: String,
+    #[serde(deserialize_with = "required_nullable")] quote_reference: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] invoice_reference: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] amount_cents: Option<u64>,
+    #[serde(deserialize_with = "required_nullable")] currency: Option<String>,
+    #[serde(deserialize_with = "required_nullable")] document_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sender: Option<serde_json::Value>,
+    requires_human_validation: bool,
+}
+const SIGNAL_LIMIT: usize = 50;
+impl MailSignal {
+    fn valid(&self) -> bool {
+        matches!(self.kind.as_str(), "quote_accepted" | "quote_declined" | "supplier_document" | "payment_announced" | "follow_up")
+            && id(&self.source_id) && timestamp(self.received_at) && self.requires_human_validation
+            && self.subject.chars().count() <= 300 && !self.subject.chars().any(char::is_control)
+            && text(&self.evidence, 1000)
+            && self.quote_reference.as_deref().is_none_or(|r| text(r, 64))
+            && self.invoice_reference.as_deref().is_none_or(|r| text(r, 64))
+            && self.amount_cents.is_none_or(|a| a <= MONEY_LIMIT)
+            && self.currency.as_deref().is_none_or(|c| matches!(c, "CHF" | "EUR"))
+            && self.document_type.as_deref().is_none_or(|d| matches!(d, "supplier_invoice" | "payment_reminder" | "credit_note" | "receipt"))
+    }
+}
 fn unique<'a>(values: impl Iterator<Item = &'a str>) -> bool {
     let mut seen = HashSet::new(); values.into_iter().all(|v| seen.insert(v))
 }
@@ -329,6 +362,15 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
     if path == CONSENT_PATH {
         let data: Consent = serde_json::from_slice(bytes).ok()?;
         return data.valid().then(|| serde_json::to_value(data).ok()).flatten();
+    }
+    if path == SIGNALS_PATH {
+        let mut data: SignalPage = serde_json::from_slice(bytes).ok()?;
+        for item in &mut data.items { item.sender = item.sender.take().and_then(sender); }
+        // A signal the app cannot read is left out; the others stay usable.
+        data.items.retain(MailSignal::valid);
+        if data.schema_version != 1 || data.organization_id != stamp.inbox.session.organization_id || data.items.len() > SIGNAL_LIMIT
+            || !unique(data.items.iter().map(|v| v.source_id.as_str())) { return None; }
+        return serde_json::to_value(data).ok();
     }
     if path == ACCEPT_PATH {
         let mut data: AcceptancePage = serde_json::from_slice(bytes).ok()?;
@@ -438,6 +480,13 @@ pub(crate) async fn set_quote_autopilot_article_choice(store: State<'_, LocalSto
     if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
     let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
     let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, ALIAS_PATH, None, Some(input.body())).await });
+    Ok(deliver_read(owned, origin, task).await)
+}
+#[tauri::command]
+pub(crate) async fn quote_autopilot_mail_signals(store: State<'_, LocalStore>, origin: Origin) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
+    let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, SIGNALS_PATH, None, None).await });
     Ok(deliver_read(owned, origin, task).await)
 }
 #[tauri::command]

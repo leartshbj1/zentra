@@ -12,10 +12,12 @@ import { t, useAppLanguage } from './language';
 import { assertPaymentRequestCurrent, clearConfirmedPaymentRequest, confirmPaymentRequest, createPaymentReceipt, extendPaymentRequest, paymentRequestScopeKey, readPaymentRequest, retainPaymentRequest, validPaymentDraft, type PaymentReceipt, type PaymentRequestRead } from './paymentRequest';
 import './credit-allocation.css';
 
-export function PaymentForm({ invoiceId, workspace, busy, readOnly, close, act, onReadWorkspace, onOpenAccounting }: {
+export function PaymentForm({ invoiceId, workspace, busy, readOnly, close, act, onReadWorkspace, onOpenAccounting, prefill }: {
   invoiceId:string; workspace:Workspace; busy:boolean; readOnly:boolean; close:()=>void;
   act:(action:()=>Promise<Workspace>,message:string,close?:boolean,onError?:(reason:unknown)=>void)=>Promise<boolean>;
   onReadWorkspace:()=>Promise<Workspace>; onOpenAccounting:(section?:'accounts'|'periods')=>void;
+  /** Amount and reference announced by the client's mail; the person checks them before saving. */
+  prefill?:Readonly<{amountCents:number;reference?:string;notes?:string}>;
 }) {
   useAppLanguage();
   const invoice=workspace.invoices.find(row=>row.id===invoiceId);
@@ -29,7 +31,7 @@ export function PaymentForm({ invoiceId, workspace, busy, readOnly, close, act, 
   const receipt=request.kind==='pending'?request.receipt:null;
   const [requestId]=useState(()=>receipt?.record.variants[0].requestId??createId());
   const retainedInput=receipt?.record.variants.at(-1);
-  const initial:PaymentDraft=retainedInput?{amount:creditAmountInput(retainedInput.amountCents),date:retainedInput.date,method:retainedInput.method,reference:retainedInput.reference,notes:retainedInput.notes}:{amount:'',date:todayIso(),method:'Virement bancaire',reference:'',notes:''};
+  const initial:PaymentDraft=retainedInput?{amount:creditAmountInput(retainedInput.amountCents),date:retainedInput.date,method:retainedInput.method,reference:retainedInput.reference,notes:retainedInput.notes}:{amount:prefill?creditAmountInput(prefill.amountCents):'',date:todayIso(),method:'Virement bancaire',reference:prefill?.reference??'',notes:prefill?.notes??''};
   const persisted=useFormDraft({scope,initial,fingerprint:formDraftFingerprint({invoiceId,status:invoice?.status,balance,bankAccountId:bank?.id??null,enabled:workspace.accountingSettings?.enabled}),validate:validPaymentDraft});
   const draft=persisted.value;
   // A retained financial request must be checked before editing or sending it.

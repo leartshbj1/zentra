@@ -152,6 +152,18 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
         let mut wrong = accepted.clone(); wrong["items"][0][field] = bad; assert!(accept(wrong).is_none());
     }
     let mut other = accepted.clone(); other["organizationId"] = json!("org-other"); assert!(accept(other).is_none());
+    // Mail signals: an unreadable signal is dropped, the page stays.
+    let signals = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), SIGNALS_PATH, &stamp, 50);
+    let signal = json!({"kind":"payment_announced","sourceId":"ticket-9","receivedAt":1792440000,"subject":"Re: Votre facture F-2026-0012",
+        "evidence":"Le virement de CHF 178.00 a été effectué.","quoteReference":null,"invoiceReference":"F-2026-0012","amountCents":17800,
+        "currency":"CHF","documentType":null,"sender":{"email":"marie@rive.ch","name":null,"company":null,"phone":null,"street":null,"postcode":null,"city":null,"source":"envelope"},
+        "requiresHumanValidation":true});
+    let page = json!({"schemaVersion":1,"organizationId":"org-synthetic","items":[signal.clone()]});
+    assert_eq!(signals(page.clone()).unwrap()["items"][0]["amountCents"], json!(17800));
+    let mut odd = page.clone(); odd["items"][0]["kind"] = json!("invented"); assert_eq!(signals(odd).unwrap()["items"], json!([]));
+    let mut extra = page.clone(); extra["items"][0]["extra"] = json!(1); assert!(signals(extra).is_none());
+    let mut version = page.clone(); version["schemaVersion"] = json!(2); assert!(signals(version).is_none());
+    let mut other = page.clone(); other["organizationId"] = json!("org-other"); assert!(signals(other).is_none());
     // The remembered article choice.
     let choice = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), ALIAS_PATH, &stamp, 50);
     assert!(choice(json!({"schemaVersion":1,"term":"licences zentra support","articleId":"article-1"})).is_some());
@@ -189,7 +201,7 @@ fn product_routes_are_fixed_first_party_https_without_sites_credentials() {
     // cfg(test) may use only the already validated compiled public profile.
     // This unit test neither installs a Sites token nor performs HTTP.
     let expected_origin = account_api_origin().unwrap();
-    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH] {
+    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH, SIGNALS_PATH] {
         let url = endpoint(path).unwrap(); assert_eq!(url.as_str(), format!("{expected_origin}{path}"));
         assert!(url.query().is_none() && url.fragment().is_none());
         for bad in [format!("{path}/"), format!("{path}?actor=x"), format!("https://example.test{path}")] { assert!(endpoint(&bad).is_err()); }

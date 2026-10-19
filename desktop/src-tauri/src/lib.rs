@@ -470,6 +470,7 @@ pub fn run() {
             account_cloud::action_engine::supervisor::quote_autopilot_activity,
             account_cloud::action_engine::supervisor::quote_autopilot_review,
             account_cloud::action_engine::supervisor::quote_autopilot_acceptances,
+            account_cloud::action_engine::supervisor::quote_autopilot_mail_signals,
             account_cloud::subscription_overview_request,
             supplier_inbox::supplier_inbox_request,
             account_cloud::open_automation_settings,

@@ -1,5 +1,6 @@
 import { senderFrom } from './autopilotReview';
 import type { AutopilotAcceptance } from './autopilotAcceptance';
+import { mailSignalFrom, type MailSignal } from './autopilotSignals';
 import {WorkspaceOriginChangedError} from './workspaceOrigin';
 import { recordedDocumentAmounts } from './financialTraceability';
 import {freezeDocumentCreationRequest,readDocumentCreationAcknowledgement,readDocumentCreationReceipt,DocumentCreationUnconfirmedError,type DocumentCreationRequest,type DocumentCreationReceipt} from './documentCreationRequest';
@@ -107,11 +108,26 @@ function quoteAutopilotArray(raw: unknown, maximum: number): readonly unknown[] 
 /** A remembered request line: the next requests with this wording use this article. */
 export type QuoteAutopilotArticleChoice = Readonly<{ schemaVersion: 1; term: string; articleId: string }>;
 export type QuoteAutopilotArticleChoiceInput = Readonly<{ phrase: string; articleId: string }>;
-export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias' | 'acceptances', limit = 50): QuoteAutopilotRead<T> {
+export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias' | 'acceptances' | 'signals', limit = 50): QuoteAutopilotRead<T> {
   const value = quoteAutopilotEnvelope(raw, origin, ['data'], ['available', 'unavailable', 'context_changed', 'error']);
   if (value.status !== 'available') {
     if (value.data !== null) return quoteAutopilotInvalid();
     return Object.freeze({ ...value }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'signals') {
+    const page = quoteAutopilotExact(value.data, ['schemaVersion', 'organizationId', 'items']);
+    if (page.schemaVersion !== 1 || page.organizationId !== value.organizationId) return quoteAutopilotInvalid();
+    const seen = new Set<string>();
+    const items = quoteAutopilotArray(page.items, 50).flatMap(rawItem => {
+      const withSender = !!rawItem && typeof rawItem === 'object' && Object.hasOwn(rawItem, 'sender');
+      const item = quoteAutopilotExact(rawItem, ['kind', 'sourceId', 'receivedAt', 'subject', 'evidence', 'quoteReference', 'invoiceReference',
+        'amountCents', 'currency', 'documentType', 'requiresHumanValidation', ...(withSender ? ['sender'] : [])]);
+      const signal = mailSignalFrom(item, withSender ? senderFrom(item.sender) ?? null : null);
+      if (!signal || seen.has(signal.sourceId)) return [];
+      seen.add(signal.sourceId);
+      return [signal];
+    });
+    return Object.freeze({ ...value, data: Object.freeze({ organizationId: page.organizationId, items: Object.freeze(items) }) }) as QuoteAutopilotRead<T>;
   }
   if (kind === 'acceptances') {
     const page = quoteAutopilotExact(value.data, ['organizationId', 'items']);
@@ -5022,6 +5038,11 @@ export const desktopApi = {
     const captured = captureQuoteAutopilotOrigin(origin);
     const request = captureQuoteAutopilotPageInput(input);
     return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_activity', { origin: captured, input: request }), captured, 'activity', request.limit);
+  },
+  /** What client and supplier mails mean (last 30 days); the app proposes one action per signal. */
+  async readQuoteAutopilotMailSignals(origin: QuoteAutopilotOrigin): Promise<QuoteAutopilotRead<Readonly<{ organizationId: string; items: readonly MailSignal[] }>>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_mail_signals', { origin: captured }), captured, 'signals');
   },
   /** Client mails accepting a quote (last 30 days); the app matches the local quote. */
   async readQuoteAutopilotAcceptances(origin: QuoteAutopilotOrigin): Promise<QuoteAutopilotRead<Readonly<{ organizationId: string; items: readonly AutopilotAcceptance[] }>>> {

@@ -12,6 +12,8 @@ import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type
 import type { AutopilotReviewItem, AutopilotRequestKey } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
+import { proposeForSignal, saveSignalDecision, signalDecisions, type MailSignal } from './autopilotSignals';
+import type { AutopilotSignalCard } from './AutopilotSignalList';
 import { acceptanceDecisions, acceptanceKey, acceptanceSettles, matchAcceptance, saveAcceptanceDecision, type AutopilotAcceptance } from './autopilotAcceptance';
 import { AUTOPILOT_FORM_CLIENT, AUTOPILOT_SENT_EVENT, autopilotCreatedQuote, autopilotCustomer, autopilotLinkedRequest, autopilotNewClient, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import { prepareDocumentCreationRequest, type DocumentCreationInput } from './documentCreationRequest';
@@ -459,7 +461,7 @@ type ModalState = (
   | { type: 'payslip'; item?: Payslip; initialEmployeeId?: string; initialPeriod?: string; initialPaymentDate?: string }
   | { type: 'payrollImport' }
   | { type: 'payslipPayment'; payslip: Payslip; returnToPosting?: boolean }
-  | { type: 'payment'; invoice: Invoice; returnToQuoteId?: string }
+  | { type: 'payment'; invoice: Invoice; returnToQuoteId?: string; prefill?: Readonly<{ amountCents: number; reference?: string; notes?: string }> }
   | { type: 'qrPrint'; invoice: Invoice }
   | { type: 'timer' }
   ) & { returnToClientId?: string } | null;
@@ -934,9 +936,88 @@ function WorkspaceContent({
     } catch { /* read again next time */ }
     finally { acceptanceRun.current = false; }
   };
+  // Other client and supplier mails: one proposal each, run only on click.
+  const [mailSignals, setMailSignals] = useState<readonly MailSignal[]>([]);
+  const [, setSignalVersion] = useState(0);
+  const readMailSignals = async () => {
+    if (!autopilotContext || readOnly) return;
+    try {
+      const reply = await desktopApi.readQuoteAutopilotMailSignals(autopilotContext.origin);
+      if (reply.status === 'available' && reply.data && reply.organizationId === autopilotContext.organizationId) setMailSignals(reply.data.items);
+    } catch { /* read again next time */ }
+  };
+  const signalProposals = () => {
+    if (!autopilotContext) return [];
+    const decided = signalDecisions(autopilotContext.organizationId);
+    return mailSignals.filter(signal => signal.kind !== 'quote_accepted' && !decided[signal.sourceId]).flatMap(signal => {
+      const proposal = proposeForSignal(signal, workspace);
+      // A payment already recorded from this mail is done.
+      if (proposal.action === 'record_payment' && workspace.payments.some(payment => payment.notes?.includes(signal.sourceId))) return [];
+      return [{ signal, proposal }];
+    });
+  };
+  const signalCards = (): AutopilotSignalCard[] => {
+    const copy = autopilotCopy(getAppLanguage());
+    return signalProposals().map(({ signal, proposal }) => {
+      const sender = signal.sender?.company || signal.sender?.name || signal.sender?.email || '';
+      const base = { sourceId: signal.sourceId, receivedAt: signal.receivedAt, evidence: signal.evidence, sender };
+      const money = (cents: number) => formatMoney(cents, signal.currency ?? 'CHF');
+      if (proposal.action === 'record_payment') return { ...base, title: copy.signalPayment,
+        actionLabel: copy.signalPaymentAction.replace('{amount}', money(proposal.amountCents)).replace('{number}', proposal.invoice.number) };
+      if (proposal.action === 'choose_invoice') return { ...base, title: copy.signalPayment, actionLabel: copy.signalChooseAction,
+        candidates: proposal.candidates.map(invoice => ({ id: invoice.id, label: [invoice.number, money(invoiceOpenBalance(invoice, workspace.invoices, workspace.payments))].join(' · ') })) };
+      if (proposal.action === 'decline_quote') return { ...base, title: copy.signalDeclined, actionLabel: copy.signalDeclineAction.replace('{number}', proposal.quote.number) };
+      if (proposal.action === 'open_purchase') return { ...base, title: copy.signalSupplier,
+        actionLabel: proposal.supplierInvoice ? copy.signalReminderAction.replace('{number}', proposal.supplierInvoice.reference) : copy.signalPurchaseAction };
+      if (proposal.action === 'follow_up') return { ...base, title: copy.signalFollowUp, actionLabel: copy.signalFollowUpAction };
+      return { ...base, title: signal.subject || copy.signalSupplier, actionLabel: null };
+    });
+  };
+  const ignoreSignal = (sourceId: string) => {
+    if (!autopilotContext) return;
+    saveSignalDecision(autopilotContext.organizationId, sourceId, 'ignored'); setSignalVersion(version => version + 1);
+  };
+  const runSignal = async (sourceId: string, choiceId?: string) => {
+    if (!autopilotContext || busy || modal || readOnly) return;
+    const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage());
+    const found = signalProposals().find(row => row.signal.sourceId === sourceId);
+    if (!found) return;
+    const { signal, proposal } = found;
+    const done = () => { saveSignalDecision(organizationId, sourceId, 'done'); setSignalVersion(version => version + 1); };
+    const note = copy.signalPaymentNote.replace('{date}', new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(signal.receivedAt * 1000)).replace('{source}', sourceId);
+    if (proposal.action === 'record_payment' || proposal.action === 'choose_invoice') {
+      const invoice = proposal.action === 'record_payment' ? proposal.invoice : proposal.candidates.find(row => row.id === choiceId);
+      if (!invoice) return;
+      const amountCents = proposal.action === 'record_payment' ? proposal.amountCents : signal.amountCents ?? invoiceOpenBalance(invoice, workspace.invoices, workspace.payments);
+      // The payment form shows the amount and today's date; the person checks and saves.
+      setSearch(''); setView('invoices'); setModal({ type: 'payment', invoice, prefill: { amountCents, notes: note } });
+      return;
+    }
+    if (proposal.action === 'decline_quote') {
+      const declined = await act(() => desktopApi.updateQuoteStatus(proposal.quote.id, 'refused'), copy.signalDeclinedDone.replace('{number}', proposal.quote.number), false);
+      if (declined) done();
+      return;
+    }
+    if (proposal.action === 'open_purchase') {
+      done();
+      setSearch('');
+      if (proposal.supplierInvoice) { setView('expenses'); setModal({ type: 'supplierInvoiceDetail', invoice: proposal.supplierInvoice }); }
+      else { setView('expenses'); setModal({ type: 'supplierInvoice' }); }
+      return;
+    }
+    if (proposal.action === 'follow_up') {
+      const client = proposal.client ? proposal.client.company || proposal.client.name : signal.sender?.company || signal.sender?.name || signal.sender?.email || '';
+      try {
+        await desktopApi.saveWorkNote({ id: createId(), title: (signal.subject || copy.signalFollowUp).slice(0, 200),
+          body: [client, signal.sender?.email, '', signal.evidence].filter(line => line !== undefined).join('\n'), projectId: null, pinned: true,
+          expectedUpdatedAt: null, expectedWorkspaceScope: workspaceRef.current.workNotesScope });
+        setNotice({ tone: 'success', text: copy.signalFollowUpDone }); done();
+      } catch (reason) { setNotice({ tone: 'error', text: errorMessage(reason, copy.quoteCreateError) }); }
+    }
+  };
   // The timers call the latest version, which sees the current busy state and workspace.
-  const readAcceptancesRef = useRef(readAcceptances);
-  readAcceptancesRef.current = readAcceptances;
+  const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); });
+  readAcceptancesRef.current = async () => { await readAcceptances(); await readMailSignals(); };
   const chooseAcceptanceQuote = async (sourceId: string, quoteId: string | null) => {
     if (!autopilotContext || busy || modal || readOnly) return;
     const organizationId = autopilotContext.organizationId, acceptance = acceptances.find(row => row.sourceId === sourceId);
@@ -2480,7 +2561,7 @@ function WorkspaceContent({
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {!activeProjectFolder && <MenuGuide key={`guide-${view}`} view={view} />}
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignal(sourceId, choiceId), onIgnoreSignal: ignoreSignal, onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
@@ -6901,6 +6982,7 @@ function WorkspaceModal({
     return (
       <PaymentForm
         invoiceId={state.invoice.id}
+        prefill={state.prefill}
         readOnly={readOnly}
         onReadWorkspace={onReadWorkspace}
         workspace={workspace}
