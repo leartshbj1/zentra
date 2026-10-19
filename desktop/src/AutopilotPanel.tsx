@@ -6,6 +6,7 @@ import { normalizeAutopilotReviewPage, type AutopilotReviewItem, type AutopilotR
 import { autopilotLineLinks, saveAutopilotLineLink, type AutopilotLineLink } from './autopilotLinks';
 import { autopilotRequestStage } from './autopilotQuote';
 import { AutopilotSignals, type AutopilotSignalCard } from './AutopilotSignalList';
+import { AutopilotActionList, type AutopilotActionCard } from './AutopilotActionList';
 import type { AutopilotView } from './autopilotView';
 import './AutopilotPanel.css';
 
@@ -170,7 +171,7 @@ export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boole
   /** The client accepted the quote; an invoice is the next step. */ accepted?: boolean;
   invoice?: Readonly<{ number: string; issued: boolean }>; invoiceSentAt?: number }>;
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, acceptances = [], onChooseAcceptance, signals = [], onSignal, onIgnoreSignal, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, acceptances = [], onChooseAcceptance, signals = [], onSignal, onIgnoreSignal, followUps = [], followUpSummary, onFollowUp, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
@@ -182,6 +183,10 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
   signals?: readonly AutopilotSignalCard[];
   onSignal?: (sourceId: string, choiceId?: string) => void;
   onIgnoreSignal?: (sourceId: string) => void;
+  /** Reminders and quote follow-ups Autopilote prepared, with their one-line summary. */
+  followUps?: readonly AutopilotActionCard[];
+  followUpSummary?: string;
+  onFollowUp?: (key: string, actionId: string) => void;
   /** Creates the quote at once, with its client and lines. */
   onCreateQuote?: (item: AutopilotReviewItem) => void;
   /** The quote already created from this request, if any. */
@@ -232,7 +237,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
       {onRefresh && <button type="button" disabled={state.readingReviews} onClick={() => { void onRefresh(); }}>{copy.refresh}</button>}
     </header>
     {!readable ? <p className="quote-autopilot__context" role="status">{state.status !== 'ready' ? statusText(state, language) : state.readingReviews ? copy.loading : copy.readError}</p>
-      : active.length === 0 ? (choiceCards.length || acceptedCards.length || signals.length ? null : <p className="quote-autopilot__context">{finished.length ? copy.allDone : copy.empty}</p>)
+      : active.length === 0 ? (choiceCards.length || acceptedCards.length || signals.length || followUps.length ? null : <p className="quote-autopilot__context">{finished.length ? copy.allDone : copy.empty}</p>)
         : <ol className="quote-autopilot__requests">{active.map(item => stageOf(item) === 'accepted' ? <AcceptedRequest key={item.proposalId}
           quote={createdQuote!(item)!} disabled={opening !== null} onCreate={onCreateInvoice ? () => onCreateInvoice(item) : undefined}
           onSend={onSendInvoice ? () => onSendInvoice(item) : undefined} onOpen={onOpenInvoice ? () => onOpenInvoice(item) : undefined} /> : (() => {
@@ -282,6 +287,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
             </details>
           </li>;
         })())}</ol>}
+    {readable && <AutopilotActionList summary={followUpSummary} cards={followUps} disabled={opening !== null} onAction={onFollowUp} label={copy.followUpListTitle} />}
     {readable && <AutopilotSignals cards={signals} disabled={opening !== null} onAct={onSignal} onIgnore={onIgnoreSignal} />}
     {readable && (choiceCards.length > 0 || acceptedCards.length > 0) && <ol className="quote-autopilot__requests quote-autopilot__requests--acceptances" aria-label={copy.acceptanceListTitle}>
       {choiceCards.map(card => <AcceptanceChoice key={card.key} card={card} disabled={opening !== null} onChoose={onChooseAcceptance} />)}

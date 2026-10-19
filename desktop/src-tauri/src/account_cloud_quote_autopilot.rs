@@ -339,7 +339,7 @@ struct MailSignal {
 const SIGNAL_LIMIT: usize = 50;
 impl MailSignal {
     fn valid(&self) -> bool {
-        matches!(self.kind.as_str(), "quote_accepted" | "quote_declined" | "supplier_document" | "payment_announced" | "follow_up")
+        matches!(self.kind.as_str(), "quote_accepted" | "quote_declined" | "supplier_document" | "payment_announced" | "payment_promised" | "follow_up")
             && id(&self.source_id) && timestamp(self.received_at) && self.requires_human_validation
             && self.subject.chars().count() <= 300 && !self.subject.chars().any(char::is_control)
             && text(&self.evidence, 1000)

@@ -35,10 +35,13 @@ export function MailComposer({
   target,
   onClose,
   onSent,
+  subjectOverride,
 }: {
   target: MailTarget;
   onClose: () => void;
   onSent?: () => void;
+  /** Replaces the template subject, e.g. a quote follow-up. */
+  subjectOverride?: string;
 }) {
   return (
     <MailComposerSession
@@ -46,6 +49,7 @@ export function MailComposer({
       target={target}
       onClose={onClose}
       onSent={onSent}
+      subjectOverride={subjectOverride}
     />
   );
 }
@@ -53,10 +57,12 @@ function MailComposerSession({
   target,
   onClose,
   onSent,
+  subjectOverride,
 }: {
   target: MailTarget;
   onClose: () => void;
   onSent?: () => void;
+  subjectOverride?: string;
 }) {
   useAppLanguage();
   const [preview, setPreview] = useState<MailPreview | null>(null),
@@ -97,7 +103,7 @@ function MailComposerSession({
         setError('');
         setState(s);
         setRecipient(p.recipient);
-        setSubject(p.subject);
+        setSubject(subjectOverride ?? p.subject);
         setBody(p.body);
       })
       .catch((reason) => {

@@ -12,6 +12,8 @@ import { resolveAutopilotCatalogueEntry, resolveAutopilotCatalogueFollowup, type
 import type { AutopilotReviewItem, AutopilotRequestKey } from './autopilotReview';
 import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
+import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
+import type { AutopilotActionCard } from './AutopilotActionList';
 import { proposeForSignal, saveSignalDecision, signalDecisions, type MailSignal } from './autopilotSignals';
 import type { AutopilotSignalCard } from './AutopilotSignalList';
 import { acceptanceDecisions, acceptanceKey, acceptanceSettles, matchAcceptance, saveAcceptanceDecision, type AutopilotAcceptance } from './autopilotAcceptance';
@@ -949,7 +951,8 @@ function WorkspaceContent({
   const signalProposals = () => {
     if (!autopilotContext) return [];
     const decided = signalDecisions(autopilotContext.organizationId);
-    return mailSignals.filter(signal => signal.kind !== 'quote_accepted' && !decided[signal.sourceId]).flatMap(signal => {
+    // Payment promises only change reminders; accepted quotes have their own flow.
+    return mailSignals.filter(signal => signal.kind !== 'quote_accepted' && signal.kind !== 'payment_promised' && !decided[signal.sourceId]).flatMap(signal => {
       const proposal = proposeForSignal(signal, workspace);
       // A payment already recorded from this mail is done.
       if (proposal.action === 'record_payment' && workspace.payments.some(payment => payment.notes?.includes(signal.sourceId))) return [];
@@ -1015,9 +1018,96 @@ function WorkspaceContent({
       } catch (reason) { setNotice({ tone: 'error', text: errorMessage(reason, copy.quoteCreateError) }); }
     }
   };
+  // Reminders and quote follow-ups, prepared by the native cycle and sent by a person.
+  const [dueReminders, setDueReminders] = useState<readonly Reminder[]>([]);
+  const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
+  const [followUpMail, setFollowUpMail] = useState<{ target: MailTarget; key: string; subject?: string } | null>(null);
+  const [, setFollowUpVersion] = useState(0);
+  const readFollowUps = async () => {
+    if (!autopilotContext || readOnly) return;
+    try {
+      const settings = await desktopApi.getReminderSettings(workspaceRef.current.workNotesScope);
+      setRemindersOn(settings.enabled);
+      setDueReminders(settings.enabled ? await desktopApi.listReminders({ status: 'due' }) : []);
+    } catch { /* read again next time */ }
+  };
+  const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
+    if (!autopilotContext) return { cards: [], summary: '' };
+    const copy = autopilotCopy(getAppLanguage()), organizationId = autopilotContext.organizationId, today = todayIso();
+    const entries = followUpEntries(organizationId);
+    const date = (iso: string) => iso ? new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(Date.parse(iso + 'T12:00:00Z')) : '';
+    const cards: AutopilotActionCard[] = [];
+    let waiting = 0, ready = 0;
+    if (remindersOn === false && !entries['reminders-offer']?.ignored) cards.push({ key: 'reminders-offer', title: copy.remindersOff, detail: copy.actionEnableReminders,
+      actions: [{ id: 'enable', label: copy.actionEnableReminders, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    for (const reminder of remindersToShow(dueReminders, entries, today)) {
+      const { context, signal } = reminderContext(reminder, mailSignals);
+      const balance = formatMoney(reminder.liveBalanceCents ?? reminder.balanceCents, reminder.currency || 'CHF');
+      const detail = copy.reminderDetail.replace('{client}', reminder.clientName || '').replace('{number}', reminder.invoiceNumber || '')
+        .replace('{balance}', balance).replace('{days}', String(daysOverdue(reminder, today)));
+      const send = reminder.clientEmail ? { id: 'send', label: copy.actionSend } : { id: 'letter', label: copy.actionLetter };
+      const base = { key: reminderKey(reminder.id), title: copy.reminderTitle.replace('{level}', String(reminder.level)), detail };
+      if (context === 'paid') cards.push({ ...base, note: copy.reminderPaid, evidence: signal?.evidence, actions: [
+        { id: 'payment', label: copy.actionRecordPayment, primary: true }, { ...send, label: send.id === 'send' ? copy.actionSendAnyway : send.label }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      else if (context === 'promised') { waiting++; cards.push({ ...base, note: copy.reminderPromised, evidence: signal?.evidence, actions: [
+        { id: 'postpone', label: copy.actionPostpone, primary: true }, { ...send, label: send.id === 'send' ? copy.actionSendAnyway : send.label }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
+      else if (context === 'complaint') cards.push({ ...base, note: copy.reminderComplaint, evidence: signal?.evidence, actions: [
+        { id: 'invoice', label: copy.actionViewInvoice, primary: true }, { id: 'postpone', label: copy.actionPostpone }, send, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      else { ready++; cards.push({ ...base, actions: [{ ...send, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'invoice', label: copy.actionViewInvoice }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
+    }
+    const emails = Object.fromEntries(workspace.clients.map(client => [client.id, client.email]));
+    for (const { quote, step } of quotesToFollowUp(workspace.quotes, mailSignals, emails, entries, today)) {
+      const client = workspace.clients.find(row => row.id === quote.clientId);
+      const name = client?.company || client?.name || '';
+      if (step === 'close') cards.push({ key: quoteKey(quote.id), title: copy.quoteCloseTitle.replace('{number}', quote.number),
+        detail: copy.quoteCloseDetail.replace('{client}', name).replace('{until}', date(quote.validUntil)),
+        actions: [{ id: 'close', label: copy.actionClose, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      else { ready++; cards.push({ key: quoteKey(quote.id), title: copy.quoteFollowUpTitle.replace('{number}', quote.number),
+        detail: copy.quoteFollowUpDetail.replace('{client}', name).replace('{date}', date(quote.issueDate)).replace('{until}', date(quote.validUntil)),
+        actions: [{ id: 'send-quote', label: copy.actionSendQuoteFollowUp, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
+    }
+    const summary = [ready ? copy.followUpSummaryReady.replace('{n}', String(ready)) : '', waiting ? copy.followUpSummaryWaiting.replace('{n}', String(waiting)) : ''].filter(Boolean).join(' · ');
+    return { cards, summary };
+  };
+  const runFollowUp = async (key: string, actionId: string) => {
+    if (!autopilotContext || busy || modal || readOnly) return;
+    const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage()), today = todayIso();
+    const refresh = () => setFollowUpVersion(version => version + 1);
+    if (actionId === 'ignore') { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); refresh(); return; }
+    if (actionId === 'postpone') { saveFollowUp(organizationId, key, entry => ({ ...entry, until: addDays(today, 7) })); refresh(); return; }
+    if (key === 'reminders-offer' && actionId === 'enable') {
+      const enabled = await act(async () => { await desktopApi.installReminderCycle(createId()); return desktopApi.loadWorkspace(); }, copy.remindersEnabled, false);
+      if (enabled) void readFollowUps();
+      return;
+    }
+    if (key.startsWith('reminder:')) {
+      const reminder = dueReminders.find(row => reminderKey(row.id) === key);
+      if (!reminder) return;
+      const invoice = workspaceRef.current.invoices.find(row => row.id === reminder.invoiceId);
+      if (actionId === 'send') { setFollowUpMail({ target: { entity: 'reminders', id: reminder.id }, key }); return; }
+      if (actionId === 'letter') { setSearch(''); setView('reminders'); return; }
+      if (actionId === 'invoice' && invoice) { setSearch(''); setView('invoices'); setModal({ type: 'document', entity: 'invoices', item: invoice }); return; }
+      if (actionId === 'payment' && invoice) {
+        const { signal } = reminderContext(reminder, mailSignals);
+        setSearch(''); setView('invoices');
+        setModal({ type: 'payment', invoice, prefill: { amountCents: signal?.amountCents ?? reminder.liveBalanceCents ?? reminder.balanceCents,
+          notes: signal ? copy.signalPaymentNote.replace('{date}', new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(signal.receivedAt * 1000)).replace('{source}', signal.sourceId) : '' } });
+      }
+      return;
+    }
+    if (key.startsWith('quote:')) {
+      const quote = workspaceRef.current.quotes.find(row => quoteKey(row.id) === key);
+      if (!quote) return;
+      if (actionId === 'send-quote') { setFollowUpMail({ target: { entity: 'quotes', id: quote.id }, key, subject: copy.quoteFollowUpSubject.replace('{number}', quote.number) }); return; }
+      if (actionId === 'close') {
+        const closed = await act(() => desktopApi.updateQuoteStatus(quote.id, 'expired'), copy.quoteClosed.replace('{number}', quote.number), false);
+        if (closed) { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); refresh(); }
+      }
+    }
+  };
   // The timers call the latest version, which sees the current busy state and workspace.
-  const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); });
-  readAcceptancesRef.current = async () => { await readAcceptances(); await readMailSignals(); };
+  const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); });
+  readAcceptancesRef.current = async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); };
   const chooseAcceptanceQuote = async (sourceId: string, quoteId: string | null) => {
     if (!autopilotContext || busy || modal || readOnly) return;
     const organizationId = autopilotContext.organizationId, acceptance = acceptances.find(row => row.sourceId === sourceId);
@@ -2273,6 +2363,10 @@ function WorkspaceContent({
     <div className="desktop-app" data-experience="clarity" data-view={view} data-notes-editing={view === 'notes' && notesEditing ? 'true' : undefined} data-native-desktop={isNativeMacOS && nativeNavigation ? true : undefined}>
       <CompanyReceivingGuard/>
       {mailAfterIssue && <MailComposer target={mailAfterIssue} onClose={() => setMailAfterIssue(null)} />}
+      {followUpMail && <MailComposer target={followUpMail.target} subjectOverride={followUpMail.subject} onClose={() => { setFollowUpMail(null); void readFollowUps(); }} onSent={() => {
+        if (autopilotContext) saveFollowUp(autopilotContext.organizationId, followUpMail.key, entry => ({ ...entry, sentCount: (entry.sentCount ?? 0) + 1, lastSentAt: todayIso() }));
+        setFollowUpVersion(version => version + 1);
+      }} />}
       {autopilotMail && <MailComposer target={autopilotMail.target} onClose={() => setAutopilotMail(null)} onSent={() => {
         markAutopilotQuoteSent(autopilotMail.organizationId, autopilotMail.proposalId, Date.now(), autopilotMail.kind ?? 'quote');
         setAutopilotQuotesVersion(version => version + 1);
@@ -2561,7 +2655,7 @@ function WorkspaceContent({
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {!activeProjectFolder && <MenuGuide key={`guide-${view}`} view={view} />}
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignal(sourceId, choiceId), onIgnoreSignal: ignoreSignal, onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignal(sourceId, choiceId), onIgnoreSignal: ignoreSignal, ...(() => { const followUps = followUpCards(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUp(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
