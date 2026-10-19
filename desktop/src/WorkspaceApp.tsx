@@ -14,6 +14,7 @@ import type { DocumentSeed } from './documentFormDraft';
 import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { appointmentsToShow, clientFromSender, contactProposals } from './autopilotContacts';
+import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { AutopilotActionCard } from './AutopilotActionList';
 import { proposeForSignal, saveSignalDecision, signalDecisions, type MailSignal } from './autopilotSignals';
@@ -1104,15 +1105,83 @@ function WorkspaceContent({
       cards.push({ key, title: copy.tomorrowTitle.replace('{time}', item.extraction.allDay ? '' : item.extraction.startTime).replace('{title}', item.extraction.title || item.subject),
         detail: item.extraction.location || item.sender, actions: [{ id: 'open-agenda', label: copy.actionOpenAgenda, primary: true }, { id: 'ignore', label: copy.actionDone }] });
     }
+    // Purchases: supplier invoices to pay soon, low stock, deliveries announced.
+    const toPay = invoicesToPay(workspace.supplierInvoices, today).filter(invoice => !entries['pay:' + invoice.id]?.ignored && !(entries['pay:' + invoice.id]?.until && entries['pay:' + invoice.id]!.until! > today));
+    for (const invoice of toPay) {
+      const supplier = workspace.suppliers.find(row => row.id === invoice.supplierId);
+      cards.push({ key: 'pay:' + invoice.id, title: copy.payTitle.replace('{supplier}', supplier?.name || invoice.supplierName),
+        detail: copy.payDetail.replace('{reference}', invoice.reference).replace('{amount}', formatMoney(invoice.balanceCents, invoice.currency)).replace('{date}', date(invoice.dueDate))
+          + (invoice.dueDate < today ? ' · ' + copy.payOverdue : ''),
+        actions: [{ id: 'copy-iban', label: copy.actionCopyIban }, { id: 'view-purchase', label: copy.actionViewPurchase }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'pay', label: copy.actionPay, primary: true }] });
+    }
+    const lowStock = lowStockItems(workspace.catalogItems, workspace.stockAvailability, workspace.supplierOrders).filter(row => !entries['stock:' + row.item.id]?.ignored && !(entries['stock:' + row.item.id]?.until && entries['stock:' + row.item.id]!.until! > today));
+    for (const { item, onHandMilli } of lowStock) cards.push({ key: 'stock:' + item.id, title: copy.lowStockTitle.replace('{item}', item.name),
+      detail: copy.lowStockDetail.replace('{quantity}', `${onHandMilli / 1000} ${item.unit}`).replace('{threshold}', String(item.reorderLevelMilli / 1000)),
+      actions: [{ id: 'prepare-order', label: copy.actionPrepareOrder, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    let deliveries = 0;
+    for (const signal of mailSignals.filter(row => row.kind === 'supplier_order' && !decidedSignals['order:' + row.sourceId])) {
+      const found = supplierOrderProposal(signal, workspace.suppliers, workspace.supplierOrders);
+      if (!found.supplier) continue;
+      if (found.shipped) deliveries++;
+      cards.push({ key: 'order:' + signal.sourceId, title: (found.shipped ? copy.deliveryTitle : copy.supplierOrderTitle).replace('{supplier}', found.supplier.name),
+        detail: found.order ? `${found.order.number} · ${found.order.title}` : '', evidence: signal.evidence,
+        actions: [found.order && found.shipped ? { id: 'prepare-receipt', label: copy.actionPrepareReceipt, primary: true }
+          : { id: 'view-orders', label: found.several ? copy.actionChooseOrder : copy.actionViewOrders, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     const summary = [ready ? copy.followUpSummaryReady.replace('{n}', String(ready)) : '', waiting ? copy.followUpSummaryWaiting.replace('{n}', String(waiting)) : '',
-      contacts ? copy.summaryContacts.replace('{n}', String(contacts)) : '', appointments ? copy.summaryAppointments.replace('{n}', String(appointments)) : ''].filter(Boolean).join(' · ');
+      contacts ? copy.summaryContacts.replace('{n}', String(contacts)) : '', appointments ? copy.summaryAppointments.replace('{n}', String(appointments)) : '',
+      toPay.length ? copy.summaryToPay.replace('{n}', String(toPay.length)) : '', lowStock.length ? copy.summaryLowStock.replace('{n}', String(lowStock.length)) : '',
+      deliveries ? copy.summaryDeliveries.replace('{n}', String(deliveries)) : ''].filter(Boolean).join(' · ');
     return { cards, summary };
   };
   const runFollowUp = async (key: string, actionId: string) => {
     if (!autopilotContext || busy || modal || readOnly) return;
     const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage()), today = todayIso();
     const refresh = () => setFollowUpVersion(version => version + 1);
-    if (actionId === 'ignore' && key.startsWith('contact:')) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
+    if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
+    if (key.startsWith('pay:')) {
+      const invoice = workspaceRef.current.supplierInvoices.find(row => 'pay:' + row.id === key);
+      if (!invoice) return;
+      const supplier = workspaceRef.current.suppliers.find(row => row.id === invoice.supplierId);
+      if (actionId === 'pay') { setSearch(''); setView('expenses'); setModal({ type: 'supplierPayment', invoice }); return; }
+      if (actionId === 'view-purchase') { setSearch(''); setView('expenses'); setModal({ type: 'supplierInvoiceDetail', invoice }); return; }
+      if (actionId === 'copy-iban') {
+        if (!supplier?.iban) { setNotice({ tone: 'warning', text: copy.ibanMissing }); return; }
+        try { await navigator.clipboard.writeText(`${supplier.iban}\n${invoice.reference}`); setNotice({ tone: 'success', text: copy.ibanCopied }); }
+        catch { setNotice({ tone: 'warning', text: `${supplier.iban} · ${invoice.reference}` }); }
+      }
+      return;
+    }
+    if (key.startsWith('stock:') && actionId === 'prepare-order') {
+      const item = workspaceRef.current.catalogItems.find(row => 'stock:' + row.id === key);
+      if (!item) return;
+      const last = lastOrderLine(item.id, workspaceRef.current.supplierOrders);
+      if (!last) { setNotice({ tone: 'warning', text: copy.orderNoSupplier }); setSearch(''); setView('expenses'); return; }
+      const supplier = workspaceRef.current.suppliers.find(row => row.id === last.order.supplierId);
+      const quantityMilli = last.line.quantityMilli > 0 ? last.line.quantityMilli : item.reorderLevelMilli * 2;
+      const drafted = await act(() => desktopApi.saveSupplierOrderDraft({ supplierId: last.order.supplierId, title: item.name, orderDate: today, currency: last.order.currency,
+        lines: [{ catalogItemId: item.id, position: 1, description: last.line.description || item.name, quantityMilli, unit: last.line.unit || item.unit,
+          unitPriceCents: last.line.unitPriceCents, discountBp: last.line.discountBp, vatBp: last.line.vatBp, category: last.line.category,
+          expenseAccountId: last.line.expenseAccountId, projectId: last.line.projectId, fulfillmentMode: last.line.fulfillmentMode }] }),
+        copy.orderDrafted.replace('{supplier}', supplier?.name || ''), false);
+      if (drafted) { saveFollowUp(organizationId, key, entry => ({ ...entry, until: addDays(today, 7) })); setSearch(''); setView('expenses'); refresh(); }
+      return;
+    }
+    if (key.startsWith('order:')) {
+      const signal = mailSignals.find(row => 'order:' + row.sourceId === key);
+      if (!signal) return;
+      const found = supplierOrderProposal(signal, workspaceRef.current.suppliers, workspaceRef.current.supplierOrders);
+      if (actionId === 'prepare-receipt' && found.order) {
+        const order = found.order;
+        const prepared = await act(() => desktopApi.saveSupplierReceiptDraft({ supplierOrderId: order.id, receiptDate: today, reference: '',
+          notes: signal.evidence.slice(0, 500), lines: order.lines.filter(line => line.remainingReceivableMilli > 0).map(line => ({ supplierOrderLineId: line.id, quantityMilli: line.remainingReceivableMilli })) }),
+          copy.receiptDrafted, false);
+        if (prepared) { saveSignalDecision(organizationId, key, 'done'); setSearch(''); setView('expenses'); refresh(); }
+        return;
+      }
+      if (actionId === 'view-orders') { saveSignalDecision(organizationId, key, 'done'); setSearch(''); setView('expenses'); refresh(); }
+      return;
+    }
     if (actionId === 'ignore') { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); refresh(); return; }
     if (key.startsWith('contact:')) {
       const proposal = contactProposals(mailSignals, workspaceRef.current.clients, workspaceRef.current.suppliers).find(row => row.key === key);
