@@ -23,6 +23,8 @@ import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type CatalogArea, type TimeArea } from './BankAreaTabs';
 import { PriceListsPanel } from './PriceListsPanel';
+import { WarehousesPanel } from './WarehousesPanel';
+import { LotsPanel } from './LotsPanel';
 import { PipelinePanel } from './PipelinePanel';
 import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline';
 import { WorkReportsPanel } from './WorkReportsPanel';
@@ -41,6 +43,7 @@ import type { PendingConversion } from './currencies';
 import { applyPriceList, clientPriceList } from './priceLists';
 import { budgetOverruns, compareBudget, type BudgetReport } from './budget';
 import { archiveDue, archiveProblems, archivesToVerify, type LegalArchiveState } from './legalArchive';
+import { deliveriesToTrace, expiringLots, lotBalances, warehouseStock } from './stockLocations';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
@@ -1119,6 +1122,7 @@ function WorkspaceContent({
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
   const [catalogArea, setCatalogArea] = useState<CatalogArea>('items');
+  const [lotsDelivery, setLotsDelivery] = useState<string | null>(null);
   // Opportunités : un onglet des ventes, affiché à la place de la liste des devis.
   const [pipelineOpen, setPipelineOpen] = useState(false);
   useEffect(() => { if (view !== 'quotes') setPipelineOpen(false); }, [view]);
@@ -1543,6 +1547,34 @@ function WorkspaceContent({
           actions: [{ id: 'open-archive', label: copy.actionOpenArchive, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
       }
     }
+    // Stock : livraisons d'articles suivis sans numéros notés, lots qui expirent, dépôt en négatif.
+    if (workspace.stockLocations) {
+      const locations = workspace.stockLocations;
+      for (const { note, catalogItemIds } of deliveriesToTrace(workspace.deliveryNotes, workspace.salesOrders, locations)) {
+        const key = 'trace:' + note.id;
+        if (entries[key]?.ignored) continue;
+        const names = catalogItemIds.map(id => workspace.catalogItems.find(item => item.id === id)?.name ?? '').filter(Boolean).join(', ');
+        cards.push({ key, title: copy.traceDeliveryTitle.replace('{number}', note.number), detail: copy.traceDeliveryDetail.replace('{items}', names).replace('{date}', date(note.deliveryDate)), why: copy.whyTrace,
+          actions: [{ id: 'trace-delivery', label: copy.actionTraceDelivery, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      }
+      for (const row of expiringLots(lotBalances(locations), today)) {
+        const key = `lot-expiry:${row.lot.id}:${row.lot.expiryDate}`;
+        if (entries[key]?.ignored) continue;
+        const item = workspace.catalogItems.find(entry => entry.id === row.lot.catalogItemId);
+        cards.push({ key, title: copy.lotExpiryTitle.replace('{code}', row.lot.code).replace('{item}', item?.name ?? '').replace('{date}', date(row.lot.expiryDate ?? '')),
+          detail: copy.lotExpiryDetail.replace('{quantity}', String(row.balanceMilli / 1000)).replace('{unit}', item?.unit ?? ''),
+          actions: [{ id: 'open-lots', label: copy.actionOpenLots, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      }
+      const stockByWarehouse = warehouseStock(locations, workspace.stockMovements);
+      for (const [itemId, row] of stockByWarehouse) for (const [warehouseId, milli] of row) {
+        if (milli >= 0) continue;
+        const key = `warehouse-negative:${itemId}:${warehouseId}`;
+        if (entries[key]?.ignored) continue;
+        const item = workspace.catalogItems.find(entry => entry.id === itemId), warehouse = locations.warehouses.find(entry => entry.id === warehouseId);
+        cards.push({ key, title: copy.warehouseNegativeTitle.replace('{item}', item?.name ?? '').replace('{warehouse}', warehouse?.name ?? ''), detail: copy.warehouseNegativeDetail.replace('{quantity}', String(milli / 1000)),
+          actions: [{ id: 'open-warehouses', label: copy.actionOpenWarehouses, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      }
+    }
     // Budget : charges nettement au-dessus du budget depuis janvier.
     if (budgetReport) {
       const month = new Date().getMonth() + 1;
@@ -1749,6 +1781,9 @@ function WorkspaceContent({
       if (done) refresh();
       return;
     }
+    if (key.startsWith('trace:') && actionId === 'trace-delivery') { setSearch(''); setLotsDelivery(key.slice('trace:'.length)); setCatalogArea('lots'); setView('catalog'); return; }
+    if (actionId === 'open-lots') { setSearch(''); setLotsDelivery(null); setCatalogArea('lots'); setView('catalog'); return; }
+    if (actionId === 'open-warehouses') { setSearch(''); setCatalogArea('warehouses'); setView('catalog'); return; }
     if (actionId === 'open-archive') { setSearch(''); setAccountingStartTab('archive'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-budget') { setSearch(''); setAccountingStartTab('budget'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-currencies') { setSearch(''); setAccountingStartTab('currencies'); setAccountingEntryFocus(null); setView('accounting'); return; }
@@ -3777,9 +3812,15 @@ function WorkspaceContent({
               onRestore={(item) => void restoreClient(item)}
             />
           ) : null}
-          {view === 'catalog' ? <CatalogAreaTabs active={catalogArea} onChange={setCatalogArea} /> : null}
+          {view === 'catalog' ? <CatalogAreaTabs active={catalogArea} onChange={(area) => { setLotsDelivery(null); setCatalogArea(area); }} /> : null}
           {view === 'catalog' && catalogArea === 'prices' ? (
             <PriceListsPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
+          {view === 'catalog' && catalogArea === 'warehouses' ? (
+            <WarehousesPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
+          {view === 'catalog' && catalogArea === 'lots' ? (
+            <LotsPanel key={lotsDelivery ?? 'lots'} workspace={workspace} readOnly={readOnly || busy} deliveryNoteId={lotsDelivery} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
           {view === 'catalog' && catalogArea === 'items' ? (
             <CatalogScreen

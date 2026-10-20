@@ -214,3 +214,26 @@ export function installErpPipelineFixture(data: Workspace) {
     row('o7', 'Terrasse en bois', 'lost', 780_000, { prospectName: 'M. Dupont', lostReason: 'Budget reporté', stageChangedAt: day(-30) }),
   ] as never;
 }
+
+/** Dépôts, lots et numéros de série (?erp=stock). */
+export function installErpStockFixture(data: Workspace) {
+  const now = '2026-10-15T08:00:00Z';
+  const product = (id: string, name: string, unit: string, price: number) => ({ id, kind: 'product', sku: '', name, description: '', unit, salesPriceCents: price, purchaseCostCents: Math.round(price * 0.6), vatBp: 810,
+    trackStock: true, stockQuantityMilli: 0, reorderLevelMilli: 0, archivedAt: null, createdAt: now, updatedAt: now });
+  data.catalogItems = [product('valve', 'Robinet thermostatique', 'pce', 18_000), product('glue', 'Colle carrelage flex', 'sac', 3_450), product('pipe', 'Tube multicouche 16 mm', 'm', 420), ...data.catalogItems] as never;
+  const movement = (id: string, item: string, delta: number, date: string, reason: string, sequence: number) => ({ sequence, id, sourceKey: id, requestId: null, catalogItemId: item, movementType: delta > 0 ? 'entry' : 'exit',
+    quantityDeltaMilli: delta, balanceAfterMilli: 0, reason, reference: null, movementDate: date, sourceType: 'manual', invoiceId: null, invoiceItemId: null, createdAt: now });
+  data.stockMovements = [movement('m1', 'valve', 6_000, '2026-10-01', 'Réception REC-2026-0012', 1), movement('m2', 'glue', 20_000, '2026-10-02', 'Réception REC-2026-0013', 2),
+    movement('m3', 'pipe', 150_000, '2026-10-02', 'Réception REC-2026-0013', 3), movement('m4', 'valve', -2_000, '2026-10-08', 'Livraison BL-2026-0031', 4), movement('m5', 'glue', -4_000, '2026-10-09', 'Chantier Morel', 5)] as never;
+  data.stockLocations = {
+    warehouses: [{ id: 'w-main', code: 'ATELIER', name: 'Atelier Bulle', isDefault: true, archivedAt: null }, { id: 'w-van', code: 'VAN-1', name: 'Camionnette', isDefault: false, archivedAt: null }, { id: 'w-site', code: 'MOREL', name: 'Chantier Morel', isDefault: false, archivedAt: null }],
+    movementWarehouses: { m5: 'w-site' },
+    transfers: [{ id: 't1', catalogItemId: 'pipe', fromWarehouseId: 'w-main', toWarehouseId: 'w-van', quantityMilli: 40_000, transferDate: '2026-10-05', note: '' }, { id: 't2', catalogItemId: 'glue', fromWarehouseId: 'w-main', toWarehouseId: 'w-site', quantityMilli: 8_000, transferDate: '2026-10-06', note: 'Chantier Morel' }],
+    tracking: [{ catalogItemId: 'valve', mode: 'serial' }, { catalogItemId: 'glue', mode: 'lot' }],
+    lots: [{ id: 'l1', catalogItemId: 'glue', mode: 'lot', code: 'L-2610-A', expiryDate: '2026-11-08', warehouseId: null, createdAt: now }, { id: 'l2', catalogItemId: 'glue', mode: 'lot', code: 'L-2702-C', expiryDate: '2027-02-28', warehouseId: null, createdAt: now },
+      ...['TV-88231', 'TV-88232', 'TV-88233', 'TV-88234', 'TV-88235', 'TV-88236'].map((code, index) => ({ id: 's' + index, catalogItemId: 'valve', mode: 'serial' as const, code, expiryDate: null, warehouseId: null, createdAt: now }))],
+    lotMovements: [{ id: 'a', lotId: 'l1', quantityMilli: 12_000, movementDate: '2026-10-02', sourceType: 'receipt', sourceId: null, reference: 'REC-2026-0013' }, { id: 'b', lotId: 'l2', quantityMilli: 8_000, movementDate: '2026-10-02', sourceType: 'receipt', sourceId: null, reference: 'REC-2026-0013' },
+      { id: 'c', lotId: 'l1', quantityMilli: -4_000, movementDate: '2026-10-09', sourceType: 'exit', sourceId: null, reference: 'Chantier Morel' },
+      ...[0, 1, 2, 3, 4, 5].map(index => ({ id: 'r' + index, lotId: 's' + index, quantityMilli: 1_000, movementDate: '2026-10-01', sourceType: 'receipt' as const, sourceId: null, reference: 'REC-2026-0012' }))],
+  } as never;
+}

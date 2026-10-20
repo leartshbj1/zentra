@@ -63,3 +63,5 @@ rust:opportunities::
 src/pipeline.test.ts
 rust:legal_archive::
 src/legalArchive.test.ts
+rust:stock_locations::
+src/stockLocations.test.ts

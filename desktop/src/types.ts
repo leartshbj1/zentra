@@ -1949,6 +1949,8 @@ export type Workspace = {
   priceLists?: import('./priceLists').PriceList[];
   /** Opportunités de vente (pipeline). */
   opportunities?: import('./pipeline').Opportunity[];
+  /** Dépôts, transferts, lots et numéros de série. */
+  stockLocations?: import('./stockLocations').StockLocations;
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

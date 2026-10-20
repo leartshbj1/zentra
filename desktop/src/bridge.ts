@@ -16,6 +16,7 @@ import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import { priceListsFromRaw } from './priceLists';
 import { legalArchiveFromRaw } from './legalArchive';
+import { stockLocationsFromRaw } from './stockLocations';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -561,6 +562,12 @@ type RawWorkspace = {
   price_list_items?: RawRecord[];
   client_price_lists?: RawRecord[];
   opportunities?: RawRecord[];
+  warehouses?: RawRecord[];
+  stock_movement_warehouses?: RawRecord[];
+  stock_transfers?: RawRecord[];
+  catalog_item_tracking?: RawRecord[];
+  stock_lots?: RawRecord[];
+  stock_lot_movements?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3464,6 +3471,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     })),
     priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
     opportunities: (raw.opportunities ?? []).map(opportunityFromRaw),
+    stockLocations: stockLocationsFromRaw(raw),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7616,6 +7624,26 @@ export const desktopApi = {
   async importSourceTaxTariffs(text: string) {
     const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
     return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
+  },
+  async saveWarehouse(input: { id: string | null; code: string; name: string; isDefault: boolean; archived: boolean }) {
+    await invoke<RawRecord>('save_warehouse', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async assignMovementWarehouse(movementId: string, warehouseId: string) {
+    await invoke<void>('assign_movement_warehouse', { movementId, warehouseId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async transferStock(input: { catalogItemId: string; fromWarehouseId: string; toWarehouseId: string; quantityMilli: number; transferDate: string; note: string }) {
+    await invoke<RawRecord>('transfer_stock', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async setItemTracking(catalogItemId: string, mode: 'lot' | 'serial' | null) {
+    await invoke<void>('set_item_tracking', { catalogItemId, mode });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async recordLotMovement(input: { catalogItemId: string; codes: string[]; quantityMilli: number; movementDate: string; expiryDate: string | null; warehouseId: string | null; sourceType: 'entry' | 'exit' | 'receipt' | 'delivery'; sourceId: string | null; reference: string }) {
+    await invoke<RawRecord>('record_lot_movement', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async listLegalArchives(): Promise<import('./legalArchive').LegalArchiveState> {
     const raw = await invoke<RawRecord>('list_legal_archives');
