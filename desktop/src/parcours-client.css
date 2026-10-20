@@ -194,3 +194,17 @@ html[data-app-theme] .client-mobile-list__avatar {
 html[data-app-theme] .guided-tour__scroll-hint {
   color: var(--zp-quiet-label);
 }
+
+@media screen and (min-width: 861px) {
+  /* Sales lists: rows get air; actions sit together at the right. */
+  html[data-app-theme] td.sales-document__actions .document-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+  }
+  html[data-app-theme] :is(.sales-table, table) tbody tr > td:is(.sales-document__identity, .sales-document__date, .sales-document__total, .sales-document__paid, .sales-document__status, .sales-document__client, .sales-document__actions) {
+    padding-block: 18px;
+  }
+}
