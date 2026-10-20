@@ -33,10 +33,42 @@ impl SecureUpdaterConfiguration {
     }
 
     fn from_build_environment() -> Self {
+        if running_from_msix_package() {
+            return store_package_configuration();
+        }
         validate_configuration(
             option_env!("ELYKO_UPDATER_PUBLIC_KEY"),
             option_env!("ELYKO_UPDATER_ENDPOINT"),
         )
+    }
+}
+
+// The same Zentra.exe ships in the NSIS installer and in the Microsoft Store
+// MSIX package. Inside a package the install folder is read-only and the
+// Store delivers updates, so the integrated updater stays closed there.
+#[cfg(windows)]
+fn running_from_msix_package() -> bool {
+    use windows_sys::Win32::Foundation::APPMODEL_ERROR_NO_PACKAGE;
+    use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+
+    let mut length = 0u32;
+    // With a zero-length buffer a packaged process gets ERROR_INSUFFICIENT_BUFFER
+    // and an unpackaged one gets APPMODEL_ERROR_NO_PACKAGE.
+    let status = unsafe { GetCurrentPackageFullName(&mut length, std::ptr::null_mut()) };
+    status != APPMODEL_ERROR_NO_PACKAGE
+}
+
+#[cfg(not(windows))]
+fn running_from_msix_package() -> bool {
+    false
+}
+
+fn store_package_configuration() -> SecureUpdaterConfiguration {
+    SecureUpdaterConfiguration {
+        endpoint: None,
+        public_key: None,
+        reason: "Version Microsoft Store : les mises à jour arrivent automatiquement par le Microsoft Store. Aucune autre source réseau ne sera contactée."
+            .to_owned(),
     }
 }
 
@@ -611,8 +643,9 @@ mod tests {
     use base64::Engine;
 
     use super::{
-        restore_pending_update_after_error, validate_configuration, validate_download_source,
-        validate_update_size, MAX_UPDATE_ARTIFACT_BYTES,
+        restore_pending_update_after_error, running_from_msix_package, store_package_configuration,
+        validate_configuration, validate_download_source, validate_update_size,
+        MAX_UPDATE_ARTIFACT_BYTES,
     };
 
     fn public_key() -> String {
@@ -625,6 +658,18 @@ mod tests {
         let configuration = validate_configuration(None, None);
         assert!(!configuration.enabled());
         assert!(configuration.reason.contains("Aucune source réseau"));
+    }
+
+    #[test]
+    fn updater_is_closed_inside_a_store_package() {
+        let configuration = store_package_configuration();
+        assert!(!configuration.enabled());
+        assert!(configuration.reason.contains("Microsoft Store"));
+    }
+
+    #[test]
+    fn test_process_is_not_an_msix_package() {
+        assert!(!running_from_msix_package());
     }
 
     #[test]

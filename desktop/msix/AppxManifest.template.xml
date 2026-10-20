@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Microsoft Store package for Zentra. desktop/scripts/package-msix-windows.ps1
+  fills the {{...}} values from desktop/msix/store-identity.json and the app
+  version. The Store re-signs the package after certification, so no
+  certificate is involved here.
+
+  Write virtualization is disabled so the Store edition keeps using the same
+  %LOCALAPPDATA%\ch.helvichantier.desktop profile as the NSIS edition, and the
+  business data survives an uninstall of the package.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  IgnorableNamespaces="uap rescap desktop6">
+  <Identity
+    Name="{{IDENTITY_NAME}}"
+    Publisher="{{PUBLISHER}}"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Zentra</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="fr-CH" />
+    <Resource Language="de-CH" />
+    <Resource Language="it-CH" />
+    <Resource Language="en-US" />
+  </Resources>
+  <Applications>
+    <Application Id="Zentra" Executable="Zentra.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Zentra"
+        Description="{{DESCRIPTION}}"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+</Package>
