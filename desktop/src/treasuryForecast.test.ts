@@ -47,5 +47,9 @@ describe('prévision de trésorerie', () => {
     expect(forecast.low.date).toBe('2026-11-10');
     expect(forecast.low.cause?.kind).toBe('supplier');
     expect(plusDays('2026-12-31', 1)).toBe('2027-01-01');
+    // TVA calculée : sort à son échéance et peut devenir la cause du creux.
+    const withVat = treasuryForecast(workspace(), 2_000_000, '2026-10-20', [{ date: '2026-11-15', kind: 'vat', label: '', amountCents: -1_500_000 }, { date: '2027-06-01', kind: 'vat', label: '', amountCents: -1 }]);
+    expect(withVat.low).toMatchObject({ date: '2026-11-15', cause: { kind: 'vat' } });
+    expect(withVat.events.some((event) => event.date === '2027-06-01')).toBe(false);
   });
 });

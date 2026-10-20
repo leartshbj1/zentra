@@ -98,7 +98,10 @@ const followUps: AutopilotActionCard[] = [
   { key: 'contact:c1', title: 'Nouvelles coordonnées · Atelier du Lac', detail: 'Rue du Port 4, 1006 Lausanne · 021 555 01 02', actions: [{ id: 'update', label: 'Mettre à jour la fiche', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'appt:a1', title: 'Rendez-vous : visite chantier Morel', detail: 'mardi 21 oct. 2026, 10:00 · Lausanne', actions: [{ id: 'agenda', label: 'Ajouter à l’agenda', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'hours:h1', title: '12 h non facturées · Résidence Bellevue · projet Rénovation hall', detail: 'Environ CHF 1 140.00 selon les tarifs saisis', actions: [{ id: 'invoice', label: 'Préparer la facture', primary: true }, { id: 'project', label: 'Voir le projet' }] },
-  { key: 'vat:v1', title: 'Décompte TVA T3 2026 prêt à contrôler', detail: 'Échéance indicative 30 nov. 2026', actions: [{ id: 'vat', label: 'Ouvrir la TVA', primary: true }] },
+  { key: 'payroll:2026-10', title: 'Salaires d’octobre 2026 à préparer', detail: 'Copie du mois précédent, cotisations recalculées par l’app. Vous contrôlez chaque fiche avant de la valider.',
+    why: 'Collaborateurs en poste sans fiche pour ce mois ; fiche validée le mois précédent. · À vérifier avant de valider',
+    actions: [{ id: 'ignore', label: 'Ignorer' }, { id: 'open-payroll', label: 'Ouvrir les salaires' }, { id: 'prepare-payroll', label: 'Préparer les 4 fiches', primary: true }] },
+  { key: 'vat:v1', title: 'Décompte TVA 1 juil. 2026 – 30 sept. 2026 · 3 412.60 CHF à payer', detail: 'Échéance indicative 29 nov. 2026', why: 'Montant calculé par l’app sur les documents de la période, comme dans le décompte.', actions: [{ id: 'postpone', label: 'Reporter' }, { id: 'vat', label: 'Ouvrir la TVA', primary: true }] },
 
 ];
 const signals: AutopilotSignalCard[] = [

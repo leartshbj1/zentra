@@ -7465,6 +7465,11 @@ export const desktopApi = {
     await invoke('terminate_contract', { id, terminatedOn });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
+  /** Brouillons du mois : copie du mois précédent, cotisations recalculées par l'app. */
+  async preparePayrollDrafts(period: string) {
+    const raw = await invoke<{ created: { name: string }[]; failed: { name: string; reason: string }[] }>('prepare_payroll_drafts', { period });
+    return { created: raw.created ?? [], failed: raw.failed ?? [], workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
   async refreshInvoicePaymentLinks(): Promise<number> {
     const raw = await invoke<RawRecord>('refresh_invoice_payment_links');
     return numberValue(raw.checked);

@@ -6,7 +6,7 @@ import { addMonths, contractDueDates } from './contracts';
 import type { Contract, Workspace } from './types';
 import { invoiceOpenBalance, payslipTotals } from './utils';
 
-export type ForecastKind = 'invoice' | 'overdue' | 'supplier' | 'expense' | 'payroll' | 'recurring' | 'contract';
+export type ForecastKind = 'invoice' | 'overdue' | 'supplier' | 'expense' | 'payroll' | 'recurring' | 'contract' | 'vat';
 
 export type ForecastEvent = { date: string; kind: ForecastKind; label: string; amountCents: number };
 
@@ -89,8 +89,9 @@ export function forecastEvents(workspace: Source, today: string, horizon = 90): 
   return events.sort((a, b) => a.date.localeCompare(b.date) || a.amountCents - b.amountCents);
 }
 
-export function treasuryForecast(workspace: Source, startCents: number, today: string): Forecast {
-  const events = forecastEvents(workspace, today, 90);
+export function treasuryForecast(workspace: Source, startCents: number, today: string, extra: readonly ForecastEvent[] = []): Forecast {
+  const events = [...forecastEvents(workspace, today, 90), ...extra.filter((event) => event.date >= today && event.date <= plusDays(today, 90))]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.amountCents - b.amountCents);
   const balanceAt = (date: string) => startCents + events.filter((event) => event.date <= date).reduce((sum, event) => sum + event.amountCents, 0);
   let low = { date: today, cents: startCents, cause: null as ForecastEvent | null };
   for (const date of [...new Set(events.map((event) => event.date))]) {

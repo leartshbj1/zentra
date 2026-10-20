@@ -291,4 +291,6 @@ export const erpTranslations: Record<string, readonly [string, string, string]> 
   'Facture récurrente {label}': ['Wiederkehrende Rechnung {label}', 'Fattura ricorrente {label}', 'Recurring invoice {label}'],
   'Contrat {label}': ['Vertrag {label}', 'Contratto {label}', 'Contract {label}'],
   'Contrats': ['Verträge', 'Contratti', 'Contracts'],
+  'TVA {label}': ['MWST {label}', 'IVA {label}', 'VAT {label}'],
+  'La TVA du dernier décompte calculé sort à son échéance.': ['Die MWST der letzten berechneten Abrechnung geht bei Fälligkeit aus.', 'L’IVA dell’ultimo rendiconto calcolato esce alla scadenza.', 'The VAT of the last calculated return goes out on its due date.'],
 };

@@ -9,7 +9,7 @@ import './erp-registers.css';
 
 export const FORECAST_LABEL: Record<ForecastEvent['kind'], string> = {
   invoice: 'Facture {label}', overdue: 'Facture {label} en retard', supplier: 'Fournisseur {label}', expense: 'Dépense {label}',
-  payroll: 'Salaires', recurring: 'Facture récurrente {label}', contract: 'Contrat {label}',
+  payroll: 'Salaires', recurring: 'Facture récurrente {label}', contract: 'Contrat {label}', vat: 'TVA {label}',
 };
 
 export function forecastLabel(event: ForecastEvent): string {
@@ -24,7 +24,7 @@ const centsFromText = (value: string) => {
 };
 
 /** Prévision de trésorerie : solde du compte + caisse, puis ce qui est déjà connu à 30, 60 et 90 jours. */
-export function TreasuryPanel({ workspace, organizationId }: { workspace: Workspace; organizationId: string }) {
+export function TreasuryPanel({ workspace, organizationId, extraEvents = [] }: { workspace: Workspace; organizationId: string; extraEvents?: readonly ForecastEvent[] }) {
   useAppLanguage();
   const today = localDate(new Date());
   const saved = savedStart(organizationId);
@@ -32,7 +32,7 @@ export function TreasuryPanel({ workspace, organizationId }: { workspace: Worksp
   const [start, setStart] = useState(saved);
   const [all, setAll] = useState(false);
   const cash = cashBalance(workspace, today);
-  const forecast = useMemo(() => (start ? treasuryForecast(workspace, start.cents + cash, today) : null), [workspace, start, cash, today]);
+  const forecast = useMemo(() => (start ? treasuryForecast(workspace, start.cents + cash, today, extraEvents) : null), [workspace, start, cash, today, extraEvents]);
   const shown = forecast ? forecast.events.filter((event) => all || event.date <= plusDays(today, 30)) : [];
 
   function save() {
@@ -51,6 +51,7 @@ export function TreasuryPanel({ workspace, organizationId }: { workspace: Worksp
         <li>{t('Indiquez le solde de votre compte bancaire aujourd’hui. Les espèces en caisse s’y ajoutent.')}</li>
         <li>{t('Les factures clients ouvertes entrent à leur échéance ; une facture en retard est comptée dans une semaine.')}</li>
         <li>{t('Les factures fournisseurs, dépenses à payer, salaires du dernier mois et contrats fournisseurs sortent à leur date.')}</li>
+        <li>{t('La TVA du dernier décompte calculé sort à son échéance.')}</li>
       </ol>
     </details>
     <div className="erp-register__form">

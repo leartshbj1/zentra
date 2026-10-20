@@ -42,3 +42,4 @@ rust:cash_book::
 src/cashBook.test.ts
 src/treasuryForecast.test.ts
 src/contracts.test.ts
+rust:payroll_drafts

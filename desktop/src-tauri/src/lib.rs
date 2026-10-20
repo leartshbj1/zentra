@@ -92,6 +92,7 @@ mod reminder_charges;
 mod opening_balances;
 mod online_payments;
 mod cash_book;
+mod payroll_drafts;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -330,6 +331,7 @@ pub fn run() {
             cash_book::correct_cash_count,
             cash_book::save_contract,
             cash_book::terminate_contract,
+            payroll_drafts::prepare_payroll_drafts,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,
@@ -7471,6 +7473,37 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
             .as_str()
             .unwrap()
             .contains("millésime réglementaire"));
+    }
+
+    #[test]
+    fn payroll_drafts_copy_last_month_and_recompute_contributions() {
+        let (_temporary, store) = initialized_store();
+        let employee_id = value_id(&store.create_record("employees", json!({"name":"Copie du mois"})).unwrap());
+        let contributions = configure_adult_test_payroll(&store, &employee_id);
+        save_valid_test_payslip(&store, &employee_id, contributions).unwrap();
+        let result = store.prepare_payroll_drafts("2026-07").unwrap();
+        assert_eq!(result["created"].as_array().unwrap().len(), 1, "{result}");
+        assert_eq!(result["source_period"], "2026-06");
+        let connection = store.connect().unwrap();
+        let slip = |period: &str| -> (String, i64, i64, i64) {
+            connection.query_row(
+                "SELECT p.status,p.gross_cents,p.net_cents,(SELECT COUNT(*) FROM payslip_contributions c WHERE c.payslip_id=p.id) FROM payslips p WHERE p.period=?",
+                [period],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            ).unwrap()
+        };
+        let (june_status, june_gross, june_net, june_contributions) = slip("2026-06");
+        let (july_status, july_gross, july_net, july_contributions) = slip("2026-07");
+        assert_eq!(june_status, "valide");
+        // Brouillon à contrôler : mêmes lignes saisies, cotisations recalculées par l'app.
+        assert_eq!(july_status, "brouillon");
+        assert_eq!(july_gross, june_gross);
+        assert!(june_contributions > 0);
+        assert_eq!(july_contributions, june_contributions);
+        assert_eq!(july_net, june_net);
+        drop(connection);
+        // Une seconde préparation ne double rien.
+        assert_eq!(store.prepare_payroll_drafts("2026-07").unwrap()["created"].as_array().unwrap().len(), 0);
     }
 
     #[test]

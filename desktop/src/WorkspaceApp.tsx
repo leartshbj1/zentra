@@ -27,7 +27,7 @@ import { TreasuryPanel, forecastLabel } from './TreasuryPanel';
 import { ContractsPanel } from './ContractsPanel';
 import { eveningCountDue, localDate, uncorrectedCount, cashBalance } from './cashBook';
 import { contractAlerts } from './contracts';
-import { savedStart, treasuryForecast } from './treasuryForecast';
+import { savedStart, treasuryForecast, type ForecastEvent } from './treasuryForecast';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
@@ -1097,6 +1097,10 @@ function WorkspaceContent({
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
+  const [vatAmount, setVatAmount] = useState<{ from: string; to: string; payableTaxCents: number; payableCode: '500' | '510'; blocking: number } | null>(null);
+  // TVA à payer : sort de la trésorerie à l'échéance indicative (fin de période + 60 jours).
+  const vatForecast = useMemo<ForecastEvent[]>(() => vatAmount && vatAmount.payableCode === '500' && vatAmount.payableTaxCents > 0
+    ? [{ date: new Date(Date.parse(vatAmount.to + 'T00:00:00Z') + 60 * 86_400_000).toISOString().slice(0, 10), kind: 'vat', label: '', amountCents: -vatAmount.payableTaxCents }] : [], [vatAmount]);
   const [contractToOpen, setContractToOpen] = useState<{ id: string; side: 'customer' | 'supplier' } | null>(null);
   useEffect(() => {
     if (view !== 'invoices') return;
@@ -1130,7 +1134,15 @@ function WorkspaceContent({
         if (folder) setStatementFiles({ folder, files: await desktopApi.scanBankStatementFolder(folder) });
       }
     } catch { setStatementFiles(null); }
-    try { setVatState({ profiles: await desktopApi.listVatProfiles(), exports: await desktopApi.listVatReturnExports({}) }); } catch { /* VAT not set up */ }
+    try {
+      const profiles = await desktopApi.listVatProfiles(), exports = await desktopApi.listVatReturnExports({});
+      setVatState({ profiles, exports });
+      const due = vatReturnDue(profiles, exports, todayIso());
+      if (due && !due.needsAfc) {
+        const preview = await desktopApi.previewVatReturn({ dateFrom: due.from, dateTo: due.to, submissionType: 'initial', profileId: due.profile.id });
+        setVatAmount({ from: due.from, to: due.to, payableTaxCents: preview.payableTaxCents, payableCode: preview.payableCode, blocking: preview.blockingIssues.length });
+      }
+    } catch { /* VAT not set up */ }
     // Payment links still open: Payrexx says whether the client has paid.
     try {
       if ((workspaceRef.current.invoicePaymentLinks ?? []).some(link => link.status === 'open') && await desktopApi.refreshInvoicePaymentLinks() > 0) publishInboxWorkspace(await desktopApi.loadWorkspace());
@@ -1304,9 +1316,18 @@ function WorkspaceContent({
         actions: [{ id: 'postpone', label: copy.actionPostponeWeek }, { id: 'view-project', label: copy.actionViewProject, primary: true }] });
     // Payroll and year-end moments: each card opens the screen that prepares them.
     const payroll = payrollToPrepare(workspace.employees, workspace.payslips, today);
-    if (payroll && !entries['payroll:' + payroll.period]?.ignored) cards.push({ key: 'payroll:' + payroll.period,
-      title: copy.payrollTitle.replace('{month}', new Intl.DateTimeFormat(getAppLocale(), { month: 'long', year: 'numeric' }).format(Date.parse(payroll.period + '-15T12:00:00Z'))),
-      detail: copy.payrollDetail.replace('{n}', String(payroll.employees.length)), actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-payroll', label: copy.actionOpenPayroll, primary: true }] });
+    if (payroll && !entries['payroll:' + payroll.period]?.ignored) {
+      // Ceux qui ont une fiche validée le mois précédent : l'app prépare le brouillon.
+      const previous = new Date(Date.UTC(Number(payroll.period.slice(0, 4)), Number(payroll.period.slice(5, 7)) - 2, 15)).toISOString().slice(0, 7);
+      const copyable = payroll.employees.filter(employee => workspace.payslips.some(slip => slip.employeeId === employee.id && slip.period === previous && ['validated', 'posted', 'paid'].includes(slip.status)));
+      cards.push({ key: 'payroll:' + payroll.period,
+        title: copy.payrollTitle.replace('{month}', new Intl.DateTimeFormat(getAppLocale(), { month: 'long', year: 'numeric' }).format(Date.parse(payroll.period + '-15T12:00:00Z'))),
+        detail: copyable.length ? copy.payrollDraftDetail : copy.payrollDetail.replace('{n}', String(payroll.employees.length)),
+        why: copyable.length ? `${copy.whyPayroll} · ${copy.confidenceCheck}` : undefined,
+        actions: copyable.length
+          ? [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-payroll', label: copy.actionOpenPayroll }, { id: 'prepare-payroll', label: copy.actionPreparePayroll.replace('{n}', String(copyable.length)), primary: true }]
+          : [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-payroll', label: copy.actionOpenPayroll, primary: true }] });
+    }
     const moments = yearEndMoments(today);
     if (moments.closingYear && !entries['closing:' + moments.closingYear]?.ignored) cards.push({ key: 'closing:' + moments.closingYear, title: copy.closingTitle.replace('{year}', String(moments.closingYear)),
       detail: copy.closingDetail, actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-closing', label: copy.actionOpenClosing, primary: true }] });
@@ -1318,7 +1339,13 @@ function WorkspaceContent({
       const period = `${date(vat.from)} – ${date(vat.to)}`;
       cards.push(vat.needsAfc
         ? { key: 'vat:' + vat.from, title: copy.vatAfcTitle, detail: copy.vatAfcDetail.replace('{period}', period), actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-vat', label: copy.actionOpenVat, primary: true }] }
-        : { key: 'vat:' + vat.from, title: copy.vatTitle.replace('{period}', period), detail: copy.vatDetail.replace('{date}', date(vat.due)),
+        : { key: 'vat:' + vat.from,
+          // Montant calculé par l'app, comme dans le décompte, dès qu'il est connu.
+          title: vatAmount && vatAmount.from === vat.from && vatAmount.to === vat.to
+            ? (vatAmount.payableCode === '510' ? copy.vatRefundTitle : copy.vatPayTitle).replace('{period}', period).replace('{amount}', formatMoney(vatAmount.payableTaxCents))
+            : copy.vatTitle.replace('{period}', period),
+          detail: [copy.vatDetail.replace('{date}', date(vat.due)), vatAmount?.from === vat.from && vatAmount.blocking ? copy.vatBlocking.replace('{n}', String(vatAmount.blocking)) : ''].filter(Boolean).join(' · '),
+          why: vatAmount?.from === vat.from ? copy.whyVat : undefined,
           note: vat.daysLeft <= 30 ? copy.vatSoon.replace('{n}', String(Math.max(0, vat.daysLeft))) : undefined,
           actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-vat', label: copy.actionOpenVat, primary: true }] });
     }
@@ -1385,7 +1412,7 @@ function WorkspaceContent({
     // Trésorerie : un creux sous zéro dans les 30 jours, d'après le solde saisi.
     const start = savedStart(organizationId);
     if (start) {
-      const forecast = treasuryForecast(workspace, start.cents + cashBalance(workspace, today), today);
+      const forecast = treasuryForecast(workspace, start.cents + cashBalance(workspace, today), today, vatForecast);
       const key = 'treasury-low:' + forecast.low.date;
       if (forecast.low.cents < 0 && !entries[key]?.ignored)
         cards.push({ key, title: copy.treasuryLowTitle.replace('{amount}', formatMoney(forecast.low.cents)).replace('{date}', date(forecast.low.date)),
@@ -1429,6 +1456,20 @@ function WorkspaceContent({
     const refresh = () => setFollowUpVersion(version => version + 1);
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
+    if (key.startsWith('payroll:') && actionId === 'prepare-payroll') {
+      const period = key.slice('payroll:'.length);
+      let created = 0, failed: string[] = [];
+      const prepared = await journalAct(async () => {
+        const result = await desktopApi.preparePayrollDrafts(period);
+        created = result.created.length; failed = result.failed.map(row => row.name);
+        return result.workspace;
+      }, copy.payrollPrepared.replace('{n}', '…'), false);
+      if (prepared) {
+        setNotice({ tone: failed.length ? 'warning' : 'success', text: failed.length ? copy.payrollPartly.replace('{n}', String(created)).replace('{names}', failed.join(', ')) : copy.payrollPrepared.replace('{n}', String(created)) });
+        refresh();
+      }
+      return;
+    }
     if (actionId === 'open-cash') { setSearch(''); setBankArea('cash'); setView('bank'); return; }
     if (actionId === 'open-treasury') { setSearch(''); setBankArea('treasury'); setView('bank'); return; }
     if (key.startsWith('cash-diff:') && actionId === 'cash-correct') {
@@ -3769,7 +3810,7 @@ function WorkspaceContent({
             <CashBookPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
           {view === 'bank' && bankArea === 'treasury' ? (
-            <TreasuryPanel workspace={workspace} organizationId={autopilotContext?.organizationId ?? companyAutomation.organizationId ?? 'local'} />
+            <TreasuryPanel workspace={workspace} organizationId={autopilotContext?.organizationId ?? companyAutomation.organizationId ?? 'local'} extraEvents={vatForecast} />
           ) : null}
           {view === 'bank' && bankArea === 'account' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture de la banque…")} />}>
