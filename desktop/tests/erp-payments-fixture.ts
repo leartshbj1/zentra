@@ -173,3 +173,9 @@ export function installErpTeamFixture(data: Workspace) {
     ({ id, employeeId, claimDate: day(offset), category, description, amountCents, attachmentId: 'att', status, decisionNote: '', payslipId: null, createdAt: day(offset) + 'T10:00:00Z' });
   data.expenseClaims = [claim('ec1', 'emp-marc', -2, 'Repas', 'Repas chantier Morel', 2_850, 'submitted'), claim('ec2', 'emp-marc', -3, 'Matériel', 'Vis et chevilles', 4_390, 'submitted'), claim('ec3', 'emp-sara', -9, 'Transport', 'Billet CFF Lausanne', 3_600, 'approved')];
 }
+
+/** Devis émis prêt pour le lien d'acceptation (?erp=portal). */
+export function installErpPortalFixture(data: Workspace) {
+  const quote = data.quotes.find(row => row.number === 'D-2026-003');
+  if (quote) { quote.status = 'issued'; quote.number = 'D-2026-014'; quote.title = 'Rénovation salle de bain'; }
+}

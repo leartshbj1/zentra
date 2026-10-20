@@ -72,7 +72,7 @@ import { installContactFolderFixture } from './contact-folder-fixture';
 import { installCreationOutcomeFixture } from './creation-outcome-fixture';
 import { installPayslipPostingFixture } from './payslip-posting-fixture';
 import { installSettingsRecoveryFixture } from './settings-recovery-fixture';
-import { installErpBexioFixture, installErpCashFixture, installErpReportsFixture, installErpTeamFixture, installErpChartFixture, installErpPaymentLinkFixture, installErpPaymentsFixture } from './erp-payments-fixture';
+import { installErpBexioFixture, installErpCashFixture, installErpReportsFixture, installErpTeamFixture, installErpPortalFixture, installErpChartFixture, installErpPaymentLinkFixture, installErpPaymentsFixture } from './erp-payments-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -202,6 +202,7 @@ if (new URLSearchParams(location.search).get('erp') === 'paylink') installErpPay
 if (new URLSearchParams(location.search).get('erp') === 'cash') installErpCashFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'reports') installErpReportsFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'team') installErpTeamFixture(data);
+if (new URLSearchParams(location.search).get('erp') === 'portal') installErpPortalFixture(data);
 if (new URLSearchParams(location.search).has('statementFolder')) localStorage.setItem('zentra.bank.statement-folder.v1', JSON.stringify({ local: 'C:/Users/Vous/Downloads' }));
 if (new URLSearchParams(location.search).has('directoryRecovery')) installDirectoryRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);

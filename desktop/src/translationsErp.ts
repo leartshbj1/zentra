@@ -414,4 +414,5 @@ export const erpTranslations: Record<string, readonly [string, string, string]> 
   'Lien d’acceptation : {url}': ['Annahmelink: {url}', 'Link di accettazione: {url}', 'Acceptance link: {url}'],
   'Envoyer le lien d’acceptation': ['Annahmelink senden', 'Invia il link di accettazione', 'Send the acceptance link'],
   'Envoyer le lien d’acceptation pour {number}': ['Annahmelink für {number} senden', 'Invia il link di accettazione per {number}', 'Send the acceptance link for {number}'],
+  'Connectez le compte Zentra dans Paramètres › Compte et équipe pour envoyer un lien d’acceptation.': ['Verbinden Sie das Zentra-Konto unter Einstellungen › Konto und Team, um einen Annahmelink zu senden.', 'Collega l’account Zentra in Impostazioni › Account e team per inviare un link di accettazione.', 'Connect the Zentra account in Settings › Account and team to send an acceptance link.'],
 };

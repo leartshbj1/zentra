@@ -2588,7 +2588,8 @@ function WorkspaceContent({
 
   /** Publie le devis émis sur sa page d'acceptation, copie le lien ; Autopilote signale la réponse du client. */
   async function sendAcceptanceLink(item: Quote) {
-    if (busy || readOnly || !autopilotContext || !canPublishQuote(item)) return;
+    if (busy || readOnly || !canPublishQuote(item)) return;
+    if (!autopilotContext) { setNotice({ tone: 'warning', text: t('Connectez le compte Zentra dans Paramètres › Compte et équipe pour envoyer un lien d’acceptation.') }); return; }
     const organizationId = autopilotContext.organizationId, origin = autopilotContext.origin;
     setBusy(true);
     setNotice(null);
@@ -3762,7 +3763,7 @@ function WorkspaceContent({
                 setModal({ type: 'quoteConversion', quote: item })
               }
               onCreateOrder={(item) => void convertAcceptedQuoteToOrder(item)}
-              onAcceptanceLink={autopilotContext ? (item) => void sendAcceptanceLink(item) : undefined}
+              onAcceptanceLink={readOnly ? undefined : (item) => void sendAcceptanceLink(item)}
               onPrint={(item) =>
                 setPrintTarget({ entity: 'quotes', value: item })
               }
@@ -5272,7 +5273,6 @@ type LooseDocumentsProps = {
   onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
   onArchiveCloud: (item: Invoice) => void;
   onPaymentLink?: (item: Invoice) => void;
-  onAcceptanceLink?: (item: Quote) => void;
 };
 
 function DocumentsScreen(sourceProps: DocumentsProps) {
@@ -5486,6 +5486,18 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                           >
                             <Clock3 size={16} />
                           </Button>
+                          {props.onAcceptanceLink && canPublishQuote(quote) ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={mutationsDisabled}
+                              onClick={() => props.onAcceptanceLink?.(quote)}
+                              title={t('Envoyer le lien d’acceptation')}
+                              aria-label={t('Envoyer le lien d’acceptation pour {number}', { number: quote.number || quote.title })}
+                            >
+                              <Link2 size={16} />
+                            </Button>
+                          ) : null}
                         </>
                       ) : null}
                       {quote.status === 'accepted' &&
@@ -5753,17 +5765,6 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         title="Émettre"
                       >
                         <CheckCircle2 size={16} />
-                      </Button>
-                    ) : null}
-                    {entity === 'quotes' && props.onAcceptanceLink && canPublishQuote(item as Quote) ? (
-                      <Button disabled={mutationsDisabled}
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => props.onAcceptanceLink?.(item as Quote)}
-                        title={t('Envoyer le lien d’acceptation')}
-                        aria-label={t('Envoyer le lien d’acceptation pour {number}', { number: item.number || item.title })}
-                      >
-                        <Link2 size={16} />
                       </Button>
                     ) : null}
                     {entity === 'quotes' && item.status === 'accepted' ? (
