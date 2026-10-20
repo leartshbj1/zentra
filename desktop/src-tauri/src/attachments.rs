@@ -383,6 +383,24 @@ impl LocalStore {
         Ok(prepared.id.clone())
     }
 
+    pub(crate) fn insert_prepared_expense_claim_attachment(
+        &self,
+        tx: &Transaction<'_>,
+        claim_id: &str,
+        prepared: &PreparedSupplierInvoiceAttachment,
+    ) -> AppResult<String> {
+        let now = now_iso();
+        tx.execute("INSERT INTO attachments(id,project_id,entity_type,entity_id,original_name,stored_name,mime_type,size_bytes,sha256,created_at,updated_at) VALUES(?,NULL,'expense_claim',?,?,?,?,?,?,?,?)", params![prepared.id,claim_id,prepared.original_name,prepared.stored_name,prepared.detected.mime_type,prepared.size_bytes as i64,prepared.sha256,now,now])?;
+        append_audit(
+            tx,
+            "attachment_add",
+            "expense_claim",
+            claim_id,
+            &json!({"attachment_id":prepared.id,"original_name":prepared.original_name,"sha256":prepared.sha256,"size_bytes":prepared.size_bytes}),
+        )?;
+        Ok(prepared.id.clone())
+    }
+
     pub(crate) fn insert_prepared_expense_refund_attachment(
         &self,
         tx: &Transaction<'_>,

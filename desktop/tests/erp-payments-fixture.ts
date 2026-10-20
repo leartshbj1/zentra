@@ -156,3 +156,20 @@ export function installErpReportsFixture(data: Workspace) {
       lines: [line('l3', 'labor', 'Main-d’œuvre', 6, 'h', 9_500), line('l4', 'material', 'Vitrificateur mat 5 l', 1, 'pce', 14_500)] },
   ];
 }
+
+/** ?erp=team : deux collaborateurs, absences dont un arrêt maladie long, notes de frais. */
+export function installErpTeamFixture(data: Workspace) {
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  const base = data.employees[0] ?? ({} as Workspace['employees'][number]);
+  data.employees = [
+    { ...base, id: 'emp-marc', name: 'Marc Rochat', role: 'Menuisier', archivedAt: null },
+    { ...base, id: 'emp-sara', name: 'Sara Keller', role: 'Apprentie', archivedAt: null },
+  ] as Workspace['employees'];
+  data.leaveSettings = [{ employeeId: 'emp-sara', vacationDaysPerYear: 25, carriedOverDays: 0 }, { employeeId: 'emp-marc', vacationDaysPerYear: 20, carriedOverDays: -3 }];
+  const absence = (id: string, employeeId: string, kind: NonNullable<Workspace['absences']>[number]['kind'], start: number, end: number, days: number) =>
+    ({ id, employeeId, kind, startDate: day(start), endDate: day(end), days, incapacityPercent: 100, certificate: kind === 'sick', note: '', ijmDeclaredAt: null });
+  data.absences = [absence('ab1', 'emp-marc', 'vacation', -120, -100, 15), absence('ab2', 'emp-marc', 'vacation', -60, -55, 5), absence('ab3', 'emp-sara', 'sick', -34, 20, 38), absence('ab4', 'emp-sara', 'vacation', -200, -196, 5)];
+  const claim = (id: string, employeeId: string, offset: number, category: string, description: string, amountCents: number, status: NonNullable<Workspace['expenseClaims']>[number]['status']) =>
+    ({ id, employeeId, claimDate: day(offset), category, description, amountCents, attachmentId: 'att', status, decisionNote: '', payslipId: null, createdAt: day(offset) + 'T10:00:00Z' });
+  data.expenseClaims = [claim('ec1', 'emp-marc', -2, 'Repas', 'Repas chantier Morel', 2_850, 'submitted'), claim('ec2', 'emp-marc', -3, 'Matériel', 'Vis et chevilles', 4_390, 'submitted'), claim('ec3', 'emp-sara', -9, 'Transport', 'Billet CFF Lausanne', 3_600, 'approved')];
+}

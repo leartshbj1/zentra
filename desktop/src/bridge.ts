@@ -13,7 +13,7 @@ import { statementFileFromRaw, type StatementFile } from './autopilotStatements'
 import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
-import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine } from './types';
+import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
@@ -529,6 +529,9 @@ type RawWorkspace = {
   contracts?: RawRecord[];
   work_reports?: RawRecord[];
   work_report_lines?: RawRecord[];
+  absences?: RawRecord[];
+  employee_leave_settings?: RawRecord[];
+  expense_claims?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3418,6 +3421,18 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     cashCounts: (raw.cash_counts ?? []).map(cashCountFromRaw),
     contracts: (raw.contracts ?? []).map(contractFromRaw),
     workReports: workReportsFromRaw(raw.work_reports ?? [], raw.work_report_lines ?? []),
+    absences: (raw.absences ?? []).map((row): Absence => ({
+      id: stringValue(row.id), employeeId: stringValue(row.employee_id), kind: (['vacation', 'sick', 'accident', 'military', 'maternity', 'paternity', 'training', 'other'] as const).find((kind) => kind === row.kind) ?? 'other',
+      startDate: stringValue(row.start_date), endDate: stringValue(row.end_date), days: Number(row.days) || 0, incapacityPercent: numberValue(row.incapacity_percent) || 100,
+      certificate: row.certificate === 1 || row.certificate === true, note: stringValue(row.note), ijmDeclaredAt: stringValue(row.ijm_declared_at) || null,
+    })),
+    leaveSettings: (raw.employee_leave_settings ?? []).map((row): LeaveSettings => ({ employeeId: stringValue(row.employee_id), vacationDaysPerYear: Number(row.vacation_days_per_year) || 0, carriedOverDays: Number(row.carried_over_days) || 0 })),
+    expenseClaims: (raw.expense_claims ?? []).map((row): ExpenseClaim => ({
+      id: stringValue(row.id), employeeId: stringValue(row.employee_id), claimDate: stringValue(row.claim_date), category: stringValue(row.category), description: stringValue(row.description),
+      amountCents: numberValue(row.amount_cents), attachmentId: stringValue(row.attachment_id) || null,
+      status: row.status === 'approved' || row.status === 'rejected' || row.status === 'reimbursed' ? row.status : 'submitted',
+      decisionNote: stringValue(row.decision_note), payslipId: stringValue(row.payslip_id) || null, createdAt: stringValue(row.created_at),
+    })),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7511,6 +7526,46 @@ export const desktopApi = {
   async invoiceWorkReport(id: string) {
     const raw = await invoke<RawRecord>('invoice_work_report', { id });
     return { invoiceId: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async saveLeaveSettings(employeeId: string, vacationDaysPerYear: number, carriedOverDays: number) {
+    await invoke('save_leave_settings', { employeeId, vacationDaysPerYear, carriedOverDays });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveAbsence(absence: Omit<Absence, 'id' | 'ijmDeclaredAt'> & { id?: string }) {
+    await invoke('save_absence', { input: { id: absence.id || null, employee_id: absence.employeeId, kind: absence.kind, start_date: absence.startDate, end_date: absence.endDate, days: absence.days, incapacity_percent: absence.incapacityPercent, certificate: absence.certificate, note: absence.note || null } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async deleteAbsence(id: string) {
+    await invoke('delete_absence', { id });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async markIjmDeclared(id: string) {
+    await invoke('mark_ijm_declared', { id });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  /** Note de frais avec son justificatif (photo ou PDF), lu en base64. */
+  async addExpenseClaim(input: { employeeId: string; claimDate: string; category: string; description: string; amountCents: number; receipt?: File | null }) {
+    let receiptBase64: string | null = null;
+    if (input.receipt) {
+      const bytes = new Uint8Array(await input.receipt.arrayBuffer());
+      let binary = '';
+      for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+      receiptBase64 = btoa(binary);
+    }
+    await invoke('add_expense_claim', { input: { employee_id: input.employeeId, claim_date: input.claimDate, category: input.category, description: input.description, amount_cents: input.amountCents, receipt_name: input.receipt?.name ?? null, receipt_base64: receiptBase64 } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async decideExpenseClaim(id: string, approve: boolean, note?: string) {
+    await invoke('decide_expense_claim', { id, approve, note: note || null });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async deleteExpenseClaim(id: string) {
+    await invoke('delete_expense_claim', { id });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async addApprovedClaimsToPayslip(payslipId: string) {
+    const count = await invoke<number>('add_approved_claims_to_payslip', { payslipId });
+    return { count, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async terminateContract(id: string, terminatedOn: string) {
     await invoke('terminate_contract', { id, terminatedOn });

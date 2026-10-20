@@ -235,6 +235,35 @@ export type CashCount = {
   createdAt: string;
 };
 
+export type LeaveSettings = { employeeId: Identifier; vacationDaysPerYear: number; carriedOverDays: number };
+
+export type Absence = {
+  id: Identifier;
+  employeeId: Identifier;
+  kind: 'vacation' | 'sick' | 'accident' | 'military' | 'maternity' | 'paternity' | 'training' | 'other';
+  startDate: string;
+  endDate: string;
+  days: number;
+  incapacityPercent: number;
+  certificate: boolean;
+  note: string;
+  ijmDeclaredAt: string | null;
+};
+
+export type ExpenseClaim = {
+  id: Identifier;
+  employeeId: Identifier;
+  claimDate: string;
+  category: string;
+  description: string;
+  amountCents: number;
+  attachmentId: Identifier | null;
+  status: 'submitted' | 'approved' | 'rejected' | 'reimbursed';
+  decisionNote: string;
+  payslipId: Identifier | null;
+  createdAt: string;
+};
+
 export type WorkReportLine = {
   id: Identifier;
   kind: 'labor' | 'material';
@@ -1912,6 +1941,10 @@ export type Workspace = {
   contracts?: Contract[];
   /** Rapports de régie signés sur place. */
   workReports?: WorkReport[];
+  /** Absences, droits aux vacances et notes de frais des collaborateurs. */
+  absences?: Absence[];
+  leaveSettings?: LeaveSettings[];
+  expenseClaims?: ExpenseClaim[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

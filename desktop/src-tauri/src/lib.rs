@@ -94,6 +94,7 @@ mod online_payments;
 mod cash_book;
 mod payroll_drafts;
 mod work_reports;
+mod team_time;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -337,6 +338,14 @@ pub fn run() {
             work_reports::delete_work_report,
             work_reports::sign_work_report,
             work_reports::invoice_work_report,
+            team_time::save_leave_settings,
+            team_time::save_absence,
+            team_time::delete_absence,
+            team_time::mark_ijm_declared,
+            team_time::add_expense_claim,
+            team_time::decide_expense_claim,
+            team_time::delete_expense_claim,
+            team_time::add_approved_claims_to_payslip,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,
@@ -7487,7 +7496,11 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         let employee_id = value_id(&store.create_record("employees", json!({"name":"Copie du mois"})).unwrap());
         let contributions = configure_adult_test_payroll(&store, &employee_id);
         save_valid_test_payslip(&store, &employee_id, contributions).unwrap();
+        // Une note de frais validée rejoint la fiche préparée comme remboursement.
+        let claim = store.add_expense_claim(crate::team_time::ExpenseClaimInput { employee_id: employee_id.clone(), claim_date: "2026-07-03".into(), category: "Repas".into(), description: "Repas client".into(), amount_cents: 4_850, receipt_name: None, receipt_base64: None }).unwrap();
+        store.decide_expense_claim(claim["id"].as_str().unwrap(), true, None).unwrap();
         let result = store.prepare_payroll_drafts("2026-07").unwrap();
+        assert_eq!(result["created"][0]["expense_claims"], 1, "{result}");
         assert_eq!(result["created"].as_array().unwrap().len(), 1, "{result}");
         assert_eq!(result["source_period"], "2026-06");
         let connection = store.connect().unwrap();
@@ -7506,7 +7519,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
         assert_eq!(july_gross, june_gross);
         assert!(june_contributions > 0);
         assert_eq!(july_contributions, june_contributions);
-        assert_eq!(july_net, june_net);
+        // Le remboursement s'ajoute au net sans changer les cotisations.
+        assert_eq!(july_net, june_net + 4_850);
         drop(connection);
         // Une seconde préparation ne double rien.
         assert_eq!(store.prepare_payroll_drafts("2026-07").unwrap()["created"].as_array().unwrap().len(), 0);

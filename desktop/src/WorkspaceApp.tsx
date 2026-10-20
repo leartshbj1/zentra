@@ -23,6 +23,8 @@ import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { BankAreaTabs, TimeAreaTabs, type BankArea, type TimeArea } from './BankAreaTabs';
 import { WorkReportsPanel } from './WorkReportsPanel';
+import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
+import { ijmToDeclare, negativeBalances, pendingClaims } from './teamTime';
 import { reportTotals, reportsToInvoice } from './workReports';
 import { CashBookPanel } from './CashBookPanel';
 import { TreasuryPanel, forecastLabel } from './TreasuryPanel';
@@ -692,7 +694,7 @@ function WorkspaceContent({
   const [payslipPostingId, setPayslipPostingId] = useState<string | null>(null);
   const [payslipPostingReturnId, setPayslipPostingReturnId] = useState<string | null>(null);
   const [payslipPostingFeedback, setPayslipPostingFeedback] = useState<import('./payslipPosting').PayslipPostingFeedback | null>(null);
-  const [teamStartSection, setTeamStartSection] = useState<'payslips' | undefined>();
+  const [teamStartSection, setTeamStartSection] = useState<'payslips' | 'absences' | 'expenses' | undefined>();
   const [purchaseStartSection, setPurchaseStartSection] = useState<PurchaseSection | null>(null);
   const clearTeamStartSection = useCallback(() => setTeamStartSection(undefined), []);
   const [supplierInvoiceReviewId, setSupplierInvoiceReviewId] = useState<string | null>(null);
@@ -1427,6 +1429,32 @@ function WorkspaceContent({
           + (invoice.dueDate < today ? ' · ' + copy.payOverdue : ''),
         actions: [{ id: 'copy-iban', label: copy.actionCopyIban }, { id: 'view-purchase', label: copy.actionViewPurchase }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'pay', label: copy.actionPay, primary: true }] });
     }
+    // Équipe : notes de frais à valider ou à rembourser, vacances, arrêts maladie longs.
+    const claims = pendingClaims(workspace.expenseClaims ?? []);
+    if (claims.count && !entries['claims:' + claims.count + ':' + claims.totalCents]?.ignored)
+      cards.push({ key: 'claims:' + claims.count + ':' + claims.totalCents, title: copy.claimsTitle.replace('{n}', String(claims.count)).replace('{amount}', formatMoney(claims.totalCents)),
+        detail: copy.claimsDetail, actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-claims', label: copy.actionOpenClaims, primary: true }] });
+    for (const employee of workspace.employees) {
+      const approved = (workspace.expenseClaims ?? []).filter(claim => claim.employeeId === employee.id && claim.status === 'approved');
+      const slip = workspace.payslips.find(row => row.employeeId === employee.id && (row.status === 'draft' || row.status === 'incomplete'));
+      if (!approved.length || !slip || entries['claims-pay:' + slip.id]?.ignored) continue;
+      cards.push({ key: 'claims-pay:' + slip.id, title: copy.claimsPayTitle.replace('{name}', employee.name).replace('{amount}', formatMoney(approved.reduce((sum, claim) => sum + claim.amountCents, 0))),
+        detail: copy.claimsPayDetail.replace('{period}', slip.period), actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'add-claims', label: copy.actionAddClaims, primary: true }] });
+    }
+    for (const { employee, balance } of negativeBalances(workspace.employees, workspace.leaveSettings ?? [], workspace.absences ?? [], Number(today.slice(0, 4)))) {
+      const key = `vacation:${employee.id}:${balance.remaining}`;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.vacationTitle.replace('{name}', employee.name).replace('{days}', String(balance.remaining)),
+        detail: copy.vacationDetail.replace('{taken}', String(balance.taken)).replace('{entitlement}', String(balance.entitlement)),
+        actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-absences', label: copy.actionOpenAbsences, primary: true }] });
+    }
+    for (const spell of ijmToDeclare(workspace.absences ?? [], today)) {
+      const key = 'ijm:' + spell.absenceIds[0];
+      if (entries[key]?.ignored) continue;
+      const name = workspace.employees.find(row => row.id === spell.employeeId)?.name ?? '';
+      cards.push({ key, title: copy.ijmTitle.replace('{name}', name).replace('{days}', String(spell.days)), detail: copy.ijmDetail.replace('{date}', date(spell.start)),
+        why: copy.whyIjm, actions: [{ id: 'ijm-declared', label: copy.actionIjmDeclared }, { id: 'open-absences', label: copy.actionOpenAbsences, primary: true }] });
+    }
     // Rapports d'intervention signés, pas encore facturés.
     for (const report of reportsToInvoice(workspace.workReports ?? []).filter(row => !entries['report:' + row.id]?.ignored)) {
       const totals = reportTotals(report.lines);
@@ -1521,6 +1549,20 @@ function WorkspaceContent({
       return;
     }
     if (actionId === 'open-reports') { setSearch(''); setTimeArea('reports'); setView('time'); return; }
+    if (actionId === 'open-claims') { setSearch(''); setView('team'); setTeamStartSection('expenses'); return; }
+    if (actionId === 'open-absences') { setSearch(''); setView('team'); setTeamStartSection('absences'); return; }
+    if (key.startsWith('claims-pay:') && actionId === 'add-claims') {
+      const done = await journalAct(async () => (await desktopApi.addApprovedClaimsToPayslip(key.slice('claims-pay:'.length))).workspace, copy.claimsAdded, false);
+      if (done) refresh();
+      return;
+    }
+    if (key.startsWith('ijm:') && actionId === 'ijm-declared') {
+      const spell = ijmToDeclare(workspaceRef.current.absences ?? [], today).find(row => row.absenceIds[0] === key.slice('ijm:'.length));
+      if (!spell) return;
+      const done = await journalAct(() => desktopApi.markIjmDeclared(spell.absenceIds[spell.absenceIds.length - 1]), copy.ijmMarked, false);
+      if (done) refresh();
+      return;
+    }
     if (key.startsWith('report:') && actionId === 'report-invoice') {
       let invoiceId = '';
       const done = await journalAct(async () => { const result = await desktopApi.invoiceWorkReport(key.slice('report:'.length)); invoiceId = result.invoiceId; return result.workspace; }, copy.reportInvoiced, false);
@@ -3779,6 +3821,7 @@ function WorkspaceContent({
               onPostPayslip={(item) => setPayslipPostingId(item.id)}
               initialSection={teamStartSection}
               onInitialSectionHandled={clearTeamStartSection}
+              onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }}
               onPayPayslip={(item) =>
                 setModal({ type: 'payslipPayment', payslip: item })
               }
@@ -6053,6 +6096,7 @@ function TeamScreen({
   onArchivePayslip,
   initialSection,
   onInitialSectionHandled,
+  onWorkspace,
 }: {
   workspace: Workspace;
   busy: boolean;
@@ -6069,15 +6113,16 @@ function TeamScreen({
   onPrint: (item: Payslip) => void;
   onArchiveEmployee: (item: Employee) => void;
   onArchivePayslip: (item: Payslip) => void;
-  initialSection?: 'payslips';
+  initialSection?: 'payslips' | 'absences' | 'expenses';
   onInitialSectionHandled: () => void;
+  onWorkspace: (next: Workspace) => void;
 }) {
   useAppLanguage();
   const employees = workspace.employees.filter((employee) =>
     searchText([employee.name, employee.role, employee.email], query),
   );
   const [payrollStatus, setPayrollStatus] = useState('all');
-  const [teamSection, setTeamSection] = useState<'employees' | 'payslips' | 'certificates'>('employees');
+  const [teamSection, setTeamSection] = useState<'employees' | 'payslips' | 'certificates' | 'absences' | 'expenses'>('employees');
   useEffect(() => { if (initialSection) { setTeamSection(initialSection); onInitialSectionHandled(); } }, [initialSection, onInitialSectionHandled]);
   const filteredPayslips = useMemo(() => filterPayrollList(workspace.payslips, workspace.employees, query, payrollStatus), [workspace.payslips, workspace.employees, query, payrollStatus]);
   const pageKey = JSON.stringify([query, payrollStatus]);
@@ -6117,9 +6162,13 @@ function TeamScreen({
       <nav className="team-navigation" aria-label={t("Équipe et paie")}>
         <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">{t("Personnel")}</span><span className="team-navigation__count">{workspace.employees.length}</span></button>
         <button type="button" aria-label={t('Fiches de salaire')} aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">{t("Bulletins")}</span><span className="team-navigation__count">{workspace.payslips.length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'absences'} onClick={() => setTeamSection('absences')}><span className="team-navigation__title">{t("Absences")}</span><span className="team-navigation__count">{(workspace.absences ?? []).length}</span></button>
+        <button type="button" aria-pressed={teamSection === 'expenses'} onClick={() => setTeamSection('expenses')}><span className="team-navigation__title">{t("Notes de frais")}</span><span className="team-navigation__count">{(workspace.expenseClaims ?? []).filter((claim) => claim.status === 'submitted').length}</span></button>
         <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}><span className="team-navigation__title">{t("Certificats annuels")}</span></button>
       </nav>
       {teamSection === 'certificates' ? <SalaryCertificates workspace={workspace} disabled={busy} /> : null}
+      {teamSection === 'absences' ? <AbsencesPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace} /> : null}
+      {teamSection === 'expenses' ? <ExpenseClaimsPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace} /> : null}
       {teamSection === 'employees' ? <section className="team-directory">
       <SectionHeading
         title={t("Fiches de personnel")}

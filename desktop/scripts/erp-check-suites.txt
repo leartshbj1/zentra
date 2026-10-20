@@ -47,3 +47,5 @@ rust:supervisor::tests::
 src/morningDigest.test.ts
 rust:work_reports::
 src/workReports.test.ts
+rust:team_time::
+src/teamTime.test.ts
