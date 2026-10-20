@@ -127,9 +127,9 @@ impl LocalStore {
             match self.save_payslip_with_contributions(input) {
                 Ok(payslip) => {
                     // Les notes de frais validées rejoignent la fiche comme remboursements.
-                    let claims = payslip["id"].as_str().map(|id| self.add_approved_claims_to_payslip(id)).transpose();
+                    let claims = payslip["payslip"]["id"].as_str().map(|id| self.add_approved_claims_to_payslip(id)).transpose();
                     let claims = match claims { Ok(count) => count.unwrap_or(0), Err(error) => { failed.push(json!({ "employee_id": employee_id, "name": name, "reason": error.to_string() })); 0 } };
-                    created.push(json!({ "employee_id": employee_id, "name": name, "payslip_id": payslip["id"], "expense_claims": claims }));
+                    created.push(json!({ "employee_id": employee_id, "name": name, "payslip_id": payslip["payslip"]["id"], "expense_claims": claims }));
                 }
                 Err(error) => failed.push(json!({ "employee_id": employee_id, "name": name, "reason": error.to_string() })),
             }
