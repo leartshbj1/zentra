@@ -25,8 +25,8 @@ html[data-app-theme] .page-content > :is(.getting-started, .autopilot-home, .das
 }
 
 /* Tabs on a grey track: readable inactive labels. */
-html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs, .purchase-workflow__tabs, .section-navigation__tabs, .tab-strip, .accounting-tabs, .automation-journal__filters, .team-navigation) > button:not([aria-selected='true']):not([aria-current]):not([aria-pressed='true']):not(.active):not(.is-active),
-html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__tabs > button:not(.is-active) > span {
+html[data-app-theme] .desktop-app[data-experience] .page-content.page-content :is(.sales-tabs, .purchase-workflow__tabs, .section-navigation__tabs, .tab-strip, .accounting-tabs, .automation-journal__filters, .automation-centre__tabs, .team-navigation) > button:not([aria-selected='true']):not([aria-current]):not([aria-pressed='true']):not(.active):not(.is-active),
+html[data-app-theme] .desktop-app[data-experience] .page-content.page-content :is(.purchase-workflow__tabs, .automation-centre__tabs) > button:not([aria-selected='true']):not([aria-current]):not(.is-active) > :is(span, em) {
   color: var(--zp-quiet-label);
 }
 html[data-app-theme] .line-editor__head > span {
@@ -180,4 +180,17 @@ html[data-app-theme] .automation-brief__list > button > svg:first-child {
   html[data-app-theme] .desktop-app[data-experience] .sales-flow {
     display: none;
   }
+}
+/* Some older layers force tab labels to the secondary grey with !important:
+   inside tab tracks that grey becomes the readable one. */
+html[data-app-theme] :is(.sales-tabs, .purchase-workflow__tabs, .section-navigation__tabs, .tab-strip, .accounting-tabs, .automation-journal__filters, .automation-centre__tabs, .team-navigation, .document-stepper) {
+  --apple-secondary: var(--zp-quiet-label);
+}
+/* Client initials: neutral, readable. */
+html[data-app-theme] .client-mobile-list__avatar {
+  background: var(--apple-selection);
+  color: var(--apple-ink);
+}
+html[data-app-theme] .guided-tour__scroll-hint {
+  color: var(--zp-quiet-label);
 }
