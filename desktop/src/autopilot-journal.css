@@ -62,3 +62,24 @@
     cursor: pointer;
   }
 }
+/* « À valider » sur téléphone : liens secondaires sur une ligne, l'action
+   principale en dernier sur toute la largeur, cibles d'au moins 44 px. */
+@media screen and (max-width: 640px) {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li .quote-autopilot__request-actions.quote-autopilot__request-actions {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    gap: 0 20px;
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li .quote-autopilot__request-actions.quote-autopilot__request-actions > button {
+    min-block-size: 44px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests > li .quote-autopilot__request-actions.quote-autopilot__request-actions > button.is-ready {
+    order: 99;
+    flex: 1 1 100%;
+    justify-content: center;
+    margin-block-start: 4px;
+  }
+}

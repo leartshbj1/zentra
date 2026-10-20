@@ -14,6 +14,7 @@ const ALIAS_PATH: &str = "/api/account/automation/quote-alias";
 const ACCEPT_PATH: &str = "/api/account/automation/quote-acceptances";
 const SIGNALS_PATH: &str = "/api/account/automation/mail-signals";
 const COMMAND_PATH: &str = "/api/account/automation/command";
+const DIGEST_PATH: &str = "/api/account/automation/digest";
 const CONSENT_VERSION: &str = "action-engine-quote-draft-customer-2026-10-11";
 
 #[derive(Default)]
@@ -171,6 +172,33 @@ pub(crate) struct ConsentInput {
 }
 fn required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where D: serde::Deserializer<'de>, T: Deserialize<'de> { Option::<T>::deserialize(deserializer) }
+/// Morning summary, sent only when the person turned it on: the count and up to
+/// eight card titles, so the server can mail them at 07:00. Never the records.
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct DigestItem { title: String, detail: String }
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct DigestInput { enabled: bool, locale: String, time_zone: String, count: u32, items: Vec<DigestItem> }
+impl DigestInput {
+    fn valid(&self) -> bool {
+        matches!(self.locale.as_str(), "fr" | "de" | "it" | "en")
+            && (1..=64).contains(&self.time_zone.len())
+            && self.time_zone.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'_' | b'-' | b'+'))
+            && self.count <= 999 && self.items.len() <= 8 && (self.enabled || self.items.is_empty())
+            && self.items.iter().all(|item| text(&item.title, 200) && (item.detail.is_empty() || text(&item.detail, 300)))
+    }
+    fn body(&self) -> serde_json::Value {
+        serde_json::json!({ "schemaVersion": 1, "enabled": self.enabled, "locale": self.locale, "timeZone": self.time_zone, "count": self.count,
+            "items": self.items.iter().map(|item| serde_json::json!({ "title": item.title, "detail": item.detail })).collect::<Vec<_>>() })
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DigestReply {
+    schema_version: u8, organization_id: String, enabled: bool, email_configured: bool, push_configured: bool,
+    #[serde(deserialize_with = "required_nullable")] last_sent_on: Option<String>,
+}
 /// The person's choice: this request line means this catalogue article.
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -402,6 +430,12 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
         let data: Consent = serde_json::from_slice(bytes).ok()?;
         return data.valid().then(|| serde_json::to_value(data).ok()).flatten();
     }
+    if path == DIGEST_PATH {
+        let data: DigestReply = serde_json::from_slice(bytes).ok()?;
+        let date = |v: &str| v.len() == 10 && v.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() });
+        return (data.schema_version == 1 && data.organization_id == stamp.inbox.session.organization_id && data.last_sent_on.as_deref().is_none_or(date))
+            .then(|| serde_json::to_value(data).ok()).flatten();
+    }
     if path == COMMAND_PATH {
         let data: CommandReading = serde_json::from_slice(bytes).ok()?;
         return (data.valid() && data.organization_id == stamp.inbox.session.organization_id).then(|| serde_json::to_value(data).ok()).flatten();
@@ -523,6 +557,15 @@ pub(crate) async fn set_quote_autopilot_article_choice(store: State<'_, LocalSto
     if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
     let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
     let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, ALIAS_PATH, None, Some(input.body())).await });
+    Ok(deliver_read(owned, origin, task).await)
+}
+#[tauri::command]
+pub(crate) async fn quote_autopilot_digest(store: State<'_, LocalStore>, origin: Origin, input: DigestInput) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
+    let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
+    let body = input.body();
+    let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, DIGEST_PATH, None, Some(body)).await });
     Ok(deliver_read(owned, origin, task).await)
 }
 #[tauri::command]

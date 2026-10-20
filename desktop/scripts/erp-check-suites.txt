@@ -43,3 +43,5 @@ src/cashBook.test.ts
 src/treasuryForecast.test.ts
 src/contracts.test.ts
 rust:payroll_drafts
+rust:supervisor::tests::
+src/morningDigest.test.ts

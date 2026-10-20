@@ -293,4 +293,10 @@ export const erpTranslations: Record<string, readonly [string, string, string]> 
   'Contrats': ['Verträge', 'Contratti', 'Contracts'],
   'TVA {label}': ['MWST {label}', 'IVA {label}', 'VAT {label}'],
   'La TVA du dernier décompte calculé sort à son échéance.': ['Die MWST der letzten berechneten Abrechnung geht bei Fälligkeit aus.', 'L’IVA dell’ultimo rendiconto calcolato esce alla scadenza.', 'The VAT of the last calculated return goes out on its due date.'],
+  'Pour vous': ['Für Sie', 'Per te', 'For you'],
+  'Résumé du matin par e-mail': ['Morgenübersicht per E-Mail', 'Riepilogo del mattino via e-mail', 'Morning summary by e-mail'],
+  'Chaque matin à 7 h, la liste des actions à valider. Seuls leur nombre et leurs titres (8 au plus) sont envoyés au serveur Zentra pour composer l’e-mail.': ['Jeden Morgen um 7 Uhr die Liste der zu bestätigenden Aktionen. Nur deren Anzahl und Titel (höchstens 8) werden an den Zentra-Server gesendet, um die E-Mail zu erstellen.', 'Ogni mattina alle 7 l’elenco delle azioni da convalidare. Solo il loro numero e i titoli (8 al massimo) sono inviati al server Zentra per comporre l’e-mail.', 'Every morning at 7:00, the list of actions to approve. Only their number and titles (8 at most) are sent to the Zentra server to write the e-mail.'],
+  'L’envoi d’e-mails n’est pas encore ouvert sur le serveur Zentra. Le résumé partira dès qu’il le sera.': ['Der E-Mail-Versand ist auf dem Zentra-Server noch nicht geöffnet. Die Übersicht wird versendet, sobald er es ist.', 'L’invio di e-mail non è ancora aperto sul server Zentra. Il riepilogo partirà appena lo sarà.', 'Sending e-mails is not open on the Zentra server yet. The summary will go out as soon as it is.'],
+  'Dernier envoi le {date}.': ['Zuletzt versendet am {date}.', 'Ultimo invio il {date}.', 'Last sent on {date}.'],
+  'Le premier résumé partira demain matin.': ['Die erste Übersicht wird morgen früh versendet.', 'Il primo riepilogo partirà domani mattina.', 'The first summary goes out tomorrow morning.'],
 };

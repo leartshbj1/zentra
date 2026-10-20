@@ -174,6 +174,21 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     for (field, bad) in [("action", json!("delete_everything")), ("date", json!("demain")), ("requiresHumanValidation", json!(false)), ("extra", json!(1))] {
         let mut wrong = reading.clone(); wrong[field] = bad; assert!(command(wrong).is_none());
     }
+    // The morning summary: exact reply keys, same company, and a bounded request.
+    let digest = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), DIGEST_PATH, &stamp, 50);
+    let reply = json!({"schemaVersion":1,"organizationId":"org-synthetic","enabled":true,"emailConfigured":false,"pushConfigured":false,"lastSentOn":null});
+    assert_eq!(digest(reply.clone()).unwrap()["emailConfigured"], json!(false));
+    let mut sent = reply.clone(); sent["lastSentOn"] = json!("2026-10-20"); assert!(digest(sent).is_some());
+    for (field, bad) in [("organizationId", json!("org-other")), ("lastSentOn", json!("20.10.2026")), ("schemaVersion", json!(2)), ("extra", json!(1))] {
+        let mut wrong = reply.clone(); wrong[field] = bad; assert!(digest(wrong).is_none());
+    }
+    let item = |title: &str| DigestItem { title: title.into(), detail: String::new() };
+    let input = |enabled: bool, items: Vec<DigestItem>| DigestInput { enabled, locale: "fr".into(), time_zone: "Europe/Zurich".into(), count: items.len() as u32, items };
+    assert!(input(true, vec![item("Relance n°1 prête")]).valid());
+    assert_eq!(input(true, vec![item("Relance")]).body()["timeZone"], json!("Europe/Zurich"));
+    assert!(!input(true, (0..9).map(|_| item("Carte")).collect()).valid());
+    assert!(!input(false, vec![item("Carte")]).valid());
+    assert!(!input(true, vec![item("")]).valid());
     assert!(CommandInput { text: "Relance la facture F-2026-0012".into() }.valid());
     assert!(!CommandInput { text: "x".repeat(501) }.valid());
     // The remembered article choice.
@@ -213,7 +228,7 @@ fn product_routes_are_fixed_first_party_https_without_sites_credentials() {
     // cfg(test) may use only the already validated compiled public profile.
     // This unit test neither installs a Sites token nor performs HTTP.
     let expected_origin = account_api_origin().unwrap();
-    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH, SIGNALS_PATH, COMMAND_PATH] {
+    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH, SIGNALS_PATH, COMMAND_PATH, DIGEST_PATH] {
         let url = endpoint(path).unwrap(); assert_eq!(url.as_str(), format!("{expected_origin}{path}"));
         assert!(url.query().is_none() && url.fragment().is_none());
         for bad in [format!("{path}/"), format!("{path}?actor=x"), format!("https://example.test{path}")] { assert!(endpoint(&bad).is_err()); }

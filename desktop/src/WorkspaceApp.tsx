@@ -28,6 +28,7 @@ import { ContractsPanel } from './ContractsPanel';
 import { eveningCountDue, localDate, uncorrectedCount, cashBalance } from './cashBook';
 import { contractAlerts } from './contracts';
 import { savedStart, treasuryForecast, type ForecastEvent } from './treasuryForecast';
+import { digestDue, digestInput, digestSignature, saveDigest, savedDigest } from './morningDigest';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
@@ -1097,6 +1098,36 @@ function WorkspaceContent({
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
+  // Résumé du matin : envoyé seulement s'il est activé, quand les cartes changent.
+  const digestSending = useRef(false);
+  const sendDigest = async () => {
+    if (!autopilotContext || readOnly || digestSending.current) return;
+    const organizationId = autopilotContext.organizationId;
+    const saved = savedDigest(organizationId);
+    if (!saved.enabled && saved.signature === undefined) return;
+    const cards = [...followUpCards().cards.map(card => ({ title: card.title, detail: card.detail })), ...signalCards().map(card => ({ title: card.title, detail: card.sender }))];
+    const input = digestInput(cards, getAppLanguage(), Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Zurich', saved.enabled);
+    const signature = digestSignature(input);
+    if (saved.enabled && !digestDue(saved, signature, Date.now())) return;
+    digestSending.current = true;
+    try {
+      const reply = await desktopApi.sendQuoteAutopilotDigest(autopilotContext.origin, input);
+      if (reply.status === 'available' && reply.data) {
+        const latest = savedDigest(organizationId);
+        saveDigest(organizationId, latest.enabled
+          ? { enabled: true, signature, sentAt: Date.now(), emailConfigured: reply.data.emailConfigured, lastSentOn: reply.data.lastSentOn }
+          : { enabled: false });
+      }
+    } catch { /* sent again later */ } finally { digestSending.current = false; }
+  };
+  const sendDigestRef = useRef(sendDigest);
+  sendDigestRef.current = sendDigest;
+  useEffect(() => {
+    const run = () => void sendDigestRef.current();
+    const first = window.setTimeout(run, 20_000), timer = window.setInterval(run, 10 * 60_000);
+    window.addEventListener('zentra-digest-changed', run);
+    return () => { window.clearTimeout(first); window.clearInterval(timer); window.removeEventListener('zentra-digest-changed', run); };
+  }, []);
   const [vatAmount, setVatAmount] = useState<{ from: string; to: string; payableTaxCents: number; payableCode: '500' | '510'; blocking: number } | null>(null);
   // TVA à payer : sort de la trésorerie à l'échéance indicative (fin de période + 60 jours).
   const vatForecast = useMemo<ForecastEvent[]>(() => vatAmount && vatAmount.payableCode === '500' && vatAmount.payableTaxCents > 0
