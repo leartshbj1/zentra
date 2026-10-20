@@ -36,6 +36,7 @@ import { purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat'
 export { purchaseVatOptions } from './purchaseVat';
 import { SupplierEmailIntake } from './SupplierEmailIntake';
 import { SupplierPaymentsPanel } from './SupplierPaymentsPanel';
+import { ContractsPanel } from './ContractsPanel';
 import { payableInvoices } from './supplierPaymentOrder';
 import { formatCatalogQuantity } from './catalog';
 import {
@@ -89,6 +90,7 @@ type PurchaseWorkspaceAction = (
 export type PurchaseSection =
   | 'inbox'
   | 'payments'
+  | 'contracts'
   | 'orders'
   | 'receipts'
   | 'documents'
@@ -146,6 +148,7 @@ const sectionLabels: Array<{
   { id: 'receipts', label: 'Réceptions', icon: PackageCheck },
   { id: 'documents', label: 'Factures & avoirs', icon: ReceiptText },
   { id: 'suppliers', label: 'Fournisseurs', icon: Building2 },
+  { id: 'contracts', label: 'Contrats', icon: FilePenLine },
 ];
 
 function includesQuery(
@@ -605,9 +608,13 @@ export function PurchaseOrdersScreen({
   onOpenBank,
   onReadWorkspace,
   openSection,
+  contractFocusId,
+  onContractFocusHandled,
   onOpenSectionHandled,
 }: {
   openSection?: PurchaseSection | null;
+  contractFocusId?: string | null;
+  onContractFocusHandled?: () => void;
   onOpenSectionHandled?: () => void;
   mailboxPanel?: ReactNode;
   mailbox?: SupplierInboxState | null;
@@ -812,6 +819,7 @@ export function PurchaseOrdersScreen({
     if (id === 'inbox') return mailboxUnavailable ? '—' : inboxCount;
     if (id === 'orders') return workspace.supplierOrders.length;
     if (id === 'payments') return payableInvoices(workspace).length;
+    if (id === 'contracts') return (workspace.contracts ?? []).filter((row) => row.side === 'supplier' && row.status === 'active').length;
     if (id === 'receipts') return workspace.supplierReceipts.length;
     if (id === 'documents')
       return (
@@ -1034,6 +1042,11 @@ export function PurchaseOrdersScreen({
                 onCreateOrder={() => setModal({ type: 'order' })}
               />
             </>
+          ) : null}
+
+          {section === 'contracts' ? (
+            <ContractsPanel side="supplier" workspace={workspace} disabled={readOnly || busy} focusId={contractFocusId} onFocusHandled={onContractFocusHandled}
+              onWorkspace={(next) => void runAction(async () => next, t('Contrat enregistré.'), false)} />
           ) : null}
 
           {section === 'payments' ? (

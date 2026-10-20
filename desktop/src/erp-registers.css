@@ -1,0 +1,174 @@
+/* Caisse, trésorerie et contrats : des lignes calmes, un seul bouton principal. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .erp-register {
+    display: grid;
+    gap: 16px;
+    max-width: 960px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register h2 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(20px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register h3 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register p,
+  html[data-app-theme] .desktop-app[data-experience] .erp-register li {
+    max-width: 68ch;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register details > summary {
+    width: fit-content;
+    min-height: 32px;
+    color: var(--apple-accent);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register details ol {
+    display: grid;
+    gap: 4px;
+    margin: 4px 0 0;
+    padding-left: 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__figure {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__figure strong {
+    color: var(--apple-ink);
+    font-size: calc(28px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px 16px;
+    padding: 16px 0;
+    box-shadow: inset 0 1px 0 var(--apple-line), inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__form > .erp-register__actions,
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__form > .erp-register__wide {
+    grid-column: 1 / -1;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__switch {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__switch span {
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__list > li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 16px;
+    max-width: none;
+    padding: 12px 0;
+    box-shadow: inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__list > li > span:first-child {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__list strong {
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__list small {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__amount {
+    display: grid;
+    justify-items: end;
+    gap: 2px;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    grid-column: 1 / -1;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__links button {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__denominations {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__horizons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__horizons div {
+    display: grid;
+    gap: 2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__horizons dt {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__horizons dd {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(20px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register .is-negative {
+    color: var(--apple-danger, #c4372b);
+  }
+}
+@media screen and (max-width: 640px) {
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__horizons {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__list > li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__amount {
+    justify-items: start;
+  }
+}

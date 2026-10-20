@@ -120,3 +120,24 @@ export function installErpPaymentLinkFixture(data: Workspace) {
   if (!invoice) return;
   data.invoicePaymentLinks = [{ id: 'link-1', invoiceId: invoice.id, url: 'https://atelier-leman.payrexx.com/?payment=1', amountCents: 48_600, currency: 'CHF', status: 'paid', paidAt: new Date().toISOString(), paymentId: null, createdAt: new Date().toISOString() }];
 }
+
+/** ?erp=cash : livre de caisse avec un comptage à corriger, contrats et trésorerie. */
+export function installErpCashFixture(data: Workspace) {
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  const entry = (id: string, offset: number, kind: NonNullable<Workspace['cashBookEntries']>[number]['kind'], amountCents: number, description: string, countId: string | null = null) =>
+    ({ id, entryDate: day(offset), kind, amountCents, description, reference: '', countId, createdAt: `${day(offset)}T09:00:00Z` });
+  data.cashBookEntries = [
+    entry('cb1', -12, 'opening', 50_000, 'Fond de caisse'),
+    entry('cb2', -6, 'receipt', 18_500, 'Vente au comptoir'),
+    entry('cb3', -4, 'expense', -4_250, 'Timbres et fournitures'),
+    entry('cb4', -2, 'bank_deposit', -40_000, 'Versement UBS'),
+    entry('cb5', -1, 'receipt', 22_000, 'Réparation payée sur place'),
+  ];
+  data.cashCounts = [{ id: 'cc1', countDate: day(-1), countedCents: 45_050, expectedCents: 46_250, differenceCents: -1_200, denominations: { '10000': 2, '5000': 3, '2000': 4, '1000': 1, '500': 2, '50': 1 }, note: '', createdAt: `${day(-1)}T18:30:00Z` }];
+  data.contracts = [
+    { id: 'k1', side: 'supplier', clientId: null, supplierId: null, partyName: 'Régie du Lac SA', title: 'Bail de l’atelier', startDate: '2023-04-01', endDate: day(150).slice(0, 8) + '01', noticeMonths: 6, autoRenew: true, renewalMonths: 12, amountCents: 240_000, currency: 'CHF', frequency: 'monthly', indexation: 'IPC chaque avril', note: '', status: 'active', terminatedOn: null },
+    { id: 'k2', side: 'supplier', clientId: null, supplierId: null, partyName: 'Helvetia', title: 'Assurance RC entreprise', startDate: '2024-01-01', endDate: '2025-12-31', noticeMonths: 3, autoRenew: true, renewalMonths: 12, amountCents: 186_000, currency: 'CHF', frequency: 'yearly', indexation: '', note: '', status: 'active', terminatedOn: null },
+    { id: 'k3', side: 'supplier', clientId: null, supplierId: null, partyName: 'Swisscom (Suisse) SA', title: 'Internet et téléphonie', startDate: '2025-06-01', endDate: null, noticeMonths: 2, autoRenew: false, renewalMonths: 12, amountCents: 8_990, currency: 'CHF', frequency: 'monthly', indexation: '', note: '', status: 'active', terminatedOn: null },
+    { id: 'k4', side: 'customer', clientId: null, supplierId: null, partyName: 'Résidence Bellevue', title: 'Entretien annuel des parquets', startDate: '2025-01-01', endDate: day(40), noticeMonths: 1, autoRenew: false, renewalMonths: 12, amountCents: 120_000, currency: 'CHF', frequency: 'yearly', indexation: '', note: '', status: 'active', terminatedOn: null },
+  ];
+}

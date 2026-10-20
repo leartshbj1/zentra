@@ -21,6 +21,13 @@ import { suggestExpenseCategory } from './expenseCategory';
 import { buildDebtCollectionRequest, debtCollectionCandidates, type DebtCollectionRequest } from './debtCollection';
 import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
+import { BankAreaTabs, type BankArea } from './BankAreaTabs';
+import { CashBookPanel } from './CashBookPanel';
+import { TreasuryPanel, forecastLabel } from './TreasuryPanel';
+import { ContractsPanel } from './ContractsPanel';
+import { eveningCountDue, localDate, uncorrectedCount, cashBalance } from './cashBook';
+import { contractAlerts } from './contracts';
+import { savedStart, treasuryForecast } from './treasuryForecast';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
@@ -1089,6 +1096,8 @@ function WorkspaceContent({
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
+  const [bankArea, setBankArea] = useState<BankArea>('account');
+  const [contractToOpen, setContractToOpen] = useState<{ id: string; side: 'customer' | 'supplier' } | null>(null);
   useEffect(() => {
     if (view !== 'invoices') return;
     let live = true;
@@ -1350,6 +1359,39 @@ function WorkspaceContent({
           + (invoice.dueDate < today ? ' · ' + copy.payOverdue : ''),
         actions: [{ id: 'copy-iban', label: copy.actionCopyIban }, { id: 'view-purchase', label: copy.actionViewPurchase }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'pay', label: copy.actionPay, primary: true }] });
     }
+    // Caisse : comptage du soir, puis écart à corriger.
+    const tonight = localDate(new Date());
+    if (eveningCountDue(workspace, new Date()) && !entries['cash-count:' + tonight]?.ignored)
+      cards.push({ key: 'cash-count:' + tonight, title: copy.cashCountTitle, detail: copy.cashCountDetail.replace('{amount}', formatMoney(cashBalance(workspace, tonight))),
+        actions: [{ id: 'open-cash', label: copy.actionCountCash, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    const cashGap = uncorrectedCount(workspace.cashCounts, workspace.cashBookEntries);
+    if (cashGap && !entries['cash-diff:' + cashGap.id]?.ignored)
+      cards.push({ key: 'cash-diff:' + cashGap.id, title: copy.cashDiffTitle.replace('{amount}', formatMoney(cashGap.differenceCents)).replace('{date}', date(cashGap.countDate)),
+        detail: copy.cashDiffDetail.replace('{counted}', formatMoney(cashGap.countedCents)).replace('{expected}', formatMoney(cashGap.expectedCents)),
+        why: `${copy.whyCashDiff} · ${copy.confidenceHigh}`,
+        actions: [{ id: 'cash-correct', label: copy.actionCorrectCash, primary: true }, { id: 'open-cash', label: copy.actionOpenCash }] });
+    // Contrats : dernier jour pour résilier, ou fin, dans les 60 jours.
+    for (const alert of contractAlerts(workspace.contracts ?? [], today)) {
+      const key = `contract:${alert.contract.id}:${alert.kind === 'notice' ? alert.deadline : alert.end}`;
+      if (entries[key]?.ignored) continue;
+      cards.push(alert.kind === 'notice'
+        ? { key, title: copy.contractNoticeTitle.replace('{date}', date(alert.deadline)).replace('{title}', alert.contract.title),
+          detail: copy.contractNoticeDetail.replace('{party}', alert.contract.partyName).replace('{end}', date(alert.end)), why: copy.whyContract,
+          actions: [{ id: 'contract-open', label: copy.actionOpenContract, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] }
+        : { key, title: copy.contractEndingTitle.replace('{title}', alert.contract.title).replace('{days}', String(alert.days)),
+          detail: copy.contractEndingDetail.replace('{party}', alert.contract.partyName).replace('{date}', date(alert.end)), why: copy.whyContract,
+          actions: [{ id: 'contract-open', label: copy.actionRenewContract, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // Trésorerie : un creux sous zéro dans les 30 jours, d'après le solde saisi.
+    const start = savedStart(organizationId);
+    if (start) {
+      const forecast = treasuryForecast(workspace, start.cents + cashBalance(workspace, today), today);
+      const key = 'treasury-low:' + forecast.low.date;
+      if (forecast.low.cents < 0 && !entries[key]?.ignored)
+        cards.push({ key, title: copy.treasuryLowTitle.replace('{amount}', formatMoney(forecast.low.cents)).replace('{date}', date(forecast.low.date)),
+          detail: forecast.low.cause ? forecastLabel(forecast.low.cause) : '', why: copy.whyTreasury,
+          actions: [{ id: 'open-treasury', label: copy.actionOpenTreasury, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     for (const link of (workspace.invoicePaymentLinks ?? []).filter(row => row.status === 'paid' && !row.paymentId && !entries['online:' + row.id]?.ignored)) {
       const invoice = workspace.invoices.find(row => row.id === link.invoiceId);
       if (!invoice) continue;
@@ -1387,6 +1429,20 @@ function WorkspaceContent({
     const refresh = () => setFollowUpVersion(version => version + 1);
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
+    if (actionId === 'open-cash') { setSearch(''); setBankArea('cash'); setView('bank'); return; }
+    if (actionId === 'open-treasury') { setSearch(''); setBankArea('treasury'); setView('bank'); return; }
+    if (key.startsWith('cash-diff:') && actionId === 'cash-correct') {
+      const corrected = await journalAct(() => desktopApi.correctCashCount(key.slice('cash-diff:'.length)), copy.cashCorrected, false);
+      if (corrected) refresh();
+      return;
+    }
+    if (key.startsWith('contract:') && actionId === 'contract-open') {
+      const contract = (workspaceRef.current.contracts ?? []).find(row => row.id === key.split(':')[1]);
+      if (!contract) return;
+      setSearch(''); setContractToOpen({ id: contract.id, side: contract.side });
+      if (contract.side === 'customer') setView('orders'); else { setPurchaseStartSection('contracts'); setView('expenses'); }
+      return;
+    }
     if (key.startsWith('online:') && actionId === 'record-online') {
       const recorded = await journalAct(() => desktopApi.recordInvoicePaymentLink(key.slice('online:'.length)), copy.onlineRecorded, false);
       if (recorded) refresh();
@@ -3530,6 +3586,10 @@ function WorkspaceContent({
               }}
             />
           ) : null}
+          {view === 'orders' && !orderToOpenId ? (
+            <ContractsPanel side="customer" workspace={workspace} disabled={readOnly || busy} focusId={contractToOpen?.side === 'customer' ? contractToOpen.id : null} onFocusHandled={() => setContractToOpen(null)}
+              onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
           {view === 'invoices' ? (
             <DocumentsScreen
               onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
@@ -3635,6 +3695,8 @@ function WorkspaceContent({
             <Suspense fallback={<ViewLoading label={t("Ouverture des achats…")} />}>
               <PurchaseOrdersScreen
                 openSection={purchaseStartSection}
+                contractFocusId={contractToOpen?.side === 'supplier' ? contractToOpen.id : null}
+                onContractFocusHandled={() => setContractToOpen(null)}
                 onOpenSectionHandled={() => setPurchaseStartSection(null)}
                 mailboxPanel={renderSupplierInbox(true,search)}
                 mailbox={supplierInbox.state}
@@ -3702,7 +3764,14 @@ function WorkspaceContent({
               />
             </Suspense>
           ) : null}
-          {view === 'bank' ? (
+          {view === 'bank' ? <BankAreaTabs active={bankArea} onChange={setBankArea} /> : null}
+          {view === 'bank' && bankArea === 'cash' ? (
+            <CashBookPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
+          {view === 'bank' && bankArea === 'treasury' ? (
+            <TreasuryPanel workspace={workspace} organizationId={autopilotContext?.organizationId ?? companyAutomation.organizationId ?? 'local'} />
+          ) : null}
+          {view === 'bank' && bankArea === 'account' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture de la banque…")} />}>
               <BankScreen
                 autoReconcile={bankAutoReconcile}

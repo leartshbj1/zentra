@@ -91,6 +91,7 @@ mod swiss_sme_chart;
 mod reminder_charges;
 mod opening_balances;
 mod online_payments;
+mod cash_book;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -324,6 +325,11 @@ pub fn run() {
             online_payments::create_invoice_payment_link,
             online_payments::refresh_invoice_payment_links,
             online_payments::record_invoice_payment_link,
+            cash_book::add_cash_entry,
+            cash_book::record_cash_count,
+            cash_book::correct_cash_count,
+            cash_book::save_contract,
+            cash_book::terminate_contract,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

@@ -212,6 +212,50 @@ export type AppSettings = {
 /** Paiement en ligne par le compte Payrexx de l'entreprise ; désactivé par défaut. */
 export type OnlinePaymentSettings = { enabled: boolean; provider: 'payrexx'; instance: string; secretPresent: boolean };
 
+export type CashBookEntry = {
+  id: Identifier;
+  entryDate: string;
+  kind: 'opening' | 'receipt' | 'expense' | 'bank_deposit' | 'bank_withdrawal' | 'correction';
+  /** Signé : positif pour une entrée d'espèces, négatif pour une sortie. */
+  amountCents: number;
+  description: string;
+  reference: string;
+  countId: Identifier | null;
+  createdAt: string;
+};
+
+export type CashCount = {
+  id: Identifier;
+  countDate: string;
+  countedCents: number;
+  expectedCents: number;
+  differenceCents: number;
+  denominations: Record<string, number>;
+  note: string;
+  createdAt: string;
+};
+
+export type Contract = {
+  id: Identifier;
+  side: 'customer' | 'supplier';
+  clientId: Identifier | null;
+  supplierId: Identifier | null;
+  partyName: string;
+  title: string;
+  startDate: string;
+  endDate: string | null;
+  noticeMonths: number;
+  autoRenew: boolean;
+  renewalMonths: number;
+  amountCents: number;
+  currency: 'CHF' | 'EUR';
+  frequency: 'monthly' | 'quarterly' | 'yearly' | 'once';
+  indexation: string;
+  note: string;
+  status: 'active' | 'terminated';
+  terminatedOn: string | null;
+};
+
 export type InvoicePaymentLink = {
   id: Identifier;
   invoiceId: Identifier;
@@ -1834,6 +1878,11 @@ export type Workspace = {
   openingReceivables?: { invoiceId: Identifier; sourceNumber: string; openCents: number }[];
   /** Liens de paiement en ligne (TWINT, cartes) créés pour des factures. */
   invoicePaymentLinks?: InvoicePaymentLink[];
+  /** Livre de caisse : mouvements saisis et comptages. */
+  cashBookEntries?: CashBookEntry[];
+  cashCounts?: CashCount[];
+  /** Contrats et abonnements, clients et fournisseurs. */
+  contracts?: Contract[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

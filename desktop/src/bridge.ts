@@ -12,7 +12,7 @@ import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import { statementFileFromRaw, type StatementFile } from './autopilotStatements';
 import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
-import type { InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft } from './types';
+import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
@@ -517,6 +517,9 @@ type RawWorkspace = {
   debt_collection_requests?: RawRecord[];
   opening_receivables?: RawRecord[];
   invoice_payment_links?: RawRecord[];
+  cash_book_entries?: RawRecord[];
+  cash_counts?: RawRecord[];
+  contracts?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -531,6 +534,27 @@ type RawWorkspace = {
 
 const stringValue = (value: unknown): string =>
   typeof value === 'string' ? value : '';
+const CASH_KINDS = ['opening', 'receipt', 'expense', 'bank_deposit', 'bank_withdrawal', 'correction'] as const;
+function cashEntryFromRaw(row: RawRecord): CashBookEntry {
+  const kind = CASH_KINDS.find((value) => value === row.kind) ?? 'correction';
+  return { id: stringValue(row.id), entryDate: stringValue(row.entry_date), kind, amountCents: numberValue(row.amount_cents), description: stringValue(row.description), reference: stringValue(row.reference), countId: stringValue(row.count_id) || null, createdAt: stringValue(row.created_at) };
+}
+function cashCountFromRaw(row: RawRecord): CashCount {
+  let denominations: Record<string, number> = {};
+  try { denominations = JSON.parse(stringValue(row.denominations_json) || '{}') as Record<string, number>; } catch { /* shown without details */ }
+  return { id: stringValue(row.id), countDate: stringValue(row.count_date), countedCents: numberValue(row.counted_cents), expectedCents: numberValue(row.expected_cents), differenceCents: numberValue(row.difference_cents), denominations, note: stringValue(row.note), createdAt: stringValue(row.created_at) };
+}
+function contractFromRaw(row: RawRecord): Contract {
+  const frequency = (['monthly', 'quarterly', 'yearly', 'once'] as const).find((value) => value === row.frequency) ?? 'monthly';
+  return {
+    id: stringValue(row.id), side: row.side === 'customer' ? 'customer' : 'supplier', clientId: stringValue(row.client_id) || null, supplierId: stringValue(row.supplier_id) || null,
+    partyName: stringValue(row.party_name), title: stringValue(row.title), startDate: stringValue(row.start_date), endDate: stringValue(row.end_date) || null,
+    noticeMonths: numberValue(row.notice_months), autoRenew: row.auto_renew === 1 || row.auto_renew === true, renewalMonths: numberValue(row.renewal_months) || 12,
+    amountCents: numberValue(row.amount_cents), currency: row.currency === 'EUR' ? 'EUR' : 'CHF', frequency, indexation: stringValue(row.indexation), note: stringValue(row.note),
+    status: row.status === 'terminated' ? 'terminated' : 'active', terminatedOn: stringValue(row.terminated_on) || null,
+  };
+}
+
 function paymentLinkFromRaw(row: RawRecord): InvoicePaymentLink {
   const status = stringValue(row.status);
   return {
@@ -3366,6 +3390,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     debtCollectionRequests: (raw.debt_collection_requests ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), fileName: stringValue(row.file_name), createdAt: stringValue(row.created_at) })),
     openingReceivables: (raw.opening_receivables ?? []).map((row) => ({ invoiceId: stringValue(row.invoice_id), sourceNumber: stringValue(row.source_number), openCents: numberValue(row.open_cents) })),
     invoicePaymentLinks: (raw.invoice_payment_links ?? []).map(paymentLinkFromRaw),
+    cashBookEntries: (raw.cash_book_entries ?? []).map(cashEntryFromRaw),
+    cashCounts: (raw.cash_counts ?? []).map(cashCountFromRaw),
+    contracts: (raw.contracts ?? []).map(contractFromRaw),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7411,6 +7438,32 @@ export const desktopApi = {
   async createInvoicePaymentLink(invoiceId: string) {
     const raw = await invoke<RawRecord>('create_invoice_payment_link', { invoiceId });
     return { url: stringValue(raw.url), amountCents: numberValue(raw.amount_cents), currency: stringValue(raw.currency), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Mouvement d'espèces : montant positif, le sens vient du type. */
+  async addCashEntry(input: { entryDate: string; kind: CashBookEntry['kind']; amountCents: number; description: string; reference?: string }) {
+    await invoke('add_cash_entry', { input: { entry_date: input.entryDate, kind: input.kind, amount_cents: input.amountCents, description: input.description, reference: input.reference || null } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async recordCashCount(input: { countDate: string; denominations: Record<number, number>; note?: string }) {
+    const denominations = Object.fromEntries(Object.entries(input.denominations).filter(([, count]) => count > 0));
+    const raw = await invoke<RawRecord>('record_cash_count', { input: { count_date: input.countDate, denominations, note: input.note || null } });
+    return { count: cashCountFromRaw(raw), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async correctCashCount(countId: string) {
+    await invoke('correct_cash_count', { countId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveContract(contract: Omit<Contract, 'id' | 'status' | 'terminatedOn'> & { id?: string }) {
+    await invoke('save_contract', { input: {
+      id: contract.id || null, side: contract.side, client_id: contract.clientId, supplier_id: contract.supplierId, party_name: contract.partyName, title: contract.title,
+      start_date: contract.startDate, end_date: contract.endDate, notice_months: contract.noticeMonths, auto_renew: contract.autoRenew, renewal_months: contract.renewalMonths,
+      amount_cents: contract.amountCents, currency: contract.currency, frequency: contract.frequency, indexation: contract.indexation || null, note: contract.note || null,
+    } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async terminateContract(id: string, terminatedOn: string) {
+    await invoke('terminate_contract', { id, terminatedOn });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async refreshInvoicePaymentLinks(): Promise<number> {
     const raw = await invoke<RawRecord>('refresh_invoice_payment_links');

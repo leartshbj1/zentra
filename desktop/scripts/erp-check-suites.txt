@@ -38,3 +38,7 @@ src/bexioOpening.test.ts
 src/catalogImport.test.ts
 src/bexioImport.test.ts
 rust:online_payments::
+rust:cash_book::
+src/cashBook.test.ts
+src/treasuryForecast.test.ts
+src/contracts.test.ts
