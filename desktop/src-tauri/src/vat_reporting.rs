@@ -2174,6 +2174,24 @@ fn load_raw_vat_sources(
             )?);
         }
     }
+    // Montants en devise : contre-valeur CHF au cours saisi pour la date de l'opération
+    // (cours mensuel de l'ESTV). Sans cours, la source reste bloquante.
+    for source in sources.iter_mut().filter(|source| source.currency != "CHF") {
+        if let Some((rate, _)) = crate::currencies::rate_on(connection, &source.currency, &source.occurrence_date)? {
+            let net = crate::currencies::to_chf(source.net_cents, rate);
+            let vat = crate::currencies::to_chf(source.vat_cents, rate);
+            source.net_cents = net;
+            source.vat_cents = vat;
+            source.total_cents = net + vat;
+            for payment in &mut source.received_payments {
+                let (net, vat) = (crate::currencies::to_chf(payment.net_cents, rate), crate::currencies::to_chf(payment.vat_cents, rate));
+                payment.net_cents = net;
+                payment.vat_cents = vat;
+                payment.gross_cents = net + vat;
+            }
+            source.currency = "CHF".into();
+        }
+    }
     let mut unreliable_parents = BTreeSet::new();
     let mut foreign_parents = BTreeSet::new();
     for source in &sources {

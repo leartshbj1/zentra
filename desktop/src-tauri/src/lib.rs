@@ -96,6 +96,7 @@ mod payroll_drafts;
 mod work_reports;
 mod team_time;
 mod source_tax;
+mod currencies;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -351,6 +352,9 @@ pub fn run() {
             source_tax::list_source_tax_tariff_sets,
             source_tax::source_tax_lookup,
             source_tax::export_elm_structure,
+            currencies::list_exchange_rates,
+            currencies::save_exchange_rate,
+            currencies::delete_exchange_rate,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

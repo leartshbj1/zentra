@@ -4540,6 +4540,9 @@ function journalLineFromRaw(row: RawRecord): JournalLine {
     clientId: nullableString(row.client_id),
     employeeId: nullableString(row.employee_id),
   };
+  if (typeof row.original_currency === 'string' && row.original_currency) {
+    line.original = { currency: row.original_currency, debitCents: numberValue(row.original_debit_cents), creditCents: numberValue(row.original_credit_cents), rateMicro: numberValue(row.exchange_rate_micro) };
+  }
   if (row.running_net_debit_cents !== undefined) {
     line.runningNetDebitCents = numberValue(row.running_net_debit_cents);
     line.runningDebitBalanceCents = numberValue(
@@ -7605,6 +7608,20 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
     return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
   },
+  async listExchangeRates(): Promise<import('./currencies').ExchangeRatesState> {
+    const raw = await invoke<RawRecord>('list_exchange_rates');
+    return {
+      rates: rawArray(raw.rates).map((row) => ({ currency: stringValue(row.currency), rateDate: stringValue(row.rate_date), chfPerUnitMicro: numberValue(row.chf_per_unit_micro), source: stringValue(row.source), used: Boolean(row.used) })),
+      pending: rawArray(raw.pending).map((row) => ({ currency: stringValue(row.currency), entries: numberValue(row.entries), firstDate: stringValue(row.first_date), lastDate: stringValue(row.last_date) })),
+      realised: rawArray(raw.realised).map((row) => ({ year: stringValue(row.year), gainCents: numberValue(row.gain_cents), lossCents: numberValue(row.loss_cents) })),
+      validityDays: numberValue(raw.validityDays) || 31,
+    };
+  },
+  async saveExchangeRate(currency: string, rateDate: string, chfPerUnitMicro: number) {
+    const raw = await invoke<RawRecord>('save_exchange_rate', { input: { currency, rateDate, chfPerUnitMicro } });
+    return { converted: numberValue(raw.converted) };
+  },
+  deleteExchangeRate(currency: string, rateDate: string) { return invoke<void>('delete_exchange_rate', { currency, rateDate }); },
   async listSourceTaxTariffSets() {
     return rawArray(await invoke<unknown>('list_source_tax_tariff_sets')).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from), rows: numberValue(set.rows), codes: numberValue(set.codes) }));
   },

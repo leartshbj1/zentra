@@ -2136,6 +2136,8 @@ export type JournalLine = {
   runningNetDebitCents?: number;
   runningDebitBalanceCents?: number;
   runningCreditBalanceCents?: number;
+  /** Montant du document en devise et cours appliqué pour la contre-valeur CHF. */
+  original?: { currency: string; debitCents: number; creditCents: number; rateMicro: number };
 };
 
 export type JournalReport = {

@@ -129,7 +129,7 @@ pub(crate) fn ensure_base_currency_for_ranges(
         validate_date(date_from, "date_from")?;
         validate_date(date_to, "date_to")?;
         let mut statement = connection.prepare(
-            "SELECT DISTINCT UPPER(TRIM(jl.currency)) FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE je.entry_date BETWEEN ? AND ? AND (jl.debit_cents<>0 OR jl.credit_cents<>0) ORDER BY 1",
+            "SELECT DISTINCT UPPER(TRIM(jl.currency)) FROM journal_lines_chf jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE je.entry_date BETWEEN ? AND ? AND (jl.debit_cents<>0 OR jl.credit_cents<>0) ORDER BY 1",
         )?;
         let values =
             statement.query_map(params![date_from, date_to], |row| row.get::<_, String>(0))?;
@@ -148,15 +148,23 @@ pub(crate) fn ensure_base_currency_for_ranges(
         .collect::<Vec<_>>();
     if !foreign.is_empty() {
         return Err(AppError::Validation(format!(
-            "Agrégation comptable bloquée : le rapport en {base_currency} contient des lignes en {} et aucun cours de conversion traçable n'est enregistré. Corrigez la monnaie des écritures ou comptabilisez leur conversion avant la clôture.",
+            "Agrégation comptable bloquée : le rapport en {base_currency} contient des lignes en {} et aucun cours de conversion n'est saisi pour ces dates. Ajoutez le cours dans Comptabilité › Devises : Zentra calcule alors la contre-valeur CHF.",
             foreign.join(", ")
         )));
+    }
+    let mut applied = false;
+    for (date_from, date_to) in ranges {
+        applied = applied || connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM journal_line_conversions c JOIN journal_entries je ON je.id=c.journal_entry_id WHERE je.entry_date BETWEEN ? AND ?)",
+            params![date_from, date_to],
+            |row| row.get::<_, bool>(0),
+        )?;
     }
     Ok(json!({
         "base_currency": base_currency,
         "currencies": currencies,
         "single_currency": true,
-        "exchange_rates_applied": false,
+        "exchange_rates_applied": applied,
     }))
 }
 
@@ -252,7 +260,7 @@ fn profit_before(connection: &Connection, date_from: &str) -> AppResult<i64> {
     validate_date(date_from, "date_from")?;
     connection
         .query_row(
-            "SELECT COALESCE(SUM(CASE WHEN a.account_type='revenue' THEN jl.credit_cents-jl.debit_cents WHEN a.account_type='expense' THEN jl.credit_cents-jl.debit_cents ELSE 0 END),0) FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id JOIN accounts a ON a.id=jl.account_id WHERE je.entry_date<? AND a.account_type IN('revenue','expense')",
+            "SELECT COALESCE(SUM(CASE WHEN a.account_type='revenue' THEN jl.credit_cents-jl.debit_cents WHEN a.account_type='expense' THEN jl.credit_cents-jl.debit_cents ELSE 0 END),0) FROM journal_lines_chf jl JOIN journal_entries je ON je.id=jl.journal_entry_id JOIN accounts a ON a.id=jl.account_id WHERE je.entry_date<? AND a.account_type IN('revenue','expense')",
             params![date_from],
             |row| row.get(0),
         )
@@ -282,7 +290,7 @@ fn statement_rows(
          COALESCE(SUM(CASE WHEN {current_condition} THEN jl.credit_cents ELSE 0 END),0),\
          COALESCE(SUM(CASE WHEN {previous_condition} THEN jl.debit_cents ELSE 0 END),0),\
          COALESCE(SUM(CASE WHEN {previous_condition} THEN jl.credit_cents ELSE 0 END),0) \
-         FROM accounts a LEFT JOIN journal_lines jl ON jl.account_id=a.id LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id \
+         FROM accounts a LEFT JOIN journal_lines_chf jl ON jl.account_id=a.id LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id \
          WHERE a.account_type IN ({placeholders}) GROUP BY a.id ORDER BY a.code"
     );
     let mut values = Vec::<rusqlite::types::Value>::new();
@@ -561,6 +569,8 @@ mod tests {
              CREATE TABLE accounts(id TEXT PRIMARY KEY,code TEXT NOT NULL,name TEXT NOT NULL,account_type TEXT NOT NULL,normal_balance TEXT NOT NULL,report_section TEXT NOT NULL);
              CREATE TABLE journal_entries(id TEXT PRIMARY KEY,entry_date TEXT NOT NULL);
              CREATE TABLE journal_lines(id TEXT PRIMARY KEY,journal_entry_id TEXT NOT NULL,account_id TEXT NOT NULL,debit_cents INTEGER NOT NULL,credit_cents INTEGER NOT NULL,currency TEXT NOT NULL);
+             CREATE VIEW journal_lines_chf AS SELECT id,journal_entry_id,account_id,debit_cents,credit_cents,currency,rowid AS line_order FROM journal_lines;
+             CREATE TABLE journal_line_conversions(journal_line_id TEXT PRIMARY KEY,journal_entry_id TEXT NOT NULL);
              INSERT INTO accounts VALUES('bank','1020','Banque','asset','debit','current_assets');
              INSERT INTO accounts VALUES('equity','2800','Fonds propres','equity','credit','equity');
              INSERT INTO accounts VALUES('revenue','3200','Produits','revenue','credit','net_revenue');

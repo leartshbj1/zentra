@@ -424,26 +424,26 @@ impl LocalStore {
         )?;
         let journal_lines = query_all(
             connection,
-            r#"SELECT jl.rowid AS line_sequence,jl.*,a.code AS account_code,a.name AS account_name,
+            r#"SELECT jl.line_order AS line_sequence,jl.id,jl.journal_entry_id,jl.account_id,jl.debit_cents,jl.credit_cents,jl.currency,jl.memo,jl.project_id,jl.client_id,jl.employee_id,jl.created_at,a.code AS account_code,a.name AS account_name,
                       a.account_type,a.normal_balance,a.report_section,je.number AS entry_number,
                       je.entry_date,je.description AS entry_description,je.source_type,je.source_id,
                       je.source_event,je.reversal_of
-               FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id
+               FROM journal_lines_chf jl JOIN accounts a ON a.id=jl.account_id
                JOIN journal_entries je ON je.id=jl.journal_entry_id
                WHERE je.entry_date BETWEEN ? AND ?
-               ORDER BY je.entry_date,je.number,jl.rowid,jl.id"#,
+               ORDER BY je.entry_date,je.number,jl.line_order,jl.id"#,
             params![date_from, date_to],
         )?;
         let ledger_lines = query_all(
             connection,
-            r#"SELECT jl.rowid AS line_sequence,jl.*,a.code AS account_code,a.name AS account_name,
+            r#"SELECT jl.line_order AS line_sequence,jl.id,jl.journal_entry_id,jl.account_id,jl.debit_cents,jl.credit_cents,jl.currency,jl.memo,jl.project_id,jl.client_id,jl.employee_id,jl.created_at,a.code AS account_code,a.name AS account_name,
                       a.account_type,a.normal_balance,a.report_section,je.number AS entry_number,
                       je.entry_date,je.description AS entry_description,je.source_type,je.source_id,
                       je.source_event,je.reversal_of
-               FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id
+               FROM journal_lines_chf jl JOIN accounts a ON a.id=jl.account_id
                JOIN journal_entries je ON je.id=jl.journal_entry_id
                WHERE je.entry_date BETWEEN ? AND ?
-               ORDER BY a.code,je.entry_date,je.number,jl.rowid,jl.id"#,
+               ORDER BY a.code,je.entry_date,je.number,jl.line_order,jl.id"#,
             params![date_from, date_to],
         )?;
         let trial_rows = query_all(
@@ -455,7 +455,7 @@ impl LocalStore {
                       AS debit_balance_cents,
                       MAX(COALESCE(SUM(jl.credit_cents),0)-COALESCE(SUM(jl.debit_cents),0),0)
                       AS credit_balance_cents
-               FROM accounts a LEFT JOIN journal_lines jl ON jl.account_id=a.id
+               FROM accounts a LEFT JOIN journal_lines_chf jl ON jl.account_id=a.id
                LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id
                WHERE je.entry_date BETWEEN ? AND ?
                GROUP BY a.id ORDER BY a.code,a.id"#,
@@ -692,7 +692,7 @@ fn validate_strict_chf(connection: &Connection, date_to: &str) -> AppResult<()> 
         ));
     }
     let non_chf_lines: i64 = connection.query_row(
-        r#"SELECT COUNT(*) FROM journal_lines jl JOIN journal_entries je
+        r#"SELECT COUNT(*) FROM journal_lines_chf jl JOIN journal_entries je
              ON je.id=jl.journal_entry_id WHERE je.entry_date<=?
              AND (jl.debit_cents<>0 OR jl.credit_cents<>0) AND jl.currency<>'CHF'"#,
         params![date_to],

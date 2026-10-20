@@ -34,6 +34,7 @@ import { eveningCountDue, localDate, uncorrectedCount, cashBalance } from './cas
 import { contractAlerts } from './contracts';
 import { savedStart, treasuryForecast, type ForecastEvent } from './treasuryForecast';
 import { digestDue, digestInput, digestSignature, saveDigest, savedDigest } from './morningDigest';
+import type { PendingConversion } from './currencies';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
@@ -706,7 +707,7 @@ function WorkspaceContent({
   const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
   const [clientFolderReturnId, setClientFolderReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
-  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods' | 'vat' | 'closing'>();
+  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods' | 'vat' | 'closing' | 'currencies'>();
   const [accountingSourceReturnContext, setAccountingSourceReturnContext] = useState<AccountingNavigationContext | null>(null);
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
   const [accountingEntryFocus, setAccountingEntryFocus] =
@@ -1102,6 +1103,7 @@ function WorkspaceContent({
   const [chargeSettings, setChargeSettings] = useState<ReminderChargeSettings>(defaultChargeSettings);
   const [debtDialog, setDebtDialog] = useState<{ request: DebtCollectionRequest; invoiceNumber: string } | null>(null);
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
+  const [fxPending, setFxPending] = useState<PendingConversion[]>([]);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
@@ -1193,6 +1195,8 @@ function WorkspaceContent({
     try {
       if ((workspaceRef.current.invoicePaymentLinks ?? []).some(link => link.status === 'open') && await desktopApi.refreshInvoicePaymentLinks() > 0) publishInboxWorkspace(await desktopApi.loadWorkspace());
     } catch { /* checked again next time */ }
+    // Écritures en devise qui attendent le cours du mois.
+    try { setFxPending((await desktopApi.listExchangeRates()).pending); } catch { /* read again next time */ }
     // Réponses des clients sur la page d'acceptation, dès qu'un lien a été envoyé.
     try {
       const organizationId = autopilotContext.organizationId;
@@ -1481,6 +1485,14 @@ function WorkspaceContent({
         why: `${copy.whyReport} · ${copy.confidenceHigh}`,
         actions: [{ id: 'open-reports', label: copy.actionOpenReports }, { id: 'report-invoice', label: copy.actionInvoiceReport, primary: true }] });
     }
+    // Devises : sans cours du mois, les écritures en EUR n'ont pas encore leur contre-valeur CHF.
+    for (const row of fxPending) {
+      const key = `fx-rate:${row.currency}:${row.firstDate.slice(0, 7)}`;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.fxRateTitle.replace('{currency}', row.currency).replace('{n}', String(row.entries)).replace('{date}', date(row.firstDate)),
+        detail: copy.fxRateDetail, why: copy.whyFxRate,
+        actions: [{ id: 'open-currencies', label: copy.actionEnterRate, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     // Caisse : comptage du soir, puis écart à corriger.
     const tonight = localDate(new Date());
     if (eveningCountDue(workspace, new Date()) && !entries['cash-count:' + tonight]?.ignored)
@@ -1665,6 +1677,7 @@ function WorkspaceContent({
     }
     if (actionId === 'open-payroll' || actionId === 'open-certificates') { setSearch(''); setView('team'); setTeamStartSection('payslips'); return; }
     if (actionId === 'open-closing') { setSearch(''); setAccountingStartTab('closing'); setAccountingEntryFocus(null); setView('accounting'); return; }
+    if (actionId === 'open-currencies') { setSearch(''); setAccountingStartTab('currencies'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-vat') { setSearch(''); setAccountingStartTab('vat'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (key.startsWith('rule:') && (actionId === 'rule-always' || actionId === 'rule-never')) {
       decideRule(organizationId, key.slice('rule:'.length), actionId === 'rule-always' ? 'always' : 'never'); refresh(); return;

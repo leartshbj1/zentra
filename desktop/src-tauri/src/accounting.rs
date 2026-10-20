@@ -1060,7 +1060,7 @@ impl LocalStore {
                 entry["reversal_action"] = json!(action);
             }
         }
-        let lines = query_all(&connection,&format!("SELECT jl.*,a.code AS account_code,a.name AS account_name,je.number AS entry_number,je.entry_date FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id JOIN journal_entries je ON je.id=jl.journal_entry_id {} ORDER BY je.entry_date,je.number,jl.rowid", period_join_clause(&filter,"je.entry_date")?.0),params_from_iter(period_join_clause(&filter,"je.entry_date")?.1))?;
+        let lines = query_all(&connection,&format!("SELECT jl.id,jl.journal_entry_id,jl.account_id,jl.debit_cents,jl.credit_cents,jl.currency,jl.memo,jl.project_id,jl.client_id,jl.employee_id,jl.created_at,a.code AS account_code,a.name AS account_name,je.number AS entry_number,je.entry_date,c.currency AS original_currency,COALESCE(o.debit_cents,0) AS original_debit_cents,COALESCE(o.credit_cents,0) AS original_credit_cents,c.chf_per_unit_micro AS exchange_rate_micro FROM journal_lines_chf jl JOIN accounts a ON a.id=jl.account_id JOIN journal_entries je ON je.id=jl.journal_entry_id LEFT JOIN journal_line_conversions c ON c.journal_line_id=jl.id LEFT JOIN journal_lines o ON o.id=c.journal_line_id {} ORDER BY je.entry_date,je.number,jl.line_order", period_join_clause(&filter,"je.entry_date")?.0),params_from_iter(period_join_clause(&filter,"je.entry_date")?.1))?;
         Ok(json!({"entries":entries,"lines":lines,"currency":report_currency}))
     }
 
@@ -1088,7 +1088,7 @@ impl LocalStore {
             filter.date_from.as_deref()
         {
             connection.query_row(
-                    "SELECT COALESCE(SUM(jl.debit_cents),0),COALESCE(SUM(jl.credit_cents),0) FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? AND je.entry_date<?",
+                    "SELECT COALESCE(SUM(jl.debit_cents),0),COALESCE(SUM(jl.credit_cents),0) FROM journal_lines_chf jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? AND je.entry_date<?",
                     params![input.account_id, date_from],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )?
@@ -1098,7 +1098,7 @@ impl LocalStore {
         let opening_net_debit_cents = opening_debit_cents - opening_credit_cents;
         let (extra, mut values) = period_and_clause(&filter, "je.entry_date")?;
         values.insert(0, SqlValue::Text(input.account_id));
-        let mut lines=query_all(&connection,&format!("SELECT jl.*,je.number AS entry_number,je.entry_date,je.description FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? {extra} ORDER BY je.entry_date,je.number,jl.rowid"),params_from_iter(values))?;
+        let mut lines=query_all(&connection,&format!("SELECT jl.id,jl.journal_entry_id,jl.account_id,jl.debit_cents,jl.credit_cents,jl.currency,jl.memo,jl.project_id,jl.client_id,jl.employee_id,jl.created_at,je.number AS entry_number,je.entry_date,je.description FROM journal_lines_chf jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? {extra} ORDER BY je.entry_date,je.number,jl.line_order"),params_from_iter(values))?;
         let mut running_net_debit_cents = opening_net_debit_cents;
         for line in &mut lines {
             running_net_debit_cents += line["debit_cents"].as_i64().unwrap_or(0)
@@ -1149,7 +1149,7 @@ impl LocalStore {
                     COALESCE(SUM(CASE WHEN je.entry_date BETWEEN ? AND ? THEN jl.debit_cents ELSE 0 END),0) AS debit_cents,
                     COALESCE(SUM(CASE WHEN je.entry_date BETWEEN ? AND ? THEN jl.credit_cents ELSE 0 END),0) AS credit_cents
              FROM accounts a
-             LEFT JOIN journal_lines jl ON jl.account_id=a.id
+             LEFT JOIN journal_lines_chf jl ON jl.account_id=a.id
              LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id
              GROUP BY a.id ORDER BY a.code",
             params![date_from,date_from,date_from,date_to,date_from,date_to],
@@ -3489,6 +3489,8 @@ fn post_entry_with_reversal(
     for line in lines {
         tx.execute("INSERT INTO journal_lines(id,journal_entry_id,account_id,debit_cents,credit_cents,currency,memo,project_id,client_id,employee_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),id,line.account_id,line.debit_cents,line.credit_cents,line.currency,line.memo,line.project_id,line.client_id,line.employee_id,now])?;
     }
+    // Écriture en devise : contre-valeur CHF au cours saisi, sinon elle attend son cours.
+    crate::currencies::convert_entry(tx, &id)?;
     journal_entry_json(tx, &id)
 }
 

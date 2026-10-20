@@ -3,13 +3,15 @@ import { FixedAssetsPanel } from './FixedAssetsPanel';
 import type { PeriodDraft } from './accountingPeriods';
 import { AccountingSetupPanel } from './AccountingSetupPanel';
 import { SwissChartPanel } from './SwissChartPanel';
+import { CurrenciesPanel } from './CurrenciesPanel';
+import { formatRate } from './currencies';
 import { AccountingSetupDialog } from './AccountingSetupDialog';
 import { accountingMappingFields, accountingMappingIssues } from './accountingSetup';
 import type { AccountingConfigurationResult } from './types';
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, ChevronDown, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, ChevronDown, Coins, FileCheck2, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
 import { FinanceOverview } from './FinanceOverview';
@@ -36,7 +38,7 @@ import {
   type ManualJournalAttempt,
 } from './accountingManualJournal';
 
-type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods' | 'assets';
+type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods' | 'assets' | 'currencies';
 type ReportSelection = { tab: Tab; filter: PeriodFilter; accountId: string };
 export type AccountingNavigationContext = ReportSelection & { workspaceScope?: string; periodId: string; vatSubmissionType?: VatSubmissionType };
 type Reports = { journal: JournalReport | null; trial: TrialBalanceReport | null; ledger: LedgerReport | null; balance: BalanceSheetReport | null; income: IncomeStatementReport | null };
@@ -108,7 +110,7 @@ const reportSections: Array<[Account['reportSection'], string]> = [
 
 const newJournalLine = (): JournalDraftLine => ({ id: createId(), accountId: '', debitCents: 0, creditCents: 0, memo: '', projectId: '', clientId: '', employeeId: '' });
 
-export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled, readOnly=false, initialTab, onInitialTabHandled, sourceReturnContext, onOpenSource }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void; readOnly?:boolean; initialTab?: 'accounts' | 'periods' | 'vat' | 'closing'; onInitialTabHandled?: () => void; sourceReturnContext?: AccountingNavigationContext | null; onOpenSource?: (source: FinancialSourceTarget, context: AccountingNavigationContext) => void }) {
+export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onFocusHandled, readOnly=false, initialTab, onInitialTabHandled, sourceReturnContext, onOpenSource }: { workspace: Workspace; onWorkspaceChange: (workspace: Workspace) => void; focusEntry: AccountingEntryFocus | null; onFocusHandled: () => void; readOnly?:boolean; initialTab?: 'accounts' | 'periods' | 'vat' | 'closing' | 'currencies'; onInitialTabHandled?: () => void; sourceReturnContext?: AccountingNavigationContext | null; onOpenSource?: (source: FinancialSourceTarget, context: AccountingNavigationContext) => void }) {
   useAppLanguage();
   const restoredContext = sourceReturnContext?.workspaceScope === workspace.workNotesScope ? sourceReturnContext : null;
   const payrollFallback = Boolean(workspace.settings?.payroll.enabled) || (workspace.payslips ?? []).some(payslip => ['posted', 'paid'].includes(payslip.status));
@@ -167,7 +169,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const credit = entryLines.reduce((sum, line) => sum + line.creditCents, 0);
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const reportState = selectedPeriod?.status === 'closed' ? 'Clôturé' : 'Provisoire';
-  const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods' && tab !== 'assets';
+  const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods' && tab !== 'assets' && tab !== 'currencies';
   // Statements resolve their own exercise when a journal filter has open ends.
   // Always describe the dates actually returned with the displayed amounts.
   const statementScope = tab === 'balance' ? balance?.scope : (tab === 'overview' || tab === 'income') ? income?.scope : undefined;
@@ -528,7 +530,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const tabs: Array<[Tab, string, React.ReactNode]> = [
     ['overview', t('Vue d’ensemble'), <Landmark size={16}/>],
     ['assets', t('Immobilisations'), <Archive size={16}/>],
-    ['journal', t('Journal'), <BookOpen size={16} />], ['ledger', t('Grand livre'), <ListChecks size={16} />], ['trial', t('Balance'), <Scale size={16} />], ['balance', t('Bilan'), <Landmark size={16} />], ['income', t('Résultat'), <CheckCircle2 size={16} />], ['vat', t('TVA'), <ReceiptText size={16} />], ['closing', t('Dossier de clôture'), <FileCheck2 size={16} />], ['accounts', t('Plan & liaisons'), <ShieldCheck size={16} />], ['periods', t('Exercices'), <LockKeyhole size={16} />],
+    ['journal', t('Journal'), <BookOpen size={16} />], ['ledger', t('Grand livre'), <ListChecks size={16} />], ['trial', t('Balance'), <Scale size={16} />], ['balance', t('Bilan'), <Landmark size={16} />], ['income', t('Résultat'), <CheckCircle2 size={16} />], ['vat', t('TVA'), <ReceiptText size={16} />], ['closing', t('Dossier de clôture'), <FileCheck2 size={16} />], ['accounts', t('Plan & liaisons'), <ShieldCheck size={16} />], ['periods', t('Exercices'), <LockKeyhole size={16} />], ['currencies', t('Devises'), <Coins size={16} />],
   ];
   const overviewPeriod = (['month', 'quarter', 'year'] as const).find(key => { const dates = financePeriod(key, todayIso()); return dates.dateFrom === displayFilter.dateFrom && dates.dateTo === displayFilter.dateTo; }) || 'custom';
   const everyday:Tab[]=['overview','income','vat','assets','closing'];
@@ -609,6 +611,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     </div> : null}
     {setupReview && <AccountingSetupDialog mode={setupReview.mode} settings={setupReview.settings} accounts={accounts} fields={mappingFields} continuity={continuity} busy={busy} readOnly={readOnly} onClose={() => setSetupReview(null)} onCommit={commitAccountingSetup} onRefresh={refreshAccountingSetup} />}
 
+    {tab === 'currencies' ? <CurrenciesPanel readOnly={Boolean(readOnly)} onChanged={() => void reloadAll()} /> : null}
     {tab === 'periods' ? <AccountingPeriodsPanel periods={periods} busy={busy} readOnly={readOnly} onRefresh={refreshSavedPeriod} onOpenClosing={openClosingPeriod} /> : null}
   </div>;
 }
@@ -643,7 +646,7 @@ export function JournalTable({ report, workspace, onOpenSource, onOpenJournal, o
 }
 
 export function JournalLineTable({ lines, showRunningBalance = false, onOpenJournal, disabled = false }: { lines: JournalReport['lines']; showRunningBalance?: boolean; onOpenJournal?: (entryId: string) => void; disabled?: boolean }) {
-  return <div className="table-panel"><table data-apple-records><thead><tr><th>Date / pièce</th><th>Compte</th><th>Mémo</th><th>Débit</th><th>Crédit</th>{showRunningBalance ? <th>Solde cumulé</th> : null}</tr></thead><tbody>{lines.map((line) => <tr key={line.id}><td data-label={t('Date / pièce')}>{formatDate(line.entryDate)}{onOpenJournal ? <button type="button" className="accounting-source-link" disabled={disabled} onClick={() => onOpenJournal(line.journalEntryId)} aria-label={t('Voir l’écriture {number}', { number: line.entryNumber })}>{line.entryNumber}</button> : <small>{line.entryNumber}</small>}</td><td data-label={t('Compte')}><strong>{line.accountCode}</strong><small>{line.accountName}</small></td><td data-label={t('Mémo')}>{line.memo || '—'}</td><td data-label={t('Débit')}>{line.debitCents ? formatMoney(line.debitCents, line.currency) : '—'}</td><td data-label={t('Crédit')}>{line.creditCents ? formatMoney(line.creditCents, line.currency) : '—'}</td>{showRunningBalance ? <td data-label={t('Solde cumulé')}>{balanceSideLabel(line.runningDebitBalanceCents ?? 0, line.runningCreditBalanceCents ?? 0, line.currency)}</td> : null}</tr>)}</tbody></table></div>;
+  return <div className="table-panel"><table data-apple-records><thead><tr><th>Date / pièce</th><th>Compte</th><th>Mémo</th><th>Débit</th><th>Crédit</th>{showRunningBalance ? <th>Solde cumulé</th> : null}</tr></thead><tbody>{lines.map((line) => <tr key={line.id}><td data-label={t('Date / pièce')}>{formatDate(line.entryDate)}{onOpenJournal ? <button type="button" className="accounting-source-link" disabled={disabled} onClick={() => onOpenJournal(line.journalEntryId)} aria-label={t('Voir l’écriture {number}', { number: line.entryNumber })}>{line.entryNumber}</button> : <small>{line.entryNumber}</small>}</td><td data-label={t('Compte')}><strong>{line.accountCode}</strong><small>{line.accountName}</small></td><td data-label={t('Mémo')}>{line.memo || '—'}{line.original ? <small>{t('{amount} au cours de {rate}', { amount: formatMoney(line.original.debitCents || line.original.creditCents, line.original.currency), rate: formatRate(line.original.rateMicro) })}</small> : null}</td><td data-label={t('Débit')}>{line.debitCents ? formatMoney(line.debitCents, line.currency) : '—'}</td><td data-label={t('Crédit')}>{line.creditCents ? formatMoney(line.creditCents, line.currency) : '—'}</td>{showRunningBalance ? <td data-label={t('Solde cumulé')}>{balanceSideLabel(line.runningDebitBalanceCents ?? 0, line.runningCreditBalanceCents ?? 0, line.currency)}</td> : null}</tr>)}</tbody></table></div>;
 }
 
 function balanceSideLabel(debitCents: number, creditCents: number, currency = 'CHF') {

@@ -52,3 +52,6 @@ src/teamTime.test.ts
 rust:source_tax::
 src/elmExport.test.ts
 src/quotePortal.test.ts
+rust:currencies::
+src/currencies.test.ts
+rust:fiduciary
