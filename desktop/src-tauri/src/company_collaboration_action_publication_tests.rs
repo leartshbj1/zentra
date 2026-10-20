@@ -167,7 +167,7 @@ fn exact_prepare_ack_reopen_and_second_candidate_keep_all_archives_without_confi
             .unwrap()
             .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        62
+        crate::schema::SCHEMA_VERSION
     );
     let next = prepare(&reopened, ORGANIZATION, false).unwrap();
     assert_ne!(next.id, pending.id);

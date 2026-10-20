@@ -2081,7 +2081,7 @@ fn additive_v61_migration_preserves_records_then_reopen_has_schema62_receipts() 
     assert_eq!(
         db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))
             .unwrap(),
-        62
+        crate::schema::SCHEMA_VERSION
     );
     assert_eq!(
         query_all(&db, "SELECT * FROM clients", []).unwrap(),
