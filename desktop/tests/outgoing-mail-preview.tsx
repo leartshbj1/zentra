@@ -32,6 +32,7 @@ import '../src/filters-calm.css';
 import '../src/switch-calm.css';
 import '../src/erp-calm.css';
 import '../src/autopilot-magic.css';
+import '../src/mobile-calm.css';
 const params = new URLSearchParams(location.search);
 if (['fr','de','it','en'].includes(params.get('lang') ?? '')) setAppLanguage(params.get('lang') as 'fr'|'de'|'it'|'en');
 const logoCanvas=document.createElement('canvas');logoCanvas.width=360;logoCanvas.height=90;
