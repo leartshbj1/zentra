@@ -535,6 +535,46 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: windows
+  # Microsoft Store MSIX made from an already published release, outside the
+  # Windows release job and its 60-minute budget. Nothing is signed here.
+  windows-msix-store:
+    parameters:
+      release-tag:
+        type: string
+      updater-tests:
+        type: boolean
+        default: false
+    resource_class: windows.large
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - run:
+          name: Check out with repository line endings
+          command: git config --global core.autocrlf false
+      - checkout
+      - when:
+          condition: << parameters.updater-tests >>
+          steps:
+            - restore_cache:
+                keys:
+                  - cargo-registry-windows-v1-{{ checksum "desktop/src-tauri/Cargo.lock" }}
+            - run:
+                name: Package << parameters.release-tag >> as MSIX, then compile and run the updater tests
+                command: ./desktop/scripts/cloud-msix-store-windows.ps1 -ReleaseTag << parameters.release-tag >> -WithUpdaterTests
+                no_output_timeout: 40m
+      - unless:
+          condition: << parameters.updater-tests >>
+          steps:
+            - run:
+                name: Package << parameters.release-tag >> as MSIX
+                command: ./desktop/scripts/cloud-msix-store-windows.ps1 -ReleaseTag << parameters.release-tag >>
+      - store_artifacts:
+          path: desktop/artifacts/msix
+          destination: msix
   windows-erp-check:
     resource_class: windows.large
     machine:
@@ -802,6 +842,16 @@ workflows:
         - not: << pipeline.parameters.verify-only >>
     jobs:
       - windows-erp-check
+  msix-store-check:
+    when:
+      and:
+        - equal: [claude/msix-store, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not: << pipeline.parameters.verify-only >>
+    jobs:
+      - windows-msix-store:
+          release-tag: v1.90.41
+          updater-tests: true
   redesign-release-1916:
     when:
       and:

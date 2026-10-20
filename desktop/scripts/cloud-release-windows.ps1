@@ -548,9 +548,6 @@ try {
         if (-not (Test-Path $file -PathType Leaf) -or (Get-Item $file).Length -lt 1000000) { throw "Missing build artifact: $file" }
         Copy-Item -LiteralPath $file -Destination $artifacts
     }
-    # Microsoft Store edition: the same Zentra.exe in an unsigned MSIX that the
-    # Store re-signs after certification. It is not a direct download.
-    $msix = & (Join-Path $repo 'desktop/scripts/package-msix-windows.ps1') -Executable $exe -Version $version -OutputDirectory $artifacts
     if ($script:windowsAutopilotProductOn) {
         # Export only observed schemas from this same checkout and package job.
         # List tracked paths changed by the build, so a refused receipt names them.
@@ -571,7 +568,6 @@ try {
         outgoingMailTestsPassed = $true; fixedAssetsTestsPassed = $true; inputVatTestsPassed = $true; invoiceScanTestsPassed = $true
         interfaceWorkspaceTestsPassed = $true
         files = @($exe, $setup | ForEach-Object { [ordered]@{name = (Split-Path $_ -Leaf); size = (Get-Item $_).Length; sha256 = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()} })
-        microsoftStore = [ordered]@{name = $msix.name; size = $msix.size; sha256 = $msix.sha256; identityName = $msix.identityName; publisher = $msix.publisher; packageVersion = $msix.packageVersion; storeReady = $msix.storeReady}
     }
     if ($script:windowsAutopilotProductOn) {
         if ($source -cne $onReceipt.source -or $version -cne $onReceipt.version) { throw 'Windows Autopilot package source/version differs from its tested build.' }

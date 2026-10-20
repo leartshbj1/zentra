@@ -6,9 +6,12 @@ installations faites depuis le Store, sans certificat payant.
 
 ## Ce que produit la CI
 
-Chaque build de release Windows (`desktop/scripts/cloud-release-windows.ps1`)
-emballe le même `Zentra.exe` que l'installateur NSIS dans un MSIX non signé,
-avec `desktop/scripts/package-msix-windows.ps1` :
+L'empaquetage est séparé de la release Windows, pour ne pas allonger ce job
+qui approche déjà la limite de 60 minutes. Le job CircleCI `windows-msix-store`
+(`desktop/scripts/cloud-msix-store-windows.ps1`) prend l'installateur d'une
+release GitHub déjà publiée, vérifie son empreinte, en extrait `Zentra.exe`
+avec 7-Zip sans le lancer, puis l'emballe avec
+`desktop/scripts/package-msix-windows.ps1` :
 
 - `Zentra_<version>_x64-store-preview.msix` tant que `store-identity.json`
   contient `null` : identité fictive, refusée par le Store, utile seulement
@@ -16,8 +19,13 @@ avec `desktop/scripts/package-msix-windows.ps1` :
 - `Zentra_<version>_x64-store.msix` une fois l'identité Partner Center
   renseignée : c'est le fichier à téléverser dans Partner Center.
 
-`provenance.json` décrit ce paquet sous `microsoftStore`. Le MSIX n'est jamais
-proposé en téléchargement direct : non signé, il ne s'installe que via le Store.
+`msix-store.public.json` décrit l'installateur source, l'exécutable et le
+paquet. Le MSIX n'est jamais proposé en téléchargement direct : non signé, il
+ne s'installe que via le Store.
+
+Seules les releases qui contiennent la fermeture automatique de l'updater
+(`running_from_msix_package`) peuvent être envoyées au Store. Les versions
+plus anciennes ne servent qu'à tester l'empaquetage.
 
 ## Différences avec l'édition NSIS
 
@@ -39,7 +47,8 @@ proposé en téléchargement direct : non signé, il ne s'installe que via le St
    « Zentra ».
 3. Copier les trois valeurs de Product identity (Package/Identity/Name,
    Package/Identity/Publisher, Package/Properties/PublisherDisplayName) dans
-   `store-identity.json`, puis lancer une release Windows.
+   `store-identity.json`, puis lancer le job `windows-msix-store` sur le tag
+   de la release à publier.
 4. Téléverser `Zentra_<version>_x64-store.msix` dans la section Packages.
 5. Dans les notes de certification, justifier la capacité restreinte
    `unvirtualizedResources` : « Zentra est une application de gestion qui garde
