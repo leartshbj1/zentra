@@ -20,6 +20,22 @@
     color: var(--apple-secondary);
     font-size: calc(14px * var(--zentra-ui-text-scale, 1));
   }
+  html[data-app-theme] .desktop-app[data-experience] .reminder-charges details > summary {
+    width: fit-content;
+    min-height: 32px;
+    color: var(--apple-accent);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .reminder-charges details ol {
+    display: grid;
+    gap: 4px;
+    max-width: 62ch;
+    margin: 4px 0 0;
+    padding-left: 20px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
   html[data-app-theme] .desktop-app[data-experience] .reminder-charges__fees {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

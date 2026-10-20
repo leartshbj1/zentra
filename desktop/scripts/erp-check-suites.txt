@@ -37,3 +37,4 @@ rust:credit_note
 src/bexioOpening.test.ts
 src/catalogImport.test.ts
 src/bexioImport.test.ts
+rust:online_payments::

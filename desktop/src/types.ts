@@ -209,6 +209,21 @@ export type AppSettings = {
   };
 };
 
+/** Paiement en ligne par le compte Payrexx de l'entreprise ; désactivé par défaut. */
+export type OnlinePaymentSettings = { enabled: boolean; provider: 'payrexx'; instance: string; secretPresent: boolean };
+
+export type InvoicePaymentLink = {
+  id: Identifier;
+  invoiceId: Identifier;
+  url: string;
+  amountCents: number;
+  currency: string;
+  status: 'open' | 'paid' | 'failed' | 'cancelled';
+  paidAt: string | null;
+  paymentId: Identifier | null;
+  createdAt: string;
+};
+
 export type Client = {
   id: Identifier;
   name: string;
@@ -1817,6 +1832,8 @@ export type Workspace = {
   debtCollectionRequests?: { id: Identifier; invoiceId: Identifier; fileName: string; createdAt: string }[];
   /** Factures reprises d'un autre logiciel (bexio) comme créances d'ouverture. */
   openingReceivables?: { invoiceId: Identifier; sourceNumber: string; openCents: number }[];
+  /** Liens de paiement en ligne (TWINT, cartes) créés pour des factures. */
+  invoicePaymentLinks?: InvoicePaymentLink[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

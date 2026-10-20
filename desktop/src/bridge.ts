@@ -12,7 +12,7 @@ import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import { statementFileFromRaw, type StatementFile } from './autopilotStatements';
 import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
-import type { WorkNote, WorkNoteDraft } from './types';
+import type { InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
@@ -516,6 +516,7 @@ type RawWorkspace = {
   supplier_payment_order_items?: RawRecord[];
   debt_collection_requests?: RawRecord[];
   opening_receivables?: RawRecord[];
+  invoice_payment_links?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -530,6 +531,15 @@ type RawWorkspace = {
 
 const stringValue = (value: unknown): string =>
   typeof value === 'string' ? value : '';
+function paymentLinkFromRaw(row: RawRecord): InvoicePaymentLink {
+  const status = stringValue(row.status);
+  return {
+    id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), url: stringValue(row.url), amountCents: numberValue(row.amount_cents),
+    currency: stringValue(row.currency) || 'CHF', status: status === 'paid' || status === 'failed' || status === 'cancelled' ? status : 'open',
+    paidAt: stringValue(row.paid_at) || null, paymentId: stringValue(row.payment_id) || null, createdAt: stringValue(row.created_at),
+  };
+}
+
 function openingBalancePlan(raw: RawRecord): OpeningBalancePlan {
   const opening = (raw.opening ?? {}) as RawRecord;
   return {
@@ -3355,6 +3365,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     supplierPaymentOrders,
     debtCollectionRequests: (raw.debt_collection_requests ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), fileName: stringValue(row.file_name), createdAt: stringValue(row.created_at) })),
     openingReceivables: (raw.opening_receivables ?? []).map((row) => ({ invoiceId: stringValue(row.invoice_id), sourceNumber: stringValue(row.source_number), openCents: numberValue(row.open_cents) })),
+    invoicePaymentLinks: (raw.invoice_payment_links ?? []).map(paymentLinkFromRaw),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7386,6 +7397,29 @@ export const desktopApi = {
     });
     try { await shareMobileExport(result.path); } catch { /* the file is saved */ }
     return { ...result, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async getOnlinePaymentSettings(): Promise<OnlinePaymentSettings> {
+    const raw = await invoke<RawRecord>('get_online_payment_settings');
+    return { enabled: raw.enabled === true, provider: 'payrexx', instance: stringValue(raw.instance), secretPresent: raw.secret_present === true };
+  },
+  /** L'activation n'aboutit qu'après une vérification réussie auprès de Payrexx. */
+  async saveOnlinePaymentSettings(input: { enabled: boolean; instance: string; apiSecret?: string }): Promise<OnlinePaymentSettings> {
+    const raw = await invoke<RawRecord>('save_online_payment_settings', { input: { enabled: input.enabled, instance: input.instance || null, ...(input.apiSecret === undefined ? {} : { api_secret: input.apiSecret }) } });
+    return { enabled: raw.enabled === true, provider: 'payrexx', instance: stringValue(raw.instance), secretPresent: raw.secret_present === true };
+  },
+  /** Crée la page de paiement du solde de la facture et rend son lien. */
+  async createInvoicePaymentLink(invoiceId: string) {
+    const raw = await invoke<RawRecord>('create_invoice_payment_link', { invoiceId });
+    return { url: stringValue(raw.url), amountCents: numberValue(raw.amount_cents), currency: stringValue(raw.currency), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async refreshInvoicePaymentLinks(): Promise<number> {
+    const raw = await invoke<RawRecord>('refresh_invoice_payment_links');
+    return numberValue(raw.checked);
+  },
+  /** Enregistre l'encaissement d'un lien payé : un seul paiement par lien. */
+  async recordInvoicePaymentLink(linkId: string) {
+    await invoke('record_invoice_payment_link', { linkId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   /** Factures bexio encore ouvertes : l'app les émet et les comptabilise contre le compte d'ouverture. */
   async importOpeningReceivables(rows: NativeOpeningReceivable[]) {

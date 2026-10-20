@@ -90,6 +90,7 @@ mod supplier_payment_orders;
 mod swiss_sme_chart;
 mod reminder_charges;
 mod opening_balances;
+mod online_payments;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -318,6 +319,11 @@ pub fn run() {
             opening_balances::import_opening_receivables,
             opening_balances::preview_opening_balance,
             opening_balances::import_opening_balance,
+            online_payments::get_online_payment_settings,
+            online_payments::save_online_payment_settings,
+            online_payments::create_invoice_payment_link,
+            online_payments::refresh_invoice_payment_links,
+            online_payments::record_invoice_payment_link,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

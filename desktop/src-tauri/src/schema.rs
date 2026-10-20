@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 65;
+pub const SCHEMA_VERSION: i64 = 66;
+pub const MIGRATION_V66_SQL: &str = include_str!("online_payments_schema.sql");
 pub const MIGRATION_V65_SQL: &str = include_str!("opening_balances_schema.sql");
 pub const MIGRATION_V64_SQL: &str = include_str!("reminder_charges_schema.sql");
 pub const MIGRATION_V63_SQL: &str = include_str!("supplier_payment_order_schema.sql");

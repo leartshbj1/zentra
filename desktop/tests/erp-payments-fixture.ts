@@ -112,3 +112,11 @@ export function installErpBexioFixture(data: Workspace) {
   desktopApi.importOpeningReceivables = async (rows) => ({ receipt: { created: rows.length, skipped: 0, rows: rows.map((row) => ({ line: row.line, number: row.number, status: 'created' as const })) }, workspace: structuredClone(data) });
   desktopApi.importOpeningBalance = async (entryDate, lines) => ({ plan: await desktopApi.previewOpeningBalance(entryDate, lines), journalNumber: 'J-2026-000001' });
 }
+
+/** ?erp=paylink : paiement en ligne activé, un lien payé à enregistrer. */
+export function installErpPaymentLinkFixture(data: Workspace) {
+  desktopApi.getOnlinePaymentSettings = async () => ({ enabled: true, provider: 'payrexx', instance: 'atelier-leman', secretPresent: true });
+  const invoice = data.invoices.find((row) => row.number && row.status !== 'paid' && row.status !== 'draft' && row.status !== 'cancelled');
+  if (!invoice) return;
+  data.invoicePaymentLinks = [{ id: 'link-1', invoiceId: invoice.id, url: 'https://atelier-leman.payrexx.com/?payment=1', amountCents: 48_600, currency: 'CHF', status: 'paid', paidAt: new Date().toISOString(), paymentId: null, createdAt: new Date().toISOString() }];
+}

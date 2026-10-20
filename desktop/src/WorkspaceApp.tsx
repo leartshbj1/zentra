@@ -20,6 +20,7 @@ import { folderLabel, newStatementFiles, savedStatementFolder, type StatementFil
 import { suggestExpenseCategory } from './expenseCategory';
 import { buildDebtCollectionRequest, debtCollectionCandidates, type DebtCollectionRequest } from './debtCollection';
 import { DebtCollectionDialog } from './DebtCollectionDialog';
+import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
@@ -1087,6 +1088,13 @@ function WorkspaceContent({
   const [debtDialog, setDebtDialog] = useState<{ request: DebtCollectionRequest; invoiceNumber: string } | null>(null);
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
+  const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
+  useEffect(() => {
+    if (view !== 'invoices') return;
+    let live = true;
+    desktopApi.getOnlinePaymentSettings().then(value => { if (live) setOnlinePaymentEnabled(value.enabled); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [view]);
   const [vatState, setVatState] = useState<{ profiles: VatProfile[]; exports: VatReturnExport[] } | null>(null);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
   const [followUpMail, setFollowUpMail] = useState<{ target: MailTarget; key: string; subject?: string } | null>(null);
@@ -1114,6 +1122,10 @@ function WorkspaceContent({
       }
     } catch { setStatementFiles(null); }
     try { setVatState({ profiles: await desktopApi.listVatProfiles(), exports: await desktopApi.listVatReturnExports({}) }); } catch { /* VAT not set up */ }
+    // Payment links still open: Payrexx says whether the client has paid.
+    try {
+      if ((workspaceRef.current.invoicePaymentLinks ?? []).some(link => link.status === 'open') && await desktopApi.refreshInvoicePaymentLinks() > 0) publishInboxWorkspace(await desktopApi.loadWorkspace());
+    } catch { /* checked again next time */ }
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
     if (!autopilotContext) return { cards: [], summary: '' };
@@ -1338,6 +1350,15 @@ function WorkspaceContent({
           + (invoice.dueDate < today ? ' · ' + copy.payOverdue : ''),
         actions: [{ id: 'copy-iban', label: copy.actionCopyIban }, { id: 'view-purchase', label: copy.actionViewPurchase }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'pay', label: copy.actionPay, primary: true }] });
     }
+    for (const link of (workspace.invoicePaymentLinks ?? []).filter(row => row.status === 'paid' && !row.paymentId && !entries['online:' + row.id]?.ignored)) {
+      const invoice = workspace.invoices.find(row => row.id === link.invoiceId);
+      if (!invoice) continue;
+      const client = workspace.clients.find(row => row.id === invoice.clientId);
+      cards.push({ key: 'online:' + link.id, title: copy.onlinePaidTitle.replace('{number}', invoice.number),
+        detail: copy.onlinePaidDetail.replace('{client}', client?.name || invoice.title).replace('{amount}', formatMoney(link.amountCents, link.currency)),
+        why: `${copy.whyOnline} · ${copy.confidenceHigh}`,
+        actions: [{ id: 'record-online', label: copy.actionRecordOnline, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     const lowStock = lowStockItems(workspace.catalogItems, workspace.stockAvailability, workspace.supplierOrders).filter(row => !entries['stock:' + row.item.id]?.ignored && !(entries['stock:' + row.item.id]?.until && entries['stock:' + row.item.id]!.until! > today));
     for (const { item, onHandMilli } of lowStock) cards.push({ key: 'stock:' + item.id, title: copy.lowStockTitle.replace('{item}', item.name),
       detail: copy.lowStockDetail.replace('{quantity}', `${onHandMilli / 1000} ${item.unit}`).replace('{threshold}', String(item.reorderLevelMilli / 1000)),
@@ -1366,6 +1387,11 @@ function WorkspaceContent({
     const refresh = () => setFollowUpVersion(version => version + 1);
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
+    if (key.startsWith('online:') && actionId === 'record-online') {
+      const recorded = await journalAct(() => desktopApi.recordInvoicePaymentLink(key.slice('online:'.length)), copy.onlineRecorded, false);
+      if (recorded) refresh();
+      return;
+    }
     if (key.startsWith('statement-file:') && actionId === 'import-statement') {
       const file = statementFiles?.files.find(row => 'statement-file:' + row.sha256 === key);
       if (!file) return;
@@ -2293,6 +2319,24 @@ function WorkspaceContent({
       throw new Error(readOnly ? readOnlyMutationMessage : 'La restauration n’est pas disponible pour le moment. Attendez la fin de l’action en cours, puis réessayez.');
     }
     if (actionLifetime.current && workspaceRef.current.workNotesScope === originScope) setSettingsRestoreRevision(value => value + 1);
+  }
+
+  /** Crée le lien Payrexx du solde, le copie, et le garde pour suivre le paiement. */
+  async function createPaymentLink(item: Invoice) {
+    if (busy || readOnly) return;
+    let url = '';
+    const created = await act(async () => {
+      const result = await desktopApi.createInvoicePaymentLink(item.id);
+      url = result.url;
+      return result.workspace;
+    }, t('Lien de paiement créé.'), false);
+    if (!created || !url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice({ tone: 'success', text: t('Lien de paiement copié : collez-le dans votre message au client. Autopilote vous signalera le paiement.') });
+    } catch {
+      setNotice({ tone: 'success', text: t('Lien de paiement : {url}', { url }) });
+    }
   }
 
   async function archiveInvoiceToCloud(item: Invoice, issuedNow = false) {
@@ -3505,6 +3549,7 @@ function WorkspaceContent({
                 void abandonInvoiceCorrection(workflow)
               }
               onArchiveCloud={(item) => void archiveInvoiceToCloud(item)}
+              onPaymentLink={onlinePaymentEnabled ? (item) => void createPaymentLink(item) : undefined}
               onCreate={() =>
                 setModal({ type: 'document', entity: 'invoices' })
               }
@@ -4910,6 +4955,7 @@ type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boole
       onCorrect: (item: Invoice) => void;
       onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
       onArchiveCloud: (item: Invoice) => void;
+      onPaymentLink?: (item: Invoice) => void;
       onConvert?: never;
       onStatus?: never;
       onRevise?: never;
@@ -4929,6 +4975,7 @@ type LooseDocumentsProps = {
   onCorrect: (item: Invoice) => void;
   onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
   onArchiveCloud: (item: Invoice) => void;
+  onPaymentLink?: (item: Invoice) => void;
 };
 
 function DocumentsScreen(sourceProps: DocumentsProps) {
@@ -5487,6 +5534,21 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         title="Enregistrer un paiement"
                       >
                         <Banknote size={16} />
+                      </Button>
+                    ) : null}
+                    {entity === 'invoices' && props.onPaymentLink &&
+                    invoice?.type !== 'credit_note' &&
+                    item.status !== 'draft' &&
+                    item.status !== 'paid' &&
+                    item.status !== 'cancelled' ? (
+                      <Button disabled={mutationsDisabled}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => props.onPaymentLink?.(item as Invoice)}
+                        title={t('Lien de paiement TWINT ou carte')}
+                        aria-label={t('Lien de paiement TWINT ou carte pour {number}', { number: item.number || item.title })}
+                      >
+                        <WalletCards size={16} />
                       </Button>
                     ) : null}
                       <Button
@@ -6869,6 +6931,7 @@ function SettingsScreen({
           </Button>
         </div>
       </section>
+      <section className="panel settings-card settings-card--wide"><OnlinePaymentSettings disabled={readOnly} /></section>
       </SettingsCategory>
       <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting embedded /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>
