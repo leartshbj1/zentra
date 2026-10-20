@@ -248,3 +248,10 @@ html[data-app-theme] .first-run .source-note a {
   display: inline;
   font-weight: 450;
 }
+@media screen and (min-width: 861px) and (max-width: 1399px) {
+  /* Laptop: the sales lists fit without sideways scrolling (cells were 20px
+     each side over seven columns). */
+  html[data-app-theme] .desktop-app[data-experience] .sales-documents table:not([data-mobile-cards-active]) :is(th, td) {
+    padding-inline: 10px;
+  }
+}
