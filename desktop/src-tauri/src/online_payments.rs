@@ -497,6 +497,8 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(temporary.path().join("profile")).unwrap();
         store.complete_onboarding(crate::tests::test_onboarding(), "online-payments-test").unwrap();
+        // Un encaissement client exige la comptabilité et ses comptes de liaison.
+        crate::tests::enable_accounting(&store);
         store
             .connect()
             .unwrap()
