@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy these three values from Partner Center > Zentra > Product identity once the app name is reserved. While they are null, the CI builds a preview package with a placeholder identity that the Store refuses.",
+  "identityName": null,
+  "publisher": null,
+  "publisherDisplayName": null
+}
