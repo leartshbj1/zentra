@@ -2,6 +2,8 @@ import type { AutopilotReviewReason } from './autopilotReview';
 
 const copy = {
   fr: {
+    bankDiscount: 'Payé avec l’escompte prévu : après confirmation, soldez la facture par un avoir de {amount}.',
+    debtTitle: '{level}e relance sans réponse · {client}', debtDetail: '{number} · {balance} · délai échu le {date}', actionPrepareDebt: 'Préparer la réquisition de poursuite', debtSaved: 'Réquisition enregistrée : {path}. Déposez-la auprès de l’office des poursuites.',
     expensePaidTitle: '{amount} payé à {who}', expenseCategoryDetail: 'Catégorie habituelle : {category}', actionCreateExpense: 'Créer la dépense',
     statementFoundTitle: 'Relevé bancaire trouvé : {name}', statementFoundDetail: 'Dossier {folder} · {date}', actionImportStatementFile: 'Importer', statementImported: 'Le relevé {name} est importé. Les paiements sûrs sont rapprochés, les autres attendent votre choix.',
     payOrderTitle: '{n} factures à payer cette semaine · {amount}', payOrderOne: '1 facture à payer cette semaine · {amount}', actionPayOrder: 'Générer l’ordre de paiement', qrMailTitle: 'Facture QR reçue · {supplier}', qrMailDetail: '{amount} · échéance {date}', qrMailOpen: 'Montant libre · échéance {date}', actionCreatePurchase: 'Créer la facture fournisseur', actionReviewPurchase: 'Vérifier la facture', qrMailCreated: 'La facture fournisseur est préparée avec sa QR-facture. Vérifiez-la, puis validez-la.', summaryPayOrder: '{n} facture(s) à payer par ordre',
@@ -26,6 +28,8 @@ const copy = {
     conflict: 'Les réglages ont changé. Relisez leur état avant de réessayer.', rateLimited: 'Limite temporaire atteinte. Autopilote reprendra automatiquement.',
   },
   de: {
+    bankDiscount: 'Mit dem vereinbarten Skonto bezahlt: Gleichen Sie die Rechnung nach der Bestätigung mit einer Gutschrift von {amount} aus.',
+    debtTitle: '{level}. Mahnung ohne Antwort · {client}', debtDetail: '{number} · {balance} · Frist abgelaufen am {date}', actionPrepareDebt: 'Betreibungsbegehren vorbereiten', debtSaved: 'Betreibungsbegehren gespeichert: {path}. Reichen Sie es beim Betreibungsamt ein.',
     expensePaidTitle: '{amount} bezahlt an {who}', expenseCategoryDetail: 'Übliche Kategorie: {category}', actionCreateExpense: 'Ausgabe erfassen',
     statementFoundTitle: 'Kontoauszug gefunden: {name}', statementFoundDetail: 'Ordner {folder} · {date}', actionImportStatementFile: 'Importieren', statementImported: 'Der Kontoauszug {name} ist importiert. Sichere Zahlungen sind abgeglichen, die übrigen warten auf Ihre Wahl.',
     payOrderTitle: '{n} Rechnungen diese Woche zu bezahlen · {amount}', payOrderOne: '1 Rechnung diese Woche zu bezahlen · {amount}', actionPayOrder: 'Zahlungsauftrag erstellen', qrMailTitle: 'QR-Rechnung erhalten · {supplier}', qrMailDetail: '{amount} · fällig am {date}', qrMailOpen: 'Offener Betrag · fällig am {date}', actionCreatePurchase: 'Lieferantenrechnung erstellen', actionReviewPurchase: 'Rechnung prüfen', qrMailCreated: 'Die Lieferantenrechnung ist mit ihrer QR-Rechnung vorbereitet. Prüfen und bestätigen Sie sie.', summaryPayOrder: '{n} Rechnung(en) per Zahlungsauftrag zu bezahlen',
@@ -50,6 +54,8 @@ const copy = {
     conflict: 'Die Einstellungen haben sich geändert. Prüfen Sie den aktuellen Status vor einem erneuten Versuch.', rateLimited: 'Vorübergehendes Limit erreicht. Autopilot wird automatisch fortgesetzt.',
   },
   it: {
+    bankDiscount: 'Pagata con lo sconto previsto: dopo la conferma, salda la fattura con una nota di credito di {amount}.',
+    debtTitle: '{level}° sollecito senza risposta · {client}', debtDetail: '{number} · {balance} · termine scaduto il {date}', actionPrepareDebt: 'Prepara la domanda d’esecuzione', debtSaved: 'Domanda d’esecuzione salvata: {path}. Depositala all’ufficio d’esecuzione.',
     expensePaidTitle: '{amount} pagato a {who}', expenseCategoryDetail: 'Categoria abituale: {category}', actionCreateExpense: 'Crea la spesa',
     statementFoundTitle: 'Estratto conto trovato: {name}', statementFoundDetail: 'Cartella {folder} · {date}', actionImportStatementFile: 'Importa', statementImported: 'L’estratto {name} è importato. I pagamenti sicuri sono abbinati, gli altri attendono la tua scelta.',
     payOrderTitle: '{n} fatture da pagare questa settimana · {amount}', payOrderOne: '1 fattura da pagare questa settimana · {amount}', actionPayOrder: 'Genera l’ordine di pagamento', qrMailTitle: 'Fattura QR ricevuta · {supplier}', qrMailDetail: '{amount} · scadenza {date}', qrMailOpen: 'Importo libero · scadenza {date}', actionCreatePurchase: 'Crea la fattura fornitore', actionReviewPurchase: 'Verifica la fattura', qrMailCreated: 'La fattura fornitore è preparata con la sua fattura QR. Verificala, poi convalidala.', summaryPayOrder: '{n} fattura/e da pagare con ordine',
@@ -74,6 +80,8 @@ const copy = {
     monthlyQuota: 'Quota mensile di analisi raggiunta. Verifica l’abbonamento Zentra Support. Le richieste ricevute restano disponibili.',
   },
   en: {
+    bankDiscount: 'Paid with the agreed cash discount: after confirming, settle the invoice with a credit note of {amount}.',
+    debtTitle: 'Reminder {level} unanswered · {client}', debtDetail: '{number} · {balance} · deadline passed on {date}', actionPrepareDebt: 'Prepare the debt collection request', debtSaved: 'Debt collection request saved: {path}. File it with the debt collection office.',
     expensePaidTitle: '{amount} paid to {who}', expenseCategoryDetail: 'Usual category: {category}', actionCreateExpense: 'Create the expense',
     statementFoundTitle: 'Bank statement found: {name}', statementFoundDetail: 'Folder {folder} · {date}', actionImportStatementFile: 'Import', statementImported: 'Statement {name} imported. Safe payments are matched, the others wait for your choice.',
     payOrderTitle: '{n} invoices to pay this week · {amount}', payOrderOne: '1 invoice to pay this week · {amount}', actionPayOrder: 'Create the payment order', qrMailTitle: 'QR-bill received · {supplier}', qrMailDetail: '{amount} · due {date}', qrMailOpen: 'Open amount · due {date}', actionCreatePurchase: 'Create the supplier invoice', actionReviewPurchase: 'Review the invoice', qrMailCreated: 'The supplier invoice is prepared with its QR-bill. Review it, then validate it.', summaryPayOrder: '{n} invoice(s) to pay by order',

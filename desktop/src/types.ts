@@ -1814,6 +1814,7 @@ export type Workspace = {
   supplierInvoicePayments: SupplierInvoicePayment[];
   supplierInvoiceMatches: SupplierInvoiceMatch[];
   supplierPaymentOrders?: SupplierPaymentOrder[];
+  debtCollectionRequests?: { id: Identifier; invoiceId: Identifier; fileName: string; createdAt: string }[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

@@ -22,3 +22,8 @@ src/autopilotStatements.test.ts
 src/expenseCategory.test.ts
 rust:swiss_sme_chart::
 rust:fixed_assets
+src/reminderCharges.test.ts
+src/debtCollection.test.ts
+src/remindersUi.test.ts
+rust:reminder_charges::
+rust:reminders::

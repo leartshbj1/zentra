@@ -5,6 +5,7 @@ import type { AutopilotActionCard } from '../src/AutopilotActionList';
 import type { AutopilotSignalCard } from '../src/AutopilotSignalList';
 import { parseLanguage, setAppLanguage } from '../src/language';
 import type { AutopilotView } from '../src/autopilotView';
+import { DebtCollectionDialog } from '../src/DebtCollectionDialog';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -67,6 +68,8 @@ const followUps: AutopilotActionCard[] = [
     evidence: '« Nous réglerons la facture le 30 octobre. »', actions: [{ id: 'postpone', label: 'Reporter de 7 jours', primary: true }, { id: 'send', label: 'Envoyer quand même' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'quote:q7', title: 'Relancer le devis D-2026-0007', detail: 'Atelier du Lac · envoyé le 12 oct. 2026 · valable jusqu’au 11 nov. 2026',
     actions: [{ id: 'send-quote', label: 'Envoyer', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'poursuite:i9', title: '3e relance sans réponse · Atelier du Lac', detail: 'F-2026-0009 · 1 780.00 CHF · délai échu le 15 oct. 2026',
+    actions: [{ id: 'prepare-debt', label: 'Préparer la réquisition de poursuite', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'statement-file:s1', title: 'Relevé bancaire trouvé : camt053_UBS_2026-10-19.xml', detail: 'Dossier Downloads · 19 oct. 2026',
     actions: [{ id: 'import-statement', label: 'Importer', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'bank:e1', title: '89.90 CHF payé à SWISSCOM SCHWEIZ AG', detail: 'Catégorie habituelle : Télécommunications',
@@ -101,4 +104,12 @@ function Preview() {
     </div></div></section>
   </main></div>;
 }
-createRoot(document.getElementById('root')!).render(<Preview />);
+const debtRequest = {
+  invoiceId: 'i9', currency: 'CHF', claimCents: 178_000, interestRateBp: 500, interestFrom: '2026-09-01', feesCents: 5_000, lastReminderDate: '2026-10-05',
+  title: 'Facture F-2026-0009 du 01.08.2026, échue le 31.08.2026',
+  creditor: { name: 'Menuiserie Dupont Sàrl', street: 'Route de Berne 12', postalCode: '1700', city: 'Fribourg', country: 'CH', uid: 'CHE-123.456.789' },
+  debtor: { name: 'Atelier du Lac SA', street: 'Rue du Port 4', postalCode: '1006', city: 'Lausanne', country: 'CH' },
+};
+createRoot(document.getElementById('root')!).render(query.get('dialog') === 'poursuite'
+  ? <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><DebtCollectionDialog request={debtRequest} invoiceNumber="F-2026-0009" onClose={noop} onSaved={noop} /></div>
+  : <Preview />);

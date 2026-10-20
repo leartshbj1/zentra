@@ -18,6 +18,10 @@ import { commandLines, findInvoice, findParty, rememberCommand, searchView, type
 import { bankProposals, statementDue } from './autopilotBank';
 import { folderLabel, newStatementFiles, savedStatementFolder, type StatementFile } from './autopilotStatements';
 import { suggestExpenseCategory } from './expenseCategory';
+import { buildDebtCollectionRequest, debtCollectionCandidates, type DebtCollectionRequest } from './debtCollection';
+import { DebtCollectionDialog } from './DebtCollectionDialog';
+import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
+import { parseBillInformation } from './swissQrBill';
 import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, vatReturnDue, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { paymentOrderSummary } from './supplierPaymentOrder';
@@ -1039,6 +1043,11 @@ function WorkspaceContent({
   };
   // Reminders and quote follow-ups, prepared by the native cycle and sent by a person.
   const [dueReminders, setDueReminders] = useState<readonly Reminder[]>([]);
+  // Last reminders sent and their charges: a debt collection request is prepared after the last level.
+  const [sentReminders, setSentReminders] = useState<readonly Reminder[]>([]);
+  const [lastReminderLevel, setLastReminderLevel] = useState(3);
+  const [chargeSettings, setChargeSettings] = useState<ReminderChargeSettings>(defaultChargeSettings);
+  const [debtDialog, setDebtDialog] = useState<{ request: DebtCollectionRequest; invoiceNumber: string } | null>(null);
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [vatState, setVatState] = useState<{ profiles: VatProfile[]; exports: VatReturnExport[] } | null>(null);
@@ -1051,6 +1060,12 @@ function WorkspaceContent({
       const settings = await desktopApi.getReminderSettings(workspaceRef.current.workNotesScope);
       setRemindersOn(settings.enabled);
       setDueReminders(settings.enabled ? await desktopApi.listReminders({ status: 'due' }) : []);
+      if (settings.enabled) {
+        setSentReminders(await desktopApi.listReminders({ status: 'completed' }));
+        const levels = (await desktopApi.listReminderTemplates()).filter(template => template.active).map(template => template.level);
+        if (levels.length) setLastReminderLevel(Math.max(...levels));
+        setChargeSettings(await desktopApi.getReminderChargeSettings());
+      }
     } catch { /* read again next time */ }
     let bank: BankWorkspace | null = null;
     try { bank = await desktopApi.getBankWorkspace(workspaceRef.current.workNotesScope); setAutopilotBank(bank); } catch { /* read again next time */ }
@@ -1086,6 +1101,17 @@ function WorkspaceContent({
       else if (context === 'complaint') cards.push({ ...base, note: copy.reminderComplaint, evidence: signal?.evidence, actions: [
         { id: 'invoice', label: copy.actionViewInvoice, primary: true }, { id: 'postpone', label: copy.actionPostpone }, send, { id: 'ignore', label: copy.acceptanceDismiss }] });
       else { ready++; cards.push({ ...base, actions: [{ ...send, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'invoice', label: copy.actionViewInvoice }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
+    }
+    // Last reminder unanswered after its deadline: prepare the debt collection request.
+    const preparedRequests = new Set((workspace.debtCollectionRequests ?? []).map(row => row.invoiceId));
+    for (const row of debtCollectionCandidates(workspace, sentReminders, lastReminderLevel, today, preparedRequests)) {
+      const key = 'poursuite:' + row.invoice.id;
+      if (entries[key]?.ignored || (entries[key]?.until && entries[key]!.until! > today)) continue;
+      if (mailSignals.some(signal => (signal.kind === 'payment_promised' || signal.kind === 'payment_announced') && signal.invoiceReference === row.invoice.number)) continue;
+      const client = workspace.clients.find(item => item.id === row.invoice.clientId);
+      cards.push({ key, title: copy.debtTitle.replace('{level}', String(row.reminder.level)).replace('{client}', client?.company || client?.name || row.reminder.clientName || ''),
+        detail: copy.debtDetail.replace('{number}', row.invoice.number ?? '').replace('{balance}', formatMoney(row.balanceCents, row.invoice.currency || 'CHF')).replace('{date}', date(row.deadline)),
+        actions: [{ id: 'prepare-debt', label: copy.actionPrepareDebt, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
     const emails = Object.fromEntries(workspace.clients.map(client => [client.id, client.email]));
     for (const { quote, step } of quotesToFollowUp(workspace.quotes, mailSignals, emails, entries, today)) {
@@ -1159,7 +1185,12 @@ function WorkspaceContent({
       toConfirm++;
       const title = (row.movement.creditDebit === 'CRDT' ? copy.bankReceived.replace('{from}', who) : copy.bankPaid.replace('{to}', who)).replace('{amount}', amount);
       const detail = [row.invoiceNumber ? copy.bankInvoice.replace('{number}', row.invoiceNumber) : row.label, row.movement.suggestion?.kind === 'automatic_partial' && row.action === 'confirm_invoice' ? copy.bankPartial : '', date(row.movement.bookingDate)].filter(Boolean).join(' · ');
-      cards.push({ key: 'bank:' + row.movement.id, title, detail, note, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
+      // A payment within the cash discount terms: the remaining amount is settled by a credit note.
+      const paidInvoice = row.action === 'confirm_invoice' ? workspace.invoices.find(invoice => invoice.id === row.invoiceId) : undefined;
+      const terms = paidInvoice ? parseBillInformation(paidInvoice.qrBill?.input.billInformation ?? '')?.conditions.find(condition => condition.discountPercent > 0) : undefined;
+      const discount = paidInvoice && terms && paidInvoice.issueDate ? discountMatch(documentTotals(paidInvoice.lines).totalCents, paidInvoice.issueDate, { discountBp: Math.round(terms.discountPercent * 100), days: terms.days, netDays: 0 }, Math.abs(row.movement.amountCents), row.movement.bookingDate) : null;
+      const discountNote = discount ? copy.bankDiscount.replace('{amount}', formatMoney(discount.discountCents, row.movement.currency || 'CHF')) : undefined;
+      cards.push({ key: 'bank:' + row.movement.id, title, detail, note: [note, discountNote].filter(Boolean).join(' ') || undefined, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
     }
     // Projects and hours.
     const projectName = (id: string) => workspace.projects.find(row => row.id === id)?.name ?? '';
@@ -1308,6 +1339,14 @@ function WorkspaceContent({
         if (row.announcedBy) saveSignalDecision(organizationId, row.announcedBy.sourceId, 'done');
         void readFollowUps(); refresh();
       }
+      return;
+    }
+    if (key.startsWith('poursuite:') && actionId === 'prepare-debt') {
+      const current = workspaceRef.current;
+      const row = debtCollectionCandidates(current, sentReminders, lastReminderLevel, today, new Set()).find(item => 'poursuite:' + item.invoice.id === key);
+      if (!row || !current.settings) return;
+      const client = current.clients.find(item => item.id === row.invoice.clientId);
+      setDebtDialog({ request: buildDebtCollectionRequest(current, row.invoice, client, row.balanceCents, row.sentOn, chargeSettings, row.reminder.level, today), invoiceNumber: row.invoice.number ?? '' });
       return;
     }
     if (key.startsWith('pay-order:') && actionId === 'pay-order') { setSearch(''); setPurchaseStartSection('payments'); setView('expenses'); return; }
@@ -3061,6 +3100,8 @@ function WorkspaceContent({
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
           {!activeProjectFolder && <MenuGuide key={`guide-${view}`} view={view} />}
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
+          {debtDialog && <DebtCollectionDialog request={debtDialog.request} invoiceNumber={debtDialog.invoiceNumber} onClose={() => setDebtDialog(null)}
+            onSaved={(next, path) => { workspaceRef.current = next; setWorkspace(next); setDebtDialog(null); setNotice({ tone: 'success', text: autopilotCopy(getAppLanguage()).debtSaved.replace('{path}', path) }); }} />}
           {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignal(sourceId, choiceId), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = followUpCards(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUp(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
@@ -9353,6 +9394,19 @@ function QrPrintForm({
             billInformation: String(form.get('billInformation')),
             alternativeProcedures: [],
           };
+          // Escompte : conditions Swico dans les informations de facture et phrase lisible sur la section paiement.
+          const discountPercent = Number(String(form.get('discountPercent') ?? '').replace(',', '.'));
+          const discountDays = Number(form.get('discountDays') ?? 0);
+          if (discountPercent > 0 && discountPercent < 100 && Number.isInteger(discountDays) && discountDays > 0) {
+            const issue = invoice.issueDate || todayIso();
+            const netDays = invoice.dueDate ? Math.max(discountDays, daysBetween(issue, invoice.dueDate)) : settings.billing.paymentTermsDays;
+            const discountBp = Math.round(discountPercent * 100);
+            input.billInformation = withDiscountConditions(input.billInformation, { discountBp, days: discountDays, netDays });
+            if (amountCents) {
+              const sentence = `Escompte ${String(discountPercent).replace('.', ',')} % si payé dans les ${discountDays} jours : ${formatMoney(discountedAmountCents(amountCents, discountBp), qrCurrency)}`;
+              input.unstructuredMessage = [input.unstructuredMessage.trim(), sentence].filter(Boolean).join(' · ').slice(0, 140);
+            }
+          }
           setBusy(true);
           setErrors([]);
           setWarnings([]);
@@ -9458,6 +9512,12 @@ function QrPrintForm({
             hint="Facultatif; ne renseignez que si votre format est conforme."
           >
             <input name="billInformation" defaultValue={stored?.input.billInformation ?? ''} />
+          </Field>
+          <Field label="Escompte (%)" hint="Facultatif. Exemple : 2 pour 2 %.">
+            <input name="discountPercent" inputMode="decimal" defaultValue={(() => { const terms = parseBillInformation(stored?.input.billInformation ?? '')?.conditions.find(row => row.discountPercent > 0); return terms ? String(terms.discountPercent) : ''; })()} />
+          </Field>
+          <Field label="Si payé dans (jours)" hint="Le délai de l’escompte, compté depuis la date de facture.">
+            <input name="discountDays" inputMode="numeric" defaultValue={(() => { const terms = parseBillInformation(stored?.input.billInformation ?? '')?.conditions.find(row => row.discountPercent > 0); return terms ? String(terms.days) : ''; })()} />
           </Field>
         </div>
         {errors.length ? (

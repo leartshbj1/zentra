@@ -277,12 +277,12 @@ fn text(row: &Row, table: &Table, column: &str) -> Option<String> {
 fn read(db: &Connection) -> AppResult<Data> {
     // Only these additive migrations are admitted on disposable, already
     // validated archive copies: empty notes (v61), creation receipts (v62) and
-    // empty supplier payment tables (v63).
+    // empty supplier payment tables (v63) and reminder charges (v64).
     // Existing v60/v61 references must compare with upgraded branches without
     // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if matches!(version, 60..=62) {
+    if matches!(version, 60..=63) {
         let tx = db.unchecked_transaction()?;
         if version == 60 {
             tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
@@ -290,11 +290,14 @@ fn read(db: &Connection) -> AppResult<Data> {
         if version < 62 {
             tx.execute_batch(crate::schema::MIGRATION_V62_SQL)?;
         }
-        // v63 : tables de paiement fournisseurs, vides sur une ancienne copie.
-        tx.execute_batch(crate::schema::MIGRATION_V63_SQL)?;
+        // v63 et v64 : tables de paiements et de relances, vides sur une ancienne copie.
+        if version < 63 {
+            tx.execute_batch(crate::schema::MIGRATION_V63_SQL)?;
+        }
+        tx.execute_batch(crate::schema::MIGRATION_V64_SQL)?;
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
-        tx.pragma_update(None, "user_version", 63)?;
+        tx.pragma_update(None, "user_version", 64)?;
         tx.commit()?;
     }
     let mut result = Data::new();

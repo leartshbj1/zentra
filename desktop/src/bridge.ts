@@ -10,6 +10,7 @@ import { mutationOriginInvokeArgs, WorkspaceMemberOriginChangedError } from './w
 import { copyDiagnosticIntent, withDiagnosticIntent, withEntityDiagnosticIntent } from './diagnosticIntent';
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import { statementFileFromRaw, type StatementFile } from './autopilotStatements';
+import type { ReminderChargeSettings } from './reminderCharges';
 import type { WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
@@ -512,6 +513,7 @@ type RawWorkspace = {
   supplier_invoice_payment_details?: RawRecord[];
   supplier_payment_orders?: RawRecord[];
   supplier_payment_order_items?: RawRecord[];
+  debt_collection_requests?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3338,6 +3340,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     supplierInvoicePayments,
     supplierInvoiceMatches,
     supplierPaymentOrders,
+    debtCollectionRequests: (raw.debt_collection_requests ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), fileName: stringValue(row.file_name), createdAt: stringValue(row.created_at) })),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7333,6 +7336,42 @@ export const desktopApi = {
       skippedLevels: valueArray(row.skipped_levels).map(numberValue),
       idempotent: boolValue(row.idempotent),
     };
+  },
+  async getReminderChargeSettings(): Promise<ReminderChargeSettings> {
+    const raw = await invoke<{ interest_enabled?: boolean; interest_rate_bp?: number; fees?: { level: number; fee_cents: number }[] }>('get_reminder_charge_settings');
+    return {
+      interestEnabled: raw.interest_enabled === true,
+      interestRateBp: Number(raw.interest_rate_bp ?? 500),
+      fees: Object.fromEntries((raw.fees ?? []).map((fee) => [Number(fee.level), Number(fee.fee_cents)])),
+    };
+  },
+  async saveReminderChargeSettings(settings: ReminderChargeSettings) {
+    await invoke('save_reminder_charge_settings', {
+      input: {
+        interest_enabled: settings.interestEnabled,
+        interest_rate_bp: settings.interestRateBp,
+        fees: Object.entries(settings.fees).map(([level, cents]) => ({ level: Number(level), fee_cents: cents })),
+      },
+    });
+  },
+  /** Demande l'emplacement, puis l'app écrit la réquisition et garde sa trace. */
+  async exportDebtCollectionRequest(input: { invoiceId: string; fileName: string; xml: string; claimCents: number; interestRateBp: number; interestFrom: string | null; feesCents: number }) {
+    const selected = await chooseSaveFile({ title: 'Enregistrer la réquisition de poursuite', defaultPath: input.fileName, filters: [{ name: 'XML', extensions: ['xml'] }] });
+    if (!selected) return null;
+    const destination = selected.toLocaleLowerCase('fr-CH').endsWith('.xml') ? selected : `${selected}.xml`;
+    const result = await invoke<{ id: string; path: string }>('export_debt_collection_request', {
+      input: {
+        invoice_id: input.invoiceId,
+        destination,
+        xml: input.xml,
+        claim_cents: input.claimCents,
+        interest_rate_bp: input.interestRateBp,
+        interest_from: input.interestFrom,
+        fees_cents: input.feesCents,
+      },
+    });
+    try { await shareMobileExport(result.path); } catch { /* the file is saved */ }
+    return { ...result, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async updateReminderSettings(settings: ReminderSettings) {
     await invoke('update_reminder_settings', {

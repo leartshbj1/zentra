@@ -46,6 +46,7 @@ import type {
 } from './types';
 import { errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import './RemindersEnhancements.css';
+import { ReminderChargesSettings } from './ReminderChargesSettings';
 import {
   Button,
   EmptyState,
@@ -699,14 +700,16 @@ export function RemindersScreen({
             <span><Smartphone size={17} /><strong>SMS</strong><small>Téléphone du client + résumé du solde actuel</small></span>
             <p>L’e-mail peut être envoyé directement depuis Zentra avec la facture jointe. Le SMS ouvre votre messagerie. Le solde est revérifié avant l’envoi.</p>
           </div>
+          <ReminderChargesSettings levels={templates.filter(template => template.active).map(template => ({ level: template.level, name: template.name }))} disabled={busy || readOnly} />
           <div className="reminder-legal-note">
             <AlertTriangle size={18} />
             <div>
               <strong>Échue ne signifie pas toujours juridiquement en demeure</strong>
               <p>
-                Zentra ne fixe ni frais ni intérêts automatiquement et n’engage
-                jamais de poursuite. Vérifiez la base convenue de l’échéance et,
-                au besoin, demandez un avis professionnel.
+                Zentra ne réclame des frais ou des intérêts que si vous les activez
+                ci-dessus, et n’engage jamais de poursuite : il prépare la
+                réquisition, vous la déposez. Vérifiez la base convenue de
+                l’échéance et, au besoin, demandez un avis professionnel.
               </p>
             </div>
           </div>

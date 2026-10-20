@@ -31,6 +31,10 @@ const ALLOWED_PLACEHOLDERS: &[&str] = &[
     "client_name",
     "invoice_number",
     "sender_name",
+    "reminder_fee",
+    "late_interest",
+    "amount_due",
+    "charges",
 ];
 
 #[derive(Debug)]
@@ -360,6 +364,7 @@ impl LocalStore {
             "SELECT * FROM reminder_templates WHERE active=1 ORDER BY level",
             [],
         )?;
+        let charge_settings = crate::reminder_charges::load_settings(&transaction)?;
         validate_increasing_delays(
             &templates
                 .iter()
@@ -517,12 +522,20 @@ impl LocalStore {
                 })?
                 .format("%Y-%m-%d")
                 .to_string();
-            let render_context = render_context(&invoice, &payment_deadline);
+            let charges = crate::reminder_charges::compute_charges(
+                &charge_settings,
+                template["level"].as_i64().unwrap_or(1),
+                invoice["balance_cents"].as_i64().unwrap_or(0),
+                due_date,
+                as_of_date,
+            );
+            let mut render_context = render_context(&invoice, &payment_deadline);
+            render_context["charges"] = crate::reminder_charges::charges_json(&charges);
             let subject = render_template(
                 template["subject"].as_str().unwrap_or_default(),
                 &render_context,
             );
-            let body = render_template(
+            let body = render_body(
                 template["body"].as_str().unwrap_or_default(),
                 &render_context,
             );
@@ -542,7 +555,8 @@ impl LocalStore {
                 "template_id":template["id"],"template_level":template["level"],
                 "template_subject":template["subject"],"template_body":template["body"],
                 "days_after_due":template["days_after_due"],
-                "payment_deadline_days":payment_deadline_days,"prepared_on":date
+                "payment_deadline_days":payment_deadline_days,"prepared_on":date,
+                "charges":render_context["charges"]
             });
             let id = Uuid::new_v4().to_string();
             let now = now_iso();
@@ -1028,11 +1042,19 @@ fn build_preview(connection: &Connection, id: &str, prepared_on: &str) -> AppRes
         .get("template_body")
         .and_then(Value::as_str)
         .unwrap_or_else(|| row["body"].as_str().unwrap_or_default());
-    let context = json!({
+    let mut context = json!({
         "number":row["invoice_number"],"due_date":row["due_date"],"balance_cents":current_balance,
         "currency":row["currency"],"client_name":client_name,"sender_name":sender_name,
         "payment_deadline":payment_deadline_date
     });
+    // Frais et intérêts figés à la préparation ; le total suit le solde actuel.
+    if snapshot["charges"].is_object() {
+        let mut charges = snapshot["charges"].clone();
+        let fee = charges["fee_cents"].as_i64().unwrap_or(0);
+        let interest = charges["interest_cents"].as_i64().unwrap_or(0);
+        charges["total_due_cents"] = json!(current_balance.max(0) + fee + interest);
+        context["charges"] = charges;
+    }
     let client = json!({
         "name":client_name,
         "address_line1":current_string(row.get("live_address_line1")),
@@ -1076,7 +1098,7 @@ fn build_preview(connection: &Connection, id: &str, prepared_on: &str) -> AppRes
         "current_balance_cents":current_balance,"snapshot_stale":row["balance_cents"].as_i64()!=Some(current_balance),
         "template_review_required":snapshot["template_recovered_during_v24_migration"].as_bool().unwrap_or(false),
         "recipient_email":row["live_client_email"],"recipient_phone":row["live_client_phone"],"client":client,"sender":sender,
-        "subject":render_template(template_subject,&context),"body":render_template(template_body,&context),"sms_body":sms_body
+        "subject":render_template(template_subject,&context),"body":render_body(template_body,&context),"sms_body":sms_body
     });
     let canonical = serde_json::to_string(&payload)?;
     let mut result = payload;
@@ -1098,9 +1120,46 @@ fn render_context(invoice: &Value, payment_deadline: &str) -> Value {
     })
 }
 
+/// Le corps reçoit le paragraphe des frais et intérêts quand le modèle ne
+/// le place pas lui-même avec {charges}.
+fn render_body(template: &str, context: &Value) -> String {
+    let body = render_template(template, context);
+    let charges = charges_paragraph(context);
+    if template.contains("{charges}") || charges.is_empty() {
+        body
+    } else {
+        format!("{body}
+
+{charges}")
+    }
+}
+
+fn charges_of(context: &Value) -> crate::reminder_charges::Charges {
+    let charges = &context["charges"];
+    crate::reminder_charges::Charges {
+        fee_cents: charges["fee_cents"].as_i64().unwrap_or(0),
+        interest_cents: charges["interest_cents"].as_i64().unwrap_or(0),
+        interest_rate_bp: charges["interest_rate_bp"].as_i64().unwrap_or(0),
+        interest_days: charges["interest_days"].as_i64().unwrap_or(0),
+        interest_from: charges["interest_from"].as_str().map(str::to_owned),
+        total_due_cents: charges["total_due_cents"].as_i64().unwrap_or_else(|| context["balance_cents"].as_i64().unwrap_or(0)),
+    }
+}
+
+fn charges_paragraph(context: &Value) -> String {
+    let currency = context["currency"].as_str().unwrap_or("CHF");
+    crate::reminder_charges::charges_text(&charges_of(context), currency, format_money)
+}
+
 fn render_template(template: &str, context: &Value) -> String {
     let currency = context["currency"].as_str().unwrap_or("CHF");
     let cents = context["balance_cents"].as_i64().unwrap_or(0);
+    let charges = charges_of(context);
+    let template = template
+        .replace("{reminder_fee}", &format_money(charges.fee_cents, currency))
+        .replace("{late_interest}", &format_money(charges.interest_cents, currency))
+        .replace("{amount_due}", &format_money(charges.total_due_cents, currency))
+        .replace("{charges}", &charges_paragraph(context));
     template
         .replace(
             "{invoice_number}",
