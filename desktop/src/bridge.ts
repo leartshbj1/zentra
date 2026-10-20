@@ -7608,6 +7608,29 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
     return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
   },
+  async listCostCenters(): Promise<{ centers: import('./budget').CostCenter[]; assignments: import('./budget').CostCenterAssignment[] }> {
+    const raw = await invoke<RawRecord>('list_cost_centers');
+    return {
+      centers: rawArray(raw.centers).map((row) => ({ id: stringValue(row.id), code: stringValue(row.code), name: stringValue(row.name), archivedAt: nullableString(row.archived_at) })),
+      assignments: rawArray(raw.assignments).map((row) => ({ kind: stringValue(row.kind) as 'project' | 'employee' | 'account', targetId: stringValue(row.target_id), costCenterId: stringValue(row.cost_center_id) })),
+    };
+  },
+  async saveCostCenter(input: { id: string | null; code: string; name: string; archived: boolean }) {
+    return stringValue((await invoke<RawRecord>('save_cost_center', { input })).id);
+  },
+  assignCostCenter(kind: 'project' | 'employee' | 'account', targetId: string, costCenterId: string | null) { return invoke<void>('assign_cost_center', { kind, targetId, costCenterId }); },
+  async saveBudget(year: number, costCenterId: string, accounts: { accountId: string; months: number[] }[]) {
+    return numberValue((await invoke<RawRecord>('save_budget', { input: { year, costCenterId, accounts } })).totalCents);
+  },
+  async getBudgetReport(year: number): Promise<import('./budget').BudgetReport> {
+    const raw = await invoke<RawRecord>('get_budget_report', { year });
+    return {
+      year: numberValue(raw.year),
+      budget: rawArray(raw.budget).map((row) => ({ month: numberValue(row.month), accountId: stringValue(row.account_id), costCenterId: stringValue(row.cost_center_id), amountCents: numberValue(row.amount_cents) })),
+      actual: rawArray(raw.actual).map((row) => ({ month: numberValue(row.month), accountId: stringValue(row.account_id), costCenterId: stringValue(row.cost_center_id), debitCents: numberValue(row.debit_cents), creditCents: numberValue(row.credit_cents) })),
+      entriesWaitingForRate: numberValue(raw.entriesWaitingForRate),
+    };
+  },
   async listExchangeRates(): Promise<import('./currencies').ExchangeRatesState> {
     const raw = await invoke<RawRecord>('list_exchange_rates');
     return {

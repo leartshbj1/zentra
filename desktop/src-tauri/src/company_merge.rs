@@ -280,12 +280,13 @@ fn read(db: &Connection) -> AppResult<Data> {
     // empty supplier payment tables (v63), reminder charges (v64) and
     // opening balance tables (v65), payment links and eBill (v66), cash book
     // and contracts (v67), work reports (v68), absences and expense claims (v69),
-    // local source tax tariffs (v70), exchange rates and CHF countervalues (v71).
+    // local source tax tariffs (v70), exchange rates and CHF countervalues (v71),
+    // cost centres and budgets (v72).
     // Existing v60/v61 references must compare with upgraded branches without
     // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if matches!(version, 60..=70) {
+    if matches!(version, 60..=71) {
         let tx = db.unchecked_transaction()?;
         if version == 60 {
             tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
@@ -318,10 +319,13 @@ fn read(db: &Connection) -> AppResult<Data> {
         if version < 70 {
             tx.execute_batch(crate::schema::MIGRATION_V70_SQL)?;
         }
-        tx.execute_batch(crate::schema::MIGRATION_V71_SQL)?;
+        if version < 71 {
+            tx.execute_batch(crate::schema::MIGRATION_V71_SQL)?;
+        }
+        tx.execute_batch(crate::schema::MIGRATION_V72_SQL)?;
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
-        tx.pragma_update(None, "user_version", 71)?;
+        tx.pragma_update(None, "user_version", 72)?;
         tx.commit()?;
     }
     let mut result = Data::new();

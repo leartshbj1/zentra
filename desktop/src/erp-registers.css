@@ -55,6 +55,9 @@
     align-items: center;
     gap: 8px 16px;
   }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__actions--fields {
+    align-items: flex-end;
+  }
   html[data-app-theme] .desktop-app[data-experience] .erp-register__form {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -155,6 +158,11 @@
     font-size: calc(20px * var(--zentra-ui-text-scale, 1));
     font-weight: 650;
     font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__horizons dd.erp-register__note {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
   }
   html[data-app-theme] .desktop-app[data-experience] .erp-register .is-negative {
     color: var(--apple-danger, #c4372b);

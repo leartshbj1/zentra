@@ -97,6 +97,7 @@ mod work_reports;
 mod team_time;
 mod source_tax;
 mod currencies;
+mod cost_centers;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -355,6 +356,11 @@ pub fn run() {
             currencies::list_exchange_rates,
             currencies::save_exchange_rate,
             currencies::delete_exchange_rate,
+            cost_centers::list_cost_centers,
+            cost_centers::save_cost_center,
+            cost_centers::assign_cost_center,
+            cost_centers::save_budget,
+            cost_centers::get_budget_report,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

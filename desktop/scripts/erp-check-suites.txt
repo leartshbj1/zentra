@@ -55,3 +55,5 @@ src/quotePortal.test.ts
 rust:currencies::
 src/currencies.test.ts
 rust:fiduciary
+rust:cost_centers::
+src/budget.test.ts

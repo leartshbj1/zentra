@@ -1993,6 +1993,12 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 71)?;
         }
+        if current < 72 {
+            transaction.execute_batch(crate::schema::MIGRATION_V72_SQL)?;
+            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
+            crate::company_collaboration::migrate(&transaction)?;
+            transaction.pragma_update(None, "user_version", 72)?;
+        }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
         crate::work_notes::ensure_workspace_scope(&transaction)?;
