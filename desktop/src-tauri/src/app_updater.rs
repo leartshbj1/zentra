@@ -643,8 +643,9 @@ mod tests {
     use base64::Engine;
 
     use super::{
-        restore_pending_update_after_error, validate_configuration, validate_download_source,
-        validate_update_size, MAX_UPDATE_ARTIFACT_BYTES,
+        restore_pending_update_after_error, running_from_msix_package, store_package_configuration,
+        validate_configuration, validate_download_source, validate_update_size,
+        MAX_UPDATE_ARTIFACT_BYTES,
     };
 
     fn public_key() -> String {

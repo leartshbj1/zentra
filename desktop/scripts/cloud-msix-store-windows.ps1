@@ -105,7 +105,15 @@ try {
 
         $manifest = 'desktop/src-tauri/Cargo.toml'
         $build = @(& cargo test --locked --manifest-path $manifest --lib --no-run --message-format=json)
-        if ($LASTEXITCODE -ne 0) { throw "cargo test --no-run failed ($LASTEXITCODE)" }
+        if ($LASTEXITCODE -ne 0) {
+            # JSON output hides the compiler diagnostics; print them before failing.
+            foreach ($line in $build) {
+                if ($line -notmatch '"reason":"compiler-message"') { continue }
+                $message = ($line | ConvertFrom-Json).message
+                if ($message.level -eq 'error') { Write-Host $message.rendered }
+            }
+            throw "cargo test --no-run failed ($LASTEXITCODE)"
+        }
         Complete-Phase 'rust-test-compile'
         $executable = $null
         foreach ($line in $build) {
