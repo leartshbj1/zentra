@@ -34,6 +34,7 @@ import { eveningCountDue, localDate, uncorrectedCount, cashBalance } from './cas
 import { contractAlerts } from './contracts';
 import { savedStart, treasuryForecast, type ForecastEvent } from './treasuryForecast';
 import { digestDue, digestInput, digestSignature, saveDigest, savedDigest } from './morningDigest';
+import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
@@ -206,6 +207,7 @@ import {
   Users,
   WalletCards,
   X,
+  Link2,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
@@ -1191,6 +1193,20 @@ function WorkspaceContent({
     try {
       if ((workspaceRef.current.invoicePaymentLinks ?? []).some(link => link.status === 'open') && await desktopApi.refreshInvoicePaymentLinks() > 0) publishInboxWorkspace(await desktopApi.loadWorkspace());
     } catch { /* checked again next time */ }
+    // Réponses des clients sur la page d'acceptation, dès qu'un lien a été envoyé.
+    try {
+      const organizationId = autopilotContext.organizationId;
+      let cursor = savedPortal(organizationId).cursor, fresh = 0;
+      for (let round = 0; Object.keys(savedPortal(organizationId).links).length && round < 5; round++) {
+        const reply = await desktopApi.readQuotePortalEvents(autopilotContext.origin, { limit: 50, cursor });
+        if (reply.status !== 'available' || !reply.data) break;
+        savePortalEvents(organizationId, reply.data);
+        fresh += reply.data.items.length;
+        if (reply.data.items.length < 50 || !reply.data.nextCursor) break;
+        cursor = reply.data.nextCursor;
+      }
+      if (fresh) setFollowUpVersion(version => version + 1);
+    } catch { /* read again next time */ }
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
     if (!autopilotContext) return { cards: [], summary: '' };
@@ -1507,6 +1523,22 @@ function WorkspaceContent({
         why: `${copy.whyOnline} · ${copy.confidenceHigh}`,
         actions: [{ id: 'record-online', label: copy.actionRecordOnline, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
+    // Le client a répondu sur la page du devis : accepté, la facture suit ; refusé, le devis se ferme.
+    for (const { event, quote } of portalCards(Object.values(savedPortal(organizationId).events), workspace.quotes, workspace.invoices)) {
+      const key = 'portal:' + event.eventId;
+      if (entries[key]?.ignored) continue;
+      const client = workspace.clients.find(row => row.id === quote.clientId);
+      const name = event.signerName || client?.company || client?.name || '';
+      const on = date(new Date(event.at * 1000).toISOString().slice(0, 10));
+      cards.push(event.kind === 'accepted'
+        ? { key, title: copy.portalAcceptedTitle.replace('{number}', quote.number).replace('{name}', name),
+          detail: copy.portalAcceptedDetail.replace('{amount}', formatMoney(documentTotals(quote.lines).totalCents, quote.currency)).replace('{date}', on),
+          evidence: event.comment || undefined, why: `${copy.whyPortal} · ${copy.confidenceHigh}`,
+          actions: [{ id: 'portal-invoice', label: copy.actionInvoiceQuote, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] }
+        : { key, title: copy.portalDeclinedTitle.replace('{number}', quote.number).replace('{name}', name),
+          detail: copy.portalDeclinedDetail.replace('{date}', on), evidence: event.comment || undefined, why: copy.whyPortal,
+          actions: [{ id: 'portal-refuse', label: copy.actionMarkRefused, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     const lowStock = lowStockItems(workspace.catalogItems, workspace.stockAvailability, workspace.supplierOrders).filter(row => !entries['stock:' + row.item.id]?.ignored && !(entries['stock:' + row.item.id]?.until && entries['stock:' + row.item.id]!.until! > today));
     for (const { item, onHandMilli } of lowStock) cards.push({ key: 'stock:' + item.id, title: copy.lowStockTitle.replace('{item}', item.name),
       detail: copy.lowStockDetail.replace('{quantity}', `${onHandMilli / 1000} ${item.unit}`).replace('{threshold}', String(item.reorderLevelMilli / 1000)),
@@ -1582,6 +1614,24 @@ function WorkspaceContent({
       if (!contract) return;
       setSearch(''); setContractToOpen({ id: contract.id, side: contract.side });
       if (contract.side === 'customer') setView('orders'); else { setPurchaseStartSection('contracts'); setView('expenses'); }
+      return;
+    }
+    if (key.startsWith('portal:') && (actionId === 'portal-invoice' || actionId === 'portal-refuse')) {
+      const event = savedPortal(organizationId).events[key.slice('portal:'.length)];
+      const quote = event && workspaceRef.current.quotes.find(row => row.id === event.documentId);
+      if (!quote) return;
+      if (actionId === 'portal-refuse') {
+        const done = await journalAct(() => desktopApi.updateQuoteStatus(quote.id, 'refused'), copy.portalRefused.replace('{number}', quote.number), false);
+        if (done) refresh();
+        return;
+      }
+      if (quote.status !== 'accepted') {
+        const done = await journalAct(() => desktopApi.updateQuoteStatus(quote.id, 'accepted'), copy.acceptanceApplied.replace('{number}', quote.number), false);
+        if (!done) return;
+        refresh();
+      }
+      // La facture se crée comme pour tout devis accepté : la personne choisit facture complète ou acompte.
+      setSearch(''); setView('quotes'); setModal({ type: 'quoteConversion', quote: { ...quote, status: 'accepted' } });
       return;
     }
     if (key.startsWith('online:') && actionId === 'record-online') {
@@ -2533,6 +2583,34 @@ function WorkspaceContent({
       setNotice({ tone: 'success', text: t('Lien de paiement copié : collez-le dans votre message au client. Autopilote vous signalera le paiement.') });
     } catch {
       setNotice({ tone: 'success', text: t('Lien de paiement : {url}', { url }) });
+    }
+  }
+
+  /** Publie le devis émis sur sa page d'acceptation, copie le lien ; Autopilote signale la réponse du client. */
+  async function sendAcceptanceLink(item: Quote) {
+    if (busy || readOnly || !autopilotContext || !canPublishQuote(item)) return;
+    const organizationId = autopilotContext.organizationId, origin = autopilotContext.origin;
+    setBusy(true);
+    setNotice(null);
+    try {
+      let pdf: string | null = null;
+      try { pdf = bytesToBase64(await desktopApi.documentPdfPreview('quotes', item.id)); } catch { pdf = null; }
+      const reply = await desktopApi.publishQuotePortal(origin, portalPublishInput(item, workspaceRef.current, pdf));
+      if (reply.status !== 'available' || !reply.data) {
+        setNotice({ tone: 'warning', text: reply.code === 'revision_conflict' ? t('Le client a déjà répondu à ce devis : sa réponse apparaît dans À faire.') : t('Le lien d’acceptation n’a pas pu être créé. Vérifiez la connexion au compte Zentra, puis réessayez.') });
+        return;
+      }
+      savePortalLink(organizationId, item.id, { url: reply.data.url, clientUrl: reply.data.clientUrl, expiresAt: reply.data.expiresAt, publishedAt: Date.now() });
+      try {
+        await navigator.clipboard.writeText(reply.data.url);
+        setNotice({ tone: 'success', text: t('Lien d’acceptation copié : collez-le dans votre message au client. Il peut accepter ou refuser en ligne ; Autopilote vous signale sa réponse.') });
+      } catch {
+        setNotice({ tone: 'success', text: t('Lien d’acceptation : {url}', { url: reply.data.url }) });
+      }
+    } catch (reason) {
+      setNotice({ tone: 'warning', text: errorMessage(reason, t('Le lien d’acceptation n’a pas pu être créé. Vérifiez la connexion au compte Zentra, puis réessayez.')) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -3684,6 +3762,7 @@ function WorkspaceContent({
                 setModal({ type: 'quoteConversion', quote: item })
               }
               onCreateOrder={(item) => void convertAcceptedQuoteToOrder(item)}
+              onAcceptanceLink={autopilotContext ? (item) => void sendAcceptanceLink(item) : undefined}
               onPrint={(item) =>
                 setPrintTarget({ entity: 'quotes', value: item })
               }
@@ -5151,6 +5230,7 @@ type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boole
       onCreateOrder: (item: Quote) => void;
       onPrint: (item: Quote) => void;
       onArchive: (item: Quote) => void;
+      onAcceptanceLink?: (item: Quote) => void;
       onPayment?: never;
       onOpenPaymentJournal?: never;
     }
@@ -5171,6 +5251,7 @@ type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boole
       onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
       onArchiveCloud: (item: Invoice) => void;
       onPaymentLink?: (item: Invoice) => void;
+      onAcceptanceLink?: never;
       onConvert?: never;
       onStatus?: never;
       onRevise?: never;
@@ -5191,6 +5272,7 @@ type LooseDocumentsProps = {
   onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
   onArchiveCloud: (item: Invoice) => void;
   onPaymentLink?: (item: Invoice) => void;
+  onAcceptanceLink?: (item: Quote) => void;
 };
 
 function DocumentsScreen(sourceProps: DocumentsProps) {
@@ -5671,6 +5753,17 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         title="Émettre"
                       >
                         <CheckCircle2 size={16} />
+                      </Button>
+                    ) : null}
+                    {entity === 'quotes' && props.onAcceptanceLink && canPublishQuote(item as Quote) ? (
+                      <Button disabled={mutationsDisabled}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => props.onAcceptanceLink?.(item as Quote)}
+                        title={t('Envoyer le lien d’acceptation')}
+                        aria-label={t('Envoyer le lien d’acceptation pour {number}', { number: item.number || item.title })}
+                      >
+                        <Link2 size={16} />
                       </Button>
                     ) : null}
                     {entity === 'quotes' && item.status === 'accepted' ? (

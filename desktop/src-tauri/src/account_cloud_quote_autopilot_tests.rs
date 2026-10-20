@@ -174,6 +174,19 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     for (field, bad) in [("action", json!("delete_everything")), ("date", json!("demain")), ("requiresHumanValidation", json!(false)), ("extra", json!(1))] {
         let mut wrong = reading.clone(); wrong[field] = bad; assert!(command(wrong).is_none());
     }
+    // The customer portal: links only to the Zentra site, events checked field by field.
+    let origin = account_api_origin().unwrap();
+    let publish = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), PORTAL_PUBLISH_PATH, &stamp, 50);
+    let reply = json!({"schemaVersion":1,"organizationId":"org-synthetic","documentId":"q-1","url":format!("{origin}/p/abcDEF_12-3"),"clientUrl":format!("{origin}/p/c/xyz"),"expiresAt":"2027-01-18T00:00:00Z"});
+    assert!(publish(reply.clone()).is_some());
+    for (field, bad) in [("url", json!("https://example.test/p/abc")), ("clientUrl", json!(format!("{origin}/p/a?b=c"))), ("organizationId", json!("org-other")), ("extra", json!(1))] {
+        let mut wrong = reply.clone(); wrong[field] = bad; assert!(publish(wrong).is_none());
+    }
+    let events = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), PORTAL_EVENTS_PATH, &stamp, 50);
+    let page = json!({"schemaVersion":1,"organizationId":"org-synthetic","items":[{"eventId":"event-1","documentId":"q-1","kind":"accepted","signerName":"Claire Morel","comment":"","at":1792467000}],"nextCursor":null});
+    assert_eq!(events(page.clone()).unwrap()["items"][0]["signerName"], json!("Claire Morel"));
+    let mut odd = page.clone(); odd["items"][0]["kind"] = json!("paid"); assert!(events(odd).is_none());
+    let mut extra = page.clone(); extra["items"][0]["ip"] = json!("1.2.3.4"); assert!(events(extra).is_none());
     // The morning summary: exact reply keys, same company, and a bounded request.
     let digest = |v: serde_json::Value| parse_public(&serde_json::to_vec(&v).unwrap(), DIGEST_PATH, &stamp, 50);
     let reply = json!({"schemaVersion":1,"organizationId":"org-synthetic","enabled":true,"emailConfigured":false,"pushConfigured":false,"lastSentOn":null});
@@ -228,7 +241,7 @@ fn product_routes_are_fixed_first_party_https_without_sites_credentials() {
     // cfg(test) may use only the already validated compiled public profile.
     // This unit test neither installs a Sites token nor performs HTTP.
     let expected_origin = account_api_origin().unwrap();
-    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH, SIGNALS_PATH, COMMAND_PATH, DIGEST_PATH] {
+    for path in [CONSENT_PATH, ACTIVITY_PATH, REVIEW_PATH, ALIAS_PATH, ACCEPT_PATH, SIGNALS_PATH, COMMAND_PATH, DIGEST_PATH, PORTAL_PUBLISH_PATH, PORTAL_EVENTS_PATH] {
         let url = endpoint(path).unwrap(); assert_eq!(url.as_str(), format!("{expected_origin}{path}"));
         assert!(url.query().is_none() && url.fragment().is_none());
         for bad in [format!("{path}/"), format!("{path}?actor=x"), format!("https://example.test{path}")] { assert!(endpoint(&bad).is_err()); }

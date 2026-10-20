@@ -15,6 +15,8 @@ const ACCEPT_PATH: &str = "/api/account/automation/quote-acceptances";
 const SIGNALS_PATH: &str = "/api/account/automation/mail-signals";
 const COMMAND_PATH: &str = "/api/account/automation/command";
 const DIGEST_PATH: &str = "/api/account/automation/digest";
+const PORTAL_PUBLISH_PATH: &str = "/api/account/portal/publish";
+const PORTAL_EVENTS_PATH: &str = "/api/account/portal/events";
 const CONSENT_VERSION: &str = "action-engine-quote-draft-customer-2026-10-11";
 
 #[derive(Default)]
@@ -199,6 +201,46 @@ struct DigestReply {
     schema_version: u8, organization_id: String, enabled: bool, email_configured: bool, push_configured: bool,
     #[serde(deserialize_with = "required_nullable")] last_sent_on: Option<String>,
 }
+/// A quote or invoice published for the customer's link: what the page shows,
+/// never the local records themselves. The PDF is the issued document.
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct PortalLine { description: String, quantity: String, total_cents: i64 }
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct PortalPublishInput {
+    kind: String, document_id: String, client_key: String, number: String, title: String, client_name: String, company_name: String,
+    issue_date: String, #[serde(deserialize_with = "required_nullable")] valid_until: Option<String>, currency: String, total_cents: i64,
+    lines: Vec<PortalLine>, #[serde(deserialize_with = "required_nullable")] pdf_base64: Option<String>,
+}
+impl PortalPublishInput {
+    fn valid(&self) -> bool {
+        let key = |v: &str| (1..=64).contains(&v.len()) && v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+        let date = |v: &str| v.len() == 10 && v.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() });
+        matches!(self.kind.as_str(), "quote" | "invoice") && key(&self.document_id) && key(&self.client_key)
+            && text(&self.number, 64) && (self.title.is_empty() || text(&self.title, 200)) && text(&self.client_name, 200) && text(&self.company_name, 200)
+            && date(&self.issue_date) && self.valid_until.as_deref().is_none_or(date) && matches!(self.currency.as_str(), "CHF" | "EUR")
+            && (0..=100_000_000_000).contains(&self.total_cents) && self.lines.len() <= 200
+            && self.lines.iter().all(|l| text(&l.description, 500) && l.quantity.chars().count() <= 32 && !l.quantity.chars().any(char::is_control) && l.total_cents.abs() <= 100_000_000_000)
+            && self.pdf_base64.as_deref().is_none_or(|p| p.len() <= 7_000_000 && p.starts_with("JVBERi0"))
+    }
+    fn body(&self) -> serde_json::Value {
+        serde_json::json!({ "schemaVersion": 1, "kind": self.kind, "documentId": self.document_id, "clientKey": self.client_key, "number": self.number,
+            "title": self.title, "clientName": self.client_name, "companyName": self.company_name, "issueDate": self.issue_date, "validUntil": self.valid_until,
+            "currency": self.currency, "totalCents": self.total_cents,
+            "lines": self.lines.iter().map(|l| serde_json::json!({ "description": l.description, "quantity": l.quantity, "totalCents": l.total_cents })).collect::<Vec<_>>(),
+            "pdfBase64": self.pdf_base64 })
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortalPublishReply { schema_version: u8, organization_id: String, document_id: String, url: String, client_url: String, expires_at: String }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortalEvent { event_id: String, document_id: String, kind: String, signer_name: String, comment: String, at: u64 }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortalEventsPage { schema_version: u8, organization_id: String, items: Vec<PortalEvent>, #[serde(deserialize_with = "required_nullable")] next_cursor: Option<String> }
 /// The person's choice: this request line means this catalogue article.
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -430,6 +472,24 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
         let data: Consent = serde_json::from_slice(bytes).ok()?;
         return data.valid().then(|| serde_json::to_value(data).ok()).flatten();
     }
+    if path == PORTAL_PUBLISH_PATH {
+        let data: PortalPublishReply = serde_json::from_slice(bytes).ok()?;
+        let origin = format!("{}/p/", account_api_origin().ok()?);
+        let link = |v: &str| v.starts_with(&origin) && v.len() <= 300 && v[origin.len()..].bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'/'));
+        return (data.schema_version == 1 && data.organization_id == stamp.inbox.session.organization_id && link(&data.url) && link(&data.client_url)
+            && text(&data.expires_at, 40) && text(&data.document_id, 64))
+            .then(|| serde_json::to_value(data).ok()).flatten();
+    }
+    if path == PORTAL_EVENTS_PATH {
+        let data: PortalEventsPage = serde_json::from_slice(bytes).ok()?;
+        if data.schema_version != 1 || data.organization_id != stamp.inbox.session.organization_id || data.items.len() > limit || !cursor(&data.next_cursor)
+            || !unique(data.items.iter().map(|v| v.event_id.as_str())) || data.items.iter().any(|v| {
+                !id(&v.event_id) || v.document_id.is_empty() || v.document_id.len() > 64 || !matches!(v.kind.as_str(), "accepted" | "declined")
+                    || v.signer_name.chars().count() > 200 || v.comment.chars().count() > 2000 || !timestamp(v.at)
+                    || v.signer_name.chars().chain(v.comment.chars()).any(|c| c.is_control() && c != '\n')
+            }) { return None; }
+        return serde_json::to_value(data).ok();
+    }
     if path == DIGEST_PATH {
         let data: DigestReply = serde_json::from_slice(bytes).ok()?;
         let date = |v: &str| v.len() == 10 && v.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() });
@@ -559,6 +619,17 @@ pub(crate) async fn set_quote_autopilot_article_choice(store: State<'_, LocalSto
     let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, ALIAS_PATH, None, Some(input.body())).await });
     Ok(deliver_read(owned, origin, task).await)
 }
+#[tauri::command]
+pub(crate) async fn portal_publish(store: State<'_, LocalStore>, origin: Origin, input: PortalPublishInput) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
+    let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
+    let body = input.body();
+    let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, PORTAL_PUBLISH_PATH, None, Some(body)).await });
+    Ok(deliver_read(owned, origin, task).await)
+}
+#[tauri::command]
+pub(crate) async fn portal_events(store: State<'_, LocalStore>, origin: Origin, input: PageInput) -> Result<ReadReply, String> { Ok(read_page(&store, origin, input, PORTAL_EVENTS_PATH).await) }
 #[tauri::command]
 pub(crate) async fn quote_autopilot_digest(store: State<'_, LocalStore>, origin: Origin, input: DigestInput) -> Result<ReadReply, String> {
     if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }

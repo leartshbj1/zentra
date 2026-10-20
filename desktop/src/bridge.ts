@@ -13,6 +13,7 @@ import { statementFileFromRaw, type StatementFile } from './autopilotStatements'
 import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
+import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
@@ -113,11 +114,32 @@ function quoteAutopilotArray(raw: unknown, maximum: number): readonly unknown[] 
 /** A remembered request line: the next requests with this wording use this article. */
 export type QuoteAutopilotArticleChoice = Readonly<{ schemaVersion: 1; term: string; articleId: string }>;
 export type QuoteAutopilotArticleChoiceInput = Readonly<{ phrase: string; articleId: string }>;
-export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias' | 'acceptances' | 'signals' | 'command' | 'digest', limit = 50): QuoteAutopilotRead<T> {
+export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias' | 'acceptances' | 'signals' | 'command' | 'digest' | 'portalPublish' | 'portalEvents', limit = 50): QuoteAutopilotRead<T> {
   const value = quoteAutopilotEnvelope(raw, origin, ['data'], ['available', 'unavailable', 'context_changed', 'error']);
   if (value.status !== 'available') {
     if (value.data !== null) return quoteAutopilotInvalid();
     return Object.freeze({ ...value }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'portalPublish') {
+    const reply = quoteAutopilotExact(value.data, ['schemaVersion', 'organizationId', 'documentId', 'url', 'clientUrl', 'expiresAt']);
+    const link = (v: unknown) => typeof v === 'string' && v.length <= 300 && /^https:\/\/[^/?#]+\/p\/[A-Za-z0-9_/-]+$/.test(v);
+    if (reply.schemaVersion !== 1 || reply.organizationId !== value.organizationId || typeof reply.documentId !== 'string' || !link(reply.url) || !link(reply.clientUrl)
+      || typeof reply.expiresAt !== 'string' || !reply.expiresAt || reply.expiresAt.length > 40) return quoteAutopilotInvalid();
+    return Object.freeze({ ...value, data: Object.freeze({ documentId: reply.documentId, url: reply.url, clientUrl: reply.clientUrl, expiresAt: reply.expiresAt }) }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'portalEvents') {
+    const page = quoteAutopilotExact(value.data, ['schemaVersion', 'organizationId', 'items', 'nextCursor']);
+    if (page.schemaVersion !== 1 || page.organizationId !== value.organizationId || !quoteAutopilotCursor(page.nextCursor) || !quoteAutopilotInteger(limit, 1, 50)) return quoteAutopilotInvalid();
+    const seen = new Set<string>();
+    const items = quoteAutopilotArray(page.items, limit).map(rawItem => {
+      const item = quoteAutopilotExact(rawItem, ['eventId', 'documentId', 'kind', 'signerName', 'comment', 'at']);
+      if (!quoteAutopilotIdentifier(item.eventId) || seen.has(item.eventId) || typeof item.documentId !== 'string' || !item.documentId || item.documentId.length > 64
+        || (item.kind !== 'accepted' && item.kind !== 'declined') || typeof item.signerName !== 'string' || [...item.signerName].length > 200
+        || typeof item.comment !== 'string' || [...item.comment].length > 2000 || !quoteAutopilotInteger(item.at, 1, 253402300799)) return quoteAutopilotInvalid();
+      seen.add(item.eventId);
+      return Object.freeze({ eventId: item.eventId, documentId: item.documentId, kind: item.kind, signerName: item.signerName, comment: item.comment, at: item.at }) as PortalEvent;
+    });
+    return Object.freeze({ ...value, data: Object.freeze({ organizationId: page.organizationId, items: Object.freeze(items), nextCursor: page.nextCursor }) }) as QuoteAutopilotRead<T>;
   }
   if (kind === 'digest') {
     const reply = quoteAutopilotExact(value.data, ['schemaVersion', 'organizationId', 'enabled', 'emailConfigured', 'pushConfigured', 'lastSentOn']);
@@ -5198,6 +5220,17 @@ export const desktopApi = {
     const captured = captureQuoteAutopilotOrigin(origin);
     if (typeof text !== 'string' || !text.trim() || [...text].length > 500) return quoteAutopilotInvalid();
     return quoteAutopilotReadFromRaw(await invoke<unknown>('quote_autopilot_command', { origin: captured, input: { text } }), captured, 'command');
+  },
+  /** Publishes an issued quote for the customer's acceptance page; the link is what the person sends. */
+  async publishQuotePortal(origin: QuoteAutopilotOrigin, input: PortalPublishInput): Promise<QuoteAutopilotRead<Readonly<{ documentId: string; url: string; clientUrl: string; expiresAt: string }>>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('portal_publish', { origin: captured, input }), captured, 'portalPublish');
+  },
+  /** Customer answers (accepted or declined) since the last position read. */
+  async readQuotePortalEvents(origin: QuoteAutopilotOrigin, input: QuoteAutopilotPageInput): Promise<QuoteAutopilotRead<PortalPage>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    const request = captureQuoteAutopilotPageInput(input);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('portal_events', { origin: captured, input: request }), captured, 'portalEvents', request.limit);
   },
   /** Morning summary by mail: the count and up to eight card titles, only when turned on. */
   async sendQuoteAutopilotDigest(origin: QuoteAutopilotOrigin, input: MorningDigestInput): Promise<QuoteAutopilotRead<MorningDigestState>> {

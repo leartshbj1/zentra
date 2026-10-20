@@ -522,6 +522,8 @@ pub fn run() {
             account_cloud::action_engine::supervisor::quote_autopilot_mail_signals,
             account_cloud::action_engine::supervisor::quote_autopilot_command,
             account_cloud::action_engine::supervisor::quote_autopilot_digest,
+            account_cloud::action_engine::supervisor::portal_publish,
+            account_cloud::action_engine::supervisor::portal_events,
             account_cloud::subscription_overview_request,
             supplier_inbox::supplier_inbox_request,
             account_cloud::open_automation_settings,
