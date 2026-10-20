@@ -1,10 +1,14 @@
-import { canUndo, type JournalEntry } from './autopilotJournal';
+import { canUndo, doneToday, type JournalEntry } from './autopilotJournal';
 import { getAppLocale, t, useAppLanguage } from './language';
 import './autopilot-journal.css';
 
 /** « Ce qu’Autopilote a fait » : chaque clic, son résultat et l’annulation quand elle existe. */
-export function AutopilotJournalList({ entries, onUndo, disabled = false }: { entries: readonly JournalEntry[]; onUndo?: (entry: JournalEntry) => void; disabled?: boolean }) {
+export function AutopilotJournalList({ entries: all, onUndo, disabled = false, now }: { entries: readonly JournalEntry[]; onUndo?: (entry: JournalEntry) => void; disabled?: boolean; now?: Date }) {
   useAppLanguage();
+  // Today's done work is already listed under "Fait aujourd'hui": the history keeps the rest
+  // (earlier days, today's failures, opened screens, ignored or postponed cards).
+  const shownAbove = new Set(doneToday(all, now).map((entry) => entry.id));
+  const entries = all.filter((entry) => !shownAbove.has(entry.id));
   if (!entries.length) return null;
   const time = (iso: string) => new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
   return <details className="quote-autopilot__journal">

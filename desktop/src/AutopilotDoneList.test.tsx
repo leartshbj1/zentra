@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutopilotDoneList } from './AutopilotDoneList';
+import { AutopilotJournalList } from './AutopilotJournalList';
 import type { JournalEntry } from './autopilotJournal';
 
 const locale = vi.hoisted(() => ({ language: 'fr' }));
@@ -45,6 +46,23 @@ describe('AutopilotDoneList', () => {
     locale.language = language;
     const host = await mount(<AutopilotDoneList now={now} entries={[entry('a', true, 9)]} />);
     expect(host.querySelector('h3')?.textContent).toBe({ de: 'Heute erledigt: 1', it: 'Fatto oggi: 1', en: 'Done today: 1' }[language]);
+  });
+
+  it('never lists the same entry in "Fait aujourd’hui" and in the history', async () => {
+    const yesterday = { ...entry('y', true, 9), at: new Date(2026, 9, 19, 9).toISOString(), actionLabel: 'Devis envoyé hier' };
+    const entries = [entry('a', true, 9), entry('b', null, 10, { actionLabel: 'Ouvert' }), entry('c', false, 11, { actionLabel: 'Échoué' }), yesterday];
+    const host = await mount(<><AutopilotDoneList now={now} entries={entries} /><AutopilotJournalList now={now} entries={entries} /></>);
+    const done = [...host.querySelectorAll('.quote-autopilot__done li')].map(row => row.textContent ?? '');
+    const history = [...host.querySelectorAll('.quote-autopilot__journal li')].map(row => row.textContent ?? '');
+    expect(done).toHaveLength(1);
+    expect(history).toHaveLength(3);
+    expect(history.some(text => text.startsWith('Devis créé'))).toBe(false);
+    expect(history.join('|')).toContain('Devis envoyé hier');
+  });
+
+  it('hides the history when everything in it is already listed above', async () => {
+    const host = await mount(<AutopilotJournalList now={now} entries={[entry('a', true, 9)]} />);
+    expect(host.innerHTML).toBe('');
   });
 
   it('shows nothing before anything is done', async () => {
