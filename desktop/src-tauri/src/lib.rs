@@ -86,6 +86,7 @@ mod supplier_email;
 mod supplier_inbox;
 mod supplier_invoices;
 mod supplier_procurement;
+mod supplier_payment_orders;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -302,6 +303,9 @@ pub fn run() {
             validate_supplier_invoice,
             record_supplier_payment,
             delete_supplier_invoice_draft,
+            supplier_payment_orders::save_supplier_invoice_payment_details,
+            supplier_payment_orders::delete_supplier_invoice_payment_details,
+            supplier_payment_orders::export_supplier_payment_order,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 62;
+pub const SCHEMA_VERSION: i64 = 63;
+pub const MIGRATION_V63_SQL: &str = include_str!("supplier_payment_order_schema.sql");
 pub const MIGRATION_V62_SQL: &str = include_str!("action_engine_quote_schema.sql");
 pub const MIGRATION_V61_SQL: &str = include_str!("work_notes_schema.sql");
 pub const MIGRATION_V59_SQL: &str = include_str!("shared_numbering_schema.sql");

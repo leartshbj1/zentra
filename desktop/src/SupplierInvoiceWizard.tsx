@@ -5,12 +5,15 @@ import { AttentionSuggestion } from './AutomationControls';
 import { SupplierRouting } from './AutomationDocument';
 import { automationResourceFeedback, type AutomationDecision } from './automation';
 import { InvoiceScanPanel } from './InvoiceScanPanel';
+import { QrBillPanel } from './QrBillPanel';
+import { applyQrBill, qrBillPaymentDetails, supplierFromQrBill } from './qrBillPurchase';
+import type { QrBill } from './swissQrBill';
 import { applyInvoiceScan } from './invoiceScan';
 import type { SupplierInvoice, Workspace } from './types';
 import { selectableSuppliers, supplierDueDate } from './purchases';
 import { purchaseCostCategories, purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
 import { projectTerminology } from './terminology';
-import { createId, errorMessage, formatDate, formatMoney } from './utils';
+import { createId, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { isSalesDate } from './salesFormValidation';
 import { Button, ErrorPanel, Field, Modal, submitForm } from './ui';
 import { changePurchaseDate, newPurchaseLine, purchaseFields, purchaseIssue, purchaseLineField, purchaseLineValue, purchaseTotals, supplierInvoiceLineTotals, type PurchaseFields, type PurchaseIssue, type PurchaseLineFields } from './supplierInvoicePreparation';
@@ -37,6 +40,8 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
   const settings = workspace.settings!, terminology = projectTerminology(settings.business.nogaSection);
   const [draftId] = useState(() => item?.id ?? createId());
   const [scanFile,setScanFile]=useState<File|null>(null);
+  const [qrBill,setQrBill]=useState<QrBill|null>(null);
+  const [qrIncomplete,setQrIncomplete]=useState(false);
   const [automationText,setAutomationText]=useState('');
   const automationDecision=useRef<AutomationDecision|null>(null);
   const [initial] = useState(() => purchaseFields(workspace, item));
@@ -51,7 +56,7 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
   const unavailable = Boolean(item && !current), finalized = Boolean(current && current.documentStatus !== 'draft');
   const locked = busy || saving || attachmentPending;
   const cannotEdit = readOnly || matching || finalized || unavailable;
-  const dirty = Boolean(scanFile) || JSON.stringify(fields) !== JSON.stringify(baseline);
+  const dirty = Boolean(scanFile) || Boolean(qrBill) || JSON.stringify(fields) !== JSON.stringify(baseline);
   const choices = selectableSuppliers(workspace.suppliers, item?.supplierId);
   const supplier = choices.find(value => value.id === fields.supplierId);
   const rates = purchaseVatOptions(settings.organization.vatRegistered, settings.billing.vatRatesBp);
@@ -137,6 +142,11 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
       if (saved) {
         void automationResourceFeedback(automationDecision.current,{supplier:fields.supplierId||null,project:fields.projectId||null,expense_category:fields.lines[0]?.category||null});
         setBaseline(fields); setStep(3);
+        if(qrBill){
+          // Les coordonnées de paiement servent ensuite à l'ordre de paiement.
+          const kept=await act(()=>desktopApi.saveSupplierInvoicePaymentDetails(qrBillPaymentDetails(qrBill,draftId)),t('Les coordonnées de paiement de la QR-facture sont gardées.'),false,report);
+          if(kept)setQrBill(null);
+        }
         if(scanFile){
           const attached=await act(()=>desktopApi.addScannedSupplierAttachment(draftId,scanFile,originalWorkspaceScope),t('Le document original est joint à la facture.'),false,report);
           if(attached)setScanFile(null);
@@ -158,6 +168,10 @@ function Preparation({ item, initialTarget, workspace, busy, readOnly = false, c
       <section className="supplier-preparation__page" key={step} tabIndex={-1} aria-labelledby="supplier-preparation-heading">
         <h3 id="supplier-preparation-heading" ref={heading} tabIndex={-1}>{t(titles[step])}</h3>
         {step === 0 && <fieldset disabled={locked || cannotEdit}>
+          <QrBillPanel workspace={workspace} disabled={locked||cannotEdit} onBusy={setAttachmentPending}
+            onCreateSupplier={async bill=>{const id=createId();const created=await act(()=>desktopApi.createEntity('suppliers',{id,...supplierFromQrBill(bill)},originalWorkspaceScope),t('Le fournisseur a été ajouté.'),false,reason=>setServerError(errorMessage(reason,'Le fournisseur n’a pas pu être ajouté.')));return created?id:null;}}
+            onApply={(bill,file,matched)=>{const applied=applyQrBill(bill,fields,workspace,matched,todayIso(),rates);setFields(applied.fields);setQrIncomplete(!applied.complete);setQrBill(bill);setScanFile(file);setIssue(null);setServerError('');}}/>
+          {qrIncomplete&&<p className="info-strip">{t('Recopiez le montant hors TVA à l’étape suivante : la QR-facture ne permet pas de le calculer exactement.')}</p>}
           <InvoiceScanPanel disabled={locked||cannotEdit} onBusy={setAttachmentPending} onApply={(scan,file,text)=>{setFields(previous=>applyInvoiceScan(scan,previous,workspace));setScanFile(file);setAutomationText(text);automationDecision.current=null;setIssue(null);setServerError('');}}/>
           {automationText&&<SupplierRouting text={automationText} workspace={workspace} disabled={locked||cannotEdit} onDecision={value=>{automationDecision.current=value;}} onApply={ids=>{setFields(previous=>({...previous,...(ids.supplier?{supplierId:ids.supplier}:{}),...(ids.project?{projectId:ids.project}:{}),lines:ids.category?previous.lines.map(line=>({...line,category:ids.category!})):previous.lines}));}}/>}
           <p>{t("Gardez la facture devant vous. Recopiez son fournisseur et ses dates ; les achats viennent juste après.")}</p>

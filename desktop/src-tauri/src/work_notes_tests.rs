@@ -258,7 +258,7 @@ fn work_note_v60_migration_preserves_company_and_installs_shared_tracking() {
         before,
         "schema migration is not a business edit"
     );
-    assert_eq!(store.get_workspace().unwrap()["schema_version"], 62);
+    assert_eq!(store.get_workspace().unwrap()["schema_version"], crate::schema::SCHEMA_VERSION);
     assert!(store.get_workspace().unwrap()["work_notes"]
         .as_array()
         .unwrap()

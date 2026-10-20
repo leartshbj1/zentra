@@ -72,6 +72,7 @@ import { installContactFolderFixture } from './contact-folder-fixture';
 import { installCreationOutcomeFixture } from './creation-outcome-fixture';
 import { installPayslipPostingFixture } from './payslip-posting-fixture';
 import { installSettingsRecoveryFixture } from './settings-recovery-fixture';
+import { installErpPaymentsFixture } from './erp-payments-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -194,6 +195,7 @@ if (new URLSearchParams(location.search).has('projectCosts')) installProjectCost
 if (new URLSearchParams(location.search).has('expenseRefund')) installExpenseRefundFixture(data);
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
+if (new URLSearchParams(location.search).get('erp') === 'payments') installErpPaymentsFixture(data);
 if (new URLSearchParams(location.search).has('directoryRecovery')) installDirectoryRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);

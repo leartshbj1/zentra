@@ -275,21 +275,26 @@ fn text(row: &Row, table: &Table, column: &str) -> Option<String> {
         })
 }
 fn read(db: &Connection) -> AppResult<Data> {
-    // Only these two additive migrations are admitted on disposable, already
-    // validated archive copies: empty notes (v61) and creation receipts (v62).
+    // Only these additive migrations are admitted on disposable, already
+    // validated archive copies: empty notes (v61), creation receipts (v62) and
+    // empty supplier payment tables (v63).
     // Existing v60/v61 references must compare with upgraded branches without
     // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if matches!(version, 60 | 61) {
+    if matches!(version, 60..=62) {
         let tx = db.unchecked_transaction()?;
         if version == 60 {
             tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
         }
-        tx.execute_batch(crate::schema::MIGRATION_V62_SQL)?;
+        if version < 62 {
+            tx.execute_batch(crate::schema::MIGRATION_V62_SQL)?;
+        }
+        // v63 : tables de paiement fournisseurs, vides sur une ancienne copie.
+        tx.execute_batch(crate::schema::MIGRATION_V63_SQL)?;
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
-        tx.pragma_update(None, "user_version", 62)?;
+        tx.pragma_update(None, "user_version", 63)?;
         tx.commit()?;
     }
     let mut result = Data::new();
@@ -639,7 +644,7 @@ mod tests {
                 assert_eq!(crate::member_context::read(&repeated).unwrap(), restored_nonce);
                 drop(repeated);
                 test_license::install(store);
-                assert_eq!(store.connect().unwrap().pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), 62);
+                assert_eq!(store.connect().unwrap().pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), crate::schema::SCHEMA_VERSION);
             }
             let local_client = local.create_record("clients", json!({"name":"Local independent client"})).unwrap();
             let remote_client = remote.create_record("clients", json!({"name":"Remote independent client"})).unwrap();
@@ -672,7 +677,7 @@ mod tests {
             let extracted = directory.path().join("merged-data");
             local.extract_company_copy(&output, &extracted).unwrap();
             let merged = Connection::open(extracted.join("database.sqlite3")).unwrap();
-            assert_eq!(merged.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), 62);
+            assert_eq!(merged.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0)).unwrap(), crate::schema::SCHEMA_VERSION);
             for id in [customer_id, local_client["id"].as_str().unwrap(), remote_client["id"].as_str().unwrap()] {
                 assert_eq!(merged.query_row::<i64, _, _>("SELECT count(*) FROM clients WHERE id=?", [id], |r| r.get(0)).unwrap(), 1);
             }

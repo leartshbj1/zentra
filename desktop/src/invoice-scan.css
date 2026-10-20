@@ -14,3 +14,5 @@
 .invoice-scan__original { min-width: 0; max-height: 65vh; overflow: auto; }
 .invoice-scan p,.invoice-scan li { max-width: 65ch; line-height: 1.5; }
 @media(max-width:480px){.invoice-scan__start { align-items: stretch; flex-direction: column; }.invoice-scan__start > button { width: 100%; }.invoice-scan dl { gap: 16px; }}
+.invoice-scan__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+@media(max-width:480px){.invoice-scan__actions > button { width: 100%; }}

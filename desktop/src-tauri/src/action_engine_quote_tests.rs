@@ -397,7 +397,7 @@ fn confirmed_activity_starts_only_after_exact_a7_ack_and_replay_reopen_keeps_one
     assert_eq!(reopened.read_action_engine_quote_activity(origin,None,10).unwrap(),page,
         "lost ACK/restart/archive pruning do not duplicate or erase confirmed history");
     assert_eq!(activity_snapshot(&reopened),before);
-    assert_eq!(reopened.connect().unwrap().query_row::<i64,_,_>("PRAGMA user_version",[],|row| row.get(0)).unwrap(),62);
+    assert_eq!(reopened.connect().unwrap().query_row::<i64,_,_>("PRAGMA user_version",[],|row| row.get(0)).unwrap(),crate::schema::SCHEMA_VERSION);
 }
 
 #[test]

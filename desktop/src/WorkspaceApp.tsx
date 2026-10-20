@@ -18,6 +18,11 @@ import { commandLines, findInvoice, findParty, rememberCommand, searchView, type
 import { bankProposals, hasLinkedBank, statementDue } from './autopilotBank';
 import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, vatReturnDue, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
+import { paymentOrderSummary } from './supplierPaymentOrder';
+import { qrMailProposal, useQrMailBills } from './autopilotQrMail';
+import { qrBillPaymentDetails } from './qrBillPurchase';
+import { purchaseVatOptions } from './purchaseVat';
+import type { PurchaseSection } from './PurchaseOrdersScreen';
 import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { AutopilotActionCard } from './AutopilotActionList';
 import { proposeForSignal, saveSignalDecision, signalDecisions, type MailSignal } from './autopilotSignals';
@@ -670,6 +675,7 @@ function WorkspaceContent({
   const [payslipPostingReturnId, setPayslipPostingReturnId] = useState<string | null>(null);
   const [payslipPostingFeedback, setPayslipPostingFeedback] = useState<import('./payslipPosting').PayslipPostingFeedback | null>(null);
   const [teamStartSection, setTeamStartSection] = useState<'payslips' | undefined>();
+  const [purchaseStartSection, setPurchaseStartSection] = useState<PurchaseSection | null>(null);
   const clearTeamStartSection = useCallback(() => setTeamStartSection(undefined), []);
   const [supplierInvoiceReviewId, setSupplierInvoiceReviewId] = useState<string | null>(null);
   const [supplierReviewReturnId, setSupplierReviewReturnId] = useState<string | null>(null);
@@ -1178,8 +1184,31 @@ function WorkspaceContent({
     const operationsSummary = [hourGroups.length ? copy.summaryHours.replace('{n}', String(hourGroups.length)) : '', timer ? copy.summaryTimer : '',
       lateTasks.length ? copy.summaryTasks.replace('{n}', String(lateTasks.length)) : ''];
     const bankSummary = [...operationsSummary, toConfirm ? copy.summaryBankConfirm.replace('{n}', String(toConfirm)) : '', toIdentify ? copy.summaryBankIdentify.replace('{n}', String(toIdentify)) : ''];
-    // Purchases: supplier invoices to pay soon, low stock, deliveries announced.
-    const toPay = invoicesToPay(workspace.supplierInvoices, today).filter(invoice => !entries['pay:' + invoice.id]?.ignored && !(entries['pay:' + invoice.id]?.until && entries['pay:' + invoice.id]!.until! > today));
+    // Purchases: one payment order for the invoices payable this week, QR-bills received by mail,
+    // then the invoices still to pay by hand, low stock and deliveries announced.
+    const order = paymentOrderSummary(workspace, today);
+    const orderKey = 'pay-order:' + order.ids.slice().sort().join('+');
+    const orderShown = order.count > 0 && !entries[orderKey]?.ignored && !(entries[orderKey]?.until && entries[orderKey]!.until! > today);
+    if (orderShown) {
+      const names = [...new Set(workspace.supplierInvoices.filter(invoice => order.ids.includes(invoice.id)).map(invoice => invoice.supplierName))];
+      cards.push({ key: orderKey, title: (order.count === 1 ? copy.payOrderOne : copy.payOrderTitle.replace('{n}', String(order.count))).replace('{amount}', formatMoney(order.totalCents)),
+        detail: names.slice(0, 3).join(', ') + (names.length > 3 ? '…' : ''),
+        actions: [{ id: 'pay-order', label: copy.actionPayOrder, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    const pendingMail = new Map((supplierInbox.state?.items ?? []).filter(item => !['imported', 'ignored'].includes(item.state)).map(item => [item.id, item]));
+    const vatRates = purchaseVatOptions(workspace.settings?.organization.vatRegistered ?? false, workspace.settings?.billing.vatRatesBp ?? []);
+    for (const [id, bill] of qrMailBills) {
+      const item = pendingMail.get(id);
+      if (!item || entries['qrmail:' + id]?.ignored || !workspace.settings) continue;
+      const proposal = qrMailProposal(item, bill, workspace, vatRates, today);
+      if (!proposal) continue;
+      cards.push({ key: 'qrmail:' + id, title: copy.qrMailTitle.replace('{supplier}', proposal.supplier?.name || bill.creditor.name),
+        detail: (bill.amountCents === null ? copy.qrMailOpen : copy.qrMailDetail.replace('{amount}', formatMoney(bill.amountCents))).replace('{date}', date(proposal.dueDate)),
+        evidence: item.subject || undefined,
+        actions: proposal.draft ? [{ id: 'qr-create', label: copy.actionCreatePurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }]
+          : [{ id: 'qr-review', label: copy.actionReviewPurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    const toPay = invoicesToPay(workspace.supplierInvoices, today).filter(invoice => !(orderShown && order.ids.includes(invoice.id)) && !entries['pay:' + invoice.id]?.ignored && !(entries['pay:' + invoice.id]?.until && entries['pay:' + invoice.id]!.until! > today));
     for (const invoice of toPay) {
       const supplier = workspace.suppliers.find(row => row.id === invoice.supplierId);
       cards.push({ key: 'pay:' + invoice.id, title: copy.payTitle.replace('{supplier}', supplier?.name || invoice.supplierName),
@@ -1203,6 +1232,7 @@ function WorkspaceContent({
     }
     const summary = [ready ? copy.followUpSummaryReady.replace('{n}', String(ready)) : '', waiting ? copy.followUpSummaryWaiting.replace('{n}', String(waiting)) : '',
       contacts ? copy.summaryContacts.replace('{n}', String(contacts)) : '', appointments ? copy.summaryAppointments.replace('{n}', String(appointments)) : '',
+      orderShown ? copy.summaryPayOrder.replace('{n}', String(order.count)) : '',
       toPay.length ? copy.summaryToPay.replace('{n}', String(toPay.length)) : '', lowStock.length ? copy.summaryLowStock.replace('{n}', String(lowStock.length)) : '',
       deliveries ? copy.summaryDeliveries.replace('{n}', String(deliveries)) : '',
       ...bankSummary].filter(Boolean).join(' · ');
@@ -1249,6 +1279,30 @@ function WorkspaceContent({
       }
       return;
     }
+    if (key.startsWith('pay-order:') && actionId === 'pay-order') { setSearch(''); setPurchaseStartSection('payments'); setView('expenses'); return; }
+    if (key.startsWith('qrmail:') && (actionId === 'qr-create' || actionId === 'qr-review')) {
+      const id = key.slice('qrmail:'.length);
+      const item = supplierInbox.state?.items.find(row => row.id === id);
+      const bill = qrMailBills.get(id);
+      const current = workspaceRef.current;
+      if (!item || !bill || !current.settings) return;
+      const proposal = qrMailProposal(item, bill, current, purchaseVatOptions(current.settings.organization.vatRegistered, current.settings.billing.vatRatesBp), today);
+      if (actionId === 'qr-review' || !proposal?.draft) { setSearch(''); setPurchaseStartSection('inbox'); setView('expenses'); return; }
+      const draft = proposal.draft;
+      const created = await act(async () => {
+        await supplierInbox.importInvoice(item, draft);
+        await desktopApi.saveSupplierInvoicePaymentDetails(qrBillPaymentDetails(bill, item.id));
+        return desktopApi.loadWorkspace();
+      }, copy.qrMailCreated, false);
+      if (created) {
+        saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true }));
+        const invoice = workspaceRef.current.supplierInvoices.find(row => row.id === item.id);
+        setSearch(''); setView('expenses');
+        if (invoice) setModal({ type: 'supplierInvoiceDetail', invoice });
+        refresh();
+      }
+      return;
+    }
     if (key.startsWith('pay:')) {
       const invoice = workspaceRef.current.supplierInvoices.find(row => 'pay:' + row.id === key);
       if (!invoice) return;
@@ -1256,9 +1310,13 @@ function WorkspaceContent({
       if (actionId === 'pay') { setSearch(''); setView('expenses'); setModal({ type: 'supplierPayment', invoice }); return; }
       if (actionId === 'view-purchase') { setSearch(''); setView('expenses'); setModal({ type: 'supplierInvoiceDetail', invoice }); return; }
       if (actionId === 'copy-iban') {
-        if (!supplier?.iban) { setNotice({ tone: 'warning', text: copy.ibanMissing }); return; }
-        try { await navigator.clipboard.writeText(`${supplier.iban}\n${invoice.reference}`); setNotice({ tone: 'success', text: copy.ibanCopied }); }
-        catch { setNotice({ tone: 'warning', text: `${supplier.iban} · ${invoice.reference}` }); }
+        // The QR-bill's account and reference win over the supplier record.
+        const details = invoice.paymentDetails;
+        const iban = details?.creditorIban || supplier?.iban;
+        const reference = details && details.referenceType !== 'NON' ? details.reference : invoice.reference;
+        if (!iban) { setNotice({ tone: 'warning', text: copy.ibanMissing }); return; }
+        try { await navigator.clipboard.writeText(`${iban}\n${reference}`); setNotice({ tone: 'success', text: copy.ibanCopied }); }
+        catch { setNotice({ tone: 'warning', text: `${iban} · ${reference}` }); }
       }
       return;
     }
@@ -1516,6 +1574,7 @@ function WorkspaceContent({
     else setModal({ type: 'document', entity: 'quotes', item: destination.quote as Quote });
   };
   const supplierInbox = useSupplierInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace, workspace.workNotesScope);
+  const qrMailBills = useQrMailBills(supplierInbox.state, Boolean(autopilotContext) && !readOnly);
   const appointmentInbox = useAppointmentInbox(inboxOrganization, readOnly, inboxBlocked, publishInboxWorkspace, refreshInboxWorkspace, workspace.workNotesScope);
   const openAutomationAppointment = (id: string) => {
     const organizationId = cloudAccount?.organizationId;
@@ -3365,6 +3424,8 @@ function WorkspaceContent({
           {view === 'expenses' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture des achats…")} />}>
               <PurchaseOrdersScreen
+                openSection={purchaseStartSection}
+                onOpenSectionHandled={() => setPurchaseStartSection(null)}
                 mailboxPanel={renderSupplierInbox(true,search)}
                 mailbox={supplierInbox.state}
                 mailboxUnavailable={!!supplierInbox.error || (cloudAccount?.status === 'connected' && !supplierInbox.state)}

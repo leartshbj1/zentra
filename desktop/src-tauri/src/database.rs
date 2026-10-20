@@ -1937,6 +1937,14 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 62)?;
         }
+        if current < 63 {
+            transaction.execute_batch(crate::schema::MIGRATION_V63_SQL)?;
+            // Les coordonnées de paiement et les ordres sont des données
+            // d'entreprise partagées : même horloge et même garde d'écriture.
+            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
+            crate::company_collaboration::migrate(&transaction)?;
+            transaction.pragma_update(None, "user_version", 63)?;
+        }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
         crate::work_notes::ensure_workspace_scope(&transaction)?;
@@ -2893,6 +2901,10 @@ impl LocalStore {
         workspace["stock_availability"] = Value::Array(stock_availability);
         workspace["project_milestones"] = Value::Array(project_milestones);
         workspace["project_tasks"] = Value::Array(project_tasks);
+        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items"] {
+            let present: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [table], |row| row.get(0))?;
+            workspace[table] = Value::Array(if present { query_all(connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [])? } else { Vec::new() });
+        }
         workspace["schema_version"] = json!(SCHEMA_VERSION);
         Ok(workspace)
     }

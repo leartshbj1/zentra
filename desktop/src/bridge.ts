@@ -343,6 +343,8 @@ import type {
   SupplierInvoiceMatch,
   SaveSupplierInvoiceMatchDraftInput,
   SupplierInvoicePayment,
+  SupplierInvoicePaymentDetails,
+  SupplierPaymentOrder,
   SupplierOrder,
   SupplierOrderCancellationLine,
   SupplierOrderFulfillmentMode,
@@ -506,6 +508,9 @@ type RawWorkspace = {
   supplier_expense_reclassifications?: RawRecord[];
   supplier_expense_reclassification_lines?: RawRecord[];
   supplier_payments?: RawRecord[];
+  supplier_invoice_payment_details?: RawRecord[];
+  supplier_payment_orders?: RawRecord[];
+  supplier_payment_order_items?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3100,6 +3105,48 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       lines: (supplierReclassificationLinesById.get(id) ?? []).slice(),
     };
   });
+  const supplierPaymentDetails = new Map((raw.supplier_invoice_payment_details ?? []).map((row) => {
+    const referenceType = stringValue(row.reference_type);
+    const details: SupplierInvoicePaymentDetails = {
+      supplierInvoiceId: stringValue(row.supplier_invoice_id),
+      creditorIban: stringValue(row.creditor_iban),
+      referenceType: referenceType === 'QRR' || referenceType === 'SCOR' ? referenceType : 'NON',
+      reference: stringValue(row.reference),
+      creditorName: stringValue(row.creditor_name),
+      creditorStreet: stringValue(row.creditor_street),
+      creditorBuildingNumber: stringValue(row.creditor_building_number),
+      creditorPostalCode: stringValue(row.creditor_postal_code),
+      creditorCity: stringValue(row.creditor_city),
+      creditorCountry: stringValue(row.creditor_country),
+      amountCents: row.amount_cents === null || row.amount_cents === undefined ? null : numberValue(row.amount_cents),
+      currency: stringValue(row.currency) === 'EUR' ? 'EUR' : 'CHF',
+      message: stringValue(row.message),
+      billInformation: stringValue(row.bill_information),
+      source: stringValue(row.source) === 'qr_bill' ? 'qr_bill' : 'manual',
+      updatedAt: stringValue(row.updated_at),
+    };
+    return [details.supplierInvoiceId, details] as const;
+  }));
+  const supplierPaymentOrderItems = groupRows((raw.supplier_payment_order_items ?? []).map((row) => ({
+    paymentOrderId: stringValue(row.payment_order_id),
+    supplierInvoiceId: stringValue(row.supplier_invoice_id),
+    endToEndId: stringValue(row.end_to_end_id),
+    amountCents: numberValue(row.amount_cents),
+  })), (item) => item.paymentOrderId);
+  const supplierPaymentOrders: SupplierPaymentOrder[] = (raw.supplier_payment_orders ?? []).map((row) => {
+    const id = stringValue(row.id);
+    return {
+      id,
+      messageId: stringValue(row.message_id),
+      executionDate: stringValue(row.execution_date),
+      debtorIban: stringValue(row.debtor_iban),
+      transactionCount: numberValue(row.transaction_count),
+      totalCents: numberValue(row.total_cents),
+      fileName: stringValue(row.file_name),
+      createdAt: stringValue(row.created_at),
+      items: (supplierPaymentOrderItems.get(id) ?? []).map(({ supplierInvoiceId, endToEndId, amountCents }) => ({ supplierInvoiceId, endToEndId, amountCents })),
+    };
+  }).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const supplierInvoices: SupplierInvoice[] = (raw.supplier_invoices ?? []).map(
     (row) => {
       const documentStatus: SupplierInvoice['documentStatus'] =
@@ -3167,6 +3214,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
           ),
         attachments: (supplierAttachmentsByInvoice.get(id) ?? []).slice()
           .sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+        paymentDetails: supplierPaymentDetails.get(id) ?? null,
         createdAt: stringValue(row.created_at),
         updatedAt: stringValue(row.updated_at),
       };
@@ -3288,6 +3336,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     supplierInvoices,
     supplierInvoicePayments,
     supplierInvoiceMatches,
+    supplierPaymentOrders,
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -5849,6 +5898,71 @@ export const desktopApi = {
   async deleteSupplierInvoiceDraft(id: string) {
     await invoke('delete_supplier_invoice_draft', { id });
     return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveSupplierInvoicePaymentDetails(details: Omit<SupplierInvoicePaymentDetails, 'updatedAt'>) {
+    await invoke('save_supplier_invoice_payment_details', {
+      input: {
+        supplier_invoice_id: details.supplierInvoiceId,
+        creditor_iban: details.creditorIban,
+        reference_type: details.referenceType,
+        reference: details.reference,
+        creditor_name: details.creditorName,
+        creditor_street: details.creditorStreet,
+        creditor_building_number: details.creditorBuildingNumber,
+        creditor_postal_code: details.creditorPostalCode,
+        creditor_city: details.creditorCity,
+        creditor_country: details.creditorCountry,
+        amount_cents: details.amountCents,
+        currency: details.currency,
+        message: details.message,
+        bill_information: details.billInformation,
+        source: details.source,
+      },
+    });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async deleteSupplierInvoicePaymentDetails(supplierInvoiceId: string) {
+    await invoke('delete_supplier_invoice_payment_details', { supplierInvoiceId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  /** Demande l'emplacement, puis l'app écrit le fichier et garde la trace de l'ordre. */
+  async exportSupplierPaymentOrder(input: {
+    fileName: string;
+    messageId: string;
+    executionDate: string;
+    debtorIban: string;
+    xml: string;
+    items: { supplierInvoiceId: string; endToEndId: string; amountCents: number }[];
+  }) {
+    const selected = await chooseSaveFile({
+      title: 'Enregistrer l’ordre de paiement',
+      defaultPath: input.fileName,
+      filters: [{ name: 'Ordre de paiement ISO 20022', extensions: ['xml'] }],
+    });
+    if (!selected) return null;
+    const destination = selected.toLocaleLowerCase('fr-CH').endsWith('.xml') ? selected : `${selected}.xml`;
+    const result = await invoke<{ id: string; path: string; transactionCount: number; totalCents: number }>('export_supplier_payment_order', {
+      input: {
+        destination,
+        message_id: input.messageId,
+        execution_date: input.executionDate,
+        debtor_iban: input.debtorIban,
+        xml: input.xml,
+        items: input.items.map((item) => ({
+          supplier_invoice_id: item.supplierInvoiceId,
+          end_to_end_id: item.endToEndId,
+          amount_cents: item.amountCents,
+        })),
+      },
+    });
+    let deliveryWarning: string | undefined;
+    try {
+      await shareMobileExport(result.path);
+    } catch {
+      deliveryWarning = 'L’ordre de paiement est enregistré, mais le partage n’a pas abouti.';
+    }
+    const workspace = await refreshWorkspaceAfterMutation(loadWorkspace);
+    return { ...result, deliveryWarning, workspace };
   },
   async chooseSupplierEmailFile(): Promise<string | null> {
     return chooseFile({

@@ -1,0 +1,155 @@
+/*
+ * « À payer » : une liste simple, une ligne par facture, un seul bouton
+ * principal en bas. Mêmes jetons que les autres listes (custom properties
+ * seulement, pas de couleur littérale).
+ */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments {
+    display: grid;
+    gap: 16px;
+    padding: 4px 0 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__header h3 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__header p,
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__note {
+    margin: 4px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments :is(.supplier-payments__help, .supplier-payments__history) > summary {
+    color: var(--apple-accent);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__help ol {
+    max-width: 52ch;
+    margin: 8px 0 0;
+    padding-left: 20px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list > li {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 4px 12px;
+    padding: 14px 0;
+    box-shadow: inset 0 1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list > li > input {
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    accent-color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list > li > label {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list > li.is-blocked > label {
+    cursor: default;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list strong {
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list :is(span, small) {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__amount {
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__actions {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 2 / -1;
+    gap: 4px 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__actions .button {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    padding: 14px 0;
+    background: var(--apple-paper);
+    box-shadow: inset 0 1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__footer > p {
+    flex: 1 1 160px;
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__date {
+    display: grid;
+    gap: 4px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__date input {
+    min-height: 40px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__history ul {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__history li {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 16px;
+    padding: 10px 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    box-shadow: inset 0 1px 0 var(--apple-line);
+  }
+}
+
+@media screen and (max-width: 640px) {
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list > li {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__amount {
+    grid-column: 2;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__footer > .button {
+    width: 100%;
+  }
+}

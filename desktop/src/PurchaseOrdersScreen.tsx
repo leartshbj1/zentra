@@ -35,6 +35,8 @@ import { expenseRefundTotals } from './expenseRefunds';
 import { purchaseVatOptions, nonRegisteredPurchaseVatHint } from './purchaseVat';
 export { purchaseVatOptions } from './purchaseVat';
 import { SupplierEmailIntake } from './SupplierEmailIntake';
+import { SupplierPaymentsPanel } from './SupplierPaymentsPanel';
+import { payableInvoices } from './supplierPaymentOrder';
 import { formatCatalogQuantity } from './catalog';
 import {
   supplierInvoiceOrderMatchAmountMismatch,
@@ -84,8 +86,9 @@ type PurchaseWorkspaceAction = (
   onError?: (reason: unknown) => void,
 ) => Promise<boolean>;
 
-type PurchaseSection =
+export type PurchaseSection =
   | 'inbox'
+  | 'payments'
   | 'orders'
   | 'receipts'
   | 'documents'
@@ -138,6 +141,7 @@ const sectionLabels: Array<{
   icon: typeof ClipboardCheck;
 }> = [
   { id: 'inbox', label: 'À traiter', icon: ClipboardCheck },
+  { id: 'payments', label: 'À payer', icon: Banknote },
   { id: 'orders', label: 'Commandes', icon: FilePenLine },
   { id: 'receipts', label: 'Réceptions', icon: PackageCheck },
   { id: 'documents', label: 'Factures & avoirs', icon: ReceiptText },
@@ -600,7 +604,11 @@ export function PurchaseOrdersScreen({
   onOpenCatalog,
   onOpenBank,
   onReadWorkspace,
+  openSection,
+  onOpenSectionHandled,
 }: {
+  openSection?: PurchaseSection | null;
+  onOpenSectionHandled?: () => void;
   mailboxPanel?: ReactNode;
   mailbox?: SupplierInboxState | null;
   mailboxUnavailable?: boolean;
@@ -635,7 +643,12 @@ export function PurchaseOrdersScreen({
 }) {
   useAppLanguage();
   const compact = useCompactLayout();
-  const [section, setSection] = useState<PurchaseSection>('inbox');
+  const [section, setSection] = useState<PurchaseSection>(openSection ?? 'inbox');
+  useEffect(() => {
+    if (!openSection) return;
+    setSection(openSection);
+    onOpenSectionHandled?.();
+  }, [openSection]);
   const [creditToReveal, setCreditToReveal] = useState<string | null>(null);
   useEffect(()=>{
     if(!openCreditId)return;
@@ -798,6 +811,7 @@ export function PurchaseOrdersScreen({
   const sectionCount = (id: PurchaseSection) => {
     if (id === 'inbox') return mailboxUnavailable ? '—' : inboxCount;
     if (id === 'orders') return workspace.supplierOrders.length;
+    if (id === 'payments') return payableInvoices(workspace).length;
     if (id === 'receipts') return workspace.supplierReceipts.length;
     if (id === 'documents')
       return (
@@ -1020,6 +1034,17 @@ export function PurchaseOrdersScreen({
                 onCreateOrder={() => setModal({ type: 'order' })}
               />
             </>
+          ) : null}
+
+          {section === 'payments' ? (
+            <SupplierPaymentsPanel
+              workspace={workspace}
+              busy={busy}
+              readOnly={readOnly}
+              runAction={runAction}
+              onOpenSupplierInvoice={onOpenSupplierInvoice}
+              onEditSupplier={onEditSupplier}
+            />
           ) : null}
 
           {section === 'orders' ? (

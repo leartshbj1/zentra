@@ -1050,8 +1050,41 @@ export type SupplierInvoice = {
   lines: SupplierInvoiceItem[];
   payments: SupplierInvoicePayment[];
   attachments: Attachment[];
+  /** Coordonnées de paiement lues sur la QR-facture ou saisies. */
+  paymentDetails?: SupplierInvoicePaymentDetails | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SupplierInvoicePaymentDetails = {
+  supplierInvoiceId: Identifier;
+  creditorIban: string;
+  referenceType: 'QRR' | 'SCOR' | 'NON';
+  reference: string;
+  creditorName: string;
+  creditorStreet: string;
+  creditorBuildingNumber: string;
+  creditorPostalCode: string;
+  creditorCity: string;
+  creditorCountry: string;
+  amountCents: number | null;
+  currency: 'CHF' | 'EUR';
+  message: string;
+  billInformation: string;
+  source: 'qr_bill' | 'manual';
+  updatedAt: string;
+};
+
+export type SupplierPaymentOrder = {
+  id: Identifier;
+  messageId: string;
+  executionDate: string;
+  debtorIban: string;
+  transactionCount: number;
+  totalCents: number;
+  fileName: string;
+  createdAt: string;
+  items: { supplierInvoiceId: Identifier; endToEndId: string; amountCents: number }[];
 };
 
 export type SupplierOrderStatus =
@@ -1780,6 +1813,7 @@ export type Workspace = {
   supplierInvoices: SupplierInvoice[];
   supplierInvoicePayments: SupplierInvoicePayment[];
   supplierInvoiceMatches: SupplierInvoiceMatch[];
+  supplierPaymentOrders?: SupplierPaymentOrder[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];
