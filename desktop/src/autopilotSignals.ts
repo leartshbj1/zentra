@@ -54,6 +54,8 @@ export type SignalProposal =
   | Readonly<{ action: 'decline_quote'; quote: Quote }>
   | Readonly<{ action: 'open_purchase'; supplier: Supplier | null; supplierInvoice: SupplierInvoice | null }>
   | Readonly<{ action: 'follow_up'; client: Client | null }>
+  /** Réclamation qui cite une facture émise : l'avoir se prépare depuis la correction de facture. */
+  | Readonly<{ action: 'credit_note'; invoice: Invoice }>
   | Readonly<{ action: 'none' }>;
 
 export function proposeForSignal(signal: MailSignal, data: Readonly<{ invoices: Invoice[]; payments: Payment[]; quotes: readonly Quote[];
@@ -94,7 +96,16 @@ export function proposeForSignal(signal: MailSignal, data: Readonly<{ invoices: 
       ? data.supplierInvoices.find(row => reference(row.reference) === wanted && (!supplier || row.supplierId === supplier.id)) ?? null : null;
     return { action: 'open_purchase', supplier, supplierInvoice };
   }
-  if (signal.kind === 'follow_up') return { action: 'follow_up', client: senderClients(signal.sender, data.clients)[0] ?? null };
+  if (signal.kind === 'follow_up') {
+    if (signal.invoiceReference) {
+      const wanted = reference(signal.invoiceReference);
+      const owners = new Set(senderClients(signal.sender, data.clients).map(client => client.id));
+      const issued = data.invoices.filter(invoice => invoice.number && reference(invoice.number) === wanted && invoice.type !== 'credit_note' && invoice.status !== 'draft' && invoice.status !== 'cancelled');
+      const theirs = issued.filter(invoice => !owners.size || owners.has(invoice.clientId));
+      if (theirs.length === 1) return { action: 'credit_note', invoice: theirs[0] };
+    }
+    return { action: 'follow_up', client: senderClients(signal.sender, data.clients)[0] ?? null };
+  }
   return { action: 'none' };
 }
 

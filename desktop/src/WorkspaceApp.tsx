@@ -46,6 +46,8 @@ import { budgetOverruns, compareBudget, type BudgetReport } from './budget';
 import { archiveDue, archiveProblems, archivesToVerify, type LegalArchiveState } from './legalArchive';
 import { deliveriesToTrace, expiringLots, lotBalances, warehouseStock } from './stockLocations';
 import { maxProducible } from './bom';
+import { depreciationDue, inventoryDue, ordersReadyToDeliver } from './autopilotYearEnd';
+import { fixedAssetsApi, type FixedAssetRow } from './fixedAssets';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
@@ -718,7 +720,7 @@ function WorkspaceContent({
   const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
   const [clientFolderReturnId, setClientFolderReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
-  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods' | 'vat' | 'closing' | 'currencies' | 'budget' | 'archive'>();
+  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods' | 'vat' | 'closing' | 'currencies' | 'budget' | 'archive' | 'assets'>();
   const [accountingSourceReturnContext, setAccountingSourceReturnContext] = useState<AccountingNavigationContext | null>(null);
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
   const [accountingEntryFocus, setAccountingEntryFocus] =
@@ -1024,6 +1026,7 @@ function WorkspaceContent({
       if (proposal.action === 'record_payment') return { ...base, title: copy.signalPayment, actionLabel: copy.signalPaymentAction.replace('{amount}', money(proposal.amountCents)).replace('{number}', proposal.invoice.number) };
       if (proposal.action === 'choose_invoice') return { ...base, title: copy.signalPayment, actionLabel: copy.signalChooseAction,
         candidates: proposal.candidates.map(invoice => ({ id: invoice.id, label: [invoice.number, money(invoiceOpenBalance(invoice, workspace.invoices, workspace.payments))].join(' · ') })) };
+      if (proposal.action === 'credit_note') return { ...base, title: copy.signalComplaint.replace('{number}', proposal.invoice.number), actionLabel: copy.signalCreditAction };
       if (proposal.action === 'decline_quote') return { ...base, title: copy.signalDeclined, actionLabel: copy.signalDeclineAction.replace('{number}', proposal.quote.number) };
       if (proposal.action === 'open_purchase') return { ...base, title: copy.signalSupplier,
         actionLabel: proposal.supplierInvoice ? copy.signalReminderAction.replace('{number}', proposal.supplierInvoice.reference) : copy.signalPurchaseAction };
@@ -1086,6 +1089,11 @@ function WorkspaceContent({
       setSearch(''); setView('invoices'); setModal({ type: 'payment', invoice, prefill: { amountCents, notes: note } });
       return;
     }
+    if (proposal.action === 'credit_note') {
+      // L'avoir se prépare dans la correction de facture : la personne choisit les lignes et le montant.
+      done(); setSearch(''); setView('invoices'); setModal({ type: 'invoiceCorrection', invoice: proposal.invoice });
+      return;
+    }
     if (proposal.action === 'decline_quote') {
       actionUndo.current = { kind: 'quote-status', quoteId: proposal.quote.id, status: proposal.quote.status };
       const declined = await journalAct(() => desktopApi.updateQuoteStatus(proposal.quote.id, 'refused'), copy.signalDeclinedDone.replace('{number}', proposal.quote.number), false);
@@ -1120,6 +1128,7 @@ function WorkspaceContent({
   const [fxPending, setFxPending] = useState<PendingConversion[]>([]);
   const [budgetReport, setBudgetReport] = useState<BudgetReport | null>(null);
   const [legalArchives, setLegalArchives] = useState<LegalArchiveState | null>(null);
+  const [fixedAssetRows, setFixedAssetRows] = useState<readonly FixedAssetRow[]>([]);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
@@ -1229,6 +1238,8 @@ function WorkspaceContent({
       }
       setLegalArchives(archives);
     } catch { /* read again next time */ }
+    // Immobilisations : les amortissements de l'exercice, calculés par l'app native.
+    try { if (workspaceRef.current.accountingSettings?.enabled) setFixedAssetRows((await fixedAssetsApi.list()).items); } catch { /* read again next time */ }
     // Budget de l'année : le réel est comparé chaque mois.
     try { const report = await desktopApi.getBudgetReport(new Date().getFullYear()); setBudgetReport(report.budget.length ? report : null); } catch { /* read again next time */ }
     // Réponses des clients sur la page d'acceptation, dès qu'un lien a été envoyé.
@@ -1578,6 +1589,25 @@ function WorkspaceContent({
           actions: [{ id: 'open-warehouses', label: copy.actionOpenWarehouses, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
       }
     }
+    // Fin d'année : amortissements à comptabiliser, inventaire à compter.
+    const depreciation = depreciationDue(fixedAssetRows, today);
+    if (depreciation && !entries['depreciation:' + depreciation.year]?.ignored)
+      cards.push({ key: 'depreciation:' + depreciation.year, title: copy.depreciationTitle.replace('{year}', String(depreciation.year)).replace('{amount}', formatMoney(depreciation.totalCents)),
+        detail: depreciation.rows.map(row => `${row.asset.name} ${formatMoney(row.nextAmountCents)}`).join(' · '), why: `${copy.whyDepreciation} · ${copy.confidenceHigh}`,
+        actions: [{ id: 'depreciate-all', label: copy.actionDepreciate, primary: true }, { id: 'open-assets', label: copy.actionOpenAssets }] });
+    const inventory = inventoryDue(workspace.catalogItems, workspace.stockMovements, today);
+    if (inventory && !entries['inventory:' + inventory.year]?.ignored)
+      cards.push({ key: 'inventory:' + inventory.year, title: copy.inventoryTitle.replace('{year}', String(inventory.year)).replace('{n}', String(inventory.items.length)),
+        detail: inventory.items.slice(0, 5).map(item => item.name).join(', ') + (inventory.items.length > 5 ? ' …' : ''), why: copy.whyInventory,
+        actions: [{ id: 'open-inventory', label: copy.actionOpenInventory, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    // Commandes dont le reste à livrer est en stock.
+    for (const order of ordersReadyToDeliver(workspace)) {
+      const key = 'deliver:' + order.id;
+      if (entries[key]?.ignored) continue;
+      const client = workspace.clients.find(row => row.id === order.clientId);
+      cards.push({ key, title: copy.deliverTitle.replace('{number}', order.number || order.title), detail: client?.company || client?.name || order.title, why: copy.whyDeliver,
+        actions: [{ id: 'open-order', label: copy.actionDeliver, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     // Budget : charges nettement au-dessus du budget depuis janvier.
     if (budgetReport) {
       const month = new Date().getMonth() + 1;
@@ -1795,6 +1825,21 @@ function WorkspaceContent({
       if (done) refresh();
       return;
     }
+    if (key.startsWith('depreciation:') && actionId === 'depreciate-all') {
+      const due = depreciationDue(fixedAssetRows, today);
+      if (!due) return;
+      let rows: readonly FixedAssetRow[] = fixedAssetRows;
+      const done = await journalAct(async () => {
+        for (const row of due.rows) rows = (await fixedAssetsApi.depreciate(row)).items;
+        return desktopApi.loadWorkspace();
+      }, copy.depreciationDone.replace('{year}', String(due.year)), false);
+      setFixedAssetRows(rows);
+      if (done) refresh();
+      return;
+    }
+    if (actionId === 'open-assets') { setSearch(''); setAccountingStartTab('assets'); setAccountingEntryFocus(null); setView('accounting'); return; }
+    if (actionId === 'open-inventory') { setSearch(''); setCatalogArea('items'); setView('catalog'); return; }
+    if (key.startsWith('deliver:') && actionId === 'open-order') { setSearch(''); setOrderToOpenId(key.slice('deliver:'.length)); setView('orders'); return; }
     if (key.startsWith('produce:') && actionId === 'produce') {
       const item = workspaceRef.current.catalogItems.find(row => row.id === key.slice('produce:'.length));
       const bom = (workspaceRef.current.billsOfMaterials ?? []).find(row => row.catalogItemId === item?.id);

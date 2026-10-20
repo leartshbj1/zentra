@@ -68,3 +68,4 @@ src/stockLocations.test.ts
 rust:production::
 rust:stock::
 src/bom.test.ts
+src/autopilotYearEnd.test.ts
