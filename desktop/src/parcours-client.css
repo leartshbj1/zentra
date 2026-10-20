@@ -162,7 +162,7 @@ html[data-app-theme] .getting-started .getting-started__next > div > strong {
 }
 
 /* First launch: one counter on the phone (the step counter), not two. */
-html[data-app-theme] .first-run__mobile-index > span:last-child {
+html[data-app-theme] .first-run .first-run__mobile-index.first-run__mobile-index > span:last-child {
   font-size: 0;
 }
 /* The current chapter reads in ink: green on grey was 4.4:1. */
@@ -207,4 +207,13 @@ html[data-app-theme] .guided-tour__scroll-hint {
   html[data-app-theme] :is(.sales-table, table) tbody tr > td:is(.sales-document__identity, .sales-document__date, .sales-document__total, .sales-document__paid, .sales-document__status, .sales-document__client, .sales-document__actions) {
     padding-block: 18px;
   }
+}
+html[data-app-theme] .first-run .first-run__mobile-index.first-run__mobile-index > span:last-child > svg {
+  width: 16px;
+  height: 16px;
+}
+/* The footnote under the first-launch buttons starts on the card's edge. */
+html[data-app-theme] .first-run .first-run__footnote {
+  margin-inline: 0;
+  text-align: start;
 }
