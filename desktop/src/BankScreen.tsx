@@ -48,6 +48,7 @@ import { BankRefundPicker, BankRefundUnlink, BankRefundHistory } from './BankRef
 import { BankRefundCreate } from './BankRefundCreate';
 import { BankCreditRefundCreate } from './BankCreditRefundCreate';
 import { BankExpenseForm, type BankExpenseDraft } from './BankExpenseForm';
+import { StatementFolderSetting } from './StatementFolderSetting';
 import { BankExpenseCorrection, BankExpenseHistory } from './BankExpenseCorrection';
 import { FinanceFirstStep } from './FinanceFirstStep';
 
@@ -693,6 +694,7 @@ export function BankScreen({
       <details className="workspace-disclosure"><summary>Retrouvez les factures payées.</summary><p>Importez le relevé XML CAMT exporté depuis votre banque. Zentra retrouve les factures clients grâce à leur référence de paiement et conserve les autres mouvements à contrôler.</p></details>
       <Button disabled={writesDisabled} onClick={() => setImportOpen(true)} title={readOnly ? 'Licence en lecture seule' : 'Choisir un fichier XML sur cet appareil'}>{busy ? <LoaderCircle className="spin" size={16} /> : <FileUp size={16} />} Importer un relevé XML</Button>
     </section>}
+    <StatementFolderSetting disabled={writesDisabled} />
 
 
     {feedback ? <div ref={feedbackRef} tabIndex={-1} className={`bank-feedback bank-feedback--${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>

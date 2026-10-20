@@ -16,3 +16,7 @@ rust:supplier_invoices
 rust:company_merge::
 rust:work_notes
 rust:bank_import::tests::
+src/bank.test.ts
+src/autopilotBank.test.ts
+src/autopilotStatements.test.ts
+src/expenseCategory.test.ts

@@ -9,6 +9,7 @@ import { memberOriginNativeFailure } from './memberOriginBridge';
 import { mutationOriginInvokeArgs, WorkspaceMemberOriginChangedError } from './workspaceMemberOrigin';
 import { copyDiagnosticIntent, withDiagnosticIntent, withEntityDiagnosticIntent } from './diagnosticIntent';
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
+import { statementFileFromRaw, type StatementFile } from './autopilotStatements';
 import type { WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
@@ -6482,6 +6483,26 @@ export const desktopApi = {
     return camtImportResultFromRaw(
       await invoke<RawRecord>('import_camt_file', { path, autoReconcile, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) }),
     );
+  },
+  chooseBankStatementFolder: () =>
+    chooseFile({
+      directory: true,
+      multiple: false,
+      title: 'Choisir le dossier des relevés bancaires',
+    }),
+  /** Dossier Téléchargements de l'appareil, proposé par défaut pour les relevés. */
+  async defaultStatementFolder(): Promise<string | null> {
+    if (isMobileRuntime()) return null;
+    try {
+      const { downloadDir } = await import('@tauri-apps/api/path');
+      return await downloadDir();
+    } catch {
+      return null;
+    }
+  },
+  async scanBankStatementFolder(folder: string): Promise<StatementFile[]> {
+    const raw = await invoke<{ files?: unknown[] }>('scan_bank_statement_folder', { folder });
+    return (raw.files ?? []).map(statementFileFromRaw).filter((file): file is StatementFile => file !== null);
   },
   async getBankWorkspace(expectedWorkspaceScope?: string): Promise<BankWorkspace> {
     return bankWorkspaceFromRaw(await invoke<RawRecord>('get_bank_workspace', expectedWorkspaceScope === undefined ? undefined : { expectedWorkspaceScope }));

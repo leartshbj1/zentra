@@ -2,6 +2,8 @@ import type { AutopilotReviewReason } from './autopilotReview';
 
 const copy = {
   fr: {
+    expensePaidTitle: '{amount} payé à {who}', expenseCategoryDetail: 'Catégorie habituelle : {category}', actionCreateExpense: 'Créer la dépense',
+    statementFoundTitle: 'Relevé bancaire trouvé : {name}', statementFoundDetail: 'Dossier {folder} · {date}', actionImportStatementFile: 'Importer', statementImported: 'Le relevé {name} est importé. Les paiements sûrs sont rapprochés, les autres attendent votre choix.',
     payOrderTitle: '{n} factures à payer cette semaine · {amount}', payOrderOne: '1 facture à payer cette semaine · {amount}', actionPayOrder: 'Générer l’ordre de paiement', qrMailTitle: 'Facture QR reçue · {supplier}', qrMailDetail: '{amount} · échéance {date}', qrMailOpen: 'Montant libre · échéance {date}', actionCreatePurchase: 'Créer la facture fournisseur', actionReviewPurchase: 'Vérifier la facture', qrMailCreated: 'La facture fournisseur est préparée avec sa QR-facture. Vérifiez-la, puis validez-la.', summaryPayOrder: '{n} facture(s) à payer par ordre',
     details: 'Détails', rowReady: 'Tout est prêt. Créez le devis en un clic.', rowLink: 'Des articles sont à associer avant de créer le devis.', rowManual: 'Autopilote n’a pas pu préparer de devis. Ouvrez la demande pour la traiter.', rowAccepted: 'Le client a accepté. Créez la facture en un clic.', rowChoose: 'Choisissez le devis accepté.',
     title: 'Autopilote', checking: 'Vérification de l’accès…', unavailable: 'Indisponible pour cet espace',
@@ -24,6 +26,8 @@ const copy = {
     conflict: 'Les réglages ont changé. Relisez leur état avant de réessayer.', rateLimited: 'Limite temporaire atteinte. Autopilote reprendra automatiquement.',
   },
   de: {
+    expensePaidTitle: '{amount} bezahlt an {who}', expenseCategoryDetail: 'Übliche Kategorie: {category}', actionCreateExpense: 'Ausgabe erfassen',
+    statementFoundTitle: 'Kontoauszug gefunden: {name}', statementFoundDetail: 'Ordner {folder} · {date}', actionImportStatementFile: 'Importieren', statementImported: 'Der Kontoauszug {name} ist importiert. Sichere Zahlungen sind abgeglichen, die übrigen warten auf Ihre Wahl.',
     payOrderTitle: '{n} Rechnungen diese Woche zu bezahlen · {amount}', payOrderOne: '1 Rechnung diese Woche zu bezahlen · {amount}', actionPayOrder: 'Zahlungsauftrag erstellen', qrMailTitle: 'QR-Rechnung erhalten · {supplier}', qrMailDetail: '{amount} · fällig am {date}', qrMailOpen: 'Offener Betrag · fällig am {date}', actionCreatePurchase: 'Lieferantenrechnung erstellen', actionReviewPurchase: 'Rechnung prüfen', qrMailCreated: 'Die Lieferantenrechnung ist mit ihrer QR-Rechnung vorbereitet. Prüfen und bestätigen Sie sie.', summaryPayOrder: '{n} Rechnung(en) per Zahlungsauftrag zu bezahlen',
     details: 'Details', rowReady: 'Alles ist bereit. Erstellen Sie die Offerte mit einem Klick.', rowLink: 'Vor der Offerte sind Artikel zuzuordnen.', rowManual: 'Autopilote konnte keine Offerte vorbereiten. Öffnen Sie die Anfrage, um sie zu bearbeiten.', rowAccepted: 'Der Kunde hat angenommen. Erstellen Sie die Rechnung mit einem Klick.', rowChoose: 'Wählen Sie die angenommene Offerte.',
     title: 'Autopilot', checking: 'Zugriff wird geprüft…', unavailable: 'Für diesen Arbeitsbereich nicht verfügbar',
@@ -46,6 +50,8 @@ const copy = {
     conflict: 'Die Einstellungen haben sich geändert. Prüfen Sie den aktuellen Status vor einem erneuten Versuch.', rateLimited: 'Vorübergehendes Limit erreicht. Autopilot wird automatisch fortgesetzt.',
   },
   it: {
+    expensePaidTitle: '{amount} pagato a {who}', expenseCategoryDetail: 'Categoria abituale: {category}', actionCreateExpense: 'Crea la spesa',
+    statementFoundTitle: 'Estratto conto trovato: {name}', statementFoundDetail: 'Cartella {folder} · {date}', actionImportStatementFile: 'Importa', statementImported: 'L’estratto {name} è importato. I pagamenti sicuri sono abbinati, gli altri attendono la tua scelta.',
     payOrderTitle: '{n} fatture da pagare questa settimana · {amount}', payOrderOne: '1 fattura da pagare questa settimana · {amount}', actionPayOrder: 'Genera l’ordine di pagamento', qrMailTitle: 'Fattura QR ricevuta · {supplier}', qrMailDetail: '{amount} · scadenza {date}', qrMailOpen: 'Importo libero · scadenza {date}', actionCreatePurchase: 'Crea la fattura fornitore', actionReviewPurchase: 'Verifica la fattura', qrMailCreated: 'La fattura fornitore è preparata con la sua fattura QR. Verificala, poi convalidala.', summaryPayOrder: '{n} fattura/e da pagare con ordine',
     details: 'Dettagli', rowReady: 'È tutto pronto. Crea il preventivo con un clic.', rowLink: 'Alcuni articoli vanno associati prima di creare il preventivo.', rowManual: 'Autopilote non ha potuto preparare il preventivo. Apri la richiesta per gestirla.', rowAccepted: 'Il cliente ha accettato. Crea la fattura con un clic.', rowChoose: 'Scegli il preventivo accettato.',
     title: 'Autopilota', checking: 'Verifica dell’accesso…', unavailable: 'Non disponibile per questo spazio',
@@ -68,6 +74,8 @@ const copy = {
     monthlyQuota: 'Quota mensile di analisi raggiunta. Verifica l’abbonamento Zentra Support. Le richieste ricevute restano disponibili.',
   },
   en: {
+    expensePaidTitle: '{amount} paid to {who}', expenseCategoryDetail: 'Usual category: {category}', actionCreateExpense: 'Create the expense',
+    statementFoundTitle: 'Bank statement found: {name}', statementFoundDetail: 'Folder {folder} · {date}', actionImportStatementFile: 'Import', statementImported: 'Statement {name} imported. Safe payments are matched, the others wait for your choice.',
     payOrderTitle: '{n} invoices to pay this week · {amount}', payOrderOne: '1 invoice to pay this week · {amount}', actionPayOrder: 'Create the payment order', qrMailTitle: 'QR-bill received · {supplier}', qrMailDetail: '{amount} · due {date}', qrMailOpen: 'Open amount · due {date}', actionCreatePurchase: 'Create the supplier invoice', actionReviewPurchase: 'Review the invoice', qrMailCreated: 'The supplier invoice is prepared with its QR-bill. Review it, then validate it.', summaryPayOrder: '{n} invoice(s) to pay by order',
     details: 'Details', rowReady: 'Everything is ready. Create the quote in one click.', rowLink: 'Some items must be matched before the quote can be created.', rowManual: 'Autopilote could not prepare a quote. Open the request to handle it.', rowAccepted: 'The client accepted. Create the invoice in one click.', rowChoose: 'Choose the accepted quote.',
     title: 'Autopilot', checking: 'Checking access…', unavailable: 'Unavailable for this workspace',

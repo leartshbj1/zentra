@@ -15,7 +15,9 @@ import { autopilotLineLinks, saveAutopilotLineLink } from './autopilotLinks';
 import { withDiagnosticIntent } from './diagnosticIntent';
 import { appointmentsToShow, clientFromSender, contactProposals } from './autopilotContacts';
 import { commandLines, findInvoice, findParty, rememberCommand, searchView, type CommandReading } from './autopilotCommand';
-import { bankProposals, hasLinkedBank, statementDue } from './autopilotBank';
+import { bankProposals, statementDue } from './autopilotBank';
+import { folderLabel, newStatementFiles, savedStatementFolder, type StatementFile } from './autopilotStatements';
+import { suggestExpenseCategory } from './expenseCategory';
 import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, vatReturnDue, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { paymentOrderSummary } from './supplierPaymentOrder';
@@ -982,9 +984,8 @@ function WorkspaceContent({
       const sender = signal.sender?.company || signal.sender?.name || signal.sender?.email || '';
       const base = { sourceId: signal.sourceId, receivedAt: signal.receivedAt, evidence: signal.evidence, sender };
       const money = (cents: number) => formatMoney(cents, signal.currency ?? 'CHF');
-      if (proposal.action === 'record_payment') return hasLinkedBank(autopilotBank)
-        ? { ...base, title: copy.waitStatementTitle + ' · ' + proposal.invoice.number, actionLabel: copy.waitStatementAction }
-        : { ...base, title: copy.signalPayment, actionLabel: copy.signalPaymentAction.replace('{amount}', money(proposal.amountCents)).replace('{number}', proposal.invoice.number) };
+      // The statement later confirms this payment instead of recording a second one.
+      if (proposal.action === 'record_payment') return { ...base, title: copy.signalPayment, actionLabel: copy.signalPaymentAction.replace('{amount}', money(proposal.amountCents)).replace('{number}', proposal.invoice.number) };
       if (proposal.action === 'choose_invoice') return { ...base, title: copy.signalPayment, actionLabel: copy.signalChooseAction,
         candidates: proposal.candidates.map(invoice => ({ id: invoice.id, label: [invoice.number, money(invoiceOpenBalance(invoice, workspace.invoices, workspace.payments))].join(' · ') })) };
       if (proposal.action === 'decline_quote') return { ...base, title: copy.signalDeclined, actionLabel: copy.signalDeclineAction.replace('{number}', proposal.quote.number) };
@@ -1039,6 +1040,7 @@ function WorkspaceContent({
   // Reminders and quote follow-ups, prepared by the native cycle and sent by a person.
   const [dueReminders, setDueReminders] = useState<readonly Reminder[]>([]);
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
+  const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [vatState, setVatState] = useState<{ profiles: VatProfile[]; exports: VatReturnExport[] } | null>(null);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
   const [followUpMail, setFollowUpMail] = useState<{ target: MailTarget; key: string; subject?: string } | null>(null);
@@ -1050,7 +1052,15 @@ function WorkspaceContent({
       setRemindersOn(settings.enabled);
       setDueReminders(settings.enabled ? await desktopApi.listReminders({ status: 'due' }) : []);
     } catch { /* read again next time */ }
-    try { setAutopilotBank(await desktopApi.getBankWorkspace(workspaceRef.current.workNotesScope)); } catch { /* read again next time */ }
+    let bank: BankWorkspace | null = null;
+    try { bank = await desktopApi.getBankWorkspace(workspaceRef.current.workNotesScope); setAutopilotBank(bank); } catch { /* read again next time */ }
+    // Statements dropped in the chosen folder (Downloads by default), once a bank account is linked.
+    try {
+      if (bank?.accounts.some(account => account.linked)) {
+        const folder = savedStatementFolder(autopilotContext.organizationId) ?? await desktopApi.defaultStatementFolder();
+        if (folder) setStatementFiles({ folder, files: await desktopApi.scanBankStatementFolder(folder) });
+      }
+    } catch { setStatementFiles(null); }
     try { setVatState({ profiles: await desktopApi.listVatProfiles(), exports: await desktopApi.listVatReturnExports({}) }); } catch { /* VAT not set up */ }
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
@@ -1125,12 +1135,25 @@ function WorkspaceContent({
     // Bank: movements to confirm (the surest first), then those to identify.
     const bankRows = bankProposals(autopilotBank, mailSignals, workspace.invoices, workspace.clients).filter(row => !entries['bank:' + row.movement.id]?.ignored);
     let toConfirm = 0, toIdentify = 0;
-    if (statementDue(autopilotBank, today) && !(entries['statement']?.until && entries['statement'].until > today))
+    const ignoredStatements = new Set(Object.keys(entries).filter(key => key.startsWith('statement-file:') && entries[key]?.ignored).map(key => key.slice('statement-file:'.length)));
+    const foundStatements = statementFiles ? newStatementFiles(statementFiles.files, ignoredStatements) : [];
+    for (const file of foundStatements) cards.push({ key: 'statement-file:' + file.sha256, title: copy.statementFoundTitle.replace('{name}', file.name),
+      detail: copy.statementFoundDetail.replace('{folder}', folderLabel(statementFiles!.folder)).replace('{date}', file.modifiedAt ? date(file.modifiedAt.slice(0, 10)) : ''),
+      actions: [{ id: 'import-statement', label: copy.actionImportStatementFile, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    if (!foundStatements.length && statementDue(autopilotBank, today) && !(entries['statement']?.until && entries['statement'].until > today))
       cards.push({ key: 'statement', title: copy.statementTitle, detail: copy.statementDetail, actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-bank', label: copy.actionImportStatement, primary: true }] });
     for (const row of bankRows) {
       const amount = formatMoney(Math.abs(row.movement.amountCents), row.movement.currency || 'CHF');
       const who = row.movement.counterpartyName || row.movement.unstructured || row.movement.reference;
       const note = row.announcedBy ? copy.bankAnnounced.replace('{date}', new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(row.announcedBy.receivedAt * 1000)) : undefined;
+      if (row.action === 'create_expense') {
+        toIdentify++;
+        const usual = suggestExpenseCategory(row.movement.counterpartyName || '', workspace.expenses, workspace.supplierInvoices);
+        cards.push({ key: 'bank:' + row.movement.id, title: copy.expensePaidTitle.replace('{amount}', amount).replace('{who}', who || ''),
+          detail: usual ? copy.expenseCategoryDetail.replace('{category}', usual.category) : date(row.movement.bookingDate),
+          actions: [{ id: 'open-bank', label: copy.actionCreateExpense, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+        continue;
+      }
       if (row.action === 'choose') { toIdentify++; cards.push({ key: 'bank:' + row.movement.id, title: copy.bankUnknown.replace('{amount}', amount), detail: [who, date(row.movement.bookingDate)].filter(Boolean).join(' · '), note,
         actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-bank', label: copy.actionChooseInvoice, primary: true }] }); continue; }
       toConfirm++;
@@ -1244,6 +1267,14 @@ function WorkspaceContent({
     const refresh = () => setFollowUpVersion(version => version + 1);
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
+    if (key.startsWith('statement-file:') && actionId === 'import-statement') {
+      const file = statementFiles?.files.find(row => 'statement-file:' + row.sha256 === key);
+      if (!file) return;
+      const imported = await act(async () => { await desktopApi.importCamtFile(file.path, true, workspaceRef.current.workNotesScope); return desktopApi.loadWorkspace(); },
+        copy.statementImported.replace('{name}', file.name), false);
+      if (imported) { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); void readFollowUps(); refresh(); }
+      return;
+    }
     if (actionId === 'time-billing') { setSearch(''); setView('time'); setModal({ type: 'timeBilling' }); return; }
     if (actionId === 'view-project') {
       const id = key.startsWith('timer') ? workspaceRef.current.activeTimer?.projectId : key.split(':')[1];

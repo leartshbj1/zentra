@@ -1377,6 +1377,84 @@ impl LocalStore {
     }
 }
 
+/// Nombre maximal d'entrées lues dans un dossier de relevés (Téléchargements compris).
+const MAX_FOLDER_ENTRIES: usize = 2_000;
+
+/// Type CAMT déclaré au début du fichier : `camt.053` ou `camt.054`.
+pub(crate) fn sniff_camt_kind(head: &[u8]) -> Option<&'static str> {
+    let text = String::from_utf8_lossy(head);
+    if text.contains("urn:iso:std:iso:20022:tech:xsd:camt.053.") {
+        Some("camt.053")
+    } else if text.contains("urn:iso:std:iso:20022:tech:xsd:camt.054.") {
+        Some("camt.054")
+    } else {
+        None
+    }
+}
+
+impl LocalStore {
+    /// Liste les relevés CAMT d'un dossier choisi par l'utilisateur, sans rien
+    /// importer. Chaque fichier porte son empreinte et indique s'il a déjà été
+    /// importé (même empreinte que l'import habituel).
+    pub fn scan_bank_statement_folder(&self, folder: &str) -> AppResult<Value> {
+        let path = Path::new(folder.trim());
+        if folder.trim().is_empty() || !path.is_absolute() || !path.is_dir() {
+            return Err(AppError::Validation("Choisissez un dossier local existant pour les relevés.".into()));
+        }
+        let connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let mut files = Vec::new();
+        for entry in fs::read_dir(path)?.take(MAX_FOLDER_ENTRIES) {
+            let Ok(entry) = entry else { continue };
+            let Ok(metadata) = entry.metadata() else { continue };
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !metadata.is_file()
+                || !name.to_lowercase().ends_with(".xml")
+                || metadata.len() == 0
+                || metadata.len() > MAX_CAMT_BYTES
+            {
+                continue;
+            }
+            let file_path = entry.path();
+            // Lire d'abord l'en-tête : seuls les relevés CAMT sont lus en entier.
+            let mut head = [0_u8; 4096];
+            let Ok(read) = fs::File::open(&file_path).and_then(|mut file| std::io::Read::read(&mut file, &mut head)) else { continue };
+            let Some(kind) = sniff_camt_kind(&head[..read]) else { continue };
+            let Ok(bytes) = fs::read(&file_path) else { continue };
+            let sha256 = format!("{:x}", Sha256::digest(&bytes));
+            let imported: bool = connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM bank_imports WHERE file_sha256=?)",
+                params![sha256],
+                |row| row.get(0),
+            )?;
+            let modified_at = metadata
+                .modified()
+                .ok()
+                .map(|time| chrono::DateTime::<chrono::Utc>::from(time).to_rfc3339());
+            files.push(json!({
+                "path": file_path.to_string_lossy(),
+                "name": name,
+                "size": metadata.len(),
+                "modified_at": modified_at,
+                "sha256": sha256,
+                "message_type": kind,
+                "imported": imported,
+            }));
+        }
+        files.sort_by(|left, right| right["modified_at"].as_str().cmp(&left["modified_at"].as_str()));
+        Ok(json!({"folder": path.to_string_lossy(), "files": files}))
+    }
+}
+
+#[tauri::command]
+pub fn scan_bank_statement_folder(
+    state: tauri::State<'_, LocalStore>,
+    folder: String,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(crate::error::command_error)?;
+    state.scan_bank_statement_folder(&folder).map_err(crate::error::command_error)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -3170,6 +3248,105 @@ mod tests {
     }
 
     #[test]
+    fn statement_folder_lists_new_camt_files_and_marks_imported_ones() {
+        let (temporary, store) = store();
+        let folder = temporary.path().join("Telechargements");
+        fs::create_dir(&folder).unwrap();
+        let first = fixture("053", "08", "BOOK", "100.00", "C-FOLDER-1", Some("D-FOLDER-1"), None, None, false, true);
+        let second = fixture("054", "08", "BOOK", "55.00", "C-FOLDER-2", Some("D-FOLDER-2"), None, None, false, true);
+        let imported_path = write_xml(&folder, "releve-octobre.xml", &first);
+        write_xml(&folder, "avis-credit.xml", &second);
+        write_xml(&folder, "autre.xml", "<?xml version=\"1.0\"?><Document xmlns=\"urn:example\"/>");
+        fs::write(folder.join("notes.txt"), "camt.053").unwrap();
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        store.import_camt_file(&imported_path).unwrap();
+
+        let scan = store.scan_bank_statement_folder(&folder.to_string_lossy()).unwrap();
+        let mut files = scan["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|file| (file["name"].as_str().unwrap().to_owned(), file["message_type"].as_str().unwrap().to_owned(), file["imported"].as_bool().unwrap()))
+            .collect::<Vec<_>>();
+        files.sort();
+        assert_eq!(
+            files,
+            vec![
+                ("avis-credit.xml".to_owned(), "camt.054".to_owned(), false),
+                ("releve-octobre.xml".to_owned(), "camt.053".to_owned(), true),
+            ]
+        );
+        assert!(store.scan_bank_statement_folder("relatif").is_err());
+        assert_eq!(sniff_camt_kind(b"<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:camt.053.001.08\">"), Some("camt.053"));
+    }
+
+    #[test]
+    fn a_payment_recorded_before_the_statement_is_linked_not_paid_twice() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("181818").unwrap();
+        let invoice_id = create_invoice(&store, 10_000, &qrr);
+        // Autopilote « Enregistrer le paiement » a déjà soldé la facture.
+        let manual = store
+            .record_payment(RecordPaymentInput {
+                request_id: Uuid::new_v4().to_string(),
+                invoice_id: invoice_id.clone(),
+                amount_cents: 10_000,
+                date: Some("2026-08-28".into()),
+                method: Some("Virement bancaire".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        let manual_id = manual["payment"]["id"].as_str().or_else(|| manual["id"].as_str()).unwrap().to_owned();
+        let xml = fixture("053", "08", "BOOK", "100.00", "C-LINK-EXISTING", Some("D-LINK-EXISTING"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "link-existing.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let movement = &workspace["movements"][0];
+        let suggestion = &movement["suggestion"];
+        assert_eq!(suggestion["kind"], "automatic_exact");
+        assert_eq!(suggestion["candidates"][0]["amount_relation"], "existing_payment");
+        assert_eq!(suggestion["candidates"][0]["existing_payment_id"], manual_id);
+        let confirmed = store
+            .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
+                movement_id: movement["id"].as_str().unwrap().into(),
+                invoice_id: invoice_id.clone(),
+            })
+            .unwrap();
+        assert_eq!(confirmed["payment"]["id"], manual_id);
+        let connection = store.connect().unwrap();
+        let (payments, paid, linked): (i64, i64, String) = connection
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM payments WHERE invoice_id=?1),(SELECT paid_cents FROM invoices WHERE id=?1),(SELECT payment_id FROM bank_reconciliations)",
+                params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!((payments, paid, linked.as_str()), (1, 10_000, manual_id.as_str()));
+        let journal_payments: i64 = connection
+            .query_row("SELECT COUNT(*) FROM journal_entries WHERE source_type='payment'", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(journal_payments, 1, "one payment, one bank entry");
+        drop(connection);
+        // Le même paiement ne peut pas être rapproché une seconde fois.
+        let again = store.get_bank_workspace().unwrap();
+        assert_eq!(again["movements"][0]["suggestion"]["kind"], "none");
+    }
+
+    #[test]
     fn a_false_text_match_never_hides_another_compatible_open_invoice() {
         let (temporary, store) = store();
         enable_accounting(&store);
@@ -3186,7 +3363,9 @@ mod tests {
                 invoice_id: paid_id.clone(),
                 amount_cents: 10_000,
                 date: Some("2026-08-20".into()),
-                method: Some("Test".into()),
+                // Un paiement en espèces ne passe jamais par la banque : le
+                // relevé ne peut pas le confirmer.
+                method: Some("Espèces".into()),
                 reference: None,
                 notes: None,
             })
@@ -3446,6 +3625,81 @@ mod tests {
             )
             .unwrap();
         assert_eq!(state, (0, 0, 0, 0));
+    }
+
+    #[test]
+    fn supplier_invoice_marked_paid_before_the_statement_is_linked_not_paid_twice() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("8743").unwrap();
+        let supplier_invoice_id = create_supplier_invoice(&store, 10_810, "R-2026-118");
+        // La référence QR lue sur la QR-facture suffit à reconnaître le débit.
+        store
+            .save_supplier_invoice_payment_details(crate::supplier_payment_orders::SupplierInvoicePaymentDetailsInput {
+                supplier_invoice_id: supplier_invoice_id.clone(),
+                creditor_iban: "CH4431999123000889012".into(),
+                reference_type: "QRR".into(),
+                reference: qrr.clone(),
+                creditor_name: "Matériaux Léman SA".into(),
+                creditor_street: String::new(),
+                creditor_building_number: String::new(),
+                creditor_postal_code: "1000".into(),
+                creditor_city: "Lausanne".into(),
+                creditor_country: "CH".into(),
+                amount_cents: Some(10_810),
+                currency: "CHF".into(),
+                message: String::new(),
+                bill_information: String::new(),
+                source: "qr_bill".into(),
+            })
+            .unwrap();
+        let manual = store
+            .record_supplier_payment(RecordSupplierPaymentInput {
+                request_id: Uuid::new_v4().to_string(),
+                supplier_invoice_id: supplier_invoice_id.clone(),
+                amount_cents: 10_810,
+                date: "2026-08-25".into(),
+                method: Some("Virement bancaire".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        let manual_id = manual["payment_id"].as_str().unwrap().to_owned();
+        let xml = debit_fixture("108.10", "C-SUPPLIER-EXISTING", Some(&qrr));
+        store
+            .import_camt_file(&write_xml(temporary.path(), "supplier-existing.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let movement = &workspace["movements"][0];
+        let suggestion = &movement["suggestion"];
+        let candidate = &suggestion["candidates"][0];
+        assert_eq!(candidate["supplier_invoice_id"], supplier_invoice_id);
+        assert_eq!(candidate["match_kind"], "structured_reference");
+        assert_eq!(candidate["amount_relation"], "existing_payment");
+        assert_eq!(candidate["existing_payment_id"], manual_id);
+        let confirmed = store
+            .confirm_supplier_bank_reconciliation(ConfirmSupplierBankReconciliationInput {
+                movement_id: movement["id"].as_str().unwrap().into(),
+                supplier_invoice_id: supplier_invoice_id.clone(),
+            })
+            .unwrap();
+        assert_eq!(confirmed["payment"]["id"], manual_id);
+        let state: (i64, i64, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM supplier_payments),(SELECT COUNT(*) FROM bank_supplier_reconciliations),(SELECT COUNT(*) FROM journal_entries WHERE source_type='supplier_payment'),(SELECT paid_cents FROM supplier_invoices WHERE id=?)",
+                params![supplier_invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (1, 1, 1, 10_810));
     }
 
     #[test]
@@ -3789,6 +4043,9 @@ struct InvoiceCandidate {
     qr_reference_type: Option<String>,
     qr_reference: Option<String>,
     client_name: Option<String>,
+    /// Paiements déjà enregistrés à la main et pas encore rapprochés d'un
+    /// mouvement bancaire : (identifiant, montant), du plus ancien au plus récent.
+    unlinked_payments: Vec<(String, i64)>,
 }
 
 impl InvoiceCandidate {
@@ -3798,6 +4055,59 @@ impl InvoiceCandidate {
             .saturating_sub(self.credited_cents)
             .max(0)
     }
+
+    /// Le paiement manuel que ce mouvement confirme, s'il en existe un du même montant.
+    fn existing_payment(&self, movement_amount: i64) -> Option<&str> {
+        self.unlinked_payments
+            .iter()
+            .find(|(_, amount)| *amount == movement_amount)
+            .map(|(id, _)| id.as_str())
+    }
+}
+
+/// Paiements non encore rapprochés, hors espèces : un relevé bancaire ne
+/// peut confirmer qu'un paiement passé par la banque.
+const UNLINKED_PAYMENT_FILTER: &str = "lower(COALESCE(p.method,'')) NOT LIKE '%esp%' AND lower(COALESCE(p.method,'')) NOT LIKE '%cash%' AND lower(COALESCE(p.method,'')) NOT LIKE '%bargeld%' AND lower(COALESCE(p.method,'')) NOT LIKE '%contant%'";
+
+fn unlinked_customer_payments(connection: &rusqlite::Connection) -> AppResult<HashMap<String, Vec<(String, i64)>>> {
+    let mut statement = connection.prepare(&format!(
+        "SELECT p.id,p.invoice_id,p.amount_cents FROM payments p WHERE NOT EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.payment_id=p.id) AND {UNLINKED_PAYMENT_FILTER} ORDER BY p.date,p.created_at,p.id"
+    ))?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut grouped: HashMap<String, Vec<(String, i64)>> = HashMap::new();
+    for (id, invoice_id, amount) in rows {
+        grouped.entry(invoice_id).or_default().push((id, amount));
+    }
+    Ok(grouped)
+}
+
+fn unlinked_supplier_payments(connection: &rusqlite::Connection) -> AppResult<HashMap<String, Vec<(String, i64)>>> {
+    let mut statement = connection.prepare(&format!(
+        "SELECT p.id,p.supplier_invoice_id,p.amount_cents FROM supplier_payments p WHERE NOT EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.supplier_payment_id=p.id) AND {UNLINKED_PAYMENT_FILTER} ORDER BY p.date,p.created_at,p.id"
+    ))?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut grouped: HashMap<String, Vec<(String, i64)>> = HashMap::new();
+    for (id, invoice_id, amount) in rows {
+        grouped.entry(invoice_id).or_default().push((id, amount));
+    }
+    Ok(grouped)
+}
+
+/// Paiement existant avec sa preuve comptable quand la comptabilité est active.
+fn existing_payment_record(transaction: &rusqlite::Transaction<'_>, payment_id: &str) -> AppResult<Value> {
+    let accounting: bool = transaction
+        .query_row("SELECT COALESCE((SELECT enabled FROM accounting_settings LIMIT 1),0)=1", [], |row| row.get(0))?;
+    if accounting {
+        return payment_record_with_journal(transaction, payment_id);
+    }
+    query_all(transaction, "SELECT * FROM payments WHERE id=?", params![payment_id])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound(format!("payments/{payment_id}")))
 }
 
 fn load_invoice_candidates(connection: &rusqlite::Connection) -> AppResult<Vec<InvoiceCandidate>> {
@@ -3837,9 +4147,15 @@ fn load_invoice_candidates(connection: &rusqlite::Connection) -> AppResult<Vec<I
                 client_name: company
                     .filter(|value| !value.trim().is_empty())
                     .or_else(|| person.filter(|value| !value.trim().is_empty())),
+                unlinked_payments: Vec::new(),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
+    let mut unlinked = unlinked_customer_payments(connection)?;
+    let mut candidates = candidates;
+    for candidate in &mut candidates {
+        candidate.unlinked_payments = unlinked.remove(&candidate.id).unwrap_or_default();
+    }
     Ok(candidates)
 }
 
@@ -3856,6 +4172,9 @@ struct SupplierInvoiceCandidate {
     paid_cents: i64,
     credited_cents: i64,
     currency: String,
+    /// Référence QR ou RF lue sur la QR-facture, normalisée.
+    payment_reference: Option<String>,
+    unlinked_payments: Vec<(String, i64)>,
 }
 
 impl SupplierInvoiceCandidate {
@@ -3865,13 +4184,20 @@ impl SupplierInvoiceCandidate {
             .saturating_sub(self.credited_cents)
             .max(0)
     }
+
+    fn existing_payment(&self, movement_amount: i64) -> Option<&str> {
+        self.unlinked_payments
+            .iter()
+            .find(|(_, amount)| *amount == movement_amount)
+            .map(|(id, _)| id.as_str())
+    }
 }
 
 fn load_supplier_invoice_candidates(
     connection: &rusqlite::Connection,
 ) -> AppResult<Vec<SupplierInvoiceCandidate>> {
     let mut statement = connection.prepare(
-        "SELECT invoice.id,invoice.supplier_id,invoice.supplier_name,supplier.iban,invoice.reference,invoice.reference_normalized,invoice.document_date,invoice.total_cents,invoice.paid_cents,invoice.credited_cents,invoice.currency FROM supplier_invoices invoice JOIN suppliers supplier ON supplier.id=invoice.supplier_id WHERE invoice.status='validated' AND invoice.paid_cents+invoice.credited_cents<invoice.total_cents ORDER BY invoice.document_date DESC,invoice.created_at DESC",
+        &format!("SELECT invoice.id,invoice.supplier_id,invoice.supplier_name,supplier.iban,invoice.reference,invoice.reference_normalized,invoice.document_date,invoice.total_cents,invoice.paid_cents,invoice.credited_cents,invoice.currency,details.reference FROM supplier_invoices invoice JOIN suppliers supplier ON supplier.id=invoice.supplier_id LEFT JOIN supplier_invoice_payment_details details ON details.supplier_invoice_id=invoice.id AND details.reference_type<>'NON' WHERE invoice.status='validated' AND (invoice.paid_cents+invoice.credited_cents<invoice.total_cents OR EXISTS(SELECT 1 FROM supplier_payments p WHERE p.supplier_invoice_id=invoice.id AND NOT EXISTS(SELECT 1 FROM bank_supplier_reconciliations r WHERE r.supplier_payment_id=p.id) AND {UNLINKED_PAYMENT_FILTER})) ORDER BY invoice.document_date DESC,invoice.created_at DESC"),
     )?;
     let candidates = statement
         .query_map([], |row| {
@@ -3887,9 +4213,18 @@ fn load_supplier_invoice_candidates(
                 paid_cents: row.get(8)?,
                 credited_cents: row.get(9)?,
                 currency: row.get(10)?,
+                payment_reference: row
+                    .get::<_, Option<String>>(11)?
+                    .map(|value| normalized_supplier_reference(&value)),
+                unlinked_payments: Vec::new(),
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
+    let mut unlinked = unlinked_supplier_payments(connection)?;
+    let mut candidates = candidates;
+    for candidate in &mut candidates {
+        candidate.unlinked_payments = unlinked.remove(&candidate.id).unwrap_or_default();
+    }
     Ok(candidates)
 }
 
@@ -3969,7 +4304,12 @@ fn candidate_json(
     reason: &str,
 ) -> Value {
     let remaining = invoice.remaining_cents();
-    let (amount_relation, amount_safe) = if remaining <= 0 {
+    // Un paiement déjà saisi du même montant est confirmé par le relevé,
+    // jamais compté une seconde fois.
+    let existing_payment = invoice.existing_payment(movement_amount);
+    let (amount_relation, amount_safe) = if existing_payment.is_some() {
+        ("existing_payment", true)
+    } else if remaining <= 0 {
         ("already_paid", false)
     } else if movement_amount > remaining {
         ("overpayment", false)
@@ -4012,7 +4352,8 @@ fn candidate_json(
         "date_safe": date_safe,
         "remaining_cents": remaining,
         "amount_relation": if currency_safe { amount_relation } else { "currency_mismatch" },
-        "reason": if !currency_safe { "La devise du mouvement ne correspond pas à celle de la facture." } else { date_reason },
+        "reason": if !currency_safe { "La devise du mouvement ne correspond pas à celle de la facture." } else if existing_payment.is_some() && date_safe { "Paiement déjà enregistré : le relevé le confirme sans le compter deux fois." } else { date_reason },
+        "existing_payment_id": existing_payment,
         "confirmable": base_eligible && amount_safe && currency_safe && date_safe,
     })
 }
@@ -4035,10 +4376,13 @@ fn supplier_candidate_json(
     reason: &str,
 ) -> Value {
     let remaining = invoice.remaining_cents();
-    let amount_safe = remaining > 0 && movement_amount <= remaining;
+    let existing_payment = invoice.existing_payment(movement_amount);
+    let amount_safe = existing_payment.is_some() || remaining > 0 && movement_amount <= remaining;
     let currency_safe = invoice.currency == movement_currency;
     let date_safe = payment_date.is_some_and(|date| date >= invoice.document_date.as_str());
-    let amount_relation = if remaining <= 0 {
+    let amount_relation = if existing_payment.is_some() {
+        "existing_payment"
+    } else if remaining <= 0 {
         "already_paid"
     } else if movement_amount > remaining {
         "overpayment"
@@ -4061,9 +4405,12 @@ fn supplier_candidate_json(
             "La devise du débit ne correspond pas à celle de la facture fournisseur."
         } else if !date_safe {
             "La date bancaire précède la facture fournisseur."
+        } else if existing_payment.is_some() {
+            "Paiement déjà enregistré : le relevé le confirme sans le compter deux fois."
         } else {
             reason
         },
+        "existing_payment_id":existing_payment,
         "confirmable":base_eligible && amount_safe && currency_safe && date_safe,
     })
 }
@@ -4153,6 +4500,7 @@ fn suggestion_for_supplier_movement(
             .iter()
             .filter(|invoice| {
                 invoice.reference_normalized.as_deref() == Some(normalized_reference.as_str())
+                    || invoice.payment_reference.as_deref() == Some(normalized_reference.as_str())
             })
             .collect::<Vec<_>>()
     } else {
@@ -4165,7 +4513,7 @@ fn suggestion_for_supplier_movement(
     };
     let mut candidates = source
         .into_iter()
-        .filter(|invoice| invoice.remaining_cents() > 0)
+        .filter(|invoice| invoice.remaining_cents() > 0 || invoice.existing_payment(amount).is_some())
         .map(|invoice| {
             let invoice_reference = invoice
                 .reference_normalized
@@ -4174,7 +4522,8 @@ fn suggestion_for_supplier_movement(
                 .unwrap_or_default();
             let reference_exact = matches!(reference_type, "QRR" | "SCOR")
                 && !normalized_reference.is_empty()
-                && invoice.reference_normalized.as_deref() == Some(normalized_reference.as_str());
+                && (invoice.reference_normalized.as_deref() == Some(normalized_reference.as_str())
+                    || invoice.payment_reference.as_deref() == Some(normalized_reference.as_str()));
             let reference_in_text = !invoice_reference.is_empty()
                 && !unstructured.is_empty()
                 && unstructured.contains(&invoice_reference);
@@ -4368,7 +4717,7 @@ fn suggestion_for_movement(
                 let confirmable = candidate["confirmable"].as_bool().unwrap_or(false);
                 let date_safe = candidate["date_safe"].as_bool().unwrap_or(false);
                 let relation = candidate["amount_relation"].as_str().unwrap_or("review");
-                let kind = if confirmable && relation == "exact" {
+                let kind = if confirmable && (relation == "exact" || relation == "existing_payment") {
                     "automatic_exact"
                 } else if confirmable && relation == "partial" {
                     "automatic_partial"
@@ -4403,6 +4752,8 @@ fn suggestion_for_movement(
                     candidate["reason"]
                         .as_str()
                         .unwrap_or("La date bancaire n’est pas compatible avec la date d’émission.")
+                } else if relation == "existing_payment" {
+                    "Paiement déjà enregistré : le relevé le confirme sans le compter deux fois."
                 } else {
                     "Référence QR structurée unique et montant contrôlé."
                 };
@@ -4486,8 +4837,8 @@ fn suggestion_for_movement(
         };
         for invoice in invoices.iter().filter(|invoice| {
             invoice.currency == movement_currency
-                && invoice.remaining_cents() >= amount
-                && invoice.remaining_cents() > 0
+                && (invoice.remaining_cents() >= amount && invoice.remaining_cents() > 0
+                    || invoice.existing_payment(amount).is_some())
         }) {
             if !manual_matches
                 .iter()
@@ -5061,6 +5412,40 @@ impl LocalStore {
         let amount_cents = movement["amount_cents"].as_i64().ok_or_else(|| {
             AppError::Validation("Le montant du mouvement local est invalide.".into())
         })?;
+        if let Some(existing_payment_id) = selected["existing_payment_id"].as_str().map(str::to_owned) {
+            // Le paiement saisi avant le relevé est confirmé tel quel : aucun
+            // second paiement ni seconde écriture.
+            let payment = existing_payment_record(&transaction, &existing_payment_id)?;
+            let reconciliation_id = Uuid::new_v4().to_string();
+            let now = now_iso();
+            transaction.execute(
+                "INSERT INTO bank_reconciliations(id,movement_id,invoice_id,payment_id,amount_cents,confirmed_at,created_at) VALUES(?,?,?,?,?,?,?)",
+                params![reconciliation_id,movement_id,invoice_id,existing_payment_id,amount_cents,now,now],
+            )?;
+            let reconciliation = query_all(
+                &transaction,
+                "SELECT * FROM bank_reconciliations WHERE id=?",
+                params![reconciliation_id],
+            )?
+            .into_iter()
+            .next()
+            .unwrap();
+            append_audit(
+                &transaction,
+                if automatic { "auto_link_existing_payment" } else { "link_existing_payment" },
+                "bank_reconciliation",
+                &reconciliation_id,
+                &json!({"movement_id":movement_id,"invoice_id":invoice_id,"payment_id":existing_payment_id,"amount_cents":amount_cents}),
+            )?;
+            let invoice = query_record_tx(&transaction, "invoices", &invoice_id)?;
+            transaction.commit()?;
+            return Ok(json!({
+                "movement":movement,
+                "reconciliation":reconciliation,
+                "payment":payment,
+                "invoice":invoice,
+            }));
+        }
         let payment_date = movement_field(&movement, "booking_date")
             .or_else(|| movement_field(&movement, "value_date"))
             .ok_or_else(|| {
@@ -5253,6 +5638,43 @@ impl LocalStore {
         let payment_reference = movement_field(&movement, "reference")
             .or_else(|| movement_field(&movement, "account_servicer_ref"))
             .map(|value| value.chars().take(200).collect::<String>());
+        if let Some(existing_payment_id) = selected["existing_payment_id"].as_str().map(str::to_owned) {
+            // Paiement marqué « payé » avant le relevé : on le rapproche, sans
+            // second paiement ni seconde écriture.
+            let reconciliation_id = Uuid::new_v4().to_string();
+            let now = now_iso();
+            transaction.execute(
+                "INSERT INTO bank_supplier_reconciliations(id,movement_id,supplier_invoice_id,supplier_payment_id,amount_cents,confirmed_at,created_at) VALUES(?,?,?,?,?,?,?)",
+                params![reconciliation_id,movement_id,supplier_invoice_id,existing_payment_id,amount_cents,now,now],
+            )?;
+            append_audit(
+                &transaction,
+                "link_existing_payment",
+                "bank_supplier_reconciliation",
+                &reconciliation_id,
+                &json!({"movement_id":movement_id,"supplier_invoice_id":supplier_invoice_id,"supplier_payment_id":existing_payment_id,"amount_cents":amount_cents}),
+            )?;
+            let reconciliation = query_all(&transaction, "SELECT * FROM bank_supplier_reconciliations WHERE id=?", params![reconciliation_id])?
+                .into_iter()
+                .next()
+                .unwrap();
+            let invoice = query_all(&transaction, "SELECT * FROM supplier_invoices WHERE id=?", params![supplier_invoice_id])?
+                .into_iter()
+                .next()
+                .unwrap();
+            let payment = query_all(&transaction, "SELECT * FROM supplier_payments WHERE id=?", params![existing_payment_id])?
+                .into_iter()
+                .next()
+                .ok_or_else(|| AppError::NotFound(format!("supplier_payments/{existing_payment_id}")))?;
+            transaction.commit()?;
+            return Ok(json!({
+                "movement":movement,
+                "supplier_reconciliation":reconciliation,
+                "payment":payment,
+                "supplier_invoice":invoice,
+                "idempotent":false,
+            }));
+        }
         let payment_result = record_supplier_payment_in_transaction(
             &transaction,
             RecordSupplierPaymentInput {

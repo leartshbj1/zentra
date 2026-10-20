@@ -196,6 +196,7 @@ if (new URLSearchParams(location.search).has('expenseRefund')) installExpenseRef
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'payments') installErpPaymentsFixture(data);
+if (new URLSearchParams(location.search).has('statementFolder')) localStorage.setItem('zentra.bank.statement-folder.v1', JSON.stringify({ local: 'C:/Users/Vous/Downloads' }));
 if (new URLSearchParams(location.search).has('directoryRecovery')) installDirectoryRecoveryFixture(data);
 if (new URLSearchParams(location.search).has('creditDates')) installCreditSettlementFixture(data);
 if (new URLSearchParams(location.search).has('recurrence')) installRecurrenceFixture(data);

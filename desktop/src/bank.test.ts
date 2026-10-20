@@ -227,6 +227,21 @@ describe('triage et choix de facture', () => {
     expect(canConfirmBankReconciliation(overpayment, 'invoice-1')).toBe(false);
   });
 
+  it('confirme un paiement déjà enregistré sans exiger de solde ouvert', () => {
+    const booked = workspace.movements[0];
+    const candidate = booked.suggestion.candidates[0];
+    const settled: BankMovement = {
+      ...booked,
+      suggestion: { ...booked.suggestion, candidates: [{ ...candidate, remainingCents: 0, amountRelation: 'existing_payment', confirmable: true }] },
+    };
+    expect(canConfirmBankReconciliation(settled, candidate.invoiceId)).toBe(true);
+    const paid: BankMovement = {
+      ...booked,
+      suggestion: { ...booked.suggestion, candidates: [{ ...candidate, remainingCents: 0, amountRelation: 'already_paid', confirmable: false }] },
+    };
+    expect(canConfirmBankReconciliation(paid, candidate.invoiceId)).toBe(false);
+  });
+
   it('retrouve les factures fournisseur par référence, nom, IBAN et montant', () => {
     const movement = workspace.movements.find((item) => item.id === 'movement-supplier')!;
     const invoices = [{

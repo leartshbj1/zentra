@@ -6,6 +6,7 @@ import { fileSizeLabel, PROJECT_FILE_MAX_BYTES } from './projectDocuments';
 import { formDraftFingerprint } from './formDrafts';
 import { useNativeFormDraft } from './useNativeFormDraft';
 import { FormDraftNotice, draftText } from './useFormDraft';
+import { suggestExpenseCategory } from './expenseCategory';
 
 export type BankExpenseDraft = {
   requestId: string; movementId: string; date: string; supplier: string; reference: string;
@@ -38,6 +39,8 @@ export function BankExpenseForm({ movement, workspace, busy, onClose, onSave }: 
   const vatCents = /^\d+(?:[.,]\d{1,2})?$/.test(vat.trim()) ? Math.round(Number(vat.replace(',', '.')) * 100) : NaN;
   const validVat = Number.isSafeInteger(vatCents) && vatCents >= 0 && vatCents < movement.amountCents;
   const categories = workspace.settings?.work.costCategories ?? [];
+  // Catégorie habituelle chez ce fournisseur, d’après les dépenses déjà saisies.
+  const usual = suggestExpenseCategory(movement.counterpartyName || '', workspace.expenses, workspace.supplierInvoices);
   return <Modal title="Créer une dépense" description={`Paiement de ${formatMoney(movement.amountCents)} enregistré au ${formatDate(date)}.`} onClose={close} dismissible={!busy && !saving}>
     <form ref={formRef} className="bank-expense-form" onInput={() => persisted.capture()} onChange={() => persisted.capture()} onSubmit={async (event) => {
       event.preventDefault();
@@ -69,7 +72,7 @@ export function BankExpenseForm({ movement, workspace, busy, onClose, onSave }: 
           <Field label="Fournisseur" required><input name="supplier" maxLength={500} required defaultValue={movement.counterpartyName || ''} /></Field>
           <Field label="Référence du justificatif" required><input name="reference" maxLength={255} required placeholder="N° de facture ou de ticket" /></Field>
           <Field label="Date du justificatif" required><input name="date" type="date" max={date} required /></Field>
-          <Field label="Catégorie" required><input name="category" list="bank-expense-categories" maxLength={255} required placeholder="Ex. marchandises" /><datalist id="bank-expense-categories">{categories.map((category) => <option key={category} value={category} />)}</datalist></Field>
+          <Field label="Catégorie" required hint={usual ? (usual.uses > 1 ? `Proposée d’après vos ${usual.uses} dépenses chez ce fournisseur.` : 'Proposée d’après votre dépense précédente chez ce fournisseur.') : undefined}><input name="category" list="bank-expense-categories" maxLength={255} required placeholder="Ex. marchandises" defaultValue={usual?.category ?? ''} /><datalist id="bank-expense-categories">{categories.map((category) => <option key={category} value={category} />)}</datalist></Field>
         </div>
         <Field label="Projet"><select name="project" defaultValue=""><option value="">Sans projet</option>{workspace.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>
         <Field label="TVA indiquée sur le justificatif (CHF)" required hint="Saisissez 0 si la pièce ne comporte pas de TVA."><input name="vat" inputMode="decimal" value={vat} onChange={(event) => setVat(event.target.value)} required placeholder="Ex. 8,10" /></Field>

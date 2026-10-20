@@ -62,7 +62,25 @@ try {
     Invoke-Checked cargo @('check', '--locked', '--all-targets', '--manifest-path', $manifest)
     $rustFilters = @(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'erp-check-suites.txt') | Where-Object { $_ -match '^rust:' } | ForEach-Object { $_.Substring(5).Trim() })
     if ($rustFilters.Count -gt 0) {
-        Invoke-Checked cargo (@('test', '--locked', '--manifest-path', $manifest, '--lib', '--') + $rustFilters + @('--test-threads=2'))
+        # Le binaire de test Tauri importe TaskDialogIndirect (comctl32 v6) :
+        # sans manifeste il s'arrête avec STATUS_ENTRYPOINT_NOT_FOUND. On lui
+        # ajoute la dépendance Common-Controls v6, puis on le lance.
+        $build = @(& cargo test --locked --manifest-path $manifest --lib --no-run --message-format=json)
+        if ($LASTEXITCODE -ne 0) { throw "cargo test --no-run failed ($LASTEXITCODE)" }
+        $executable = $null
+        foreach ($line in $build) {
+            if ($line -notmatch '"executable":"') { continue }
+            $message = $line | ConvertFrom-Json
+            if ($message.reason -eq 'compiler-artifact' -and $message.executable -and $message.profile.test -and ($message.target.kind -contains 'lib' -or $message.target.kind -contains 'cdylib' -or $message.target.kind -contains 'staticlib')) { $executable = $message.executable }
+        }
+        if (-not $executable) { throw 'Test executable not found.' }
+        $mt = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter mt.exe -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\x64\\mt\.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
+        if (-not $mt) { throw 'mt.exe not found.' }
+        $manifestPath = Join-Path $artifacts 'test-harness.manifest'
+        [IO.File]::WriteAllText($manifestPath, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><dependency><dependentAssembly><assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/></dependentAssembly></dependency></assembly>', [Text.UTF8Encoding]::new($false))
+        Invoke-Checked $mt.FullName @('-nologo', '-manifest', $manifestPath, "-outputresource:$executable;#1")
+        Push-Location (Join-Path $repo 'desktop/src-tauri')
+        try { Invoke-Checked $executable ($rustFilters + @('--test-threads=2')) } finally { Pop-Location }
     }
 } finally {
     Stop-Transcript | Out-Null

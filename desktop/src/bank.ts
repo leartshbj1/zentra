@@ -476,6 +476,8 @@ export function canConfirmBankReconciliation(movement: BankMovement, invoiceId: 
   const candidate = candidateForInvoice(movement, invoiceId);
   if (!candidate) return false;
   if (!candidate.confirmable) return false;
+  // A payment recorded before the statement is confirmed, not paid again.
+  if (candidate.amountRelation === 'existing_payment') return true;
   if (candidate.remainingCents < Math.abs(movement.amountCents)) return false;
   return !['overpayment', 'exceeds_balance', 'greater_than_balance', 'too_high'].includes(candidate.amountRelation);
 }
@@ -483,7 +485,9 @@ export function canConfirmBankReconciliation(movement: BankMovement, invoiceId: 
 export function canConfirmSupplierBankReconciliation(movement: BankMovement, supplierInvoiceId: string): boolean {
   if (!supplierInvoiceId || movementHasReconciliation(movement) || movement.status !== 'BOOK' || movement.creditDebit !== 'DBIT' || movement.reversal || !movement.supplierSuggestion.confirmable || !movement.supplierSuggestion.requiresConfirmation) return false;
   const candidate = candidateForSupplierInvoice(movement, supplierInvoiceId);
-  if (!candidate?.confirmable || candidate.remainingCents < Math.abs(movement.amountCents)) return false;
+  if (!candidate?.confirmable) return false;
+  if (candidate.amountRelation === 'existing_payment') return true;
+  if (candidate.remainingCents < Math.abs(movement.amountCents)) return false;
   return !['overpayment', 'exceeds_balance', 'greater_than_balance', 'too_high', 'already_paid', 'currency_mismatch'].includes(candidate.amountRelation);
 }
 

@@ -7,7 +7,7 @@ import type { BankMovement, BankWorkspace, Client, Invoice } from './types';
  */
 export type BankProposal = Readonly<{
   movement: BankMovement;
-  action: 'confirm_invoice' | 'confirm_supplier' | 'confirm_expense' | 'choose';
+  action: 'confirm_invoice' | 'confirm_supplier' | 'confirm_expense' | 'create_expense' | 'choose';
   invoiceId?: string; invoiceNumber?: string; supplierInvoiceId?: string; expenseId?: string; label?: string;
   /** A client mail that had announced or promised this payment. */
   announcedBy: MailSignal | null;
@@ -16,7 +16,7 @@ const reference = (value: string) => value.toLocaleLowerCase('fr-CH').replace(/\
 const lower = (value: string | null | undefined) => (value ?? '').trim().toLowerCase();
 const open = (movement: BankMovement) => !movement.reversal && !movement.reconciliation && !movement.supplierReconciliation
   && !movement.expenseReconciliation && !movement.refundMatch;
-const rank = { confirm_invoice: 0, confirm_supplier: 1, confirm_expense: 2, choose: 3 } as const;
+const rank = { confirm_invoice: 0, confirm_supplier: 1, confirm_expense: 2, choose: 3, create_expense: 4 } as const;
 
 export function bankProposals(bank: BankWorkspace | null, signals: readonly MailSignal[], invoices: readonly Invoice[], clients: readonly Client[]): BankProposal[] {
   if (!bank) return [];
@@ -44,6 +44,9 @@ export function bankProposals(bank: BankWorkspace | null, signals: readonly Mail
         label: [expense.candidates[0].supplier, expense.candidates[0].reference].filter(Boolean).join(' · '), announcedBy: null });
     else if ((s?.candidates.length ?? 0) > 0 || (supplier?.candidates.length ?? 0) > 0 || (expense?.candidates.length ?? 0) > 0)
       rows.push({ movement, action: 'choose', announcedBy: announced(movement) });
+    // A payment with no invoice nor expense behind it: create the expense, with its receipt.
+    else if (movement.creditDebit === 'DBIT' && expense?.canCreate)
+      rows.push({ movement, action: 'create_expense', label: movement.counterpartyName || undefined, announcedBy: null });
   }
   return rows.sort((a, b) => rank[a.action] - rank[b.action] || b.movement.bookingDate.localeCompare(a.movement.bookingDate));
 }
@@ -55,5 +58,5 @@ export function statementDue(bank: BankWorkspace | null, today: string) {
   return !last || Date.parse(today) - Date.parse(last) > 7 * 86_400_000;
 }
 
-/** A linked bank account means a manual payment would later be counted twice by the statement. */
+/** Whether a bank account is linked to the company. */
 export const hasLinkedBank = (bank: BankWorkspace | null) => !!bank?.accounts.some(account => account.linked);

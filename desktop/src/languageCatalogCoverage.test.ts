@@ -13,7 +13,7 @@ it('provides all three translations for every explicit interface key currently w
   files.push('PlanningEditor.tsx', 'ProjectPlanningPanel.tsx', 'planningForm.ts');
   files.push('AgendaEditor.tsx', 'AgendaActionDialog.tsx', 'agendaForm.ts', 'agenda.ts');
   files.push('FixedAssetsPanel.tsx');
-  files.push('SupplierPaymentsPanel.tsx', 'QrBillPanel.tsx');
+  files.push('SupplierPaymentsPanel.tsx', 'QrBillPanel.tsx', 'StatementFolderSetting.tsx');
   files.push('DocumentDesignStudio.tsx','DocumentDesignNavigator.tsx','DocumentDesignMap.tsx','DocumentWorkbench.tsx','DocumentLayoutControls.tsx','DocumentPageControls.tsx','DocumentPrecisionControls.tsx','DocumentTemplateLibrary.tsx','RichTextEditor.tsx','RichTextSearchPanel.tsx','documentDesignValidation.ts','documentTemplates.ts','richTextEditing.ts','richTextSearch.ts');
   files.push('DocumentEditor.tsx', 'MobileDashboard.tsx', 'documentNumberEntry.ts', 'documentUi.ts', 'WorkspacePersonalization.tsx', 'CatalogScreen.tsx', 'CatalogItemForm.tsx', 'AgendaScreen.tsx');
   for(const file of files){

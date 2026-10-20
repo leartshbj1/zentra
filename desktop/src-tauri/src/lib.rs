@@ -306,6 +306,7 @@ pub fn run() {
             supplier_payment_orders::save_supplier_invoice_payment_details,
             supplier_payment_orders::delete_supplier_invoice_payment_details,
             supplier_payment_orders::export_supplier_payment_order,
+            bank_import::scan_bank_statement_folder,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

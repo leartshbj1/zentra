@@ -37,6 +37,9 @@ export const erpTranslations: Record<string, readonly [string, string, string]> 
   'Fichier enregistré : {path}. Déposez-le dans votre e-banking.': ['Datei gespeichert: {path}. Laden Sie sie in Ihr E-Banking hoch.', 'File salvato: {path}. Caricalo nel tuo e-banking.', 'File saved: {path}. Upload it to your e-banking.'],
   'Ordre de paiement à reprendre': ['Zahlungsauftrag erneut vorbereiten', 'Ordine di pagamento da riprendere', 'Payment order to redo'],
   'Ordres préparés ({count})': ['Vorbereitete Aufträge ({count})', 'Ordini preparati ({count})', 'Prepared orders ({count})'],
+  // Bank statements folder
+  'Autopilote repère les relevés déposés dans {folder}.': ['Autopilot erkennt Kontoauszüge, die in {folder} abgelegt werden.', 'Autopilota rileva gli estratti conto salvati in {folder}.', 'Autopilot spots statements saved in {folder}.'],
+  'Changer le dossier': ['Ordner ändern', 'Cambia cartella', 'Change folder'],
   // Purchases guide
   'Lisez la QR-facture ou ajoutez le justificatif, puis vérifiez les montants et la TVA.': ['Lesen Sie die QR-Rechnung oder fügen Sie den Beleg hinzu, dann prüfen Sie Beträge und MWST.', 'Leggi la fattura QR o aggiungi il giustificativo, poi verifica importi e IVA.', 'Read the QR-bill or add the receipt, then check the amounts and VAT.'],
   'Dans « À payer », cochez les factures : Zentra prépare l’ordre de paiement pour votre e-banking.': ['Wählen Sie unter «Zu bezahlen» die Rechnungen: Zentra erstellt den Zahlungsauftrag für Ihr E-Banking.', 'In «Da pagare» seleziona le fatture: Zentra prepara l’ordine di pagamento per il tuo e-banking.', 'In “To pay”, select the invoices: Zentra prepares the payment order for your e-banking.'],

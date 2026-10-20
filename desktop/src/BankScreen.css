@@ -114,3 +114,19 @@
 .bank-customer-pending__actions { display: flex; flex-direction: column; gap: 8px; }
 .bank-customer-pending__remove { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--line); }
 @media (max-width: 860px) { .bank-customer-pending__list { padding-inline: 14px; } .bank-customer-pending__list article { grid-template-columns: minmax(0, 1fr); padding: 14px; } .bank-customer-pending__actions .button { min-height: 44px; } }
+
+/* Dossier des relevés repérés par Autopilote : une ligne discrète sous l'import. */
+html[data-app-theme] .desktop-app[data-experience] .bank-statement-folder {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  color: var(--apple-secondary);
+  font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+}
+html[data-app-theme] .desktop-app[data-experience] .bank-statement-folder .button {
+  min-height: 28px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--apple-accent);
+  box-shadow: none;
+}
