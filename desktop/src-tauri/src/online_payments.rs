@@ -137,6 +137,7 @@ pub struct OnlinePaymentSettingsInput {
     pub api_secret: Option<String>,
 }
 
+#[derive(Debug)]
 struct LinkRequest {
     invoice_id: String,
     instance: String,
@@ -154,7 +155,8 @@ fn read_secret(store: &LocalStore) -> AppResult<Option<String>> {
     if !path.exists() {
         return Ok(None);
     }
-    let clear = crate::installation::read_protected(&path)?;
+    let reference = crate::installation::read_protected_reference(&path)?;
+    let clear = crate::installation::unprotect_protected_reference(&reference)?;
     Ok(String::from_utf8(clear).ok().filter(|value| !value.is_empty()))
 }
 
@@ -359,7 +361,7 @@ pub async fn save_online_payment_settings(state: tauri::State<'_, LocalStore>, i
         match input.api_secret.as_deref().map(str::trim) {
             Some("") => crate::installation::remove_protected(&secret_path(&store)).map_err(command_error)?,
             Some(secret) if secret.len() > 200 || secret.chars().any(char::is_control) => return Err(command_error(invalid("La clé API Payrexx est illisible."))),
-            Some(secret) => crate::installation::write_protected_atomically(&secret_path(&store), secret.as_bytes()).map_err(command_error)?,
+            Some(secret) => crate::installation::write_protected_atomically_with_reference(&secret_path(&store), secret.as_bytes()).map(|_| ()).map_err(command_error)?,
             None => {}
         }
     }
