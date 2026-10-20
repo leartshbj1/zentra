@@ -179,3 +179,18 @@ export function installErpPortalFixture(data: Workspace) {
   const quote = data.quotes.find(row => row.number === 'D-2026-003');
   if (quote) { quote.status = 'issued'; quote.number = 'D-2026-014'; quote.title = 'Rénovation salle de bain'; }
 }
+
+/** Deux listes de prix (?erp=prices). */
+export function installErpPricesFixture(data: Workspace) {
+  if (!data.catalogItems.some(item => !item.archivedAt)) {
+    const now = '2026-10-15T08:00:00Z';
+    const base = { kind: 'service', sku: '', description: '', unit: 'h', purchaseCostCents: 0, vatBp: 810, trackStock: false, stockQuantityMilli: 0, reorderLevelMilli: 0, archivedAt: null, createdAt: now, updatedAt: now };
+    data.catalogItems = [{ ...base, id: 'ci-pose', name: 'Pose de carrelage', unit: 'm²', salesPriceCents: 8_000 }, { ...base, id: 'ci-mo', name: 'Main-d’œuvre installateur', salesPriceCents: 9_500 }, { ...base, id: 'ci-depl', name: 'Déplacement', unit: 'forfait', salesPriceCents: 6_000 }] as never;
+  }
+  const items = data.catalogItems.filter(item => !item.archivedAt);
+  const clients = data.clients.filter(client => !client.archivedAt);
+  data.priceLists = [
+    { id: 'pl-revendeurs', name: 'Revendeurs', discountBp: 1_000, archivedAt: null, items: items.slice(0, 2).map(item => ({ catalogItemId: item.id, unitPriceCents: Math.round(item.salesPriceCents * 0.85) })), clientIds: clients.slice(0, 2).map(client => client.id) },
+    { id: 'pl-regie', name: 'Contrats de maintenance', discountBp: 500, archivedAt: null, items: [], clientIds: clients.slice(2, 3).map(client => client.id) },
+  ];
+}

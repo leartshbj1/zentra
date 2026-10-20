@@ -1999,6 +1999,12 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 72)?;
         }
+        if current < 73 {
+            transaction.execute_batch(crate::schema::MIGRATION_V73_SQL)?;
+            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
+            crate::company_collaboration::migrate(&transaction)?;
+            transaction.pragma_update(None, "user_version", 73)?;
+        }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
         crate::work_notes::ensure_workspace_scope(&transaction)?;
@@ -2955,7 +2961,7 @@ impl LocalStore {
         workspace["stock_availability"] = Value::Array(stock_availability);
         workspace["project_milestones"] = Value::Array(project_milestones);
         workspace["project_tasks"] = Value::Array(project_tasks);
-        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims"] {
+        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims", "price_lists", "price_list_items", "client_price_lists"] {
             let present: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [table], |row| row.get(0))?;
             workspace[table] = Value::Array(if present { query_all(connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [])? } else { Vec::new() });
         }

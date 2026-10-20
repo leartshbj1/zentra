@@ -55,6 +55,46 @@
     align-items: center;
     gap: 8px 16px;
   }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__choices legend {
+    margin-bottom: 8px;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__choices label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__choices input[type=checkbox] {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    accent-color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__choices label span {
+    display: grid;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__choices small {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
   html[data-app-theme] .desktop-app[data-experience] .erp-register__actions--fields {
     align-items: flex-end;
   }

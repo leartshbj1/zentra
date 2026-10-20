@@ -31,3 +31,18 @@ export function TimeAreaTabs({ active, onChange }: { active: TimeArea; onChange:
     )}
   </nav>;
 }
+
+export type CatalogArea = 'items' | 'prices';
+
+/** Produits et services : le catalogue et les listes de prix des clients. */
+export function CatalogAreaTabs({ active, onChange }: { active: CatalogArea; onChange: (area: CatalogArea) => void }) {
+  useAppLanguage();
+  const navigation = useRef<HTMLElement>(null);
+  useNavigationSelection(navigation, active, false);
+  return <nav ref={navigation} className="sales-tabs" aria-label={t('Catalogue et prix')}>
+    <span className="sales-tabs__selection" aria-hidden="true" />
+    {([['items', 'Articles et services'], ['prices', 'Listes de prix']] as const).map(([id, label]) =>
+      <button key={id} type="button" className={active === id ? 'is-active' : ''} aria-current={active === id ? 'page' : undefined} onClick={() => onChange(id)}>{t(label)}</button>,
+    )}
+  </nav>;
+}

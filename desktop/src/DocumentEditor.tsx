@@ -23,6 +23,7 @@ import {
 import { desktopApi } from './bridge';
 import { CustomerCreditPanel } from './CustomerCreditPanel';
 import { activeCatalogItems, catalogItemToDocumentLine } from './catalog';
+import { applyPriceList, clientPriceList } from './priceLists';
 import { findUsualArticles, withUsualArticles } from './usualArticles';
 import type { DocumentLine, Invoice, Project, Quote, Workspace } from './types';
 import {
@@ -326,7 +327,8 @@ export function DocumentEditor({
     );
     if (!catalogItem) return;
     setLines((currentLines) => {
-      const catalogLine = catalogItemToDocumentLine(catalogItem);
+      // Prix de la liste du client : prix fixe, sinon rabais visible sur la ligne.
+      const catalogLine = applyPriceList(catalogItemToDocumentLine(catalogItem), clientPriceList(workspace.priceLists, selectedClientId));
       const replaceEmpty =
         currentLines.length === 1 &&
         !currentLines[0].description.trim() &&
@@ -980,6 +982,7 @@ export function DocumentEditor({
                     disabled={!catalogItemId || currency !== 'CHF'}
                     onClick={addCatalogItem}
                   >{t("Ajouter depuis le catalogue")}</Button>
+                  {(() => { const list = clientPriceList(workspace.priceLists, selectedClientId); return list ? <small className="catalog-line-picker__hint">{list.discountBp ? t('Liste de prix « {name} » : prix du client, sinon rabais de {percent} %.', { name: list.name, percent: list.discountBp / 100 }) : t('Liste de prix « {name} » : prix du client.', { name: list.name })}</small> : null; })()}
                   {catalogItems.length > DOCUMENT_CATALOG_RESULT_LIMIT && !catalogQuery.trim() ? (
                     <small className="catalog-line-picker__hint">
                       {t('Recherchez pour parcourir les {count} références.', {count: catalogItems.length})}

@@ -57,3 +57,5 @@ src/currencies.test.ts
 rust:fiduciary
 rust:cost_centers::
 src/budget.test.ts
+rust:price_lists::
+src/priceLists.test.ts

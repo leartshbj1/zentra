@@ -14,6 +14,7 @@ import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
+import { priceListsFromRaw } from './priceLists';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
@@ -554,6 +555,9 @@ type RawWorkspace = {
   absences?: RawRecord[];
   employee_leave_settings?: RawRecord[];
   expense_claims?: RawRecord[];
+  price_lists?: RawRecord[];
+  price_list_items?: RawRecord[];
+  client_price_lists?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3455,6 +3459,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       status: row.status === 'approved' || row.status === 'rejected' || row.status === 'reimbursed' ? row.status : 'submitted',
       decisionNote: stringValue(row.decision_note), payslipId: stringValue(row.payslip_id) || null, createdAt: stringValue(row.created_at),
     })),
+    priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7607,6 +7612,10 @@ export const desktopApi = {
   async importSourceTaxTariffs(text: string) {
     const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
     return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
+  },
+  async savePriceList(input: { id: string | null; name: string; discountBp: number; archived: boolean; items: { catalogItemId: string; unitPriceCents: number }[]; clientIds: string[] }) {
+    const raw = await invoke<RawRecord>('save_price_list', { input });
+    return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async listCostCenters(): Promise<{ centers: import('./budget').CostCenter[]; assignments: import('./budget').CostCenterAssignment[] }> {
     const raw = await invoke<RawRecord>('list_cost_centers');

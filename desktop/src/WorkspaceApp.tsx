@@ -21,7 +21,8 @@ import { suggestExpenseCategory } from './expenseCategory';
 import { buildDebtCollectionRequest, debtCollectionCandidates, type DebtCollectionRequest } from './debtCollection';
 import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
-import { BankAreaTabs, TimeAreaTabs, type BankArea, type TimeArea } from './BankAreaTabs';
+import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type CatalogArea, type TimeArea } from './BankAreaTabs';
+import { PriceListsPanel } from './PriceListsPanel';
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
 import { ElmExportPanel, SourceTaxTariffsPanel } from './SourceTaxPanels';
@@ -35,6 +36,7 @@ import { contractAlerts } from './contracts';
 import { savedStart, treasuryForecast, type ForecastEvent } from './treasuryForecast';
 import { digestDue, digestInput, digestSignature, saveDigest, savedDigest } from './morningDigest';
 import type { PendingConversion } from './currencies';
+import { applyPriceList, clientPriceList } from './priceLists';
 import { budgetOverruns, compareBudget, type BudgetReport } from './budget';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
@@ -873,7 +875,10 @@ function WorkspaceContent({
     const memberId = consultationIdentity.memberId;
     if (!memberId) { setNotice({ tone: 'error', text: copy.quoteCreateError }); return; }
     const settings = workspaceRef.current.settings, client = workspaceRef.current.clients.find(row => row.id === planned.clientId);
-    const issueDate = todayIso(), totals = documentTotals(lines);
+    // Les prix de la liste du client, comme dans le formulaire.
+    const list = clientPriceList(workspaceRef.current.priceLists, planned.clientId);
+    const priced = lines.map(line => applyPriceList(line, list));
+    const issueDate = todayIso(), totals = documentTotals(priced);
     const data: Record<string, unknown> = { clientId: planned.clientId, projectId: null,
       title: t('Devis – {client}', { client: client?.company || client?.name || '' }), status: 'draft', issueDate,
       validUntil: addDaysIso(issueDate, settings?.billing.quoteValidityDays ?? 30), currency: suggestion.currency,
@@ -881,7 +886,7 @@ function WorkspaceContent({
       notes: '', terms: settings?.billing.defaultFooter ?? '' };
     const created = await act(origin => {
       const request = prepareDocumentCreationRequest(planned.quoteId,
-        desktopApi.prepareDocumentSaveInput('quotes', data, lines) as DocumentCreationInput, origin.workspaceScope, memberId);
+        desktopApi.prepareDocumentSaveInput('quotes', data, priced) as DocumentCreationInput, origin.workspaceScope, memberId);
       return desktopApi.saveDocumentCreation(request, origin.workspaceScope, origin.memberContextNonce);
     }, copy.quoteCreated, false, undefined, value => {
       if (!value.quotes.some(row => row.id === planned.quoteId)) throw Error(copy.quoteCreateError);
@@ -1109,6 +1114,7 @@ function WorkspaceContent({
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
+  const [catalogArea, setCatalogArea] = useState<CatalogArea>('items');
   const [timeArea, setTimeArea] = useState<TimeArea>('hours');
   const openInvoiceById = (invoiceId: string) => {
     const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceId);
@@ -3703,7 +3709,11 @@ function WorkspaceContent({
               onRestore={(item) => void restoreClient(item)}
             />
           ) : null}
-          {view === 'catalog' ? (
+          {view === 'catalog' ? <CatalogAreaTabs active={catalogArea} onChange={setCatalogArea} /> : null}
+          {view === 'catalog' && catalogArea === 'prices' ? (
+            <PriceListsPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
+          {view === 'catalog' && catalogArea === 'items' ? (
             <CatalogScreen
               items={workspace.catalogItems}
               vatRatesBp={workspace.settings!.billing.vatRatesBp}

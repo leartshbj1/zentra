@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { desktopApi } from './bridge';
 import { localDate } from './cashBook';
 import { t, useAppLanguage } from './language';
+import { clientPriceList, listUnitPrice } from './priceLists';
 import { SignaturePad, SignatureView } from './SignaturePad';
 import type { WorkReport, WorkReportLine, Workspace } from './types';
 import { Button, ErrorPanel, Field } from './ui';
@@ -117,7 +118,8 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
         <Field label={t(line.kind === 'labor' ? 'Heures' : 'Matériel')}>
           {line.kind === 'material' ? <select value={line.catalogItemId ?? ''} disabled={locked} onChange={(event) => {
             const item = workspace.catalogItems.find((row) => row.id === event.target.value);
-            setLine(index, item ? { catalogItemId: item.id, description: item.name, unit: item.unit || 'pce', unitPriceCents: item.salesPriceCents, priceText: (item.salesPriceCents / 100).toFixed(2), vatBp: item.vatBp } : { catalogItemId: null });
+            const price = item ? listUnitPrice(item.id, item.salesPriceCents, clientPriceList(workspace.priceLists, draft.clientId)) : 0;
+            setLine(index, item ? { catalogItemId: item.id, description: item.name, unit: item.unit || 'pce', unitPriceCents: price, priceText: (price / 100).toFixed(2), vatBp: item.vatBp } : { catalogItemId: null });
           }}>
             <option value="">{t('Article libre')}</option>
             {workspace.catalogItems.filter((row) => !row.archivedAt).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}

@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 72;
+pub const SCHEMA_VERSION: i64 = 73;
+pub const MIGRATION_V73_SQL: &str = include_str!("price_lists_schema.sql");
 pub const MIGRATION_V72_SQL: &str = include_str!("cost_centers_schema.sql");
 pub const MIGRATION_V71_SQL: &str = include_str!("currencies_schema.sql");
 pub const MIGRATION_V70_SQL: &str = include_str!("source_tax_schema.sql");

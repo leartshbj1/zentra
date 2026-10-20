@@ -1945,6 +1945,8 @@ export type Workspace = {
   absences?: Absence[];
   leaveSettings?: LeaveSettings[];
   expenseClaims?: ExpenseClaim[];
+  /** Listes de prix par client. */
+  priceLists?: import('./priceLists').PriceList[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];
