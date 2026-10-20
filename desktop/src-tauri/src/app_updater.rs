@@ -48,14 +48,15 @@ impl SecureUpdaterConfiguration {
 // Store delivers updates, so the integrated updater stays closed there.
 #[cfg(windows)]
 fn running_from_msix_package() -> bool {
-    use windows_sys::Win32::Foundation::APPMODEL_ERROR_NO_PACKAGE;
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
     use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
 
     let mut length = 0u32;
     // With a zero-length buffer a packaged process gets ERROR_INSUFFICIENT_BUFFER
-    // and an unpackaged one gets APPMODEL_ERROR_NO_PACKAGE.
+    // and an unpackaged one gets APPMODEL_ERROR_NO_PACKAGE. Any other answer
+    // keeps the normal updater, so an unexpected error never closes it.
     let status = unsafe { GetCurrentPackageFullName(&mut length, std::ptr::null_mut()) };
-    status != APPMODEL_ERROR_NO_PACKAGE
+    status == ERROR_INSUFFICIENT_BUFFER
 }
 
 #[cfg(not(windows))]
