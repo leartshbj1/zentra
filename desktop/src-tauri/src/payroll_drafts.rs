@@ -84,11 +84,12 @@ impl LocalStore {
                 )?;
                 let contributions = query_all(
                     &connection,
-                    "SELECT DISTINCT definition_id FROM payslip_contributions WHERE payslip_id=? ORDER BY definition_id",
+                    "SELECT definition_id,MAX(basis_cents) AS basis_cents,MAX(year_to_date_basis_cents) AS year_to_date_basis_cents FROM payslip_contributions WHERE payslip_id=? GROUP BY definition_id ORDER BY definition_id",
                     params![source_id],
                 )?;
                 (lines, contributions)
             };
+            let same_year = previous[..4] == period[..4];
             let input = SavePayslipWithContributionsInput {
                 id: None,
                 employee_id: employee_id.clone(),
@@ -107,11 +108,16 @@ impl LocalStore {
                         expense_account_id: line["expense_account_id"].as_str().map(ToOwned::to_owned),
                     })
                     .collect(),
-                // Bases recalculées par l'app sur les lignes du nouveau mois.
+                // Mêmes lignes, donc même base ; le cumul annuel avance d'un mois
+                // (remis à zéro en janvier). L'app recalcule les montants.
                 contributions: contributions
                     .iter()
-                    .filter_map(|row| row["definition_id"].as_str())
-                    .map(|definition_id| ContributionSelectionInput { definition_id: definition_id.to_owned(), basis_cents: None, year_to_date_basis_cents: None })
+                    .filter_map(|row| {
+                        let definition_id = row["definition_id"].as_str()?;
+                        let basis = row["basis_cents"].as_i64();
+                        let year_to_date = row["year_to_date_basis_cents"].as_i64().map(|previous| if same_year { previous + basis.unwrap_or(0) } else { 0 });
+                        Some(ContributionSelectionInput { definition_id: definition_id.to_owned(), basis_cents: basis, year_to_date_basis_cents: year_to_date })
+                    })
                     .collect(),
             };
             if input.lines.is_empty() {
