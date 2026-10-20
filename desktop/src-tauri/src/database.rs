@@ -1937,94 +1937,26 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 62)?;
         }
-        if current < 63 {
-            transaction.execute_batch(crate::schema::MIGRATION_V63_SQL)?;
-            // Les coordonnées de paiement et les ordres sont des données
-            // d'entreprise partagées : même horloge et même garde d'écriture.
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 63)?;
-        }
-        if current < 64 {
-            transaction.execute_batch(crate::schema::MIGRATION_V64_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 64)?;
-        }
-        if current < 65 {
-            transaction.execute_batch(crate::schema::MIGRATION_V65_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 65)?;
-        }
-        if current < 66 {
-            transaction.execute_batch(crate::schema::MIGRATION_V66_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 66)?;
-        }
-        if current < 67 {
-            transaction.execute_batch(crate::schema::MIGRATION_V67_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 67)?;
-        }
-        if current < 68 {
-            transaction.execute_batch(crate::schema::MIGRATION_V68_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 68)?;
-        }
-        if current < 69 {
-            transaction.execute_batch(crate::schema::MIGRATION_V69_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 69)?;
-        }
-        if current < 70 {
-            transaction.execute_batch(crate::schema::MIGRATION_V70_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 70)?;
-        }
-        if current < 71 {
-            transaction.execute_batch(crate::schema::MIGRATION_V71_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 71)?;
-        }
-        if current < 72 {
-            transaction.execute_batch(crate::schema::MIGRATION_V72_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 72)?;
-        }
-        if current < 73 {
-            transaction.execute_batch(crate::schema::MIGRATION_V73_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 73)?;
-        }
-        if current < 74 {
-            transaction.execute_batch(crate::schema::MIGRATION_V74_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 74)?;
-        }
-        if current < 75 {
-            transaction.execute_batch(crate::schema::MIGRATION_V75_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 75)?;
-        }
-        if current < 76 {
-            transaction.execute_batch(crate::schema::MIGRATION_V76_SQL)?;
-            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
-            crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 76)?;
-        }
+        // Les coordonnées de paiement, les ordres et les données ERP sont des
+        // données d'entreprise partagées : même horloge et même garde
+        // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
+        // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
+        let shared_steps: [(i64, &str); 15] = [
+            (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
+            (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
+            (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
+            (69, crate::schema::MIGRATION_V69_SQL), (70, crate::schema::MIGRATION_V70_SQL),
+            (71, crate::schema::MIGRATION_V71_SQL), (72, crate::schema::MIGRATION_V72_SQL),
+            (73, crate::schema::MIGRATION_V73_SQL), (74, crate::schema::MIGRATION_V74_SQL),
+            (75, crate::schema::MIGRATION_V75_SQL), (76, crate::schema::MIGRATION_V76_SQL),
+            (77, crate::schema::MIGRATION_V77_SQL),
+        ];
         if current < 77 {
-            transaction.execute_batch(crate::schema::MIGRATION_V77_SQL)?;
+            for (version, sql) in shared_steps {
+                if current < version {
+                    transaction.execute_batch(sql)?;
+                }
+            }
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 77)?;
