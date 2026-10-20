@@ -106,6 +106,8 @@ export function App() {
       createSingleFlightCloudAccessRevalidator(desktopApi);
   }
 
+  // Account keys whose missing member already triggered one account check.
+  const identityRecheck = useRef(new Set<string>());
   const revalidateCloudAccess = useCallback(async () => {
     const epoch = accountEpoch.current;
     try {
@@ -190,7 +192,18 @@ export function App() {
     void Promise.resolve().then(() => desktopApi.getFormDraftIdentity()).then(identity => {
       if (!active || epoch !== accountEpoch.current) return;
       const memberId = cloudDraftIdentity ? identity.memberId?.trim() : 'local-user';
-      if (!memberId) { failed('failure'); return; }
+      if (!memberId) {
+        // On a new device the member is recorded by the first account check
+        // (/me). If it has not run yet, run it once before reporting a failure.
+        if (cloudDraftIdentity && !identityRecheck.current.has(draftIdentityKey)) {
+          identityRecheck.current.add(draftIdentityKey);
+          active = false; clearTimeout(timer);
+          recordDiagnostic({id:incident,area:'draft',operation:'identity.read',phase:'info',durationMs:performance.now()-started});
+          void revalidateCloudAccess();
+          return;
+        }
+        failed('failure'); return;
+      }
       if (identity.memberContextNonce === undefined) { failed('compatibility'); return; }
       if (classifyMemberNonceCompatibility(identity.memberContextNonce) !== 'guarded-member-origin') { failed('context'); return; }
       active = false;
@@ -346,7 +359,7 @@ export function App() {
         {draftIdentityFailure?.key === draftIdentityKey ? <>
           {draftIdentityFailure.reason === 'compatibility' ? <div className="error-panel error-guidance"><div className="error-guidance__message" role="alert"><div><strong>{memberNonceCompatibilityCopy[language].title}</strong><p>{memberNonceCompatibilityCopy[language].message}</p><p className="error-guidance__recovery">{memberNonceCompatibilityCopy[language].action}</p></div></div><ErrorDetails error={memberNonceCompatibilityCopy[language].message} incidentCode={draftIdentityFailure.incidentCode}/></div> : <>
             <ErrorGuidance title={t('Espace indisponible')} error={draftIdentityFailure.reason === 'context' ? new WorkspaceMemberOriginChangedError('Le contexte local du compte doit être vérifié. Rouvrez votre espace.') : draftIdentityMessages[language][draftIdentityFailure.reason]} fallback={draftIdentityMessages[language][draftIdentityFailure.reason]} operation="read" incidentCode={draftIdentityFailure.incidentCode} />
-            <Button autoFocus onClick={() => { if (!workspace.workNotesScope) { void load(); return; } setDraftIdentityFailure(null); setDraftIdentityRevision(value=>value+1); }}>{draftIdentityMessages[language].retry}</Button>
+            <Button autoFocus onClick={() => { if (!workspace.workNotesScope) { void load(); return; } setDraftIdentityFailure(null); identityRecheck.current.delete(draftIdentityKey); void revalidateCloudAccess(); }}>{draftIdentityMessages[language].retry}</Button>
           </>}
         </> : <><p role="status">{draftIdentityMessages[language].loading}</p><LoaderCircle className="spin" size={22} aria-hidden="true" /></>}
       </main>
