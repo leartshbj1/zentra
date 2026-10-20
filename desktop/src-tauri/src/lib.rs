@@ -100,6 +100,7 @@ mod currencies;
 mod cost_centers;
 mod price_lists;
 mod opportunities;
+mod legal_archive;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -365,6 +366,9 @@ pub fn run() {
             cost_centers::get_budget_report,
             price_lists::save_price_list,
             opportunities::save_opportunity,
+            legal_archive::create_legal_archive,
+            legal_archive::list_legal_archives,
+            legal_archive::verify_legal_archive,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

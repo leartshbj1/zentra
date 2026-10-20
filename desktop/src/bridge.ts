@@ -15,6 +15,7 @@ import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } f
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import { priceListsFromRaw } from './priceLists';
+import { legalArchiveFromRaw } from './legalArchive';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -7615,6 +7616,18 @@ export const desktopApi = {
   async importSourceTaxTariffs(text: string) {
     const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
     return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
+  },
+  async listLegalArchives(): Promise<import('./legalArchive').LegalArchiveState> {
+    const raw = await invoke<RawRecord>('list_legal_archives');
+    return { archives: rawArray(raw.archives).map(legalArchiveFromRaw), yearsWithEntries: Array.isArray(raw.yearsWithEntries) ? raw.yearsWithEntries.filter((year): year is number => typeof year === 'number') : [] };
+  },
+  async createLegalArchive(year: number) {
+    const raw = await invoke<RawRecord>('create_legal_archive', { year });
+    return { status: stringValue(raw.status), path: stringValue(raw.path), files: numberValue(raw.files), missing: numberValue(raw.missing) };
+  },
+  async verifyLegalArchive(id: string) {
+    const raw = await invoke<RawRecord>('verify_legal_archive', { id });
+    return { ok: raw.ok === true, detail: stringValue(raw.detail) };
   },
   async saveOpportunity(input: Omit<Opportunity, 'id' | 'stageChangedAt' | 'createdAt' | 'updatedAt'> & { id: string | null }) {
     const raw = await invoke<RawRecord>('save_opportunity', { input });

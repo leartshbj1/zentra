@@ -40,6 +40,7 @@ import { digestDue, digestInput, digestSignature, saveDigest, savedDigest } from
 import type { PendingConversion } from './currencies';
 import { applyPriceList, clientPriceList } from './priceLists';
 import { budgetOverruns, compareBudget, type BudgetReport } from './budget';
+import { archiveDue, archiveProblems, archivesToVerify, type LegalArchiveState } from './legalArchive';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
@@ -712,7 +713,7 @@ function WorkspaceContent({
   const [supplierMatchToOpenId, setSupplierMatchToOpenId] = useState<string | null>(null);
   const [clientFolderReturnId, setClientFolderReturnId] = useState<string | null>(null);
   const [bankAutoReconcile, setBankAutoReconcile] = useState(true);
-  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods' | 'vat' | 'closing' | 'currencies' | 'budget'>();
+  const [accountingStartTab, setAccountingStartTab] = useState<'accounts' | 'periods' | 'vat' | 'closing' | 'currencies' | 'budget' | 'archive'>();
   const [accountingSourceReturnContext, setAccountingSourceReturnContext] = useState<AccountingNavigationContext | null>(null);
   const clearAccountingStartTab = useCallback(() => setAccountingStartTab(undefined), []);
   const [accountingEntryFocus, setAccountingEntryFocus] =
@@ -1113,6 +1114,7 @@ function WorkspaceContent({
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
   const [fxPending, setFxPending] = useState<PendingConversion[]>([]);
   const [budgetReport, setBudgetReport] = useState<BudgetReport | null>(null);
+  const [legalArchives, setLegalArchives] = useState<LegalArchiveState | null>(null);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
@@ -1210,6 +1212,16 @@ function WorkspaceContent({
     } catch { /* checked again next time */ }
     // Écritures en devise qui attendent le cours du mois.
     try { setFxPending((await desktopApi.listExchangeRates()).pending); } catch { /* read again next time */ }
+    // Archive légale : revérifiée une fois par mois, sur cet appareil.
+    try {
+      let archives = await desktopApi.listLegalArchives();
+      const due = archivesToVerify(archives, Date.now());
+      if (due.length && !readOnly) {
+        for (const archive of due) await desktopApi.verifyLegalArchive(archive.id);
+        archives = await desktopApi.listLegalArchives();
+      }
+      setLegalArchives(archives);
+    } catch { /* read again next time */ }
     // Budget de l'année : le réel est comparé chaque mois.
     try { const report = await desktopApi.getBudgetReport(new Date().getFullYear()); setBudgetReport(report.budget.length ? report : null); } catch { /* read again next time */ }
     // Réponses des clients sur la page d'acceptation, dès qu'un lien a été envoyé.
@@ -1518,6 +1530,19 @@ function WorkspaceContent({
         detail: copy.opportunityDetail.replace('{party}', party).replace('{amount}', formatMoney(row.amountCents)), why: copy.whyOpportunity,
         actions: [{ id: 'open-pipeline', label: copy.actionOpenPipeline, primary: true }, { id: 'opportunity-lost', label: copy.actionOpportunityLost }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
+    // Archive légale : l'année passée à archiver, ou une archive manquante ou modifiée.
+    if (legalArchives) {
+      const due = archiveDue(legalArchives, today);
+      if (due && !entries['archive:' + due]?.ignored)
+        cards.push({ key: 'archive:' + due, title: copy.archiveDueTitle.replace('{year}', String(due)), detail: copy.archiveDueDetail.replace('{until}', String(due + 10)), why: copy.whyArchive,
+          actions: [{ id: 'open-archive', label: copy.actionCreateArchive, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      for (const archive of archiveProblems(legalArchives)) {
+        const key = `archive-problem:${archive.id}:${archive.lastVerifiedAt ?? ''}`;
+        if (entries[key]?.ignored) continue;
+        cards.push({ key, title: (archive.present ? copy.archiveChangedTitle : copy.archiveMissingTitle).replace('{year}', String(archive.year)), detail: copy.archiveProblemDetail, why: copy.whyArchive,
+          actions: [{ id: 'open-archive', label: copy.actionOpenArchive, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+      }
+    }
     // Budget : charges nettement au-dessus du budget depuis janvier.
     if (budgetReport) {
       const month = new Date().getMonth() + 1;
@@ -1724,6 +1749,7 @@ function WorkspaceContent({
       if (done) refresh();
       return;
     }
+    if (actionId === 'open-archive') { setSearch(''); setAccountingStartTab('archive'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-budget') { setSearch(''); setAccountingStartTab('budget'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-currencies') { setSearch(''); setAccountingStartTab('currencies'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-vat') { setSearch(''); setAccountingStartTab('vat'); setAccountingEntryFocus(null); setView('accounting'); return; }

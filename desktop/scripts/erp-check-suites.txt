@@ -61,3 +61,5 @@ rust:price_lists::
 src/priceLists.test.ts
 rust:opportunities::
 src/pipeline.test.ts
+rust:legal_archive::
+src/legalArchive.test.ts
