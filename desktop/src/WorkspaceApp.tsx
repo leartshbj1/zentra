@@ -1122,6 +1122,8 @@ function WorkspaceContent({
       const reply = await desktopApi.sendQuoteAutopilotDigest(autopilotContext.origin, input);
       if (reply.status === 'available' && reply.data) {
         const latest = savedDigest(organizationId);
+        // Désabonné depuis le lien de l'e-mail : l'app éteint aussi son réglage, puis le confirme au serveur.
+        if (input.enabled && !reply.data.enabled) { saveDigest(organizationId, { enabled: false, signature: 'unsubscribed' }); return; }
         saveDigest(organizationId, latest.enabled
           ? { enabled: true, signature, sentAt: Date.now(), emailConfigured: reply.data.emailConfigured, lastSentOn: reply.data.lastSentOn }
           : { enabled: false });
