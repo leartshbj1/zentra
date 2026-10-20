@@ -130,3 +130,116 @@
     padding-bottom: 8px;
   }
 }
+
+/* ---------- "Fait aujourd'hui": a validated card folds into a check ---------- */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done {
+    margin: 0;
+    padding: 18px 20px 10px;
+    border-top: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done > h3 {
+    margin: 0 0 4px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    margin: 0 -12px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li > svg {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li > span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li > span > strong {
+    color: var(--apple-ink);
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li > time {
+    flex: none;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li > button {
+    flex: none;
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font: inherit;
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    box-shadow: none;
+    cursor: pointer;
+  }
+
+  /* Under the title: what is already done today, with the same check. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head .automation-hub__done-today {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head .automation-hub__done-today::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 11px;
+    margin: -3px 4px 0 5px;
+    border: solid var(--apple-accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+}
+
+/* The fold: the new check settles in place, a soft highlight fades away. */
+@keyframes zentra-autopilot-done {
+  0% { opacity: 0; transform: translateY(-8px) scale(0.98); background: var(--z7-segment, transparent); }
+  30% { opacity: 1; transform: none; background: var(--z7-segment, transparent); }
+  100% { opacity: 1; transform: none; background: transparent; }
+}
+@keyframes zentra-autopilot-check {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@media screen and (prefers-reduced-motion: no-preference) {
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li {
+    animation: zentra-autopilot-done 1400ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__done.quote-autopilot__done li > svg {
+    animation: zentra-autopilot-check 420ms 120ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+@media screen {
+  /* The full history stays one quiet line under today's checks. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__journal > summary {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+}

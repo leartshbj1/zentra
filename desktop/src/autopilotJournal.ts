@@ -22,6 +22,8 @@ export type JournalEntry = Readonly<{
   signature?: string;
   undo?: UndoSpec;
   undoneAt?: string;
+  /** Set when an opened form was later confirmed by the data (the payment exists). */
+  confirmedAt?: string;
 }>;
 
 const JOURNAL_KEY = 'zentra.autopilot.journal.v1';
@@ -60,6 +62,42 @@ export function appendJournal(organizationId: string, entry: Omit<JournalEntry, 
 
 export function markUndone(organizationId: string, id: string, now = new Date()): void {
   write(JOURNAL_KEY, organizationId, journalEntries(organizationId).map((entry) => entry.id === id ? { ...entry, undoneAt: now.toISOString() } : entry));
+}
+
+/** Opened forms that the data now shows as completed become done (ok: true). */
+export function confirmEntries(organizationId: string, ids: readonly string[], now = new Date()): void {
+  if (!ids.length) return;
+  const wanted = new Set(ids);
+  write(JOURNAL_KEY, organizationId, journalEntries(organizationId).map((entry) =>
+    wanted.has(entry.id) && entry.ok === null && !entry.undoneAt ? { ...entry, ok: true, confirmedAt: now.toISOString() } : entry));
+}
+
+/** When the action really took effect: the click, or the later confirmation of an opened form. */
+export function doneAt(entry: JournalEntry): string {
+  return entry.confirmedAt ?? entry.at;
+}
+
+function localDay(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+/**
+ * What Autopilote really did today on this device, newest first: an action
+ * that succeeded (ok: true), not undone since. Opened screens (ok: null) and
+ * failures never count, so "Fait" only appears once the work exists.
+ */
+export function doneToday(entries: readonly JournalEntry[], now = new Date()): JournalEntry[] {
+  const today = localDay(now);
+  return entries
+    // "Ignorer" and "Reporter" are decisions, not work done: they stay in the journal only.
+    .filter((entry) => entry.ok === true && !entry.undoneAt && entry.undo?.kind !== 'follow-up' && localDay(new Date(doneAt(entry))) === today)
+    .sort((a, b) => doneAt(b).localeCompare(doneAt(a)));
+}
+
+/** Opened forms (ok: null) of the last 7 days that the data now shows as completed. */
+export function entriesToConfirm(entries: readonly JournalEntry[], completed: (entry: JournalEntry) => boolean, now = new Date()): string[] {
+  const since = now.getTime() - 7 * 86_400_000;
+  return entries.filter((entry) => entry.ok === null && !entry.undoneAt && Date.parse(entry.at) >= since && completed(entry)).map((entry) => entry.id);
 }
 
 export function canUndo(entry: JournalEntry): boolean {

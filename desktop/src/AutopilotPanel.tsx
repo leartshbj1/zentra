@@ -11,6 +11,7 @@ import { AutopilotCommandBar } from './AutopilotCommandBar';
 import type { AutopilotView } from './autopilotView';
 import './AutopilotPanel.css';
 import { AutopilotJournalList } from './AutopilotJournalList';
+import { AutopilotDoneList } from './AutopilotDoneList';
 import type { JournalEntry } from './autopilotJournal';
 
 function statusText(state: AutopilotView, language: string) {
@@ -299,6 +300,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
         })())}</ol>}
     {readable && <AutopilotActionList summary={followUpSummary} cards={followUps} disabled={opening !== null} onAction={onFollowUp} label={copy.followUpListTitle} />}
     {readable && <AutopilotSignals cards={signals} disabled={opening !== null} onAct={onSignal} onIgnore={onIgnoreSignal} />}
+    {readable && <AutopilotDoneList entries={journal} onUndo={onUndo} disabled={opening !== null} />}
     {readable && <AutopilotJournalList entries={journal} onUndo={onUndo} disabled={opening !== null} />}
     {readable && (choiceCards.length > 0 || acceptedCards.length > 0) && <ol className="quote-autopilot__requests quote-autopilot__requests--acceptances" aria-label={copy.acceptanceListTitle}>
       {choiceCards.map(card => <AcceptanceChoice key={card.key} card={card} disabled={opening !== null} onChoose={onChooseAcceptance} />)}

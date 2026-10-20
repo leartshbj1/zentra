@@ -4,6 +4,7 @@ import type { AutopilotActionCard } from '../src/AutopilotActionList';
 import type { AutopilotSignalCard } from '../src/AutopilotSignalList';
 import { parseLanguage, setAppLanguage } from '../src/language';
 import type { AutopilotView } from '../src/autopilotView';
+import type { JournalEntry } from '../src/autopilotJournal';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -38,6 +39,7 @@ import '../src/filters-calm.css';
 import '../src/switch-calm.css';
 import '../src/erp-calm.css';
 import '../src/autopilot-magic.css';
+import '../src/mobile-calm.css';
 
 import { autopilotCopy } from '../src/autopilotPresentation';
 const query = new URLSearchParams(location.search);
@@ -75,8 +77,14 @@ const signals: AutopilotSignalCard[] = [
 const state = { status: 'ready', canManage: true, consent: null, saving: false, error: null, activity: null, readingReviews: false, reviewsUnavailable: false,
   reviews: { organizationId: 'preview-org', nextCursor: null, items } } as unknown as AutopilotView;
 const noop = () => undefined;
+// Two cards already validated today: they show folded into checks under "Fait aujourd'hui".
+const today = (hours: number, minutes: number) => { const date = new Date(); date.setHours(hours, minutes, 0, 0); return date.toISOString(); };
+const journal: JournalEntry[] = [
+  { id: 'j2', key: 'quote-sent:p1', at: today(9, 42), ok: true, detail: '', title: 'Atelier Rossi Sàrl · D-2026-0021', actionLabel: copy.doneQuoteSent },
+  { id: 'j1', key: 'reminder:r0', at: today(8, 15), ok: true, detail: '', title: 'Boulangerie du Lac · F-2026-0007', actionLabel: copy.doneReminderSent },
+];
 createRoot(document.getElementById('root')!).render(<div className="desktop-app" data-experience="workspace"><main className="app-main"><section className="page-content" data-screen="automation"><div className="automation-hub"><div className="automation-hub__followup" id="tour-followup">
   <AutopilotReviews onAsk={noop} state={state} organizationId="preview-org" onOpenSource={async () => undefined} onRefresh={async () => undefined} onCatalogue={noop}
-    followUps={followUps} onFollowUp={noop} signals={signals} onSignal={noop} onIgnoreSignal={noop} onCreateQuote={noop} createdQuote={item => created[item.proposalId] ?? null}
+    followUps={followUps} onFollowUp={noop} journal={journal} onUndo={noop} signals={signals} onSignal={noop} onIgnoreSignal={noop} onCreateQuote={noop} createdQuote={item => created[item.proposalId] ?? null}
     onOpenCreatedQuote={noop} onSendCreatedQuote={noop} onCreateInvoice={noop} onSendInvoice={noop} onOpenInvoice={noop} />
 </div></div></section></main></div>);
