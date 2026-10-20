@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BellRing } from 'lucide-react';
 import { t } from './language';
 import './autopilot-journal.css';
@@ -15,13 +16,19 @@ export type AutopilotActionCard = Readonly<{
   actions: readonly Readonly<{ id: string; label: string; primary?: boolean }>[];
 }>;
 
+/** Cards beyond this stay folded under one link, so a busy day still reads at a glance. */
+const VISIBLE_CARDS = 8;
+
 export function AutopilotActionList({ summary, cards, disabled = false, onAction, label }: { summary?: string; cards: readonly AutopilotActionCard[];
   disabled?: boolean; onAction?: (key: string, actionId: string) => void; label: string }) {
+  const [all, setAll] = useState(false);
   if (!cards.length && !summary) return null;
+  const shown = all ? cards : cards.slice(0, VISIBLE_CARDS);
+  const hidden = cards.length - shown.length;
   return <section className="quote-autopilot__followups" aria-label={label}>
     {summary ? <p className="quote-autopilot__context">{summary}</p> : null}
     {cards.length ? <ol className="quote-autopilot__requests quote-autopilot__requests--followups">
-      {cards.map(card => <li key={card.key} data-state="followup">
+      {shown.map(card => <li key={card.key} data-state="followup">
         <BellRing size={21} aria-hidden="true" />
         <div><strong>{card.title}</strong>
           <p className="quote-autopilot__done-summary">{card.detail}</p>
@@ -35,5 +42,6 @@ export function AutopilotActionList({ summary, cards, disabled = false, onAction
         </div>
       </li>)}
     </ol> : null}
+    {hidden > 0 ? <button type="button" className="quote-autopilot__more-cards" onClick={() => setAll(true)}>{t('Afficher les {n} autres', { n: hidden })}</button> : null}
   </section>;
 }

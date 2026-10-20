@@ -68,6 +68,7 @@ export const erpTranslations: Record<string, readonly [string, string, string]> 
   'La facture n’a plus de solde ouvert.': ['Die Rechnung hat keinen offenen Saldo mehr.', 'La fattura non ha più un saldo aperto.', 'The invoice has no open balance left.'],
   // Autopilote journal
   'Pourquoi ?': ['Warum?', 'Perché?', 'Why?'],
+  'Afficher les {n} autres': ['Die {n} weiteren anzeigen', 'Mostra gli altri {n}', 'Show the {n} others'],
   'Ce qu’Autopilote a fait ({count})': ['Was Autopilot erledigt hat ({count})', 'Cosa ha fatto Autopilota ({count})', 'What Autopilot did ({count})'],
   'Non abouti': ['Nicht abgeschlossen', 'Non riuscito', 'Not completed'],
   'Annulé': ['Rückgängig gemacht', 'Annullato', 'Undone'],

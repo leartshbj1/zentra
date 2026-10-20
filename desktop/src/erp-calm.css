@@ -1,0 +1,66 @@
+/*
+ * ERP registers and Autopilote cards, after 1.90.37. Loaded last.
+ * One "how it works" per screen, one green action per row, room to breathe.
+ */
+@media screen {
+  /* A tab that explains itself replaces the page's own guide card. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content:has(.erp-register > details) .menu-guide {
+    display: none;
+  }
+
+  /* Register rows: the first action is the one to take, the others stay quiet. */
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__links > button:not(:first-child) {
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__links > button:not(:first-child):hover:not(:disabled) {
+    color: var(--apple-ink);
+  }
+
+  /* "Lignes du mail sans article" sits below the card's own button, not against it. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests > li > .quote-autopilot__unmatched > strong {
+    display: block;
+    margin: 20px 0 2px;
+    padding-top: 16px;
+    border-top: 1px solid var(--z-hairline);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+
+  /* Folded Autopilote cards: one quiet link under the list. */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__more-cards {
+    display: block;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 20px;
+    border: 0;
+    border-top: 1px solid var(--z-hairline);
+    border-radius: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    text-align: left;
+    width: 100%;
+    box-shadow: none;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__more-cards:hover {
+    text-decoration: underline;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__links {
+    row-gap: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .erp-register__links > button {
+    min-height: 30px;
+  }
+}
+@media screen and (max-width: 860px) {
+  /* On a phone every card's main button takes the full width, like the to-do cards. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions > button.is-ready {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}

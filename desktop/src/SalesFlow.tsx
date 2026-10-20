@@ -4,7 +4,7 @@ import { t } from './language';
 export type SalesFlowStep = 'automation' | 'quotes' | 'invoices' | 'bank';
 
 /** The path of a sale, always visible above the sales lists: request, quote, invoice, payment. */
-export function SalesFlow({ active, showRequests, onNavigate }: { active: SalesFlowStep; showRequests: boolean; onNavigate: (step: SalesFlowStep) => void }) {
+export function SalesFlow({ active, showRequests, onNavigate }: { active?: SalesFlowStep; showRequests: boolean; onNavigate: (step: SalesFlowStep) => void }) {
   const steps: Array<[SalesFlowStep, string]> = [
     ...(showRequests ? [['automation', 'Demande'] as [SalesFlowStep, string]] : []),
     ['quotes', 'Devis'], ['invoices', 'Facture'], ['bank', 'Paiement'],

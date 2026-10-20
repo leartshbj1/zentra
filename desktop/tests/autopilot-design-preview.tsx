@@ -38,6 +38,7 @@ import '../src/zentra-2027-calm.css';
 import '../src/autopilot-simple.css';
 import '../src/filters-calm.css';
 import '../src/switch-calm.css';
+import '../src/erp-calm.css';
 
 const query = new URLSearchParams(location.search);
 document.documentElement.dataset.appTheme = query.get('theme') === 'dark' ? 'dark' : 'light';
@@ -69,7 +70,7 @@ const followUps: AutopilotActionCard[] = [
   { key: 'quote:q7', title: 'Relancer le devis D-2026-0007', detail: 'Atelier du Lac · envoyé le 12 oct. 2026 · valable jusqu’au 11 nov. 2026',
     actions: [{ id: 'send-quote', label: 'Envoyer', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'poursuite:i9', title: '3e relance sans réponse · Atelier du Lac', detail: 'F-2026-0009 · 1 780.00 CHF · délai échu le 15 oct. 2026',
-    actions: [{ id: 'prepare-debt', label: 'Préparer la réquisition de poursuite', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }] },
+    actions: [{ id: 'prepare-debt', label: 'Préparer la poursuite', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'statement-file:s1', title: 'Relevé bancaire trouvé : camt053_UBS_2026-10-19.xml', detail: 'Dossier Downloads · 19 oct. 2026',
     actions: [{ id: 'import-statement', label: 'Importer', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'bank:e1', title: '89.90 CHF payé à SWISSCOM SCHWEIZ AG', detail: 'Catégorie habituelle : Télécommunications',
