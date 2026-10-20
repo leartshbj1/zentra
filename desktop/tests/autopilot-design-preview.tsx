@@ -75,6 +75,11 @@ const followUps: AutopilotActionCard[] = [
   { key: 'bank:e1', title: '89.90 CHF payé à SWISSCOM SCHWEIZ AG', detail: 'Catégorie habituelle : Télécommunications',
     actions: [{ id: 'open-bank', label: 'Créer la dépense', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'bank:b1', title: 'CHF 1 780.00 reçu de Résidence Bellevue', detail: 'facture F-2026-0012 · 18 oct. 2026', note: 'Le client l’avait annoncé le 17 oct. 2026.', actions: [{ id: 'confirm', label: 'Confirmer', primary: true }, { id: 'choose', label: 'Choisir la facture' }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'bank-batch:a+b+c+d+e', title: '5 paiements sûrs à confirmer · 4 210.00 CHF', detail: 'F-2026-0012 1 780.00 CHF · F-2026-0014 640.00 CHF · F-2026-0015 890.00 CHF · R-118 89.90 CHF …', note: 'Règle apprise',
+    why: 'Référence de paiement structurée identique et montant exact pour chaque paiement. · Confiance élevée',
+    actions: [{ id: 'confirm-all', label: 'Valider les 5 paiements', primary: true }, { id: 'open-bank', label: 'Ouvrir la banque' }] },
+  { key: 'rule:supplier:Swisscom', title: 'Toujours préparer ainsi pour Swisscom (Suisse) SA ?', detail: 'Validé 3 fois de la même façon. Ces cartes seront regroupées pour être validées en un clic ; rien ne part sans vous.',
+    actions: [{ id: 'rule-always', label: 'Oui, toujours', primary: true }, { id: 'rule-never', label: 'Non' }] },
   { key: 'pay-order:p1+p2+p3', title: '3 factures à payer cette semaine · 1 240.00 CHF', detail: 'Papeterie des Alpes, Swisscom (Suisse) SA, Scierie du Jura Sàrl',
     actions: [{ id: 'pay-order', label: 'Générer l’ordre de paiement', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'qrmail:m1', title: 'Facture QR reçue · Scierie du Jura Sàrl', detail: '949.75 CHF · échéance 14 nov. 2026', evidence: 'Facture 10201409 · planches de chêne',
@@ -94,11 +99,16 @@ const signals: AutopilotSignalCard[] = [
 const state = { status: 'ready', canManage: true, consent: null, saving: false, error: null, activity: null, readingReviews: false, reviewsUnavailable: false,
   reviews: { organizationId: 'preview-org', nextCursor: null, items } } as unknown as AutopilotView;
 const noop = () => undefined;
+const journal = [
+  { id: 'j1', at: '2026-10-20T09:12:00Z', key: 'qrmail:m0', actionLabel: 'Créer la facture fournisseur', title: 'Facture QR reçue · Scierie du Jura Sàrl', detail: '', ok: true, undo: { kind: 'supplier-draft' as const, invoiceId: 'x' } },
+  { id: 'j2', at: '2026-10-20T08:40:00Z', key: 'bank:b0', actionLabel: 'Confirmer', title: '1 780.00 CHF reçu de Résidence Bellevue', detail: '', ok: true },
+  { id: 'j3', at: '2026-10-19T17:05:00Z', key: 'reminder:r1', actionLabel: 'Reporter de 7 jours', title: 'Relance n°1 prête', detail: '', ok: true, undo: { kind: 'follow-up' as const, key: 'reminder:r1', previous: null }, undoneAt: '2026-10-19T17:06:00Z' },
+];
 function Preview() {
   return <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><main className="app-main" style={{ marginLeft: 0, padding: '32px 40px' }}>
     <section className="page-content" data-screen="automation"><div className="automation-hub automation-hub--preview"><div className="automation-hub__followup">
       <AutopilotReviews onAsk={noop} askNotUnderstood={query.get('ask') === 'help'} state={state} organizationId="preview-org" onOpenSource={async () => undefined} onRefresh={async () => undefined} onCatalogue={noop} canAddCatalogue
-        acceptances={acceptances} onChooseAcceptance={noop} followUps={followUps} followUpSummary="2 relances prêtes · 1 en attente (promesse de paiement)" onFollowUp={noop} signals={signals} onSignal={noop} onIgnoreSignal={noop} onCreateQuote={noop} createdQuote={item => created[item.proposalId] ?? null}
+        acceptances={acceptances} onChooseAcceptance={noop} followUps={followUps} followUpSummary="2 relances prêtes · 1 en attente (promesse de paiement)" onFollowUp={noop} journal={journal} onUndo={noop} signals={signals} onSignal={noop} onIgnoreSignal={noop} onCreateQuote={noop} createdQuote={item => created[item.proposalId] ?? null}
         onOpenCreatedQuote={noop} onSendCreatedQuote={noop} onCreateInvoice={noop} onSendInvoice={noop} onOpenInvoice={noop}
         catalogueArticles={[{ id: 'c1', name: 'Vitrification parquet' }, { id: 'c2', name: 'Plinthes' }]} onChooseArticle={async phrase => phrase} onCreateArticle={noop} />
     </div></div></section>

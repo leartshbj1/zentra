@@ -20,6 +20,7 @@ import { folderLabel, newStatementFiles, savedStatementFolder, type StatementFil
 import { suggestExpenseCategory } from './expenseCategory';
 import { buildDebtCollectionRequest, debtCollectionCandidates, type DebtCollectionRequest } from './debtCollection';
 import { DebtCollectionDialog } from './DebtCollectionDialog';
+import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
 import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, vatReturnDue, yearEndMoments } from './autopilotOperations';
@@ -1003,6 +1004,41 @@ function WorkspaceContent({
     if (!autopilotContext) return;
     saveSignalDecision(autopilotContext.organizationId, sourceId, 'ignored'); setSignalVersion(version => version + 1);
   };
+  // Journal of every Autopilote click: what was done, and its inverse when the app knows one.
+  const [journalVersion, setJournalVersion] = useState(0);
+  const actionOutcome = useRef<boolean | null>(null);
+  const actionUndo = useRef<UndoSpec | undefined>(undefined);
+  const journalAct = async (...args: Parameters<typeof act>) => { const ok = await act(...args); actionOutcome.current = ok; return ok; };
+  const journalled = async (key: string, title: string, detail: string, actionLabel: string, signature: string | undefined, run: () => Promise<void>, undo?: UndoSpec) => {
+    if (!autopilotContext) return;
+    actionOutcome.current = null; actionUndo.current = undefined;
+    await run();
+    const ok = undo ? true : actionOutcome.current;
+    appendJournal(autopilotContext.organizationId, { key, title, detail, actionLabel, ok, signature: ok ? signature : undefined, undo: ok ? (undo ?? actionUndo.current) : undefined });
+    setJournalVersion(version => version + 1);
+  };
+  const runSignalJournalled = (sourceId: string, choiceId?: string) => {
+    const card = signalCards().find(row => row.sourceId === sourceId);
+    return journalled('signal:' + sourceId, card?.title ?? '', card?.sender ?? '', card?.actionLabel ?? '', undefined, () => runSignal(sourceId, choiceId));
+  };
+  const runFollowUpJournalled = (key: string, actionId: string) => {
+    if (!autopilotContext) return Promise.resolve();
+    const card = followUpCards().cards.find(row => row.key === key);
+    const action = card?.actions.find(row => row.id === actionId);
+    const previous = followUpEntries(autopilotContext.organizationId)[key] ?? null;
+    const undo: UndoSpec | undefined = actionId === 'ignore' || actionId === 'postpone' ? { kind: 'follow-up', key, previous } : undefined;
+    return journalled(key, card?.title ?? '', card?.detail ?? '', action?.label ?? actionId, card?.signature, () => runFollowUp(key, actionId), undo);
+  };
+  const undoJournal = async (entry: JournalEntry) => {
+    if (!autopilotContext || !entry.undo || !canUndo(entry) || readOnly) return;
+    const copy = autopilotCopy(getAppLanguage()), organizationId = autopilotContext.organizationId, undo = entry.undo;
+    let done = false;
+    if (undo.kind === 'follow-up') { saveFollowUp(organizationId, undo.key, () => ({ ...(undo.previous ?? {}) })); setFollowUpVersion(version => version + 1); done = true; }
+    else if (undo.kind === 'supplier-draft') done = await act(() => desktopApi.deleteSupplierInvoiceDraft(undo.invoiceId), copy.undoDone, false);
+    else if (undo.kind === 'record-fields') done = await act(origin => desktopApi.updateEntity(undo.entity, undo.id, { ...undo.fields }, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
+    else if (undo.kind === 'quote-status') done = await act(() => desktopApi.updateQuoteStatus(undo.quoteId, undo.status as never), copy.undoDone, false);
+    if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
+  };
   const runSignal = async (sourceId: string, choiceId?: string) => {
     if (!autopilotContext || busy || modal || readOnly) return;
     const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage());
@@ -1020,7 +1056,8 @@ function WorkspaceContent({
       return;
     }
     if (proposal.action === 'decline_quote') {
-      const declined = await act(() => desktopApi.updateQuoteStatus(proposal.quote.id, 'refused'), copy.signalDeclinedDone.replace('{number}', proposal.quote.number), false);
+      actionUndo.current = { kind: 'quote-status', quoteId: proposal.quote.id, status: proposal.quote.status };
+      const declined = await journalAct(() => desktopApi.updateQuoteStatus(proposal.quote.id, 'refused'), copy.signalDeclinedDone.replace('{number}', proposal.quote.number), false);
       if (declined) done();
       return;
     }
@@ -1093,7 +1130,8 @@ function WorkspaceContent({
       const detail = copy.reminderDetail.replace('{client}', reminder.clientName || '').replace('{number}', reminder.invoiceNumber || '')
         .replace('{balance}', balance).replace('{days}', String(daysOverdue(reminder, today)));
       const send = reminder.clientEmail ? { id: 'send', label: copy.actionSend } : { id: 'letter', label: copy.actionLetter };
-      const base = { key: reminderKey(reminder.id), title: copy.reminderTitle.replace('{level}', String(reminder.level)), detail };
+      const base = { key: reminderKey(reminder.id), title: copy.reminderTitle.replace('{level}', String(reminder.level)), detail,
+        why: `${copy.whyReminder.replace('{days}', String(daysOverdue(reminder, today))).replace('{level}', String(reminder.level))} · ${copy.confidenceHigh}` };
       if (context === 'paid') cards.push({ ...base, note: copy.reminderPaid, evidence: signal?.evidence, actions: [
         { id: 'payment', label: copy.actionRecordPayment, primary: true }, { ...send, label: send.id === 'send' ? copy.actionSendAnyway : send.label }, { id: 'ignore', label: copy.acceptanceDismiss }] });
       else if (context === 'promised') { waiting++; cards.push({ ...base, note: copy.reminderPromised, evidence: signal?.evidence, actions: [
@@ -1111,6 +1149,7 @@ function WorkspaceContent({
       const client = workspace.clients.find(item => item.id === row.invoice.clientId);
       cards.push({ key, title: copy.debtTitle.replace('{level}', String(row.reminder.level)).replace('{client}', client?.company || client?.name || row.reminder.clientName || ''),
         detail: copy.debtDetail.replace('{number}', row.invoice.number ?? '').replace('{balance}', formatMoney(row.balanceCents, row.invoice.currency || 'CHF')).replace('{date}', date(row.deadline)),
+        why: `${copy.whyDebt} · ${copy.confidenceCheck}`,
         actions: [{ id: 'prepare-debt', label: copy.actionPrepareDebt, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
     const emails = Object.fromEntries(workspace.clients.map(client => [client.id, client.email]));
@@ -1165,10 +1204,33 @@ function WorkspaceContent({
     const foundStatements = statementFiles ? newStatementFiles(statementFiles.files, ignoredStatements) : [];
     for (const file of foundStatements) cards.push({ key: 'statement-file:' + file.sha256, title: copy.statementFoundTitle.replace('{name}', file.name),
       detail: copy.statementFoundDetail.replace('{folder}', folderLabel(statementFiles!.folder)).replace('{date}', file.modifiedAt ? date(file.modifiedAt.slice(0, 10)) : ''),
+      why: `${copy.whyStatement} · ${copy.confidenceHigh}`,
       actions: [{ id: 'import-statement', label: copy.actionImportStatementFile, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     if (!foundStatements.length && statementDue(autopilotBank, today) && !(entries['statement']?.until && entries['statement'].until > today))
       cards.push({ key: 'statement', title: copy.statementTitle, detail: copy.statementDetail, actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-bank', label: copy.actionImportStatement, primary: true }] });
+    const rules = learnedRules(organizationId);
+    const counterpart = (row: (typeof bankRows)[number]) => row.movement.counterpartyName || row.movement.unstructured || row.movement.reference;
+    const safeRows = bankRows.filter(row => (row.action === 'confirm_invoice' && row.movement.suggestion?.kind === 'automatic_exact')
+      || (row.action === 'confirm_supplier' && rules['supplier:' + counterpart(row)] === 'always'));
+    const batched = new Set(safeRows.length >= 2 ? safeRows.map(row => row.movement.id) : []);
+    if (batched.size) {
+      toConfirm += batched.size;
+      const total = safeRows.reduce((sum, row) => sum + Math.abs(row.movement.amountCents), 0);
+      const lines = safeRows.slice(0, 4).map(row => [row.invoiceNumber || row.label || counterpart(row), formatMoney(Math.abs(row.movement.amountCents), row.movement.currency || 'CHF')].filter(Boolean).join(' '));
+      cards.push({ key: 'bank-batch:' + [...batched].sort().join('+'), title: copy.batchTitle.replace('{n}', String(batched.size)).replace('{amount}', formatMoney(total)),
+        detail: lines.join(' · ') + (safeRows.length > 4 ? ' …' : ''),
+        note: safeRows.some(row => row.action === 'confirm_supplier') ? copy.ruleNote : undefined,
+        why: `${copy.whyBatch} · ${copy.confidenceHigh}`,
+        actions: [{ id: 'confirm-all', label: copy.actionConfirmAll.replace('{n}', String(batched.size)), primary: true }, { id: 'open-bank', label: copy.actionOpenBank }] });
+    }
+    // Same action validated three times: propose to keep it as a rule (it still needs the click).
+    for (const signature of ruleProposals(journalEntries(organizationId), new Set(Object.keys(rules)))) {
+      if (!signature.startsWith('supplier:')) continue;
+      cards.push({ key: 'rule:' + signature, title: copy.ruleTitle.replace('{name}', signatureLabel(signature)), detail: copy.ruleDetail,
+        actions: [{ id: 'rule-always', label: copy.actionRuleAlways, primary: true }, { id: 'rule-never', label: copy.actionRuleNever }] });
+    }
     for (const row of bankRows) {
+      if (batched.has(row.movement.id)) continue;
       const amount = formatMoney(Math.abs(row.movement.amountCents), row.movement.currency || 'CHF');
       const who = row.movement.counterpartyName || row.movement.unstructured || row.movement.reference;
       const note = row.announcedBy ? copy.bankAnnounced.replace('{date}', new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(row.announcedBy.receivedAt * 1000)) : undefined;
@@ -1177,6 +1239,7 @@ function WorkspaceContent({
         const usual = suggestExpenseCategory(row.movement.counterpartyName || '', workspace.expenses, workspace.supplierInvoices);
         cards.push({ key: 'bank:' + row.movement.id, title: copy.expensePaidTitle.replace('{amount}', amount).replace('{who}', who || ''),
           detail: usual ? copy.expenseCategoryDetail.replace('{category}', usual.category) : date(row.movement.bookingDate),
+          why: usual ? `${copy.whyExpense} · ${copy.confidenceCheck}` : undefined, signature: who ? 'expense:' + who : undefined,
           actions: [{ id: 'open-bank', label: copy.actionCreateExpense, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
         continue;
       }
@@ -1190,7 +1253,10 @@ function WorkspaceContent({
       const terms = paidInvoice ? parseBillInformation(paidInvoice.qrBill?.input.billInformation ?? '')?.conditions.find(condition => condition.discountPercent > 0) : undefined;
       const discount = paidInvoice && terms && paidInvoice.issueDate ? discountMatch(documentTotals(paidInvoice.lines).totalCents, paidInvoice.issueDate, { discountBp: Math.round(terms.discountPercent * 100), days: terms.days, netDays: 0 }, Math.abs(row.movement.amountCents), row.movement.bookingDate) : null;
       const discountNote = discount ? copy.bankDiscount.replace('{amount}', formatMoney(discount.discountCents, row.movement.currency || 'CHF')) : undefined;
-      cards.push({ key: 'bank:' + row.movement.id, title, detail, note: [note, discountNote].filter(Boolean).join(' ') || undefined, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
+      const nativeReason = row.action === 'confirm_supplier' ? row.movement.supplierSuggestion?.reason : row.movement.suggestion?.reason;
+      cards.push({ key: 'bank:' + row.movement.id, title, detail, note: [note, discountNote].filter(Boolean).join(' ') || undefined,
+        why: nativeReason ? `${nativeReason} · ${row.movement.suggestion?.kind === 'automatic_exact' ? copy.confidenceHigh : copy.confidenceCheck}` : undefined,
+        signature: row.action === 'confirm_supplier' && who ? 'supplier:' + who : undefined, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
     }
     // Projects and hours.
     const projectName = (id: string) => workspace.projects.find(row => row.id === id)?.name ?? '';
@@ -1247,6 +1313,7 @@ function WorkspaceContent({
       const names = [...new Set(workspace.supplierInvoices.filter(invoice => order.ids.includes(invoice.id)).map(invoice => invoice.supplierName))];
       cards.push({ key: orderKey, title: (order.count === 1 ? copy.payOrderOne : copy.payOrderTitle.replace('{n}', String(order.count))).replace('{amount}', formatMoney(order.totalCents)),
         detail: names.slice(0, 3).join(', ') + (names.length > 3 ? '…' : ''),
+        why: `${copy.whyPayOrder} · ${copy.confidenceHigh}`,
         actions: [{ id: 'pay-order', label: copy.actionPayOrder, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
     const pendingMail = new Map((supplierInbox.state?.items ?? []).filter(item => !['imported', 'ignored'].includes(item.state)).map(item => [item.id, item]));
@@ -1259,6 +1326,7 @@ function WorkspaceContent({
       cards.push({ key: 'qrmail:' + id, title: copy.qrMailTitle.replace('{supplier}', proposal.supplier?.name || bill.creditor.name),
         detail: (bill.amountCents === null ? copy.qrMailOpen : copy.qrMailDetail.replace('{amount}', formatMoney(bill.amountCents))).replace('{date}', date(proposal.dueDate)),
         evidence: item.subject || undefined,
+        why: `${copy.whyQrMail} · ${proposal.draft ? copy.confidenceHigh : copy.confidenceCheck}`, signature: 'qr:' + (proposal.supplier?.name || bill.creditor.name),
         actions: proposal.draft ? [{ id: 'qr-create', label: copy.actionCreatePurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }]
           : [{ id: 'qr-review', label: copy.actionReviewPurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
@@ -1301,7 +1369,7 @@ function WorkspaceContent({
     if (key.startsWith('statement-file:') && actionId === 'import-statement') {
       const file = statementFiles?.files.find(row => 'statement-file:' + row.sha256 === key);
       if (!file) return;
-      const imported = await act(async () => { await desktopApi.importCamtFile(file.path, true, workspaceRef.current.workNotesScope); return desktopApi.loadWorkspace(); },
+      const imported = await journalAct(async () => { await desktopApi.importCamtFile(file.path, true, workspaceRef.current.workNotesScope); return desktopApi.loadWorkspace(); },
         copy.statementImported.replace('{name}', file.name), false);
       if (imported) { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); void readFollowUps(); refresh(); }
       return;
@@ -1312,23 +1380,46 @@ function WorkspaceContent({
       setSearch(''); if (id) setProjectFolderId(id); setView('projects'); return;
     }
     if (actionId === 'stop-timer') {
-      const stopped = await act(origin => desktopApi.stopTimer(origin.workspaceScope, origin.memberContextNonce), copy.timerStopped, false);
+      const stopped = await journalAct(origin => desktopApi.stopTimer(origin.workspaceScope, origin.memberContextNonce), copy.timerStopped, false);
       if (stopped) refresh();
       return;
     }
     if (actionId === 'task-done') {
       const id = key.slice('task:'.length);
-      const done = await act(() => desktopApi.setProjectTaskStatus(id, 'done'), copy.taskDone, false);
+      const done = await journalAct(() => desktopApi.setProjectTaskStatus(id, 'done'), copy.taskDone, false);
       if (done) refresh();
       return;
     }
     if (actionId === 'open-payroll' || actionId === 'open-certificates') { setSearch(''); setView('team'); setTeamStartSection('payslips'); return; }
     if (actionId === 'open-closing') { setSearch(''); setAccountingStartTab('closing'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-vat') { setSearch(''); setAccountingStartTab('vat'); setAccountingEntryFocus(null); setView('accounting'); return; }
+    if (key.startsWith('rule:') && (actionId === 'rule-always' || actionId === 'rule-never')) {
+      decideRule(organizationId, key.slice('rule:'.length), actionId === 'rule-always' ? 'always' : 'never'); refresh(); return;
+    }
+    if (key.startsWith('bank-batch:') && actionId === 'confirm-all') {
+      const ids = new Set(key.slice('bank-batch:'.length).split('+'));
+      const rows = bankProposals(autopilotBank, mailSignals, workspaceRef.current.invoices, workspaceRef.current.clients).filter(item => ids.has(item.movement.id));
+      let confirmedCount = 0;
+      const confirmed = await journalAct(async () => {
+        // One after the other: each confirmation is rechecked natively; a refused one stops nothing else.
+        for (const row of rows) {
+          try {
+            if (row.action === 'confirm_invoice') await desktopApi.confirmBankReconciliation(row.movement.id, row.invoiceId!);
+            else if (row.action === 'confirm_supplier') await desktopApi.confirmSupplierBankReconciliation(row.movement.id, row.supplierInvoiceId!);
+            else continue;
+            confirmedCount++;
+            if (row.announcedBy) saveSignalDecision(organizationId, row.announcedBy.sourceId, 'done');
+          } catch { /* stays as its own card */ }
+        }
+        return desktopApi.loadWorkspace();
+      }, copy.batchDone.replace('{n}', String(rows.length)), false);
+      if (confirmed) { if (confirmedCount < rows.length) setNotice({ tone: 'warning', text: copy.batchDone.replace('{n}', String(confirmedCount)) }); void readFollowUps(); refresh(); }
+      return;
+    }
     if (key.startsWith('bank:') && actionId === 'confirm-bank') {
       const row = bankProposals(autopilotBank, mailSignals, workspaceRef.current.invoices, workspaceRef.current.clients).find(item => 'bank:' + item.movement.id === key);
       if (!row) return;
-      const confirmed = await act(async () => {
+      const confirmed = await journalAct(async () => {
         if (row.action === 'confirm_invoice') await desktopApi.confirmBankReconciliation(row.movement.id, row.invoiceId!);
         else if (row.action === 'confirm_supplier') await desktopApi.confirmSupplierBankReconciliation(row.movement.id, row.supplierInvoiceId!);
         else if (row.action === 'confirm_expense') await desktopApi.confirmExpenseBankReconciliation(row.movement.id, row.expenseId!, undefined, createId());
@@ -1359,12 +1450,13 @@ function WorkspaceContent({
       const proposal = qrMailProposal(item, bill, current, purchaseVatOptions(current.settings.organization.vatRegistered, current.settings.billing.vatRatesBp), today);
       if (actionId === 'qr-review' || !proposal?.draft) { setSearch(''); setPurchaseStartSection('inbox'); setView('expenses'); return; }
       const draft = proposal.draft;
-      const created = await act(async () => {
+      const created = await journalAct(async () => {
         await supplierInbox.importInvoice(item, draft);
         await desktopApi.saveSupplierInvoicePaymentDetails(qrBillPaymentDetails(bill, item.id));
         return desktopApi.loadWorkspace();
       }, copy.qrMailCreated, false);
       if (created) {
+        actionUndo.current = { kind: 'supplier-draft', invoiceId: item.id };
         saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true }));
         const invoice = workspaceRef.current.supplierInvoices.find(row => row.id === item.id);
         setSearch(''); setView('expenses');
@@ -1397,7 +1489,7 @@ function WorkspaceContent({
       if (!last) { setNotice({ tone: 'warning', text: copy.orderNoSupplier }); setSearch(''); setView('expenses'); return; }
       const supplier = workspaceRef.current.suppliers.find(row => row.id === last.order.supplierId);
       const quantityMilli = last.line.quantityMilli > 0 ? last.line.quantityMilli : item.reorderLevelMilli * 2;
-      const drafted = await act(() => desktopApi.saveSupplierOrderDraft({ supplierId: last.order.supplierId, title: item.name, orderDate: today, currency: last.order.currency,
+      const drafted = await journalAct(() => desktopApi.saveSupplierOrderDraft({ supplierId: last.order.supplierId, title: item.name, orderDate: today, currency: last.order.currency,
         lines: [{ catalogItemId: item.id, position: 1, description: last.line.description || item.name, quantityMilli, unit: last.line.unit || item.unit,
           unitPriceCents: last.line.unitPriceCents, discountBp: last.line.discountBp, vatBp: last.line.vatBp, category: last.line.category,
           expenseAccountId: last.line.expenseAccountId, projectId: last.line.projectId, fulfillmentMode: last.line.fulfillmentMode }] }),
@@ -1411,7 +1503,7 @@ function WorkspaceContent({
       const found = supplierOrderProposal(signal, workspaceRef.current.suppliers, workspaceRef.current.supplierOrders);
       if (actionId === 'prepare-receipt' && found.order) {
         const order = found.order;
-        const prepared = await act(() => desktopApi.saveSupplierReceiptDraft({ supplierOrderId: order.id, receiptDate: today, reference: '',
+        const prepared = await journalAct(() => desktopApi.saveSupplierReceiptDraft({ supplierOrderId: order.id, receiptDate: today, reference: '',
           notes: signal.evidence.slice(0, 500), lines: order.lines.filter(line => line.remainingReceivableMilli > 0).map(line => ({ supplierOrderLineId: line.id, quantityMilli: line.remainingReceivableMilli })) }),
           copy.receiptDrafted, false);
         if (prepared) { saveSignalDecision(organizationId, key, 'done'); setSearch(''); setView('expenses'); refresh(); }
@@ -1426,11 +1518,12 @@ function WorkspaceContent({
       if (!proposal) return;
       if (actionId === 'create-client') {
         const client = clientFromSender(createId(), proposal.signal);
-        const created = await act(origin => desktopApi.createEntity('clients', client, origin.workspaceScope, origin.memberContextNonce), copy.contactCreated.replace('{name}', client.name), false);
+        const created = await journalAct(origin => desktopApi.createEntity('clients', client, origin.workspaceScope, origin.memberContextNonce), copy.contactCreated.replace('{name}', client.name), false);
         if (created) { saveSignalDecision(organizationId, key, 'done'); refresh(); }
       } else if (actionId === 'update-record' && proposal.target) {
         const data = Object.fromEntries(proposal.changes.map(change => [change.field, change.after]));
-        const updated = await act(origin => desktopApi.updateEntity(proposal.target!.entity, proposal.target!.id, data, origin.workspaceScope, origin.memberContextNonce),
+        actionUndo.current = { kind: 'record-fields', entity: proposal.target.entity, id: proposal.target.id, fields: Object.fromEntries(proposal.changes.map(change => [change.field, change.before])) };
+        const updated = await journalAct(origin => desktopApi.updateEntity(proposal.target!.entity, proposal.target!.id, data, origin.workspaceScope, origin.memberContextNonce),
           copy.contactUpdated.replace('{name}', proposal.target.name), false);
         if (updated) { saveSignalDecision(organizationId, key, 'done'); refresh(); }
       }
@@ -1449,7 +1542,7 @@ function WorkspaceContent({
     if (key.startsWith('tomorrow:') && actionId === 'open-agenda') { openAutomationAppointment(key.slice('tomorrow:'.length)); return; }
     if (actionId === 'postpone') { saveFollowUp(organizationId, key, entry => ({ ...entry, until: addDays(today, 7) })); refresh(); return; }
     if (key === 'reminders-offer' && actionId === 'enable') {
-      const enabled = await act(async () => { await desktopApi.installReminderCycle(createId()); return desktopApi.loadWorkspace(); }, copy.remindersEnabled, false);
+      const enabled = await journalAct(async () => { await desktopApi.installReminderCycle(createId()); return desktopApi.loadWorkspace(); }, copy.remindersEnabled, false);
       if (enabled) void readFollowUps();
       return;
     }
@@ -1473,7 +1566,7 @@ function WorkspaceContent({
       if (!quote) return;
       if (actionId === 'send-quote') { setFollowUpMail({ target: { entity: 'quotes', id: quote.id }, key, subject: copy.quoteFollowUpSubject.replace('{number}', quote.number) }); return; }
       if (actionId === 'close') {
-        const closed = await act(() => desktopApi.updateQuoteStatus(quote.id, 'expired'), copy.quoteClosed.replace('{number}', quote.number), false);
+        const closed = await journalAct(() => desktopApi.updateQuoteStatus(quote.id, 'expired'), copy.quoteClosed.replace('{number}', quote.number), false);
         if (closed) { saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true })); refresh(); }
       }
     }
@@ -3102,7 +3195,7 @@ function WorkspaceContent({
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
           {debtDialog && <DebtCollectionDialog request={debtDialog.request} invoiceNumber={debtDialog.invoiceNumber} onClose={() => setDebtDialog(null)}
             onSaved={(next, path) => { workspaceRef.current = next; setWorkspace(next); setDebtDialog(null); setNotice({ tone: 'success', text: autopilotCopy(getAppLanguage()).debtSaved.replace('{path}', path) }); }} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignal(sourceId, choiceId), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = followUpCards(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUp(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignalJournalled(sourceId, choiceId), journal: autopilotContext ? journalEntries(autopilotContext.organizationId).slice(0, 50) : [], journalVersion, onUndo: readOnly ? undefined : (entry: JournalEntry) => void undoJournal(entry), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = followUpCards(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUpJournalled(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (

@@ -10,6 +10,8 @@ import { AutopilotActionList, type AutopilotActionCard } from './AutopilotAction
 import { AutopilotCommandBar } from './AutopilotCommandBar';
 import type { AutopilotView } from './autopilotView';
 import './AutopilotPanel.css';
+import { AutopilotJournalList } from './AutopilotJournalList';
+import type { JournalEntry } from './autopilotJournal';
 
 function statusText(state: AutopilotView, language: string) {
   const copy = autopilotCopy(language);
@@ -172,7 +174,7 @@ export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boole
   /** The client accepted the quote; an invoice is the next step. */ accepted?: boolean;
   invoice?: Readonly<{ number: string; issued: boolean }>; invoiceSentAt?: number }>;
 
-export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onAsk, asking = false, askNotUnderstood = false, acceptances = [], onChooseAcceptance, signals = [], onSignal, onIgnoreSignal, followUps = [], followUpSummary, onFollowUp, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
+export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, onRefresh, onCatalogue, canAddCatalogue = false, onAsk, asking = false, askNotUnderstood = false, acceptances = [], onChooseAcceptance, signals = [], onSignal, onIgnoreSignal, followUps = [], followUpSummary, onFollowUp, journal = [], onUndo, onCreateQuote, createdQuote, onOpenCreatedQuote, onSendCreatedQuote, onCreateInvoice, onSendInvoice, onOpenInvoice, catalogueArticles = [], onChooseArticle, onCreateArticle }: {
   state: AutopilotView; organizationId: string; onOpenSource: (sourceId: string) => Promise<unknown>;
   onNext?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
@@ -190,6 +192,9 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
   onIgnoreSignal?: (sourceId: string) => void;
   /** Reminders and quote follow-ups Autopilote prepared, with their one-line summary. */
   followUps?: readonly AutopilotActionCard[];
+  /** What was done from Autopilote on this device, with undo when the app knows the inverse. */
+  journal?: readonly JournalEntry[];
+  onUndo?: (entry: JournalEntry) => void;
   followUpSummary?: string;
   onFollowUp?: (key: string, actionId: string) => void;
   /** Creates the quote at once, with its client and lines. */
@@ -294,6 +299,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
         })())}</ol>}
     {readable && <AutopilotActionList summary={followUpSummary} cards={followUps} disabled={opening !== null} onAction={onFollowUp} label={copy.followUpListTitle} />}
     {readable && <AutopilotSignals cards={signals} disabled={opening !== null} onAct={onSignal} onIgnore={onIgnoreSignal} />}
+    {readable && <AutopilotJournalList entries={journal} onUndo={onUndo} disabled={opening !== null} />}
     {readable && (choiceCards.length > 0 || acceptedCards.length > 0) && <ol className="quote-autopilot__requests quote-autopilot__requests--acceptances" aria-label={copy.acceptanceListTitle}>
       {choiceCards.map(card => <AcceptanceChoice key={card.key} card={card} disabled={opening !== null} onChoose={onChooseAcceptance} />)}
       {acceptedCards.map(card => { const key = { proposalId: card.key }; return <AcceptedRequest key={card.key} quote={createdQuote!(key)!} disabled={opening !== null}

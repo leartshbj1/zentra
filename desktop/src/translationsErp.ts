@@ -66,6 +66,12 @@ export const erpTranslations: Record<string, readonly [string, string, string]> 
   'L’adresse complète du débiteur est obligatoire pour l’office des poursuites.': ['Die vollständige Adresse des Schuldners ist für das Betreibungsamt Pflicht.', 'L’indirizzo completo del debitore è obbligatorio per l’ufficio d’esecuzione.', 'The debtor’s full address is required by the debt collection office.'],
   'L’adresse de l’entreprise est incomplète dans les réglages.': ['Die Adresse des Unternehmens ist in den Einstellungen unvollständig.', 'L’indirizzo dell’azienda è incompleto nelle impostazioni.', 'The company address is incomplete in the settings.'],
   'La facture n’a plus de solde ouvert.': ['Die Rechnung hat keinen offenen Saldo mehr.', 'La fattura non ha più un saldo aperto.', 'The invoice has no open balance left.'],
+  // Autopilote journal
+  'Pourquoi ?': ['Warum?', 'Perché?', 'Why?'],
+  'Ce qu’Autopilote a fait ({count})': ['Was Autopilot erledigt hat ({count})', 'Cosa ha fatto Autopilota ({count})', 'What Autopilot did ({count})'],
+  'Non abouti': ['Nicht abgeschlossen', 'Non riuscito', 'Not completed'],
+  'Annulé': ['Rückgängig gemacht', 'Annullato', 'Undone'],
+  'Annuler': ['Rückgängig', 'Annulla', 'Undo'],
   // Swiss SME chart of accounts
   'Plan comptable PME suisse': ['Schweizer KMU-Kontenrahmen', 'Piano contabile PMI svizzero', 'Swiss SME chart of accounts'],
   '1 compte du plan PME manque dans votre plan. Il est ajouté sans modifier vos comptes existants.': ['1 Konto des KMU-Kontenrahmens fehlt in Ihrem Kontenplan. Es wird ergänzt, ohne bestehende Konten zu ändern.', 'Manca 1 conto del piano PMI. Viene aggiunto senza modificare i conti esistenti.', '1 account of the SME chart is missing. It is added without changing your existing accounts.'],

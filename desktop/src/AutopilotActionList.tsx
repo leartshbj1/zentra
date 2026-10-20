@@ -1,4 +1,6 @@
 import { BellRing } from 'lucide-react';
+import { t } from './language';
+import './autopilot-journal.css';
 
 /** One thing Autopilote prepared (a reminder, a quote follow-up); nothing runs before a click. */
 export type AutopilotActionCard = Readonly<{
@@ -6,6 +8,10 @@ export type AutopilotActionCard = Readonly<{
   /** A sentence from the client's mail that changes what to do, quoted as is. */
   evidence?: string;
   note?: string;
+  /** Why Autopilote proposes it: the rule applied and how sure it is. Shown on demand. */
+  why?: string;
+  /** Same action, same counterpart: three validations propose a learned rule. */
+  signature?: string;
   actions: readonly Readonly<{ id: string; label: string; primary?: boolean }>[];
 }>;
 
@@ -21,6 +27,7 @@ export function AutopilotActionList({ summary, cards, disabled = false, onAction
           <p className="quote-autopilot__done-summary">{card.detail}</p>
           {card.note ? <p className="quote-autopilot__hint">{card.note}</p> : null}
           {card.evidence ? <blockquote className="quote-autopilot__evidence">{card.evidence}</blockquote> : null}
+          {card.why ? <details className="quote-autopilot__why"><summary>{t('Pourquoi ?')}</summary><p>{card.why}</p></details> : null}
         </div>
         <div className="quote-autopilot__request-actions">
           {onAction && card.actions.map(action => <button key={action.id} type="button" disabled={disabled}

@@ -27,3 +27,5 @@ src/debtCollection.test.ts
 src/remindersUi.test.ts
 rust:reminder_charges::
 rust:reminders::
+src/autopilotJournal.test.ts
+src/AutopilotPanel.test.tsx
