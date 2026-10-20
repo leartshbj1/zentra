@@ -1951,6 +1951,12 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 64)?;
         }
+        if current < 65 {
+            transaction.execute_batch(crate::schema::MIGRATION_V65_SQL)?;
+            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
+            crate::company_collaboration::migrate(&transaction)?;
+            transaction.pragma_update(None, "user_version", 65)?;
+        }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
         crate::work_notes::ensure_workspace_scope(&transaction)?;
@@ -2907,7 +2913,7 @@ impl LocalStore {
         workspace["stock_availability"] = Value::Array(stock_availability);
         workspace["project_milestones"] = Value::Array(project_milestones);
         workspace["project_tasks"] = Value::Array(project_tasks);
-        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests"] {
+        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables"] {
             let present: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [table], |row| row.get(0))?;
             workspace[table] = Value::Array(if present { query_all(connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [])? } else { Vec::new() });
         }
@@ -3900,6 +3906,7 @@ impl LocalStore {
                     "original_invoice_id est obligatoire pour émettre un avoir.".into(),
                 )
             })?;
+            crate::opening_balances::refuse_credit_note(&transaction, original)?;
             let original_document: Option<(
                 Option<String>,
                 Option<String>,
@@ -4143,6 +4150,7 @@ impl LocalStore {
                 "Un avoir ne peut pas devenir la facture source d’une nouvelle correction.".into(),
             ));
         }
+        crate::opening_balances::refuse_credit_note(&transaction, original_id)?;
         let status = original.get("status").and_then(Value::as_str).unwrap_or("");
         if !matches!(
             status,
@@ -8011,7 +8019,7 @@ fn validate_time_entry_task_link(
     Ok(())
 }
 
-fn build_document_snapshot(
+pub(crate) fn build_document_snapshot(
     transaction: &Transaction<'_>,
     table: &str,
     items_table: &str,

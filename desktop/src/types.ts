@@ -1815,6 +1815,8 @@ export type Workspace = {
   supplierInvoiceMatches: SupplierInvoiceMatch[];
   supplierPaymentOrders?: SupplierPaymentOrder[];
   debtCollectionRequests?: { id: Identifier; invoiceId: Identifier; fileName: string; createdAt: string }[];
+  /** Factures reprises d'un autre logiciel (bexio) comme créances d'ouverture. */
+  openingReceivables?: { invoiceId: Identifier; sourceNumber: string; openCents: number }[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

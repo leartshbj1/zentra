@@ -70,3 +70,45 @@ export function installErpChartFixture() {
   desktopApi.swissSmeChartPreview = async () => ({ total: 110, present: 110 - remaining.length, missing: remaining });
   desktopApi.completeSwissSmeChart = async () => { const added = remaining.length; remaining = []; return { added }; };
 }
+
+/** ?erp=bexio : clients repris de bexio, reprise d'ouverture simulée sans app native. */
+export function installErpBexioFixture(data: Workspace) {
+  const client = (id: string, name: string, street: string, postalCode: string, city: string) => ({
+    id, name, company: name, email: '', phone: '', address: `${street}\n${postalCode} ${city}`, addressLine1: street, postalCode, city, country: 'CH', uidNumber: '', notes: 'Import bexio',
+  });
+  data.clients = [
+    ...data.clients,
+    client('c-muster', 'Muster AG', 'Bahnhofstrasse 1', '8001', 'Zürich'),
+    client('c-favre', 'Boulangerie Favre Sàrl', 'Rue de Lausanne 12', '1630', 'Bulle'),
+    client('c-commune', 'Commune de Riaz', 'Route de Riaz 2', '1632', 'Riaz'),
+  ] as Workspace['clients'];
+  // Après les autres fixtures du banc, qui remplacent aussi le pont natif.
+  setTimeout(() => {
+  const tauri = window as unknown as { __TAURI_INTERNALS__?: { invoke: (command: string) => Promise<unknown> } };
+  const previous = tauri.__TAURI_INTERNALS__?.invoke;
+  tauri.__TAURI_INTERNALS__ = {
+    ...(tauri.__TAURI_INTERNALS__ ?? {}),
+    invoke: async (command: string, ...rest: unknown[]) => {
+      if (command === 'bexio_import_scope') return 'fixture-company';
+      if (previous) return (previous as (...args: unknown[]) => Promise<unknown>)(command, ...rest);
+      throw new Error(`Commande indisponible dans l’aperçu : ${command}`);
+    },
+  } as never;
+  }, 0);
+  const names: Record<string, string> = { '1020': 'Banque', '1100': 'Créances résultant de livraisons et prestations', '1500': 'Machines et appareils', '2000': 'Dettes résultant d’achats et de prestations', '2100': 'Dettes bancaires à court terme', '2800': 'Capital propre ou capital social', '2970': 'Bénéfice ou perte reporté' };
+  desktopApi.previewOpeningBalance = async (entryDate, lines) => {
+    const receivables = 225_050;
+    const planned = lines.map((line) => {
+      const debitNormal = line.code.startsWith('1');
+      const balance = line.balance_cents ?? (line.debit_cents ?? 0) - (line.credit_cents ?? 0);
+      let net = line.balance_cents === undefined ? balance : debitNormal ? balance : -balance;
+      const note = line.code === '1100' ? "dont 2'250.50 déjà repris avec les factures ouvertes" : '';
+      if (line.code === '1100') net -= receivables;
+      return { line: line.line, code: line.code, name: names[line.code] ?? line.name ?? '', debitCents: Math.max(net, 0), creditCents: Math.max(-net, 0), create: line.code === '1500', note };
+    });
+    const sum = planned.reduce((total, line) => total + line.debitCents - line.creditCents, 0);
+    return { entryDate, lines: planned, opening: { code: '9100', name: "Bilan d'ouverture", debitCents: Math.max(-sum, 0), creditCents: Math.max(sum, 0) }, receivablesCents: receivables, differenceCents: sum + receivables };
+  };
+  desktopApi.importOpeningReceivables = async (rows) => ({ receipt: { created: rows.length, skipped: 0, rows: rows.map((row) => ({ line: row.line, number: row.number, status: 'created' as const })) }, workspace: structuredClone(data) });
+  desktopApi.importOpeningBalance = async (entryDate, lines) => ({ plan: await desktopApi.previewOpeningBalance(entryDate, lines), journalNumber: 'J-2026-000001' });
+}

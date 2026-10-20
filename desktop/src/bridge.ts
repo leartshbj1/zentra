@@ -11,6 +11,7 @@ import { copyDiagnosticIntent, withDiagnosticIntent, withEntityDiagnosticIntent 
 import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import { statementFileFromRaw, type StatementFile } from './autopilotStatements';
 import type { ReminderChargeSettings } from './reminderCharges';
+import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
 import type { WorkNote, WorkNoteDraft } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
@@ -514,6 +515,7 @@ type RawWorkspace = {
   supplier_payment_orders?: RawRecord[];
   supplier_payment_order_items?: RawRecord[];
   debt_collection_requests?: RawRecord[];
+  opening_receivables?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -528,6 +530,17 @@ type RawWorkspace = {
 
 const stringValue = (value: unknown): string =>
   typeof value === 'string' ? value : '';
+function openingBalancePlan(raw: RawRecord): OpeningBalancePlan {
+  const opening = (raw.opening ?? {}) as RawRecord;
+  return {
+    entryDate: stringValue(raw.entry_date),
+    lines: rawArray(raw.lines).map((line) => ({ line: numberValue(line.line), code: stringValue(line.code), name: stringValue(line.name), debitCents: numberValue(line.debit_cents), creditCents: numberValue(line.credit_cents), create: line.create === true, note: stringValue(line.note) })),
+    opening: { code: stringValue(opening.code), name: stringValue(opening.name), debitCents: numberValue(opening.debit_cents), creditCents: numberValue(opening.credit_cents) },
+    receivablesCents: numberValue(raw.receivables_cents),
+    differenceCents: numberValue(raw.difference_cents),
+  };
+}
+
 const numberValue = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0;
 const boolValue = (value: unknown): boolean =>
@@ -3341,6 +3354,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     supplierInvoiceMatches,
     supplierPaymentOrders,
     debtCollectionRequests: (raw.debt_collection_requests ?? []).map((row) => ({ id: stringValue(row.id), invoiceId: stringValue(row.invoice_id), fileName: stringValue(row.file_name), createdAt: stringValue(row.created_at) })),
+    openingReceivables: (raw.opening_receivables ?? []).map((row) => ({ invoiceId: stringValue(row.invoice_id), sourceNumber: stringValue(row.source_number), openCents: numberValue(row.open_cents) })),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7372,6 +7386,18 @@ export const desktopApi = {
     });
     try { await shareMobileExport(result.path); } catch { /* the file is saved */ }
     return { ...result, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Factures bexio encore ouvertes : l'app les émet et les comptabilise contre le compte d'ouverture. */
+  async importOpeningReceivables(rows: NativeOpeningReceivable[]) {
+    const receipt = await invoke<{ created: number; skipped: number; rows: { line: number; number: string; status: 'created' | 'skipped'; reason?: string }[] }>('import_opening_receivables', { input: { rows } });
+    return { receipt, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async previewOpeningBalance(entryDate: string, lines: NativeBalanceLine[]): Promise<OpeningBalancePlan> {
+    return openingBalancePlan(await invoke<RawRecord>('preview_opening_balance', { input: { entry_date: entryDate, lines } }));
+  },
+  async importOpeningBalance(entryDate: string, lines: NativeBalanceLine[]) {
+    const result = await invoke<{ plan: RawRecord; journal: RawRecord }>('import_opening_balance', { input: { entry_date: entryDate, lines } });
+    return { plan: openingBalancePlan(result.plan), journalNumber: stringValue(result.journal?.number) };
   },
   async updateReminderSettings(settings: ReminderSettings) {
     await invoke('update_reminder_settings', {

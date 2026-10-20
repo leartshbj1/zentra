@@ -146,3 +146,27 @@ html[data-app-theme] .desktop-app[data-experience] .bexio-import :is(.bexio-impo
     font-size: 23px;
   }
 }
+/* Aperçu du bilan d'ouverture : compte à gauche, montant à droite. */
+.bexio-opening-lines > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: center;
+}
+.bexio-opening-lines > div > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .bexio-opening-lines > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+.bexio-opening-intro { margin: 16px 0; }
+.bexio-opening-date { max-width: 280px; margin-bottom: 8px; }
+.bexio-import-rows + p[role="alert"] + button,
+.bexio-import-rows + button { margin-top: 8px; }

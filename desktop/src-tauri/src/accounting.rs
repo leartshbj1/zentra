@@ -2183,6 +2183,27 @@ fn post_invoice(tx: &Transaction<'_>, invoice_id: &str) -> AppResult<Option<Valu
         ));
     }
     let mut lines = Vec::new();
+    // Créance reprise d'un autre logiciel : son produit et sa TVA appartiennent
+    // à l'exercice d'origine. Seule la créance entre, contre le compte d'ouverture.
+    if crate::opening_balances::is_opening_receivable(tx, invoice_id)? {
+        if kind != "standard" || vat != 0 || total <= 0 {
+            return Err(AppError::Validation(
+                "Une facture reprise doit rester une facture simple, sans TVA et de montant positif.".into(),
+            ));
+        }
+        let opening = crate::opening_balances::opening_account(tx)?;
+        push_line(&mut lines, &map.ar, total, 0, &currency, project.clone(), client.clone(), None, "Créance client");
+        push_line(&mut lines, &opening, 0, total, &currency, project, client, None, crate::opening_balances::OPENING_MEMO);
+        return Ok(Some(post_entry(
+            tx,
+            &date,
+            &format!("Reprise {}", number.unwrap_or_default()),
+            "invoice",
+            invoice_id,
+            "issue",
+            lines,
+        )?));
+    }
     let reversal_ar = if kind == "avoir" {
         match original_invoice_id.as_deref() {
             Some(original) => posted_invoice_account(tx, original, "Créance client", "asset")?,
@@ -4041,7 +4062,13 @@ fn non_customer_semantic_posting_mismatches_in_range(
             }
         } else {
             let ar = exact_line_account(posting, "Créance client", total, 0);
-            let revenue = if net != 0 {
+            let opening = crate::opening_balances::is_opening_receivable(connection, &id)?;
+            let revenue = if opening {
+                // La contrepartie d'une créance reprise est le compte d'ouverture.
+                exact_line_account(posting, crate::opening_balances::OPENING_MEMO, 0, total)
+                    .filter(|account| vat == 0 && account_has_type(connection, account, "equity").unwrap_or(false))
+                    .map(|_| "")
+            } else if net != 0 {
                 exact_line_account(posting, "Produit facturé", 0, net)
             } else {
                 Some("")

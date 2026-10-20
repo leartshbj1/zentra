@@ -2283,16 +2283,18 @@ fn load_sales_sources(
     issues: &mut Vec<VatBlockingIssue>,
 ) -> AppResult<Vec<RawVatSource>> {
     if form == "agreed" {
-        let mut statement = connection.prepare(
+        // Les factures reprises d'un autre logiciel ont été déclarées dans leur exercice d'origine.
+        let opening = crate::opening_balances::exclusion_clause(connection, "invoice")?;
+        let mut statement = connection.prepare(&format!(
             "SELECT item.id,invoice.id,invoice.issue_date,item.description,UPPER(TRIM(invoice.currency)),item.line_net_cents,item.line_vat_cents,item.line_total_cents,item.vat_bp,classification.id,classification.treatment,classification.note,classification.updated_at
              FROM invoice_items item
              JOIN invoices invoice ON invoice.id=item.invoice_id
              LEFT JOIN vat_source_classifications classification ON classification.source_type='invoice_item' AND classification.source_id=item.id
              WHERE invoice.number IS NOT NULL AND invoice.status IN ('emise','partiellement_payee','payee')
                AND invoice.issue_date BETWEEN ? AND ?
-               AND (item.line_net_cents<>0 OR item.line_vat_cents<>0 OR item.line_total_cents<>0)
+               AND (item.line_net_cents<>0 OR item.line_vat_cents<>0 OR item.line_total_cents<>0){opening}
              ORDER BY invoice.issue_date,invoice.id,item.position,item.id",
-        )?;
+        ))?;
         let rows = statement.query_map(params![date_from, date_to], |row| {
             Ok(RawVatSource {
                 source_type: "invoice_item".into(),
@@ -2327,6 +2329,16 @@ fn load_sales_sources(
             issues,
             "received_credit_note_timing_unknown",
             "Mode reçu bloqué : les avoirs clients locaux n'enregistrent pas une date d'imputation ou de remboursement permettant leur affectation exacte à une période TVA."
+                .into(),
+            None,
+            None,
+        );
+    }
+    if crate::opening_balances::paid_in_period(connection, date_from, date_to)? > 0 {
+        push_issue(
+            issues,
+            "received_opening_receivable_paid",
+            "Mode reçu bloqué : des factures reprises de bexio ont été encaissées dans la période. Leur TVA relève du décompte d'origine ; déclarez-la avec votre fiduciaire."
                 .into(),
             None,
             None,

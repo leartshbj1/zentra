@@ -21,6 +21,7 @@ import {
   type BexioReceipt,
 } from './bexioImport';
 import { desktopApi } from './bridge';
+import { BexioOpenInvoices, BexioOpeningBalance } from './BexioOpeningImport';
 import { refreshWorkspaceAfterMutation } from './workspaceMutation';
 import type { Workspace } from './types';
 import { errorMessage } from './utils';
@@ -38,7 +39,7 @@ export function BexioImportPanel({
 }) {
   useAppLanguage();
   const originalWorkspaceScope = useRef(workspace.workNotesScope).current;
-  const [target, setTarget] = useState<ContactTarget | 'catalog'>('clients');
+  const [target, setTarget] = useState<ContactTarget | 'catalog' | 'invoices' | 'balance'>('clients');
   const [source, setSource] = useState<CatalogMappingSource | null>(null),
     [header, setHeader] = useState(0),
     [mapping, setMapping] = useState<string[]>([]);
@@ -69,7 +70,7 @@ export function BexioImportPanel({
     };
   }, [scopeAttempt]);
   const preview = useMemo(() => {
-    if (!source || target === 'catalog') return { rows: [], error: '' };
+    if (!source || (target !== 'clients' && target !== 'suppliers')) return { rows: [], error: '' };
     try {
       return {
         rows: previewContacts(
@@ -140,7 +141,7 @@ export function BexioImportPanel({
       invalid ||
       !selected.length ||
       !scope ||
-      target === 'catalog'
+      (target !== 'clients' && target !== 'suppliers')
     )
       return;
     running.current = true;
@@ -174,7 +175,7 @@ export function BexioImportPanel({
       <header>
         <h2>{t("Reprendre vos données bexio")}</h2>
         <p>
-          {t('Retrouvez vos contacts et votre catalogue dans {company}.', { company: workspace.settings?.organization.legalName || t('cette entreprise') })}
+          {t('Retrouvez vos contacts, votre catalogue, vos factures ouvertes et vos soldes dans {company}.', { company: workspace.settings?.organization.legalName || t('cette entreprise') })}
         </p>
       </header>
       {error && <ErrorPanel message={error} />}
@@ -208,6 +209,8 @@ export function BexioImportPanel({
                 ['clients', 'Clients'],
                 ['suppliers', 'Fournisseurs'],
                 ['catalog', 'Articles et services'],
+                ['invoices', 'Factures ouvertes'],
+                ['balance', 'Bilan d’ouverture'],
               ] as const
             ).map(([key, label]) => (
               <Button
@@ -224,9 +227,17 @@ export function BexioImportPanel({
               </Button>
             ))}
           </div>
-          <details className="bexio-import-instructions"><summary>{t("Préparer l’export bexio")}</summary><p>{t("Dans bexio, exportez la liste souhaitée au format Excel. Séparez vos clients et vos fournisseurs à l’aide du filtre Catégorie. Choisissez les adresses principales.")}</p></details>
-          <p className="bexio-import-note">{t("Les factures, écritures, soldes, pièces jointes et stocks ne sont pas repris par cet import.")}</p>
-          {target === 'catalog' ? (
+          <details className="bexio-import-instructions"><summary>{t("Préparer l’export bexio")}</summary><p>{t(target === 'invoices'
+            ? "Dans bexio, exportez la liste des factures ouvertes et partiellement payées au format Excel. Reprenez d’abord vos clients : chaque facture est rattachée au client du même nom."
+            : target === 'balance'
+              ? "Dans bexio, exportez le bilan à la date de clôture au format Excel ou CSV. Reprenez d’abord vos factures ouvertes, puis activez la comptabilité dans Zentra."
+              : "Dans bexio, exportez la liste souhaitée au format Excel. Séparez vos clients et vos fournisseurs à l’aide du filtre Catégorie. Choisissez les adresses principales.")}</p></details>
+          <p className="bexio-import-note">{t("Les pièces jointes et les stocks ne sont pas repris.")}</p>
+          {target === 'invoices' ? (
+            <BexioOpenInvoices workspace={workspace} disabled={locked || !scope} onWorkspace={onWorkspace} />
+          ) : target === 'balance' ? (
+            <BexioOpeningBalance disabled={locked || !scope} />
+          ) : target === 'catalog' ? (
             <>
               <p>{t("Vérifiez les prix hors taxe en CHF et les taux de TVA. Si l’export utilise un code TVA, remplacez-le par son taux avant de confirmer.")}</p>
               <Button disabled={locked} onClick={() => setCatalog(true)}>

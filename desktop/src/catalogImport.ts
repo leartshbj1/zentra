@@ -65,6 +65,11 @@ const HEADER_ALIASES: Record<CatalogImportColumn, string[]> = {
     'product code',
     'code produit',
     'numero de produit',
+    // Exports bexio (FR / DE / IT).
+    'n d article',
+    'no d article',
+    'produktnummer',
+    'numero articolo',
   ],
   name: [
     'nom',
@@ -79,8 +84,15 @@ const HEADER_ALIASES: Record<CatalogImportColumn, string[]> = {
     'bezeichnung',
     'produktname',
     'descrizione',
+    'designation interne',
+    'nom interne',
+    'interne bezeichnung',
+    'interner name',
+    'internal name',
+    'nome interno',
+    'designazione interna',
   ],
-  description: ['description', 'description du produit', 'description du produit texte', 'details', 'detail', 'texte', 'text'],
+  description: ['description', 'description du produit', 'description du produit texte', 'details', 'detail', 'texte', 'text', 'beschreibung', 'description longue'],
   unit: [
     'unite',
     'unite de vente',
@@ -133,6 +145,8 @@ const HEADER_ALIASES: Record<CatalogImportColumn, string[]> = {
     'mwst satz',
     'mehrwertsteuer',
     'iva',
+    'taux de tva',
+    'aliquota iva',
   ],
   kind: [
     'type',

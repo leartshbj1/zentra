@@ -7081,7 +7081,7 @@ function SettingsScreen({
         <PayrollContributionsPanel refreshKey={payrollDefinitionsRevision} onChanged={() => setPayrollRulesRevision(value => value + 1)} />
       </SettingsAfterOpen>
       </SettingsCategory>
-      <SettingsCategory id="migration" lazy title="Importer depuis bexio" description="Reprendre clients, fournisseurs et articles" icon={Database}>
+      <SettingsCategory id="migration" lazy title="Importer depuis bexio" description="Reprendre contacts, articles, factures ouvertes et soldes" icon={Database}>
         <BexioImportPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace}/>
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>

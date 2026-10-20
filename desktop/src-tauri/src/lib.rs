@@ -89,6 +89,7 @@ mod supplier_procurement;
 mod supplier_payment_orders;
 mod swiss_sme_chart;
 mod reminder_charges;
+mod opening_balances;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -314,6 +315,9 @@ pub fn run() {
             reminder_charges::get_reminder_charge_settings,
             reminder_charges::save_reminder_charge_settings,
             reminder_charges::export_debt_collection_request,
+            opening_balances::import_opening_receivables,
+            opening_balances::preview_opening_balance,
+            opening_balances::import_opening_balance,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

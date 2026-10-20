@@ -29,3 +29,11 @@ rust:reminder_charges::
 rust:reminders::
 src/autopilotJournal.test.ts
 src/AutopilotPanel.test.tsx
+rust:opening_balances::
+rust:vat_reporting::
+rust:accounting
+rust:correction
+rust:credit_note
+src/bexioOpening.test.ts
+src/catalogImport.test.ts
+src/bexioImport.test.ts

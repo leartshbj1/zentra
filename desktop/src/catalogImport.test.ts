@@ -22,6 +22,12 @@ describe('catalogue fournisseur', () => {
     const preview = previewCatalogGrid('prix.csv', 'Catalogue', [cells('Référence', 'Nom', 'Prix achat', 'Prix de vente'), cells('A', 'Article', purchase, '30')]);
     expect(preview.rows[0].errors).toContain('Prix d’achat invalide');
   });
+  it('reconnaît les colonnes d’un export d’articles bexio (FR et DE)', () => {
+    const fr = previewCatalogGrid('articles.xlsx', 'Articles', [cells('N° d’article', 'Désignation interne', 'Prix d’achat', 'Prix de vente', 'Taux de TVA', 'Unité'), cells('A-100', 'Câble réseau', 4, 12.5, 8.1, 'pce')]).rows[0];
+    expect(fr).toMatchObject({ sku: 'A-100', name: 'Câble réseau', purchaseCostCents: 400, salesPriceCents: 1250, vatBp: 810 });
+    const de = previewCatalogGrid('artikel.xlsx', 'Artikel', [cells('Artikelnummer', 'Interne Bezeichnung', 'Beschreibung', 'Einkaufspreis', 'Verkaufspreis', 'MWST-Satz'), cells('B-7', 'Wartung', 'Jährlich', 0, 90, 8.1)]).rows[0];
+    expect(de).toMatchObject({ sku: 'B-7', name: 'Wartung', description: 'Jährlich', salesPriceCents: 9000, vatBp: 810 });
+  });
   it('respecte les petits pourcentages explicites et les fractions Excel', () => {
     const rows = previewCatalogGrid('taux.csv', 'Catalogue', [cells('Référence', 'Nom', 'Prix de vente', 'TVA'), cells('A', 'Article', 10, '0,5 %'), cells('B', 'Article', 10, '1 %'), [...cells('C', 'Article', 10), { value: 0.005, numberFormat: '0.0%' }]]).rows;
     expect(rows.map(row => row.vatBp)).toEqual([50, 100, 50]);
