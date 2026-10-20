@@ -37,6 +37,15 @@ export const erpTranslations: Record<string, readonly [string, string, string]> 
   'Fichier enregistré : {path}. Déposez-le dans votre e-banking.': ['Datei gespeichert: {path}. Laden Sie sie in Ihr E-Banking hoch.', 'File salvato: {path}. Caricalo nel tuo e-banking.', 'File saved: {path}. Upload it to your e-banking.'],
   'Ordre de paiement à reprendre': ['Zahlungsauftrag erneut vorbereiten', 'Ordine di pagamento da riprendere', 'Payment order to redo'],
   'Ordres préparés ({count})': ['Vorbereitete Aufträge ({count})', 'Ordini preparati ({count})', 'Prepared orders ({count})'],
+  // Swiss SME chart of accounts
+  'Plan comptable PME suisse': ['Schweizer KMU-Kontenrahmen', 'Piano contabile PMI svizzero', 'Swiss SME chart of accounts'],
+  '1 compte du plan PME manque dans votre plan. Il est ajouté sans modifier vos comptes existants.': ['1 Konto des KMU-Kontenrahmens fehlt in Ihrem Kontenplan. Es wird ergänzt, ohne bestehende Konten zu ändern.', 'Manca 1 conto del piano PMI. Viene aggiunto senza modificare i conti esistenti.', '1 account of the SME chart is missing. It is added without changing your existing accounts.'],
+  '{count} comptes du plan PME manquent dans votre plan. Ils sont ajoutés sans modifier vos comptes existants.': ['{count} Konten des KMU-Kontenrahmens fehlen in Ihrem Kontenplan. Sie werden ergänzt, ohne bestehende Konten zu ändern.', 'Mancano {count} conti del piano PMI. Vengono aggiunti senza modificare i conti esistenti.', '{count} accounts of the SME chart are missing. They are added without changing your existing accounts.'],
+  'Voir les comptes à ajouter': ['Zu ergänzende Konten anzeigen', 'Vedi i conti da aggiungere', 'See the accounts to add'],
+  'Les comptes n’ont pas pu être ajoutés.': ['Die Konten konnten nicht ergänzt werden.', 'Impossibile aggiungere i conti.', 'The accounts could not be added.'],
+  'Ajout…': ['Wird ergänzt…', 'Aggiunta…', 'Adding…'],
+  'Ajouter le compte': ['Konto ergänzen', 'Aggiungi il conto', 'Add the account'],
+  'Ajouter les {count} comptes': ['{count} Konten ergänzen', 'Aggiungi i {count} conti', 'Add the {count} accounts'],
   // Bank statements folder
   'Autopilote repère les relevés déposés dans {folder}.': ['Autopilot erkennt Kontoauszüge, die in {folder} abgelegt werden.', 'Autopilota rileva gli estratti conto salvati in {folder}.', 'Autopilot spots statements saved in {folder}.'],
   'Changer le dossier': ['Ordner ändern', 'Cambia cartella', 'Change folder'],

@@ -57,3 +57,16 @@ export function installErpPaymentsFixture(data: Workspace) {
     return { id: order.id, path: `C:\\Users\\Vous\\Downloads\\${input.fileName}`, transactionCount: order.transactionCount, totalCents: order.totalCents, deliveryWarning: undefined, workspace: structuredClone(data) };
   };
 }
+
+/** ?erp=chart : plan comptable de démarrage installé, plan PME à compléter. */
+export function installErpChartFixture() {
+  const missing = [
+    ['1000', 'Caisse'], ['1060', 'Titres'], ['1109', 'Ducroire'], ['1200', 'Marchandises commerciales'], ['1300', "Charges payées d'avance"],
+    ['1500', 'Machines et appareils'], ['1510', 'Mobilier et installations'], ['1530', 'Véhicules'], ['2100', 'Dettes bancaires à court terme'],
+    ['2300', 'Charges à payer'], ['2800', 'Capital propre ou capital social'], ['3400', 'Ventes de prestations de services'],
+    ['4200', 'Achats de marchandises'], ['6100', 'Entretien, réparations et remplacement'], ['6510', 'Téléphone et internet'], ['6940', 'Frais bancaires'],
+  ].map(([code, name]) => ({ code, name }));
+  let remaining = missing;
+  desktopApi.swissSmeChartPreview = async () => ({ total: 110, present: 110 - remaining.length, missing: remaining });
+  desktopApi.completeSwissSmeChart = async () => { const added = remaining.length; remaining = []; return { added }; };
+}

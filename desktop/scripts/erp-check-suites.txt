@@ -20,3 +20,5 @@ src/bank.test.ts
 src/autopilotBank.test.ts
 src/autopilotStatements.test.ts
 src/expenseCategory.test.ts
+rust:swiss_sme_chart::
+rust:fixed_assets

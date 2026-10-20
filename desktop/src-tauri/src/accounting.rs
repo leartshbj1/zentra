@@ -306,8 +306,9 @@ impl LocalStore {
         for &(code, _, account_type, report_section) in &specs {
             let compatible: Option<String> = tx
                 .query_row(
-                    "SELECT id FROM accounts WHERE active=1 AND account_type=? AND report_section=? ORDER BY code,name LIMIT 1",
-                    params![account_type, report_section],
+                    // The usual code first (1500 / 6800 of the Swiss SME chart), then the lowest one.
+                    "SELECT id FROM accounts WHERE active=1 AND account_type=? AND report_section=? AND normal_balance='debit' ORDER BY code<>?,code,name LIMIT 1",
+                    params![account_type, report_section, code],
                     |row| row.get(0),
                 )
                 .optional()?;

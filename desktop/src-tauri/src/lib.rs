@@ -87,6 +87,7 @@ mod supplier_inbox;
 mod supplier_invoices;
 mod supplier_procurement;
 mod supplier_payment_orders;
+mod swiss_sme_chart;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -307,6 +308,8 @@ pub fn run() {
             supplier_payment_orders::delete_supplier_invoice_payment_details,
             supplier_payment_orders::export_supplier_payment_order,
             bank_import::scan_bank_statement_folder,
+            swiss_sme_chart::swiss_sme_chart_preview,
+            swiss_sme_chart::complete_swiss_sme_chart,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

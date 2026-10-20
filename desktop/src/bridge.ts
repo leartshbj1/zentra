@@ -6824,6 +6824,14 @@ export const desktopApi = {
       await invoke<RawRecord>('get_accounting_continuity'),
     );
   },
+  async swissSmeChartPreview(): Promise<{ total: number; present: number; missing: { code: string; name: string }[] }> {
+    const raw = await invoke<{ total?: number; present?: number; missing?: { code?: string; name?: string }[] }>('swiss_sme_chart_preview');
+    return { total: Number(raw.total ?? 0), present: Number(raw.present ?? 0), missing: (raw.missing ?? []).map((row) => ({ code: String(row.code ?? ''), name: String(row.name ?? '') })) };
+  },
+  async completeSwissSmeChart(): Promise<{ added: number }> {
+    const raw = await invoke<{ added?: number }>('complete_swiss_sme_chart');
+    return { added: Number(raw.added ?? 0) };
+  },
   async installSwissAccountingStarter() {
     return accountingConfigurationFromRaw(
       await invoke<unknown>('install_swiss_accounting_starter'),

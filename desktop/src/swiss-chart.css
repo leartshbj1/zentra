@@ -1,0 +1,52 @@
+/* Plan comptable PME : une ligne claire, un seul bouton, la liste sur demande. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 24px;
+    padding: 16px 0;
+    box-shadow: inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart > div {
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart h3 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart p {
+    max-width: 62ch;
+    margin: 4px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart summary {
+    margin-top: 8px;
+    color: var(--apple-accent);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart ul {
+    columns: 2 260px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.7;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart li span {
+    color: var(--apple-ink);
+    font-variant-numeric: tabular-nums;
+  }
+}
+@media screen and (max-width: 640px) {
+  html[data-app-theme] .desktop-app[data-experience] .swiss-chart > .button {
+    width: 100%;
+  }
+}
