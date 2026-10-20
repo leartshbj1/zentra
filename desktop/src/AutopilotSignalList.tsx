@@ -18,7 +18,7 @@ function SignalRow({ card, disabled, onAct, onIgnore }: { card: AutopilotSignalC
   const [choice, setChoice] = useState(card.candidates?.length === 1 ? card.candidates[0].id : '');
   return <li data-state="signal">
     <Mail size={21} aria-hidden="true" />
-    <div><strong>{card.title}</strong>
+    <div><span className="quote-autopilot__kind">{copy.kindMail}</span><strong>{card.title}</strong>
       <time dateTime={new Date(card.receivedAt * 1000).toISOString()}>{[card.sender, new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(card.receivedAt * 1000)].filter(Boolean).join(' · ')}</time>
       <blockquote className="quote-autopilot__evidence">{card.evidence}</blockquote>
       {card.candidates?.length ? <label className="quote-autopilot__acceptance-pick">{copy.signalWhichInvoice}

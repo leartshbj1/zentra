@@ -82,15 +82,21 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const main = activityPage || followup;
   const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const pending = (state.activity?.supplierInbox?.needsReview ?? 0) + (state.activity?.appointments?.pending ?? 0) + (state.activity?.workflows?.review ?? 0) + (state.activity?.workflows?.open ?? 0) + (state.activity?.totals.needsReview ?? 0);
-  const autopilotReview = autopilot?.state.status === 'ready' && !autopilot.state.reviewsUnavailable
-    && (normalizeAutopilotReviewPage(autopilot.state.reviews, state.organizationId)?.items.filter(item => autopilotRequestStage(autopilot.createdQuote?.(item) ?? null) !== 'done').length ?? 0) + (autopilot.acceptances?.filter(card => card.candidates || autopilotRequestStage(autopilot.createdQuote?.({ proposalId: card.key }) ?? null) === 'accepted').length ?? 0) + (autopilot.signals?.length ?? 0) + (autopilot.followUps?.length ?? 0) > 0;
+  const autopilotWaiting = autopilot?.state.status === 'ready' && !autopilot.state.reviewsUnavailable
+    ? (normalizeAutopilotReviewPage(autopilot.state.reviews, state.organizationId)?.items.filter(item => autopilotRequestStage(autopilot.createdQuote?.(item) ?? null) !== 'done').length ?? 0) + (autopilot.acceptances?.filter(card => card.candidates || autopilotRequestStage(autopilot.createdQuote?.({ proposalId: card.key }) ?? null) === 'accepted').length ?? 0) + (autopilot.signals?.length ?? 0) + (autopilot.followUps?.length ?? 0) : 0;
+  const autopilotReview = autopilotWaiting > 0;
+  // What waits for the person, said in one sentence: the page title.
+  const waiting = autopilotWaiting + pending;
+  const headline = !ready ? 'À faire' : waiting === 0 ? 'Tout est à jour' : waiting === 1 ? 'Une chose est prête pour vous' : '{n} choses sont prêtes pour vous';
+  const subline = !ready ? 'Autopilote est à configurer.' : readiness === 'observation' ? 'Autopilote observe, sans rien modifier.'
+    : waiting === 0 ? 'Autopilote veille sur vos e-mails et votre banque. Rien ne vous attend.' : 'Autopilote a lu vos e-mails, votre banque et votre stock. Vérifiez, puis validez d’un clic.';
   const open = (destination: BriefDestination) => {
     if (destination === 'support') { void invoke('open_supplier_inbox_settings',{section:'inbox'}).catch(()=>onPage('settings')); return; }
     onPage(destination === 'review' ? 'centre' : destination);
   };
   const openSourceMessage = (ticketId: string) => invoke('open_supplier_inbox_settings', { section: 'inbox', ticketId });
   return <div className="automation-hub">
-    {main ? <header className="automation-hub__head"><div><h2>{t('À faire')}</h2><p>{t(ready ? (readiness === 'observation' ? 'Autopilote observe, sans rien modifier.' : 'Autopilote prépare le travail. Vous validez.') : 'Autopilote est à configurer.')}</p></div>
+    {main ? <header className="automation-hub__head" data-waiting={ready ? (waiting > 0 ? 'some' : 'none') : undefined}><div><h2>{t(headline, { n: waiting })}</h2><p>{t(subline)}</p></div>
       <Button variant="secondary" onClick={() => onPage('settings')}><Settings2 size={16} aria-hidden="true" />{t('Réglages')}</Button></header>
       : page === 'settings' || page === 'rules' ? <header className="automation-hub__head automation-hub__head--back"><Button variant="ghost" onClick={() => onPage(page === 'rules' ? 'settings' : 'overview')}><ArrowLeft size={16} aria-hidden="true" />{t(page === 'rules' ? 'Réglages' : 'À faire')}{page === 'settings' && (pending > 0 || autopilotReview) && <span className="automation-hub__count">{autopilotReview ? autopilotCopy(language).reviewIndicator : pending}</span>}</Button></header> : null}
     {!ready && <div className="automation-hub__welcome">

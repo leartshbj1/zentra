@@ -1,0 +1,132 @@
+/*
+ * Autopilote page, "magic" pass. Loaded last.
+ * The title says what is ready; each card says where it comes from; cards
+ * arrive softly. No gradient, no glow: green stays for the action and "done".
+ */
+@media screen {
+  /* ---------- Title: what is ready, in one sentence ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head {
+    align-items: flex-end;
+    gap: 16px 24px;
+    margin: 0 0 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head h2 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(30px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.022em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head p {
+    max-width: 60ch;
+    margin: 6px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.45;
+  }
+  /* Nothing waits: a quiet check before the title. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head[data-waiting='none'] h2 {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head[data-waiting='none'] h2::before {
+    content: '';
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--apple-accent);
+    -webkit-mask: none;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head[data-waiting='none'] h2::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    width: 7px;
+    height: 13px;
+    margin-top: -9px;
+    border: solid var(--apple-on-accent, var(--apple-paper));
+    border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg);
+  }
+
+  /* ---------- Where each card comes from ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .quote-autopilot .quote-autopilot__kind.quote-autopilot__kind {
+    display: block;
+    margin: 0 0 3px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    text-transform: none;
+  }
+}
+
+/* ---------- Cards arrive softly, one after the other ---------- */
+@keyframes zentra-autopilot-arrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media screen and (prefers-reduced-motion: no-preference) {
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot__requests > li {
+    animation: zentra-autopilot-arrive 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot__requests > li:nth-child(2) { animation-delay: 50ms; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot__requests > li:nth-child(3) { animation-delay: 100ms; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot__requests > li:nth-child(4) { animation-delay: 150ms; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot__requests > li:nth-child(5) { animation-delay: 200ms; }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub__followup .quote-autopilot__requests > li:nth-child(n + 6) { animation-delay: 250ms; }
+}
+
+@media screen {
+  /* One headline: on Autopilote the page name steps back and the sentence leads. */
+  html[data-app-theme] .desktop-app.desktop-app[data-experience][data-view='automation'] .app-main .page-header.page-header h1 {
+    color: var(--apple-secondary);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+}
+@media screen and (max-width: 860px) {
+  /* Phone: settings become a quiet link under the sentence. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head {
+    align-items: flex-start;
+    gap: 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head h2 {
+    font-size: calc(26px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub > .automation-hub__head > button {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    box-shadow: none;
+  }
+  /* The action first, the quiet choices on one line below it. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .quote-autopilot .quote-autopilot__requests.quote-autopilot__requests:is(.quote-autopilot__requests--followups, .quote-autopilot__requests--signals) > li > .quote-autopilot__request-actions > button.is-ready {
+    order: -1;
+    min-height: 44px;
+    padding: 8px 14px;
+    line-height: 1.3;
+    white-space: normal;
+    text-align: center;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app.desktop-app[data-experience][data-view='automation'] .app-main .page-header.page-header {
+    margin-bottom: 0;
+    padding-bottom: 8px;
+  }
+}

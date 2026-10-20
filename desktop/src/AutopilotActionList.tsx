@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BellRing } from 'lucide-react';
 import { t } from './language';
+import { autopilotKind } from './autopilotKinds';
 import './autopilot-journal.css';
 
 /** One thing Autopilote prepared (a reminder, a quote follow-up); nothing runs before a click. */
@@ -30,7 +31,7 @@ export function AutopilotActionList({ summary, cards, disabled = false, onAction
     {cards.length ? <ol className="quote-autopilot__requests quote-autopilot__requests--followups">
       {shown.map(card => <li key={card.key} data-state="followup">
         <BellRing size={21} aria-hidden="true" />
-        <div><strong>{card.title}</strong>
+        <div>{autopilotKind(card.key) ? <span className="quote-autopilot__kind">{t(autopilotKind(card.key)!)}</span> : null}<strong>{card.title}</strong>
           <p className="quote-autopilot__done-summary">{card.detail}</p>
           {card.note ? <p className="quote-autopilot__hint">{card.note}</p> : null}
           {card.evidence ? <blockquote className="quote-autopilot__evidence">{card.evidence}</blockquote> : null}

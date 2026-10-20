@@ -132,7 +132,7 @@ function AcceptanceChoice({ card, disabled, onChoose }: { card: AutopilotAccepta
   const [quoteId, setQuoteId] = useState(card.candidates?.length === 1 ? card.candidates[0].id : '');
   return <li data-state="choose">
     <div className="quote-autopilot__row">
-      <div className="quote-autopilot__row-text"><strong>{copy.acceptanceChooseTitle.replace('{sender}', card.sender || copy.acceptanceUnknownSender)}</strong>
+      <div className="quote-autopilot__row-text"><span className="quote-autopilot__kind">{copy.kindMail}</span><strong>{copy.acceptanceChooseTitle.replace('{sender}', card.sender || copy.acceptanceUnknownSender)}</strong>
         <span>{card.candidates?.length ? copy.rowChoose : copy.acceptanceNoQuote}</span></div>
     </div>
     <div className="quote-autopilot__body">
@@ -158,8 +158,8 @@ function AcceptedRequest({ quote, disabled, onCreate, onSend, onOpen }: { quote:
   const invoice = quote.invoice;
   return <li data-state="accepted">
     <div className="quote-autopilot__row">
-      <div className="quote-autopilot__row-text"><strong>{copy.acceptedTitle.replace('{number}', quote.number)}{quote.clientName ? ` · ${quote.clientName}` : ''}</strong>
-        <span>{invoice ? (invoice.issued ? copy.invoiceDone.replace('{number}', invoice.number) : `${copy.invoiceDraftDone} ${copy.sendInvoiceHint}`) : copy.rowAccepted}</span></div>
+      <div className="quote-autopilot__row-text"><span className="quote-autopilot__kind">{copy.kindSales}</span><strong>{copy.acceptedTitle.replace('{number}', quote.number)}{quote.clientName ? ` · ${quote.clientName}` : ''}</strong>
+        <span>{invoice ? (invoice.issued ? copy.invoiceDone.replace('{number}', invoice.number) : `${copy.invoiceDraftDone}. ${copy.sendInvoiceHint}`) : copy.rowAccepted}</span></div>
       <div className="quote-autopilot__row-action">
         {invoice ? onSend && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onSend}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>
           : onCreate && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onCreate}>{copy.createInvoice}</button>}
@@ -258,11 +258,11 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
           const needsLinks = !quote && missing.length > 0 && !linksDone && !!(onChooseArticle || onCreateArticle);
           const customer = item.suggestion?.customer?.name;
           const title = `${item.reasons.includes('missing_article') ? catalogue.title : copy.request}${customer ? ` · ${customer}` : ''}`;
-          const sentence = quote ? (quote.issued ? copy.quoteDone.replace('{number}', quote.number) : `${copy.quoteDraftDone} ${copy.sendQuoteHint}`)
+          const sentence = quote ? (quote.issued ? copy.quoteDone.replace('{number}', quote.number) : `${copy.quoteDraftDone}. ${copy.sendQuoteHint}`)
             : needsLinks ? copy.rowLink : canQuote ? copy.rowReady : copy.rowManual;
           return <li key={item.proposalId} data-state={quote ? 'created' : needsLinks ? 'link' : canQuote ? 'ready' : 'manual'}>
             <div className="quote-autopilot__row">
-              <div className="quote-autopilot__row-text"><strong>{title}</strong><span>{sentence}</span></div>
+              <div className="quote-autopilot__row-text"><span className="quote-autopilot__kind">{copy.kindSales}</span><strong>{title}</strong><span>{sentence}</span></div>
               <div className="quote-autopilot__row-action">
                 {quote ? onSendCreatedQuote && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={opening !== null} onClick={() => onSendCreatedQuote(item)}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>
                   : canQuote ? <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'} disabled={opening !== null} onClick={() => onCreateQuote!(item)}>{copy.createQuote}</button>

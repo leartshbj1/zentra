@@ -39,6 +39,7 @@ import '../src/autopilot-simple.css';
 import '../src/filters-calm.css';
 import '../src/switch-calm.css';
 import '../src/erp-calm.css';
+import '../src/autopilot-magic.css';
 
 const query = new URLSearchParams(location.search);
 document.documentElement.dataset.appTheme = query.get('theme') === 'dark' ? 'dark' : 'light';
