@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { PayrollSetup } from './PayrollSetup';
+import { SOURCE_TAX_PREFIX, SourceTaxHelper } from './SourceTaxHelper';
 import { PayrollProblem } from './PayrollProblem';
 import { PayrollPreparation } from './PayrollPreparation';
 import { PayrollMonthOverview } from './PayrollMonthOverview';
@@ -1502,6 +1503,16 @@ export function DetailedPayslipForm({
                       <Plus size={14} />{t(" Ajouter un élément")}</Button>
                   </div>
                 </header>
+                <SourceTaxHelper
+                  employeeId={employeeId}
+                  period={period}
+                  incomeCents={totals.earnings}
+                  onApply={(label, amountCents) => {
+                    // Une seule ligne d'impôt à la source : la nouvelle remplace l'ancienne.
+                    setLines((current) => [...current.filter((line) => !(line.kind === 'deduction' && line.label.startsWith(SOURCE_TAX_PREFIX))), { id: createId(), label, kind: 'deduction', amountCents }]);
+                    invalidateCalculation();
+                  }}
+                />
                 {lines.length ? (
                   <div className="pay-line-list">
                     {lines.map((line, index) => (

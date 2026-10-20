@@ -7567,6 +7567,26 @@ export const desktopApi = {
     const count = await invoke<number>('add_approved_claims_to_payslip', { payslipId });
     return { count, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
+  /** Fichier tarifaire ESTV (texte, enregistrements 06), lu tel quel. */
+  async importSourceTaxTariffs(text: string) {
+    const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
+    return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
+  },
+  async listSourceTaxTariffSets() {
+    return rawArray(await invoke<unknown>('list_source_tax_tariff_sets')).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from), rows: numberValue(set.rows), codes: numberValue(set.codes) }));
+  },
+  async sourceTaxLookup(canton: string, code: string, incomeCents: number, date: string) {
+    const raw = await invoke<RawRecord>('source_tax_lookup', { canton, code, incomeCents, date });
+    return { canton: stringValue(raw.canton), code: stringValue(raw.code), validFrom: stringValue(raw.valid_from), rateBp: numberValue(raw.rate_bp), taxCents: numberValue(raw.tax_cents) };
+  },
+  /** Structure ELM préparée : l'utilisateur choisit où l'enregistrer. */
+  async exportElmStructure(year: number, xml: string) {
+    const selected = await chooseSaveFile({ title: 'Enregistrer la structure ELM', defaultPath: `declaration-salaires-elm-${year}.xml`, filters: [{ name: 'XML', extensions: ['xml'] }] });
+    if (!selected) return null;
+    const destination = selected.toLowerCase().endsWith('.xml') ? selected : `${selected}.xml`;
+    const raw = await invoke<RawRecord>('export_elm_structure', { destination, xml, year });
+    return { path: stringValue(raw.path) };
+  },
   async terminateContract(id: string, terminatedOn: string) {
     await invoke('terminate_contract', { id, terminatedOn });
     return refreshWorkspaceAfterMutation(loadWorkspace);

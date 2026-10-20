@@ -24,6 +24,7 @@ import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { BankAreaTabs, TimeAreaTabs, type BankArea, type TimeArea } from './BankAreaTabs';
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
+import { ElmExportPanel, SourceTaxTariffsPanel } from './SourceTaxPanels';
 import { ijmToDeclare, negativeBalances, pendingClaims } from './teamTime';
 import { reportTotals, reportsToInvoice } from './workReports';
 import { CashBookPanel } from './CashBookPanel';
@@ -6166,7 +6167,7 @@ function TeamScreen({
         <button type="button" aria-pressed={teamSection === 'expenses'} onClick={() => setTeamSection('expenses')}><span className="team-navigation__title">{t("Notes de frais")}</span><span className="team-navigation__count">{(workspace.expenseClaims ?? []).filter((claim) => claim.status === 'submitted').length}</span></button>
         <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}><span className="team-navigation__title">{t("Certificats annuels")}</span></button>
       </nav>
-      {teamSection === 'certificates' ? <SalaryCertificates workspace={workspace} disabled={busy} /> : null}
+      {teamSection === 'certificates' ? <><SalaryCertificates workspace={workspace} disabled={busy} /><ElmExportPanel workspace={workspace} disabled={busy} /></> : null}
       {teamSection === 'absences' ? <AbsencesPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace} /> : null}
       {teamSection === 'expenses' ? <ExpenseClaimsPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace} /> : null}
       {teamSection === 'employees' ? <section className="team-directory">
@@ -7362,6 +7363,7 @@ function SettingsScreen({
       <SettingsAfterOpen>
         <SwissPayrollRulesPanel settings={settings} refreshKey={payrollRulesRevision} />
         <PayrollContributionsPanel refreshKey={payrollDefinitionsRevision} onChanged={() => setPayrollRulesRevision(value => value + 1)} />
+        <SourceTaxTariffsPanel disabled={readOnly} />
       </SettingsAfterOpen>
       </SettingsCategory>
       <SettingsCategory id="migration" lazy title="Importer depuis bexio" description="Reprendre contacts, articles, factures ouvertes et soldes" icon={Database}>

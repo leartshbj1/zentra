@@ -49,3 +49,5 @@ rust:work_reports::
 src/workReports.test.ts
 rust:team_time::
 src/teamTime.test.ts
+rust:source_tax::
+src/elmExport.test.ts

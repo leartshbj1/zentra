@@ -95,6 +95,7 @@ mod cash_book;
 mod payroll_drafts;
 mod work_reports;
 mod team_time;
+mod source_tax;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -346,6 +347,10 @@ pub fn run() {
             team_time::decide_expense_claim,
             team_time::delete_expense_claim,
             team_time::add_approved_claims_to_payslip,
+            source_tax::import_source_tax_tariffs,
+            source_tax::list_source_tax_tariff_sets,
+            source_tax::source_tax_lookup,
+            source_tax::export_elm_structure,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,
