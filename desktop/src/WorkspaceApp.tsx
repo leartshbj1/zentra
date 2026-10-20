@@ -49,7 +49,7 @@ import { maxProducible } from './bom';
 import { depreciationDue, inventoryDue, ordersReadyToDeliver } from './autopilotYearEnd';
 import { fixedAssetsApi, type FixedAssetRow } from './fixedAssets';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
-import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
+import { appendJournal, canUndo, confirmEntries, decideRule, doneToday, entriesToConfirm, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
 import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, vatReturnDue, yearEndMoments } from './autopilotOperations';
@@ -901,7 +901,11 @@ function WorkspaceContent({
     }, copy.quoteCreated, false, undefined, value => {
       if (!value.quotes.some(row => row.id === planned.quoteId)) throw Error(copy.quoteCreateError);
     });
-    if (created) setAutopilotQuotesVersion(version => version + 1);
+    if (created) {
+      const quote = workspaceRef.current.quotes.find(row => row.id === planned.quoteId);
+      recordDone('quote:' + item.proposalId, [client?.company || client?.name, quote?.number].filter(Boolean).join(' · '), copy.doneQuoteCreated);
+      setAutopilotQuotesVersion(version => version + 1);
+    }
   };
   const autopilotQuoteOf = (item: AutopilotRequestKey) => {
     if (!autopilotContext) return null;
@@ -928,7 +932,11 @@ function WorkspaceContent({
     const created = await act(() => desktopApi.convertQuote(quote, null), autopilotCopy(getAppLanguage()).invoiceCreated, false);
     if (!created) return;
     const invoice = workspaceRef.current.invoices.find(row => row.quoteId === quote.id && !before.has(row.id));
-    if (invoice) linkAutopilotInvoice(organizationId, item.proposalId, invoice.id);
+    if (invoice) {
+      linkAutopilotInvoice(organizationId, item.proposalId, invoice.id);
+      const client = workspaceRef.current.clients.find(row => row.id === invoice.clientId);
+      recordDone('invoice:' + item.proposalId, [client?.company || client?.name, invoice.number].filter(Boolean).join(' · '), autopilotCopy(getAppLanguage()).doneInvoiceCreated);
+    }
     setAutopilotQuotesVersion(version => version + 1);
   };
   const autopilotInvoiceOf = (item: AutopilotRequestKey) => {
@@ -1051,6 +1059,26 @@ function WorkspaceContent({
     appendJournal(autopilotContext.organizationId, { key, title, detail, actionLabel, ok, signature: ok ? signature : undefined, undo: ok ? (undo ?? actionUndo.current) : undefined });
     setJournalVersion(version => version + 1);
   };
+  // Work that exists for sure (created, or accepted by the mail server): it counts as done at once.
+  const recordDone = (key: string, title: string, actionLabel: string) => {
+    if (!autopilotContext) return;
+    appendJournal(autopilotContext.organizationId, { key, title, detail: '', actionLabel, ok: true });
+    setJournalVersion(version => version + 1);
+  };
+  // An opened form (a reminder e-mail, a payment) becomes done when its result is there.
+  const confirmOpened = (matches: (entry: JournalEntry) => boolean) => {
+    if (!autopilotContext) return;
+    const organizationId = autopilotContext.organizationId;
+    const ids = entriesToConfirm(journalEntries(organizationId), matches);
+    if (!ids.length) return;
+    confirmEntries(organizationId, ids);
+    setJournalVersion(version => version + 1);
+  };
+  useEffect(() => {
+    // "Enregistrer le paiement" opens the payment form; the payment carrying the mail reference proves it was saved.
+    confirmOpened(entry => entry.key.startsWith('signal:') && workspace.payments.some(payment => payment.notes?.includes(entry.key.slice('signal:'.length))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.payments, autopilotContext?.organizationId]);
   const runSignalJournalled = (sourceId: string, choiceId?: string) => {
     const card = signalCards().find(row => row.sourceId === sourceId);
     return journalled('signal:' + sourceId, card?.title ?? '', card?.sender ?? '', card?.actionLabel ?? '', undefined, () => runSignal(sourceId, choiceId));
@@ -3430,10 +3458,16 @@ function WorkspaceContent({
       {mailAfterIssue && <MailComposer target={mailAfterIssue} onClose={() => setMailAfterIssue(null)} />}
       {followUpMail && <MailComposer target={followUpMail.target} subjectOverride={followUpMail.subject} onClose={() => { setFollowUpMail(null); void readFollowUps(); }} onSent={() => {
         if (autopilotContext) saveFollowUp(autopilotContext.organizationId, followUpMail.key, entry => ({ ...entry, sentCount: (entry.sentCount ?? 0) + 1, lastSentAt: todayIso() }));
+        // The mail server accepted the e-mail: the card's click is now really done.
+        confirmOpened(entry => entry.key === followUpMail.key);
         setFollowUpVersion(version => version + 1);
       }} />}
       {autopilotMail && <MailComposer target={autopilotMail.target} onClose={() => setAutopilotMail(null)} onSent={() => {
         markAutopilotQuoteSent(autopilotMail.organizationId, autopilotMail.proposalId, Date.now(), autopilotMail.kind ?? 'quote');
+        const copy = autopilotCopy(getAppLanguage()), sent = autopilotMail.kind === 'invoice';
+        const sentDocument = sent ? workspaceRef.current.invoices.find(row => row.id === autopilotMail.target.id) : workspaceRef.current.quotes.find(row => row.id === autopilotMail.target.id);
+        const client = sentDocument && workspaceRef.current.clients.find(row => row.id === sentDocument.clientId);
+        recordDone((sent ? 'invoice-sent:' : 'quote-sent:') + autopilotMail.proposalId, [client?.company || client?.name, sentDocument?.number].filter(Boolean).join(' · '), sent ? copy.doneInvoiceSent : copy.doneQuoteSent);
         setAutopilotQuotesVersion(version => version + 1);
       }} />}
       <AutomationWelcome key={companyAutomation.organizationId || 'local'} view={view} />

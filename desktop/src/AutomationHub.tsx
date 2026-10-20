@@ -1,5 +1,5 @@
 import { copyDiagnosticIntent } from './diagnosticIntent';
-import type { JournalEntry } from './autopilotJournal';
+import { doneToday, type JournalEntry } from './autopilotJournal';
 import { ArrowLeft, ArrowRight, Banknote, FileText, Package, Receipt, Settings2, Workflow } from 'lucide-react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { AutomationBrief, type BriefDestination } from './AutomationBrief';
@@ -90,13 +90,15 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const headline = !ready ? 'À faire' : waiting === 0 ? 'Tout est à jour' : waiting === 1 ? 'Une chose est prête pour vous' : '{n} choses sont prêtes pour vous';
   const subline = !ready ? 'Autopilote est à configurer.' : readiness === 'observation' ? 'Autopilote observe, sans rien modifier.'
     : waiting === 0 ? 'Autopilote veille sur vos e-mails et votre banque. Rien ne vous attend.' : 'Autopilote a lu vos e-mails, votre banque et votre stock. Vérifiez, puis validez d’un clic.';
+  // What Autopilote really did today on this device (created, saved, sent): the counter under the title.
+  const doneTodayCount = ready ? doneToday(autopilot?.journal ?? []).length : 0;
   const open = (destination: BriefDestination) => {
     if (destination === 'support') { void invoke('open_supplier_inbox_settings',{section:'inbox'}).catch(()=>onPage('settings')); return; }
     onPage(destination === 'review' ? 'centre' : destination);
   };
   const openSourceMessage = (ticketId: string) => invoke('open_supplier_inbox_settings', { section: 'inbox', ticketId });
   return <div className="automation-hub">
-    {main ? <header className="automation-hub__head" data-waiting={ready ? (waiting > 0 ? 'some' : 'none') : undefined}><div><h2>{t(headline, { n: waiting })}</h2><p>{t(subline)}</p></div>
+    {main ? <header className="automation-hub__head" data-waiting={ready ? (waiting > 0 ? 'some' : 'none') : undefined}><div><h2>{t(headline, { n: waiting })}</h2><p>{t(subline)}</p>{doneTodayCount > 0 ? <p className="automation-hub__done-today">{autopilotCopy(language).doneTodayCount.replace('{n}', String(doneTodayCount))}</p> : null}</div>
       <Button variant="secondary" onClick={() => onPage('settings')}><Settings2 size={16} aria-hidden="true" />{t('Réglages')}</Button></header>
       : page === 'settings' || page === 'rules' ? <header className="automation-hub__head automation-hub__head--back"><Button variant="ghost" onClick={() => onPage(page === 'rules' ? 'settings' : 'overview')}><ArrowLeft size={16} aria-hidden="true" />{t(page === 'rules' ? 'Réglages' : 'À faire')}{page === 'settings' && (pending > 0 || autopilotReview) && <span className="automation-hub__count">{autopilotReview ? autopilotCopy(language).reviewIndicator : pending}</span>}</Button></header> : null}
     {!ready && <div className="automation-hub__welcome">
