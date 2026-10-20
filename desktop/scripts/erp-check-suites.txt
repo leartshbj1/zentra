@@ -59,3 +59,5 @@ rust:cost_centers::
 src/budget.test.ts
 rust:price_lists::
 src/priceLists.test.ts
+rust:opportunities::
+src/pipeline.test.ts

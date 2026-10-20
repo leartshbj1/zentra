@@ -194,3 +194,23 @@ export function installErpPricesFixture(data: Workspace) {
     { id: 'pl-regie', name: 'Contrats de maintenance', discountBp: 500, archivedAt: null, items: [], clientIds: clients.slice(2, 3).map(client => client.id) },
   ];
 }
+
+/** Pipeline des ventes (?erp=pipeline), avec un devis émis lié. */
+export function installErpPipelineFixture(data: Workspace) {
+  installErpPortalFixture(data);
+  const issued = data.quotes.find(row => row.status === 'issued');
+  const client = data.clients[0]?.id ?? null;
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString();
+  const row = (id: string, title: string, stage: 'lead' | 'contact' | 'quote' | 'won' | 'lost', amountCents: number, patch: Record<string, unknown> = {}) => ({
+    id, clientId: null, prospectName: '', title, stage, amountCents, expectedCloseDate: null, quoteId: null, notes: '', lostReason: '',
+    stageChangedAt: day(-5), createdAt: day(-12), updatedAt: day(-3), ...patch });
+  data.opportunities = [
+    row('o1', 'Rénovation de la cuisine', 'lead', 1_850_000, { prospectName: 'Famille Rochat', expectedCloseDate: day(20).slice(0, 10) }),
+    row('o2', 'Salle de bain à l’étage', 'lead', 920_000, { prospectName: 'Claire Morel', updatedAt: day(-26) }),
+    row('o3', 'Entretien annuel des chaudières', 'contact', 640_000, { clientId: client, notes: 'Visite prévue jeudi' }),
+    row('o4', 'Agrandissement de l’atelier', 'contact', 4_200_000, { prospectName: 'Menuiserie Favre Sàrl', expectedCloseDate: day(-4).slice(0, 10) }),
+    row('o5', 'Entretien annuel', 'contact', 0, { clientId: issued?.clientId ?? client, quoteId: issued?.id ?? null }),
+    row('o6', 'Réfection des sanitaires', 'won', 1_250_000, { clientId: client, stageChangedAt: day(-40) }),
+    row('o7', 'Terrasse en bois', 'lost', 780_000, { prospectName: 'M. Dupont', lostReason: 'Budget reporté', stageChangedAt: day(-30) }),
+  ] as never;
+}

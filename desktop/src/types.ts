@@ -1947,6 +1947,8 @@ export type Workspace = {
   expenseClaims?: ExpenseClaim[];
   /** Listes de prix par client. */
   priceLists?: import('./priceLists').PriceList[];
+  /** Opportunités de vente (pipeline). */
+  opportunities?: import('./pipeline').Opportunity[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

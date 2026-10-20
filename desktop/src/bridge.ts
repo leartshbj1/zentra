@@ -15,6 +15,7 @@ import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } f
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import { priceListsFromRaw } from './priceLists';
+import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
@@ -558,6 +559,7 @@ type RawWorkspace = {
   price_lists?: RawRecord[];
   price_list_items?: RawRecord[];
   client_price_lists?: RawRecord[];
+  opportunities?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3460,6 +3462,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       decisionNote: stringValue(row.decision_note), payslipId: stringValue(row.payslip_id) || null, createdAt: stringValue(row.created_at),
     })),
     priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
+    opportunities: (raw.opportunities ?? []).map(opportunityFromRaw),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7612,6 +7615,10 @@ export const desktopApi = {
   async importSourceTaxTariffs(text: string) {
     const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
     return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
+  },
+  async saveOpportunity(input: Omit<Opportunity, 'id' | 'stageChangedAt' | 'createdAt' | 'updatedAt'> & { id: string | null }) {
+    const raw = await invoke<RawRecord>('save_opportunity', { input });
+    return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async savePriceList(input: { id: string | null; name: string; discountBp: number; archived: boolean; items: { catalogItemId: string; unitPriceCents: number }[]; clientIds: string[] }) {
     const raw = await invoke<RawRecord>('save_price_list', { input });

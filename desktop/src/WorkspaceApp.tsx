@@ -23,6 +23,8 @@ import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type CatalogArea, type TimeArea } from './BankAreaTabs';
 import { PriceListsPanel } from './PriceListsPanel';
+import { PipelinePanel } from './PipelinePanel';
+import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline';
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
 import { ElmExportPanel, SourceTaxTariffsPanel } from './SourceTaxPanels';
@@ -1115,6 +1117,9 @@ function WorkspaceContent({
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
   const [catalogArea, setCatalogArea] = useState<CatalogArea>('items');
+  // Opportunités : un onglet des ventes, affiché à la place de la liste des devis.
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  useEffect(() => { if (view !== 'quotes') setPipelineOpen(false); }, [view]);
   const [timeArea, setTimeArea] = useState<TimeArea>('hours');
   const openInvoiceById = (invoiceId: string) => {
     const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceId);
@@ -1503,6 +1508,16 @@ function WorkspaceContent({
         detail: copy.fxRateDetail, why: copy.whyFxRate,
         actions: [{ id: 'open-currencies', label: copy.actionEnterRate, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
+    // Opportunités : décision prévue dépassée, ou sans nouvelle depuis trois semaines.
+    for (const row of stalledOpportunities(pipelineRows(workspace.opportunities ?? [], workspace.quotes), today)) {
+      const key = `opportunity:${row.opportunity.id}:${row.opportunity.updatedAt}`;
+      if (entries[key]?.ignored) continue;
+      const client = workspace.clients.find(item => item.id === row.opportunity.clientId);
+      const party = client?.company || client?.name || row.opportunity.prospectName;
+      cards.push({ key, title: (row.reason === 'overdue' ? copy.opportunityOverdueTitle : copy.opportunityQuietTitle).replace('{title}', row.opportunity.title).replace('{days}', String(row.days)),
+        detail: copy.opportunityDetail.replace('{party}', party).replace('{amount}', formatMoney(row.amountCents)), why: copy.whyOpportunity,
+        actions: [{ id: 'open-pipeline', label: copy.actionOpenPipeline, primary: true }, { id: 'opportunity-lost', label: copy.actionOpportunityLost }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     // Budget : charges nettement au-dessus du budget depuis janvier.
     if (budgetReport) {
       const month = new Date().getMonth() + 1;
@@ -1699,6 +1714,16 @@ function WorkspaceContent({
     }
     if (actionId === 'open-payroll' || actionId === 'open-certificates') { setSearch(''); setView('team'); setTeamStartSection('payslips'); return; }
     if (actionId === 'open-closing') { setSearch(''); setAccountingStartTab('closing'); setAccountingEntryFocus(null); setView('accounting'); return; }
+    if (actionId === 'open-pipeline') { setSearch(''); setView('quotes'); setPipelineOpen(true); return; }
+    if (key.startsWith('opportunity:') && actionId === 'opportunity-lost') {
+      const opportunity = (workspaceRef.current.opportunities ?? []).find(row => row.id === key.split(':')[1]);
+      if (!opportunity) return;
+      const done = await journalAct(async () => (await desktopApi.saveOpportunity({ id: opportunity.id, clientId: opportunity.clientId, prospectName: opportunity.prospectName, title: opportunity.title,
+        stage: 'lost', amountCents: opportunity.amountCents, expectedCloseDate: opportunity.expectedCloseDate, quoteId: opportunity.quoteId, notes: opportunity.notes, lostReason: opportunity.lostReason })).workspace,
+        copy.opportunityLostDone.replace('{title}', opportunity.title), false);
+      if (done) refresh();
+      return;
+    }
     if (actionId === 'open-budget') { setSearch(''); setAccountingStartTab('budget'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-currencies') { setSearch(''); setAccountingStartTab('currencies'); setAccountingEntryFocus(null); setView('accounting'); return; }
     if (actionId === 'open-vat') { setSearch(''); setAccountingStartTab('vat'); setAccountingEntryFocus(null); setView('accounting'); return; }
@@ -2622,6 +2647,22 @@ function WorkspaceContent({
     }
   }
 
+  /** « Créer le devis » d'une opportunité : le devis prérempli reste lié à l'opportunité. */
+  async function createOpportunityQuote(opportunity: Opportunity) {
+    if (busy || readOnly) return;
+    const quoteId = createId();
+    try {
+      const saved = await desktopApi.saveOpportunity({ id: opportunity.id, clientId: opportunity.clientId, prospectName: opportunity.prospectName, title: opportunity.title, stage: opportunity.stage,
+        amountCents: opportunity.amountCents, expectedCloseDate: opportunity.expectedCloseDate, quoteId, notes: opportunity.notes, lostReason: opportunity.lostReason });
+      workspaceRef.current = saved.workspace; setWorkspace(saved.workspace);
+    } catch (reason) { setNotice({ tone: 'error', text: errorMessage(reason, t('L’opportunité n’a pas pu être enregistrée.')) }); return; }
+    const vatRateBp = workspaceRef.current.settings?.organization.vatRegistered ? -1 : 0;
+    setPipelineOpen(false);
+    setModal({ type: 'document', entity: 'quotes', seed: { id: 'opportunity:' + opportunity.id + ':' + quoteId, creationId: quoteId,
+      clientId: opportunity.clientId ?? undefined, newClientName: opportunity.clientId ? undefined : opportunity.prospectName, title: opportunity.title,
+      lines: [{ id: createId(), catalogItemId: null, description: opportunity.title, quantity: 1, unit: 'forfait', unitPriceCents: opportunity.amountCents, discountBp: 0, vatRateBp }] } });
+  }
+
   /** Publie le devis émis sur sa page d'acceptation, copie le lien ; Autopilote signale la réponse du client. */
   async function sendAcceptanceLink(item: Quote) {
     if (busy || readOnly || !canPublishQuote(item)) return;
@@ -3458,7 +3499,7 @@ function WorkspaceContent({
         {!activeProjectFolder ? <div className="page-header">
           <div>
             {viewSections[view] ? <p className="page-header__section">{t(viewSections[view]!)}</p> : null}
-            <h1 key={view}>{t(view === 'quotes' ? 'Devis' : view === 'invoices' ? 'Factures' : view === 'orders' ? 'Commandes' : title[0])}</h1>
+            <h1 key={view}>{t(view === 'quotes' ? (pipelineOpen ? 'Opportunités' : 'Devis') : view === 'invoices' ? 'Factures' : view === 'orders' ? 'Commandes' : title[0])}</h1>
             <p>{view === 'dashboard' ? new Date().toLocaleDateString(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }) : t(title[1])}</p>
           </div>
           <div className="page-header__actions">
@@ -3486,7 +3527,7 @@ function WorkspaceContent({
             {view !== 'settings' &&
             view !== 'reports' &&
             view !== 'team' &&
-            view !== 'dashboard' && view !== 'notes' ? (
+            view !== 'dashboard' && view !== 'notes' && !(view === 'quotes' && pipelineOpen) ? (
               <CreateButton
                 view={view}
                 onClick={setModal}
@@ -3547,7 +3588,7 @@ function WorkspaceContent({
         {supplierReviewReturnId && !supplierInvoiceReviewId && <div className="supplier-review-resume" role="region" aria-label={t("Reprendre la facture fournisseur")}><span>{t("Votre achat reste disponible. Après les corrections, reprenez sa vérification avant de le valider.")}</span><Button disabled={busy} onClick={() => { setView('expenses'); setSearch(''); setModal(null); setSupplierInvoiceReviewId(supplierReviewReturnId); }}>{t("Reprendre la facture fournisseur")}</Button><Button variant="ghost" disabled={busy} onClick={() => setSupplierReviewReturnId(null)}>{t("Plus tard")}</Button></div>}
         {clientFolderReturnId && !modal && <div className="client-folder-return"><span>{t("Retrouvez les coordonnées et les autres documents de ce client.")}</span><Button disabled={busy} onClick={() => returnToClientFolder()}>{t("Revenir au dossier client")}</Button><Button variant="ghost" disabled={busy} onClick={() => setClientFolderReturnId(null)}>{t("Plus tard")}</Button></div>}
         <section className="page-content" data-screen={view} ref={screenArrivalRef} key={['quotes', 'orders', 'invoices'].includes(view) ? 'sales' : view} aria-label={title[0]}>
-          {!activeProjectFolder && <MenuGuide key={`guide-${view}`} view={view} />}
+          {!activeProjectFolder && !(view === 'quotes' && pipelineOpen) && <MenuGuide key={`guide-${view}`} view={view} />}
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
           {debtDialog && <DebtCollectionDialog request={debtDialog.request} invoiceNumber={debtDialog.invoiceNumber} onClose={() => setDebtDialog(null)}
             onSaved={(next, path) => { workspaceRef.current = next; setWorkspace(next); setDebtDialog(null); setNotice({ tone: 'success', text: autopilotCopy(getAppLanguage()).debtSaved.replace('{path}', path) }); }} />}
@@ -3557,9 +3598,10 @@ function WorkspaceContent({
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (
             <><SalesFlow active={view === 'invoices' ? 'invoices' : 'quotes'} showRequests={companyAutomation.knownActive} onNavigate={next => { if (next === 'automation') setAutomationPage('centre'); setView(next); setSearch(''); }} />
             <SalesTabs
-              active={view as SalesView}
+              active={view === 'quotes' && pipelineOpen ? 'pipeline' : view as SalesView}
               onChange={(next) => {
-                setView(next);
+                setPipelineOpen(next === 'pipeline');
+                setView(next === 'pipeline' ? 'quotes' : next);
                 setSearch('');
               }}
             /></>
@@ -3752,7 +3794,12 @@ function WorkspaceContent({
               }
             />
           ) : null}
-          {view === 'quotes' ? (
+          {view === 'quotes' && pipelineOpen ? (
+            <PipelinePanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }}
+              onCreateQuote={(opportunity) => void createOpportunityQuote(opportunity)}
+              onOpenQuote={(quoteId) => { const quote = workspaceRef.current.quotes.find(row => row.id === quoteId); if (quote) { setPipelineOpen(false); setModal({ type: 'document', entity: 'quotes', item: quote }); } }} />
+          ) : null}
+          {view === 'quotes' && !pipelineOpen ? (
             <DocumentsScreen
               onOpenFolder={(quoteId) => setModal({ type: 'quoteInvoiceFolder', quoteId })}
               entity="quotes"
