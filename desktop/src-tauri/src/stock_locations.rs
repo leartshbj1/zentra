@@ -338,14 +338,8 @@ mod tests {
         let item = store.create_record("catalog_items", json!({"kind": "product", "name": "Robinet thermostatique", "unit": "pce", "sales_price_cents": 18_000, "vat_bp": 0, "track_stock": true})).unwrap()["id"].as_str().unwrap().to_owned();
         let main = warehouse(&store, "ATELIER", false);
         let van = warehouse(&store, "VAN-1", false);
-        {
-            let connection = store.connect().unwrap();
-            assert_eq!(default_warehouse(&connection).unwrap().as_deref(), Some(main.as_str()));
-            connection.execute(
-                "INSERT INTO stock_movements(id,source_key,catalog_item_id,movement_type,quantity_delta_milli,balance_after_milli,reason,movement_date,source_type,created_at) VALUES('m1','test:m1',?,'correction',10000,10000,'Stock initial','2026-10-01','opening','2026-10-01T08:00:00Z')",
-                [&item],
-            ).unwrap();
-        }
+        assert_eq!(default_warehouse(&store.connect().unwrap()).unwrap().as_deref(), Some(main.as_str()));
+        store.record_stock_entry(crate::models::StockEntryInput { request_id: Uuid::new_v4().to_string(), catalog_item_id: item.clone(), quantity_milli: 10_000, reason: "Réception".into(), reference: None, date: Some("2026-10-01".into()) }).unwrap();
         let transfer = |quantity_milli: i64| store.transfer_stock(TransferInput { catalog_item_id: item.clone(), from_warehouse_id: main.clone(), to_warehouse_id: van.clone(), quantity_milli, transfer_date: "2026-10-02".into(), note: String::new() });
         assert!(transfer(12_000).is_err());
         transfer(4_000).unwrap();

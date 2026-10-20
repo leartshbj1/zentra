@@ -17,6 +17,7 @@ import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal'
 import { priceListsFromRaw } from './priceLists';
 import { legalArchiveFromRaw } from './legalArchive';
 import { stockLocationsFromRaw } from './stockLocations';
+import { billsFromRaw, productionOrdersFromRaw } from './bom';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -568,6 +569,9 @@ type RawWorkspace = {
   catalog_item_tracking?: RawRecord[];
   stock_lots?: RawRecord[];
   stock_lot_movements?: RawRecord[];
+  bills_of_materials?: RawRecord[];
+  bom_lines?: RawRecord[];
+  production_orders?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3472,6 +3476,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
     opportunities: (raw.opportunities ?? []).map(opportunityFromRaw),
     stockLocations: stockLocationsFromRaw(raw),
+    billsOfMaterials: billsFromRaw(raw.bills_of_materials ?? [], raw.bom_lines ?? []),
+    productionOrders: productionOrdersFromRaw(raw.production_orders ?? []),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7624,6 +7630,14 @@ export const desktopApi = {
   async importSourceTaxTariffs(text: string) {
     const raw = await invoke<RawRecord>('import_source_tax_tariffs', { text });
     return { rows: numberValue(raw.rows), sets: rawArray(raw.sets).map((set) => ({ canton: stringValue(set.canton), validFrom: stringValue(set.valid_from) })) };
+  },
+  async saveBom(input: { catalogItemId: string; outputQuantityMilli: number; notes: string; lines: { componentItemId: string; quantityMilli: number }[] }) {
+    await invoke<RawRecord>('save_bom', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async recordProduction(input: { catalogItemId: string; quantityMilli: number; productionDate: string; reference: string }) {
+    await invoke<RawRecord>('record_production', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveWarehouse(input: { id: string | null; code: string; name: string; isDefault: boolean; archived: boolean }) {
     await invoke<RawRecord>('save_warehouse', { input });

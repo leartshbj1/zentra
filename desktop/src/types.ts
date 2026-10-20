@@ -1951,6 +1951,9 @@ export type Workspace = {
   opportunities?: import('./pipeline').Opportunity[];
   /** Dépôts, transferts, lots et numéros de série. */
   stockLocations?: import('./stockLocations').StockLocations;
+  /** Nomenclatures et productions. */
+  billsOfMaterials?: import('./bom').BillOfMaterials[];
+  productionOrders?: import('./bom').ProductionOrder[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

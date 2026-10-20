@@ -25,6 +25,7 @@ import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type Catalo
 import { PriceListsPanel } from './PriceListsPanel';
 import { WarehousesPanel } from './WarehousesPanel';
 import { LotsPanel } from './LotsPanel';
+import { BomPanel } from './BomPanel';
 import { PipelinePanel } from './PipelinePanel';
 import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline';
 import { WorkReportsPanel } from './WorkReportsPanel';
@@ -44,6 +45,7 @@ import { applyPriceList, clientPriceList } from './priceLists';
 import { budgetOverruns, compareBudget, type BudgetReport } from './budget';
 import { archiveDue, archiveProblems, archivesToVerify, type LegalArchiveState } from './legalArchive';
 import { deliveriesToTrace, expiringLots, lotBalances, warehouseStock } from './stockLocations';
+import { maxProducible } from './bom';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
 import { appendJournal, canUndo, decideRule, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
@@ -1123,6 +1125,7 @@ function WorkspaceContent({
   const [bankArea, setBankArea] = useState<BankArea>('account');
   const [catalogArea, setCatalogArea] = useState<CatalogArea>('items');
   const [lotsDelivery, setLotsDelivery] = useState<string | null>(null);
+  const [bomTarget, setBomTarget] = useState<{ productId: string; suggestedMilli: number } | null>(null);
   // Opportunités : un onglet des ventes, affiché à la place de la liste des devis.
   const [pipelineOpen, setPipelineOpen] = useState(false);
   useEffect(() => { if (view !== 'quotes') setPipelineOpen(false); }, [view]);
@@ -1646,7 +1649,18 @@ function WorkspaceContent({
           actions: [{ id: 'portal-refuse', label: copy.actionMarkRefused, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
     const lowStock = lowStockItems(workspace.catalogItems, workspace.stockAvailability, workspace.supplierOrders).filter(row => !entries['stock:' + row.item.id]?.ignored && !(entries['stock:' + row.item.id]?.until && entries['stock:' + row.item.id]!.until! > today));
-    for (const { item, onHandMilli } of lowStock) cards.push({ key: 'stock:' + item.id, title: copy.lowStockTitle.replace('{item}', item.name),
+    // Produit fabriqué ici : fabriquer avec les composants en stock plutôt que commander.
+    const made = new Map((workspace.billsOfMaterials ?? []).map(bom => [bom.catalogItemId, bom]));
+    const available = (entry: CatalogItem) => availabilityForCatalogItem(entry, workspace.stockReservationEvents, workspace.stockAvailability).availableMilli;
+    for (const { item, onHandMilli } of lowStock.filter(row => made.has(row.item.id))) {
+      const possible = maxProducible(made.get(item.id)!, workspace.catalogItems, available);
+      if (possible < 1 || entries['produce:' + item.id]?.ignored) continue;
+      const suggested = Math.min(possible, Math.max(1, Math.ceil((item.reorderLevelMilli * 2 - onHandMilli) / 1000)));
+      cards.push({ key: 'produce:' + item.id, title: copy.produceTitle.replace('{item}', item.name).replace('{n}', String(suggested)).replace('{unit}', item.unit),
+        detail: copy.produceDetail.replace('{quantity}', `${onHandMilli / 1000} ${item.unit}`).replace('{possible}', String(possible)), why: copy.whyProduce,
+        actions: [{ id: 'produce', label: copy.actionProduce, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    for (const { item, onHandMilli } of lowStock.filter(row => !made.has(row.item.id))) cards.push({ key: 'stock:' + item.id, title: copy.lowStockTitle.replace('{item}', item.name),
       detail: copy.lowStockDetail.replace('{quantity}', `${onHandMilli / 1000} ${item.unit}`).replace('{threshold}', String(item.reorderLevelMilli / 1000)),
       actions: [{ id: 'prepare-order', label: copy.actionPrepareOrder, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     let deliveries = 0;
@@ -1779,6 +1793,16 @@ function WorkspaceContent({
         stage: 'lost', amountCents: opportunity.amountCents, expectedCloseDate: opportunity.expectedCloseDate, quoteId: opportunity.quoteId, notes: opportunity.notes, lostReason: opportunity.lostReason })).workspace,
         copy.opportunityLostDone.replace('{title}', opportunity.title), false);
       if (done) refresh();
+      return;
+    }
+    if (key.startsWith('produce:') && actionId === 'produce') {
+      const item = workspaceRef.current.catalogItems.find(row => row.id === key.slice('produce:'.length));
+      const bom = (workspaceRef.current.billsOfMaterials ?? []).find(row => row.catalogItemId === item?.id);
+      if (!item || !bom) return;
+      const available = (entry: CatalogItem) => availabilityForCatalogItem(entry, workspaceRef.current.stockReservationEvents, workspaceRef.current.stockAvailability).availableMilli;
+      const possible = maxProducible(bom, workspaceRef.current.catalogItems, available);
+      const suggested = Math.min(possible, Math.max(1, Math.ceil((item.reorderLevelMilli * 2 - available(item)) / 1000)));
+      setSearch(''); setBomTarget({ productId: item.id, suggestedMilli: suggested * 1000 }); setCatalogArea('bom'); setView('catalog');
       return;
     }
     if (key.startsWith('trace:') && actionId === 'trace-delivery') { setSearch(''); setLotsDelivery(key.slice('trace:'.length)); setCatalogArea('lots'); setView('catalog'); return; }
@@ -3812,7 +3836,7 @@ function WorkspaceContent({
               onRestore={(item) => void restoreClient(item)}
             />
           ) : null}
-          {view === 'catalog' ? <CatalogAreaTabs active={catalogArea} onChange={(area) => { setLotsDelivery(null); setCatalogArea(area); }} /> : null}
+          {view === 'catalog' ? <CatalogAreaTabs active={catalogArea} onChange={(area) => { setLotsDelivery(null); setBomTarget(null); setCatalogArea(area); }} /> : null}
           {view === 'catalog' && catalogArea === 'prices' ? (
             <PriceListsPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
@@ -3821,6 +3845,9 @@ function WorkspaceContent({
           ) : null}
           {view === 'catalog' && catalogArea === 'lots' ? (
             <LotsPanel key={lotsDelivery ?? 'lots'} workspace={workspace} readOnly={readOnly || busy} deliveryNoteId={lotsDelivery} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
+          {view === 'catalog' && catalogArea === 'bom' ? (
+            <BomPanel key={bomTarget?.productId ?? 'bom'} workspace={workspace} readOnly={readOnly || busy} productId={bomTarget?.productId} suggestedMilli={bomTarget?.suggestedMilli} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
           {view === 'catalog' && catalogArea === 'items' ? (
             <CatalogScreen

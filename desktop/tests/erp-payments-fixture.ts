@@ -220,7 +220,11 @@ export function installErpStockFixture(data: Workspace) {
   const now = '2026-10-15T08:00:00Z';
   const product = (id: string, name: string, unit: string, price: number) => ({ id, kind: 'product', sku: '', name, description: '', unit, salesPriceCents: price, purchaseCostCents: Math.round(price * 0.6), vatBp: 810,
     trackStock: true, stockQuantityMilli: 0, reorderLevelMilli: 0, archivedAt: null, createdAt: now, updatedAt: now });
-  data.catalogItems = [product('valve', 'Robinet thermostatique', 'pce', 18_000), product('glue', 'Colle carrelage flex', 'sac', 3_450), product('pipe', 'Tube multicouche 16 mm', 'm', 420), ...data.catalogItems] as never;
+  data.catalogItems = [product('kit', 'Kit radiateur prêt à poser', 'pce', 39_000), product('valve', 'Robinet thermostatique', 'pce', 18_000), product('glue', 'Colle carrelage flex', 'sac', 3_450), product('pipe', 'Tube multicouche 16 mm', 'm', 420), ...data.catalogItems] as never;
+  (data.catalogItems[0] as { reorderLevelMilli: number }).reorderLevelMilli = 2_000;
+  for (const [id, milli] of [['valve', 4_000], ['glue', 16_000], ['pipe', 150_000], ['kit', 1_000]] as const) (data.catalogItems.find(item => item.id === id) as { stockQuantityMilli: number }).stockQuantityMilli = milli;
+  data.billsOfMaterials = [{ id: 'bom-kit', catalogItemId: 'kit', outputQuantityMilli: 1_000, notes: 'Contrôler l’étanchéité avant emballage.', lines: [{ componentItemId: 'valve', quantityMilli: 1_000 }, { componentItemId: 'pipe', quantityMilli: 6_000 }] }];
+  data.productionOrders = [{ id: 'po-1', catalogItemId: 'kit', quantityMilli: 2_000, productionDate: '2026-10-07', reference: 'OF-2026-004', components: [{ catalogItemId: 'valve', name: 'Robinet thermostatique', quantityMilli: 2_000, tracked: true }, { catalogItemId: 'pipe', name: 'Tube multicouche 16 mm', quantityMilli: 12_000, tracked: true }] }];
   const movement = (id: string, item: string, delta: number, date: string, reason: string, sequence: number) => ({ sequence, id, sourceKey: id, requestId: null, catalogItemId: item, movementType: delta > 0 ? 'entry' : 'exit',
     quantityDeltaMilli: delta, balanceAfterMilli: 0, reason, reference: null, movementDate: date, sourceType: 'manual', invoiceId: null, invoiceItemId: null, createdAt: now });
   data.stockMovements = [movement('m1', 'valve', 6_000, '2026-10-01', 'Réception REC-2026-0012', 1), movement('m2', 'glue', 20_000, '2026-10-02', 'Réception REC-2026-0013', 2),

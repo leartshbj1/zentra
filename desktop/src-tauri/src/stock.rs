@@ -17,7 +17,7 @@ const MAX_STOCK_QUANTITY_MILLI: i64 = 9_000_000_000_000_000;
 const MAX_STOCK_LINES_PER_INVOICE: usize = 10_000;
 
 #[derive(Debug, Clone, Copy)]
-enum ManualMovementType {
+pub(crate) enum ManualMovementType {
     Entry,
     Exit,
     Correction,
@@ -42,15 +42,15 @@ impl ManualMovementType {
 }
 
 #[derive(Debug)]
-struct ManualMovement {
-    request_id: String,
-    catalog_item_id: String,
-    movement_type: ManualMovementType,
-    quantity_delta_milli: i64,
-    reason: String,
-    reference: Option<String>,
-    requested_date: Option<String>,
-    expected_balance: Option<i64>,
+pub(crate) struct ManualMovement {
+    pub(crate) request_id: String,
+    pub(crate) catalog_item_id: String,
+    pub(crate) movement_type: ManualMovementType,
+    pub(crate) quantity_delta_milli: i64,
+    pub(crate) reason: String,
+    pub(crate) reference: Option<String>,
+    pub(crate) requested_date: Option<String>,
+    pub(crate) expected_balance: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -254,6 +254,18 @@ impl LocalStore {
     }
 
     fn record_manual_stock_movement(&self, input: ManualMovement) -> AppResult<Value> {
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let result = record_manual_stock_movement_in(&transaction, input)?;
+        transaction.commit()?;
+        Ok(result)
+    }
+}
+
+/// Un mouvement manuel dans la transaction de l'appelant (par exemple une production
+/// qui sort les composants et entre le produit fini d'un seul tenant).
+pub(crate) fn record_manual_stock_movement_in(transaction: &Transaction<'_>, input: ManualMovement) -> AppResult<Value> {
         let request_id = normalized_uuid(&input.request_id, "request_id")?;
         let catalog_item_id = validate_catalog_item_id(input.catalog_item_id)?;
         let reason = required_text(input.reason, "reason", 500)?;
@@ -276,9 +288,6 @@ impl LocalStore {
         let request_json = serde_json::to_string(&request_payload)?;
         let request_sha256 = payload_hash(&request_json);
 
-        let mut connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let existing: Option<(String, String, String)> = transaction
             .query_row(
                 "SELECT id,request_sha256,request_json FROM stock_movements WHERE request_id=?",
@@ -292,9 +301,7 @@ impl LocalStore {
                     "Ce request_id a déjà été utilisé avec un autre mouvement de stock.".into(),
                 ));
             }
-            let result = load_manual_result(&transaction, &movement_id, true)?;
-            transaction.commit()?;
-            return Ok(result);
+            return load_manual_result(transaction, &movement_id, true);
         }
 
         let item: Option<(i64, i64, Option<String>)> = transaction
@@ -368,9 +375,9 @@ impl LocalStore {
                 created_at,
             ],
         )?;
-        let result = load_manual_result(&transaction, &movement_id, false)?;
+        let result = load_manual_result(transaction, &movement_id, false)?;
         append_audit(
-            &transaction,
+            transaction,
             input.movement_type.audit_action(),
             "stock_movement",
             &movement_id,
@@ -380,9 +387,7 @@ impl LocalStore {
                 "result": result,
             }),
         )?;
-        transaction.commit()?;
         Ok(result)
-    }
 }
 
 /// Crée les sorties d'une facture déjà gelée dans la transaction d'émission.

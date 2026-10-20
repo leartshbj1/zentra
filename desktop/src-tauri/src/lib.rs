@@ -102,6 +102,7 @@ mod price_lists;
 mod opportunities;
 mod legal_archive;
 mod stock_locations;
+mod production;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -375,6 +376,8 @@ pub fn run() {
             stock_locations::transfer_stock,
             stock_locations::set_item_tracking,
             stock_locations::record_lot_movement,
+            production::save_bom,
+            production::record_production,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,

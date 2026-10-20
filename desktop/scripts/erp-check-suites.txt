@@ -65,3 +65,6 @@ rust:legal_archive::
 src/legalArchive.test.ts
 rust:stock_locations::
 src/stockLocations.test.ts
+rust:production::
+rust:stock::
+src/bom.test.ts
