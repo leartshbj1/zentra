@@ -535,6 +535,29 @@ jobs:
       - store_artifacts:
           path: desktop/artifacts/windows
           destination: windows
+  windows-erp-check:
+    resource_class: windows.large
+    machine:
+      image: windows-server-2022-gui:2026.05.1
+      shell: powershell.exe -NoProfile -ExecutionPolicy Bypass
+    environment:
+      RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-msvc
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - run:
+          name: Check out with repository line endings
+          command: git config --global core.autocrlf false
+      - checkout
+      - restore_cache:
+          keys:
+            - cargo-registry-windows-v1-{{ checksum "desktop/src-tauri/Cargo.lock" }}
+      - run:
+          name: Typecheck, ERP tests, native compile and targeted Rust tests
+          command: ./desktop/scripts/cloud-erp-check-windows.ps1
+          no_output_timeout: 40m
+      - store_artifacts:
+          path: desktop/artifacts/erp
+          destination: erp
   windows-release-large:
     resource_class: windows.large
     machine:
@@ -771,6 +794,14 @@ workflows:
       - apple
       - android:
           build-mode: release
+  erp-complet-check:
+    when:
+      and:
+        - equal: [claude/erp-complet, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not: << pipeline.parameters.verify-only >>
+    jobs:
+      - windows-erp-check
   redesign-release-1916:
     when:
       and:

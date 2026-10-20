@@ -1,0 +1,18 @@
+# Suites lancées par cloud-erp-check-windows.ps1 sur la branche claude/erp-complet.
+# Lignes « src/… » : tests frontend. Lignes « rust: » : filtres cargo test.
+src/qrDecoder.test.ts
+src/swissQrBill.test.ts
+src/pain001.test.ts
+src/supplierPaymentOrder.test.ts
+src/qrBillPurchase.test.ts
+src/qrBillReader.test.ts
+src/autopilotPurchases.test.ts
+src/purchaseLanguage.test.ts
+src/languageCatalogCoverage.test.ts
+src/PurchaseOrdersScreen.test.ts
+rust:swiss_qr::
+rust:supplier_payment_orders::
+rust:supplier_invoices
+rust:company_merge::
+rust:work_notes
+rust:bank_import::tests::
