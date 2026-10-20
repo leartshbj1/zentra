@@ -27,9 +27,27 @@ import '../src/mobile-air.css';
 import '../src/automation-design.css';
 import '../src/workspace-atelier.css';
 import '../src/onboarding-journey.css';
+import '../src/workspace-personalization.css';
 import '../src/brand-identity.css';
+import '../src/mobile-collections.css';
 import '../src/apple-workspace.css';
+import '../src/apple-business.css';
+import '../src/apple-operational.css';
+import '../src/apple-secondary.css';
 import '../src/apple-access.css';
+import '../src/clarity-2026.css';
+import '../src/zentra-2027.css';
+import '../src/zentra-2027-pages.css';
+import '../src/zentra-2027-sober.css';
+import '../src/zentra-2027-menus.css';
+import '../src/zentra-2027-calm.css';
+import '../src/autopilot-simple.css';
+import '../src/filters-calm.css';
+import '../src/switch-calm.css';
+import '../src/erp-calm.css';
+import '../src/autopilot-magic.css';
+import '../src/mobile-calm.css';
+import '../src/parcours-client.css';
 
 const query = new URLSearchParams(location.search);
 // This reset is confined to the synthetic preview; production never reads this query.

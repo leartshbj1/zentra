@@ -60,7 +60,9 @@ export function FormDraftNotice({ draft, disabled = false, currentValues }: { dr
   const initialDecision = draft.initialReadState === 'decision';
   const abandon = () => { if (window.confirm(draftText('Abandonner ce brouillon et retrouver les valeurs enregistrées ?'))) draft.discard(); };
   if (!initialUnknown && !draft.pending && !draft.dirty && !draft.invalid && !draft.conflict && !draft.completedResidual) return null;
-  return <aside className={`form-draft-notice${draft.storageError || draft.conflict ? ' form-draft-notice--warning' : ''}`} aria-label={draftText('Brouillon local')}>
+  // A plain "kept on this device" status stays a quiet line, not a box.
+  const quiet = !initialUnknown && !draft.pending && !draft.conflict && !draft.storageError && !draft.invalid && !draft.completedResidual;
+  return <aside className={`form-draft-notice${draft.storageError || draft.conflict ? ' form-draft-notice--warning' : ''}${quiet ? ' form-draft-notice--quiet' : ''}`} aria-label={draftText('Brouillon local')}>
     <div role={draft.storageError || draft.conflict ? 'alert' : 'status'}>
       <strong>{draftText(initialUnknown ? 'Les brouillons locaux doivent être relus' : draft.completedResidual ? 'L’enregistrement est confirmé' : draft.pending ? 'Une saisie vous attend sur cet appareil' : draft.conflict ? 'Les données enregistrées ont changé' : draft.storageError ? 'La saisie locale ne peut pas être conservée' : draft.invalid ? 'Ce brouillon ne peut plus être repris' : 'Saisie conservée sur cet appareil')}</strong>
       {initialUnknown && <p>{draftText('Gardez ce formulaire ouvert. Une ancienne saisie peut être présente. Relisez le stockage local avant de continuer ; rien ne sera remplacé ni envoyé.')}</p>}

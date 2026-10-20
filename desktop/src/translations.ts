@@ -255,7 +255,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   'Ouverture de votre espace local sécurisé…': ['Ihr sicherer lokaler Arbeitsbereich wird geöffnet…','Apertura del tuo spazio locale protetto…','Opening your secure local workspace…'],
   'Ouverture de votre espace…': ['Ihr Arbeitsbereich wird geöffnet…','Apertura del tuo spazio…','Opening your workspace…'], 'Ouverture…': ['Wird geöffnet…','Apertura…','Opening…'],
   'Part employeur agrégée contrôlée': ['Gesamter Arbeitgeberanteil geprüft','Quota complessiva del datore di lavoro verificata','Total employer share checked'],
-  'Pause habituelle (minutes)': ['Übliche Pause (Minuten)','Pausa abituale (minuti)','Usual break (minutes)'], 'Pays (code ISO, 2 lettres)': ['Land (ISO-Code, 2 Buchstaben)','Paese (codice ISO, 2 lettere)','Country (2-letter ISO code)'],
+  'Pause habituelle (minutes)': ['Übliche Pause (Minuten)','Pausa abituale (minuti)','Usual break (minutes)'], 'Pays (CH, FR, DE…)': ['Land (CH, FR, DE…)','Paese (CH, FR, DE…)','Country (CH, FR, DE…)'], 'Pays (code ISO, 2 lettres)': ['Land (ISO-Code, 2 Buchstaben)','Paese (codice ISO, 2 lettere)','Country (2-letter ISO code)'],
   'Pied de page des documents': ['Dokumentfusszeile','Piè di pagina dei documenti','Document footer'],
   'Préfixe avoirs': ['Präfix für Gutschriften','Prefisso note di credito','Credit note prefix'], 'Préfixe devis': ['Präfix für Offerten','Prefisso preventivi','Quote prefix'], 'Préfixe factures': ['Präfix für Rechnungen','Prefisso fatture','Invoice prefix'],
   'Préparation des salaires': ['Lohnvorbereitung','Preparazione degli stipendi','Payroll preparation'],

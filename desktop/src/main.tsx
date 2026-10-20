@@ -56,3 +56,4 @@ import './switch-calm.css';
 import './erp-calm.css';
 import './autopilot-magic.css';
 import './mobile-calm.css';
+import './parcours-client.css';

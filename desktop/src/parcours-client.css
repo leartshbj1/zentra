@@ -1,0 +1,183 @@
+/*
+ * Customer journey pass (October 2026), loaded last.
+ * Walked through Zentra as a new Swiss SME owner would: first launch, first
+ * client, first quote, invoice, bank, Autopilote, phone in dark mode. These
+ * rules give the screens more air and fix what read as confusing.
+ *
+ * Literal colours live only in custom properties so
+ * scripts/build-dark-palette.mjs produces nothing for this file.
+ */
+@media screen {
+  :root {
+    /* Inactive tabs and step names: 4.5:1 on the grey track (was 4.15:1). */
+    --zp-quiet-label: #56565b;
+  }
+}
+@media screen {
+  html[data-app-theme='dark'] {
+    --zp-quiet-label: #a6a6ad;
+  }
+}
+
+/* Home of a new company: the cards breathe instead of touching. */
+html[data-app-theme] .page-content > :is(.getting-started, .autopilot-home, .dashboard-personal-actions) + :is(.getting-started, .autopilot-home, .dashboard-personal-actions) {
+  margin-top: 24px;
+}
+
+/* Tabs on a grey track: readable inactive labels. */
+html[data-app-theme] .desktop-app[data-experience] :is(.sales-tabs, .purchase-workflow__tabs, .section-navigation__tabs, .tab-strip, .accounting-tabs, .automation-journal__filters, .team-navigation) > button:not([aria-selected='true']):not([aria-current]):not([aria-pressed='true']):not(.active):not(.is-active),
+html[data-app-theme] .desktop-app[data-experience] .purchase-workflow__tabs > button:not(.is-active) > span {
+  color: var(--zp-quiet-label);
+}
+html[data-app-theme] .line-editor__head > span {
+  color: var(--zp-quiet-label);
+}
+
+/* "Kept on this device" is reassurance, not an alert: one quiet line. */
+html[data-app-theme] .form-draft-notice.form-draft-notice--quiet {
+  flex-direction: row;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+}
+html[data-app-theme] .form-draft-notice.form-draft-notice--quiet strong {
+  color: var(--apple-secondary);
+  font-weight: 450;
+}
+html[data-app-theme] .form-draft-notice.form-draft-notice--quiet .form-draft-notice__actions .button {
+  min-height: 32px;
+  padding-inline: 8px;
+  font-size: inherit;
+}
+
+/* Document wizard: step names readable, never cut in the middle of a word. */
+html[data-app-theme] .document-stepper button:not([aria-current]) strong {
+  color: var(--zp-quiet-label);
+}
+html[data-app-theme] .document-stepper strong {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+/* "Sans TVA" is read like the other cells, not as fine print. */
+html[data-app-theme] .document-form .no-vat {
+  font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  color: var(--apple-secondary);
+  white-space: nowrap;
+}
+/* In the document wizard the quiet draft line sits under the footer, aligned with it. */
+html[data-app-theme] .document-assistant > .form-draft-notice.form-draft-notice--quiet {
+  grid-row: 99;
+  order: 99;
+  margin: -8px 0 0;
+  padding: 0 28px 14px;
+}
+@media screen and (max-width: 720px) {
+  html[data-app-theme] .document-assistant > .form-draft-notice.form-draft-notice--quiet {
+    padding-inline: 20px;
+  }
+}
+@media screen and (max-width: 720px) {
+  /* Phone stepper: the current step takes the room its name needs. */
+  html[data-app-theme] .document-stepper ol {
+    display: flex;
+  }
+  html[data-app-theme] .document-stepper ol > li {
+    flex: 1 1 0;
+    min-width: 44px;
+  }
+  html[data-app-theme] .document-stepper ol > li:has([aria-current]) {
+    flex: 0 0 auto;
+  }
+  html[data-app-theme] .document-stepper [aria-current] strong {
+    white-space: nowrap;
+  }
+}
+
+/* First steps card: one card, one green action, no tinted shapes. */
+html[data-app-theme] .getting-started .getting-started__score {
+  background: none;
+  box-shadow: none;
+  border: 0;
+  color: var(--apple-ink);
+}
+html[data-app-theme] .getting-started .getting-started__score span {
+  color: var(--zp-quiet-label);
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 450;
+}
+html[data-app-theme] .getting-started .getting-started__next {
+  border: 0;
+  border-top: 1px solid var(--apple-line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  padding-inline: 0;
+}
+html[data-app-theme] .getting-started .getting-started__next-icon {
+  display: none;
+}
+html[data-app-theme] .getting-started .getting-started__next small {
+  color: var(--zp-quiet-label);
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* One inner edge: header, progress, link and next action line up with the card padding. */
+html[data-app-theme] .getting-started > .getting-started__header {
+  padding: 0 0 20px;
+}
+html[data-app-theme] .getting-started > :is(.getting-started__progress, .checklist-toggle) {
+  margin-inline: 0;
+}
+html[data-app-theme] .getting-started > .getting-started__steps {
+  padding-inline: 0;
+}
+html[data-app-theme] .getting-started > .getting-started__next {
+  margin: 16px 0 0;
+}
+/* The button already says what the next action is. */
+html[data-app-theme] .getting-started .getting-started__next > div > strong {
+  display: none;
+}
+
+@media screen and (max-width: 720px) {
+  /* Phone titles: large, but they leave room for the help button. */
+  html[data-app-theme] .desktop-app[data-experience] .page-header h1 {
+    font-size: calc(34px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.1;
+  }
+}
+@media screen and (max-width: 860px) {
+  /* Four section tabs: two even rows instead of three plus one alone. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content.page-content .sales-tabs:has(> button:nth-of-type(4)):not(:has(> button:nth-of-type(5))) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* First launch: one counter on the phone (the step counter), not two. */
+html[data-app-theme] .first-run__mobile-index > span:last-child {
+  font-size: 0;
+}
+/* The current chapter reads in ink: green on grey was 4.4:1. */
+html[data-app-theme] .first-run__index > button[aria-current] > span:last-child {
+  color: var(--apple-ink);
+}
+
+/* Autopilote list: green stays for actions and "done", row icons are quiet. */
+html[data-app-theme] .automation-brief__list > button > svg:first-child {
+  color: var(--apple-secondary);
+}
+@media screen and (max-width: 860px) {
+  /* On the phone the section tabs already say where you are in the sale:
+     the numbered path above them repeated it. */
+  html[data-app-theme] .desktop-app[data-experience] .sales-flow {
+    display: none;
+  }
+}

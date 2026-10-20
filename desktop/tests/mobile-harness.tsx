@@ -378,3 +378,4 @@ import '../src/switch-calm.css';
 import '../src/erp-calm.css';
 import '../src/autopilot-magic.css';
 import '../src/mobile-calm.css';
+import '../src/parcours-client.css';

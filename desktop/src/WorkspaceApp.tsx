@@ -4612,11 +4612,11 @@ function Dashboard({
   if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} automation={<AutopilotHome />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
   if (!hasActivity)
     return (
-      <><AutopilotHome /><GettingStartedChecklist
+      <><GettingStartedChecklist
         workspace={workspace}
         readOnly={readOnly}
         onAction={runGettingStartedAction}
-      />{quickActions}</>
+      /><AutopilotHome />{quickActions}</>
     );
   return (
     <div className="dashboard-grid dashboard-grid--daily">
