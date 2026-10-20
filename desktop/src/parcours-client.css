@@ -217,3 +217,34 @@ html[data-app-theme] .first-run .first-run__footnote {
   margin-inline: 0;
   text-align: start;
 }
+
+/* First launch: the precise statistics code is optional, folded away. */
+html[data-app-theme] .first-run .first-run__more {
+  grid-column: 1 / -1;
+}
+html[data-app-theme] .first-run .first-run__more > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--zp-quiet-label);
+  font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+}
+html[data-app-theme] .first-run .first-run__more[open] > summary {
+  margin-bottom: 8px;
+}
+
+/* Sales: the section tabs say where you are; the numbered path above them
+   repeated it on every width. */
+html[data-app-theme] .desktop-app[data-experience] .sales-flow {
+  display: none;
+}
+/* The statistics source reads as one small line of text. */
+html[data-app-theme] .first-run .source-note {
+  display: block;
+  color: var(--zp-quiet-label);
+}
+html[data-app-theme] .first-run .source-note a {
+  display: inline;
+  font-weight: 450;
+}

@@ -1,6 +1,7 @@
 import {validDocumentCreationId,validDocumentCreationRequest,type DocumentCreationRequest} from './documentCreationRequest';
 import type { AppSettings, DocumentLine, Invoice, Project, Quote } from './types';
 import { addDaysIso, todayIso } from './utils';
+import { t } from './language';
 import { restoreDepositBaseLines } from './deposit';
 import { draftObject, draftStrings } from './formDrafts';
 import {documentQuickClientFields as quickFields, validQuickClientCreationId} from './documentQuickClientDraft';
@@ -24,7 +25,7 @@ export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings
   const percentage = invoice?.depositPercentageBp, issueDate = item?.issueDate || todayIso();
   const lines = invoice?.type === 'deposit' && percentage
     ? (invoice.depositBasisLines?.length ? invoice.depositBasisLines : restoreDepositBaseLines(invoice.lines, percentage)).map(line => ({ ...line }))
-    : current?.lines.map(line => ({ ...line })) ?? seeded?.lines.map(line => ({ ...line })) ?? [{ id: emptyLineId, catalogItemId: null, description: '', quantity: 0, unit: '', unitPriceCents: 0, discountBp: 0, vatRateBp: settings.organization.vatRegistered ? -1 : 0 }];
+    : current?.lines.map(line => ({ ...line })) ?? seeded?.lines.map(line => ({ ...line })) ?? [{ id: emptyLineId, catalogItemId: null, description: '', quantity: 0, unit: t('forfait'), unitPriceCents: 0, discountBp: 0, vatRateBp: settings.organization.vatRegistered ? -1 : 0 }];
   return {
     ...(documentCreationId===undefined?{}:{documentCreationId}),
     lines, selectedClientId: current?.clientId ?? seeded?.clientId ?? initialProject?.clientId ?? '', selectedProjectId: current?.projectId ?? initialProject?.id ?? '',

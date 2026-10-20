@@ -1001,7 +1001,7 @@ export function DocumentEditor({
                         catalogItemId: null,
                         description: '',
                         quantity: 0,
-                        unit: '',
+                        unit: t('forfait'),
                         unitPriceCents: 0,
                         discountBp: 0,
                         vatRateBp: settings.organization.vatRegistered ? -1 : 0,
