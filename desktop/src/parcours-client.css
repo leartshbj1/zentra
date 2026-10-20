@@ -187,7 +187,7 @@ html[data-app-theme] :is(.sales-tabs, .purchase-workflow__tabs, .section-navigat
   --apple-secondary: var(--zp-quiet-label);
 }
 /* Client initials: neutral, readable. */
-html[data-app-theme] .client-mobile-list__avatar {
+html[data-app-theme] .desktop-app[data-experience] .page-content.page-content .client-mobile-list__avatar {
   background: var(--apple-selection);
   color: var(--apple-ink);
 }
