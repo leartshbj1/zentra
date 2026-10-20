@@ -45,3 +45,5 @@ src/contracts.test.ts
 rust:payroll_drafts
 rust:supervisor::tests::
 src/morningDigest.test.ts
+rust:work_reports::
+src/workReports.test.ts

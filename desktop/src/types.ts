@@ -235,6 +235,33 @@ export type CashCount = {
   createdAt: string;
 };
 
+export type WorkReportLine = {
+  id: Identifier;
+  kind: 'labor' | 'material';
+  catalogItemId: Identifier | null;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPriceCents: number;
+  vatBp: number;
+};
+
+export type WorkReport = {
+  id: Identifier;
+  clientId: Identifier;
+  projectId: Identifier | null;
+  reportDate: string;
+  site: string;
+  description: string;
+  technician: string;
+  status: 'draft' | 'signed' | 'invoiced';
+  signerName: string;
+  signaturePath: string;
+  signedAt: string | null;
+  invoiceId: Identifier | null;
+  lines: WorkReportLine[];
+};
+
 export type Contract = {
   id: Identifier;
   side: 'customer' | 'supplier';
@@ -1883,6 +1910,8 @@ export type Workspace = {
   cashCounts?: CashCount[];
   /** Contrats et abonnements, clients et fournisseurs. */
   contracts?: Contract[];
+  /** Rapports de régie signés sur place. */
+  workReports?: WorkReport[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

@@ -1969,6 +1969,12 @@ impl LocalStore {
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 67)?;
         }
+        if current < 68 {
+            transaction.execute_batch(crate::schema::MIGRATION_V68_SQL)?;
+            transaction.execute("DELETE FROM company_local_tracking_version", [])?;
+            crate::company_collaboration::migrate(&transaction)?;
+            transaction.pragma_update(None, "user_version", 68)?;
+        }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
         crate::work_notes::ensure_workspace_scope(&transaction)?;
@@ -2925,7 +2931,7 @@ impl LocalStore {
         workspace["stock_availability"] = Value::Array(stock_availability);
         workspace["project_milestones"] = Value::Array(project_milestones);
         workspace["project_tasks"] = Value::Array(project_tasks);
-        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts"] {
+        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines"] {
             let present: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [table], |row| row.get(0))?;
             workspace[table] = Value::Array(if present { query_all(connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [])? } else { Vec::new() });
         }
@@ -7260,7 +7266,7 @@ fn deposit_line_description(percentage_bp: i64, description: &str) -> String {
     format!("Acompte {percentage} % — {}", description.trim())
 }
 
-fn recompute_all_invoice_lines(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
+pub(crate) fn recompute_all_invoice_lines(transaction: &Transaction<'_>, invoice_id: &str) -> AppResult<()> {
     let mut statement=transaction.prepare("SELECT id,quantity,unit_price_cents,discount_bp,vat_bp FROM invoice_items WHERE invoice_id=?")?;
     let rows = statement
         .query_map(params![invoice_id], |r| {

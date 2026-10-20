@@ -13,7 +13,7 @@ import { statementFileFromRaw, type StatementFile } from './autopilotStatements'
 import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
-import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft } from './types';
+import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
 import { createCloudAccountReader } from './cloudAccountOpening';
 import { errorMessage } from './utils';
@@ -527,6 +527,8 @@ type RawWorkspace = {
   cash_book_entries?: RawRecord[];
   cash_counts?: RawRecord[];
   contracts?: RawRecord[];
+  work_reports?: RawRecord[];
+  work_report_lines?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -551,6 +553,21 @@ function cashCountFromRaw(row: RawRecord): CashCount {
   try { denominations = JSON.parse(stringValue(row.denominations_json) || '{}') as Record<string, number>; } catch { /* shown without details */ }
   return { id: stringValue(row.id), countDate: stringValue(row.count_date), countedCents: numberValue(row.counted_cents), expectedCents: numberValue(row.expected_cents), differenceCents: numberValue(row.difference_cents), denominations, note: stringValue(row.note), createdAt: stringValue(row.created_at) };
 }
+function workReportsFromRaw(reports: RawRecord[], lines: RawRecord[]): WorkReport[] {
+  return reports.map((row) => {
+    const status = row.status === 'signed' || row.status === 'invoiced' ? row.status : 'draft';
+    return {
+      id: stringValue(row.id), clientId: stringValue(row.client_id), projectId: stringValue(row.project_id) || null, reportDate: stringValue(row.report_date),
+      site: stringValue(row.site), description: stringValue(row.description), technician: stringValue(row.technician), status,
+      signerName: stringValue(row.signer_name), signaturePath: stringValue(row.signature_path), signedAt: stringValue(row.signed_at) || null, invoiceId: stringValue(row.invoice_id) || null,
+      lines: lines.filter((line) => line.report_id === row.id).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((line) => ({
+        id: stringValue(line.id), kind: line.kind === 'material' ? 'material' : 'labor', catalogItemId: stringValue(line.catalog_item_id) || null,
+        description: stringValue(line.description), quantity: Number(line.quantity) || 0, unit: stringValue(line.unit), unitPriceCents: numberValue(line.unit_price_cents), vatBp: numberValue(line.vat_bp),
+      })),
+    };
+  });
+}
+
 function contractFromRaw(row: RawRecord): Contract {
   const frequency = (['monthly', 'quarterly', 'yearly', 'once'] as const).find((value) => value === row.frequency) ?? 'monthly';
   return {
@@ -3400,6 +3417,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     cashBookEntries: (raw.cash_book_entries ?? []).map(cashEntryFromRaw),
     cashCounts: (raw.cash_counts ?? []).map(cashCountFromRaw),
     contracts: (raw.contracts ?? []).map(contractFromRaw),
+    workReports: workReportsFromRaw(raw.work_reports ?? [], raw.work_report_lines ?? []),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7472,6 +7490,27 @@ export const desktopApi = {
       amount_cents: contract.amountCents, currency: contract.currency, frequency: contract.frequency, indexation: contract.indexation || null, note: contract.note || null,
     } });
     return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveWorkReport(report: Omit<WorkReport, 'id' | 'status' | 'signerName' | 'signaturePath' | 'signedAt' | 'invoiceId' | 'lines'> & { id?: string; lines: Omit<WorkReportLine, 'id'>[] }) {
+    const raw = await invoke<RawRecord>('save_work_report', { input: {
+      id: report.id || null, client_id: report.clientId, project_id: report.projectId, report_date: report.reportDate, site: report.site || null,
+      description: report.description, technician: report.technician || null,
+      lines: report.lines.map((line) => ({ kind: line.kind, catalog_item_id: line.catalogItemId, description: line.description, quantity: line.quantity, unit: line.unit, unit_price_cents: line.unitPriceCents, vat_bp: line.vatBp })),
+    } });
+    return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async deleteWorkReport(id: string) {
+    await invoke('delete_work_report', { id });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async signWorkReport(id: string, signerName: string, signaturePath: string) {
+    await invoke('sign_work_report', { id, signerName, signaturePath });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  /** Facture en brouillon avec les lignes du rapport signé. */
+  async invoiceWorkReport(id: string) {
+    const raw = await invoke<RawRecord>('invoice_work_report', { id });
+    return { invoiceId: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async terminateContract(id: string, terminatedOn: string) {
     await invoke('terminate_contract', { id, terminatedOn });

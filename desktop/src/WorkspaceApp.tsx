@@ -21,7 +21,9 @@ import { suggestExpenseCategory } from './expenseCategory';
 import { buildDebtCollectionRequest, debtCollectionCandidates, type DebtCollectionRequest } from './debtCollection';
 import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
-import { BankAreaTabs, type BankArea } from './BankAreaTabs';
+import { BankAreaTabs, TimeAreaTabs, type BankArea, type TimeArea } from './BankAreaTabs';
+import { WorkReportsPanel } from './WorkReportsPanel';
+import { reportTotals, reportsToInvoice } from './workReports';
 import { CashBookPanel } from './CashBookPanel';
 import { TreasuryPanel, forecastLabel } from './TreasuryPanel';
 import { ContractsPanel } from './ContractsPanel';
@@ -1098,6 +1100,12 @@ function WorkspaceContent({
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
   const [bankArea, setBankArea] = useState<BankArea>('account');
+  const [timeArea, setTimeArea] = useState<TimeArea>('hours');
+  const openInvoiceById = (invoiceId: string) => {
+    const invoice = workspaceRef.current.invoices.find(row => row.id === invoiceId);
+    setSearch(''); setView('invoices');
+    if (invoice) setModal({ type: 'document', entity: 'invoices', item: invoice });
+  };
   // Résumé du matin : envoyé seulement s'il est activé, quand les cartes changent.
   const digestSending = useRef(false);
   const sendDigest = async () => {
@@ -1417,6 +1425,15 @@ function WorkspaceContent({
           + (invoice.dueDate < today ? ' · ' + copy.payOverdue : ''),
         actions: [{ id: 'copy-iban', label: copy.actionCopyIban }, { id: 'view-purchase', label: copy.actionViewPurchase }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'pay', label: copy.actionPay, primary: true }] });
     }
+    // Rapports d'intervention signés, pas encore facturés.
+    for (const report of reportsToInvoice(workspace.workReports ?? []).filter(row => !entries['report:' + row.id]?.ignored)) {
+      const totals = reportTotals(report.lines);
+      const client = workspace.clients.find(row => row.id === report.clientId)?.name ?? '';
+      cards.push({ key: 'report:' + report.id, title: copy.reportTitle.replace('{client}', client).replace('{hours}', String(totals.hours)),
+        detail: copy.reportDetail.replace('{amount}', formatMoney(totals.totalCents)).replace('{date}', date(report.reportDate)).replace('{name}', report.signerName),
+        why: `${copy.whyReport} · ${copy.confidenceHigh}`,
+        actions: [{ id: 'open-reports', label: copy.actionOpenReports }, { id: 'report-invoice', label: copy.actionInvoiceReport, primary: true }] });
+    }
     // Caisse : comptage du soir, puis écart à corriger.
     const tonight = localDate(new Date());
     if (eveningCountDue(workspace, new Date()) && !entries['cash-count:' + tonight]?.ignored)
@@ -1499,6 +1516,13 @@ function WorkspaceContent({
         setNotice({ tone: failed.length ? 'warning' : 'success', text: failed.length ? copy.payrollPartly.replace('{n}', String(created)).replace('{names}', failed.join(', ')) : copy.payrollPrepared.replace('{n}', String(created)) });
         refresh();
       }
+      return;
+    }
+    if (actionId === 'open-reports') { setSearch(''); setTimeArea('reports'); setView('time'); return; }
+    if (key.startsWith('report:') && actionId === 'report-invoice') {
+      let invoiceId = '';
+      const done = await journalAct(async () => { const result = await desktopApi.invoiceWorkReport(key.slice('report:'.length)); invoiceId = result.invoiceId; return result.workspace; }, copy.reportInvoiced, false);
+      if (done && invoiceId) { refresh(); openInvoiceById(invoiceId); }
       return;
     }
     if (actionId === 'open-cash') { setSearch(''); setBankArea('cash'); setView('bank'); return; }
@@ -3717,7 +3741,11 @@ function WorkspaceContent({
               />
             </Suspense>
           ) : null}
-          {view === 'time' ? (
+          {view === 'time' ? <TimeAreaTabs active={timeArea} onChange={setTimeArea} /> : null}
+          {view === 'time' && timeArea === 'reports' ? (
+            <WorkReportsPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} onOpenInvoice={openInvoiceById} />
+          ) : null}
+          {view === 'time' && timeArea === 'hours' ? (
             <TimeScreen
               workspace={workspace}
               mutationsDisabled={busy || readOnly}

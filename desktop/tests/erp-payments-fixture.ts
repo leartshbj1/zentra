@@ -141,3 +141,18 @@ export function installErpCashFixture(data: Workspace) {
     { id: 'k4', side: 'customer', clientId: null, supplierId: null, partyName: 'Résidence Bellevue', title: 'Entretien annuel des parquets', startDate: '2025-01-01', endDate: day(40), noticeMonths: 1, autoRenew: false, renewalMonths: 12, amountCents: 120_000, currency: 'CHF', frequency: 'yearly', indexation: '', note: '', status: 'active', terminatedOn: null },
   ];
 }
+
+/** ?erp=reports : rapports d'intervention en brouillon, signé et facturé. */
+export function installErpReportsFixture(data: Workspace) {
+  const client = data.clients[0];
+  if (!client) return;
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  const line = (id: string, kind: 'labor' | 'material', description: string, quantity: number, unit: string, unitPriceCents: number) => ({ id, kind, catalogItemId: null, description, quantity, unit, unitPriceCents, vatBp: 810 });
+  const signature = 'M60 140 L90 80 L120 150 L150 70 L190 140 L230 90 L260 120 M300 130 L360 110 L420 125 L480 100';
+  data.workReports = [
+    { id: 'wr1', clientId: client.id, projectId: null, reportDate: day(0), site: 'Cuisine, 2e étage', description: 'Remplacement du mitigeur et contrôle de l’écoulement.', technician: 'Marc', status: 'draft', signerName: '', signaturePath: '', signedAt: null, invoiceId: null,
+      lines: [line('l1', 'labor', 'Main-d’œuvre', 2.5, 'h', 9_500), line('l2', 'material', 'Mitigeur évier', 1, 'pce', 18_900)] },
+    { id: 'wr2', clientId: client.id, projectId: null, reportDate: day(-1), site: 'Hall d’entrée', description: 'Ponçage et vitrification du parquet.', technician: 'Sara', status: 'signed', signerName: 'M. Dupont', signaturePath: signature, signedAt: day(-1) + 'T16:30:00Z', invoiceId: null,
+      lines: [line('l3', 'labor', 'Main-d’œuvre', 6, 'h', 9_500), line('l4', 'material', 'Vitrificateur mat 5 l', 1, 'pce', 14_500)] },
+  ];
+}

@@ -16,3 +16,18 @@ export function BankAreaTabs({ active, onChange }: { active: BankArea; onChange:
     )}
   </nav>;
 }
+
+export type TimeArea = 'hours' | 'reports';
+
+/** Temps : les heures pointées et les rapports d'intervention signés. */
+export function TimeAreaTabs({ active, onChange }: { active: TimeArea; onChange: (area: TimeArea) => void }) {
+  useAppLanguage();
+  const navigation = useRef<HTMLElement>(null);
+  useNavigationSelection(navigation, active, false);
+  return <nav ref={navigation} className="sales-tabs" aria-label={t('Heures et rapports')}>
+    <span className="sales-tabs__selection" aria-hidden="true" />
+    {([['hours', 'Heures'], ['reports', 'Rapports d’intervention']] as const).map(([id, label]) =>
+      <button key={id} type="button" className={active === id ? 'is-active' : ''} aria-current={active === id ? 'page' : undefined} onClick={() => onChange(id)}>{t(label)}</button>,
+    )}
+  </nav>;
+}

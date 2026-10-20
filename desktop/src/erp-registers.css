@@ -172,3 +172,70 @@
     justify-items: start;
   }
 }
+/* Rapports d'intervention : lignes compactes et zone de signature sobre. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .work-report-line {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(90px, 0.6fr) minmax(110px, 0.8fr) auto;
+    align-items: end;
+    gap: 8px 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .work-report-line .field {
+    display: grid;
+    gap: 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .work-report-line__remove {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font: inherit;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .signature-pad canvas {
+    display: block;
+    inline-size: 100%;
+    block-size: 200px;
+    border-radius: var(--apple-radius-control, 10px);
+    box-shadow: inset 0 0 0 1px var(--apple-line);
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    touch-action: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .signature-pad__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .signature-pad__footer small {
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .signature-pad__footer button {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font: inherit;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .work-report-signature {
+    grid-column: 1 / -1;
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .signature-view {
+    inline-size: min(240px, 100%);
+    block-size: auto;
+  }
+}
+@media screen and (max-width: 640px) {
+  html[data-app-theme] .desktop-app[data-experience] .work-report-line {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .work-report-line > .field:first-child {
+    grid-column: 1 / -1;
+  }
+}

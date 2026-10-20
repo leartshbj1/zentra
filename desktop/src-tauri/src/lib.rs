@@ -93,6 +93,7 @@ mod opening_balances;
 mod online_payments;
 mod cash_book;
 mod payroll_drafts;
+mod work_reports;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -332,6 +333,10 @@ pub fn run() {
             cash_book::save_contract,
             cash_book::terminate_contract,
             payroll_drafts::prepare_payroll_drafts,
+            work_reports::save_work_report,
+            work_reports::delete_work_report,
+            work_reports::sign_work_report,
+            work_reports::invoice_work_report,
             inspect_supplier_email_file,
             import_supplier_email_invoice_draft,
             save_supplier_order_draft,
