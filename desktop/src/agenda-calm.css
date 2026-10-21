@@ -1,0 +1,321 @@
+/*
+ * Agenda and Notes, calm pass. Loaded last.
+ * One toolbar without a panel, plain figures, one calendar surface (the day
+ * list is a column of it, not a card inside a card), readable dots.
+ */
+@media screen {
+  /* ---------- Toolbar: no panel, two clear rows ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout > .agenda-toolbar.agenda-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "period add" "filters filters";
+    align-items: center;
+    gap: 14px 16px;
+    margin: 0 0 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-month-controls {
+    grid-area: period;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-month-controls strong {
+    display: inline-block;
+    min-width: 0;
+    margin: 0 6px;
+    color: var(--apple-ink);
+    font-size: calc(22px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-month-controls > .button--secondary {
+    margin-left: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-create {
+    grid-area: add;
+    justify-self: end;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-options {
+    grid-area: filters;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  /* The "Afficher" label sits on the same line as its menu. */
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-filters > label:not(.agenda-closed-toggle) {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-filters > label:not(.agenda-closed-toggle) > span {
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-filters select {
+    width: auto;
+    min-width: 160px;
+    min-height: 36px;
+    height: 36px;
+    margin: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-closed-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  /* Jour, Semaine, Mois: the same segmented control as everywhere. */
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-display-switch {
+    display: inline-flex;
+    gap: 2px;
+    margin: 0;
+    padding: 2px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--z7-segment);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-display-switch > button {
+    min-height: 32px;
+    margin: 0;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--apple-secondary);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar .agenda-display-switch > button:is(.is-active, [aria-pressed="true"]) {
+    background: var(--z7-segment-thumb);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z7-segment-shadow);
+  }
+
+  /* ---------- Figures: plain numbers, no pills, nothing cut ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout > .agenda-summary.agenda-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 40px;
+    margin: 0 0 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary.agenda-summary > article {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary.agenda-summary > article > strong {
+    color: var(--apple-ink);
+    font-size: calc(22px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    order: -1;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary.agenda-summary > article > span {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-summary.agenda-summary > article.is-alert > strong {
+    color: var(--apple-red, var(--danger));
+  }
+
+  /* ---------- One surface: the calendar and its day list side by side ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout > .agenda-main-grid {
+    align-items: stretch;
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--z-hairline);
+    border-radius: 14px;
+    background: var(--apple-paper);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid > .panel {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid > .agenda-list-panel {
+    align-self: stretch;
+    border-left: 1px solid var(--z-hairline);
+  }
+
+  /* ---------- Dots you can see ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout .agenda-dot {
+    width: 9px;
+    min-width: 9px;
+    height: 9px;
+    border-radius: 50%;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout .agenda-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin: 14px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout .agenda-legend > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout > .agenda-toolbar.agenda-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "period" "add" "filters";
+    gap: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-month-controls {
+    flex-wrap: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-create {
+    justify-self: stretch;
+    width: 100%;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-month-controls > .button--secondary {
+    flex: none;
+    width: auto;
+    min-height: 34px;
+    margin-left: auto;
+    padding: 0 12px;
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-month-controls strong {
+    margin: 0 2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout > .agenda-main-grid {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid > .panel {
+    border-radius: 14px;
+    background: var(--apple-paper);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-main-grid > .agenda-list-panel {
+    margin-top: 16px;
+    border-left: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-month-controls strong {
+    font-size: calc(19px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout > .agenda-summary.agenda-summary {
+    gap: 6px 24px;
+  }
+}
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .agenda-toolbar > .agenda-options > * {
+    margin-bottom: 0;
+  }
+}
+
+/* ---------- Notes: one surface, the list is a column of it ---------- */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace.notes-workspace--notebook {
+    overflow: hidden;
+    border: 1px solid var(--z-hairline);
+    border-radius: 14px;
+    background: var(--apple-paper);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace .notes-index.notes-index {
+    background: transparent;
+    border-right: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace .notes-index__heading h2 {
+    color: var(--apple-ink);
+    font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace .notes-index__count {
+    color: var(--apple-secondary);
+    font-weight: 500;
+  }
+  /* Search and project filter: two quiet fields of the same height. */
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace.notes-workspace--notebook .notes-search {
+    min-height: 40px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--z7-segment);
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace.notes-workspace--notebook .notes-list__entry.is-selected {
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace .notes-group > h3 {
+    margin: 18px 12px 6px;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  /* The pin is an icon that turns green when on, not a grey box. */
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace .notes-editor__actions .button[aria-pressed] {
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace .notes-editor__actions .button[aria-pressed='true'] {
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace.notes-workspace--notebook .notes-sheet textarea.notes-editor__body,
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace textarea {
+    resize: none;
+  }
+}
+@media screen and (min-width: 861px) {
+  /* With the list beside the note, "back to notes" has nowhere to go. */
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace .notes-editor__toolbar .notes-back {
+    display: none;
+  }
+}
+@media screen {
+  /* The note grows with its text; no resize grip in the corner. */
+  html[data-app-theme] .desktop-app[data-experience] .notes-workspace.notes-workspace--notebook .notes-sheet .notes-editor__body {
+    resize: none;
+  }
+}

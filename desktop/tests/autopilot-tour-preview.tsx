@@ -40,6 +40,7 @@ import '../src/switch-calm.css';
 import '../src/erp-calm.css';
 import '../src/autopilot-magic.css';
 import '../src/mobile-calm.css';
+import '../src/agenda-calm.css';
 
 import { autopilotCopy } from '../src/autopilotPresentation';
 const query = new URLSearchParams(location.search);
