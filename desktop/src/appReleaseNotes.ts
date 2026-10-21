@@ -16,6 +16,9 @@ export const releaseHistoryCopy = {
 // Append a version with every shipped correction; never rewrite an older entry
 // to describe work that was added later. See docs/RELEASE-*.md for release evidence.
 export const releaseHistory = [
+  { version: '1.90.43', date: '2026-10-21', title: copy('Agenda et notes plus clairs', 'Übersichtlichere Agenda und Notizen', 'Agenda e note più chiare', 'Clearer agenda and notes'), changes: [
+    copy('L’agenda et les notes tiennent dans une seule surface, avec une barre d’outils alignée et des points d’événements plus lisibles.', 'Agenda und Notizen stehen auf einer einzigen Fläche, mit ausgerichteter Werkzeugleiste und besser lesbaren Terminpunkten.', 'Agenda e note stanno in un’unica superficie, con una barra degli strumenti allineata e punti degli eventi più leggibili.', 'The agenda and notes sit on a single surface, with an aligned toolbar and easier-to-read event dots.'),
+  ] },
   { version: '1.90.42', date: '2026-10-21', title: copy('Affichage plus soigné', 'Sorgfältigere Darstellung', 'Visualizzazione più curata', 'Tidier display'), changes: [
     copy('La liste des factures ne défile plus sur le côté sur un ordinateur portable, et les initiales des clients sont lisibles sur téléphone en mode clair.', 'Die Rechnungsliste scrollt auf einem Laptop nicht mehr seitlich, und die Initialen der Kunden sind auf dem Telefon im hellen Modus lesbar.', 'L’elenco delle fatture non scorre più di lato su un portatile e le iniziali dei clienti sono leggibili sul telefono in modalità chiara.', 'The invoice list no longer scrolls sideways on a laptop, and client initials are readable on phones in light mode.'),
   ] },
