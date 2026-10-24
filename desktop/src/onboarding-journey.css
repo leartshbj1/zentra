@@ -161,7 +161,6 @@ html[data-app-theme] .first-run :is(.cloud-account-panel,.automation-setup,.loca
 .first-run .automation-setup>svg,.first-run .automation-eyebrow {display:none;}
 .first-run .automation-setup h3 {margin:0 0 12px;font-size:18px;color:var(--setup-ink);}
 .first-run .automation-setup p,.first-run .local-assistant-setup p {font-size:14px;line-height:1.6;color:var(--setup-muted);}
-.first-run .automation-price {color:var(--setup-ink);}
 .first-run .automation-setup small,.first-run .local-assistant-setup small {font-size:12px;line-height:1.6;color:var(--setup-muted);}
 .first-run .local-assistant-setup {padding:14px 0;}
 .first-run .local-assistant-setup__actions {display:flex;flex-wrap:wrap;gap:10px;}

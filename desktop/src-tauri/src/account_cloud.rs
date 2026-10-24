@@ -446,10 +446,17 @@ pub async fn get_cloud_account_state(
 
 /// Reads the public price grid without any account session. The frontend
 /// validates the shape and falls back to its bundled copy when offline.
+/// Version 2 (Solo, Équipe, Pro with Autopilote) is asked first; a server
+/// that refuses it is read again without the parameter (version 1).
 #[tauri::command]
 pub async fn get_plan_catalog() -> Result<serde_json::Value, String> {
     let result: AppResult<serde_json::Value> = async {
-        let (status, bytes) = account_request(Method::GET, PLANS_PATH, None, None).await?;
+        let mut url = endpoint(PLANS_PATH)?;
+        url.query_pairs_mut().append_pair("version", "2");
+        let (mut status, mut bytes) = account_request_url(Method::GET, url, None, None, TOTAL_TIMEOUT).await?;
+        if !status.is_success() {
+            (status, bytes) = account_request(Method::GET, PLANS_PATH, None, None).await?;
+        }
         if !status.is_success() {
             return Err(AppError::Remote("La grille tarifaire est momentanément indisponible.".into()));
         }

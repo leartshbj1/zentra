@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, Workflow } from 'lucide-react';
 import { Button } from './ui';
+import { desktopApi } from './bridge';
 import { t, useAppLanguage } from './language';
 import {
   automationFeedback,
@@ -74,43 +75,40 @@ export function AutomationSetup({
     <section className="automation-setup">
       <Workflow size={28} />
       <p className="automation-eyebrow">Zentra Autopilote</p>
-      <h3>{t(state?.active ? 'Autopilote pour toute votre équipe' : 'Disponible avec Zentra Autopilote')}</h3>
+      <h3>{t(state?.active ? 'Autopilote pour toute votre équipe' : 'Autopilote est inclus dans chaque formule')}</h3>
       <p>
         {t(
-          state?.active ? 'Des suggestions pour classer vos opérations et documents. Vous validez les actions importantes.' : 'Automatisez vos tâches répétitives pour +15 CHF/mois.',
+          state?.active ? 'Des suggestions pour classer vos opérations et documents. Vous validez les actions importantes.' : 'Solo, Équipe et Pro comprennent Autopilote, tout comme l’essai gratuit. Il n’y a rien à acheter en plus.',
         )}
       </p>
-      {!state?.active && <div className="automation-price">
-        <strong>15 CHF</strong>
-        <span>{t('par mois et par entreprise')}</span>
-      </div>}
       <p>
         {t(
-          'Option facultative. Les extraits nécessaires sont traités en ligne après votre accord. Le fichier complet n’est pas transmis au service d’analyse.',
+          'Les extraits nécessaires sont traités en ligne après votre accord. Le fichier complet n’est pas transmis au service d’analyse.',
         )}
       </p>
-      {state?.active && <p role="status">{t('L’option est active pour cette entreprise. Tous ses collaborateurs en bénéficient, sans activation individuelle.')}</p>}
+      {state?.active && <p role="status">{t('Autopilote est actif pour cette entreprise. Tous ses collaborateurs en bénéficient, sans activation individuelle.')}</p>}
       <div className="automation-actions">
         <Button
           type="button"
           variant="secondary"
           onClick={() => {
             setError('');
-            void openAutomationSettings().catch(() =>
+            // Autopilote is never sold separately: without access, show the subscription.
+            void (state?.active ? openAutomationSettings() : desktopApi.openCloudAccountPortal('abonnement')).catch(() =>
               setError(
-                'Ouvrez zentraapp.ch/compte/automation dans votre navigateur.',
+                state?.active ? 'Ouvrez zentraapp.ch/compte/automation dans votre navigateur.' : 'Ouvrez zentraapp.ch/compte/abonnement dans votre navigateur.',
               ),
             );
           }}
         >
           <ArrowUpRight size={16} />
           {t(
-            state?.active ? (state.canManage ? 'Gérer Zentra Autopilote' : 'Voir les réglages de l’entreprise') : 'Ajouter Autopilote',
+            state?.active ? (state.canManage ? 'Gérer Zentra Autopilote' : 'Voir les réglages de l’entreprise') : 'Voir mon abonnement',
           )}
         </Button>
         {onSkip && (
           <Button type="button" variant="ghost" onClick={onSkip}>
-            {t('Continuer sans cette option')}
+            {t('Plus tard')}
           </Button>
         )}
         {onContinue && (
@@ -120,11 +118,6 @@ export function AutomationSetup({
         )}
       </div>
       {error && <p role="status">{t(error)}</p>}
-      <small>
-        {t(
-          'L’ouverture du compte ne déclenche aucun paiement. Le prix et les conditions sont confirmés avant activation.',
-        )}
-      </small>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { getAppLocale, t } from './language';
-import { formatPlanPrice, usePlanCatalog } from './planCatalog';
+import { formatPlanPrice, planForLicense, usePlanCatalog } from './planCatalog';
 import { markDemoWorkspace, seedDemoWorkspace } from './demoWorkspace';
 import { useAppLanguage } from './language';
 import {
@@ -460,7 +460,8 @@ function LicenseActivation({
   onInstall: (token: string) => Promise<void>;
   onRefresh: () => Promise<void>;
 }) {
-  const plans = usePlanCatalog().plans;
+  const catalog = usePlanCatalog(), plans = catalog.plans;
+  const licensedPlan = planForLicense(catalog, license.plan);
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -583,7 +584,9 @@ function LicenseActivation({
           <small>
             {license.readOnly
               ? t("Application en lecture seule; sauvegarde et export restent disponibles.")
-              : t("{v0} · valable jusqu’au {v1}", { v0: license.customerName || 'Licence vérifiée', v1: license.validUntil })}
+              : licensedPlan
+                ? t('{v0} · formule {plan} · valable jusqu’au {v1}', { v0: license.customerName || 'Licence vérifiée', plan: licensedPlan.name, v1: license.validUntil })
+                : t("{v0} · valable jusqu’au {v1}", { v0: license.customerName || 'Licence vérifiée', v1: license.validUntil })}
           </small>
         </div>
       </div>

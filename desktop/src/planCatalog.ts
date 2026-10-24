@@ -3,73 +3,116 @@ import { isTauri } from '@tauri-apps/api/core';
 import { diagnosticInvoke as invoke } from './diagnostics';
 
 /**
- * The single price grid published by the site at /api/plans. The app shows
- * names and prices exactly as returned and keeps this bundled copy for
- * offline use, so prices are never invented or converted locally.
+ * The single price grid published by the site at /api/plans?version=2 (Solo,
+ * Équipe, Pro, Autopilote included). The app shows names and prices exactly as
+ * returned and keeps this bundled copy for offline use, so prices are never
+ * invented or converted locally. A server that only knows version 1 answers
+ * with its Complet list, which also included Autopilote.
  */
 export type PlanOffer = Readonly<{
   id: string;
   name: string;
   monthlyChfCents: number;
+  /** null when the grid publishes no yearly price (version 1). */
+  yearlyChfCents: number | null;
+  minPeople: number;
   people: number;
-  supportAnalyses: number;
+  analyses: number;
   recommended: boolean;
 }>;
 export type PlanCatalog = Readonly<{
+  version: 1 | 2;
   currency: 'CHF';
   trialDays: number;
+  trialPeople: number;
+  trialAnalyses: number;
+  /** Share of the monthly analyses after which the owner is warned. */
+  warningAt: number;
   plans: readonly PlanOffer[];
-  complet: readonly PlanOffer[];
 }>;
 
+/** Terms of the v2 subscriptions, used only when the server sends no version. */
+export const SUBSCRIPTION_TERMS_VERSION = 'abonnement-2026-10-23';
+
 export const BUNDLED_PLAN_CATALOG: PlanCatalog = {
+  version: 2,
   currency: 'CHF',
   trialDays: 14,
+  trialPeople: 5,
+  trialAnalyses: 500,
+  warningAt: 0.8,
   plans: [
-    { id: 'solo', name: 'Solo', monthlyChfCents: 4900, people: 1, supportAnalyses: 0, recommended: false },
-    { id: 'start', name: 'Start', monthlyChfCents: 5900, people: 3, supportAnalyses: 0, recommended: true },
-    { id: 'pro', name: 'Pro', monthlyChfCents: 8900, people: 10, supportAnalyses: 0, recommended: false },
-  ],
-  complet: [
-    { id: 'solo', name: 'Solo', monthlyChfCents: 7900, people: 1, supportAnalyses: 2000, recommended: false },
-    { id: 'team', name: 'Équipe', monthlyChfCents: 9900, people: 3, supportAnalyses: 5000, recommended: true },
-    { id: 'pro', name: 'Pro', monthlyChfCents: 16900, people: 10, supportAnalyses: 15000, recommended: false },
+    { id: 'solo', name: 'Solo', monthlyChfCents: 4900, yearlyChfCents: 49000, minPeople: 1, people: 1, analyses: 1000, recommended: false },
+    { id: 'equipe', name: 'Équipe', monthlyChfCents: 7900, yearlyChfCents: 79000, minPeople: 2, people: 5, analyses: 3000, recommended: true },
+    { id: 'pro', name: 'Pro', monthlyChfCents: 12900, yearlyChfCents: 129000, minPeople: 6, people: 15, analyses: 10000, recommended: false },
   ],
 };
 
-const count = (value: unknown, max: number) =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= max ? value : null;
+// Licence tokens keep the identifiers the app already verifies; the formula
+// shown to people is the catalogue's (Équipe, not Start; Pro 129, not 89).
+const LICENSE_PLANS: Readonly<Record<string, string>> = {
+  'zentra-solo-monthly-49-chf': 'solo',
+  'zentra-start-monthly-59-chf': 'equipe',
+  'zentra-pro-monthly-89-chf': 'pro',
+};
+// The account server names Équipe "team" internally (Complet engine).
+const canonical = (id: string | null | undefined) => (id === 'team' ? 'equipe' : id ?? '');
 
-function offer(raw: unknown): PlanOffer | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const row = raw as Record<string, unknown>;
-  const id = typeof row.id === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(row.id) ? row.id : null;
-  const name = typeof row.name === 'string' && row.name.trim() && row.name.length <= 40 ? row.name.trim() : null;
-  const cents = count(row.monthlyChfCents, 10_000_000);
-  const people = count(row.people, 100_000);
-  const analyses = count(row.supportAnalyses, 10_000_000);
-  if (!id || !name || cents === null || people === null || analyses === null) return null;
-  return { id, name, monthlyChfCents: cents, people, supportAnalyses: analyses, recommended: row.recommended === true };
+export function findPlan(catalog: PlanCatalog, id: string | null | undefined): PlanOffer | null {
+  const wanted = canonical(id);
+  return wanted ? catalog.plans.find(plan => canonical(plan.id) === wanted) ?? null : null;
+}
+export function planForLicense(catalog: PlanCatalog, licensePlan: string | null | undefined): PlanOffer | null {
+  return licensePlan ? findPlan(catalog, LICENSE_PLANS[licensePlan]) : null;
 }
 
-function offers(raw: unknown): PlanOffer[] | null {
+const count = (value: unknown, max: number) =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= max ? value : null;
+const field = (raw: unknown) => (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null);
+
+function offer(raw: unknown, version: 1 | 2): PlanOffer | null {
+  const row = field(raw);
+  if (!row) return null;
+  const id = typeof row.id === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(row.id) ? row.id : null;
+  const name = typeof row.name === 'string' && row.name.trim() && row.name.length <= 40 ? row.name.trim() : null;
+  const monthly = count(row.monthlyChfCents, 10_000_000);
+  const people = count(row.people, 100_000);
+  const analyses = count(version === 2 ? row.analyses : row.supportAnalyses, 10_000_000);
+  const yearly = version === 2 ? count(row.yearlyChfCents, 100_000_000) : null;
+  const minPeople = version === 2 ? count(row.minPeople, 100_000) : 1;
+  if (!id || !name || monthly === null || people === null || analyses === null || minPeople === null || minPeople > people) return null;
+  if (version === 2 && (yearly === null || row.autopilote !== true)) return null;
+  return { id, name, monthlyChfCents: monthly, yearlyChfCents: yearly, minPeople, people, analyses, recommended: row.recommended === true };
+}
+
+function offers(raw: unknown, version: 1 | 2): PlanOffer[] | null {
   if (!Array.isArray(raw) || raw.length < 1 || raw.length > 12) return null;
-  const parsed = raw.map(offer);
+  const parsed = raw.map(item => offer(item, version));
   if (parsed.some(item => item === null)) return null;
   const list = parsed as PlanOffer[];
-  return new Set(list.map(item => item.id)).size === list.length ? list : null;
+  return new Set(list.map(item => canonical(item.id))).size === list.length ? list : null;
 }
 
 /** Accepts only a well-formed CHF grid; anything else keeps the bundled copy. */
 export function normalizePlanCatalog(raw: unknown): PlanCatalog | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const body = raw as Record<string, unknown>;
-  if (body.version !== 1 || body.currency !== 'CHF') return null;
-  const plans = offers(body.plans);
-  const complet = offers(body.complet);
-  if (!plans || !complet) return null;
-  const trial = body.trial && typeof body.trial === 'object' ? count((body.trial as Record<string, unknown>).days, 365) : null;
-  return { currency: 'CHF', trialDays: trial ?? BUNDLED_PLAN_CATALOG.trialDays, plans, complet };
+  const body = field(raw);
+  if (!body || body.currency !== 'CHF' || (body.version !== 1 && body.version !== 2)) return null;
+  const version = body.version as 1 | 2;
+  // Version 1: only the Complet list included Autopilote, the gestion-only
+  // "plans" are no longer sold.
+  const plans = offers(version === 2 ? body.plans : body.complet, version);
+  if (!plans) return null;
+  const trial = field(body.trial);
+  const warning = field(body.analyses)?.warningAt;
+  return {
+    version,
+    currency: 'CHF',
+    plans,
+    trialDays: count(trial?.days, 365) ?? BUNDLED_PLAN_CATALOG.trialDays,
+    trialPeople: count(trial?.people, 100_000) ?? BUNDLED_PLAN_CATALOG.trialPeople,
+    trialAnalyses: count(version === 2 ? trial?.analyses : trial?.supportAnalyses, 10_000_000) ?? BUNDLED_PLAN_CATALOG.trialAnalyses,
+    warningAt: typeof warning === 'number' && warning > 0 && warning < 1 ? warning : BUNDLED_PLAN_CATALOG.warningAt,
+  };
 }
 
 let cached: PlanCatalog | null = null;

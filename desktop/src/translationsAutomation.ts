@@ -30,7 +30,6 @@ export const automationTranslations: Record<
   'Les choix validés sont des suggestions confirmées par l’équipe, pas des paiements ou des écritures automatiques.': ['Bestätigte Auswahlen sind vom Team bestätigte Vorschläge, keine automatischen Zahlungen oder Buchungen.', 'Le scelte confermate sono suggerimenti approvati dal team, non pagamenti o registrazioni automatici.', 'Confirmed choices are suggestions approved by the team, not automatic payments or accounting entries.'],
   'Autopilote est actuellement en pause.': ['Autopilote ist derzeit pausiert.', 'Autopilote è attualmente in pausa.', 'Autopilote is currently paused.'],
   'Autopilote pour toute votre équipe': ['Autopilote für Ihr ganzes Team', 'Autopilote per tutto il team', 'Autopilote for your whole team'],
-  'L’option est active pour cette entreprise. Tous ses collaborateurs en bénéficient, sans activation individuelle.': ['Die Option ist für dieses Unternehmen aktiv. Alle Mitarbeitenden profitieren davon, ohne einzelne Aktivierung.', 'L’opzione è attiva per questa azienda. Tutti i collaboratori ne beneficiano, senza attivazione individuale.', 'The option is active for this company. All its collaborators benefit, without individual activation.'],
   'Voir les réglages de l’entreprise': ['Unternehmenseinstellungen ansehen', 'Vedi le impostazioni aziendali', 'View company settings'],
   'Opérations bancaires': ['Bankbewegungen', 'Operazioni bancarie', 'Bank transactions'],
   'Opérations inhabituelles': ['Ungewöhnliche Vorgänge', 'Operazioni insolite', 'Unusual transactions'],
@@ -91,17 +90,6 @@ export const automationTranslations: Record<
       'Suggerimenti per classificare operazioni e documenti. Le azioni importanti richiedono la tua conferma.',
       'Suggestions to classify transactions and documents. You confirm important actions.',
     ],
-  'par mois et par entreprise': [
-    'pro Monat und Unternehmen',
-    'al mese per azienda',
-    'per month per company',
-  ],
-  'Option facultative. Les extraits nécessaires sont traités en ligne après votre accord. Le fichier complet n’est pas transmis au service d’analyse.':
-    [
-      'Freiwillige Option. Erforderliche Auszüge werden nach Ihrer Zustimmung online verarbeitet. Die vollständige Datei wird nicht an den Analysedienst übermittelt.',
-      'Opzione facoltativa. Gli estratti necessari vengono elaborati online con il tuo consenso. Il file completo non viene trasmesso al servizio di analisi.',
-      'Optional add-on. Necessary excerpts are processed online with your consent. The complete file is not sent to the analysis service.',
-    ],
   'Votre option est active.': [
     'Ihre Option ist aktiv.',
     'La tua opzione è attiva.',
@@ -117,17 +105,6 @@ export const automationTranslations: Record<
     'Scopri e attiva',
     'Explore and activate',
   ],
-  'Continuer sans cette option': [
-    'Ohne diese Option fortfahren',
-    'Continua senza questa opzione',
-    'Continue without this add-on',
-  ],
-  'L’ouverture du compte ne déclenche aucun paiement. Le prix et les conditions sont confirmés avant activation.':
-    [
-      'Das Öffnen des Kontos löst keine Zahlung aus. Preis und Bedingungen werden vor der Aktivierung bestätigt.',
-      'Aprire l’account non comporta pagamenti. Prezzo e condizioni vengono confermati prima dell’attivazione.',
-      'Opening your account does not trigger payment. Confirm the price and terms before activation.',
-    ],
   'Ouvrez zentraapp.ch/compte/automation dans votre navigateur.': [
     'Öffnen Sie zentraapp.ch/compte/automation im Browser.',
     'Apri zentraapp.ch/compte/automation nel browser.',
@@ -319,4 +296,6 @@ export const automationTranslations: Record<
     'Mantieni al massimo 100 colonne nel file.',
     'Keep at most 100 columns in this file.',
   ],
+  'Les extraits nécessaires sont traités en ligne après votre accord. Le fichier complet n’est pas transmis au service d’analyse.': ['Erforderliche Auszüge werden nach Ihrer Zustimmung online verarbeitet. Die vollständige Datei wird nicht an den Analysedienst übermittelt.', 'Gli estratti necessari vengono elaborati online con il tuo consenso. Il file completo non viene trasmesso al servizio di analisi.', 'Necessary excerpts are processed online with your consent. The complete file is not sent to the analysis service.'],
+  'Autopilote est actif pour cette entreprise. Tous ses collaborateurs en bénéficient, sans activation individuelle.': ['Autopilote ist für dieses Unternehmen aktiv. Alle Mitarbeitenden profitieren davon, ohne individuelle Aktivierung.', 'Autopilote è attivo per questa azienda. Tutti i collaboratori ne beneficiano, senza attivazione individuale.', 'Autopilote is active for this company. Everyone on the team benefits, with no individual activation.'],
 };

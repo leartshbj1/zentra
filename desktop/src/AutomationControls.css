@@ -34,16 +34,6 @@
   text-transform: uppercase;
   color: var(--muted, #616c76);
 }
-.automation-price {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 10px;
-}
-.automation-price strong {
-  font-size: 32px;
-  letter-spacing: -0.04em;
-}
 .automation-actions {
   display: flex;
   flex-wrap: wrap;

@@ -1,7 +1,4 @@
 export const workflowClarityTranslations: Record<string, readonly [string, string, string]> = {
-  'Disponible avec Zentra Autopilote': ['Mit Zentra Autopilote verfügbar', 'Disponibile con Zentra Autopilote', 'Available with Zentra Autopilote'],
-  'Automatisez vos tâches répétitives pour +15 CHF/mois.': ['Automatisieren Sie wiederkehrende Aufgaben für +15 CHF/Monat.', 'Automatizza le attività ripetitive per +15 CHF/mese.', 'Automate repetitive tasks for +CHF 15/month.'],
-  'Ajouter Autopilote': ['Autopilote hinzufügen', 'Aggiungi Autopilote', 'Add Autopilote'],
   'Suivi des achats': ['Einkaufsübersicht', 'Monitoraggio degli acquisti', 'Purchase tracking'],
   'Votre espace': ['Ihr Arbeitsbereich', 'Il tuo spazio', 'Your workspace'],
   'Changer d’espace': ['Arbeitsbereich wechseln', 'Cambia spazio', 'Switch workspace'],
@@ -33,4 +30,8 @@ export const workflowClarityTranslations: Record<string, readonly [string, strin
   'Complétez les comptes pour valider vos factures. Vos brouillons sont conservés.': ['Ergänzen Sie die Konten, um Rechnungen zu bestätigen. Ihre Entwürfe bleiben erhalten.', 'Completa i conti per convalidare le fatture. Le bozze vengono conservate.', 'Complete the account setup to approve invoices. Your drafts are kept.'],
   'Ajouter une facture': ['Rechnung hinzufügen', 'Aggiungi una fattura', 'Add an invoice'],
   'Choisissez le compte bancaire pour enregistrer ce paiement': ['Wählen Sie das Bankkonto für diese Zahlung', 'Scegli il conto bancario per registrare questo pagamento', 'Choose the bank account to record this payment'],
+  'Autopilote est inclus dans chaque formule': ['Autopilote ist in jedem Paket enthalten', 'Autopilote è incluso in ogni pacchetto', 'Autopilote is included in every plan'],
+  'Solo, Équipe et Pro comprennent Autopilote, tout comme l’essai gratuit. Il n’y a rien à acheter en plus.': ['Solo, Équipe und Pro enthalten Autopilote, ebenso der kostenlose Test. Sie müssen nichts zusätzlich kaufen.', 'Solo, Équipe e Pro comprendono Autopilote, così come la prova gratuita. Non c’è nulla da acquistare in più.', 'Solo, Équipe and Pro include Autopilote, and so does the free trial. There is nothing extra to buy.'],
+  'Voir mon abonnement': ['Mein Abonnement ansehen', 'Vedi il mio abbonamento', 'View my subscription'],
+  'Ouvrez zentraapp.ch/compte/abonnement dans votre navigateur.': ['Öffnen Sie zentraapp.ch/compte/abonnement in Ihrem Browser.', 'Apri zentraapp.ch/compte/abonnement nel browser.', 'Open zentraapp.ch/compte/abonnement in your browser.'],
 };
