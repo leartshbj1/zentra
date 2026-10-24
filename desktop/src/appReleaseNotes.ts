@@ -16,6 +16,10 @@ export const releaseHistoryCopy = {
 // Append a version with every shipped correction; never rewrite an older entry
 // to describe work that was added later. See docs/RELEASE-*.md for release evidence.
 export const releaseHistory = [
+  { version: '1.90.44', date: '2026-10-24', title: copy('Nouvelles formules Solo, Équipe et Pro', 'Neue Abos Solo, Équipe und Pro', 'Nuovi piani Solo, Équipe e Pro', 'New Solo, Équipe and Pro plans'), changes: [
+    copy('Les abonnements deviennent Solo, Équipe et Pro, avec Autopilote inclus dans chaque formule ; la formule de votre licence s’affiche dans l’application.', 'Die Abos heissen jetzt Solo, Équipe und Pro, Autopilote ist in jedem Abo enthalten; das Abo Ihrer Lizenz wird in der App angezeigt.', 'Gli abbonamenti diventano Solo, Équipe e Pro, con Autopilote incluso in ogni piano; il piano della licenza è indicato nell’app.', 'Subscriptions become Solo, Équipe and Pro, with Autopilote included in every plan; your licence’s plan is shown in the app.'),
+    copy('Correction : changer d’abonnement depuis l’application fonctionne à nouveau.', 'Korrektur: Der Abowechsel in der App funktioniert wieder.', 'Correzione: il cambio di abbonamento dall’app funziona di nuovo.', 'Fix: changing plan from the app works again.'),
+  ] },
   { version: '1.90.43', date: '2026-10-21', title: copy('Agenda et notes plus clairs', 'Übersichtlichere Agenda und Notizen', 'Agenda e note più chiare', 'Clearer agenda and notes'), changes: [
     copy('L’agenda et les notes tiennent dans une seule surface, avec une barre d’outils alignée et des points d’événements plus lisibles.', 'Agenda und Notizen stehen auf einer einzigen Fläche, mit ausgerichteter Werkzeugleiste und besser lesbaren Terminpunkten.', 'Agenda e note stanno in un’unica superficie, con una barra degli strumenti allineata e punti degli eventi più leggibili.', 'The agenda and notes sit on a single surface, with an aligned toolbar and easier-to-read event dots.'),
   ] },
