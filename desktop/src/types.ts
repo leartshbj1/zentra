@@ -1961,6 +1961,9 @@ export type Workspace = {
   /** Nomenclatures et productions. */
   billsOfMaterials?: import('./bom').BillOfMaterials[];
   productionOrders?: import('./bom').ProductionOrder[];
+  /** Parc installé chez les clients et entretiens. */
+  installedEquipment?: import('./installedEquipment').InstalledEquipment[];
+  equipmentServices?: import('./installedEquipment').EquipmentService[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

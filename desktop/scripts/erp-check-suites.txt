@@ -69,3 +69,8 @@ rust:production::
 rust:stock::
 src/bom.test.ts
 src/autopilotYearEnd.test.ts
+src/installedEquipment.test.ts
+src/teamPlanning.test.ts
+src/mapTiles.test.ts
+src/languageCatalogCoverage.test.ts
+rust:installed_equipment::

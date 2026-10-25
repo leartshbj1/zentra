@@ -7,7 +7,8 @@ export type UndoSpec =
   | Readonly<{ kind: 'follow-up'; key: string; previous: Readonly<{ until?: string; ignored?: true; sentCount?: number; lastSentAt?: string }> | null }>
   | Readonly<{ kind: 'supplier-draft'; invoiceId: string }>
   | Readonly<{ kind: 'record-fields'; entity: 'clients' | 'suppliers'; id: string; fields: Readonly<Record<string, string>> }>
-  | Readonly<{ kind: 'quote-status'; quoteId: string; status: string }>;
+  | Readonly<{ kind: 'quote-status'; quoteId: string; status: string }>
+  | Readonly<{ kind: 'equipment-service'; serviceId: string }>;
 
 export type JournalEntry = Readonly<{
   id: string;

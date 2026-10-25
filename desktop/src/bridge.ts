@@ -18,6 +18,7 @@ import { priceListsFromRaw } from './priceLists';
 import { legalArchiveFromRaw } from './legalArchive';
 import { stockLocationsFromRaw } from './stockLocations';
 import { billsFromRaw, productionOrdersFromRaw } from './bom';
+import { equipmentFromRaw, equipmentServiceFromRaw, type InstalledEquipment } from './installedEquipment';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -572,6 +573,8 @@ type RawWorkspace = {
   bills_of_materials?: RawRecord[];
   bom_lines?: RawRecord[];
   production_orders?: RawRecord[];
+  installed_equipment?: RawRecord[];
+  equipment_services?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3478,6 +3481,8 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     stockLocations: stockLocationsFromRaw(raw),
     billsOfMaterials: billsFromRaw(raw.bills_of_materials ?? [], raw.bom_lines ?? []),
     productionOrders: productionOrdersFromRaw(raw.production_orders ?? []),
+    installedEquipment: (raw.installed_equipment ?? []).map(equipmentFromRaw),
+    equipmentServices: (raw.equipment_services ?? []).map(equipmentServiceFromRaw),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7676,6 +7681,31 @@ export const desktopApi = {
   async verifyLegalArchive(id: string) {
     const raw = await invoke<RawRecord>('verify_legal_archive', { id });
     return { ok: raw.ok === true, detail: stringValue(raw.detail) };
+  },
+  async saveInstalledEquipment(input: Omit<InstalledEquipment, 'id' | 'archivedAt' | 'createdAt' | 'updatedAt'> & { id: string | null; archived: boolean }) {
+    // Champs exacts : le natif refuse toute clé inconnue.
+    const raw = await invoke<RawRecord>('save_installed_equipment', { input: {
+      id: input.id || null, clientId: input.clientId, projectId: input.projectId, kind: input.kind, brand: input.brand, model: input.model, serialNumber: input.serialNumber,
+      installedOn: input.installedOn, warrantyUntil: input.warrantyUntil, location: input.location, serviceIntervalMonths: input.serviceIntervalMonths,
+      lastServiceOn: input.lastServiceOn, notes: input.notes, archived: input.archived,
+    } });
+    return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async deleteInstalledEquipment(id: string) {
+    await invoke('delete_installed_equipment', { id });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async planEquipmentService(input: { equipmentId: string; date: string; startTime: string; endTime: string; employeeId: string | null; title: string }) {
+    const raw = await invoke<RawRecord>('plan_equipment_service', { input });
+    return { serviceId: stringValue(raw.serviceId), agendaEventId: stringValue(raw.agendaEventId), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async cancelEquipmentService(serviceId: string) {
+    await invoke('cancel_equipment_service', { serviceId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async completeEquipmentService(equipmentId: string, serviceId: string | null, date: string, notes: string) {
+    await invoke('complete_equipment_service', { equipmentId, serviceId, date, notes });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveOpportunity(input: Omit<Opportunity, 'id' | 'stageChangedAt' | 'createdAt' | 'updatedAt'> & { id: string | null }) {
     const raw = await invoke<RawRecord>('save_opportunity', { input });

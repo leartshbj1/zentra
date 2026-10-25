@@ -29,6 +29,9 @@ import { BomPanel } from './BomPanel';
 import { PipelinePanel } from './PipelinePanel';
 import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline';
 import { WorkReportsPanel } from './WorkReportsPanel';
+import { PlanningScreen } from './PlanningScreen';
+import { InstalledEquipmentScreen, serviceTitle } from './InstalledEquipmentScreen';
+import { clientLabel as equipmentClientLabel, equipmentLabel, serviceKind, servicesToPlan, suggestedServiceSlot } from './installedEquipment';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
 import { ElmExportPanel, SourceTaxTariffsPanel } from './SourceTaxPanels';
 import { ijmToDeclare, negativeBalances, pendingClaims } from './teamTime';
@@ -222,6 +225,8 @@ import {
   WalletCards,
   X,
   Link2,
+  CalendarRange,
+  Wrench,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
@@ -475,7 +480,7 @@ function ViewLoading({ label }: { label: string }) {
 
 const NotesScreen = lazy(() => import('./NotesScreen').then(module => ({ default: module.NotesScreen })));
 
-type View = TourView | 'orders' | 'agenda' | 'automation' | 'notes';
+type View = TourView | 'orders' | 'agenda' | 'automation' | 'notes' | 'planning' | 'equipment';
 type ModalState = (
   | {type:'documentCreationDrafts';selections:readonly DocumentCreationConsultation[]}
   | { type: 'client'; item?: Client; seedName?: string }
@@ -544,6 +549,8 @@ const navigation: Array<{
   { id: 'reminders', label: 'Relances', icon: MessageSquareWarning },
   { id: 'catalog', label: 'Produits & services', icon: Package },
   { id: 'projects', label: 'Projets', icon: FolderKanban, group: 'Réaliser' },
+  { id: 'planning', label: 'Planning', icon: CalendarRange },
+  { id: 'equipment', label: 'Parc installé', icon: Wrench },
   { id: 'time', label: 'Temps', icon: Clock3 },
   { id: 'team', label: 'Équipe & salaires', icon: Users },
   { id: 'expenses', label: 'Achats & fournisseurs', icon: WalletCards, group: 'Acheter et payer' },
@@ -574,6 +581,8 @@ const viewTitles: Record<View, [string, string]> = {
     'Rendez-vous et échéances réelles réunis au même endroit',
   ],
   projects: ['Projets', 'Documents, budget, temps et rentabilité par projet'],
+  planning: ['Planning', 'Qui fait quoi, quel jour, et où'],
+  equipment: ['Parc installé', 'Équipements posés chez vos clients et leurs entretiens'],
   clients: ['Clients', 'Coordonnées et historique des travaux'],
   catalog: [
     'Produits & services',
@@ -1101,6 +1110,7 @@ function WorkspaceContent({
     else if (undo.kind === 'supplier-draft') done = await act(() => desktopApi.deleteSupplierInvoiceDraft(undo.invoiceId), copy.undoDone, false);
     else if (undo.kind === 'record-fields') done = await act(origin => desktopApi.updateEntity(undo.entity, undo.id, { ...undo.fields }, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     else if (undo.kind === 'quote-status') done = await act(() => desktopApi.updateQuoteStatus(undo.quoteId, undo.status as never), copy.undoDone, false);
+    else if (undo.kind === 'equipment-service') done = await act(() => desktopApi.cancelEquipmentService(undo.serviceId), copy.undoDone, false);
     if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
   };
   const runSignal = async (sourceId: string, choiceId?: string) => {
@@ -1580,6 +1590,17 @@ function WorkspaceContent({
         why: `${copy.whyReport} · ${copy.confidenceHigh}`,
         actions: [{ id: 'open-reports', label: copy.actionOpenReports }, { id: 'report-invoice', label: copy.actionInvoiceReport, primary: true }] });
     }
+    // Parc installé : entretien périodique dans les 30 jours, sans rendez-vous encore prévu.
+    for (const due of servicesToPlan(workspace.installedEquipment ?? [], workspace.equipmentServices ?? [], workspace.agendaEvents, today)) {
+      const key = `service:${due.equipment.id}:${due.due}`;
+      if (entries[key]?.ignored || (entries[key]?.until && entries[key]!.until! > today)) continue;
+      const client = equipmentClientLabel(workspace.clients.find(row => row.id === due.equipment.clientId));
+      const slot = suggestedServiceSlot(due.due, today, workspace.agendaEvents);
+      cards.push({ key, title: (due.days < 0 ? copy.serviceLateTitle : copy.serviceTitle).replace('{equipment}', serviceKind(due.equipment.kind, getAppLanguage())).replace('{client}', client).replace('{n}', String(Math.abs(due.days))),
+        detail: [copy.serviceDetail.replace('{date}', date(slot.date)).replace('{time}', slot.startTime), equipmentLabel(due.equipment), due.equipment.location].filter(Boolean).join(' · '),
+        why: `${copy.whyService.replace('{months}', String(due.equipment.serviceIntervalMonths))} · ${copy.confidenceHigh}`, signature: 'service',
+        actions: [{ id: 'plan-service', label: copy.actionPlanService, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     // Devises : sans cours du mois, les écritures en EUR n'ont pas encore leur contre-valeur CHF.
     for (const row of fxPending) {
       const key = `fx-rate:${row.currency}:${row.firstDate.slice(0, 7)}`;
@@ -1801,6 +1822,22 @@ function WorkspaceContent({
       let invoiceId = '';
       const done = await journalAct(async () => { const result = await desktopApi.invoiceWorkReport(key.slice('report:'.length)); invoiceId = result.invoiceId; return result.workspace; }, copy.reportInvoiced, false);
       if (done && invoiceId) { refresh(); openInvoiceById(invoiceId); }
+      return;
+    }
+    if (key.startsWith('service:') && actionId === 'plan-service') {
+      // Un clic : le rendez-vous d'entretien arrive dans le planning au créneau proposé ; Annuler le retire.
+      const current = workspaceRef.current;
+      const due = servicesToPlan(current.installedEquipment ?? [], current.equipmentServices ?? [], current.agendaEvents, today).find(row => key === `service:${row.equipment.id}:${row.due}`);
+      if (!due) return;
+      const slot = suggestedServiceSlot(due.due, today, current.agendaEvents);
+      const client = equipmentClientLabel(current.clients.find(row => row.id === due.equipment.clientId));
+      let serviceId = '';
+      const planned = await journalAct(async () => {
+        const result = await desktopApi.planEquipmentService({ equipmentId: due.equipment.id, ...slot, employeeId: null, title: serviceTitle(due.equipment, client) });
+        serviceId = result.serviceId;
+        return result.workspace;
+      }, copy.servicePlanned.replace('{date}', formatDate(slot.date)).replace('{time}', slot.startTime), false);
+      if (planned && serviceId) { actionUndo.current = { kind: 'equipment-service', serviceId }; refresh(); }
       return;
     }
     if (actionId === 'open-cash') { setSearch(''); setBankArea('cash'); setView('bank'); return; }
@@ -3865,6 +3902,13 @@ function WorkspaceContent({
               onOpenProject={(project) => { setProjectFolderId(project.id); setSearch(''); setView('projects'); }}
             />
             </>
+          ) : null}
+          {view === 'planning' ? (
+            <PlanningScreen workspace={workspace} readOnly={readOnly} onWorkspace={next => { workspaceRef.current = next; setWorkspace(next); }}
+              onOpenEvent={id => { setAgendaEventToOpen({ organizationId: cloudAccount?.organizationId as string, id }); setView('agenda'); setSearch(''); }} />
+          ) : null}
+          {view === 'equipment' ? (
+            <InstalledEquipmentScreen workspace={workspace} readOnly={readOnly} onWorkspace={next => { workspaceRef.current = next; setWorkspace(next); }} onOpenPlanning={() => { setView('planning'); setSearch(''); }} />
           ) : null}
           {view === 'agenda' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture de l’agenda…")} />}>

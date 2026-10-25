@@ -100,6 +100,7 @@ mod currencies;
 mod cost_centers;
 mod price_lists;
 mod opportunities;
+mod installed_equipment;
 mod legal_archive;
 mod stock_locations;
 mod production;
@@ -369,6 +370,11 @@ pub fn run() {
             cost_centers::get_budget_report,
             price_lists::save_price_list,
             opportunities::save_opportunity,
+            installed_equipment::save_installed_equipment,
+            installed_equipment::delete_installed_equipment,
+            installed_equipment::plan_equipment_service,
+            installed_equipment::cancel_equipment_service,
+            installed_equipment::complete_equipment_service,
             legal_archive::create_legal_archive,
             legal_archive::list_legal_archives,
             legal_archive::verify_legal_archive,

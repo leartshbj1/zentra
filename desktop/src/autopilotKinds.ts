@@ -12,6 +12,7 @@ const KINDS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Projets', ['hours', 'timer', 'task', 'end', 'report']],
   ['Équipe', ['payroll', 'certificates', 'vacation', 'ijm', 'claims']],
   ['Comptabilité', ['vat', 'budget', 'closing', 'depreciation', 'archive', 'archive-problem', 'contract']],
+  ['Parc installé', ['service']],
   ['Autopilote', ['rule']],
 ];
 
