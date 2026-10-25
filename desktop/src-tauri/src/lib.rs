@@ -104,6 +104,7 @@ mod legal_archive;
 mod stock_locations;
 mod production;
 mod measurement;
+mod progress_billing;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -369,6 +370,7 @@ pub fn run() {
             cost_centers::save_budget,
             cost_centers::get_budget_report,
             price_lists::save_price_list,
+            progress_billing::create_progress_bill,
             opportunities::save_opportunity,
             legal_archive::create_legal_archive,
             legal_archive::list_legal_archives,

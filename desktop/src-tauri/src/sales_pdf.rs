@@ -2412,7 +2412,7 @@ fn total_row(
 
 fn vat_groups(data: &SalesPdfData) -> BTreeMap<i64, (i64, i64)> {
     let mut groups = BTreeMap::new();
-    for line in &data.lines.iter().filter(|line| line.row == PdfRowKind::Item) {
+    for line in data.lines.iter().filter(|line| line.row == PdfRowKind::Item) {
         let entry = groups.entry(line.vat_bp).or_insert((0_i64, 0_i64));
         entry.0 = entry.0.saturating_add(line.net_cents);
         entry.1 = entry.1.saturating_add(line.vat_cents);
