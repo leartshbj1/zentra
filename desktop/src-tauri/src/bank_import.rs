@@ -3702,6 +3702,166 @@ mod tests {
         assert_eq!(state, (1, 1, 1, 10_810));
     }
 
+    fn customer_near_payment_setup(manual_amounts: &[i64], invoice_cents: i64, seed: &str) -> (tempfile::TempDir, LocalStore, String, String, Vec<String>) {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr(seed).unwrap();
+        let invoice_id = create_invoice(&store, invoice_cents, &qrr);
+        let manual_ids = manual_amounts
+            .iter()
+            .map(|amount| {
+                let manual = store
+                    .record_payment(RecordPaymentInput {
+                        request_id: Uuid::new_v4().to_string(),
+                        invoice_id: invoice_id.clone(),
+                        amount_cents: *amount,
+                        date: Some("2026-08-28".into()),
+                        method: Some("Virement bancaire".into()),
+                        reference: None,
+                        notes: None,
+                    })
+                    .unwrap();
+                manual["payment"]["id"].as_str().or_else(|| manual["id"].as_str()).unwrap().to_owned()
+            })
+            .collect();
+        (temporary, store, invoice_id, qrr, manual_ids)
+    }
+
+    #[test]
+    fn a_payment_recorded_with_another_amount_is_corrected_not_paid_twice() {
+        let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "177500");
+        let xml = fixture("053", "08", "BOOK", "177.50", "C-NEAR-PAYMENT", Some("D-NEAR-PAYMENT"), Some("QRR"), Some(&qrr), false, true);
+        let path = write_xml(temporary.path(), "near-payment.xml", &xml);
+        let imported = store.import_camt_with_reconciliation(&path, true).unwrap();
+        assert_eq!(imported["automatic_reconciliation"]["paid_count"], 0);
+        assert_eq!(imported["automatic_reconciliation"]["partial_count"], 0);
+        let workspace = store.get_bank_workspace().unwrap();
+        let suggestion = &workspace["movements"][0]["suggestion"];
+        let candidate = &suggestion["candidates"][0];
+        assert_eq!(suggestion["kind"], "review");
+        assert_eq!(candidate["amount_relation"], "existing_payment_differs");
+        assert_eq!(candidate["confirmable"], false);
+        assert_eq!(candidate["existing_payment_id"], serde_json::Value::Null);
+        assert_eq!(candidate["near_payment_id"], manual_ids[0].as_str());
+        assert_eq!(candidate["near_payment_amount_cents"], 17_800);
+        assert!(candidate["reason"].as_str().unwrap().contains("CHF 178.00"));
+        assert!(candidate["reason"].as_str().unwrap().contains("CHF 177.50"));
+        let (payments, reconciliations): (i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM payments WHERE invoice_id=?1),(SELECT COUNT(*) FROM bank_reconciliations)",
+                params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((payments, reconciliations), (1, 0), "no second payment beside the one already recorded");
+    }
+
+    #[test]
+    fn two_close_payments_keep_the_usual_review() {
+        let (temporary, store, _invoice_id, qrr, _manual_ids) = customer_near_payment_setup(&[10_000, 10_020], 20_020, "100100");
+        let xml = fixture("053", "08", "BOOK", "100.10", "C-NEAR-TWO", Some("D-NEAR-TWO"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "near-two.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let candidate = &workspace["movements"][0]["suggestion"]["candidates"][0];
+        assert_ne!(candidate["amount_relation"], "existing_payment_differs");
+        assert_eq!(candidate["near_payment_id"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn a_payment_beyond_the_gap_limit_keeps_the_usual_review() {
+        let (temporary, store, _invoice_id, qrr, _manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "150000");
+        let xml = fixture("053", "08", "BOOK", "150.00", "C-NEAR-FAR", Some("D-NEAR-FAR"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "near-far.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let candidate = &workspace["movements"][0]["suggestion"]["candidates"][0];
+        assert_eq!(candidate["amount_relation"], "already_paid");
+        assert_eq!(candidate["near_payment_id"], serde_json::Value::Null);
+        assert_eq!(candidate["confirmable"], false);
+    }
+
+    #[test]
+    fn supplier_payment_recorded_with_another_amount_is_corrected_not_paid_twice() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("8744").unwrap();
+        let supplier_invoice_id = create_supplier_invoice(&store, 10_810, "R-2026-119");
+        store
+            .save_supplier_invoice_payment_details(crate::supplier_payment_orders::SupplierInvoicePaymentDetailsInput {
+                supplier_invoice_id: supplier_invoice_id.clone(),
+                creditor_iban: "CH4431999123000889012".into(),
+                reference_type: "QRR".into(),
+                reference: qrr.clone(),
+                creditor_name: "Matériaux Léman SA".into(),
+                creditor_street: String::new(),
+                creditor_building_number: String::new(),
+                creditor_postal_code: "1000".into(),
+                creditor_city: "Lausanne".into(),
+                creditor_country: "CH".into(),
+                amount_cents: Some(10_810),
+                currency: "CHF".into(),
+                message: String::new(),
+                bill_information: String::new(),
+                source: "qr_bill".into(),
+            })
+            .unwrap();
+        let manual = store
+            .record_supplier_payment(RecordSupplierPaymentInput {
+                request_id: Uuid::new_v4().to_string(),
+                supplier_invoice_id: supplier_invoice_id.clone(),
+                amount_cents: 10_810,
+                date: "2026-08-25".into(),
+                method: Some("Virement bancaire".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        let manual_id = manual["payment_id"].as_str().unwrap().to_owned();
+        let xml = debit_fixture("108.00", "C-SUPPLIER-NEAR", Some(&qrr));
+        store
+            .import_camt_file(&write_xml(temporary.path(), "supplier-near.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let suggestion = &workspace["movements"][0]["suggestion"];
+        let candidate = &suggestion["candidates"][0];
+        assert_eq!(candidate["supplier_invoice_id"], supplier_invoice_id);
+        assert_eq!(candidate["amount_relation"], "existing_payment_differs");
+        assert_eq!(candidate["confirmable"], false);
+        assert_eq!(candidate["existing_payment_id"], serde_json::Value::Null);
+        assert_eq!(candidate["near_payment_id"], manual_id.as_str());
+        assert_eq!(candidate["near_payment_amount_cents"], 10_810);
+        assert_eq!(suggestion["kind"], "review");
+        assert!(store
+            .confirm_supplier_bank_reconciliation(ConfirmSupplierBankReconciliationInput {
+                movement_id: workspace["movements"][0]["id"].as_str().unwrap().into(),
+                supplier_invoice_id: supplier_invoice_id.clone(),
+            })
+            .is_err());
+        let payments: i64 = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM supplier_payments", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(payments, 1);
+    }
+
     #[test]
     fn supplier_debit_is_suggested_then_confirmed_atomically_and_idempotently() {
         let (temporary, store) = store();
@@ -4063,6 +4223,11 @@ impl InvoiceCandidate {
             .find(|(_, amount)| *amount == movement_amount)
             .map(|(id, _)| id.as_str())
     }
+
+    /// Le seul paiement manuel proche du mouvement, quand aucun n'a le même montant.
+    fn near_payment(&self, movement_amount: i64) -> Option<(&str, i64)> {
+        near_unlinked_payment(&self.unlinked_payments, movement_amount)
+    }
 }
 
 /// Paiements non encore rapprochés, hors espèces : un relevé bancaire ne
@@ -4191,6 +4356,10 @@ impl SupplierInvoiceCandidate {
             .find(|(_, amount)| *amount == movement_amount)
             .map(|(id, _)| id.as_str())
     }
+
+    fn near_payment(&self, movement_amount: i64) -> Option<(&str, i64)> {
+        near_unlinked_payment(&self.unlinked_payments, movement_amount)
+    }
 }
 
 fn load_supplier_invoice_candidates(
@@ -4295,6 +4464,40 @@ fn booked_message_type(
         .optional()?)
 }
 
+/// Écart maximal entre un paiement saisi à la main et le relevé : 5 % du
+/// montant du mouvement, au plus CHF 20.00.
+const NEAR_PAYMENT_MAX_GAP_CENTS: i64 = 2_000;
+
+/// Le seul paiement non rapproché d'un autre montant que le mouvement, mais
+/// assez proche pour l'expliquer (frais, arrondi). Zéro ou plusieurs : aucun.
+/// Le relevé ne crée alors jamais de second paiement à côté : une personne
+/// corrige d'abord le paiement saisi, puis confirme.
+fn near_unlinked_payment(payments: &[(String, i64)], movement_amount: i64) -> Option<(&str, i64)> {
+    let limit = (movement_amount.abs() / 20).min(NEAR_PAYMENT_MAX_GAP_CENTS);
+    let mut near = payments.iter().filter(|(_, amount)| {
+        *amount != movement_amount && amount.saturating_sub(movement_amount).abs() <= limit
+    });
+    let (id, amount) = near.next()?;
+    if near.next().is_some() {
+        return None;
+    }
+    Some((id.as_str(), *amount))
+}
+
+fn cents_text(cents: i64) -> String {
+    let sign = if cents < 0 { "-" } else { "" };
+    let cents = cents.abs();
+    format!("{sign}{}.{:02}", cents / 100, cents % 100)
+}
+
+fn near_payment_reason(currency: &str, recorded_cents: i64, movement_cents: i64) -> String {
+    format!(
+        "Paiement déjà saisi de {currency} {}, le relevé indique {currency} {}. Corrigez le paiement, puis confirmez.",
+        cents_text(recorded_cents),
+        cents_text(movement_cents)
+    )
+}
+
 fn candidate_json(
     invoice: &InvoiceCandidate,
     movement_amount: i64,
@@ -4307,8 +4510,19 @@ fn candidate_json(
     // Un paiement déjà saisi du même montant est confirmé par le relevé,
     // jamais compté une seconde fois.
     let existing_payment = invoice.existing_payment(movement_amount);
+    // Un paiement saisi d'un autre montant passe avant le solde : sinon le
+    // relevé ajouterait un second paiement à côté du premier.
+    let near_payment = if existing_payment.is_none() {
+        invoice.near_payment(movement_amount)
+    } else {
+        None
+    };
+    let near_reason = near_payment
+        .map(|(_, recorded)| near_payment_reason(&invoice.currency, recorded, movement_amount));
     let (amount_relation, amount_safe) = if existing_payment.is_some() {
         ("existing_payment", true)
+    } else if near_payment.is_some() {
+        ("existing_payment_differs", false)
     } else if remaining <= 0 {
         ("already_paid", false)
     } else if movement_amount > remaining {
@@ -4352,8 +4566,10 @@ fn candidate_json(
         "date_safe": date_safe,
         "remaining_cents": remaining,
         "amount_relation": if currency_safe { amount_relation } else { "currency_mismatch" },
-        "reason": if !currency_safe { "La devise du mouvement ne correspond pas à celle de la facture." } else if existing_payment.is_some() && date_safe { "Paiement déjà enregistré : le relevé le confirme sans le compter deux fois." } else { date_reason },
+        "reason": if !currency_safe { "La devise du mouvement ne correspond pas à celle de la facture." } else if existing_payment.is_some() && date_safe { "Paiement déjà enregistré : le relevé le confirme sans le compter deux fois." } else if let (Some(text), true) = (near_reason.as_deref(), date_safe) { text } else { date_reason },
         "existing_payment_id": existing_payment,
+        "near_payment_id": near_payment.map(|(id, _)| id),
+        "near_payment_amount_cents": near_payment.map(|(_, amount)| amount),
         "confirmable": base_eligible && amount_safe && currency_safe && date_safe,
     })
 }
@@ -4377,11 +4593,21 @@ fn supplier_candidate_json(
 ) -> Value {
     let remaining = invoice.remaining_cents();
     let existing_payment = invoice.existing_payment(movement_amount);
-    let amount_safe = existing_payment.is_some() || remaining > 0 && movement_amount <= remaining;
+    let near_payment = if existing_payment.is_none() {
+        invoice.near_payment(movement_amount)
+    } else {
+        None
+    };
+    let near_reason = near_payment
+        .map(|(_, recorded)| near_payment_reason(&invoice.currency, recorded, movement_amount));
+    let amount_safe = existing_payment.is_some()
+        || (near_payment.is_none() && remaining > 0 && movement_amount <= remaining);
     let currency_safe = invoice.currency == movement_currency;
     let date_safe = payment_date.is_some_and(|date| date >= invoice.document_date.as_str());
     let amount_relation = if existing_payment.is_some() {
         "existing_payment"
+    } else if near_payment.is_some() {
+        "existing_payment_differs"
     } else if remaining <= 0 {
         "already_paid"
     } else if movement_amount > remaining {
@@ -4407,10 +4633,14 @@ fn supplier_candidate_json(
             "La date bancaire précède la facture fournisseur."
         } else if existing_payment.is_some() {
             "Paiement déjà enregistré : le relevé le confirme sans le compter deux fois."
+        } else if let Some(text) = near_reason.as_deref() {
+            text
         } else {
             reason
         },
         "existing_payment_id":existing_payment,
+        "near_payment_id":near_payment.map(|(id, _)| id),
+        "near_payment_amount_cents":near_payment.map(|(_, amount)| amount),
         "confirmable":base_eligible && amount_safe && currency_safe && date_safe,
     })
 }
@@ -4513,7 +4743,11 @@ fn suggestion_for_supplier_movement(
     };
     let mut candidates = source
         .into_iter()
-        .filter(|invoice| invoice.remaining_cents() > 0 || invoice.existing_payment(amount).is_some())
+        .filter(|invoice| {
+            invoice.remaining_cents() > 0
+                || invoice.existing_payment(amount).is_some()
+                || invoice.near_payment(amount).is_some()
+        })
         .map(|invoice| {
             let invoice_reference = invoice
                 .reference_normalized
@@ -4579,13 +4813,14 @@ fn suggestion_for_supplier_movement(
         })
         .collect::<Vec<_>>();
     candidates.sort_by_key(|candidate| {
-        match candidate["match_kind"].as_str().unwrap_or("manual") {
+        let kind = match candidate["match_kind"].as_str().unwrap_or("manual") {
             "structured_reference" => 0,
             "invoice_reference_text" => 1,
             "supplier_iban" => 2,
             "supplier_name" => 3,
             _ => 4,
-        }
+        };
+        (kind, candidate["amount_relation"] != "existing_payment_differs")
     });
     let confirmable = candidates
         .iter()
@@ -4620,6 +4855,11 @@ fn suggestion_for_supplier_movement(
         "La devise du mouvement diffère de celle du compte bancaire."
     } else if candidates.is_empty() {
         "Aucune facture fournisseur ouverte n’est compatible."
+    } else if candidates
+        .first()
+        .is_some_and(|candidate| candidate["amount_relation"] == "existing_payment_differs")
+    {
+        "Un paiement déjà saisi diffère du relevé : corrigez-le, puis confirmez."
     } else {
         "Vérifiez la facture proposée puis confirmez explicitement le décaissement."
     };
@@ -4754,6 +4994,10 @@ fn suggestion_for_movement(
                         .unwrap_or("La date bancaire n’est pas compatible avec la date d’émission.")
                 } else if relation == "existing_payment" {
                     "Paiement déjà enregistré : le relevé le confirme sans le compter deux fois."
+                } else if relation == "existing_payment_differs" {
+                    candidate["reason"]
+                        .as_str()
+                        .unwrap_or("Un paiement déjà saisi diffère du relevé : corrigez-le, puis confirmez.")
                 } else {
                     "Référence QR structurée unique et montant contrôlé."
                 };
@@ -4838,7 +5082,8 @@ fn suggestion_for_movement(
         for invoice in invoices.iter().filter(|invoice| {
             invoice.currency == movement_currency
                 && (invoice.remaining_cents() >= amount && invoice.remaining_cents() > 0
-                    || invoice.existing_payment(amount).is_some())
+                    || invoice.existing_payment(amount).is_some()
+                    || invoice.near_payment(amount).is_some())
         }) {
             if !manual_matches
                 .iter()
