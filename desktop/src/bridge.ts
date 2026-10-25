@@ -19,6 +19,7 @@ import { legalArchiveFromRaw } from './legalArchive';
 import { stockLocationsFromRaw } from './stockLocations';
 import { billsFromRaw, productionOrdersFromRaw } from './bom';
 import { equipmentFromRaw, equipmentServiceFromRaw, type InstalledEquipment } from './installedEquipment';
+import { engagementFromRaw, reviewRequestFromRaw, smsMessageFromRaw, type CustomerEngagementSettings, type SmsSettings } from './customerEngagement';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -575,6 +576,9 @@ type RawWorkspace = {
   production_orders?: RawRecord[];
   installed_equipment?: RawRecord[];
   equipment_services?: RawRecord[];
+  customer_engagement_settings?: RawRecord[];
+  sms_messages?: RawRecord[];
+  review_requests?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3483,6 +3487,9 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     productionOrders: productionOrdersFromRaw(raw.production_orders ?? []),
     installedEquipment: (raw.installed_equipment ?? []).map(equipmentFromRaw),
     equipmentServices: (raw.equipment_services ?? []).map(equipmentServiceFromRaw),
+    customerEngagement: engagementFromRaw(raw.customer_engagement_settings?.[0]),
+    smsMessages: (raw.sms_messages ?? []).map(smsMessageFromRaw),
+    reviewRequests: (raw.review_requests ?? []).map(reviewRequestFromRaw),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -7705,6 +7712,29 @@ export const desktopApi = {
   },
   async completeEquipmentService(equipmentId: string, serviceId: string | null, date: string, notes: string) {
     await invoke('complete_equipment_service', { equipmentId, serviceId, date, notes });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveCustomerEngagementSettings(input: CustomerEngagementSettings) {
+    await invoke<RawRecord>('save_customer_engagement_settings', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async recordReviewRequest(input: { clientId: string; invoiceId: string | null; channel: 'email' | 'sms' | 'copy'; origin: 'validated' | 'rule' }) {
+    await invoke<RawRecord>('record_review_request', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async getSmsSettings(): Promise<SmsSettings> {
+    const raw = await invoke<RawRecord>('get_sms_settings');
+    const provider = stringValue(raw.provider);
+    return { enabled: raw.enabled === true, provider: provider === 'swisscom' || provider === 'generic' ? provider : 'aspsms', sender: stringValue(raw.sender), account: stringValue(raw.account),
+      endpoint: stringValue(raw.endpoint) || null, appointmentRemindersAuto: raw.appointment_reminders_auto === true, secretPresent: raw.secret_present === true };
+  },
+  async saveSmsSettings(input: Omit<SmsSettings, 'secretPresent'> & { secret?: string }) {
+    await invoke<RawRecord>('save_sms_settings', { input: { enabled: input.enabled, provider: input.provider, sender: input.sender, account: input.account, endpoint: input.endpoint,
+      appointmentRemindersAuto: input.appointmentRemindersAuto, secret: input.secret ?? null } });
+    return desktopApi.getSmsSettings();
+  },
+  async sendSms(input: { recipient: string; body: string; purpose: 'appointment_reminder' | 'payment_reminder' | 'review_request' | 'booking' | 'other'; origin: 'validated' | 'rule'; relatedType: string | null; relatedId: string | null }) {
+    await invoke<RawRecord>('send_sms', { input });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveOpportunity(input: Omit<Opportunity, 'id' | 'stageChangedAt' | 'createdAt' | 'updatedAt'> & { id: string | null }) {

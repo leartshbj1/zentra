@@ -31,6 +31,8 @@ import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
+import { CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
+import { appointmentReminders, normalizedPhone, reminderSms, reviewCandidates, reviewMailto, reviewSms, type SmsSettings } from './customerEngagement';
 import { InstalledEquipmentScreen, serviceTitle } from './InstalledEquipmentScreen';
 import { clientLabel as equipmentClientLabel, equipmentLabel, serviceKind, servicesToPlan, suggestedServiceSlot } from './installedEquipment';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
@@ -1174,6 +1176,53 @@ function WorkspaceContent({
   const [fixedAssetRows, setFixedAssetRows] = useState<readonly FixedAssetRow[]>([]);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
+  // Compte SMS de l'entreprise : relu en ouvrant Autopilote, l'accueil ou les réglages.
+  const [smsSettings, setSmsSettings] = useState<SmsSettings | null>(null);
+  useEffect(() => {
+    if (!['automation', 'dashboard', 'settings', 'planning'].includes(view)) return;
+    let live = true;
+    desktopApi.getSmsSettings().then(value => { if (live) setSmsSettings(value); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [view]);
+  // Règles explicites choisies dans les réglages : rappels SMS la veille, avis par SMS.
+  // Jamais la nuit, une seule tentative par élément et par ouverture ; chaque envoi va au journal.
+  const ruleAttempts = useRef(new Set<string>());
+  useEffect(() => {
+    if (!autopilotContext || readOnly || !smsSettings?.enabled) return;
+    const hour = new Date().getHours();
+    if (hour < 8 || hour >= 20) return;
+    const current = workspaceRef.current, today = todayIso(), copy = autopilotCopy(getAppLanguage());
+    const jobs: { key: string; title: string; send: () => Promise<unknown> }[] = [];
+    if (smsSettings.appointmentRemindersAuto) {
+      for (const row of appointmentReminders(current.agendaEvents, current.projects, current.clients, current.installedEquipment ?? [], current.equipmentServices ?? [], current.smsMessages ?? [], today))
+        jobs.push({ key: 'sms-reminder:' + row.event.id, title: copy.smsRuleSent.replace('{client}', row.client.company || row.client.name),
+          send: () => desktopApi.sendSms({ recipient: row.phone, body: reminderSmsFor(row.event), purpose: 'appointment_reminder', origin: 'rule', relatedType: 'agenda_event', relatedId: row.event.id }) });
+    }
+    const engagement = current.customerEngagement, company = current.settings?.organization.legalName ?? '';
+    if (engagement?.reviewAuto && engagement.reviewUrl) {
+      for (const row of reviewCandidates(current.invoices, current.payments, current.clients, current.reviewRequests ?? [], engagement, today)) {
+        const phone = normalizedPhone(row.client.phone ?? '');
+        if (!phone) continue;
+        const url = engagement.reviewUrl;
+        jobs.push({ key: `review:${row.client.id}:${row.invoice.id}`, title: copy.googleReviewRecorded.replace('{client}', row.client.company || row.client.name),
+          send: async () => {
+            await desktopApi.sendSms({ recipient: phone, body: reviewSms(getAppLanguage(), url, company), purpose: 'review_request', origin: 'rule', relatedType: 'client', relatedId: row.client.id });
+            await desktopApi.recordReviewRequest({ clientId: row.client.id, invoiceId: row.invoice.id, channel: 'sms', origin: 'rule' });
+          } });
+      }
+    }
+    const pending = jobs.filter(job => !ruleAttempts.current.has(job.key));
+    if (!pending.length) return;
+    for (const job of pending) ruleAttempts.current.add(job.key);
+    void (async () => {
+      for (const job of pending) {
+        try { await job.send(); recordDone(job.key, job.title, copy.actionSendSms); } catch { /* reste une carte : la personne voit l'erreur en cliquant */ }
+      }
+      const next = await desktopApi.loadWorkspace().catch(() => null);
+      if (next) { workspaceRef.current = next; setWorkspace(next); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smsSettings, workspace.agendaEvents, workspace.invoices, workspace.payments, autopilotContext?.organizationId, readOnly]);
   const [bankArea, setBankArea] = useState<BankArea>('account');
   const [catalogArea, setCatalogArea] = useState<CatalogArea>('items');
   const [lotsDelivery, setLotsDelivery] = useState<string | null>(null);
@@ -1303,6 +1352,12 @@ function WorkspaceContent({
       }
       if (fresh) setFollowUpVersion(version => version + 1);
     } catch { /* read again next time */ }
+  };
+  /** Texte du rappel SMS : date en toutes lettres, heure, nom et téléphone de l'entreprise. */
+  const reminderSmsFor = (event: Workspace['agendaEvents'][number]) => {
+    const organization = workspaceRef.current.settings?.organization;
+    const day = new Intl.DateTimeFormat(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(Date.parse(event.startDate + 'T12:00:00Z'));
+    return reminderSms(getAppLanguage(), day, event.startTime ?? '', organization?.legalName ?? '', organization?.phone ?? '');
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
     if (!autopilotContext) return { cards: [], summary: '' };
@@ -1603,6 +1658,25 @@ function WorkspaceContent({
         why: `${copy.whyService.replace('{months}', String(due.equipment.serviceIntervalMonths))} · ${copy.confidenceHigh}`, signature: 'service',
         actions: [{ id: 'plan-service', label: copy.actionPlanService, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
+    // Avis Google : facture payée ces 30 derniers jours, une demande par client et par période.
+    const engagement = workspace.customerEngagement;
+    if (engagement?.reviewUrl) for (const row of reviewCandidates(workspace.invoices, workspace.payments, workspace.clients, workspace.reviewRequests ?? [], engagement, today).slice(0, 3)) {
+      const key = `review:${row.client.id}:${row.invoice.id}`;
+      if (entries[key]?.ignored) continue;
+      const name = row.client.company || row.client.name, phone = normalizedPhone(row.client.phone ?? '');
+      cards.push({ key, title: copy.googleReviewTitle.replace('{client}', name), detail: copy.googleReviewDetail.replace('{number}', row.invoice.number || row.invoice.title).replace('{date}', date(row.paidOn)),
+        why: copy.whyGoogleReview, signature: 'review',
+        actions: [...(row.client.email ? [{ id: 'review-mail', label: copy.actionReviewMail, primary: true }] : []), ...(smsSettings?.enabled && phone ? [{ id: 'review-sms', label: copy.actionReviewSms, primary: !row.client.email }] : []),
+          { id: 'review-copy', label: copy.actionReviewCopy }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // SMS : rappel la veille d'un rendez-vous, seulement avec le compte SMS de l'entreprise.
+    if (smsSettings?.enabled && !smsSettings.appointmentRemindersAuto) for (const row of appointmentReminders(workspace.agendaEvents, workspace.projects, workspace.clients, workspace.installedEquipment ?? [], workspace.equipmentServices ?? [], workspace.smsMessages ?? [], today)) {
+      const key = 'sms-reminder:' + row.event.id;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.smsReminderTitle.replace('{client}', row.client.company || row.client.name).replace('{time}', row.event.startTime ?? ''),
+        detail: reminderSmsFor(row.event), evidence: row.event.title, why: copy.whySmsReminder,
+        actions: [{ id: 'sms-send', label: copy.actionSendSms, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     // Devises : sans cours du mois, les écritures en EUR n'ont pas encore leur contre-valeur CHF.
     for (const row of fxPending) {
       const key = `fx-rate:${row.currency}:${row.firstDate.slice(0, 7)}`;
@@ -1824,6 +1898,39 @@ function WorkspaceContent({
       let invoiceId = '';
       const done = await journalAct(async () => { const result = await desktopApi.invoiceWorkReport(key.slice('report:'.length)); invoiceId = result.invoiceId; return result.workspace; }, copy.reportInvoiced, false);
       if (done && invoiceId) { refresh(); openInvoiceById(invoiceId); }
+      return;
+    }
+    if (key.startsWith('review:') && ['review-mail', 'review-sms', 'review-copy'].includes(actionId)) {
+      const [, clientId, invoiceId] = key.split(':');
+      const current = workspaceRef.current, url = current.customerEngagement?.reviewUrl;
+      const client = current.clients.find(row => row.id === clientId);
+      if (!client || !url) return;
+      const name = client.company || client.name, company = current.settings?.organization.legalName ?? '';
+      const channel = actionId === 'review-mail' ? 'email' : actionId === 'review-sms' ? 'sms' : 'copy';
+      if (channel === 'sms') {
+        const phone = normalizedPhone(client.phone ?? '');
+        if (!phone) return;
+        const sent = await journalAct(() => desktopApi.sendSms({ recipient: phone, body: reviewSms(getAppLanguage(), url, company), purpose: 'review_request', origin: 'validated', relatedType: 'client', relatedId: client.id }),
+          copy.smsSent.replace('{client}', name), false);
+        if (!sent) return;
+      } else if (channel === 'email') {
+        window.location.href = reviewMailto(getAppLanguage(), client.email, client.contactPerson || client.name, url, company);
+      } else {
+        try { await navigator.clipboard.writeText(url); setNotice({ tone: 'success', text: copy.googleReviewCopied.replace('{client}', name) }); } catch { setNotice({ tone: 'warning', text: url }); }
+      }
+      const recorded = await journalAct(() => desktopApi.recordReviewRequest({ clientId: client.id, invoiceId: invoiceId || null, channel, origin: 'validated' }),
+        channel === 'copy' ? copy.googleReviewCopied.replace('{client}', name) : copy.googleReviewRecorded.replace('{client}', name), false);
+      if (recorded) refresh();
+      return;
+    }
+    if (key.startsWith('sms-reminder:') && actionId === 'sms-send') {
+      const current = workspaceRef.current;
+      const row = appointmentReminders(current.agendaEvents, current.projects, current.clients, current.installedEquipment ?? [], current.equipmentServices ?? [], current.smsMessages ?? [], today)
+        .find(item => item.event.id === key.slice('sms-reminder:'.length));
+      if (!row) return;
+      const sent = await journalAct(() => desktopApi.sendSms({ recipient: row.phone, body: reminderSmsFor(row.event), purpose: 'appointment_reminder', origin: 'validated', relatedType: 'agenda_event', relatedId: row.event.id }),
+        copy.smsSent.replace('{client}', row.client.company || row.client.name), false);
+      if (sent) refresh();
       return;
     }
     if (key.startsWith('service:') && actionId === 'plan-service') {
@@ -7660,6 +7767,10 @@ function SettingsScreen({
         </div>
       </section>
       <section className="panel settings-card settings-card--wide"><OnlinePaymentSettings disabled={readOnly} /></section>
+      </SettingsCategory>
+      <SettingsCategory id="customers" title={t('Clients et rendez-vous')} description={t('Avis Google, SMS, rendez-vous en ligne et acompte')} icon={CalendarRange}>
+        <section className="panel settings-card settings-card--wide"><CustomerSettings workspace={workspace} disabled={readOnly} onWorkspace={next => onWorkspace(next)} /></section>
+        <section className="panel settings-card settings-card--wide"><SmsSettingsPanel disabled={readOnly} /></section>
       </SettingsCategory>
       <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting embedded /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>

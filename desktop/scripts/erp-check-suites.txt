@@ -75,3 +75,6 @@ src/mapTiles.test.ts
 src/languageCatalogCoverage.test.ts
 rust:installed_equipment::
 src/dictation.test.ts
+src/customerEngagement.test.ts
+rust:customer_engagement::
+rust:sms::

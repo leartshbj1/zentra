@@ -101,6 +101,8 @@ mod cost_centers;
 mod price_lists;
 mod opportunities;
 mod installed_equipment;
+mod customer_engagement;
+mod sms;
 mod legal_archive;
 mod stock_locations;
 mod production;
@@ -375,6 +377,12 @@ pub fn run() {
             installed_equipment::plan_equipment_service,
             installed_equipment::cancel_equipment_service,
             installed_equipment::complete_equipment_service,
+            customer_engagement::get_customer_engagement_settings,
+            customer_engagement::save_customer_engagement_settings,
+            customer_engagement::record_review_request,
+            sms::get_sms_settings,
+            sms::save_sms_settings,
+            sms::send_sms,
             legal_archive::create_legal_archive,
             legal_archive::list_legal_archives,
             legal_archive::verify_legal_archive,

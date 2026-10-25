@@ -1964,6 +1964,10 @@ export type Workspace = {
   /** Parc installé chez les clients et entretiens. */
   installedEquipment?: import('./installedEquipment').InstalledEquipment[];
   equipmentServices?: import('./installedEquipment').EquipmentService[];
+  /** Avis, prise de rendez-vous en ligne et acompte ; SMS envoyés ; demandes d'avis. */
+  customerEngagement?: import('./customerEngagement').CustomerEngagementSettings;
+  smsMessages?: import('./customerEngagement').SmsMessage[];
+  reviewRequests?: import('./customerEngagement').ReviewRequest[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

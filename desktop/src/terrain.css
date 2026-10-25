@@ -600,3 +600,36 @@
     font-size: calc(13px * var(--zentra-ui-text-scale, 1));
   }
 }
+/* Réglages clients : jours proposés pour les rendez-vous en ligne. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days legend {
+    margin-bottom: 8px;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days input[type=checkbox] {
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+    margin: 0;
+    accent-color: var(--apple-accent);
+  }
+}
