@@ -69,3 +69,6 @@ rust:production::
 rust:stock::
 src/bom.test.ts
 src/autopilotYearEnd.test.ts
+rust:pos::
+rust:public_api::
+rust:company_merge::

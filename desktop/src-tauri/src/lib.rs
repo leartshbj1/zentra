@@ -92,6 +92,8 @@ mod reminder_charges;
 mod opening_balances;
 mod online_payments;
 mod cash_book;
+mod pos;
+mod public_api;
 mod payroll_drafts;
 mod work_reports;
 mod team_time;
@@ -337,6 +339,18 @@ pub fn run() {
             online_payments::create_invoice_payment_link,
             online_payments::refresh_invoice_payment_links,
             online_payments::record_invoice_payment_link,
+            online_payments::create_pos_payment_gateway,
+            online_payments::pos_payment_status,
+            pos::record_pos_ticket,
+            pos::void_pos_ticket,
+            pos::pos_day,
+            pos::record_pos_closing,
+            public_api::public_api_status,
+            public_api::public_api_publish,
+            public_api::public_api_inbox,
+            public_api::public_api_inbox_decide,
+            public_api::postal_send_invoice,
+            public_api::postal_letters,
             cash_book::add_cash_entry,
             cash_book::record_cash_count,
             cash_book::correct_cash_count,

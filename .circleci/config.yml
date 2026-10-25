@@ -850,6 +850,14 @@ workflows:
         - not: << pipeline.parameters.verify-only >>
     jobs:
       - windows-erp-check
+  ouverture-caisse-check:
+    when:
+      and:
+        - equal: [claude/ouverture-caisse, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not: << pipeline.parameters.verify-only >>
+    jobs:
+      - windows-erp-check
   msix-store-check:
     when:
       and:

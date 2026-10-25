@@ -1941,7 +1941,7 @@ impl LocalStore {
         // données d'entreprise partagées : même horloge et même garde
         // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
         // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
-        let shared_steps: [(i64, &str); 15] = [
+        let shared_steps: [(i64, &str); 16] = [
             (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
             (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
             (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
@@ -1949,9 +1949,9 @@ impl LocalStore {
             (71, crate::schema::MIGRATION_V71_SQL), (72, crate::schema::MIGRATION_V72_SQL),
             (73, crate::schema::MIGRATION_V73_SQL), (74, crate::schema::MIGRATION_V74_SQL),
             (75, crate::schema::MIGRATION_V75_SQL), (76, crate::schema::MIGRATION_V76_SQL),
-            (77, crate::schema::MIGRATION_V77_SQL),
+            (77, crate::schema::MIGRATION_V77_SQL), (78, crate::schema::MIGRATION_V78_SQL),
         ];
-        if current < 77 {
+        if current < 78 {
             for (version, sql) in shared_steps {
                 if current < version {
                     transaction.execute_batch(sql)?;
@@ -1959,7 +1959,7 @@ impl LocalStore {
             }
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 77)?;
+            transaction.pragma_update(None, "user_version", 78)?;
         }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
@@ -2917,7 +2917,7 @@ impl LocalStore {
         workspace["stock_availability"] = Value::Array(stock_availability);
         workspace["project_milestones"] = Value::Array(project_milestones);
         workspace["project_tasks"] = Value::Array(project_tasks);
-        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims", "price_lists", "price_list_items", "client_price_lists", "opportunities", "warehouses", "stock_movement_warehouses", "stock_transfers", "catalog_item_tracking", "stock_lots", "stock_lot_movements", "bills_of_materials", "bom_lines", "production_orders"] {
+        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims", "price_lists", "price_list_items", "client_price_lists", "opportunities", "warehouses", "stock_movement_warehouses", "stock_transfers", "catalog_item_tracking", "stock_lots", "stock_lot_movements", "bills_of_materials", "bom_lines", "production_orders", "pos_tickets", "pos_ticket_lines", "pos_day_closings"] {
             let present: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [table], |row| row.get(0))?;
             workspace[table] = Value::Array(if present { query_all(connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [])? } else { Vec::new() });
         }
@@ -7233,7 +7233,7 @@ fn normalize_line_item(object: &mut Map<String, Value>) -> AppResult<()> {
     Ok(())
 }
 
-fn round_basis_points(value: i64, basis_points: i64) -> i64 {
+pub(crate) fn round_basis_points(value: i64, basis_points: i64) -> i64 {
     let sign = if value < 0 { -1_i128 } else { 1_i128 };
     let absolute = (value as i128).abs();
     (sign * ((absolute * basis_points as i128 + 5_000) / 10_000)) as i64

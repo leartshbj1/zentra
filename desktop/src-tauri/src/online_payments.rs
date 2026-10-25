@@ -425,6 +425,76 @@ pub fn record_invoice_payment_link(state: tauri::State<'_, LocalStore>, link_id:
     state.record_payment_link(&link_id).map_err(command_error)
 }
 
+/* ---------- Caisse : TWINT ou carte pour un ticket ---------- */
+
+/// Instance et clé Payrexx actives, ou l'explication à montrer à la caisse.
+fn active_account(store: &LocalStore) -> AppResult<(String, String)> {
+    let _guard = store.lock()?;
+    let connection = store.connect()?;
+    let (enabled, instance) = settings_row(&connection)?;
+    let instance = instance.filter(|_| enabled).ok_or_else(|| invalid("TWINT et carte demandent un compte Payrexx. Activez-le dans Paramètres › Entreprise et facturation."))?;
+    let secret = read_secret(store)?.ok_or_else(|| invalid("La clé API Payrexx manque sur cet appareil. Saisissez-la dans Paramètres › Entreprise et facturation."))?;
+    Ok((instance, secret))
+}
+
+/// Page de paiement pour le montant d'un ticket de caisse. Rien n'est
+/// enregistré tant que Payrexx n'a pas confirmé le paiement.
+#[tauri::command]
+pub async fn create_pos_payment_gateway(state: tauri::State<'_, LocalStore>, amount_cents: i64, currency: String) -> Result<Value, String> {
+    let store = state.inner().clone();
+    store.require_write_access().map_err(command_error)?;
+    if !(1..=100_000_000_000).contains(&amount_cents) || !matches!(currency.as_str(), "CHF" | "EUR") {
+        return Err(command_error(invalid("Montant ou devise du ticket invalide.")));
+    }
+    let (instance, secret) = active_account(&store).map_err(command_error)?;
+    let company: String = {
+        let _guard = store.lock().map_err(command_error)?;
+        store.connect().map_err(command_error)?.query_row("SELECT company_name FROM settings WHERE id=1", [], |row| row.get(0)).map_err(|error| command_error(error.into()))?
+    };
+    let reference = format!("Caisse {}", &Uuid::new_v4().simple().to_string()[..8]);
+    let mut pairs = gateway_pairs(amount_cents, &currency, &reference, &company);
+    if let Some(purpose) = pairs.iter_mut().find(|(key, _)| key == "purpose") {
+        purpose.1 = format!("{reference} · {company}").chars().take(200).collect();
+    }
+    let response = payrexx(reqwest::Method::POST, "Gateway", &instance, &secret, pairs).await.map_err(command_error)?;
+    let (id, link, _) = gateway_from_response(&response).map_err(command_error)?;
+    let link = link.filter(|link| valid_link(link)).ok_or_else(|| command_error(invalid("Payrexx a renvoyé un lien inattendu ; il n'a pas été utilisé.")))?;
+    Ok(json!({ "reference": id, "url": link, "amount_cents": amount_cents, "currency": currency }))
+}
+
+/// État d'une page de paiement de caisse : open, paid, failed ou cancelled.
+#[tauri::command]
+pub async fn pos_payment_status(state: tauri::State<'_, LocalStore>, reference: String) -> Result<Value, String> {
+    let store = state.inner().clone();
+    let (instance, secret) = active_account(&store).map_err(command_error)?;
+    let (status, amount) = gateway_state(&instance, &secret, &reference).await.map_err(command_error)?;
+    Ok(json!({ "reference": reference, "status": link_status(&status), "amount_cents": amount }))
+}
+
+async fn gateway_state(instance: &str, secret: &str, reference: &str) -> AppResult<(String, Option<i64>)> {
+    if reference.is_empty() || reference.len() > 64 || !reference.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return Err(invalid("Référence de paiement invalide."));
+    }
+    let body = payrexx(reqwest::Method::GET, &format!("Gateway/{reference}"), instance, secret, Vec::new()).await?;
+    let (_, _, status) = gateway_from_response(&body)?;
+    let amount = body.get("data").and_then(|data| data.get(0)).and_then(|data| data.get("amount")).and_then(Value::as_i64);
+    Ok((status, amount))
+}
+
+/// Un ticket payé par Payrexx n'est enregistré qu'après confirmation du
+/// paiement pour son montant exact.
+pub(crate) async fn require_confirmed_gateway(store: &LocalStore, reference: &str, total_cents: i64) -> AppResult<()> {
+    let (instance, secret) = active_account(store)?;
+    let (status, amount) = gateway_state(&instance, &secret, reference).await?;
+    if link_status(&status) != "paid" {
+        return Err(invalid("Payrexx n'a pas encore confirmé ce paiement."));
+    }
+    if amount.is_some_and(|amount| amount != total_cents) {
+        return Err(invalid("Le montant payé chez Payrexx ne correspond pas au ticket."));
+    }
+    Ok(())
+}
+
 /* ---------- eBill (modèle de données) ---------- */
 
 /// Identifiant eBill d'une entreprise (17 chiffres) ou adresse e-mail eBill d'un particulier.
