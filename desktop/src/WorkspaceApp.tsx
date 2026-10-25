@@ -30,6 +30,7 @@ import { PipelinePanel } from './PipelinePanel';
 import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline';
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
+import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
 import { InstalledEquipmentScreen, serviceTitle } from './InstalledEquipmentScreen';
 import { clientLabel as equipmentClientLabel, equipmentLabel, serviceKind, servicesToPlan, suggestedServiceSlot } from './installedEquipment';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
@@ -506,6 +507,7 @@ type ModalState = (
       consultation?:DocumentCreationConsultation;
     }
   | { type: 'quoteConversion'; quote: Quote }
+  | { type: 'dictation'; target: DictationTarget }
   | { type: 'quoteInvoiceFolder'; quoteId: string }
   | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
@@ -2927,6 +2929,25 @@ function WorkspaceContent({
   }
 
   /** « Créer le devis » d'une opportunité : le devis prérempli reste lié à l'opportunité. */
+  /** Dictée : le rapport s'enregistre en brouillon, le devis s'ouvre pré-rempli ; rien n'est émis. */
+  async function createDictatedDraft(result: DictationResult) {
+    if (busy || readOnly) return;
+    const settings = workspaceRef.current.settings;
+    const defaultVat = settings?.organization.vatRegistered ? settings.billing.vatRatesBp[0] ?? 810 : 0;
+    if (result.target === 'quote') {
+      setSearch(''); setView('quotes');
+      setModal({ type: 'document', entity: 'quotes', seed: { id: 'dictation:' + createId(), clientId: result.clientId ?? undefined, newClientName: result.clientId ? undefined : result.partyName ?? undefined,
+        title: result.description.slice(0, 120) || undefined, lines: result.lines } });
+      return;
+    }
+    if (!result.clientId) return;
+    const lines = result.lines.map(line => ({ kind: (line.unit === 'h' ? 'labor' : 'material') as 'labor' | 'material', catalogItemId: line.catalogItemId ?? null, description: line.description,
+      quantity: line.quantity, unit: line.unit || 'pce', unitPriceCents: line.unitPriceCents, vatBp: line.vatRateBp < 0 ? defaultVat : line.vatRateBp }));
+    const saved = await act(async () => (await desktopApi.saveWorkReport({ clientId: result.clientId!, projectId: null, reportDate: result.reportDate, site: '',
+      description: result.description || result.lines[0]?.description || t('Intervention'), technician: '', lines })).workspace, t('Rapport enregistré en brouillon. Relisez-le puis faites-le signer.'), false);
+    if (saved) { setModal(null); setSearch(''); setTimeArea('reports'); setView('time'); }
+  }
+
   async function createOpportunityQuote(opportunity: Opportunity) {
     if (busy || readOnly) return;
     const quoteId = createId();
@@ -4258,7 +4279,7 @@ function WorkspaceContent({
           ) : null}
           {view === 'time' ? <TimeAreaTabs active={timeArea} onChange={setTimeArea} /> : null}
           {view === 'time' && timeArea === 'reports' ? (
-            <WorkReportsPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} onOpenInvoice={openInvoiceById} />
+            <WorkReportsPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} onOpenInvoice={openInvoiceById} onDictate={() => setModal({ type: 'dictation', target: 'report' })} />
           ) : null}
           {view === 'time' && timeArea === 'hours' ? (
             <TimeScreen
@@ -4478,7 +4499,8 @@ function WorkspaceContent({
         <button type="button" aria-label={t("Tous les modules")} aria-current={selectedMobileShortcut === 'menu' ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} aria-hidden="true" /><span>{t("Menu")}</span></button>
       </nav>
 
-      {modal && !invoiceToIssueId && !supplierInvoiceReviewId && !payslipPostingId ? (
+      {modal?.type === 'dictation' ? <DictationDialog workspace={workspace} initialTarget={modal.target} busy={busy || readOnly} onClose={() => setModal(null)} onCreate={result => void createDictatedDraft(result)} /> : null}
+      {modal && modal.type !== 'dictation' && !invoiceToIssueId && !supplierInvoiceReviewId && !payslipPostingId ? (
         <ReadOnlyFormScope readOnly={readOnly && modal.type !== 'qrPrint'}>
         <WorkspaceModal
           state={modal}
@@ -4731,6 +4753,7 @@ function Dashboard({
               else if (block) onNavigate(id === 'project' ? 'projects' : id === 'purchase' ? 'expenses' : id === 'invoice' ? 'invoices' : 'quotes');
               else if (id === 'quote' || id === 'invoice') onCreate({ type: 'document', entity: id === 'quote' ? 'quotes' : 'invoices' });
               else if (id === 'purchase') onCreate({ type: 'supplierInvoice' });
+              else if (id === 'dictate') onCreate({ type: 'dictation', target: 'report' });
               else onCreate({ type: id });
             };
             return <button type="button" key={id} disabled={readOnly && changesData} title={block ? t(block) : t(label)} onClick={run}><Icon aria-hidden="true" /><span>{t(label)}</span></button>;

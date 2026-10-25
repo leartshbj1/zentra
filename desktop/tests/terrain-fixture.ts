@@ -64,6 +64,14 @@ export function installTerrainFixture(getData: () => Workspace) {
       warrantyUntil: '2025-02-14', location: 'Cave, Rue de Carouge 21, Genève', serviceIntervalMonths: 6, lastServiceOn: day(-160), notes: '', archivedAt: null, createdAt: now, updatedAt: now },
   ];
   data.equipmentServices = [];
+  const catalog = (id: string, kind: 'product' | 'service', name: string, unit: string, salesPriceCents: number) => ({ id, kind, sku: '', name, description: '', unit, salesPriceCents,
+    purchaseCostCents: 0, vatBp: 810, trackStock: false, stockQuantityMilli: 0, reorderLevelMilli: 0, archivedAt: null, createdAt: now, updatedAt: now });
+  data.catalogItems = [
+    catalog('ci-mo', 'service', 'Main-d’œuvre installateur', 'h', 9_500),
+    catalog('ci-coude', 'product', 'Coude cuivre 22 mm', 'pce', 450),
+    catalog('ci-vanne', 'product', 'Vanne thermostatique', 'pce', 3_800),
+    catalog('ci-depl', 'service', 'Déplacement', 'forfait', 6_000),
+  ] as never;
   // Positions déjà trouvées : la capture ne dépend pas du service de recherche.
   try {
     localStorage.setItem('zentra.planning.geocode.v1', JSON.stringify({
