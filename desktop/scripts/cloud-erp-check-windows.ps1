@@ -6,8 +6,8 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-if ($env:CIRCLECI -cne 'true' -or $env:CIRCLE_BRANCH -cne 'claude/erp-complet') {
-    throw 'Ce contrôle est réservé à la branche claude/erp-complet sur CircleCI.'
+if ($env:CIRCLECI -cne 'true' -or $env:CIRCLE_BRANCH -cnotin @('claude/erp-complet', 'claude/bank-near-payment')) {
+    throw 'Ce contrôle est réservé aux branches claude/erp-complet et claude/bank-near-payment sur CircleCI.'
 }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Set-Location -LiteralPath $repo
