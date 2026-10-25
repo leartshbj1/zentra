@@ -6,6 +6,9 @@ import type { AutopilotSignalCard } from '../src/AutopilotSignalList';
 import { parseLanguage, setAppLanguage } from '../src/language';
 import type { AutopilotView } from '../src/autopilotView';
 import { DebtCollectionDialog } from '../src/DebtCollectionDialog';
+import { ReceiptRequestDialog } from '../src/PaymentSafetyParts';
+import type { MissingReceipt } from '../src/paymentSafety';
+import type { BankMovement, Employee } from '../src/types';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -66,6 +69,15 @@ const created: Record<string, AutopilotCreatedQuoteView> = {
 };
 const acceptances: AutopilotAcceptanceCard[] = [{ key: 'a1', sourceId: 's9', receivedAt: at - 3600, sender: 'Alex Morel', evidence: '« Bonjour, c’est d’accord pour le devis, vous pouvez commencer lundi. »', candidates: [{ id: 'q1', label: 'D-2026-003 · Entretien annuel' }, { id: 'q2', label: 'D-2026-001 · Rénovation' }] }];
 const followUps: AutopilotActionCard[] = [
+  // Paiements sûrs : approbation par une deuxième personne, justificatif manquant, alerte avant paiement.
+  { key: 'approve:i6', title: 'Paiement à approuver · Menuiserie Favre Sàrl · CHF 12 400.00', detail: 'Préparé par Anna Keller · facture F-2026-0418',
+    note: 'À vérifier : Montant inhabituel pour ce fournisseur', why: 'Au-delà de CHF 5 000.00, une deuxième personne approuve le paiement · Fiable',
+    actions: [{ id: 'view-payments', label: 'Voir les paiements' }, { id: 'ignore', label: 'Ignorer' }, { id: 'approve-payment', label: 'Approuver', primary: true }] },
+  { key: 'receipt:m1', title: 'Justificatif manquant · CHF 84.50 · Coop Bau+Hobby Bulle', detail: 'Débité le 3 oct. 2026, il y a 22 jours, sans pièce',
+    why: 'Dépense bancaire sans pièce depuis 10 jours ou plus (réglable dans Paramètres) · Fiable',
+    actions: [{ id: 'ask-receipt', label: 'Demander au collaborateur' }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'ignore', label: 'Ignorer' }, { id: 'attach-receipt', label: 'Joindre le justificatif', primary: true }] },
+  { key: 'pay:i2', title: 'À payer · Scierie du Jura Sàrl', detail: '10201409 · CHF 949.75 · échéance 29 oct. 2026', note: 'Avant de payer : IBAN changé depuis le dernier paiement',
+    actions: [{ id: 'copy-iban', label: 'Copier IBAN et référence' }, { id: 'view-purchase', label: 'Voir la facture' }, { id: 'ignore', label: 'Ignorer' }, { id: 'pay', label: 'Payer', primary: true }] },
   { key: 'reminder:r1', title: 'Relance n°1 prête', detail: 'Résidence Bellevue · F-2026-0012 · CHF 1 780.00 · échue depuis 12 jours',
     actions: [{ id: 'send', label: 'Envoyer par mail', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'invoice', label: 'Voir la facture' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'reminder:r2', title: 'Relance n°2 prête', detail: 'Camille Martin · F-2026-0009 · CHF 640.00 · échue depuis 21 jours', note: 'Le client a promis de payer.',
@@ -170,6 +182,11 @@ const debtRequest = {
   creditor: { name: 'Menuiserie Dupont Sàrl', street: 'Route de Berne 12', postalCode: '1700', city: 'Fribourg', country: 'CH', uid: 'CHE-123.456.789' },
   debtor: { name: 'Atelier du Lac SA', street: 'Rue du Port 4', postalCode: '1006', city: 'Lausanne', country: 'CH' },
 };
+// Demande de justificatif : données fictives, le brouillon s'ouvre dans la messagerie.
+const receiptPerson = (id: string, name: string, email: string) => ({ id, name, email, employmentEnd: '' }) as unknown as Employee;
+const missingReceipt: MissingReceipt = { reason: 'unlinked', ageDays: 22, movement: { id: 'm1', amountCents: 8_450, currency: 'CHF', bookingDate: '2026-10-03', valueDate: '2026-10-03', counterpartyName: 'Coop Bau+Hobby Bulle', unstructured: '', reference: '' } as BankMovement };
 createRoot(document.getElementById('root')!).render(query.get('dialog') === 'poursuite'
   ? <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><DebtCollectionDialog request={debtRequest} invoiceNumber="F-2026-0009" onClose={noop} onSaved={noop} /></div>
-  : <Preview />);
+  : query.get('dialog') === 'justificatif'
+    ? <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><ReceiptRequestDialog receipt={missingReceipt} employees={[receiptPerson('e1', 'Luca Rossi', 'luca.rossi@atelier-leman.example'), receiptPerson('e2', 'Sara Meier', 'sara.meier@atelier-leman.example')]} companyName="Atelier du Léman Sàrl" onClose={noop} onOpened={noop} /></div>
+    : <Preview />);

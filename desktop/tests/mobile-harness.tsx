@@ -73,6 +73,7 @@ import { installCreationOutcomeFixture } from './creation-outcome-fixture';
 import { installPayslipPostingFixture } from './payslip-posting-fixture';
 import { installSettingsRecoveryFixture } from './settings-recovery-fixture';
 import { installErpBexioFixture, installErpCashFixture, installErpReportsFixture, installErpTeamFixture, installErpPortalFixture, installErpPricesFixture, installErpPipelineFixture, installErpStockFixture, installErpChartFixture, installErpPaymentLinkFixture, installErpPaymentsFixture } from './erp-payments-fixture';
+import { installErpSafetyFixture } from './erp-safety-fixture';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -196,6 +197,7 @@ if (new URLSearchParams(location.search).has('expenseRefund')) installExpenseRef
 if (new URLSearchParams(location.search).has('fulfillment')) installSalesFulfillmentFixture(data);
 if (new URLSearchParams(location.search).has('purchasing')) installPurchaseFulfillmentFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'payments') installErpPaymentsFixture(data);
+if (new URLSearchParams(location.search).get('erp') === 'safety') installErpSafetyFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'chart') installErpChartFixture();
 if (new URLSearchParams(location.search).get('erp') === 'bexio') installErpBexioFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'paylink') installErpPaymentLinkFixture(data);
@@ -333,7 +335,7 @@ function Harness() {
   if (new URLSearchParams(location.search).has('payslipPosting')) Object.assign(window, { __qaReloadPosting: async () => { const next = await desktopApi.loadWorkspace(); setWorkspace(next); data = next; } });
   if (new URLSearchParams(location.search).has('updater')) return <main><h1>Accueil de recette</h1><button type="button">Action de fond</button><StandaloneUpdaterAccess /></main>;
   const syntheticMember = previewQuery.has('timeDraftRecovery') ? previewQuery.get('timeMember')||'qa-time-draft-member' : previewQuery.has('paymentGuided') ? previewQuery.get('paymentMember')||'qa-payment-member' : previewQuery.has('customerSettlements')||previewQuery.has('customerSettlementGuided') ? 'qa-customer-settlement-member' : previewQuery.has('formDrafts') ? 'qa-native-form-member' : 'local-user';
-  return <><FormDraftIdentityProvider companyId={workspace!.workNotesScope!} memberId={syntheticMember} organizationId={previewQuery.has('paymentGuided')?previewQuery.get('paymentOrganization')||undefined:undefined} memberContextNonce="0123456789abcdef0123456789abcdef" ready><WorkspaceApp cloudAccount={projectAccount ? { status: 'connected', organizationId: projectAccount } : undefined} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { if (previewQuery.has('timeDraftRecovery') && next && typeof next !== 'function') (window as any).timeDraftRecoveryFixture.state.publications.push({scope:next.workNotesScope}); setWorkspace(next); if (next && typeof next !== 'function') data = next; if (new URLSearchParams(location.search).has('projectNavigation')) window.projectNavigation.publications++; }} /></FormDraftIdentityProvider>
+  return <><FormDraftIdentityProvider companyId={workspace!.workNotesScope!} memberId={syntheticMember} organizationId={previewQuery.has('paymentGuided')?previewQuery.get('paymentOrganization')||undefined:previewQuery.get('erp')==='safety'&&previewQuery.has('automation')?'automation-qa':undefined} memberContextNonce="0123456789abcdef0123456789abcdef" ready><WorkspaceApp cloudAccount={projectAccount ? { status: 'connected', organizationId: projectAccount } : undefined} readOnly={readOnly} workspace={workspace!} setWorkspace={(next) => { if (previewQuery.has('timeDraftRecovery') && next && typeof next !== 'function') (window as any).timeDraftRecoveryFixture.state.publications.push({scope:next.workNotesScope}); setWorkspace(next); if (next && typeof next !== 'function') data = next; if (new URLSearchParams(location.search).has('projectNavigation')) window.projectNavigation.publications++; }} /></FormDraftIdentityProvider>
     {new URLSearchParams(location.search).has('notice') ? <DevelopmentNotice hasNavigation={true} identity={<div className="license-banner__identity"><span>Installation</span><code>aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee</code><button type="button" aria-label="Copier l’identifiant">Copier</button></div>} /> : null}
   </>;
 }
