@@ -196,3 +196,42 @@
     margin-top: 0;
   }
 }
+
+
+@media screen and (max-width: 860px) {
+  /* Phone header without a main action: the Autopilote shortcut joins the
+     help button beside the title instead of taking a row of its own. */
+  html[data-app-theme] .desktop-app[data-experience] .app-main .page-header.page-header > .page-header__actions.page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher))) {
+    display: contents;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header:has(> .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher)))) > div:first-child {
+    padding-right: 104px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header > .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher))) > .automation-tools-launcher {
+    position: absolute;
+    grid-row: 1;
+    grid-column: 2;
+    top: -6.25px;
+    right: 60px;
+    bottom: auto;
+    left: auto;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header > .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher))) > .automation-tools-launcher > span {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 860px) {
+  /* Purchases inbox on the phone: the icon is hidden, so is its empty column. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .supplier-inbox--embedded > header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .supplier-inbox--embedded > header > div {
+    grid-column: 1 / -1;
+  }
+}
