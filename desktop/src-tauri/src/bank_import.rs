@@ -3707,10 +3707,11 @@ mod tests {
         customer_near_payment_setup_with(manual_amounts, invoice_cents, seed, true)
     }
 
-    fn customer_near_payment_setup_with(manual_amounts: &[i64], invoice_cents: i64, seed: &str, accounting: bool) -> (tempfile::TempDir, LocalStore, String, String, Vec<String>) {
+    /// A client payment needs accounting; without the 6940 account the fee cannot be booked.
+    fn customer_near_payment_setup_with(manual_amounts: &[i64], invoice_cents: i64, seed: &str, fee_account: bool) -> (tempfile::TempDir, LocalStore, String, String, Vec<String>) {
         let (temporary, store) = store();
-        if accounting {
-            enable_accounting(&store);
+        enable_accounting(&store);
+        if fee_account {
             add_bank_fee_account(&store);
         }
         store
@@ -3912,7 +3913,7 @@ mod tests {
     }
 
     #[test]
-    fn near_payment_without_accounting_the_fee_link_only_links() {
+    fn near_payment_without_the_fee_account_the_fee_link_only_links() {
         let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup_with(&[17_800], 17_800, "177530", false);
         let xml = fixture("053", "08", "BOOK", "177.50", "C-FEE-NO-BOOKS", Some("D-FEE-NO-BOOKS"), Some("QRR"), Some(&qrr), false, true);
         store
