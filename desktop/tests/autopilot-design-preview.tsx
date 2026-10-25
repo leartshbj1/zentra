@@ -2,6 +2,9 @@
 import { createRoot } from 'react-dom/client';
 import { AutopilotReviews, type AutopilotAcceptanceCard, type AutopilotCreatedQuoteView } from '../src/AutopilotPanel';
 import type { AutopilotActionCard } from '../src/AutopilotActionList';
+import { useState } from 'react';
+import { AutopilotBehaviourSettings } from '../src/AutopilotBehaviourSettings';
+import { DEFAULT_BEHAVIOUR, type AutopilotBehaviour } from '../src/autopilotSettings';
 import type { AutopilotSignalCard } from '../src/AutopilotSignalList';
 import { parseLanguage, setAppLanguage } from '../src/language';
 import type { AutopilotView } from '../src/autopilotView';
@@ -66,6 +69,8 @@ const created: Record<string, AutopilotCreatedQuoteView> = {
 };
 const acceptances: AutopilotAcceptanceCard[] = [{ key: 'a1', sourceId: 's9', receivedAt: at - 3600, sender: 'Alex Morel', evidence: '« Bonjour, c’est d’accord pour le devis, vous pouvez commencer lundi. »', candidates: [{ id: 'q1', label: 'D-2026-003 · Entretien annuel' }, { id: 'q2', label: 'D-2026-001 · Rénovation' }] }];
 const followUps: AutopilotActionCard[] = [
+  { key: 'ask:p1', title: 'Demande incomplète de Menuiserie Favre Sàrl', detail: 'À préciser : portes coulissantes, plinthes chêne. Un brouillon de réponse le demande.',
+    actions: [{ id: 'ignore', label: 'Ignorer' }, { id: 'ask-info', label: 'Préparer la réponse', primary: true }] },
   { key: 'reminder:r1', title: 'Relance n°1 prête', detail: 'Résidence Bellevue · F-2026-0012 · CHF 1 780.00 · échue depuis 12 jours',
     actions: [{ id: 'send', label: 'Envoyer par mail', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'invoice', label: 'Voir la facture' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'reminder:r2', title: 'Relance n°2 prête', detail: 'Camille Martin · F-2026-0009 · CHF 640.00 · échue depuis 21 jours', note: 'Le client a promis de payer.',
@@ -170,6 +175,14 @@ const debtRequest = {
   creditor: { name: 'Menuiserie Dupont Sàrl', street: 'Route de Berne 12', postalCode: '1700', city: 'Fribourg', country: 'CH', uid: 'CHE-123.456.789' },
   debtor: { name: 'Atelier du Lac SA', street: 'Rue du Port 4', postalCode: '1006', city: 'Lausanne', country: 'CH' },
 };
-createRoot(document.getElementById('root')!).render(query.get('dialog') === 'poursuite'
+function BehaviourPreview() {
+  const [behaviour, setBehaviour] = useState<AutopilotBehaviour>({ ...DEFAULT_BEHAVIOUR, autoValidate: ['qrmail'] });
+  return <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><main className="app-main" style={{ marginLeft: 0, padding: '32px 16px' }}>
+    <section className="page-content" data-screen="automation"><div className="automation-hub"><section className="automation-hub__settings">
+      <AutopilotBehaviourSettings behaviour={behaviour} onChange={change => setBehaviour(current => ({ ...current, ...change }))} />
+    </section></div></section>
+  </main></div>;
+}
+createRoot(document.getElementById('root')!).render(query.get('view') === 'behaviour' ? <BehaviourPreview /> : query.get('dialog') === 'poursuite'
   ? <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><DebtCollectionDialog request={debtRequest} invoiceNumber="F-2026-0009" onClose={noop} onSaved={noop} /></div>
   : <Preview />);
