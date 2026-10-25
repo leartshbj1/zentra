@@ -487,6 +487,10 @@ export type DocumentLine = {
   unitPriceCents: number;
   discountBp?: number;
   vatRateBp: number;
+  /** Chapitre de la position : les lignes consécutives de même titre forment un chapitre avec sous-total. */
+  sectionTitle?: string | null;
+  /** Métré : la quantité est la somme des lignes (déductions soustraites). */
+  measurements?: import('./measurement').MeasurementRow[];
 };
 
 export type FrozenIssuer = {
@@ -582,6 +586,8 @@ export type Quote = {
   lines: DocumentLine[];
   notes: string;
   terms: string;
+  /** Le PDF imprime le détail du métré sous chaque position mesurée. */
+  showMeasurements?: boolean;
   createdAt: string;
   snapshot?: FrozenDocumentSnapshot | null;
 };
@@ -637,6 +643,7 @@ export type Invoice = {
   terms: string;
   depositPercentageBp: number | null;
   depositBasisLines: DocumentLine[] | null;
+  showMeasurements?: boolean;
   createdAt: string;
   snapshot?: FrozenDocumentSnapshot | null;
   qrBill?: StoredSwissQrBill | null;

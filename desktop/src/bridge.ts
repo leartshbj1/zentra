@@ -427,6 +427,7 @@ import {
   supplierBankConfirmationPayload,
 } from './bank';
 import { expensePaymentStatusFromRaw } from './purchases';
+import { measurementRowsFromRaw, measurementRowsToRaw } from './measurement';
 import {
   pdfDestinationPath,
   salesPdfInvokeInput,
@@ -2072,6 +2073,8 @@ function lineFromRaw(row: RawRecord): DocumentLine {
     unitPriceCents: numberValue(row.unit_price_cents),
     discountBp: numberValue(row.discount_bp),
     vatRateBp: numberValue(row.vat_bp),
+    ...(stringValue(row.section_title) ? { sectionTitle: stringValue(row.section_title) } : {}),
+    ...(measurementRowsFromRaw(row.measurements_json).length ? { measurements: measurementRowsFromRaw(row.measurements_json) } : {}),
   };
 }
 
@@ -2727,6 +2730,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       .map(lineFromRaw),
     notes: stringValue(row.notes),
     terms: stringValue(row.terms),
+    showMeasurements: numberValue(row.show_measurements) === 1,
     createdAt: stringValue(row.created_at),
     snapshot: documentSnapshotFromRaw(row.snapshot_json, appState.data_dir),
   }));
@@ -2897,6 +2901,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       depositPercentageBp: numberValue(row.deposit_percentage_bp) || null,
       creator: row.creator_installation ? {id:nullableString(row.creator_id),name:stringValue(row.creator_name),installationId:stringValue(row.creator_installation)} : null,
       depositBasisLines: depositBasisLinesFromRaw(row.deposit_basis_json),
+      showMeasurements: numberValue(row.show_measurements) === 1,
       createdAt: stringValue(row.created_at),
       snapshot,
       qrBill,
@@ -3816,6 +3821,10 @@ export function documentLineToBackend(
     unit_price_cents: line.unitPriceCents,
     discount_bp: line.discountBp ?? 0,
     vat_bp: line.vatRateBp,
+    // Chapitre et métré (Pack bâtiment) : envoyés seulement s'ils existent,
+    // pour garder à l'identique les enregistrements déjà préparés.
+    ...(line.sectionTitle?.trim() ? { section_title: line.sectionTitle.trim() } : {}),
+    ...(measurementRowsToRaw(line.measurements) ? { measurements_json: measurementRowsToRaw(line.measurements) } : {}),
   };
 }
 

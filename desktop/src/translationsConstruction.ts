@@ -1,0 +1,26 @@
+/** Pack bâtiment : métré, chapitres, situations, régie, chantier et imports (de, it, en). */
+export const constructionTranslations: Record<string, readonly [string, string, string]> = {
+  // Métré et chapitres
+  'Chapitre {title}': ['Kapitel {title}', 'Capitolo {title}', 'Section {title}'],
+  'Titre du chapitre': ['Kapiteltitel', 'Titolo del capitolo', 'Section title'],
+  'Sous-total': ['Zwischensumme', 'Subtotale', 'Subtotal'],
+  'Retirer le chapitre': ['Kapitel aufheben', 'Togli il capitolo', 'Remove section'],
+  'Métré de la ligne': ['Ausmass der Position', 'Computo della riga', 'Line measurements'],
+  'Désignation de la mesure': ['Bezeichnung des Masses', 'Descrizione della misura', 'Measurement label'],
+  'Mur nord': ['Wand Nord', 'Parete nord', 'North wall'],
+  Formule: ['Formel', 'Formula', 'Formula'],
+  'À déduire': ['Abziehen', 'Da dedurre', 'Deduct'],
+  'Formule à corriger': ['Formel prüfen', 'Formula da correggere', 'Check formula'],
+  'Supprimer la mesure': ['Mass löschen', 'Elimina la misura', 'Delete measurement'],
+  'Ajouter une mesure': ['Mass hinzufügen', 'Aggiungi una misura', 'Add a measurement'],
+  'Quantité calculée': ['Berechnete Menge', 'Quantità calcolata', 'Calculated quantity'],
+  'Une formule est à corriger.': ['Eine Formel muss korrigiert werden.', 'Una formula è da correggere.', 'A formula needs correcting.'],
+  'Chapitre {number}': ['Kapitel {number}', 'Capitolo {number}', 'Section {number}'],
+  'Nouveau chapitre': ['Neues Kapitel', 'Nuovo capitolo', 'New section'],
+  'Quantité calculée par le métré': ['Aus dem Ausmass berechnete Menge', 'Quantità calcolata dal computo', 'Quantity calculated from the measurements'],
+  'Métré ({count})': ['Ausmass ({count})', 'Computo ({count})', 'Measurements ({count})'],
+  Métré: ['Ausmass', 'Computo', 'Measurements'],
+  Chapitre: ['Kapitel', 'Capitolo', 'Section'],
+  'Sans chapitre': ['Ohne Kapitel', 'Senza capitolo', 'No section'],
+  'Imprimer le détail du métré sur le document': ['Ausmass im Dokument detailliert drucken', 'Stampa il dettaglio del computo sul documento', 'Print the measurement details on the document'],
+};

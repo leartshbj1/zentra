@@ -62,9 +62,23 @@ struct SalesPdfCustomer {
     email: String,
 }
 
+/// Rangée affichée du tableau : une position, ou la mise en page d'un
+/// document de chantier (titre de chapitre, sous-total, détail de métré).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum PdfRowKind {
+    #[default]
+    Item,
+    Heading,
+    Subtotal,
+    Measure,
+}
+
 #[derive(Debug, Clone)]
 struct SalesPdfLine {
     description: String,
+    row: PdfRowKind,
+    section_title: Option<String>,
+    measurements: Vec<crate::measurement::MeasurementRow>,
     quantity: f64,
     unit: String,
     unit_price_cents: i64,
@@ -100,6 +114,7 @@ struct SalesPdfData {
     title: String,
     document_type: String,
     deposit_percentage_bp: Option<i64>,
+    show_measurements: bool,
     issue_date: String,
     deadline_date: String,
     service_date_from: String,
@@ -406,6 +421,7 @@ fn load_sales_pdf_data(
         title: string_at(&document, "title"),
         document_type,
         deposit_percentage_bp,
+        show_measurements: document.get("show_measurements").and_then(Value::as_i64) == Some(1),
         issue_date: string_at(&document, "issue_date"),
         deadline_date: if kind == SalesDocumentKind::Quote {
             string_at(&document, "valid_until")
@@ -864,7 +880,15 @@ fn sales_line_from_value(value: &Value, require_persisted_totals: bool) -> AppRe
                 .into(),
         ));
     }
+    let section_title = Some(string_at(value, "section_title")).filter(|title| !title.is_empty());
+    let measurements = crate::measurement::parse_rows(value.get("measurements_json"))
+        .ok()
+        .flatten()
+        .unwrap_or_default();
     Ok(SalesPdfLine {
+        row: PdfRowKind::Item,
+        section_title,
+        measurements,
         description,
         quantity,
         unit: string_at(value, "unit"),
@@ -970,6 +994,7 @@ fn render_sales_pdf(
     let all_notes = notes_lines(data);
     let dedicated_notes = all_notes.len() > 6;
     let mut sales_data = data.clone();
+    sales_data.lines = display_lines(data);
     if dedicated_notes {
         sales_data.notes.clear();
         sales_data.terms.clear();
@@ -1192,11 +1217,13 @@ fn render_composed_sales(
     if !design.intro.is_empty() {
         page.gap(10.);
     }
-    let rows = data
-        .lines
+    let rows = display_lines(data)
         .iter()
-        .map(|line| {
-            (
+        .map(|line| match line.row {
+            PdfRowKind::Heading => (vec![line.description.clone(), String::new(), String::new(), String::new(), String::new(), String::new()], true),
+            PdfRowKind::Subtotal => (vec![line.description.clone(), String::new(), String::new(), String::new(), String::new(), format_amount(line.net_cents)], true),
+            PdfRowKind::Measure => (vec![line.description.clone(), String::new(), String::new(), String::new(), String::new(), String::new()], false),
+            PdfRowKind::Item => (
                 vec![
                     line.description.clone(),
                     format!("{} {}", format_quantity(line.quantity), line.unit),
@@ -1358,6 +1385,13 @@ fn validate_visible_texts(data: &SalesPdfData) -> AppResult<()> {
     for line in &data.lines {
         fields.push(("description de ligne", &line.description));
         fields.push(("unité de ligne", &line.unit));
+        if let Some(title) = &line.section_title {
+            fields.push(("titre de chapitre", title));
+        }
+        for measure in &line.measurements {
+            fields.push(("ligne de métré", &measure.label));
+            fields.push(("formule de métré", &measure.formula));
+        }
     }
     if let Some(qr) = &data.qr {
         fields.extend([
@@ -1618,7 +1652,69 @@ fn table_top_with_contact(first: bool, data: &SalesPdfData) -> f32 {
     table_top(first) - if first && !data.contact_name.is_empty() { 18.0 + contact_lines(data).len() as f32 * 9.0 } else { 0.0 }
 }
 
+/// Rangées affichées : les positions telles quelles, précédées d'un titre et
+/// suivies d'un sous-total pour chaque chapitre (lignes consécutives de même
+/// titre), avec le détail du métré si le document le demande. Les montants
+/// et la TVA restent calculés sur les seules positions.
+fn display_lines(data: &SalesPdfData) -> Vec<SalesPdfLine> {
+    let chapters = data.lines.iter().any(|line| line.section_title.is_some());
+    let details = data.show_measurements && data.lines.iter().any(|line| !line.measurements.is_empty());
+    if !chapters && !details {
+        return data.lines.clone();
+    }
+    let layout = |row: PdfRowKind, description: String, net_cents: i64| SalesPdfLine {
+        row,
+        section_title: None,
+        measurements: Vec::new(),
+        description,
+        quantity: 0.0,
+        unit: String::new(),
+        unit_price_cents: 0,
+        discount_bp: 0,
+        vat_bp: 0,
+        net_cents,
+        vat_cents: 0,
+        total_cents: 0,
+    };
+    let mut rows = Vec::with_capacity(data.lines.len() * 2);
+    let mut index = 0;
+    while index < data.lines.len() {
+        let title = data.lines[index].section_title.clone();
+        let mut end = index;
+        while end < data.lines.len() && data.lines[end].section_title == title {
+            end += 1;
+        }
+        if let Some(title) = &title {
+            rows.push(layout(PdfRowKind::Heading, title.clone(), 0));
+        }
+        let mut subtotal = 0_i64;
+        for line in &data.lines[index..end] {
+            subtotal = subtotal.saturating_add(line.net_cents);
+            rows.push(line.clone());
+            if data.show_measurements {
+                for measure in &line.measurements {
+                    let value = crate::measurement::row_milli(measure)
+                        .map(crate::measurement::format_milli)
+                        .unwrap_or_default();
+                    let label = if measure.label.is_empty() { String::new() } else { format!("{} : ", measure.label) };
+                    let sign = if measure.deduct { "- " } else { "" };
+                    rows.push(layout(PdfRowKind::Measure, format!("{sign}{label}{} = {value}", measure.formula), 0));
+                }
+            }
+        }
+        if let Some(title) = &title {
+            rows.push(layout(PdfRowKind::Subtotal, format!("Total {title}"), subtotal));
+        }
+        index = end;
+    }
+    rows
+}
+
 fn line_height(line: &SalesPdfLine) -> f32 {
+    if line.row == PdfRowKind::Measure {
+        let wrapped = wrap_text_width(&line.description, DESCRIPTION_TEXT_WIDTH, 6.4, false).len().max(1);
+        return 4.0 + wrapped as f32 * 8.0;
+    }
     let description_lines = wrap_text_width(&line.description, DESCRIPTION_TEXT_WIDTH, 7.2, true)
         .len()
         .max(1);
@@ -2049,6 +2145,25 @@ fn render_table_header(ops: &mut Vec<Operation>, y: f32, style: &DocumentStyle) 
 }
 
 fn render_line(ops: &mut Vec<Operation>, line: &SalesPdfLine, top: f32, height: f32) {
+    match line.row {
+        PdfRowKind::Item => {}
+        PdfRowKind::Measure => {
+            for (index, wrapped) in wrap_text_width(&line.description, DESCRIPTION_TEXT_WIDTH, 6.4, false).iter().enumerate() {
+                text(ops, MARGIN + 15.0, top - 9.0 - index as f32 * 8.0, 6.4, "F1", MUTED, wrapped);
+            }
+            return;
+        }
+        PdfRowKind::Heading | PdfRowKind::Subtotal => {
+            line_segment(ops, MARGIN, top - height, PAGE_WIDTH - 2.0 * MARGIN, 0.4, LINE);
+            for (index, wrapped) in wrap_text_width(&line.description, DESCRIPTION_TEXT_WIDTH, 7.2, true).iter().enumerate() {
+                text(ops, MARGIN + 7.0, top - 13.0 - index as f32 * 8.0, 7.2, "F2", INK, wrapped);
+            }
+            if line.row == PdfRowKind::Subtotal {
+                text_right(ops, PAGE_WIDTH - MARGIN - 7.0, top - 13.0, 6.8, "F2", INK, &format_amount(line.net_cents));
+            }
+            return;
+        }
+    }
     line_segment(
         ops,
         MARGIN,
@@ -2297,7 +2412,7 @@ fn total_row(
 
 fn vat_groups(data: &SalesPdfData) -> BTreeMap<i64, (i64, i64)> {
     let mut groups = BTreeMap::new();
-    for line in &data.lines {
+    for line in &data.lines.iter().filter(|line| line.row == PdfRowKind::Item) {
         let entry = groups.entry(line.vat_bp).or_insert((0_i64, 0_i64));
         entry.0 = entry.0.saturating_add(line.net_cents);
         entry.1 = entry.1.saturating_add(line.vat_cents);
@@ -3371,13 +3486,13 @@ pub(crate) fn design_example(issuer: &Value, kind: &str, branding_dir: &Path) ->
     let lines = [("Conseil et préparation", 2.0, "heure", 12500), ("Fournitures et matériel", 1.0, "lot", 25000)].into_iter().map(|(description,quantity,unit,price)| {
         let net = (quantity * price as f64) as i64;
         let vat = (net * rate + 5000) / 10000;
-        SalesPdfLine { description: description.into(), quantity, unit: unit.into(), unit_price_cents: price, discount_bp: 0, vat_bp: rate, net_cents: net, vat_cents: vat, total_cents: net + vat }
+        SalesPdfLine { row: PdfRowKind::Item, section_title: None, measurements: Vec::new(), description: description.into(), quantity, unit: unit.into(), unit_price_cents: price, discount_bp: 0, vat_bp: rate, net_cents: net, vat_cents: vat, total_cents: net + vat }
     }).collect::<Vec<_>>();
     let vat = lines.iter().map(|l| l.vat_cents).sum::<i64>();
     let data = SalesPdfData {
         contact_name: if kind == "quotes" { string_at(issuer, "owner_name") } else { String::new() },
         style: DocumentStyle::from_issuer(issuer, kind)?, kind: if kind == "quotes" { SalesDocumentKind::Quote } else { SalesDocumentKind::Invoice },
-        number: "EXEMPLE - SANS VALEUR".into(), title: "Votre prochain projet".into(), document_type: "standard".into(), deposit_percentage_bp: None,
+        number: "EXEMPLE - SANS VALEUR".into(), title: "Votre prochain projet".into(), document_type: "standard".into(), deposit_percentage_bp: None, show_measurements: false,
         issue_date: "2026-09-01".into(), deadline_date: "2026-09-30".into(), service_date_from: "2026-09-01".into(), service_date_to: "2026-09-01".into(),
         currency: "CHF".into(), notes: "Merci pour votre confiance.".into(), terms: "Exemple de présentation. Aucun document créé, aucun paiement à effectuer.".into(), captured_at: String::new(), original_invoice_number: String::new(),
         issuer: issuer_from_value(issuer), customer: SalesPdfCustomer { name: "Camille Martin - Client exemple".into(), address: vec!["Rue du Lac 12, 1000 Lausanne".into()], email: String::new() },
@@ -3513,6 +3628,9 @@ mod tests {
     fn sample_data(line_count: usize, qr: bool) -> SalesPdfData {
         let lines = (0..line_count)
             .map(|index| SalesPdfLine {
+                row: PdfRowKind::Item,
+                section_title: None,
+                measurements: Vec::new(),
                 description: format!(
                     "Prestation professionnelle numéro {} avec une description contrôlée",
                     index + 1
@@ -3535,6 +3653,7 @@ mod tests {
             title: "Prestations de septembre".into(),
             document_type: "standard".into(),
             deposit_percentage_bp: None,
+            show_measurements: false,
             issue_date: "2026-09-01".into(),
             deadline_date: "2026-09-30".into(),
             service_date_from: "2026-08-01".into(),

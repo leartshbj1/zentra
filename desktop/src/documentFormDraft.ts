@@ -15,6 +15,8 @@ export type DocumentFormDraft = {
   serviceDateFrom: string; serviceDateTo: string; originalInvoiceId: string;
   footerText: string; footerTemplateId: string; footerTemplateName: string;
   step: number; documentTitle: string; documentNotes: string; numberInputs: Record<string, string>;
+  /** Imprimer le détail du métré (Pack bâtiment). Absent des anciens brouillons. */
+  showMeasurements?: boolean;
 };
 /** Values to start a new document with; the person reviews and saves them. */
 export type DocumentSeed = Readonly<{ id: string; clientId?: string; newClientName?: string; title?: string; lines: readonly DocumentLine[];
@@ -36,10 +38,12 @@ export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings
     serviceDateFrom: invoice?.serviceDateFrom ?? '', serviceDateTo: invoice?.serviceDateTo ?? '', originalInvoiceId: invoice?.originalInvoiceId ?? '',
     footerText: current?.terms ?? settings.billing.defaultFooter, footerTemplateId: '', footerTemplateName: '', step: initialStep,
     documentTitle: current?.title ?? seeded?.title ?? '', documentNotes: current?.notes ?? '', numberInputs: {},
+    ...(current?.showMeasurements ? { showMeasurements: true } : {}),
   };
 }
 export function validDocumentFormDraft(value: unknown): value is DocumentFormDraft {
-  if (!draftStrings(value, strings, 50_000) || !draftObject(value) || Object.keys(value).length !== strings.length + 5 + (Object.hasOwn(value, 'quickClientCreationId') ? 1 : 0) + (Object.hasOwn(value,'documentCreationId')?1:0) + (Object.hasOwn(value,'documentCreationRequest')?1:0) ||
+  if (!draftStrings(value, strings, 50_000) || !draftObject(value) || Object.keys(value).length !== strings.length + 5 + (Object.hasOwn(value, 'quickClientCreationId') ? 1 : 0) + (Object.hasOwn(value,'documentCreationId')?1:0) + (Object.hasOwn(value,'documentCreationRequest')?1:0) + (Object.hasOwn(value,'showMeasurements')?1:0) ||
+    (Object.hasOwn(value,'showMeasurements') && typeof value.showMeasurements !== 'boolean') ||
     (Object.hasOwn(value,'documentCreationId') && !validDocumentCreationId(value.documentCreationId)) ||
     (Object.hasOwn(value,'documentCreationRequest') && (!validDocumentCreationRequest(value.documentCreationRequest) || value.documentCreationRequest.creationRequestId!==value.documentCreationId)) ||
     (Object.hasOwn(value, 'quickClientCreationId') && !validQuickClientCreationId(value.quickClientCreationId)) ||
@@ -51,7 +55,9 @@ export function validDocumentFormDraft(value: unknown): value is DocumentFormDra
   const ids = new Set<string>();
   return value.lines.every(line => {
     if (!draftStrings(line, ['id', 'description', 'unit']) || !draftObject(line) || ids.has(line.id) || !line.id || line.id.length > 500 ||
-      Object.keys(line).some(key => !['id', 'catalogItemId', 'description', 'quantity', 'unit', 'unitPriceCents', 'discountBp', 'vatRateBp'].includes(key)) ||
+      Object.keys(line).some(key => !['id', 'catalogItemId', 'description', 'quantity', 'unit', 'unitPriceCents', 'discountBp', 'vatRateBp', 'sectionTitle', 'measurements'].includes(key)) ||
+      (line.sectionTitle !== undefined && line.sectionTitle !== null && (typeof line.sectionTitle !== 'string' || line.sectionTitle.length > 120)) ||
+      (line.measurements !== undefined && (!Array.isArray(line.measurements) || line.measurements.length > 60 || line.measurements.some(row => !draftObject(row) || typeof row.formula !== 'string' || row.formula.length > 200 || typeof row.label !== 'string' || row.label.length > 120 || (row.deduct !== undefined && typeof row.deduct !== 'boolean')))) ||
       (line.catalogItemId !== undefined && line.catalogItemId !== null && (typeof line.catalogItemId !== 'string' || line.catalogItemId.length > 500))) return false;
     ids.add(line.id);
     return ['quantity', 'unitPriceCents', 'vatRateBp'].every(field => typeof line[field] === 'number' && Number.isFinite(line[field])) &&

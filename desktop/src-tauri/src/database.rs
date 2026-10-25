@@ -1941,7 +1941,7 @@ impl LocalStore {
         // données d'entreprise partagées : même horloge et même garde
         // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
         // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
-        let shared_steps: [(i64, &str); 15] = [
+        let shared_steps: [(i64, &str); 16] = [
             (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
             (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
             (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
@@ -1949,9 +1949,9 @@ impl LocalStore {
             (71, crate::schema::MIGRATION_V71_SQL), (72, crate::schema::MIGRATION_V72_SQL),
             (73, crate::schema::MIGRATION_V73_SQL), (74, crate::schema::MIGRATION_V74_SQL),
             (75, crate::schema::MIGRATION_V75_SQL), (76, crate::schema::MIGRATION_V76_SQL),
-            (77, crate::schema::MIGRATION_V77_SQL),
+            (77, crate::schema::MIGRATION_V77_SQL), (78, crate::schema::MIGRATION_V78_SQL),
         ];
-        if current < 77 {
+        if current < crate::schema::SCHEMA_VERSION {
             for (version, sql) in shared_steps {
                 if current < version {
                     transaction.execute_batch(sql)?;
@@ -1959,7 +1959,7 @@ impl LocalStore {
             }
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 77)?;
+            transaction.pragma_update(None, "user_version", crate::schema::SCHEMA_VERSION)?;
         }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
@@ -4339,6 +4339,9 @@ impl LocalStore {
                 )?;
             }
         }
+        for target in [credit_id.as_str(), replacement_id.as_str()] {
+            copy_line_layout(&transaction, ("invoices", "invoice_items", "invoice_id", original_id), ("invoices", "invoice_items", "invoice_id", target))?;
+        }
         recompute_all_invoice_lines(&transaction, &credit_id)?;
         recompute_invoice(&transaction, &credit_id)?;
         recompute_all_invoice_lines(&transaction, &replacement_id)?;
@@ -4816,6 +4819,7 @@ impl LocalStore {
                 params![now_iso(), id],
             )?;
         }
+        copy_line_layout(&transaction, ("quotes", "quote_items", "quote_id", &id), ("quotes", "quote_items", "quote_id", &revision_id))?;
         let revision = query_record_tx(&transaction, "quotes", &revision_id)?;
         let items = query_all(
             &transaction,
@@ -5064,6 +5068,9 @@ impl LocalStore {
             } else {
                 transaction.execute("INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),invoice_id,item.2,item.1,item.3,item.4,item.5,item.6,item.7,item.8,item.9,item.10,item.11,now,now])?;
             }
+        }
+        if deposit_percentage_bp.is_none() {
+            copy_line_layout(&transaction, ("quotes", "quote_items", "quote_id", input.quote_id.as_str()), ("invoices", "invoice_items", "invoice_id", invoice_id.as_str()))?;
         }
         recompute_invoice(&transaction, &invoice_id)?;
         if deposit_percentage_bp.is_some() {
@@ -5459,6 +5466,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "currency",
                 "notes",
                 "terms",
+                "show_measurements",
             ],
             required: &["title"],
         },
@@ -5477,6 +5485,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "line_net_cents",
                 "line_vat_cents",
                 "line_total_cents",
+                "section_title",
+                "measurements_json",
             ],
             required: &["quote_id", "description", "vat_bp"],
         },
@@ -5499,6 +5509,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "currency",
                 "notes",
                 "terms",
+                "show_measurements",
             ],
             required: &["title"],
         },
@@ -5517,6 +5528,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "line_net_cents",
                 "line_vat_cents",
                 "line_total_cents",
+                "section_title",
+                "measurements_json",
             ],
             required: &["invoice_id", "description", "vat_bp"],
         },
@@ -6344,10 +6357,19 @@ fn normalize_record(
         let value = currency.as_str().unwrap_or("CHF");
         *currency = Value::String(normalized_code(value, "currency", 3, "CHF")?);
     }
+    if matches!(entity, "quotes" | "invoices") {
+        if let Some(flag) = object.get_mut("show_measurements") {
+            let enabled = flag.as_bool().unwrap_or_else(|| flag.as_i64() == Some(1));
+            *flag = json!(i64::from(enabled));
+        }
+    }
     match entity {
         "catalog_items" => normalize_catalog_item(object)?,
         "suppliers" => normalize_supplier(object)?,
-        "quote_items" | "invoice_items" => normalize_line_item(object)?,
+        "quote_items" | "invoice_items" => {
+            crate::measurement::normalize_line(object)?;
+            normalize_line_item(object)?
+        }
         "invoices" => {
             if let Some(invoice_type) = object.get_mut("type") {
                 let normalized = match invoice_type.as_str().unwrap_or_default() {
@@ -7161,7 +7183,7 @@ fn normalize_record_patch(
     }
     match entity {
         "quote_items" | "invoice_items" => {
-            for field in ["line_net_cents", "line_vat_cents", "line_total_cents"] {
+            for field in ["line_net_cents", "line_vat_cents", "line_total_cents", "quantity"] {
                 if let Some(value) = merged.get(field) {
                     object.insert(field.into(), value.clone());
                 }
@@ -7237,6 +7259,30 @@ fn round_basis_points(value: i64, basis_points: i64) -> i64 {
     let sign = if value < 0 { -1_i128 } else { 1_i128 };
     let absolute = (value as i128).abs();
     (sign * ((absolute * basis_points as i128 + 5_000) / 10_000)) as i64
+}
+
+/// Reprend les chapitres et le métré d'un document sur sa copie (révision,
+/// conversion, correction), ligne par ligne selon la position. Les noms de
+/// tables sont internes.
+pub(crate) fn copy_line_layout(
+    transaction: &Transaction<'_>,
+    (from_document, from_items, from_parent, from_id): (&str, &str, &str, &str),
+    (to_document, to_items, to_parent, to_id): (&str, &str, &str, &str),
+) -> AppResult<()> {
+    transaction.execute(
+        &format!(
+            "UPDATE {to_items} SET
+               section_title=(SELECT s.section_title FROM {from_items} s WHERE s.{from_parent}=?1 AND s.position={to_items}.position ORDER BY s.rowid LIMIT 1),
+               measurements_json=(SELECT s.measurements_json FROM {from_items} s WHERE s.{from_parent}=?1 AND s.position={to_items}.position ORDER BY s.rowid LIMIT 1)
+             WHERE {to_parent}=?2"
+        ),
+        params![from_id, to_id],
+    )?;
+    transaction.execute(
+        &format!("UPDATE {to_document} SET show_measurements=COALESCE((SELECT show_measurements FROM {from_document} WHERE id=?1),0) WHERE id=?2"),
+        params![from_id, to_id],
+    )?;
+    Ok(())
 }
 
 fn deposit_line_description(percentage_bp: i64, description: &str) -> String {

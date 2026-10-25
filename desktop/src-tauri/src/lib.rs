@@ -103,6 +103,7 @@ mod opportunities;
 mod legal_archive;
 mod stock_locations;
 mod production;
+mod measurement;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
