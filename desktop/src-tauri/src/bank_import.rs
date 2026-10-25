@@ -20,7 +20,8 @@ use crate::{
     error::{AppError, AppResult},
     models::{
         AssociateBankAccountInput, ConfirmBankReconciliationInput,
-        ConfirmSupplierBankReconciliationInput, RecordPaymentInput, RecordSupplierPaymentInput,
+        ConfirmBankReconciliationWithFeeInput, ConfirmSupplierBankReconciliationInput,
+        RecordPaymentInput, RecordSupplierPaymentInput,
     },
     supplier_invoices::record_supplier_payment_in_transaction,
     swiss_qr::{validate_qrr, validate_scor},
@@ -3703,8 +3704,15 @@ mod tests {
     }
 
     fn customer_near_payment_setup(manual_amounts: &[i64], invoice_cents: i64, seed: &str) -> (tempfile::TempDir, LocalStore, String, String, Vec<String>) {
+        customer_near_payment_setup_with(manual_amounts, invoice_cents, seed, true)
+    }
+
+    fn customer_near_payment_setup_with(manual_amounts: &[i64], invoice_cents: i64, seed: &str, accounting: bool) -> (tempfile::TempDir, LocalStore, String, String, Vec<String>) {
         let (temporary, store) = store();
-        enable_accounting(&store);
+        if accounting {
+            enable_accounting(&store);
+            add_bank_fee_account(&store);
+        }
         store
             .associate_bank_account(AssociateBankAccountInput {
                 account_id: STATEMENT_IBAN.into(),
@@ -3734,7 +3742,7 @@ mod tests {
     }
 
     #[test]
-    fn a_payment_recorded_with_another_amount_is_corrected_not_paid_twice() {
+    fn near_payment_recorded_with_another_amount_is_never_paid_twice() {
         let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "177500");
         let xml = fixture("053", "08", "BOOK", "177.50", "C-NEAR-PAYMENT", Some("D-NEAR-PAYMENT"), Some("QRR"), Some(&qrr), false, true);
         let path = write_xml(temporary.path(), "near-payment.xml", &xml);
@@ -3746,10 +3754,18 @@ mod tests {
         let candidate = &suggestion["candidates"][0];
         assert_eq!(suggestion["kind"], "review");
         assert_eq!(candidate["amount_relation"], "existing_payment_differs");
-        assert_eq!(candidate["confirmable"], false);
+        assert_eq!(candidate["confirmable"], true, "only through the fee link, never automatically");
+        assert_eq!(candidate["fee_cents"], 50);
         assert_eq!(candidate["existing_payment_id"], serde_json::Value::Null);
         assert_eq!(candidate["near_payment_id"], manual_ids[0].as_str());
         assert_eq!(candidate["near_payment_amount_cents"], 17_800);
+        // The ordinary confirmation refuses: it would record a second payment.
+        assert!(store
+            .confirm_bank_reconciliation(ConfirmBankReconciliationInput {
+                movement_id: workspace["movements"][0]["id"].as_str().unwrap().into(),
+                invoice_id: invoice_id.clone(),
+            })
+            .is_err());
         assert!(candidate["reason"].as_str().unwrap().contains("CHF 178.00"));
         assert!(candidate["reason"].as_str().unwrap().contains("CHF 177.50"));
         let (payments, reconciliations): (i64, i64) = store
@@ -3765,7 +3781,7 @@ mod tests {
     }
 
     #[test]
-    fn two_close_payments_keep_the_usual_review() {
+    fn near_payment_two_close_payments_keep_the_usual_review() {
         let (temporary, store, _invoice_id, qrr, _manual_ids) = customer_near_payment_setup(&[10_000, 10_020], 20_020, "100100");
         let xml = fixture("053", "08", "BOOK", "100.10", "C-NEAR-TWO", Some("D-NEAR-TWO"), Some("QRR"), Some(&qrr), false, true);
         store
@@ -3778,7 +3794,7 @@ mod tests {
     }
 
     #[test]
-    fn a_payment_beyond_the_gap_limit_keeps_the_usual_review() {
+    fn near_payment_beyond_the_gap_limit_keeps_the_usual_review() {
         let (temporary, store, _invoice_id, qrr, _manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "150000");
         let xml = fixture("053", "08", "BOOK", "150.00", "C-NEAR-FAR", Some("D-NEAR-FAR"), Some("QRR"), Some(&qrr), false, true);
         store
@@ -3791,8 +3807,195 @@ mod tests {
         assert_eq!(candidate["confirmable"], false);
     }
 
+    fn add_bank_fee_account(store: &LocalStore) {
+        store
+            .upsert_account(AccountInput {
+                id: None,
+                code: "6940".into(),
+                name: "Frais bancaires".into(),
+                account_type: "expense".into(),
+                normal_balance: "debit".into(),
+                report_section: "financial_result".into(),
+                active: true,
+            })
+            .unwrap();
+    }
+
+    fn fee_link(store: &LocalStore, request_id: &str, movement_id: &str, invoice_id: Option<&str>, supplier_invoice_id: Option<&str>, payment_id: &str) -> AppResult<Value> {
+        store.confirm_bank_reconciliation_with_fee(ConfirmBankReconciliationWithFeeInput {
+            request_id: request_id.into(),
+            movement_id: movement_id.into(),
+            invoice_id: invoice_id.map(str::to_owned),
+            supplier_invoice_id: supplier_invoice_id.map(str::to_owned),
+            payment_id: payment_id.into(),
+        })
+    }
+
+    /// (paiements de la facture, liens bancaires, écritures de frais, débit 6940, crédit banque)
+    fn customer_fee_state(store: &LocalStore, invoice_id: &str) -> (i64, i64, i64, i64, i64) {
+        store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM payments WHERE invoice_id=?1),(SELECT COUNT(*) FROM bank_reconciliations),(SELECT COUNT(*) FROM journal_entries WHERE source_type='bank_fee'),COALESCE((SELECT SUM(l.debit_cents) FROM journal_lines l JOIN journal_entries e ON e.id=l.journal_entry_id JOIN accounts a ON a.id=l.account_id WHERE e.source_type='bank_fee' AND a.code='6940'),0),COALESCE((SELECT SUM(l.credit_cents) FROM journal_lines l JOIN journal_entries e ON e.id=l.journal_entry_id JOIN accounting_settings s ON s.bank_account_id=l.account_id WHERE e.source_type='bank_fee'),0)",
+                params![invoice_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .unwrap()
+    }
+
     #[test]
-    fn supplier_payment_recorded_with_another_amount_is_corrected_not_paid_twice() {
+    fn near_payment_customer_fee_link_keeps_one_payment_and_books_the_bank_fee() {
+        let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "177510");
+        let xml = fixture("053", "08", "BOOK", "177.50", "C-FEE-CLIENT", Some("D-FEE-CLIENT"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "fee-client.xml", &xml))
+            .unwrap();
+        let movement_id = store.get_bank_workspace().unwrap()["movements"][0]["id"].as_str().unwrap().to_owned();
+        let linked = fee_link(&store, &Uuid::new_v4().to_string(), &movement_id, Some(&invoice_id), None, &manual_ids[0]).unwrap();
+        assert_eq!(linked["fee_cents"], 50);
+        assert_eq!(linked["fee_posted"], true);
+        assert_eq!(linked["reconciliation"]["payment_id"], manual_ids[0].as_str());
+        assert_eq!(customer_fee_state(&store, &invoice_id), (1, 1, 1, 50, 50));
+        let paid: String = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT status FROM invoices WHERE id=?", params![invoice_id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(paid, "payee", "the invoice stays paid");
+    }
+
+    #[test]
+    fn near_payment_fee_link_replays_without_a_second_entry() {
+        let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "177520");
+        let xml = fixture("053", "08", "BOOK", "177.50", "C-FEE-REPLAY", Some("D-FEE-REPLAY"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "fee-replay.xml", &xml))
+            .unwrap();
+        let movement_id = store.get_bank_workspace().unwrap()["movements"][0]["id"].as_str().unwrap().to_owned();
+        let request_id = Uuid::new_v4().to_string();
+        fee_link(&store, &request_id, &movement_id, Some(&invoice_id), None, &manual_ids[0]).unwrap();
+        let again = fee_link(&store, &request_id, &movement_id, Some(&invoice_id), None, &manual_ids[0]).unwrap();
+        assert_eq!(again["idempotent"], true);
+        assert_eq!(again["fee_posted"], true);
+        assert_eq!(customer_fee_state(&store, &invoice_id), (1, 1, 1, 50, 50));
+    }
+
+    #[test]
+    fn near_payment_client_paying_more_is_not_a_bank_fee() {
+        let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "178500");
+        let xml = fixture("053", "08", "BOOK", "178.50", "C-FEE-WRONG-WAY", Some("D-FEE-WRONG-WAY"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "fee-wrong-way.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let candidate = &workspace["movements"][0]["suggestion"]["candidates"][0];
+        assert_eq!(candidate["amount_relation"], "existing_payment_differs");
+        assert_eq!(candidate["confirmable"], false);
+        assert_eq!(candidate["fee_cents"], serde_json::Value::Null);
+        let movement_id = workspace["movements"][0]["id"].as_str().unwrap().to_owned();
+        let refused = fee_link(&store, &Uuid::new_v4().to_string(), &movement_id, Some(&invoice_id), None, &manual_ids[0]).unwrap_err();
+        assert!(refused.to_string().contains("frais bancaires"));
+        assert_eq!(customer_fee_state(&store, &invoice_id), (1, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn near_payment_gap_beyond_the_limit_is_refused_by_the_fee_link() {
+        let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup(&[17_800], 17_800, "150010");
+        let xml = fixture("053", "08", "BOOK", "150.00", "C-FEE-FAR", Some("D-FEE-FAR"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "fee-far.xml", &xml))
+            .unwrap();
+        let movement_id = store.get_bank_workspace().unwrap()["movements"][0]["id"].as_str().unwrap().to_owned();
+        assert!(fee_link(&store, &Uuid::new_v4().to_string(), &movement_id, Some(&invoice_id), None, &manual_ids[0]).is_err());
+        assert_eq!(customer_fee_state(&store, &invoice_id), (1, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn near_payment_without_accounting_the_fee_link_only_links() {
+        let (temporary, store, invoice_id, qrr, manual_ids) = customer_near_payment_setup_with(&[17_800], 17_800, "177530", false);
+        let xml = fixture("053", "08", "BOOK", "177.50", "C-FEE-NO-BOOKS", Some("D-FEE-NO-BOOKS"), Some("QRR"), Some(&qrr), false, true);
+        store
+            .import_camt_file(&write_xml(temporary.path(), "fee-no-books.xml", &xml))
+            .unwrap();
+        let movement_id = store.get_bank_workspace().unwrap()["movements"][0]["id"].as_str().unwrap().to_owned();
+        let linked = fee_link(&store, &Uuid::new_v4().to_string(), &movement_id, Some(&invoice_id), None, &manual_ids[0]).unwrap();
+        assert_eq!(linked["fee_posted"], false);
+        assert_eq!(linked["fee_entry_id"], serde_json::Value::Null);
+        assert_eq!(customer_fee_state(&store, &invoice_id), (1, 1, 0, 0, 0));
+    }
+
+    #[test]
+    fn near_payment_supplier_fee_link_books_the_extra_bank_charge() {
+        let (temporary, store) = store();
+        enable_accounting(&store);
+        add_bank_fee_account(&store);
+        store
+            .associate_bank_account(AssociateBankAccountInput {
+                account_id: STATEMENT_IBAN.into(),
+                currency: "CHF".into(),
+            })
+            .unwrap();
+        let qrr = generate_qrr("8745").unwrap();
+        let supplier_invoice_id = create_supplier_invoice(&store, 10_000, "R-2026-120");
+        store
+            .save_supplier_invoice_payment_details(crate::supplier_payment_orders::SupplierInvoicePaymentDetailsInput {
+                supplier_invoice_id: supplier_invoice_id.clone(),
+                creditor_iban: "CH4431999123000889012".into(),
+                reference_type: "QRR".into(),
+                reference: qrr.clone(),
+                creditor_name: "Matériaux Léman SA".into(),
+                creditor_street: String::new(),
+                creditor_building_number: String::new(),
+                creditor_postal_code: "1000".into(),
+                creditor_city: "Lausanne".into(),
+                creditor_country: "CH".into(),
+                amount_cents: Some(10_000),
+                currency: "CHF".into(),
+                message: String::new(),
+                bill_information: String::new(),
+                source: "qr_bill".into(),
+            })
+            .unwrap();
+        let manual = store
+            .record_supplier_payment(RecordSupplierPaymentInput {
+                request_id: Uuid::new_v4().to_string(),
+                supplier_invoice_id: supplier_invoice_id.clone(),
+                amount_cents: 10_000,
+                date: "2026-08-25".into(),
+                method: Some("Virement bancaire".into()),
+                reference: None,
+                notes: None,
+            })
+            .unwrap();
+        let manual_id = manual["payment_id"].as_str().unwrap().to_owned();
+        let xml = debit_fixture("100.80", "C-SUPPLIER-FEE", Some(&qrr));
+        store
+            .import_camt_file(&write_xml(temporary.path(), "supplier-fee.xml", &xml))
+            .unwrap();
+        let workspace = store.get_bank_workspace().unwrap();
+        let candidate = &workspace["movements"][0]["suggestion"]["candidates"][0];
+        assert_eq!(candidate["amount_relation"], "existing_payment_differs");
+        assert_eq!(candidate["confirmable"], true);
+        assert_eq!(candidate["fee_cents"], 80);
+        let movement_id = workspace["movements"][0]["id"].as_str().unwrap().to_owned();
+        let linked = fee_link(&store, &Uuid::new_v4().to_string(), &movement_id, None, Some(&supplier_invoice_id), &manual_id).unwrap();
+        assert_eq!(linked["fee_posted"], true);
+        assert_eq!(linked["reconciliation"]["supplier_payment_id"], manual_id.as_str());
+        let state: (i64, i64, i64, i64) = store
+            .connect()
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM supplier_payments),(SELECT COUNT(*) FROM bank_supplier_reconciliations),(SELECT COUNT(*) FROM journal_entries WHERE source_type='bank_fee'),COALESCE((SELECT SUM(l.debit_cents) FROM journal_lines l JOIN journal_entries e ON e.id=l.journal_entry_id JOIN accounts a ON a.id=l.account_id WHERE e.source_type='bank_fee' AND a.code='6940'),0)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (1, 1, 1, 80));
+    }
+
+    #[test]
+    fn near_payment_supplier_recorded_with_another_amount_is_never_paid_twice() {
         let (temporary, store) = store();
         enable_accounting(&store);
         store
@@ -4468,6 +4671,9 @@ fn booked_message_type(
 /// montant du mouvement, au plus CHF 20.00.
 const NEAR_PAYMENT_MAX_GAP_CENTS: i64 = 2_000;
 
+const NEAR_PAYMENT_NEEDS_FEE_LINK: &str =
+    "Un paiement d’un montant proche est déjà saisi : utilisez « Rapprocher et comptabiliser les frais ».";
+
 /// Le seul paiement non rapproché d'un autre montant que le mouvement, mais
 /// assez proche pour l'expliquer (frais, arrondi). Zéro ou plusieurs : aucun.
 /// Le relevé ne crée alors jamais de second paiement à côté : une personne
@@ -4490,12 +4696,20 @@ fn cents_text(cents: i64) -> String {
     format!("{sign}{}.{:02}", cents / 100, cents % 100)
 }
 
-fn near_payment_reason(currency: &str, recorded_cents: i64, movement_cents: i64) -> String {
-    format!(
-        "Paiement déjà saisi de {currency} {}, le relevé indique {currency} {}. Corrigez le paiement, puis confirmez.",
-        cents_text(recorded_cents),
-        cents_text(movement_cents)
-    )
+fn near_payment_reason(currency: &str, recorded_cents: i64, movement_cents: i64, fee_cents: Option<i64>) -> String {
+    match fee_cents {
+        Some(fee) => format!(
+            "Paiement déjà saisi de {currency} {}, le relevé indique {currency} {} : {currency} {} de frais bancaires à comptabiliser.",
+            cents_text(recorded_cents),
+            cents_text(movement_cents),
+            cents_text(fee)
+        ),
+        None => format!(
+            "Paiement déjà saisi de {currency} {}, le relevé indique {currency} {}. L’écart ne vient pas de frais bancaires : vérifiez le paiement saisi.",
+            cents_text(recorded_cents),
+            cents_text(movement_cents)
+        ),
+    }
 }
 
 fn candidate_json(
@@ -4517,12 +4731,17 @@ fn candidate_json(
     } else {
         None
     };
-    let near_reason = near_payment
-        .map(|(_, recorded)| near_payment_reason(&invoice.currency, recorded, movement_amount));
+    // Client : la banque garde la différence, le relevé est plus petit que le paiement saisi.
+    let fee_cents = near_payment
+        .map(|(_, recorded)| recorded - movement_amount)
+        .filter(|fee| *fee > 0);
+    let near_reason = near_payment.map(|(_, recorded)| {
+        near_payment_reason(&invoice.currency, recorded, movement_amount, fee_cents)
+    });
     let (amount_relation, amount_safe) = if existing_payment.is_some() {
         ("existing_payment", true)
     } else if near_payment.is_some() {
-        ("existing_payment_differs", false)
+        ("existing_payment_differs", fee_cents.is_some())
     } else if remaining <= 0 {
         ("already_paid", false)
     } else if movement_amount > remaining {
@@ -4570,6 +4789,7 @@ fn candidate_json(
         "existing_payment_id": existing_payment,
         "near_payment_id": near_payment.map(|(id, _)| id),
         "near_payment_amount_cents": near_payment.map(|(_, amount)| amount),
+        "fee_cents": fee_cents,
         "confirmable": base_eligible && amount_safe && currency_safe && date_safe,
     })
 }
@@ -4598,9 +4818,15 @@ fn supplier_candidate_json(
     } else {
         None
     };
-    let near_reason = near_payment
-        .map(|(_, recorded)| near_payment_reason(&invoice.currency, recorded, movement_amount));
+    // Fournisseur : la banque ajoute des frais, le débit dépasse le paiement saisi.
+    let fee_cents = near_payment
+        .map(|(_, recorded)| movement_amount - recorded)
+        .filter(|fee| *fee > 0);
+    let near_reason = near_payment.map(|(_, recorded)| {
+        near_payment_reason(&invoice.currency, recorded, movement_amount, fee_cents)
+    });
     let amount_safe = existing_payment.is_some()
+        || fee_cents.is_some()
         || (near_payment.is_none() && remaining > 0 && movement_amount <= remaining);
     let currency_safe = invoice.currency == movement_currency;
     let date_safe = payment_date.is_some_and(|date| date >= invoice.document_date.as_str());
@@ -4641,6 +4867,7 @@ fn supplier_candidate_json(
         "existing_payment_id":existing_payment,
         "near_payment_id":near_payment.map(|(id, _)| id),
         "near_payment_amount_cents":near_payment.map(|(_, amount)| amount),
+        "fee_cents":fee_cents,
         "confirmable":base_eligible && amount_safe && currency_safe && date_safe,
     })
 }
@@ -4859,7 +5086,7 @@ fn suggestion_for_supplier_movement(
         .first()
         .is_some_and(|candidate| candidate["amount_relation"] == "existing_payment_differs")
     {
-        "Un paiement déjà saisi diffère du relevé : corrigez-le, puis confirmez."
+        "Un paiement déjà saisi diffère du relevé : vérifiez l’écart avant de rapprocher."
     } else {
         "Vérifiez la facture proposée puis confirmez explicitement le décaissement."
     };
@@ -4997,7 +5224,7 @@ fn suggestion_for_movement(
                 } else if relation == "existing_payment_differs" {
                     candidate["reason"]
                         .as_str()
-                        .unwrap_or("Un paiement déjà saisi diffère du relevé : corrigez-le, puis confirmez.")
+                        .unwrap_or("Un paiement déjà saisi diffère du relevé : vérifiez l’écart avant de rapprocher.")
                 } else {
                     "Référence QR structurée unique et montant contrôlé."
                 };
@@ -5654,6 +5881,9 @@ impl LocalStore {
                     .into(),
             ));
         }
+        if selected["amount_relation"] == "existing_payment_differs" {
+            return Err(AppError::Validation(NEAR_PAYMENT_NEEDS_FEE_LINK.into()));
+        }
         let amount_cents = movement["amount_cents"].as_i64().ok_or_else(|| {
             AppError::Validation("Le montant du mouvement local est invalide.".into())
         })?;
@@ -5869,6 +6099,9 @@ impl LocalStore {
                     .into(),
             ));
         }
+        if selected["amount_relation"] == "existing_payment_differs" {
+            return Err(AppError::Validation(NEAR_PAYMENT_NEEDS_FEE_LINK.into()));
+        }
         let amount_cents = movement["amount_cents"].as_i64().ok_or_else(|| {
             AppError::Validation("Le montant du mouvement local est invalide.".into())
         })?;
@@ -5986,6 +6219,277 @@ impl LocalStore {
             "payment":payment,
             "supplier_invoice":invoice,
             "idempotent":payment_result["idempotent"],
+        }))
+    }
+}
+
+impl LocalStore {
+    /// Relie le paiement déjà saisi à un relevé d'un montant un peu différent et
+    /// comptabilise l'écart en frais bancaires (débit 6940, crédit banque), dans
+    /// le seul sens où la banque a pris la différence. Toujours sur un clic :
+    /// jamais depuis le rapprochement automatique. Rejouable sans doublon.
+    pub fn confirm_bank_reconciliation_with_fee(
+        &self,
+        input: ConfirmBankReconciliationWithFeeInput,
+    ) -> AppResult<Value> {
+        let request_id = Uuid::parse_str(input.request_id.trim())
+            .map_err(|_| AppError::Validation("request_id doit être un UUID valide.".into()))?
+            .to_string();
+        let movement_id = Uuid::parse_str(input.movement_id.trim())
+            .map_err(|_| AppError::Validation("movement_id est invalide.".into()))?
+            .to_string();
+        let payment_id = input.payment_id.trim().to_owned();
+        if payment_id.is_empty() {
+            return Err(AppError::Validation("Choisissez le paiement déjà saisi.".into()));
+        }
+        let pick = |value: &Option<String>| {
+            value
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+        };
+        let (supplier, invoice_id) = match (pick(&input.invoice_id), pick(&input.supplier_invoice_id)) {
+            (Some(id), None) => (false, id),
+            (None, Some(id)) => (true, id),
+            _ => {
+                return Err(AppError::Validation(
+                    "Indiquez une seule facture, client ou fournisseur.".into(),
+                ))
+            }
+        };
+        let (link_table, other_table, invoice_column, payment_column, id_field, audit_entity) = if supplier {
+            (
+                "bank_supplier_reconciliations",
+                "bank_reconciliations",
+                "supplier_invoice_id",
+                "supplier_payment_id",
+                "supplier_invoice_id",
+                "bank_supplier_reconciliation",
+            )
+        } else {
+            (
+                "bank_reconciliations",
+                "bank_supplier_reconciliations",
+                "invoice_id",
+                "payment_id",
+                "invoice_id",
+                "bank_reconciliation",
+            )
+        };
+        let mut connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        expenses::reject_linked(&transaction, &movement_id)?;
+        let other_link: bool = transaction.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {other_table} WHERE movement_id=?)"),
+            params![movement_id],
+            |row| row.get(0),
+        )?;
+        if other_link {
+            return Err(AppError::Validation(
+                "Ce mouvement est déjà rapproché avec une autre facture.".into(),
+            ));
+        }
+        let movement = query_all(
+            &transaction,
+            "SELECT * FROM bank_movements WHERE id=?",
+            params![movement_id],
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound(format!("bank_movements/{movement_id}")))?;
+        // Reprise : le même lien et la même écriture, rien de plus.
+        if let Some((linked_invoice, linked_payment)) = transaction
+            .query_row(
+                &format!("SELECT {invoice_column},{payment_column} FROM {link_table} WHERE movement_id=?"),
+                params![movement_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?
+        {
+            if linked_invoice != invoice_id || linked_payment != payment_id {
+                return Err(AppError::Validation(
+                    "Ce mouvement est déjà rapproché avec un autre paiement.".into(),
+                ));
+            }
+            let reconciliation = query_all(
+                &transaction,
+                &format!("SELECT * FROM {link_table} WHERE movement_id=?"),
+                params![movement_id],
+            )?
+            .into_iter()
+            .next()
+            .unwrap_or(Value::Null);
+            let fee_entry_id: Option<String> = transaction
+                .query_row(
+                    "SELECT id FROM journal_entries WHERE source_type='bank_fee' AND source_id=? AND source_event='posted'",
+                    params![movement_id],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            transaction.commit()?;
+            return Ok(json!({
+                "movement":movement,
+                "reconciliation":reconciliation,
+                "payment_id":payment_id,
+                "fee_posted":fee_entry_id.is_some(),
+                "fee_entry_id":fee_entry_id,
+                "idempotent":true,
+            }));
+        }
+        let suggestion = if supplier {
+            let invoices = load_supplier_invoice_candidates(&transaction)?;
+            suggestion_for_supplier_movement(&transaction, &movement, None, None, &invoices)?
+        } else {
+            let invoices = load_invoice_candidates(&transaction)?;
+            suggestion_for_movement(&transaction, &movement, None, &invoices)?
+        };
+        let candidate = suggestion["candidates"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|row| row[id_field].as_str() == Some(invoice_id.as_str())))
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Cette facture ne fait pas partie des propositions contrôlées pour ce mouvement.".into(),
+                )
+            })?;
+        if candidate["amount_relation"] != "existing_payment_differs"
+            || candidate["near_payment_id"].as_str() != Some(payment_id.as_str())
+        {
+            return Err(AppError::Validation(
+                "Ce paiement n’est pas assez proche du relevé pour un rapprochement avec frais : l’écart doit rester sous 5 % et sous CHF 20.00."
+                    .into(),
+            ));
+        }
+        let fee_cents = candidate["fee_cents"]
+            .as_i64()
+            .filter(|fee| *fee > 0)
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "L’écart ne vient pas de frais bancaires : vérifiez le paiement saisi.".into(),
+                )
+            })?;
+        if candidate["confirmable"].as_bool() != Some(true) {
+            return Err(AppError::Validation(
+                candidate["reason"]
+                    .as_str()
+                    .unwrap_or("Ce rapprochement ne peut pas être confirmé : vérifiez le statut, le compte, la devise et la date.")
+                    .to_owned(),
+            ));
+        }
+        let amount_cents = movement["amount_cents"].as_i64().ok_or_else(|| {
+            AppError::Validation("Le montant du mouvement local est invalide.".into())
+        })?;
+        let entry_date = movement_field(&movement, "booking_date")
+            .or_else(|| movement_field(&movement, "value_date"))
+            .ok_or_else(|| {
+                AppError::Validation(
+                    "Le mouvement BOOK ne contient aucune date bancaire utilisable.".into(),
+                )
+            })?
+            .to_owned();
+        crate::accounting::ensure_accounting_date_open(&transaction, &entry_date)?;
+        let now = now_iso();
+        let reconciliation_id = Uuid::new_v4().to_string();
+        transaction.execute(
+            &format!("INSERT INTO {link_table}(id,movement_id,{invoice_column},{payment_column},amount_cents,confirmed_at,created_at) VALUES(?,?,?,?,?,?,?)"),
+            params![reconciliation_id, movement_id, invoice_id, payment_id, amount_cents, now, now],
+        )?;
+        let bank_account: Option<String> = transaction
+            .query_row(
+                "SELECT bank_account_id FROM accounting_settings WHERE id=1 AND enabled=1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+        let fee_account: Option<String> = transaction
+            .query_row(
+                "SELECT id FROM accounts WHERE code='6940' AND active=1 ORDER BY id LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let currency = movement_field(&movement, "currency").unwrap_or("CHF").to_owned();
+        let document = candidate[if supplier { "reference" } else { "invoice_number" }]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .unwrap_or(invoice_id.as_str())
+            .to_owned();
+        let movement_reference = movement_field(&movement, "reference")
+            .or_else(|| movement_field(&movement, "account_servicer_ref"))
+            .unwrap_or(movement_id.as_str())
+            .to_owned();
+        let fee_entry = match (bank_account, fee_account) {
+            (Some(bank), Some(fee)) => Some(crate::accounting::post_entry(
+                &transaction,
+                &entry_date,
+                &format!("Frais bancaires · {document} · mouvement {movement_reference}"),
+                "bank_fee",
+                &movement_id,
+                "posted",
+                vec![
+                    crate::accounting::EntryLine {
+                        account_id: fee,
+                        debit_cents: fee_cents,
+                        credit_cents: 0,
+                        currency: currency.clone(),
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                    crate::accounting::EntryLine {
+                        account_id: bank,
+                        debit_cents: 0,
+                        credit_cents: fee_cents,
+                        currency,
+                        memo: None,
+                        project_id: None,
+                        client_id: None,
+                        employee_id: None,
+                    },
+                ],
+            )?),
+            _ => None,
+        };
+        let fee_entry_id = fee_entry
+            .as_ref()
+            .and_then(|entry| entry["id"].as_str())
+            .map(str::to_owned);
+        append_audit(
+            &transaction,
+            "link_existing_payment_with_fee",
+            audit_entity,
+            &reconciliation_id,
+            &json!({
+                "request_id":request_id,
+                "movement_id":movement_id,
+                "invoice_id":(!supplier).then_some(invoice_id.as_str()),
+                "supplier_invoice_id":supplier.then_some(invoice_id.as_str()),
+                "payment_id":payment_id,
+                "amount_cents":amount_cents,
+                "fee_cents":fee_cents,
+                "journal_entry_id":fee_entry_id,
+            }),
+        )?;
+        let reconciliation = query_all(
+            &transaction,
+            &format!("SELECT * FROM {link_table} WHERE id=?"),
+            params![reconciliation_id],
+        )?
+        .into_iter()
+        .next()
+        .unwrap_or(Value::Null);
+        transaction.commit()?;
+        Ok(json!({
+            "movement":movement,
+            "reconciliation":reconciliation,
+            "payment_id":payment_id,
+            "fee_cents":fee_cents,
+            "fee_posted":fee_entry_id.is_some(),
+            "fee_entry_id":fee_entry_id,
+            "idempotent":false,
         }))
     }
 }

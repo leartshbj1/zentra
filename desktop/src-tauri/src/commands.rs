@@ -14,7 +14,8 @@ use crate::{
         AssociateBankAccountInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
         CancelSalesOrderInput, CancelSalesOrderInvoiceDraftInput, CancelSalesOrderRemainderInput,
         CancelSupplierOrderRemainderInput, CompleteOnboardingResult,
-        ConfirmBankReconciliationInput, ConfirmPayrollImportInput, ConfirmSalesOrderInput,
+        ConfirmBankReconciliationInput, ConfirmBankReconciliationWithFeeInput,
+        ConfirmPayrollImportInput, ConfirmSalesOrderInput,
         ConfirmSupplierBankReconciliationInput, ConfirmSupplierOrderInput,
         ContributionDefinitionInput, ConvertQuoteInput, ConvertQuoteToSalesOrderInput,
         CreateInvoiceCorrectionInput, CreateInvoiceFromTimeEntriesInput,
@@ -234,6 +235,18 @@ pub fn confirm_bank_reconciliation(
     require_write(&state)?;
     state
         .confirm_bank_reconciliation(input)
+        .map_err(command_error)
+}
+
+#[tauri::command]
+pub fn confirm_bank_reconciliation_with_fee(
+    state: State<'_, LocalStore>,
+    input: ConfirmBankReconciliationWithFeeInput,
+) -> Result<Value, String> {
+    let _guard = state.lock().map_err(command_error)?;
+    require_write(&state)?;
+    state
+        .confirm_bank_reconciliation_with_fee(input)
         .map_err(command_error)
 }
 

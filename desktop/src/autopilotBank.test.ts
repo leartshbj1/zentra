@@ -22,6 +22,16 @@ describe('bank proposals', () => {
     expect(rows.map(row => [row.movement.id, row.action])).toEqual([['exact', 'confirm_invoice'], ['unknown', 'choose']]);
     expect(rows[0].announcedBy?.sourceId).toBe('s1');
   });
+  it('links a recorded payment the bank took a fee from, and never a refused direction', () => {
+    const near = (confirmable: boolean, feeCents?: number) => ({ invoiceId: 'i1', invoiceNumber: 'F-2026-0012', remainingCents: 0, amountRelation: 'existing_payment_differs', reason: '', confirmable,
+      nearPaymentId: 'p1', nearPaymentAmountCents: 17800, ...(feeCents ? { feeCents } : {}) });
+    const rows = bankProposals(bank([
+      movement('fee', { amountCents: 17750, suggestion: { kind: 'review', invoiceId: 'i1', invoiceNumber: 'F-2026-0012', reason: '', confirmable: true, candidates: [near(true, 50)] } }),
+      movement('wrong-way', { amountCents: 17850, suggestion: { kind: 'review', invoiceId: 'i1', invoiceNumber: 'F-2026-0012', reason: '', confirmable: false, candidates: [near(false)] } }),
+    ]), [], [], []);
+    expect(rows.map(row => [row.movement.id, row.action])).toEqual([['fee', 'link_with_fee'], ['wrong-way', 'choose']]);
+    expect(rows[0]).toMatchObject({ invoiceId: 'i1', paymentId: 'p1', recordedCents: 17800, feeCents: 50 });
+  });
   it('reminds of the weekly statement only for a linked account', () => {
     expect(statementDue(bank([], ['2026-10-01']), '2026-10-20')).toBe(true);
     expect(statementDue(bank([], ['2026-10-18']), '2026-10-20')).toBe(false);

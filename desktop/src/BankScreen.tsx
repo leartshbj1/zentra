@@ -39,7 +39,7 @@ import {
   type BankMovementFilter,
 } from './bank';
 import type { BankAccountLink, BankMovement, BankWorkspace, ExpenseRefundInput, Workspace } from './types';
-import { errorMessage, formatDate, formatDateTime } from './utils';
+import { createId, errorMessage, formatDate, formatDateTime } from './utils';
 import { Button, EmptyState, ErrorPanel, SectionHeading } from './ui';
 import './BankScreen.css';
 import { BankActionDialog, BankImportWizard, type BankImportOutcome } from './BankWorkflowDialogs';
@@ -455,6 +455,14 @@ export function BankScreen({
     setBusy(true);
     setFeedback(null);
     try {
+      if (candidate?.amountRelation === 'existing_payment_differs' && candidate.nearPaymentId) {
+        // A payment already recorded: link it and book the bank fee, never a second payment.
+        const linked = await desktopApi.confirmBankReconciliationWithFee({ requestId: createId(), movementId: movement.id, invoiceId, paymentId: candidate.nearPaymentId });
+        setBankAction(null);
+        const warnings = await refreshBoth();
+        setFeedback({ tone: warnings.length || !linked.feePosted ? 'warning' : 'success', title: 'Rapprochement confirmé', text: `Le paiement déjà saisi est rapproché de ${invoiceLabel}.` + (linked.feePosted ? ` ${formatBankMoney(linked.feeCents, movement.currency)} de frais bancaires comptabilisés.` : ' Frais non comptabilisés : comptabilité non configurée.'), warnings });
+        return;
+      }
       await desktopApi.confirmBankReconciliation(movement.id, invoiceId);
       setBankAction(null);
       const warnings = await refreshBoth();
@@ -483,6 +491,13 @@ export function BankScreen({
     setBusy(true);
     setFeedback(null);
     try {
+      if (candidate?.amountRelation === 'existing_payment_differs' && candidate.nearPaymentId) {
+        const linked = await desktopApi.confirmBankReconciliationWithFee({ requestId: createId(), movementId: movement.id, supplierInvoiceId, paymentId: candidate.nearPaymentId });
+        setBankAction(null);
+        const warnings = await refreshBoth();
+        setFeedback({ tone: warnings.length || !linked.feePosted ? 'warning' : 'success', title: 'Règlement fournisseur confirmé', text: `Le paiement déjà saisi est rapproché de ${invoiceLabel}.` + (linked.feePosted ? ` ${formatBankMoney(linked.feeCents, movement.currency)} de frais bancaires comptabilisés.` : ' Frais non comptabilisés : comptabilité non configurée.'), warnings });
+        return;
+      }
       await desktopApi.confirmSupplierBankReconciliation(movement.id, supplierInvoiceId);
       setBankAction(null);
       const warnings = await refreshBoth();

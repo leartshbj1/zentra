@@ -286,6 +286,7 @@ pub fn run() {
             associate_bank_account,
             dissociate_bank_account,
             confirm_bank_reconciliation,
+            confirm_bank_reconciliation_with_fee,
             confirm_supplier_bank_reconciliation,
             confirm_expense_bank_reconciliation,
             create_bank_expense,

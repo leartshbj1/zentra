@@ -6695,6 +6695,12 @@ export const desktopApi = {
       ),
     );
   },
+  /** Links a recorded payment to a slightly different statement amount and books the gap as bank fees. */
+  async confirmBankReconciliationWithFee(input: { requestId: string; movementId: string; invoiceId?: string; supplierInvoiceId?: string; paymentId: string }): Promise<{ feePosted: boolean; feeCents: number }> {
+    const raw = await invoke<RawRecord>('confirm_bank_reconciliation_with_fee', { input: { request_id: input.requestId, movement_id: input.movementId,
+      invoice_id: input.invoiceId ?? null, supplier_invoice_id: input.supplierInvoiceId ?? null, payment_id: input.paymentId } });
+    return { feePosted: raw?.fee_posted === true, feeCents: typeof raw?.fee_cents === 'number' ? raw.fee_cents : 0 };
+  },
   async confirmSupplierBankReconciliation(
     movementId: string,
     supplierInvoiceId: string,

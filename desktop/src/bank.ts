@@ -1,6 +1,7 @@
 import type {
   BankImport,
   BankMovement,
+  BankNearPayment,
   BankRefundMatch,
   BankReconciliation,
   BankReconciliationCandidate,
@@ -106,6 +107,13 @@ export function bankSupplierReconciliationFromRaw(value: unknown): BankSupplierR
   };
 }
 
+function nearPaymentFromRaw(row: Record<string, unknown>) {
+  const id = text(row.near_payment_id);
+  if (!id) return {};
+  const fee = integer(row.fee_cents);
+  return { nearPaymentId: id, nearPaymentAmountCents: integer(row.near_payment_amount_cents), ...(fee > 0 ? { feeCents: fee } : {}) };
+}
+
 function candidateFromRaw(value: unknown): BankReconciliationCandidate {
   const row = record(value);
   return {
@@ -115,6 +123,7 @@ function candidateFromRaw(value: unknown): BankReconciliationCandidate {
     amountRelation: text(row.amount_relation),
     reason: text(row.reason),
     confirmable: bool(row.confirmable),
+    ...nearPaymentFromRaw(row),
   };
 }
 
@@ -145,6 +154,7 @@ function supplierCandidateFromRaw(value: unknown): BankSupplierReconciliationCan
     matchKind: text(row.match_kind),
     reason: text(row.reason),
     confirmable: bool(row.confirmable),
+    ...nearPaymentFromRaw(row),
   };
 }
 
@@ -478,6 +488,8 @@ export function canConfirmBankReconciliation(movement: BankMovement, invoiceId: 
   if (!candidate.confirmable) return false;
   // A payment recorded before the statement is confirmed, not paid again.
   if (candidate.amountRelation === 'existing_payment') return true;
+  // A recorded payment of a slightly different amount: linked with the bank fee.
+  if (candidate.amountRelation === 'existing_payment_differs') return linksWithBankFee(candidate);
   if (candidate.remainingCents < Math.abs(movement.amountCents)) return false;
   return !['overpayment', 'exceeds_balance', 'greater_than_balance', 'too_high'].includes(candidate.amountRelation);
 }
@@ -487,8 +499,15 @@ export function canConfirmSupplierBankReconciliation(movement: BankMovement, sup
   const candidate = candidateForSupplierInvoice(movement, supplierInvoiceId);
   if (!candidate?.confirmable) return false;
   if (candidate.amountRelation === 'existing_payment') return true;
+  if (candidate.amountRelation === 'existing_payment_differs') return linksWithBankFee(candidate);
   if (candidate.remainingCents < Math.abs(movement.amountCents)) return false;
   return !['overpayment', 'exceeds_balance', 'greater_than_balance', 'too_high', 'already_paid', 'currency_mismatch'].includes(candidate.amountRelation);
+}
+
+/** The candidate is a recorded payment the bank took a small fee from: link it, book the fee. */
+export function linksWithBankFee(candidate: { amountRelation: string; confirmable: boolean } & BankNearPayment | undefined | null) {
+  return !!candidate && candidate.amountRelation === 'existing_payment_differs' && candidate.confirmable
+    && !!candidate.nearPaymentId && (candidate.feeCents ?? 0) > 0;
 }
 
 export function bankConfirmationPayload(movementId: string, invoiceId: string) {

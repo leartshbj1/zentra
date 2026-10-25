@@ -1,3 +1,4 @@
+import { linksWithBankFee } from './bank';
 import type { MailSignal } from './autopilotSignals';
 import type { BankMovement, BankWorkspace, Client, Invoice } from './types';
 
@@ -7,8 +8,10 @@ import type { BankMovement, BankWorkspace, Client, Invoice } from './types';
  */
 export type BankProposal = Readonly<{
   movement: BankMovement;
-  action: 'confirm_invoice' | 'confirm_supplier' | 'confirm_expense' | 'create_expense' | 'choose';
+  action: 'confirm_invoice' | 'confirm_supplier' | 'confirm_expense' | 'link_with_fee' | 'create_expense' | 'choose';
   invoiceId?: string; invoiceNumber?: string; supplierInvoiceId?: string; expenseId?: string; label?: string;
+  /** link_with_fee: the payment already recorded, its amount and the bank fee to book. */
+  paymentId?: string; recordedCents?: number; feeCents?: number;
   /** A client mail that had announced or promised this payment. */
   announcedBy: MailSignal | null;
 }>;
@@ -16,7 +19,7 @@ const reference = (value: string) => value.toLocaleLowerCase('fr-CH').replace(/\
 const lower = (value: string | null | undefined) => (value ?? '').trim().toLowerCase();
 const open = (movement: BankMovement) => !movement.reversal && !movement.reconciliation && !movement.supplierReconciliation
   && !movement.expenseReconciliation && !movement.refundMatch;
-const rank = { confirm_invoice: 0, confirm_supplier: 1, confirm_expense: 2, choose: 3, create_expense: 4 } as const;
+const rank = { confirm_invoice: 0, confirm_supplier: 1, confirm_expense: 2, link_with_fee: 3, choose: 4, create_expense: 5 } as const;
 
 export function bankProposals(bank: BankWorkspace | null, signals: readonly MailSignal[], invoices: readonly Invoice[], clients: readonly Client[]): BankProposal[] {
   if (!bank) return [];
@@ -34,7 +37,16 @@ export function bankProposals(bank: BankWorkspace | null, signals: readonly Mail
   const rows: BankProposal[] = [];
   for (const movement of bank.movements.filter(open)) {
     const s = movement.suggestion, supplier = movement.supplierSuggestion, expense = movement.expenseSuggestion;
-    if (movement.creditDebit === 'CRDT' && s?.confirmable && s.invoiceId && (s.kind === 'automatic_exact' || s.kind === 'automatic_partial'))
+    // A payment already recorded with a slightly different amount: link it, book the bank fee. Always one click.
+    const feeInvoice = movement.creditDebit === 'CRDT' ? s?.candidates.filter(linksWithBankFee) ?? [] : [];
+    const feeSupplier = movement.creditDebit === 'DBIT' ? supplier?.candidates.filter(linksWithBankFee) ?? [] : [];
+    if (feeInvoice.length === 1)
+      rows.push({ movement, action: 'link_with_fee', invoiceId: feeInvoice[0].invoiceId, invoiceNumber: feeInvoice[0].invoiceNumber || undefined,
+        paymentId: feeInvoice[0].nearPaymentId, recordedCents: feeInvoice[0].nearPaymentAmountCents, feeCents: feeInvoice[0].feeCents, announcedBy: null });
+    else if (feeSupplier.length === 1)
+      rows.push({ movement, action: 'link_with_fee', supplierInvoiceId: feeSupplier[0].supplierInvoiceId, label: feeSupplier[0].reference || undefined,
+        paymentId: feeSupplier[0].nearPaymentId, recordedCents: feeSupplier[0].nearPaymentAmountCents, feeCents: feeSupplier[0].feeCents, announcedBy: null });
+    else if (movement.creditDebit === 'CRDT' && s?.confirmable && s.invoiceId && (s.kind === 'automatic_exact' || s.kind === 'automatic_partial'))
       rows.push({ movement, action: 'confirm_invoice', invoiceId: s.invoiceId, invoiceNumber: s.invoiceNumber ?? undefined, announcedBy: announced(movement, s.invoiceNumber ?? undefined) });
     else if (movement.creditDebit === 'DBIT' && supplier?.confirmable && supplier.supplierInvoiceId && supplier.kind === 'supplier_match')
       rows.push({ movement, action: 'confirm_supplier', supplierInvoiceId: supplier.supplierInvoiceId,

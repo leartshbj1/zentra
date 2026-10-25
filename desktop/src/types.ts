@@ -1438,7 +1438,14 @@ export type BankSuggestionKind =
   | 'review'
   | 'none';
 
-export type BankReconciliationCandidate = {
+/** A manual payment close to the statement, linked with the gap booked as bank fees. Absent from older binaries. */
+export type BankNearPayment = {
+  nearPaymentId?: Identifier;
+  nearPaymentAmountCents?: number;
+  feeCents?: number;
+};
+
+export type BankReconciliationCandidate = BankNearPayment & {
   invoiceId: Identifier;
   invoiceNumber: string;
   remainingCents: number;
@@ -1472,7 +1479,7 @@ export type BankSupplierSuggestionKind =
   | 'review'
   | 'none';
 
-export type BankSupplierReconciliationCandidate = {
+export type BankSupplierReconciliationCandidate = BankNearPayment & {
   supplierInvoiceId: Identifier;
   supplierId: Identifier;
   supplierName: string;

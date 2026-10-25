@@ -1425,6 +1425,15 @@ function WorkspaceContent({
           actions: [{ id: 'open-bank', label: copy.actionCreateExpense, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
         continue;
       }
+      if (row.action === 'link_with_fee') {
+        toConfirm++;
+        const currency = row.movement.currency || 'CHF';
+        cards.push({ key: 'bank:' + row.movement.id, title: (row.movement.creditDebit === 'CRDT' ? copy.bankReceived.replace('{from}', who) : copy.bankPaid.replace('{to}', who)).replace('{amount}', amount),
+          detail: copy.bankFeeDetail.replace('{recorded}', formatMoney(row.recordedCents ?? 0, currency)).replace('{movement}', amount).replace('{fee}', formatMoney(row.feeCents ?? 0, currency)),
+          note, why: `${copy.whyBankFee} · ${copy.confidenceCheck}`,
+          actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'link-fee', label: copy.actionLinkWithFee, primary: true }] });
+        continue;
+      }
       if (row.action === 'choose') { toIdentify++; cards.push({ key: 'bank:' + row.movement.id, title: copy.bankUnknown.replace('{amount}', amount), detail: [who, date(row.movement.bookingDate)].filter(Boolean).join(' · '), note,
         actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-bank', label: copy.actionChooseInvoice, primary: true }] }); continue; }
       toConfirm++;
@@ -1941,6 +1950,22 @@ function WorkspaceContent({
         return desktopApi.loadWorkspace();
       }, copy.batchDone.replace('{n}', String(rows.length)), false);
       if (confirmed) { if (confirmedCount < rows.length) setNotice({ tone: 'warning', text: copy.batchDone.replace('{n}', String(confirmedCount)) }); void readFollowUps(); refresh(); }
+      return;
+    }
+    if (key.startsWith('bank:') && actionId === 'link-fee') {
+      const row = bankProposals(autopilotBank, mailSignals, workspaceRef.current.invoices, workspaceRef.current.clients).find(item => 'bank:' + item.movement.id === key && item.action === 'link_with_fee');
+      if (!row?.paymentId) return;
+      const paymentId = row.paymentId;
+      let feePosted = true;
+      const confirmed = await journalAct(async () => {
+        const result = await desktopApi.confirmBankReconciliationWithFee({ requestId: createId(), movementId: row.movement.id, invoiceId: row.invoiceId, supplierInvoiceId: row.supplierInvoiceId, paymentId });
+        feePosted = result.feePosted;
+        return desktopApi.loadWorkspace();
+      }, copy.bankFeeLinked, false);
+      if (confirmed) {
+        if (!feePosted) setNotice({ tone: 'warning', text: copy.bankFeeNotPosted });
+        void readFollowUps(); refresh();
+      }
       return;
     }
     if (key.startsWith('bank:') && actionId === 'confirm-bank') {

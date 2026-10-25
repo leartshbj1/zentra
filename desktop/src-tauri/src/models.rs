@@ -313,6 +313,19 @@ pub struct ConfirmSupplierBankReconciliationInput {
     pub supplier_invoice_id: String,
 }
 
+/// Relie un paiement déjà saisi à un relevé d'un montant un peu différent et
+/// comptabilise l'écart en frais bancaires. Une seule facture : client ou fournisseur.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmBankReconciliationWithFeeInput {
+    pub request_id: String,
+    pub movement_id: String,
+    #[serde(default)]
+    pub invoice_id: Option<String>,
+    #[serde(default)]
+    pub supplier_invoice_id: Option<String>,
+    pub payment_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfirmExpenseBankReconciliationInput {
     #[serde(default)]
