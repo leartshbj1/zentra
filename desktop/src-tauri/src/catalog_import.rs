@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use rusqlite::{params, TransactionBehavior};
+use rusqlite::{params, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
     audit::append_audit,
-    database::{now_iso, LocalStore},
+    database::{now_iso, query_record_tx, LocalStore},
     error::{AppError, AppResult},
 };
 
@@ -73,158 +73,187 @@ enum PlannedMutation {
     Skip,
 }
 
+/// Fiche touchée par un import : créée, ou mise à jour avec son état d'avant.
+#[derive(Debug)]
+pub(crate) enum CatalogImportChange {
+    Created(String),
+    Updated { id: String, before: Value },
+}
+
 impl LocalStore {
     pub fn import_catalog_items(&self, input: ImportCatalogItemsInput) -> AppResult<Value> {
-        let rows = normalize_rows(input.rows)?;
+        let ImportCatalogItemsInput { conflict_policy, rows } = input;
+        let rows = normalize_rows(rows)?;
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (receipt, _) = import_catalog_items_tx(&transaction, conflict_policy, rows)?;
+        transaction.commit()?;
+        Ok(receipt)
+    }
+}
 
-        let existing_by_sku = {
-            let mut statement = transaction.prepare(
-                "SELECT id,sku,track_stock FROM catalog_items
-                  WHERE sku IS NOT NULL AND TRIM(sku)<>'' ORDER BY created_at,id",
-            )?;
-            let existing = statement
-                .query_map([], |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, bool>(2)?,
-                    ))
-                })?
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut by_sku: HashMap<String, Vec<ExistingCatalogItem>> = HashMap::new();
-            for (id, sku, track_stock) in existing {
-                by_sku
-                    .entry(canonical_sku(&sku))
-                    .or_default()
-                    .push(ExistingCatalogItem { id, track_stock });
-            }
+pub(crate) fn import_catalog_items_checked_tx(
+    transaction: &Transaction<'_>,
+    input: ImportCatalogItemsInput,
+) -> AppResult<(Value, Vec<CatalogImportChange>)> {
+    let rows = normalize_rows(input.rows)?;
+    import_catalog_items_tx(transaction, input.conflict_policy, rows)
+}
+
+fn import_catalog_items_tx(
+    transaction: &Transaction<'_>,
+    conflict_policy: CatalogImportConflictPolicy,
+    rows: Vec<NormalizedRow>,
+) -> AppResult<(Value, Vec<CatalogImportChange>)> {
+    let existing_by_sku = {
+        let mut statement = transaction.prepare(
+            "SELECT id,sku,track_stock FROM catalog_items
+              WHERE sku IS NOT NULL AND TRIM(sku)<>'' ORDER BY created_at,id",
+        )?;
+        let existing = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, bool>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut by_sku: HashMap<String, Vec<ExistingCatalogItem>> = HashMap::new();
+        for (id, sku, track_stock) in existing {
             by_sku
-        };
-
-        let mut plan = Vec::with_capacity(rows.len());
-        for row in rows {
-            match existing_by_sku.get(&row.sku_key) {
-                Some(matches) if matches.len() > 1 => {
-                    return Err(AppError::Validation(format!(
-                        "Ligne {} : plusieurs fiches du catalogue utilisent déjà cette référence, sans distinction de majuscules. Corrigez ce doublon avant l'import.",
-                        row.row_number
-                    )));
-                }
-                Some(matches) => match input.conflict_policy {
-                    CatalogImportConflictPolicy::Skip => plan.push(PlannedMutation::Skip),
-                    CatalogImportConflictPolicy::Update => {
-                        let existing = matches.first().ok_or_else(|| {
-                            AppError::Validation(
-                                "Le contrôle des références existantes est incohérent.".into(),
-                            )
-                        })?;
-                        if existing.track_stock && row.kind != "product" {
-                            return Err(AppError::Validation(format!(
-                                "Ligne {} : un article suivi en stock ne peut pas devenir un service pendant l'import.",
-                                row.row_number
-                            )));
-                        }
-                        plan.push(PlannedMutation::Update {
-                            row,
-                            existing: ExistingCatalogItem {
-                                id: existing.id.clone(),
-                                track_stock: existing.track_stock,
-                            },
-                        });
-                    }
-                },
-                None => plan.push(PlannedMutation::Create(row)),
-            }
+                .entry(canonical_sku(&sku))
+                .or_default()
+                .push(ExistingCatalogItem { id, track_stock });
         }
+        by_sku
+    };
 
-        let batch_id = Uuid::new_v4().to_string();
-        let now = now_iso();
-        let mut created = 0_usize;
-        let mut updated = 0_usize;
-        let mut skipped = 0_usize;
-        for mutation in plan {
-            match mutation {
-                PlannedMutation::Create(row) => {
-                    transaction.execute(
-                        "INSERT INTO catalog_items(
-                           id,kind,sku,name,description,unit,sales_price_cents,purchase_cost_cents,
-                           vat_bp,track_stock,stock_quantity_milli,reorder_level_milli,archived_at,
-                           created_at,updated_at
-                         ) VALUES(?,?,?,?,?,?,?,?,?,0,0,0,NULL,?,?)",
-                        params![
-                            Uuid::new_v4().to_string(),
-                            row.kind,
-                            row.sku,
-                            row.name,
-                            row.description,
-                            row.unit,
-                            row.sales_price_cents,
-                            row.purchase_cost_cents,
-                            row.vat_bp,
-                            now,
-                            now
-                        ],
-                    )?;
-                    created += 1;
-                }
-                PlannedMutation::Update { row, existing } => {
-                    let changed = transaction.execute(
-                        "UPDATE catalog_items
-                            SET kind=?,sku=?,name=?,description=?,unit=?,sales_price_cents=?,
-                                purchase_cost_cents=?,vat_bp=?,updated_at=?
-                          WHERE id=?",
-                        params![
-                            row.kind,
-                            row.sku,
-                            row.name,
-                            row.description,
-                            row.unit,
-                            row.sales_price_cents,
-                            row.purchase_cost_cents,
-                            row.vat_bp,
-                            now,
-                            existing.id
-                        ],
-                    )?;
-                    if changed != 1 {
+    let mut plan = Vec::with_capacity(rows.len());
+    for row in rows {
+        match existing_by_sku.get(&row.sku_key) {
+            Some(matches) if matches.len() > 1 => {
+                return Err(AppError::Validation(format!(
+                    "Ligne {} : plusieurs fiches du catalogue utilisent déjà cette référence, sans distinction de majuscules. Corrigez ce doublon avant l'import.",
+                    row.row_number
+                )));
+            }
+            Some(matches) => match conflict_policy {
+                CatalogImportConflictPolicy::Skip => plan.push(PlannedMutation::Skip),
+                CatalogImportConflictPolicy::Update => {
+                    let existing = matches.first().ok_or_else(|| {
+                        AppError::Validation(
+                            "Le contrôle des références existantes est incohérent.".into(),
+                        )
+                    })?;
+                    if existing.track_stock && row.kind != "product" {
                         return Err(AppError::Validation(format!(
-                            "Ligne {} : la fiche à mettre à jour a changé pendant l'import.",
+                            "Ligne {} : un article suivi en stock ne peut pas devenir un service pendant l'import.",
                             row.row_number
                         )));
                     }
-                    updated += 1;
+                    plan.push(PlannedMutation::Update {
+                        row,
+                        existing: ExistingCatalogItem {
+                            id: existing.id.clone(),
+                            track_stock: existing.track_stock,
+                        },
+                    });
                 }
-                PlannedMutation::Skip => skipped += 1,
-            }
+            },
+            None => plan.push(PlannedMutation::Create(row)),
         }
+    }
 
-        append_audit(
-            &transaction,
-            "import",
-            "catalog",
-            &batch_id,
-            &json!({
-                "source":"validated_local_spreadsheet",
-                "conflict_policy":input.conflict_policy,
-                "received_count":created + updated + skipped,
-                "created_count":created,
-                "updated_count":updated,
-                "skipped_count":skipped
-            }),
-        )?;
-        transaction.commit()?;
+    let batch_id = Uuid::new_v4().to_string();
+    let now = now_iso();
+    let mut created = 0_usize;
+    let mut updated = 0_usize;
+    let mut skipped = 0_usize;
+    let mut changes = Vec::new();
+    for mutation in plan {
+        match mutation {
+            PlannedMutation::Create(row) => {
+                let id = Uuid::new_v4().to_string();
+                transaction.execute(
+                    "INSERT INTO catalog_items(
+                       id,kind,sku,name,description,unit,sales_price_cents,purchase_cost_cents,
+                       vat_bp,track_stock,stock_quantity_milli,reorder_level_milli,archived_at,
+                       created_at,updated_at
+                     ) VALUES(?,?,?,?,?,?,?,?,?,0,0,0,NULL,?,?)",
+                    params![
+                        id,
+                        row.kind,
+                        row.sku,
+                        row.name,
+                        row.description,
+                        row.unit,
+                        row.sales_price_cents,
+                        row.purchase_cost_cents,
+                        row.vat_bp,
+                        now,
+                        now
+                    ],
+                )?;
+                changes.push(CatalogImportChange::Created(id));
+                created += 1;
+            }
+            PlannedMutation::Update { row, existing } => {
+                let before = query_record_tx(transaction, "catalog_items", &existing.id)?;
+                let changed = transaction.execute(
+                    "UPDATE catalog_items
+                        SET kind=?,sku=?,name=?,description=?,unit=?,sales_price_cents=?,
+                            purchase_cost_cents=?,vat_bp=?,updated_at=?
+                      WHERE id=?",
+                    params![
+                        row.kind,
+                        row.sku,
+                        row.name,
+                        row.description,
+                        row.unit,
+                        row.sales_price_cents,
+                        row.purchase_cost_cents,
+                        row.vat_bp,
+                        now,
+                        existing.id
+                    ],
+                )?;
+                if changed != 1 {
+                    return Err(AppError::Validation(format!(
+                        "Ligne {} : la fiche à mettre à jour a changé pendant l'import.",
+                        row.row_number
+                    )));
+                }
+                changes.push(CatalogImportChange::Updated { id: existing.id, before });
+                updated += 1;
+            }
+            PlannedMutation::Skip => skipped += 1,
+        }
+    }
 
-        Ok(json!({
-            "batch_id":batch_id,
+    append_audit(
+        transaction,
+        "import",
+        "catalog",
+        &batch_id,
+        &json!({
+            "source":"validated_local_spreadsheet",
+            "conflict_policy":conflict_policy,
             "received_count":created + updated + skipped,
             "created_count":created,
             "updated_count":updated,
             "skipped_count":skipped
-        }))
-    }
+        }),
+    )?;
+
+    Ok((json!({
+        "batch_id":batch_id,
+        "received_count":created + updated + skipped,
+        "created_count":created,
+        "updated_count":updated,
+        "skipped_count":skipped
+    }), changes))
 }
 
 fn normalize_rows(rows: Vec<CatalogImportRowInput>) -> AppResult<Vec<NormalizedRow>> {

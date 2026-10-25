@@ -86,8 +86,8 @@ describe('factures ouvertes bexio', () => {
     const by = (line: number) => rows.find((row) => row.line === line)!;
     expect(by(3)).toMatchObject({ number: 'RE-00041', clientId: 'c1', issueDate: '2025-12-10', dueDate: '2026-01-09', openCents: 125_050, errors: [], skipped: null });
     expect(by(4)).toMatchObject({ openCents: 40_000, totalCents: 100_000, errors: [] });
-    expect(by(5).skipped).toBe('Payée ou annulée dans bexio');
-    expect(by(6).errors).toContain('Client introuvable : importez d’abord vos clients bexio');
+    expect(by(5).skipped).toBe('Payée ou annulée');
+    expect(by(6).errors).toContain('Client introuvable : importez d’abord vos clients');
     // Échéance absente : délai de paiement de l'entreprise.
     expect(by(6).dueDate).toBe('2026-01-19');
     expect(by(7).errors).toEqual(['Adresse du client à compléter']);

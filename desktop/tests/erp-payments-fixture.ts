@@ -111,6 +111,18 @@ export function installErpBexioFixture(data: Workspace) {
   };
   desktopApi.importOpeningReceivables = async (rows) => ({ receipt: { created: rows.length, skipped: 0, rows: rows.map((row) => ({ line: row.line, number: row.number, status: 'created' as const })) }, workspace: structuredClone(data) });
   desktopApi.importOpeningBalance = async (entryDate, lines) => ({ plan: await desktopApi.previewOpeningBalance(entryDate, lines), journalNumber: 'J-2026-000001' });
+  desktopApi.importMigrationReceivables = async (_origin, rows) => ({ receipt: { created: rows.length, skipped: 0, import_id: 'import-invoices' }, workspace: structuredClone(data) });
+  desktopApi.importMigrationBalance = async (_origin, entryDate, lines) => ({ plan: await desktopApi.previewOpeningBalance(entryDate, lines), journalNumber: 'J-2026-000001', importId: 'import-balance' });
+  desktopApi.importMigrationContacts = async (_origin, contacts) => ({ created: contacts.rows.length, skipped: 0, import_id: 'import-contacts', rows: contacts.rows.map((row) => ({ line: row.line, name: row.data.name ?? '', status: 'created' as const })) });
+  desktopApi.importMigrationAccounts = async (_origin, rows) => ({ created: rows.length, skipped: 0, import_id: 'import-accounts' });
+  desktopApi.listAccounts = async () => Object.entries(names).map(([code, name]) => ({ id: code, code, name, accountType: code.startsWith('1') ? 'asset' : code.startsWith('28') || code.startsWith('29') ? 'equity' : 'liability', normalBalance: code.startsWith('1') ? 'debit' : 'credit', reportSection: 'current_assets', active: true }));
+  // Historique : deux reprises WinBIZ, dont une déjà annulée.
+  const at = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  desktopApi.listDataImports = async () => [
+    { id: 'h1', source: 'winbiz', kind: 'clients', fileName: 'adresses-clients.xlsx', createdCount: 48, updatedCount: 0, skippedCount: 2, createdAt: at(1), undoneAt: null, undoReport: null },
+    { id: 'h2', source: 'winbiz', kind: 'accounts', fileName: 'plan-comptable.csv', createdCount: 12, updatedCount: 0, skippedCount: 64, createdAt: at(2), undoneAt: at(2), undoReport: { removed: 11, restored: 0, reversed: 0, kept: [{ entity: 'accounts', id: 'a1', name: '1025', reason: 'Déjà utilisée dans Zentra' }] } },
+  ];
+  desktopApi.undoDataImport = async () => ({ report: { removed: 46, restored: 0, reversed: 0, kept: [{ entity: 'clients', id: 'c1', name: 'Menuiserie Dubois Sàrl', reason: 'Déjà utilisée dans Zentra' }] }, workspace: structuredClone(data) });
 }
 
 /** ?erp=paylink : paiement en ligne activé, un lien payé à enregistrer. */

@@ -159,7 +159,7 @@ export function CatalogImportWizard({
           ref={fileInput}
           className="sr-only"
           type="file"
-          accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"
+          accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,text/plain"
           onChange={(event) => void inspectFile(event.target.files?.[0])}
         />
         <button

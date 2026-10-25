@@ -850,6 +850,14 @@ workflows:
         - not: << pipeline.parameters.verify-only >>
     jobs:
       - windows-erp-check
+  fiduciaires-migration-check:
+    when:
+      and:
+        - equal: [claude/fiduciaires-migration, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not: << pipeline.parameters.verify-only >>
+    jobs:
+      - windows-erp-check
   msix-store-check:
     when:
       and:

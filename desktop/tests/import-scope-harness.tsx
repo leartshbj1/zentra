@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BankImportWizard } from '../src/BankWorkflowDialogs';
 import { CatalogImportWizard } from '../src/CatalogImportWizard';
-import { BexioImportPanel } from '../src/BexioImportPanel';
+import { MigrationImportPanel as BexioImportPanel } from '../src/MigrationImportPanel';
 import { SupplierEmailIntake } from '../src/SupplierEmailIntake';
 import { SupplierInvoiceAttachments } from '../src/SupplierInvoiceAttachments';
 import { SupplierInvoicePreparation } from '../src/SupplierInvoiceWizard';
@@ -43,7 +43,8 @@ desktopApi.saveSupplierInvoiceDraft = async (input,expectedWorkspaceScope) => { 
 desktopApi.addScannedSupplierAttachment = async (id,file,expectedWorkspaceScope) => { calls.push({command:'scan-attachment',args:{id,fileName:file.name,expectedWorkspaceScope}}); return structuredClone(workspace); };
 Object.assign(window, { __TAURI_INTERNALS__: { invoke: async (command: string, args: {data?:{action?:string}}|null) => {
   if (command === 'bexio_import_scope') return 'legacy-bexio-A';
-  if (command === 'import_bexio_contacts') { calls.push({command,args}); return {created:1,skipped:0,rows:[]}; }
+  if (command === 'import_migration_contacts') { calls.push({command,args}); return {created:1,skipped:0,rows:[],import_id:'synthetic-import'}; }
+  if (command === 'list_data_imports') return [];
   if (command === 'automation_request') {
     if(kind==='scan'&&!args?.data) return {organizationId:'synthetic-company',active:true,canManage:true,available:['supplier_routing'],settings:{enabled:true,consent:true,flags:['supplier_routing'],thresholds:{medium:.75,high:.95},mode:'suggest'},activity:null};
     if(kind==='scan'&&args?.data?.action==='invoice_scan') return {status:'suggestion',extraction:{kind:'supplier_invoice',supplierName:'Synthetic supplier',reference:'SYNTHETIC-SCAN-42',invoiceDate:'2026-09-02',dueDate:'2026-10-02',currency:'CHF',netCents:10000,vatCents:0,totalCents:10000,vatBp:0,issues:[],confidence:.99,evidence:{}}};

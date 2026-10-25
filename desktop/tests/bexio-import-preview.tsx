@@ -1,7 +1,7 @@
 // Development-only fixture. No customer database or external service is contacted.
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BexioImportPanel } from '../src/BexioImportPanel';
+import { MigrationImportPanel as BexioImportPanel } from '../src/MigrationImportPanel';
 import { desktopApi } from '../src/bridge';
 import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { setAppearance } from '../src/appearance';
@@ -32,36 +32,37 @@ Object.assign(window, {
     invoke: async (
       command: string,
       args: {
-        input: {
+        input: { contacts: {
           scope: string;
           entity: 'clients' | 'suppliers';
-          rows: { line: number; data: { name: string } }[];
+          rows: { line: number; data: { name: string } }[]; };
         };
       },
     ) => {
       if (command === 'bexio_import_scope') return 'fixture-company';
-      if (command !== 'import_bexio_contacts')
+      if (command === 'list_data_imports') return [];
+      if (command !== 'import_migration_contacts')
         throw Error(`Unexpected command: ${command}`);
-      if (args.input.scope !== 'fixture-company') throw Error('Wrong company');
+      if (args.input.contacts.scope !== 'fixture-company') throw Error('Wrong company');
       if (qa.fail) throw Error('Import refusé pour ce test.');
       qa.calls.push(structuredClone(args));
       await new Promise((resolve) => setTimeout(resolve, 100));
-      const rows = args.input.rows.map((row) => ({
+      const rows = args.input.contacts.rows.map((row) => ({
         line: row.line,
         name: row.data.name,
         status: 'created',
       }));
       workspace = {
         ...workspace,
-        [args.input.entity]: [
-          ...workspace[args.input.entity],
-          ...args.input.rows.map((row, index) => ({
+        [args.input.contacts.entity]: [
+          ...workspace[args.input.contacts.entity],
+          ...args.input.contacts.rows.map((row, index) => ({
             id: `fixture-${index}`,
             name: row.data.name,
           })),
         ],
       };
-      return { created: rows.length, skipped: 0, rows };
+      return { created: rows.length, skipped: 0, rows, import_id: 'fixture-import' };
     },
   },
 });

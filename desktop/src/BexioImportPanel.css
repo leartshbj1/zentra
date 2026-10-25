@@ -170,3 +170,28 @@ html[data-app-theme] .desktop-app[data-experience] .bexio-import :is(.bexio-impo
 .bexio-opening-date { max-width: 280px; margin-bottom: 8px; }
 .bexio-import-rows + p[role="alert"] + button,
 .bexio-import-rows + button { margin-top: 8px; }
+/* Reprise multi-logiciels : choix du logiciel, historique et annulation. */
+.migration-source { max-width: 360px; margin-top: 24px; }
+.migration-source select { width: 100%; min-height: 44px; }
+.bexio-import-rows label > select { min-height: 40px; max-width: 160px; }
+.migration-only-errors { display: flex; align-items: center; gap: 12px; min-height: 44px; margin-top: 8px; cursor: pointer; }
+.migration-only-errors input { width: 20px; height: 20px; accent-color: var(--green-700); }
+.migration-receipt-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.migration-undo-confirm { display: grid; gap: 12px; max-width: 60ch; }
+.migration-undo-confirm p { margin: 0; }
+.migration-undo-confirm > div { display: flex; flex-wrap: wrap; gap: 12px; }
+.migration-undo-report { margin-top: 8px; }
+.migration-undo-report p { margin: 0 0 8px; }
+.migration-undo-report ul { margin: 0; padding-left: 20px; line-height: 1.6; }
+.migration-undo-report li small { display: inline; margin-left: 8px; }
+.migration-history { margin-top: 48px; }
+.migration-history h3 { margin: 0 0 8px; font-size: 17px; }
+.migration-history ul { list-style: none; margin: 0; padding: 0; }
+.migration-history li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.migration-history li > div { display: grid; gap: 4px; min-width: 0; }
+.migration-history li strong, .migration-history li small { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .migration-source { max-width: none; }
+  .migration-history li { grid-template-columns: minmax(0, 1fr); }
+  .bexio-import-rows label > select { grid-column: 2; max-width: none; width: 100%; }
+}

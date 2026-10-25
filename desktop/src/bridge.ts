@@ -12,6 +12,9 @@ import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import { statementFileFromRaw, type StatementFile } from './autopilotStatements';
 import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
+import type { NativeAccountRow } from './chartImport';
+import { dataImportFromRaw, undoReportFromRaw, type DataImport, type UndoReport } from './dataImports';
+import { originToRaw, type ImportOrigin } from './migrationSources';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import { priceListsFromRaw } from './priceLists';
@@ -7759,6 +7762,42 @@ export const desktopApi = {
   async importOpeningReceivables(rows: NativeOpeningReceivable[]) {
     const receipt = await invoke<{ created: number; skipped: number; rows: { line: number; number: string; status: 'created' | 'skipped'; reason?: string }[] }>('import_opening_receivables', { input: { rows } });
     return { receipt, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Reprise d'un autre logiciel : chaque import est gardé dans l'historique et peut être annulé. */
+  async importMigrationContacts(origin: ImportOrigin, contacts: { scope: string; entity: 'clients' | 'suppliers'; rows: { line: number; data: Record<string, string> }[] }, expectedWorkspaceScope?: string) {
+    const receipt = await invoke<{ created: number; skipped: number; import_id: string; rows: { line: number; name: string; status: 'created' | 'skipped' }[] }>('import_migration_contacts', {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
+      input: { origin: originToRaw(origin), contacts },
+    });
+    return receipt;
+  },
+  async importMigrationCatalog(origin: ImportOrigin, rows: CatalogImportRow[], conflictPolicy: 'update' | 'skip', expectedWorkspaceScope?: string) {
+    const mutation = importCatalogItemsMutation(rows, conflictPolicy, expectedWorkspaceScope);
+    const { input, ...scope } = mutation.args;
+    await invoke('import_migration_catalog', { ...scope, input: { origin: originToRaw(origin), catalog: input } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async importMigrationAccounts(origin: ImportOrigin, rows: NativeAccountRow[], expectedWorkspaceScope?: string) {
+    return invoke<{ created: number; skipped: number; import_id: string }>('import_migration_accounts', {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
+      input: { origin: originToRaw(origin), rows },
+    });
+  },
+  async importMigrationReceivables(origin: ImportOrigin, rows: NativeOpeningReceivable[]) {
+    const receipt = await invoke<{ created: number; skipped: number; import_id: string }>('import_migration_receivables', { input: { origin: originToRaw(origin), receivables: { rows } } });
+    return { receipt, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async importMigrationBalance(origin: ImportOrigin, entryDate: string, lines: NativeBalanceLine[]) {
+    const result = await invoke<{ plan: RawRecord; journal: RawRecord; import_id: string }>('import_migration_balance', { input: { origin: originToRaw(origin), balance: { entry_date: entryDate, lines } } });
+    return { plan: openingBalancePlan(result.plan), journalNumber: stringValue(result.journal?.number), importId: stringValue(result.import_id) };
+  },
+  async listDataImports(): Promise<DataImport[]> {
+    return rawArray(await invoke<unknown>('list_data_imports')).map(dataImportFromRaw);
+  },
+  async undoDataImport(id: string, expectedWorkspaceScope?: string): Promise<{ report: UndoReport; workspace: Workspace }> {
+    const raw = await invoke<unknown>('undo_data_import', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+    const report = undoReportFromRaw(raw) ?? { removed: 0, restored: 0, reversed: 0, kept: [] };
+    return { report, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async previewOpeningBalance(entryDate: string, lines: NativeBalanceLine[]): Promise<OpeningBalancePlan> {
     return openingBalancePlan(await invoke<RawRecord>('preview_opening_balance', { input: { entry_date: entryDate, lines } }));

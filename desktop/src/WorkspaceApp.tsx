@@ -73,7 +73,7 @@ import './dashboard-workflow.css';
 import { dashboardDeadlines } from './dashboardDeadlines';
 import { AppearanceSetting } from './AppearanceSetting';
 import { CompanySettingsSync } from './CompanySettingsSync';
-import { BexioImportPanel } from './BexioImportPanel';
+import { MigrationImportPanel } from './MigrationImportPanel';
 import { MailComposer, MailDocumentButton, MailSettings } from './OutgoingMailEntry';
 import type { MailTarget } from './outgoingMail';
 import { ElapsedTimer } from './ElapsedTimer';
@@ -7806,8 +7806,8 @@ function SettingsScreen({
         <SourceTaxTariffsPanel disabled={readOnly} />
       </SettingsAfterOpen>
       </SettingsCategory>
-      <SettingsCategory id="migration" lazy title="Importer depuis bexio" description="Reprendre contacts, articles, factures ouvertes et soldes" icon={Database}>
-        <BexioImportPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace}/>
+      <SettingsCategory id="migration" lazy title="Reprendre vos données" description="bexio, WinBIZ, Crésus, Banana, AbaNinja ou Excel" icon={Database}>
+        <MigrationImportPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace}/>
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
       <DiagnosticsPanel/>

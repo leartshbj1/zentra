@@ -1,4 +1,5 @@
-// Reprise d'ouverture depuis bexio : factures clients encore ouvertes et
+// Reprise d'ouverture depuis bexio, WinBIZ, Crésus, Banana, AbaNinja/Swiss21
+// ou un fichier Excel : factures clients encore ouvertes et
 // bilan d'ouverture. Ce module lit seulement le fichier et prépare un aperçu ;
 // l'app native contrôle chaque ligne et passe elle-même les écritures.
 import { catalogHeaders, type CatalogMappingSource } from './catalogImport';
@@ -127,13 +128,13 @@ export const openInvoiceFields = {
 export type OpenInvoiceField = keyof typeof openInvoiceFields;
 
 const invoiceAliases: Record<OpenInvoiceField, string[]> = {
-  number: ['n', 'no', 'nr', 'numero', 'n de facture', 'no de facture', 'numero de facture', 'n facture', 'no facture', 'rechnungsnummer', 'rechnung nr', 'rechnungs nr', 'invoice number', 'invoice no', 'document nr', 'dokument nr', 'numero fattura', 'n fattura', 'fattura n'],
-  client: ['contact', 'client', 'kontakt', 'kunde', 'customer', 'cliente', 'contatto', 'destinataire', 'empfanger', 'empfaenger'],
+  number: ['n', 'no', 'nr', 'numero', 'n de facture', 'no de facture', 'numero de facture', 'n facture', 'no facture', 'rechnungsnummer', 'rechnung nr', 'rechnungs nr', 'invoice number', 'invoice no', 'document nr', 'dokument nr', 'numero fattura', 'n fattura', 'fattura n', 'n document', 'no document', 'numero de document', 'facture', 'belegnummer', 'beleg nr', 'docinvoice'],
+  client: ['contact', 'client', 'kontakt', 'kunde', 'customer', 'cliente', 'contatto', 'destinataire', 'empfanger', 'empfaenger', 'nom du client', 'debiteur', 'debitor', 'kundenname', 'raison sociale', 'societe'],
   title: ['titre', 'title', 'titel', 'objet', 'betreff', 'titolo', 'oggetto'],
-  issueDate: ['date', 'datum', 'date de facture', 'date facture', 'rechnungsdatum', 'invoice date', 'data', 'data fattura'],
+  issueDate: ['date', 'datum', 'date de facture', 'date facture', 'rechnungsdatum', 'invoice date', 'data', 'data fattura', 'date document', 'date du document', 'belegdatum'],
   dueDate: ['echeance', 'date d echeance', 'echeance le', 'fallig', 'fallig am', 'faellig am', 'falligkeit', 'falligkeitsdatum', 'due date', 'due', 'scadenza', 'zahlbar bis', 'payable jusqu au', 'valable jusqu au', 'gultig bis'],
-  total: ['total', 'montant', 'montant total', 'total chf', 'total ttc', 'betrag', 'gesamtbetrag', 'total inkl mwst', 'amount', 'importo', 'totale'],
-  open: ['ouvert', 'montant ouvert', 'solde', 'solde ouvert', 'reste', 'reste a payer', 'offen', 'offener betrag', 'restbetrag', 'open', 'open amount', 'outstanding', 'aperto', 'importo aperto', 'saldo'],
+  total: ['total', 'montant', 'montant total', 'total chf', 'total ttc', 'betrag', 'gesamtbetrag', 'total inkl mwst', 'amount', 'importo', 'totale', 'montant ttc', 'brutto', 'betrag brutto', 'total brut'],
+  open: ['ouvert', 'montant ouvert', 'solde', 'solde ouvert', 'reste', 'reste a payer', 'offen', 'offener betrag', 'restbetrag', 'open', 'open amount', 'outstanding', 'aperto', 'importo aperto', 'saldo', 'solde du', 'montant du', 'reste du', 'offener saldo', 'offen chf'],
   status: ['statut', 'status', 'stato', 'etat'],
 };
 
@@ -149,7 +150,7 @@ export function openInvoiceHeaderScore(headers: string[]): number {
 export function closedStatus(status: string): boolean {
   const value = normalize(status);
   if (!value || /partiel|teilweise|teilbezahlt|partial|parzial/.test(value)) return false;
-  return /^(payee|paye|bezahlt|paid|pagat|annule|storniert|storno|cancel|annullat|brouillon|entwurf|draft|bozza)/.test(value);
+  return /^(payee|paye|soldee|reglee|bezahlt|beglichen|erledigt|paid|pagat|annule|storniert|storno|cancel|annullat|brouillon|entwurf|draft|bozza)/.test(value);
 }
 
 export type OpenInvoiceRow = {
@@ -211,7 +212,7 @@ export function previewOpenInvoices(
     const openCents = map.includes('open') ? amountCents(cell('open')) : totalCents;
     const errors: string[] = [];
     let skipped: string | null = null;
-    if (map.includes('status') && closedStatus(text('status'))) skipped = 'Payée ou annulée dans bexio';
+    if (map.includes('status') && closedStatus(text('status'))) skipped = 'Payée ou annulée';
     else if (openCents !== null && openCents <= 0) skipped = 'Rien à encaisser';
     else if (existing.has(number.toLowerCase())) skipped = 'Déjà dans Zentra';
     const matches = byName.get(personKey(clientName)) ?? [];
@@ -224,7 +225,7 @@ export function previewOpenInvoices(
       else if (issueDate && dueDate < issueDate) errors.push('Échéance avant la date de facture');
       if (openCents === null) errors.push('Montant illisible');
       if (totalCents !== null && openCents !== null && totalCents < openCents) errors.push('Montant ouvert supérieur au total');
-      if (!clientName || !matches.length) errors.push('Client introuvable : importez d’abord vos clients bexio');
+      if (!clientName || !matches.length) errors.push('Client introuvable : importez d’abord vos clients');
       else if (matches.length > 1) errors.push('Plusieurs clients portent ce nom');
       else if (!(client!.addressLine1 || '').trim() || !(client!.postalCode || '').trim() || !(client!.city || '').trim()) errors.push('Adresse du client à compléter');
       if (number) seen.add(number.toLowerCase());
@@ -253,8 +254,8 @@ export const balanceFields = {
 export type BalanceField = keyof typeof balanceFields;
 
 const balanceAliases: Record<BalanceField, string[]> = {
-  code: ['compte', 'n compte', 'no compte', 'n de compte', 'numero de compte', 'konto', 'kontonummer', 'konto nr', 'kto', 'account', 'account number', 'account no', 'conto', 'numero conto', 'n conto'],
-  name: ['nom', 'nom du compte', 'libelle', 'designation', 'intitule', 'bezeichnung', 'kontobezeichnung', 'kontoname', 'name', 'account name', 'descrizione', 'denominazione'],
+  code: ['compte', 'n compte', 'no compte', 'n de compte', 'numero de compte', 'konto', 'kontonummer', 'konto nr', 'kto', 'account', 'account number', 'account no', 'conto', 'numero conto', 'n conto', 'numero', 'no', 'nr'],
+  name: ['nom', 'nom du compte', 'libelle', 'designation', 'intitule', 'bezeichnung', 'kontobezeichnung', 'kontoname', 'name', 'account name', 'descrizione', 'denominazione', 'description', 'titre'],
   balance: ['solde', 'solde chf', 'solde final', 'solde de cloture', 'montant', 'saldo', 'saldo chf', 'endsaldo', 'schlusssaldo', 'betrag', 'balance', 'closing balance', 'amount', 'importo'],
   debit: ['debit', 'soll', 'dare'],
   credit: ['credit', 'haben', 'avere'],

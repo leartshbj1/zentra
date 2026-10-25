@@ -13,7 +13,7 @@ export const settingsSearchTerms: Record<string, string> = {
   documents: 'Logo, couleurs, police, mise en page, devis, factures, bilan, fiches de salaire',
   accounting: 'Comptabilité, plan comptable, comptes de liaison',
   time: 'Horaires, coût horaire, dépenses, catégories',
-  migration: 'bexio, importer clients, fournisseurs, articles',
+  migration: 'bexio, WinBIZ, Crésus, Banana, AbaNinja, Swiss21, Excel, CSV, importer clients, fournisseurs, articles, plan comptable, soldes',
   automation: 'Automatismes, factures fournisseurs, habitudes, consentement',
   mail: 'E-mail, SMTP, Infomaniak, expéditeur, modèles, signature, logo',
   appearance: 'Mode sombre, mode clair, thème, taille du texte, lisibilité',

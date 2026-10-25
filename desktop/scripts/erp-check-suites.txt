@@ -69,3 +69,10 @@ rust:production::
 rust:stock::
 src/bom.test.ts
 src/autopilotYearEnd.test.ts
+# Lot 6 : reprise multi-logiciels, historique et Annuler.
+src/migrationImport.test.ts
+src/bexioContactRouting.test.ts
+rust:data_imports::
+rust:import_worker_tests
+rust:bexio_import
+rust:migrat

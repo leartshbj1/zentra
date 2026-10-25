@@ -1,4 +1,5 @@
-//! Reprise d'ouverture depuis bexio : factures clients encore ouvertes et
+//! Reprise d'ouverture depuis un autre logiciel (bexio, WinBIZ, Crésus,
+//! Banana, AbaNinja/Swiss21 ou un fichier Excel) : factures clients encore ouvertes et
 //! bilan d'ouverture. Les montants viennent du fichier vérifié par
 //! l'utilisateur ; l'app contrôle chaque ligne et passe elle-même les
 //! écritures. Une facture reprise n'est jamais un produit ni une TVA de
@@ -87,7 +88,7 @@ pub(crate) fn paid_in_period(connection: &Connection, from: &str, to: &str) -> A
 pub(crate) fn refuse_credit_note(connection: &Connection, original_invoice_id: &str) -> AppResult<()> {
     if is_opening_receivable(connection, original_invoice_id)? {
         return Err(invalid(
-            "Cette facture vient de la reprise bexio : elle ne se corrige pas par un avoir. Pour l'annuler ou la réduire, passez une perte sur créance avec votre fiduciaire.",
+            "Cette facture vient d'une reprise d'ouverture : elle ne se corrige pas par un avoir. Pour l'annuler ou la réduire, passez une perte sur créance avec votre fiduciaire.",
         ));
     }
     Ok(())
@@ -267,7 +268,7 @@ fn plan_opening_balance(tx: &Transaction<'_>, input: &OpeningBalanceInput) -> Ap
         .optional()?;
     if let Some(date) = active {
         return Err(invalid(format!(
-            "Un bilan d'ouverture bexio a déjà été repris au {date}. Extournez son écriture dans le journal avant d'en reprendre un autre."
+            "Un bilan d'ouverture a déjà été repris au {date}. Annulez cette reprise (ou extournez son écriture dans le journal) avant d'en reprendre un autre."
         )));
     }
     if input.lines.is_empty() || input.lines.len() > MAX_BALANCE_LINES {
@@ -362,117 +363,12 @@ fn plan_opening_balance(tx: &Transaction<'_>, input: &OpeningBalanceInput) -> Ap
 
 impl LocalStore {
     pub fn import_opening_receivables(&self, input: OpeningReceivablesInput) -> AppResult<Value> {
-        if input.rows.is_empty() || input.rows.len() > MAX_INVOICES {
-            return Err(invalid("Importez entre 1 et 5 000 factures ouvertes à la fois."));
-        }
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let received: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received')",
-            [],
-            |row| row.get(0),
-        )?;
-        if received {
-            return Err(invalid(
-                "Votre TVA est décomptée selon les contre-prestations reçues : la TVA de ces factures sera due à l'encaissement et Zentra ne peut pas la reconstituer depuis bexio. Saisissez ces factures avec votre fiduciaire.",
-            ));
-        }
-        let mut seen = HashSet::new();
-        let mut rows = Vec::new();
-        let (mut created, mut skipped) = (0_i64, 0_i64);
-        for row in &input.rows {
-            let line = row.line;
-            let number = row.number.trim().to_owned();
-            if number.is_empty() || number.chars().count() > 60 || number.chars().any(char::is_control) {
-                return Err(at_line(line, invalid("le numéro de facture est manquant ou trop long.")));
-            }
-            if !seen.insert(number.to_lowercase()) {
-                return Err(at_line(line, invalid(format!("la facture {number} apparaît deux fois dans le fichier."))));
-            }
-            validate_date(&row.issue_date, "issue_date").map_err(|error| at_line(line, error))?;
-            validate_date(&row.due_date, "due_date").map_err(|error| at_line(line, error))?;
-            if row.due_date < row.issue_date {
-                return Err(at_line(line, invalid("l'échéance précède la date de la facture.")));
-            }
-            if row.open_cents <= 0 || row.open_cents > MAX_AMOUNT_CENTS {
-                return Err(at_line(line, invalid("le montant ouvert doit être positif.")));
-            }
-            if row.total_cents.is_some_and(|total| total < row.open_cents || total > MAX_AMOUNT_CENTS) {
-                return Err(at_line(line, invalid("le montant ouvert dépasse le total de la facture.")));
-            }
-            let client: Option<String> = tx
-                .query_row("SELECT name FROM clients WHERE id=?", [&row.client_id], |r| r.get(0))
-                .optional()?;
-            if client.is_none() {
-                return Err(at_line(line, invalid("le client est introuvable. Importez d'abord vos clients bexio.")));
-            }
-            let already: bool = tx.query_row(
-                "SELECT EXISTS(SELECT 1 FROM opening_receivables WHERE source='bexio' AND source_number=?)",
-                [&number],
-                |r| r.get(0),
-            )?;
-            let taken: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM invoices WHERE number=?)", [&number], |r| r.get(0))?;
-            if already || taken {
-                skipped += 1;
-                rows.push(json!({ "line": line, "number": number, "status": "skipped",
-                    "reason": if already { "Déjà reprise" } else { "Numéro déjà utilisé dans Zentra" } }));
-                continue;
-            }
-            ensure_accounting_date_open(&tx, &row.issue_date).map_err(|error| at_line(line, error))?;
-            let id = Uuid::new_v4().to_string();
-            let now = now_iso();
-            let title = row
-                .title
-                .as_deref()
-                .map(str::trim)
-                .filter(|title| !title.is_empty())
-                .map(|title| title.chars().take(200).collect::<String>())
-                .unwrap_or_else(|| format!("Facture bexio {number}"));
-            let description = match row.total_cents {
-                Some(total) if total != row.open_cents => format!("Solde ouvert de la facture bexio {number} (total {} CHF)", chf(total)),
-                _ => format!("Facture bexio {number}"),
-            };
-            tx.execute(
-                "INSERT INTO invoices(id,client_id,title,type,status,issue_date,due_date,service_date_from,service_date_to,currency,notes,created_at,updated_at)
-                 VALUES(?,?,?,'standard','brouillon',?,?,?,?,'CHF',?,?,?)",
-                params![id, row.client_id, title, row.issue_date, row.due_date, row.issue_date, row.issue_date,
-                    format!("Reprise bexio : facture {number} du {}.", row.issue_date), now, now],
-            )?;
-            tx.execute(
-                "INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at)
-                 VALUES(?,?,NULL,0,?,1,'forfait',?,0,0,?,0,?,?,?)",
-                params![Uuid::new_v4().to_string(), id, description, row.open_cents, row.open_cents, row.open_cents, now, now],
-            )?;
-            recompute_invoice(&tx, &id)?;
-            tx.execute(
-                "INSERT INTO opening_receivables(invoice_id,source,source_number,original_total_cents,open_cents,created_at) VALUES(?,'bexio',?,?,?,?)",
-                params![id, number, row.total_cents, row.open_cents, now],
-            )?;
-            let overrides = json!({"number": number, "issue_date": row.issue_date, "due_date": row.due_date,
-                "service_date_from": row.issue_date, "service_date_to": row.issue_date});
-            let payment_snapshot = build_document_snapshot(&tx, "invoices", "invoice_items", &id, &overrides)
-                .map_err(|error| at_line(line, error))?;
-            crate::swiss_qr::ensure_automatic_invoice_qr(&tx, &payment_snapshot).map_err(|error| at_line(line, error))?;
-            tx.execute(
-                "UPDATE invoice_qr_bills SET frozen_at=COALESCE(frozen_at,?),updated_at=? WHERE invoice_id=?",
-                params![now, now, id],
-            )?;
-            let snapshot = build_document_snapshot(&tx, "invoices", "invoice_items", &id, &overrides)?;
-            crate::sales_pdf::validate_document_snapshot_legal_fields("invoices", &snapshot)
-                .map_err(|error| at_line(line, error))?;
-            tx.execute(
-                "UPDATE invoices SET number=?,status='emise',snapshot_json=?,updated_at=? WHERE id=?",
-                params![number, serde_json::to_string(&snapshot)?, now_iso(), id],
-            )?;
-            let journal = post_invoice_if_enabled(&tx, &id).map_err(|error| at_line(line, error))?;
-            let record = query_record_tx(&tx, "invoices", &id)?;
-            append_audit(&tx, "import_opening", "invoice", &id, &json!({"source": "bexio", "source_number": number, "open_cents": row.open_cents, "original_total_cents": row.total_cents, "document": record, "journal": journal}))?;
-            created += 1;
-            rows.push(json!({ "line": line, "number": number, "status": "created", "invoice_id": id }));
-        }
+        let receipt = import_opening_receivables_tx(&tx, &input, "bexio")?;
         tx.commit()?;
-        Ok(json!({ "created": created, "skipped": skipped, "rows": rows }))
+        Ok(receipt)
     }
 
     pub fn preview_opening_balance(&self, input: OpeningBalanceInput) -> AppResult<Value> {
@@ -489,38 +385,158 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let plan = plan_opening_balance(&tx, &input)?;
-        let now = now_iso();
-        let memo = Some("Bilan d'ouverture bexio".to_owned());
-        let mut entry = Vec::new();
-        for line in &plan.lines {
-            let account_id = match (&line.account_id, line.create) {
-                (Some(id), _) => id.clone(),
-                (None, Some((kind, normal, section))) => {
-                    let id = Uuid::new_v4().to_string();
-                    tx.execute(
-                        "INSERT INTO accounts(id,code,name,account_type,normal_balance,report_section,active,created_at,updated_at) VALUES(?,?,?,?,?,?,1,?,?)",
-                        params![id, line.code, line.name, kind, normal, section, now, now],
-                    )?;
-                    id
-                }
-                (None, None) => return Err(invalid(format!("Le compte {} est introuvable.", line.code))),
-            };
-            entry.push(EntryLine { account_id, debit_cents: line.debit_cents, credit_cents: line.credit_cents, currency: "CHF".into(), memo: memo.clone(), project_id: None, client_id: None, employee_id: None });
-        }
-        if plan.opening_debit_cents != 0 || plan.opening_credit_cents != 0 {
-            entry.push(EntryLine { account_id: opening_account(&tx)?, debit_cents: plan.opening_debit_cents, credit_cents: plan.opening_credit_cents, currency: "CHF".into(), memo: memo.clone(), project_id: None, client_id: None, employee_id: None });
-        }
-        let journal = post_entry(&tx, &plan.entry_date, "Bilan d'ouverture repris de bexio", "manual", &Uuid::new_v4().to_string(), "posted", entry)?;
-        let summary = plan.json();
-        tx.execute(
-            "INSERT INTO opening_balance_imports(id,source,entry_date,journal_entry_id,receivables_cents,difference_cents,lines_json,created_at) VALUES(?,'bexio',?,?,?,?,?,?)",
-            params![Uuid::new_v4().to_string(), plan.entry_date, journal["id"].as_str().unwrap_or_default(), plan.receivables_cents, plan.difference_cents, serde_json::to_string(&summary["lines"])?, now],
-        )?;
-        append_audit(&tx, "import_opening_balance", "journal_entry", journal["id"].as_str().unwrap_or_default(), &json!({"source": "bexio", "plan": summary, "journal": journal}))?;
+        let receipt = import_opening_balance_tx(&tx, &input, "bexio")?;
         tx.commit()?;
-        Ok(json!({ "plan": summary, "journal": journal }))
+        Ok(receipt)
     }
+}
+
+/// Factures encore ouvertes dans l'ancien logiciel (`label`, par exemple
+/// « bexio » ou « WinBIZ ») : émises et comptabilisées contre le compte
+/// d'ouverture, dans la transaction de l'appelant.
+pub(crate) fn import_opening_receivables_tx(tx: &Transaction<'_>, input: &OpeningReceivablesInput, label: &str) -> AppResult<Value> {
+    if input.rows.is_empty() || input.rows.len() > MAX_INVOICES {
+        return Err(invalid("Importez entre 1 et 5 000 factures ouvertes à la fois."));
+    }
+    let received: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE form_of_reporting='received')",
+        [],
+        |row| row.get(0),
+    )?;
+    if received {
+        return Err(invalid(format!(
+            "Votre TVA est décomptée selon les contre-prestations reçues : la TVA de ces factures sera due à l'encaissement et Zentra ne peut pas la reconstituer depuis {label}. Saisissez ces factures avec votre fiduciaire.",
+        )));
+    }
+    let mut seen = HashSet::new();
+    let mut rows = Vec::new();
+    let (mut created, mut skipped) = (0_i64, 0_i64);
+    for row in &input.rows {
+        let line = row.line;
+        let number = row.number.trim().to_owned();
+        if number.is_empty() || number.chars().count() > 60 || number.chars().any(char::is_control) {
+            return Err(at_line(line, invalid("le numéro de facture est manquant ou trop long.")));
+        }
+        if !seen.insert(number.to_lowercase()) {
+            return Err(at_line(line, invalid(format!("la facture {number} apparaît deux fois dans le fichier."))));
+        }
+        validate_date(&row.issue_date, "issue_date").map_err(|error| at_line(line, error))?;
+        validate_date(&row.due_date, "due_date").map_err(|error| at_line(line, error))?;
+        if row.due_date < row.issue_date {
+            return Err(at_line(line, invalid("l'échéance précède la date de la facture.")));
+        }
+        if row.open_cents <= 0 || row.open_cents > MAX_AMOUNT_CENTS {
+            return Err(at_line(line, invalid("le montant ouvert doit être positif.")));
+        }
+        if row.total_cents.is_some_and(|total| total < row.open_cents || total > MAX_AMOUNT_CENTS) {
+            return Err(at_line(line, invalid("le montant ouvert dépasse le total de la facture.")));
+        }
+        let client: Option<String> = tx
+            .query_row("SELECT name FROM clients WHERE id=?", [&row.client_id], |r| r.get(0))
+            .optional()?;
+        if client.is_none() {
+            return Err(at_line(line, invalid(format!("le client est introuvable. Importez d'abord vos clients {label}."))));
+        }
+        let already: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM opening_receivables WHERE source='bexio' AND source_number=?)",
+            [&number],
+            |r| r.get(0),
+        )?;
+        let taken: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM invoices WHERE number=?)", [&number], |r| r.get(0))?;
+        if already || taken {
+            skipped += 1;
+            rows.push(json!({ "line": line, "number": number, "status": "skipped",
+                "reason": if already { "Déjà reprise" } else { "Numéro déjà utilisé dans Zentra" } }));
+            continue;
+        }
+        ensure_accounting_date_open(&tx, &row.issue_date).map_err(|error| at_line(line, error))?;
+        let id = Uuid::new_v4().to_string();
+        let now = now_iso();
+        let title = row
+            .title
+            .as_deref()
+            .map(str::trim)
+            .filter(|title| !title.is_empty())
+            .map(|title| title.chars().take(200).collect::<String>())
+            .unwrap_or_else(|| format!("Facture {label} {number}"));
+        let description = match row.total_cents {
+            Some(total) if total != row.open_cents => format!("Solde ouvert de la facture {label} {number} (total {} CHF)", chf(total)),
+            _ => format!("Facture {label} {number}"),
+        };
+        tx.execute(
+            "INSERT INTO invoices(id,client_id,title,type,status,issue_date,due_date,service_date_from,service_date_to,currency,notes,created_at,updated_at)
+             VALUES(?,?,?,'standard','brouillon',?,?,?,?,'CHF',?,?,?)",
+            params![id, row.client_id, title, row.issue_date, row.due_date, row.issue_date, row.issue_date,
+                format!("Reprise {label} : facture {number} du {}.", row.issue_date), now, now],
+        )?;
+        tx.execute(
+            "INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at)
+             VALUES(?,?,NULL,0,?,1,'forfait',?,0,0,?,0,?,?,?)",
+            params![Uuid::new_v4().to_string(), id, description, row.open_cents, row.open_cents, row.open_cents, now, now],
+        )?;
+        recompute_invoice(&tx, &id)?;
+        tx.execute(
+            "INSERT INTO opening_receivables(invoice_id,source,source_number,original_total_cents,open_cents,created_at) VALUES(?,'bexio',?,?,?,?)",
+            params![id, number, row.total_cents, row.open_cents, now],
+        )?;
+        let overrides = json!({"number": number, "issue_date": row.issue_date, "due_date": row.due_date,
+            "service_date_from": row.issue_date, "service_date_to": row.issue_date});
+        let payment_snapshot = build_document_snapshot(&tx, "invoices", "invoice_items", &id, &overrides)
+            .map_err(|error| at_line(line, error))?;
+        crate::swiss_qr::ensure_automatic_invoice_qr(&tx, &payment_snapshot).map_err(|error| at_line(line, error))?;
+        tx.execute(
+            "UPDATE invoice_qr_bills SET frozen_at=COALESCE(frozen_at,?),updated_at=? WHERE invoice_id=?",
+            params![now, now, id],
+        )?;
+        let snapshot = build_document_snapshot(&tx, "invoices", "invoice_items", &id, &overrides)?;
+        crate::sales_pdf::validate_document_snapshot_legal_fields("invoices", &snapshot)
+            .map_err(|error| at_line(line, error))?;
+        tx.execute(
+            "UPDATE invoices SET number=?,status='emise',snapshot_json=?,updated_at=? WHERE id=?",
+            params![number, serde_json::to_string(&snapshot)?, now_iso(), id],
+        )?;
+        let journal = post_invoice_if_enabled(&tx, &id).map_err(|error| at_line(line, error))?;
+        let record = query_record_tx(&tx, "invoices", &id)?;
+        append_audit(tx, "import_opening", "invoice", &id, &json!({"source": label, "source_number": number, "open_cents": row.open_cents, "original_total_cents": row.total_cents, "document": record, "journal": journal}))?;
+        created += 1;
+        rows.push(json!({ "line": line, "number": number, "status": "created", "invoice_id": id }));
+    }
+    Ok(json!({ "created": created, "skipped": skipped, "rows": rows }))
+}
+
+/// Bilan d'ouverture repris de l'ancien logiciel, en une écriture, dans la
+/// transaction de l'appelant.
+pub(crate) fn import_opening_balance_tx(tx: &Transaction<'_>, input: &OpeningBalanceInput, label: &str) -> AppResult<Value> {
+    let plan = plan_opening_balance(tx, input)?;
+    let now = now_iso();
+    let memo = Some(format!("Bilan d'ouverture {label}"));
+    let mut entry = Vec::new();
+    for line in &plan.lines {
+        let account_id = match (&line.account_id, line.create) {
+            (Some(id), _) => id.clone(),
+            (None, Some((kind, normal, section))) => {
+                let id = Uuid::new_v4().to_string();
+                tx.execute(
+                    "INSERT INTO accounts(id,code,name,account_type,normal_balance,report_section,active,created_at,updated_at) VALUES(?,?,?,?,?,?,1,?,?)",
+                    params![id, line.code, line.name, kind, normal, section, now, now],
+                )?;
+                id
+            }
+            (None, None) => return Err(invalid(format!("Le compte {} est introuvable.", line.code))),
+        };
+        entry.push(EntryLine { account_id, debit_cents: line.debit_cents, credit_cents: line.credit_cents, currency: "CHF".into(), memo: memo.clone(), project_id: None, client_id: None, employee_id: None });
+    }
+    if plan.opening_debit_cents != 0 || plan.opening_credit_cents != 0 {
+        entry.push(EntryLine { account_id: opening_account(tx)?, debit_cents: plan.opening_debit_cents, credit_cents: plan.opening_credit_cents, currency: "CHF".into(), memo: memo.clone(), project_id: None, client_id: None, employee_id: None });
+    }
+    let journal = post_entry(tx, &plan.entry_date, &format!("Bilan d'ouverture repris de {label}"), "manual", &Uuid::new_v4().to_string(), "posted", entry)?;
+    let summary = plan.json();
+    tx.execute(
+        "INSERT INTO opening_balance_imports(id,source,entry_date,journal_entry_id,receivables_cents,difference_cents,lines_json,created_at) VALUES(?,'bexio',?,?,?,?,?,?)",
+        params![Uuid::new_v4().to_string(), plan.entry_date, journal["id"].as_str().unwrap_or_default(), plan.receivables_cents, plan.difference_cents, serde_json::to_string(&summary["lines"])?, now],
+    )?;
+    append_audit(tx, "import_opening_balance", "journal_entry", journal["id"].as_str().unwrap_or_default(), &json!({"source": label, "plan": summary, "journal": journal}))?;
+    Ok(json!({ "plan": summary, "journal": journal }))
 }
 
 #[tauri::command]

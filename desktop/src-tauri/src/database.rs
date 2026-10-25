@@ -1941,7 +1941,7 @@ impl LocalStore {
         // données d'entreprise partagées : même horloge et même garde
         // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
         // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
-        let shared_steps: [(i64, &str); 15] = [
+        let shared_steps: [(i64, &str); 16] = [
             (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
             (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
             (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
@@ -1949,9 +1949,9 @@ impl LocalStore {
             (71, crate::schema::MIGRATION_V71_SQL), (72, crate::schema::MIGRATION_V72_SQL),
             (73, crate::schema::MIGRATION_V73_SQL), (74, crate::schema::MIGRATION_V74_SQL),
             (75, crate::schema::MIGRATION_V75_SQL), (76, crate::schema::MIGRATION_V76_SQL),
-            (77, crate::schema::MIGRATION_V77_SQL),
+            (77, crate::schema::MIGRATION_V77_SQL), (78, crate::schema::MIGRATION_V78_SQL),
         ];
-        if current < 77 {
+        if current < 78 {
             for (version, sql) in shared_steps {
                 if current < version {
                     transaction.execute_batch(sql)?;
@@ -1959,7 +1959,7 @@ impl LocalStore {
             }
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 77)?;
+            transaction.pragma_update(None, "user_version", 78)?;
         }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
@@ -2926,72 +2926,98 @@ impl LocalStore {
     }
 
     pub fn import_bexio_contacts(&self, input: crate::bexio_import::BexioContactImport) -> AppResult<Value> {
+        self.check_contact_import(&input)?;
+        let mut connection = self.connect()?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (receipt, _) = import_contacts_tx(&transaction, input, "bexio_export")?;
+        transaction.commit()?;
+        Ok(receipt)
+    }
+
+    /// Contrôles faits avant d'ouvrir la transaction d'un import de contacts.
+    pub(crate) fn check_contact_import(&self, input: &crate::bexio_import::BexioContactImport) -> AppResult<()> {
         if !["clients", "suppliers"].contains(&input.entity.as_str()) || input.rows.is_empty() || input.rows.len() > 5000 {
             return Err(AppError::Validation("Choisissez entre 1 et 5 000 clients ou fournisseurs.".into()));
         }
         if crate::bexio_import::scope(self)? != input.scope {
             return Err(AppError::Validation("L’entreprise a changé. Rouvrez l’import dans le bon espace.".into()));
         }
-        if serde_json::to_vec(&input)?.len()>20*1024*1024 {
+        if serde_json::to_vec(input)?.len()>20*1024*1024 {
             return Err(AppError::Validation("L’import dépasse 20 Mo. Divisez le fichier.".into()));
         }
-        let spec = entity_spec(&input.entity)?;
-        let mut connection = self.connect()?;
-        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let canonical = |value: &str| value.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
-        let existing = query_all(&transaction, &format!("SELECT id,name FROM {}",spec.table), [])?;
-        let mut names: HashSet<String> = existing.iter().filter_map(|row| row["name"].as_str()).map(canonical).collect();
-        let mut results = Vec::new();
-        let mut created = 0;
-        let batch = Uuid::new_v4().to_string();
-        for row in input.rows {
-            let mut object = value_object(row.data)?;
-            if object.contains_key("id") || object.contains_key("archived_at") {
-                return Err(AppError::Validation("L’import ne peut ni remplacer ni archiver une fiche.".into()));
-            }
-            validate_keys(&object, spec.fields)?;
-            for (key,value) in &object {
-                if !value.is_null() && !value.is_string() {
-                    return Err(AppError::Validation(format!("Ligne {} : le champ {key} doit être du texte.",row.line)));
-                }
-                if value.as_str().is_some_and(|s| s.len()>10000 || s.contains('\0')) {
-                    return Err(AppError::Validation(format!("Ligne {} : un champ est trop long ou illisible.",row.line)));
-                }
-            }
-            normalize_record(&input.entity,&mut object,true)?;
-            validate_required(&object,spec.required)?;
-            let name=object.get("name").and_then(Value::as_str).unwrap_or_default().trim().to_string();
-            if name.is_empty() || name.chars().count()>200 {
-                return Err(AppError::Validation(format!("Ligne {} : indiquez un nom de 1 à 200 caractères.",row.line)));
-            }
-            // A same-name record is left untouched, including archived records.
-            // The review explicitly calls this a potential duplicate, never a merge.
-            if !names.insert(canonical(&name)) {
-                results.push(json!({"line":row.line,"name":name,"status":"skipped"}));
-                continue;
-            }
-            object.insert("name".into(),json!(name));
-            let digest=Sha256::digest(format!("bexio\n{}\n{}\n{}",input.scope,input.entity,canonical(&name)));
-            let mut bytes=[0_u8;16];bytes.copy_from_slice(&digest[..16]);
-            let id=Uuid::from_bytes(bytes).to_string();
-            let now=now_iso();
-            let mut columns=vec!["id".to_string()];
-            let mut values=vec![SqlValue::Text(id.clone())];
-            for field in spec.fields {
-                if let Some(value)=object.get(*field) {columns.push((*field).to_string());values.push(json_to_sql(value)?);}
-            }
-            columns.extend(["created_at".into(),"updated_at".into()]);
-            values.extend([SqlValue::Text(now.clone()),SqlValue::Text(now)]);
-            transaction.execute(&format!("INSERT INTO {} ({}) VALUES ({})",spec.table,columns.join(","),vec!["?";columns.len()].join(",")),params_from_iter(values))?;
-            let saved=query_record_tx(&transaction,spec.table,&id)?;
-            append_audit(&transaction,"create",&input.entity,&id,&saved)?;
-            results.push(json!({"line":row.line,"name":name,"status":"created"}));
-            created+=1;
-        }
-        append_audit(&transaction,"import",&input.entity,&batch,&json!({"source":"bexio_export","created":created,"skipped":results.len()-created}))?;
-        transaction.commit()?;
-        Ok(json!({"created":created,"skipped":results.len()-created,"rows":results}))
+        Ok(())
     }
+}
+
+/// Clients ou fournisseurs d'un export vérifié, dans la transaction de
+/// l'appelant. Une fiche de même nom est gardée telle quelle. Rend le reçu et
+/// les identifiants créés.
+pub(crate) fn import_contacts_tx(transaction: &Transaction<'_>, input: crate::bexio_import::BexioContactImport, source: &str) -> AppResult<(Value, Vec<String>)> {
+    let spec = entity_spec(&input.entity)?;
+    let canonical = |value: &str| value.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+    let existing = query_all(transaction, &format!("SELECT id,name FROM {}",spec.table), [])?;
+    let mut names: HashSet<String> = existing.iter().filter_map(|row| row["name"].as_str()).map(canonical).collect();
+    let mut results = Vec::new();
+    let mut created = 0;
+    let mut created_ids = Vec::new();
+    let batch = Uuid::new_v4().to_string();
+    for row in input.rows {
+        let mut object = value_object(row.data)?;
+        if object.contains_key("id") || object.contains_key("archived_at") {
+            return Err(AppError::Validation("L’import ne peut ni remplacer ni archiver une fiche.".into()));
+        }
+        validate_keys(&object, spec.fields)?;
+        for (key,value) in &object {
+            if !value.is_null() && !value.is_string() {
+                return Err(AppError::Validation(format!("Ligne {} : le champ {key} doit être du texte.",row.line)));
+            }
+            if value.as_str().is_some_and(|s| s.len()>10000 || s.contains('\0')) {
+                return Err(AppError::Validation(format!("Ligne {} : un champ est trop long ou illisible.",row.line)));
+            }
+        }
+        normalize_record(&input.entity,&mut object,true)?;
+        validate_required(&object,spec.required)?;
+        let name=object.get("name").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+        if name.is_empty() || name.chars().count()>200 {
+            return Err(AppError::Validation(format!("Ligne {} : indiquez un nom de 1 à 200 caractères.",row.line)));
+        }
+        // A same-name record is left untouched, including archived records.
+        // The review explicitly calls this a potential duplicate, never a merge.
+        if !names.insert(canonical(&name)) {
+            results.push(json!({"line":row.line,"name":name,"status":"skipped"}));
+            continue;
+        }
+        object.insert("name".into(),json!(name));
+        let digest=Sha256::digest(format!("bexio\n{}\n{}\n{}",input.scope,input.entity,canonical(&name)));
+        let mut bytes=[0_u8;16];bytes.copy_from_slice(&digest[..16]);
+        let id=Uuid::from_bytes(bytes).to_string();
+        // Une fiche reprise puis renommée garde son identifiant : la rejouer
+        // la laisse intacte au lieu d'échouer sur un doublon de clé.
+        let taken: bool=transaction.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {} WHERE id=?)",spec.table),[&id],|row|row.get(0))?;
+        if taken {
+            results.push(json!({"line":row.line,"name":name,"status":"skipped"}));
+            continue;
+        }
+        let now=now_iso();
+        let mut columns=vec!["id".to_string()];
+        let mut values=vec![SqlValue::Text(id.clone())];
+        for field in spec.fields {
+            if let Some(value)=object.get(*field) {columns.push((*field).to_string());values.push(json_to_sql(value)?);}
+        }
+        columns.extend(["created_at".into(),"updated_at".into()]);
+        values.extend([SqlValue::Text(now.clone()),SqlValue::Text(now)]);
+        transaction.execute(&format!("INSERT INTO {} ({}) VALUES ({})",spec.table,columns.join(","),vec!["?";columns.len()].join(",")),params_from_iter(values))?;
+        let saved=query_record_tx(transaction,spec.table,&id)?;
+        append_audit(transaction,"create",&input.entity,&id,&saved)?;
+        results.push(json!({"line":row.line,"name":name,"status":"created"}));
+        created_ids.push(id);
+        created+=1;
+    }
+    append_audit(transaction,"import",&input.entity,&batch,&json!({"source":source,"created":created,"skipped":results.len()-created}))?;
+    Ok((json!({"created":created,"skipped":results.len()-created,"rows":results}), created_ids))
+}
+
+impl LocalStore {
 
     pub fn create_record(&self, entity: &str, data: Value) -> AppResult<Value> {
         if entity == "payments" {

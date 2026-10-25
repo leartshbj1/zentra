@@ -1,4 +1,5 @@
-pub const SCHEMA_VERSION: i64 = 77;
+pub const SCHEMA_VERSION: i64 = 78;
+pub const MIGRATION_V78_SQL: &str = include_str!("data_imports_schema.sql");
 pub const MIGRATION_V77_SQL: &str = include_str!("production_schema.sql");
 pub const MIGRATION_V76_SQL: &str = include_str!("stock_locations_schema.sql");
 pub const MIGRATION_V75_SQL: &str = include_str!("legal_archive_schema.sql");

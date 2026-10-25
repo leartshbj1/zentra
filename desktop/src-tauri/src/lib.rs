@@ -40,6 +40,7 @@ mod customer_credit_settlements;
 mod customer_credit_attachments;
 mod customer_credit_recovery;
 mod customer_credit_recovery_vat;
+mod data_imports;
 mod database;
 mod diagnostics;
 mod member_context;
@@ -332,6 +333,14 @@ pub fn run() {
             opening_balances::import_opening_receivables,
             opening_balances::preview_opening_balance,
             opening_balances::import_opening_balance,
+            data_imports::import_migration_contacts,
+            data_imports::import_migration_catalog,
+            data_imports::import_migration_accounts,
+            data_imports::import_migration_receivables,
+            data_imports::import_migration_balance,
+            data_imports::list_data_imports,
+            data_imports::get_data_import_report,
+            data_imports::undo_data_import,
             online_payments::get_online_payment_settings,
             online_payments::save_online_payment_settings,
             online_payments::create_invoice_payment_link,
