@@ -28,7 +28,7 @@ export function ChapterHeading({ title, subtotal, onRename, onRemove, disabled }
   return (
     <div className="line-chapter" role="group" aria-label={t('Chapitre {title}', { title })}>
       <label className="line-chapter__title">
-        <span className="visually-hidden">{t('Titre du chapitre')}</span>
+        <span className="sr-only">{t('Titre du chapitre')}</span>
         <input value={title} maxLength={120} disabled={disabled} onChange={event => onRename(event.target.value)} placeholder={t('Titre du chapitre')} />
       </label>
       <span className="line-chapter__total">{t('Sous-total')} <strong>{subtotal}</strong></span>

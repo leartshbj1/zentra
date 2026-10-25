@@ -428,6 +428,7 @@ import {
 } from './bank';
 import { expensePaymentStatusFromRaw } from './purchases';
 import { measurementRowsFromRaw, measurementRowsToRaw } from './measurement';
+import { progressFromRaw } from './progressBilling';
 import {
   pdfDestinationPath,
   salesPdfInvokeInput,
@@ -563,6 +564,9 @@ type RawWorkspace = {
   price_lists?: RawRecord[];
   price_list_items?: RawRecord[];
   client_price_lists?: RawRecord[];
+  progress_billing_plans?: RawRecord[];
+  progress_bills?: RawRecord[];
+  progress_bill_lines?: RawRecord[];
   opportunities?: RawRecord[];
   warehouses?: RawRecord[];
   stock_movement_warehouses?: RawRecord[];
@@ -3479,6 +3483,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       decisionNote: stringValue(row.decision_note), payslipId: stringValue(row.payslip_id) || null, createdAt: stringValue(row.created_at),
     })),
     priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
+    ...(() => { const progress = progressFromRaw(raw.progress_billing_plans ?? [], raw.progress_bills ?? [], raw.progress_bill_lines ?? []); return { progressPlans: progress.plans, progressBills: progress.bills }; })(),
     opportunities: (raw.opportunities ?? []).map(opportunityFromRaw),
     stockLocations: stockLocationsFromRaw(raw),
     billsOfMaterials: billsFromRaw(raw.bills_of_materials ?? [], raw.bom_lines ?? []),
@@ -7689,6 +7694,11 @@ export const desktopApi = {
   async saveOpportunity(input: Omit<Opportunity, 'id' | 'stageChangedAt' | 'createdAt' | 'updatedAt'> & { id: string | null }) {
     const raw = await invoke<RawRecord>('save_opportunity', { input });
     return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Prépare une situation SIA 118 (ou le décompte final, ou la libération de la retenue) en facture brouillon. */
+  async createProgressBill(input: import('./progressBilling').ProgressBillRequest) {
+    const raw = await invoke<RawRecord>('create_progress_bill', { input });
+    return { invoiceId: stringValue(raw.invoiceId), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async savePriceList(input: { id: string | null; name: string; discountBp: number; archived: boolean; items: { catalogItemId: string; unitPriceCents: number }[]; clientIds: string[] }) {
     const raw = await invoke<RawRecord>('save_price_list', { input });

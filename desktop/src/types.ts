@@ -1961,6 +1961,9 @@ export type Workspace = {
   expenseClaims?: ExpenseClaim[];
   /** Listes de prix par client. */
   priceLists?: import('./priceLists').PriceList[];
+  /** Situations SIA 118 : plans par devis et situations émises ou en brouillon. */
+  progressPlans?: import('./progressBilling').ProgressPlan[];
+  progressBills?: import('./progressBilling').ProgressBill[];
   /** Opportunités de vente (pipeline). */
   opportunities?: import('./pipeline').Opportunity[];
   /** Dépôts, transferts, lots et numéros de série. */

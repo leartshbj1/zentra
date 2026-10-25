@@ -135,3 +135,39 @@ export function nextProgressStep(previous: PreviousProgress): ProgressKind | 'dr
   if (previous.finalBilled) return Object.values(previous.retentionByRate).some(amount => amount !== 0) ? 'retention_release' : 'done';
   return 'situation';
 }
+
+type RawRow = Record<string, unknown>;
+const text = (value: unknown) => (typeof value === 'string' ? value : value == null ? '' : String(value));
+const integer = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : Number(value) || 0);
+
+/** Tables natives → situations du classeur, avec leur avancement par position. */
+export function progressFromRaw(plans: readonly RawRow[], bills: readonly RawRow[], lines: readonly RawRow[]): { plans: ProgressPlan[]; bills: ProgressBill[] } {
+  return {
+    plans: plans.map(row => ({ quoteId: text(row.quote_id), retentionBp: integer(row.retention_bp), roundToFive: integer(row.round_to_five) === 1 })),
+    bills: bills.map(row => {
+      let retentionByRate: Record<number, number> = {};
+      try {
+        const parsed = JSON.parse(text(row.retention_by_rate_json) || '{}') as Record<string, number>;
+        retentionByRate = Object.fromEntries(Object.entries(parsed).map(([rate, amount]) => [Number(rate), integer(amount)]));
+      } catch { retentionByRate = {}; }
+      const kind = text(row.kind);
+      return {
+        id: text(row.id), quoteId: text(row.quote_id), invoiceId: text(row.invoice_id), sequence: integer(row.sequence),
+        kind: kind === 'final' || kind === 'retention_release' ? kind : 'situation',
+        progressDate: text(row.progress_date), retentionBp: integer(row.retention_bp), cumulativeNetCents: integer(row.cumulative_net_cents),
+        cumulativeRetentionCents: integer(row.cumulative_retention_cents), retentionByRate, previousNetCents: integer(row.previous_net_cents),
+        netCents: integer(row.net_cents), roundingCents: integer(row.rounding_cents),
+        lines: lines.filter(line => line.bill_id === row.id).map(line => ({
+          quoteItemId: text(line.quote_item_id), mode: text(line.mode) === 'quantity' ? 'quantity' : 'percent',
+          cumulativePercentBp: line.cumulative_percent_bp == null ? null : integer(line.cumulative_percent_bp),
+          cumulativeQuantity: integer(line.cumulative_quantity), cumulativeNetCents: integer(line.cumulative_net_cents),
+        })),
+      } satisfies ProgressBill;
+    }),
+  };
+}
+
+export type ProgressBillRequest = {
+  quoteId: string; kind: ProgressKind; progressDate: string; retentionBp: number; roundToFive: boolean; releaseRetention: boolean;
+  lines: { quoteItemId: string; mode: ProgressMode; cumulativePercentBp?: number; cumulativeQuantity?: number }[];
+};

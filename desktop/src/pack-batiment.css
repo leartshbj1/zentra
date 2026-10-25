@@ -163,3 +163,158 @@
     text-align: left;
   }
 }
+
+/* ---------- Progress invoices (SIA 118) ---------- */
+@media screen {
+  .quote-conversion-progress {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin: 20px 0 4px;
+    padding-top: 16px;
+    border-top: 1px solid var(--apple-line);
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  .progress-dialog__kind {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    margin: 4px 0 20px;
+  }
+  .progress-dialog__kind label,
+  .progress-dialog__check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+  }
+  .progress-dialog__check {
+    margin: 10px 0 0;
+  }
+  .progress-dialog__settings {
+    margin-bottom: 4px;
+  }
+  .progress-dialog__positions {
+    margin: 24px 0 0;
+  }
+  .progress-dialog__head,
+  .progress-dialog__row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(150px, 1.1fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+  .progress-dialog__head {
+    padding: 0 0 8px;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  .progress-dialog__head span:nth-child(n + 2),
+  .progress-dialog__row > span:nth-child(n + 2) {
+    text-align: right;
+  }
+  .progress-dialog__chapter h3 {
+    margin: 18px 0 4px;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  .progress-dialog__row {
+    padding: 10px 0;
+    border-top: 1px solid var(--apple-line);
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-dialog__row small {
+    display: block;
+    margin-top: 2px;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+  }
+  .progress-dialog__description {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .progress-dialog__input {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .progress-dialog__input input {
+    width: 84px;
+    min-height: 36px;
+    text-align: right;
+  }
+  .progress-dialog__input select {
+    min-height: 36px;
+    max-width: 90px;
+  }
+  .progress-dialog__amount {
+    font-weight: 600;
+  }
+  .progress-dialog__summary {
+    display: grid;
+    gap: 8px;
+    margin: 28px 0 0;
+    padding: 18px 20px;
+    border-radius: var(--apple-radius-group, 12px);
+    background: var(--apple-grouped);
+  }
+  .progress-dialog__summary > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  .progress-dialog__summary dd {
+    margin: 0;
+    color: var(--apple-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-dialog__summary .progress-dialog__total {
+    padding-top: 10px;
+    border-top: 1px solid var(--apple-line);
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  .progress-dialog__hint dd {
+    color: var(--apple-secondary);
+  }
+  .progress-dialog__note,
+  .progress-dialog__state {
+    margin: 14px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+  }
+}
+
+@media screen and (max-width: 720px) {
+  .progress-dialog__head {
+    display: none;
+  }
+  .progress-dialog__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+  }
+  .progress-dialog__description {
+    grid-column: 1 / -1;
+    font-weight: 600;
+  }
+  .progress-dialog__row > span:nth-child(2),
+  .progress-dialog__row > span:nth-child(3) {
+    text-align: left;
+  }
+  .progress-dialog__input {
+    grid-column: 1 / 2;
+    justify-content: flex-start;
+  }
+}

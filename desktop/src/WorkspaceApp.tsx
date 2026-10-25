@@ -23,6 +23,7 @@ import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type CatalogArea, type TimeArea } from './BankAreaTabs';
 import { PriceListsPanel } from './PriceListsPanel';
+import { ProgressBillingDialog } from './ProgressBillingDialog';
 import { WarehousesPanel } from './WarehousesPanel';
 import { LotsPanel } from './LotsPanel';
 import { BomPanel } from './BomPanel';
@@ -501,6 +502,7 @@ type ModalState = (
       consultation?:DocumentCreationConsultation;
     }
   | { type: 'quoteConversion'; quote: Quote }
+  | { type: 'progressBilling'; quote: Quote }
   | { type: 'quoteInvoiceFolder'; quoteId: string }
   | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
@@ -4106,7 +4108,9 @@ function WorkspaceContent({
                 );
               }}
               onConvert={(item) =>
-                setModal({ type: 'quoteConversion', quote: item })
+                setModal(workspace.progressPlans?.some(plan => plan.quoteId === item.id)
+                  ? { type: 'progressBilling', quote: item }
+                  : { type: 'quoteConversion', quote: item })
               }
               onCreateOrder={(item) => void convertAcceptedQuoteToOrder(item)}
               onAcceptanceLink={readOnly ? undefined : (item) => void sendAcceptanceLink(item)}
@@ -8160,7 +8164,9 @@ function WorkspaceModal({
             (batch) => batch.invoiceId === state.item?.id,
           )
             ? 'Cette facture brouillon est générée depuis une commande client. Consultez-la ici; utilisez la fiche commande pour l’émettre ou supprimer le brouillon avec un motif.'
-            : undefined
+            : state.entity === 'invoices' && state.item?.status === 'draft' && workspace.progressBills?.some(bill => bill.invoiceId === state.item?.id)
+              ? t('Cette situation est calculée depuis le devis. Émettez-la depuis la liste des factures ; pour la changer, supprimez le brouillon et préparez-la à nouveau.')
+              : undefined
         }
         close={close}
         act={act}
@@ -8173,6 +8179,17 @@ function WorkspaceModal({
         busy={busy}
         close={close}
         onConvert={onConvertQuote}
+        onProgress={() => replace({ type: 'progressBilling', quote: state.quote })}
+      />
+    );
+  if (state.type === 'progressBilling')
+    return (
+      <ProgressBillingDialog
+        quote={state.quote}
+        workspace={workspace}
+        busy={busy}
+        close={close}
+        onCreate={(input, onError) => act(async () => (await desktopApi.createProgressBill(input)).workspace, t('La facture est prête en brouillon. Vérifiez-la puis émettez-la.'), true, onError)}
       />
     );
   if (state.type === 'invoiceCorrection')

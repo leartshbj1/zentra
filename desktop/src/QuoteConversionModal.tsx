@@ -7,18 +7,22 @@ import {
   quoteConversionPreview,
   quoteConversionSelection,
 } from './quoteConversion';
-import { ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
+import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui';
+import { t } from './language';
 
 export function QuoteConversionModal({
   quote,
   busy,
   close,
   onConvert,
+  onProgress,
 }: {
   quote: Quote;
   busy: boolean;
   close: () => void;
   onConvert: (quote: Quote, depositPercentageBp: number | null, onError?: (reason: unknown) => void) => Promise<boolean>;
+  /** Facturer le chantier par situations cumulées (SIA 118). */
+  onProgress?: () => void;
 }) {
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [percentage, setPercentage] = useState(DEFAULT_QUOTE_DEPOSIT_PERCENTAGE);
@@ -140,6 +144,12 @@ export function QuoteConversionModal({
           </p>
         ) : null}
 
+        {onProgress ? (
+          <div className="quote-conversion-progress">
+            <span>{t('Chantier facturé en plusieurs fois selon l’avancement ?')}</span>
+            <Button type="button" variant="ghost" size="small" disabled={locked} onClick={onProgress}>{t('Facturer par situations (SIA 118)')}</Button>
+          </div>
+        ) : null}
         <FormActions
           onCancel={close}
           busy={locked}

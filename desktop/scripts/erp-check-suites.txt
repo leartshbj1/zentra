@@ -83,3 +83,5 @@ rust:convert
 rust:deposit
 src/progressBilling.test.ts
 rust:progress_billing::
+src/ProgressBillingDialog.test.tsx
+src/QuoteConversionModal.test.tsx
