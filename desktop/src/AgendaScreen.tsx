@@ -30,7 +30,7 @@ import type { AgendaEvent, Workspace } from './types';
 import { Button, EmptyState, ReadOnlyFormScope, StatusBadge } from './ui';
 import { AgendaEditor } from './AgendaEditor';
 import { AgendaActionDialog } from './AgendaActionDialog';
-import { eventDraft, type AgendaEventDraft, type AgendaErrorHandler } from './agendaForm';
+import { eventDraft, typedEventDraft, type AgendaEventDraft, type AgendaErrorHandler } from './agendaForm';
 export type { AgendaEventDraft } from './agendaForm';
 import { formatDate, todayIso } from './utils';
 import { MobileDetails, useCompactLayout } from './MobileDetails';
@@ -82,6 +82,8 @@ export function AgendaScreen({
   onNavigate,
   initialEventId,
   onInitialEventHandled,
+  initialDraft,
+  onInitialDraftHandled,
 }: {
   workspace: Workspace;
   busy: boolean;
@@ -91,6 +93,9 @@ export function AgendaScreen({
   onNavigate: (item: AgendaItem) => void;
   initialEventId?: string | null;
   onInitialEventHandled?: () => void;
+  /** A new event typed to Autopilote: the editor opens with it, for the person to check and save. */
+  initialDraft?: Readonly<{ title: string; date: string | null; time: string | null; notes?: string }> | null;
+  onInitialDraftHandled?: () => void;
 }) {
   const language = useAppLanguage();
   const compact = useCompactLayout();
@@ -104,7 +109,8 @@ export function AgendaScreen({
   const [display, setDisplay] = useState<AgendaDisplay>(() => initialEvent || compact ? 'day' : 'month');
   const [category, setCategory] = useState<AgendaCategory | 'all'>('all');
   const [includeClosed, setIncludeClosed] = useState(!!initialEvent && initialEvent.status !== 'scheduled');
-  const [editor, setEditor] = useState<AgendaEventDraft | null>(null);
+  const [editor, setEditor] = useState<AgendaEventDraft | null>(() => initialDraft ? typedEventDraft(initialDraft, todayIso()) : null);
+  useEffect(() => { if (initialDraft) onInitialDraftHandled?.(); }, [initialDraft, onInitialDraftHandled]);
   const [action, setAction] = useState<{ event: AgendaEvent; kind: 'complete' | 'delete' } | null>(null);
   const allItems = useMemo(() => buildAgendaItems(workspace), [workspace, language]);
   const items = useMemo(
