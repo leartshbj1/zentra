@@ -18,6 +18,14 @@ export function eventDraft(event?: AgendaEvent, date = todayIso()): AgendaEventD
   return { id: createId(), isNew: true, expectedUpdatedAt: null, title: '', startDate: date, endDate: date, allDay: false, startTime: '09:00', endTime: '10:00', kind: 'appointment', status: 'scheduled', location: '', notes: '', projectId: null, employeeId: null };
 }
 
+/** A new appointment from a typed request: its words, date and time; one hour long by default. */
+export function typedEventDraft(typed: Readonly<{ title: string; date: string | null; time: string | null; notes?: string }>, today: string): AgendaEventDraft {
+  const draft = eventDraft(undefined, typed.date && /^\d{4}-\d{2}-\d{2}$/.test(typed.date) ? typed.date : today);
+  const time = typed.time && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(typed.time) ? typed.time : null;
+  const end = time ? `${String(Math.min(23, Number(time.slice(0, 2)) + 1)).padStart(2, '0')}:${time.slice(3)}` : null;
+  return { ...draft, title: typed.title.slice(0, 200), notes: typed.notes ?? '', ...(time && end ? { startTime: time, endTime: end > time ? end : '23:59' } : {}) };
+}
+
 const validTime = (value: string | null) => !!value && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 export function agendaFormIssue(draft: AgendaEventDraft, workspace: Workspace, original: AgendaEventDraft): AgendaFormIssue | undefined {
   if (!draft.title.trim() || [...draft.title.trim()].length > 200) return { field: 'title', message: 'Donnez un titre de 1 à 200 caractères, par exemple « Visite chez le client ».' };

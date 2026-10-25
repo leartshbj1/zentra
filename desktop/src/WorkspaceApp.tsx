@@ -626,6 +626,8 @@ function WorkspaceContent({
   const [view, setView] = useState<View>('dashboard');
   useEffect(()=>{recordDiagnostic({area:'navigation',operation:`screen.${view}`,phase:'info'});},[view]);
   const [agendaEventToOpen, setAgendaEventToOpen] = useState<{organizationId:string; id:string} | null>(null);
+  const [agendaDraftToOpen, setAgendaDraftToOpen] = useState<{ title: string; date: string | null; time: string | null; notes?: string } | null>(null);
+  const clearAgendaDraftToOpen = useCallback(() => setAgendaDraftToOpen(null), []);
   const [notesProjectId, setNotesProjectId] = useState<string | null>(null);
   const [notesEditing, setNotesEditing] = useState(false);
   const compactSales = useCompactLayout() && (view === 'quotes' || view === 'invoices');
@@ -2160,7 +2162,8 @@ function WorkspaceContent({
         setSearch(''); setView('clients'); setModal({ type: 'client', seedName: reading.party ?? undefined });
         break;
       case 'create_appointment':
-        notes.push(copy.commandAppointment.replace('{when}', when).replace('{party}', reading.party ? ' · ' + reading.party : ''));
+        // The agenda editor opens with the words, date and time typed; the person checks and saves.
+        setAgendaDraftToOpen({ title: reading.party ? `${reading.party} · ${reading.text}`.slice(0, 200) : reading.text, date: reading.date, time: reading.time, notes: reading.text });
         setSearch(''); setView('agenda');
         break;
       case 'create_task': {
@@ -3844,6 +3847,8 @@ function WorkspaceContent({
                 key={cloudAccount?.organizationId ?? 'local'}
                 initialEventId={agendaEventToOpen?.organizationId === cloudAccount?.organizationId ? agendaEventToOpen?.id : null}
                 onInitialEventHandled={() => setAgendaEventToOpen(null)}
+                initialDraft={agendaDraftToOpen}
+                onInitialDraftHandled={clearAgendaDraftToOpen}
                 workspace={workspace}
                 busy={busy}
                 readOnly={readOnly}

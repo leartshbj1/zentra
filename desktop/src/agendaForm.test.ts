@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agendaDuration, agendaFormIssue, agendaMerge, agendaNativeIssue, changeAgendaStartDate, eventDraft, requireAgendaWorkspace } from './agendaForm';
+import { agendaDuration, agendaFormIssue, agendaMerge, agendaNativeIssue, changeAgendaStartDate, eventDraft, requireAgendaWorkspace, typedEventDraft } from './agendaForm';
 import type { AgendaEvent, Workspace } from './types';
 import { initialOnboardingSettings } from './onboardingDraft';
 
@@ -71,5 +71,16 @@ describe('comparaison des versions du rendez-vous', () => {
     expect(agendaMerge(original,{...original,title:'Même titre'},{...stored,title:'Même titre',updatedAt:'b'}).conflicts).toEqual([]);
     const day={...original,allDay:true};
     expect(agendaMerge(day,{...day,startTime:'13:00'},{...stored,allDay:true,startTime:null,endTime:null,updatedAt:'b'}).conflicts).toEqual([]);
+  });
+});
+
+describe('typedEventDraft', () => {
+  it('opens a new appointment with the typed date and time, one hour long', () => {
+    expect(typedEventDraft({ title: 'Martin · Rdv demain à 14h30', date: '2026-10-26', time: '14:30', notes: 'Rdv demain à 14h30' }, '2026-10-25'))
+      .toMatchObject({ isNew: true, title: 'Martin · Rdv demain à 14h30', startDate: '2026-10-26', endDate: '2026-10-26', startTime: '14:30', endTime: '15:30', kind: 'appointment', notes: 'Rdv demain à 14h30' });
+  });
+  it('falls back to today and the default hours when nothing usable was typed', () => {
+    expect(typedEventDraft({ title: 'Rdv Dupont', date: null, time: 'bad' }, '2026-10-25')).toMatchObject({ startDate: '2026-10-25', startTime: '09:00', endTime: '10:00' });
+    expect(typedEventDraft({ title: 'Tard', date: '2026-10-25', time: '23:30' }, '2026-10-25')).toMatchObject({ startTime: '23:30', endTime: '23:59' });
   });
 });
