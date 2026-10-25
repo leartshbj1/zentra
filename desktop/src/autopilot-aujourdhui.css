@@ -1,0 +1,692 @@
+/*
+ * Autopilote, "Aujourd'hui". Loaded last.
+ * One sentence says what waits. Left, the list; right, the open item:
+ * what was received next to what Zentra prepared, and one green button.
+ * Plain surfaces and hairlines only; green is kept for the action and "done".
+ */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today {
+    --apt-scale: var(--zentra-ui-text-scale, 1);
+    display: block;
+    color: var(--apple-ink);
+  }
+
+  /* ---------- The day in one sentence ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px 40px;
+    margin: 4px 0 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__date {
+    margin: 0 0 10px;
+    color: var(--apple-secondary);
+    font-size: calc(15px * var(--apt-scale));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__hero h2 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(40px * var(--apt-scale));
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: -0.028em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lead {
+    max-width: 58ch;
+    margin: 12px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(16px * var(--apt-scale));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__side {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__progress {
+    display: grid;
+    justify-items: end;
+    gap: 9px;
+    color: var(--apple-secondary);
+    font-size: calc(13.5px * var(--apt-scale));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__segments {
+    display: flex;
+    gap: 4px;
+    width: min(360px, 40vw);
+    justify-content: flex-end;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__segments i {
+    flex: 0 1 30px;
+    min-width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--z7-segment);
+    transition: background-color 0.4s ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__segments i[data-on] {
+    background: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today :is(.autopilot-today__settings, .autopilot-today__secondary) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--z7-button-line);
+    border-radius: 10px;
+    background: var(--z7-button-paper);
+    color: var(--apple-ink);
+    font: inherit;
+    font-size: calc(14.5px * var(--apt-scale));
+    font-weight: 500;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__ask {
+    margin-top: 26px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__status {
+    margin: 22px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14.5px * var(--apt-scale));
+  }
+
+  /* ---------- List on the left, open item on the right ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__grid {
+    display: grid;
+    grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
+    align-items: start;
+    gap: 36px;
+    margin-top: 32px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__label {
+    margin: 0 0 8px 12px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--apt-scale));
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__label-narrow { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__queue {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__queue button {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 56px;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--apple-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__queue button:hover {
+    background: color-mix(in srgb, var(--apple-paper) 60%, transparent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__queue button[aria-current] {
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__n {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--apt-scale));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__what {
+    display: grid;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__what small {
+    color: var(--apple-secondary);
+    font-size: calc(12.5px * var(--apt-scale));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__what strong {
+    overflow: hidden;
+    font-size: calc(15px * var(--apt-scale));
+    font-weight: 550;
+    line-height: 1.3;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__amount {
+    color: var(--apple-secondary);
+    font-size: calc(13.5px * var(--apt-scale));
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* What Zentra already did: checks, the time, undo when possible. */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done {
+    margin-top: 30px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done h3 { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done ol {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0 0 0 12px;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done li {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 4px 10px;
+    padding: 7px 12px 7px 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    font-size: calc(14px * var(--apt-scale));
+    line-height: 1.4;
+    animation: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done li > svg {
+    margin-top: 1px;
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done li strong { font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done li time {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--apt-scale));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__done .quote-autopilot__done li button {
+    grid-column: 2;
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--apple-secondary);
+    font: inherit;
+    font-size: calc(13px * var(--apt-scale));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today :is(.autopilot-today__quiet, .autopilot-today__link) {
+    margin: 0;
+    padding: 4px 12px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--apt-scale));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  /* ---------- The open item ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus {
+    min-width: 0;
+    min-height: 420px;
+    padding: 28px 32px 26px;
+    border-radius: 18px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+    scroll-margin-top: 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus-head > div { min-width: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus-head small {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--apt-scale));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus-head h3 {
+    margin: 4px 0 0;
+    color: var(--apple-ink);
+    font-size: calc(28px * var(--apt-scale));
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus-head p {
+    margin: 6px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(15px * var(--apt-scale));
+    line-height: 1.45;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pager {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--apt-scale));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pager span { margin-right: 6px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pager button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--z7-segment);
+    color: var(--apple-ink);
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.autopilot-today__pair, .autopilot-today__single) {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 0 32px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pair > .autopilot-today__prepared {
+    padding-left: 32px;
+    border-left: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today h4 {
+    margin: 0 0 12px;
+    color: var(--apple-secondary);
+    font-size: calc(12.5px * var(--apt-scale));
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today .autopilot-today__from {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(15.5px * var(--apt-scale));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__meta {
+    margin: 4px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--apt-scale));
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today blockquote {
+    margin: 14px 0 0;
+    padding: 14px 16px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--z7-hero-inset);
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--apt-scale));
+    line-height: 1.55;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__what-next {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(17px * var(--apt-scale));
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__note {
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--z7-hero-inset);
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--apt-scale));
+    line-height: 1.45;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__why {
+    margin: 12px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(13.5px * var(--apt-scale));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today .autopilot-today__ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    margin-top: 10px;
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    color: var(--apple-secondary);
+    font: inherit;
+    font-size: calc(14.5px * var(--apt-scale));
+    font-weight: 500;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pick {
+    display: grid;
+    gap: 6px;
+    margin-top: 14px;
+    color: var(--apple-secondary);
+    font-size: calc(13.5px * var(--apt-scale));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lines {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: calc(14.5px * var(--apt-scale));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lines caption {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lines td {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--z-hairline);
+    vertical-align: top;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lines td:last-child {
+    padding-left: 16px;
+    text-align: right;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lines small {
+    display: block;
+    margin-top: 2px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--apt-scale));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lines .autopilot-today__sum td {
+    padding: 6px 0;
+    border: 0;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lines .autopilot-today__total td {
+    padding-top: 10px;
+    border: 0;
+    border-top: 1px solid var(--z-hairline);
+    color: var(--apple-ink);
+    font-size: calc(17px * var(--apt-scale));
+    font-weight: 650;
+  }
+
+  /* One green button, on the right, with the Enter key. */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 26px;
+    padding-top: 20px;
+    border-top: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__actions .autopilot-today__ghost { margin: 0 auto 0 0; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 11px;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent, #fff);
+    font: inherit;
+    font-size: calc(15px * var(--apt-scale));
+    font-weight: 600;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__primary:disabled { opacity: 0.45; cursor: default; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__primary kbd {
+    padding: 1px 6px;
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: calc(11.5px * var(--apt-scale));
+    font-weight: 500;
+    opacity: 0.6;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__secondary { min-height: 44px; }
+
+  /* The request keeps its own card; here it only shows its sentence and its buttons. */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card { margin-top: 24px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot--reviews > header { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot__requests {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot__requests > li {
+    margin: 0;
+    padding: 20px 0 0;
+    border: 0;
+    border-top: 1px solid var(--z-hairline);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    animation: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot__requests > li,
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot__requests > li > * {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot__row-text :is(.quote-autopilot__kind, strong) { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__card .quote-autopilot__row-text > span:last-child {
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--apt-scale));
+  }
+
+  /* Nothing left. */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__clear {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding: 72px 20px;
+    text-align: center;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__check {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 8px;
+    border-radius: 50%;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent, #fff);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__clear h3 {
+    margin: 0;
+    font-size: calc(32px * var(--apt-scale));
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__clear p {
+    max-width: 40ch;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(15.5px * var(--apt-scale));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today[data-empty] .autopilot-today__grid { grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); }
+}
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus > * { animation: autopilot-today-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  @keyframes autopilot-today-in { from { opacity: 0; transform: translateY(6px); } }
+}
+
+/* ---------- Phone: the open item first, the rest below ---------- */
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__hero h2 { font-size: calc(31px * var(--apt-scale)); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__lead { font-size: calc(15.5px * var(--apt-scale)); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__progress { justify-items: start; min-width: 0; flex: 1; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__segments { width: 100%; justify-content: flex-start; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 26px;
+    margin-top: 22px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today[data-empty] .autopilot-today__grid { grid-template-columns: minmax(0, 1fr); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus {
+    order: -1;
+    min-height: 0;
+    padding: 20px 18px 18px;
+    border-radius: 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus-head { flex-direction: column-reverse; gap: 10px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pager { align-self: stretch; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pager span { margin-right: auto; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__focus-head h3 { font-size: calc(24px * var(--apt-scale)); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pair { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__pair > .autopilot-today__prepared {
+    padding: 20px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__actions { justify-content: stretch; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__actions > * { flex: 1 1 auto; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__primary {
+    order: -1;
+    flex-basis: 100% !important;
+    min-height: 50px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__primary kbd { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__actions .autopilot-today__ghost { margin: 0; justify-content: center; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__label-wide { display: none; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__label-narrow { display: inline; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__label { margin-left: 4px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__queue button { padding: 9px 6px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__clear { padding: 44px 12px; }
+}
+
+/* ---------- Réglages: one clear choice per line ---------- */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice {
+    display: inline-grid;
+    flex: none;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice label {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--apple-secondary);
+    font-size: calc(13.5px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice label[data-on] {
+    background: var(--z7-segment-thumb);
+    box-shadow: var(--z7-segment-shadow);
+    color: var(--apple-ink);
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice label:has(input:focus-visible) {
+    outline: 2px solid var(--apple-focus, var(--apple-accent));
+    outline-offset: 1px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] fieldset:disabled .autopilot-choice label { cursor: default; opacity: 0.7; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice--three {
+    display: grid;
+    width: min(100%, 540px);
+    margin: 4px 0 2px;
+    clear: both;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__functioning .automation-settings__current-mode {
+    margin: 10px 0 0;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__choice-row {
+    cursor: default;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__soon {
+    flex: none;
+    color: var(--apple-secondary);
+    font-size: calc(13.5px * var(--zentra-ui-text-scale, 1));
+  }
+}
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__choice-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .automation-settings__choice-row > .autopilot-choice { width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice--three {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-flow: row;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-choice--three label {
+    min-height: 44px;
+    padding: 4px 6px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+}

@@ -47,8 +47,13 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
     </div>}
     <fieldset className="automation-settings__functioning" disabled={!canManage || busy}>
       <legend>{t('Fonctionnement')}</legend>
-      <label className="automation-settings__toggle"><span><strong>{t('Activer les suggestions')}</strong><small>{t('Vous gardez la validation des actions importantes.')}</small></span><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /></label>
-      <p className="automation-settings__current-mode">{t(draft.mode === 'shadow' ? 'Observation · sans modifier vos choix' : 'Suggestions · vérifier puis confirmer')}</p>
+      {/* One choice for the whole team: Zentra prepares and you approve, it only observes, or it rests. */}
+      <div className="autopilot-choice autopilot-choice--three" role="radiogroup" aria-label={t('Fonctionnement')}>{(['suggest', 'shadow', 'paused'] as const).map(value => {
+        const current = draft.enabled ? draft.mode : 'paused';
+        return <label key={value} data-on={current === value || undefined}><input type="radio" name="automation-run" checked={current === value}
+          onChange={() => setDraft(value === 'paused' ? { ...draft, enabled: false } : { ...draft, enabled: true, mode: value })} /><span>{t(value === 'suggest' ? 'Prépare, vous validez' : value === 'shadow' ? 'Observe seulement' : 'En pause')}</span></label>;
+      })}</div>
+      <p className="automation-settings__current-mode">{t(!draft.enabled ? 'Suggestions en pause' : draft.mode === 'shadow' ? 'Observation · sans modifier vos choix' : 'Vous gardez la validation des actions importantes.')}</p>
     </fieldset>
     <MorningDigestSetting organizationId={state.organizationId} disabled={readOnly} />
     <details className="workflow-options automation-settings__functions" open><summary>{t('Fonctions activées')} <span>{draft.flags.filter(feature => state.available.includes(feature)).length} / {state.available.length}</span></summary><fieldset disabled={!canManage || busy}>
@@ -56,13 +61,18 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
       <div className="automation-settings__features">{Object.entries(automationFeatures).map(([key, item]) => {
         const feature = key as keyof typeof automationFeatures;
         const available = state.available.includes(feature);
-        return <label className="automation-settings__toggle" key={key}><span><strong>{t(item.title)}</strong><small>{t(available ? item.description : 'Cette fonction n’est pas encore disponible.')}</small></span><input type="checkbox" checked={available && draft.flags.includes(feature)} disabled={!available} onChange={e => setDraft({ ...draft, flags: e.target.checked ? [...draft.flags, feature] : draft.flags.filter(f => f !== feature) })} /></label>;
+        const on = available && draft.flags.includes(feature);
+        return <div className="automation-settings__toggle automation-settings__choice-row" key={key}><span><strong>{t(item.title)}</strong><small>{t(available ? item.description : 'Cette fonction n’est pas encore disponible.')}</small></span>
+          {available ? <span className="autopilot-choice" role="radiogroup" aria-label={t(item.title)}>
+            <label data-on={on || undefined}><input type="radio" name={`automation-feature-${key}`} checked={on} onChange={() => setDraft({ ...draft, flags: draft.flags.includes(feature) ? draft.flags : [...draft.flags, feature] })} /><span>{t('À valider')}</span></label>
+            <label data-on={!on || undefined}><input type="radio" name={`automation-feature-${key}`} checked={!on} onChange={() => setDraft({ ...draft, flags: draft.flags.filter(f => f !== feature) })} /><span>{t('Arrêté')}</span></label>
+          </span> : <span className="automation-settings__soon">{t('Bientôt disponible')}</span>}</div>;
       })}</div>
     </fieldset></details>
     {canManage && <>
       {!state.settings.consent && <label className="automation-settings__consent"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={busy} /><span>{t('J’autorise l’analyse en ligne des extraits nécessaires pour cette entreprise.')}</span></label>}
       {draft.enabled && !consent && <p>{t('Cochez votre accord ci-dessus pour enregistrer l’activation.')}</p>}
-      <details className="workflow-options"><summary>{t('Réglages avancés')}</summary><label className="automation-settings__mode"><span>{t('Mode')}</span><select disabled={busy} value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as 'suggest' | 'shadow' })}><option value="suggest">{t('Suggestions · vérifier puis confirmer')}</option><option value="shadow">{t('Observation · sans modifier vos choix')}</option></select></label><div className="automation-settings__thresholds">
+      <details className="workflow-options"><summary>{t('Réglages avancés')}</summary><div className="automation-settings__thresholds">
         <label>{t('Suggestion à partir de (%)')}<input type="number" min="50" max="99" step="1" disabled={busy} value={Math.round(draft.thresholds.medium * 100)} onChange={e => setDraft({ ...draft, thresholds: { ...draft.thresholds, medium: Number(e.target.value) / 100 } })} /></label>
         <label>{t('Confiance élevée à partir de (%)')}<input type="number" min="51" max="100" step="1" disabled={busy} value={Math.round(draft.thresholds.high * 100)} onChange={e => setDraft({ ...draft, thresholds: { ...draft.thresholds, high: Number(e.target.value) / 100 } })} /></label>
       </div></details>
