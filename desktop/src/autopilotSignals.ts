@@ -129,3 +129,34 @@ export function saveSignalDecision(organizationId: string, sourceId: string, sta
   store[organizationId] = company;
   try { window.localStorage.setItem(KEY, JSON.stringify(store)); } catch { /* best effort */ }
 }
+
+/**
+ * Whether the work a signal asked for already exists, whatever screen it was done in:
+ * then the card leaves for good instead of coming back with another proposal.
+ * Opening a form is never enough; only the saved result counts.
+ */
+export function signalSettled(signal: MailSignal, proposal: SignalProposal, data: Readonly<{ invoices: Invoice[]; payments: Payment[];
+  suppliers: readonly Supplier[]; supplierInvoices: readonly SupplierInvoice[] }>): boolean {
+  if (signal.kind === 'payment_announced') {
+    if (data.payments.some(payment => payment.notes?.includes(signal.sourceId))) return true;
+    // Paid in full by any means since (bank, cash, another form): nothing left to record.
+    if (!signal.invoiceReference) return false;
+    const wanted = reference(signal.invoiceReference);
+    const invoice = data.invoices.find(row => row.number && reference(row.number) === wanted && row.type !== 'credit_note');
+    return !!invoice && invoice.status !== 'draft' && invoice.status !== 'cancelled' && invoiceOpenBalance(invoice, data.invoices, data.payments) <= 0;
+  }
+  if (proposal.action === 'credit_note')
+    return data.invoices.some(row => row.type === 'credit_note' && row.originalInvoiceId === proposal.invoice.id && row.status !== 'cancelled');
+  if (proposal.action === 'open_purchase') {
+    // A reminder is settled once the supplier invoice is paid; a new document once it is entered.
+    if (proposal.supplierInvoice) return proposal.supplierInvoice.balanceCents <= 0
+      || (data.supplierInvoices.find(row => row.id === proposal.supplierInvoice!.id)?.balanceCents ?? 1) <= 0;
+    if (signal.invoiceReference) {
+      const wanted = reference(signal.invoiceReference);
+      if (data.supplierInvoices.some(row => reference(row.reference) === wanted && (!proposal.supplier || row.supplierId === proposal.supplier.id))) return true;
+    }
+    // Without a number: an invoice of this supplier entered after the mail arrived.
+    return !!proposal.supplier && data.supplierInvoices.some(row => row.supplierId === proposal.supplier!.id && Date.parse(row.createdAt) >= signal.receivedAt * 1000);
+  }
+  return false;
+}

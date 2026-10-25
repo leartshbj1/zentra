@@ -1,14 +1,19 @@
 import type { MailSignal } from './autopilotSignals';
-import type { CatalogItem, StockAvailability, Supplier, SupplierInvoice, SupplierOrder, SupplierOrderLine } from './types';
+import type { CatalogItem, StockAvailability, Supplier, SupplierInvoice, SupplierOrder, SupplierOrderLine, SupplierPaymentOrder } from './types';
 
 /** Purchases Autopilote prepares: invoices to pay soon, low stock, deliveries announced by suppliers. */
 const lower = (value: string | null | undefined) => (value ?? '').trim().toLowerCase();
 const addDays = (iso: string, days: number) => new Date(Date.parse(iso + 'T12:00:00Z') + days * 86_400_000).toISOString().slice(0, 10);
 
-/** Validated supplier invoices with a balance, overdue or due within 5 days, earliest first. */
-export function invoicesToPay(invoices: readonly SupplierInvoice[], today: string): SupplierInvoice[] {
+/**
+ * Validated supplier invoices with a balance, overdue or due within 5 days, earliest first.
+ * An invoice already in an exported payment order (pain.001) is being paid: proposing it
+ * again would pay it twice. The bank statement then settles it.
+ */
+export function invoicesToPay(invoices: readonly SupplierInvoice[], today: string, orders: readonly SupplierPaymentOrder[] = []): SupplierInvoice[] {
   const limit = addDays(today, 5);
-  return invoices.filter(invoice => invoice.documentStatus === 'validated' && invoice.balanceCents > 0 && !!invoice.dueDate && invoice.dueDate <= limit)
+  const ordered = new Set(orders.flatMap(order => order.items.map(item => item.supplierInvoiceId)));
+  return invoices.filter(invoice => invoice.documentStatus === 'validated' && invoice.balanceCents > 0 && !!invoice.dueDate && invoice.dueDate <= limit && !ordered.has(invoice.id))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
 
@@ -38,5 +43,8 @@ export function supplierOrderProposal(signal: MailSignal, suppliers: readonly Su
     ?? suppliers.find(row => !row.archivedAt && company && lower(row.name) === company) ?? null;
   const open = supplier ? orders.filter(order => order.supplierId === supplier.id && order.status === 'confirmed'
     && order.lines.some(line => line.remainingReceivableMilli > 0)) : [];
-  return { supplier, shipped: SHIPPED.test(signal.subject + ' ' + signal.evidence), order: open.length === 1 ? open[0] : null, several: open.length > 1 };
+  const shipped = SHIPPED.test(signal.subject + ' ' + signal.evidence);
+  // A confirmation for the only draft order of this supplier: confirming it is the next step.
+  const drafts = supplier && !shipped && !open.length ? orders.filter(order => order.supplierId === supplier.id && order.status === 'draft') : [];
+  return { supplier, shipped, order: open.length === 1 ? open[0] : null, several: open.length > 1, draft: drafts.length === 1 ? drafts[0] : null };
 }

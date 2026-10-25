@@ -39,12 +39,15 @@ export function TimeBillingWizard({
   close,
   act,
   onCreated,
+  initialProjectId,
 }: {
   workspace: Workspace;
   busy: boolean;
   close: () => void;
   act: ActionRunner;
   onCreated: () => void;
+  /** The project Autopilote proposed to bill, selected on opening. */
+  initialProjectId?: string;
 }) {
   const eligible = useMemo(() => readyTimeEntries(workspace), [workspace]);
   const projects = useMemo(
@@ -59,12 +62,13 @@ export function TimeBillingWizard({
     [eligible, workspace.projects],
   );
   const [requestId] = useState(() => crypto.randomUUID());
-  const [projectId, setProjectId] = useState(projects[0]?.id ?? '');
+  const firstProjectId = (initialProjectId && projects.some(project => project.id === initialProjectId) ? initialProjectId : projects[0]?.id) ?? '';
+  const [projectId, setProjectId] = useState(firstProjectId);
   const projectEntries = useMemo(
     () => eligible.filter((entry) => entry.projectId === projectId),
     [eligible, projectId],
   );
-  const [selections, setSelections] = useState<Record<string, string[]>>(() => ({ [projects[0]?.id ?? '']: eligible.filter(entry => entry.projectId === projects[0]?.id).map(entry => entry.id) }));
+  const [selections, setSelections] = useState<Record<string, string[]>>(() => ({ [firstProjectId]: eligible.filter(entry => entry.projectId === firstProjectId).map(entry => entry.id) }));
   const selectedIds = selections[projectId] ?? [];
   const setSelectedIds = (ids: string[] | ((current: string[]) => string[])) => setSelections(current => ({ ...current, [projectId]: typeof ids === 'function' ? ids(current[projectId] ?? []) : ids }));
   const [saveError, setSaveError] = useState('');
