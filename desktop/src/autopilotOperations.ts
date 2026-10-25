@@ -95,3 +95,20 @@ export function vatReturnDue(profiles: readonly VatProfile[], exports: readonly 
   const daysLeft = Math.round((Date.parse(due) - Date.parse(today)) / 86_400_000);
   return { profile, from, to, due, needsAfc, daysLeft };
 }
+
+/**
+ * The usual end of day for a forgotten timer: 18:00 local on the day it started,
+ * as an ISO time. Null when it started after 18:00 (stop it now, then correct by hand).
+ */
+export function timerEndOfDay(startedAt: string): string | null {
+  const started = new Date(startedAt);
+  if (Number.isNaN(started.getTime())) return null;
+  const end = new Date(started);
+  end.setHours(18, 0, 0, 0);
+  return end.getTime() > started.getTime() ? end.toISOString() : null;
+}
+
+/** The year is closed once a closed accounting period ends on its 31 December or later. */
+export function yearClosed(periods: readonly Readonly<{ status: string; dateFrom: string; dateTo: string }>[], year: number): boolean {
+  return periods.some(period => period.status === 'closed' && period.dateFrom <= `${year}-12-31` && period.dateTo >= `${year}-12-31`);
+}

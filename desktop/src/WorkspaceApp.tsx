@@ -52,7 +52,7 @@ import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedP
 import { appendJournal, canUndo, confirmEntries, decideRule, doneToday, entriesToConfirm, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
-import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, vatReturnDue, yearEndMoments } from './autopilotOperations';
+import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, timerEndOfDay, vatReturnDue, yearClosed, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { paymentOrderSummary } from './supplierPaymentOrder';
 import { qrMailProposal, useQrMailBills } from './autopilotQrMail';
@@ -1147,6 +1147,7 @@ function WorkspaceContent({
   };
   // Reminders and quote follow-ups, prepared by the native cycle and sent by a person.
   const [dueReminders, setDueReminders] = useState<readonly Reminder[]>([]);
+  const [closedPeriods, setClosedPeriods] = useState<readonly AccountingPeriod[]>([]);
   // Last reminders sent and their charges: a debt collection request is prepared after the last level.
   const [sentReminders, setSentReminders] = useState<readonly Reminder[]>([]);
   const [lastReminderLevel, setLastReminderLevel] = useState(3);
@@ -1221,6 +1222,10 @@ function WorkspaceContent({
   const [, setFollowUpVersion] = useState(0);
   const readFollowUps = async () => {
     if (!autopilotContext || readOnly) return;
+    // The closing card ends when the year's accounting period is closed, not only when ignored.
+    if (yearEndMoments(todayIso()).closingYear) {
+      try { setClosedPeriods(await desktopApi.listAccountingPeriods()); } catch { /* read again next time */ }
+    }
     try {
       const settings = await desktopApi.getReminderSettings(workspaceRef.current.workNotesScope);
       setRemindersOn(settings.enabled);
@@ -1442,7 +1447,8 @@ function WorkspaceContent({
       detail: copy.hoursDetail.replace('{amount}', formatMoney(group.amountCents)), actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'time-billing', label: copy.actionPrepareInvoice, primary: true }] });
     const timer = forgottenTimer(workspace.activeTimer, new Date());
     if (timer) cards.push({ key: 'timer', title: copy.timerTitle.replace('{hours}', String(timer.hours)), detail: copy.timerDetail.replace('{project}', projectName(timer.timer!.projectId)),
-      actions: [{ id: 'view-project', label: copy.actionViewProject }, { id: 'stop-timer', label: copy.actionStopTimer, primary: true }] });
+      actions: [{ id: 'view-project', label: copy.actionViewProject }, { id: 'stop-timer', label: copy.actionStopTimer },
+        ...(timerEndOfDay(timer.timer!.startedAt) ? [{ id: 'stop-timer-at', label: copy.actionStopTimerAt.replace('{time}', new Intl.DateTimeFormat(getAppLocale(), { timeStyle: 'short' }).format(Date.parse(timerEndOfDay(timer.timer!.startedAt)!))), primary: true }] : [])] });
     const lateTasks = overdueTasks(workspace.projectTasks, today).filter(task => !(entries['task:' + task.id]?.until && entries['task:' + task.id]!.until! > today) && !entries['task:' + task.id]?.ignored);
     for (const task of lateTasks.slice(0, 10)) cards.push({ key: 'task:' + task.id, title: copy.taskLateTitle.replace('{task}', task.title),
       detail: copy.taskLateDetail.replace('{project}', projectName(task.projectId)).replace('{date}', date(task.dueDate)),
@@ -1471,7 +1477,7 @@ function WorkspaceContent({
           : [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-payroll', label: copy.actionOpenPayroll, primary: true }] });
     }
     const moments = yearEndMoments(today);
-    if (moments.closingYear && !entries['closing:' + moments.closingYear]?.ignored) cards.push({ key: 'closing:' + moments.closingYear, title: copy.closingTitle.replace('{year}', String(moments.closingYear)),
+    if (moments.closingYear && !entries['closing:' + moments.closingYear]?.ignored && !yearClosed(closedPeriods, moments.closingYear)) cards.push({ key: 'closing:' + moments.closingYear, title: copy.closingTitle.replace('{year}', String(moments.closingYear)),
       detail: copy.closingDetail, actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-closing', label: copy.actionOpenClosing, primary: true }] });
     if (moments.certificatesYear && workspace.payslips.some(slip => slip.period.startsWith(String(moments.certificatesYear))) && !entries['certificates:' + moments.certificatesYear]?.ignored)
       cards.push({ key: 'certificates:' + moments.certificatesYear, title: copy.certificatesTitle.replace('{year}', String(moments.certificatesYear)),
@@ -1839,6 +1845,26 @@ function WorkspaceContent({
     if (actionId === 'stop-timer') {
       const stopped = await journalAct(origin => desktopApi.stopTimer(origin.workspaceScope, origin.memberContextNonce), copy.timerStopped, false);
       if (stopped) refresh();
+      return;
+    }
+    if (actionId === 'stop-timer-at') {
+      // A forgotten timer is stopped, then its entry is set to end at the usual end of day,
+      // so the evening and night are not billed.
+      const timer = workspaceRef.current.activeTimer;
+      if (!timer) return;
+      const end = timerEndOfDay(timer.startedAt);
+      const before = new Set(workspaceRef.current.timeEntries.map(row => row.id));
+      const stopped = await act(origin => desktopApi.stopTimer(origin.workspaceScope, origin.memberContextNonce), copy.timerStopped, false);
+      if (!stopped) return;
+      const entry = workspaceRef.current.timeEntries.find(row => !before.has(row.id) && row.projectId === timer.projectId);
+      if (entry && end) {
+        const minutes = Math.max(1, Math.round((Date.parse(end) - Date.parse(timer.startedAt)) / 60_000) - (entry.breakMinutes ?? 0));
+        await journalAct(origin => desktopApi.updateEntity('timeEntries', entry.id, { projectId: entry.projectId, taskId: entry.taskId, employeeId: entry.employeeId,
+          date: entry.date, minutes, breakMinutes: entry.breakMinutes ?? 0, billable: entry.billable ?? false, billingRateCents: entry.billingRateCents ?? 0,
+          costRateCents: entry.hourlyCostCents, status: entry.status, note: entry.note }, origin.workspaceScope, origin.memberContextNonce),
+          copy.timerStoppedAt.replace('{time}', new Intl.DateTimeFormat(getAppLocale(), { timeStyle: 'short' }).format(Date.parse(end))), false);
+      }
+      refresh();
       return;
     }
     if (actionId === 'task-done') {

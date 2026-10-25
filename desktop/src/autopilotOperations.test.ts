@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, yearEndMoments } from './autopilotOperations';
+import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, timerEndOfDay, yearClosed, yearEndMoments } from './autopilotOperations';
 import type { ActiveTimer, Employee, Payslip, Project, ProjectTask, TimeEntry } from './types';
 
 const project = (values: Partial<Project>) => ({ id: 'p1', name: 'Cuisine', clientId: 'c1', status: 'in_progress', plannedEnd: '', budgetCents: 0, ...values }) as Project;
@@ -40,5 +40,24 @@ describe('VAT return due', () => {
     expect(vatReturnDue([profile({ periodicity: 'semiannual' })], [], '2026-10-20')).toMatchObject({ from: '2026-01-01', to: '2026-06-30' });
     expect(vatReturnDue([profile({})], [{ profileId: 'v1', dateFrom: '2026-07-01', dateTo: '2026-09-30' } as VatReturnExport], '2026-10-20')).toBeNull();
     expect(vatReturnDue([], [], '2026-10-20')).toBeNull();
+  });
+});
+
+describe('timerEndOfDay', () => {
+  it('ends a forgotten timer at 18:00 on the day it started', () => {
+    const started = new Date(2026, 9, 19, 8, 30);
+    expect(timerEndOfDay(started.toISOString())).toBe(new Date(2026, 9, 19, 18, 0).toISOString());
+  });
+  it('leaves a timer started after 18:00 to be stopped now', () => {
+    expect(timerEndOfDay(new Date(2026, 9, 19, 19, 0).toISOString())).toBeNull();
+    expect(timerEndOfDay('not a date')).toBeNull();
+  });
+});
+
+describe('yearClosed', () => {
+  it('needs a closed period covering 31 December', () => {
+    expect(yearClosed([{ status: 'closed', dateFrom: '2026-01-01', dateTo: '2026-12-31' }], 2026)).toBe(true);
+    expect(yearClosed([{ status: 'open', dateFrom: '2026-01-01', dateTo: '2026-12-31' }], 2026)).toBe(false);
+    expect(yearClosed([{ status: 'closed', dateFrom: '2026-01-01', dateTo: '2026-06-30' }], 2026)).toBe(false);
   });
 });
