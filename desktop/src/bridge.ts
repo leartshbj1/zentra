@@ -18,6 +18,7 @@ import { priceListsFromRaw } from './priceLists';
 import { legalArchiveFromRaw } from './legalArchive';
 import { stockLocationsFromRaw } from './stockLocations';
 import { billsFromRaw, productionOrdersFromRaw } from './bom';
+import { paymentSafetyFromRaw, type PaymentSafetyOverview } from './paymentSafety';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -6093,6 +6094,8 @@ export const desktopApi = {
     debtorIban: string;
     xml: string;
     items: { supplierInvoiceId: string; endToEndId: string; amountCents: number }[];
+    /** Alertes confirmées en connaissance de cause, recontrôlées par l'app native. */
+    acknowledged?: { supplierInvoiceId: string; kinds: readonly string[] }[];
   }) {
     const selected = await chooseSaveFile({
       title: 'Enregistrer l’ordre de paiement',
@@ -6113,6 +6116,7 @@ export const desktopApi = {
           end_to_end_id: item.endToEndId,
           amount_cents: item.amountCents,
         })),
+        acknowledged: (input.acknowledged ?? []).map((ack) => ({ supplier_invoice_id: ack.supplierInvoiceId, kinds: [...ack.kinds] })),
       },
     });
     let deliveryWarning: string | undefined;
@@ -6124,6 +6128,23 @@ export const desktopApi = {
     const workspace = await refreshWorkspaceAfterMutation(loadWorkspace);
     return { ...result, deliveryWarning, workspace };
   },
+  // Paiements sûrs : contrôles et double validation calculés par l'app native.
+  async paymentSafetyOverview(): Promise<PaymentSafetyOverview> {
+    return paymentSafetyFromRaw(await invoke<Partial<PaymentSafetyOverview>>('payment_safety_overview'));
+  },
+  async savePaymentSafetySettings(settings: import('./paymentSafety').PaymentSafetySettings) {
+    return invoke<import('./paymentSafety').PaymentSafetySettings>('save_payment_safety_settings', {
+      input: { approval_enabled: settings.approvalEnabled, approval_threshold_cents: settings.approvalThresholdCents, receipt_reminder_days: settings.receiptReminderDays },
+    });
+  },
+  rememberCompanyTeamSize: (members: number) => invoke('remember_company_team_size', { members }),
+  prepareSupplierPayment: (supplierInvoiceId: string) => invoke('prepare_supplier_payment', { supplierInvoiceId }),
+  approveSupplierPayment: (supplierInvoiceId: string) => invoke('approve_supplier_payment', { supplierInvoiceId }),
+  revokeSupplierPaymentApproval: (supplierInvoiceId: string) => invoke('revoke_supplier_payment_approval', { supplierInvoiceId }),
+  withdrawSupplierPaymentPreparation: (supplierInvoiceId: string) => invoke('withdraw_supplier_payment_preparation', { supplierInvoiceId }),
+  reviewSupplierInvoiceEntry: (supplierInvoiceId: string) => invoke<import('./paymentSafety').EntryReview>('review_supplier_invoice_entry', { supplierInvoiceId }),
+  recordPaymentSafetyAcknowledgement: (supplierInvoiceId: string, context: 'entry' | 'payment', kinds: readonly string[]) =>
+    invoke('record_payment_safety_acknowledgement', { input: { supplier_invoice_id: supplierInvoiceId, context, kinds: [...kinds] } }),
   async chooseSupplierEmailFile(): Promise<string | null> {
     return chooseFile({
       title: 'Choisir un e-mail contenant une facture fournisseur',

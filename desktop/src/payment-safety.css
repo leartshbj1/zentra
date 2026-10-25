@@ -1,0 +1,234 @@
+/*
+ * Paiements sûrs : alertes sobres, en texte. Pas de fond teinté ni de bordure
+ * de couleur : un mot « À vérifier » dans la couleur d'avertissement, le reste
+ * dans les couleurs du texte. Jetons seulement, aucune couleur littérale.
+ */
+@media screen {
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .supplier-payments__list .supplier-payments__check,
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .supplier-payments__list .supplier-payments__approval {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .supplier-payments__list .supplier-payments__check > span {
+    color: var(--apple-warning);
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .supplier-payments__list > li > .supplier-payments__detail {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
+
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payment-check {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px 0 2px;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payment-check__items {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payment-check__items strong {
+    display: block;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payment-check__items p {
+    max-width: 68ch;
+    margin: 2px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payment-check__history {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px 20px;
+    margin: 0;
+    padding: 10px 0 0;
+    box-shadow: inset 0 1px 0 var(--apple-line);
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payment-check__history dt {
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] :is(.desktop-app[data-experience], .modal-backdrop) .payment-check__history dd {
+    margin: 2px 0 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  /* Avant de générer l'ordre */
+  html[data-app-theme] .modal-backdrop .payment-checks {
+    display: grid;
+    gap: 16px;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__list > li {
+    display: grid;
+    gap: 4px;
+    padding: 14px 0;
+    box-shadow: inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__list > li:first-child {
+    padding-top: 0;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__list header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 16px;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__list header strong {
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__list header span {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__decision {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding-top: 10px;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__decision label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__decision input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--apple-accent);
+  }
+  html[data-app-theme] .modal-backdrop .payment-checks__decision .button {
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    box-shadow: none;
+  }
+  html[data-app-theme] .modal-backdrop :is(.payment-checks__note, .receipt-request__note) {
+    max-width: 62ch;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* Demande de justificatif */
+  html[data-app-theme] .modal-backdrop .receipt-request {
+    display: grid;
+    gap: 16px;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__draft {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 12px 0;
+    box-shadow: inset 0 1px 0 var(--apple-line), inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__draft dt {
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__draft dd {
+    margin: 2px 0 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__body {
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request a.button {
+    text-decoration: none;
+  }
+
+  /* Paramètres */
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings {
+    display: grid;
+    gap: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings h3 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings > p,
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings__actions p {
+    max-width: 62ch;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings__switch {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings__switch input {
+    flex: none;
+    margin-top: 2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings__switch span {
+    display: grid;
+    gap: 2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings__switch strong {
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings__switch small {
+    max-width: 62ch;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings .field {
+    max-width: 320px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  html[data-app-theme] .modal-backdrop .payment-checks__decision {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request .form-actions > :is(.button, a.button) {
+    width: 100%;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings .field {
+    max-width: none;
+  }
+}

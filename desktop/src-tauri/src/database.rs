@@ -1941,7 +1941,7 @@ impl LocalStore {
         // données d'entreprise partagées : même horloge et même garde
         // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
         // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
-        let shared_steps: [(i64, &str); 15] = [
+        let shared_steps: [(i64, &str); 16] = [
             (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
             (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
             (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
@@ -1949,9 +1949,9 @@ impl LocalStore {
             (71, crate::schema::MIGRATION_V71_SQL), (72, crate::schema::MIGRATION_V72_SQL),
             (73, crate::schema::MIGRATION_V73_SQL), (74, crate::schema::MIGRATION_V74_SQL),
             (75, crate::schema::MIGRATION_V75_SQL), (76, crate::schema::MIGRATION_V76_SQL),
-            (77, crate::schema::MIGRATION_V77_SQL),
+            (77, crate::schema::MIGRATION_V77_SQL), (78, crate::schema::MIGRATION_V78_SQL),
         ];
-        if current < 77 {
+        if current < 78 {
             for (version, sql) in shared_steps {
                 if current < version {
                     transaction.execute_batch(sql)?;
@@ -1959,7 +1959,7 @@ impl LocalStore {
             }
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 77)?;
+            transaction.pragma_update(None, "user_version", 78)?;
         }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.

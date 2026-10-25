@@ -87,6 +87,7 @@ mod supplier_inbox;
 mod supplier_invoices;
 mod supplier_procurement;
 mod supplier_payment_orders;
+mod payment_safety;
 mod swiss_sme_chart;
 mod reminder_charges;
 mod opening_balances;
@@ -323,6 +324,15 @@ pub fn run() {
             supplier_payment_orders::save_supplier_invoice_payment_details,
             supplier_payment_orders::delete_supplier_invoice_payment_details,
             supplier_payment_orders::export_supplier_payment_order,
+            payment_safety::payment_safety_overview,
+            payment_safety::save_payment_safety_settings,
+            payment_safety::remember_company_team_size,
+            payment_safety::prepare_supplier_payment,
+            payment_safety::approve_supplier_payment,
+            payment_safety::revoke_supplier_payment_approval,
+            payment_safety::withdraw_supplier_payment_preparation,
+            payment_safety::review_supplier_invoice_entry,
+            payment_safety::record_payment_safety_acknowledgement,
             bank_import::scan_bank_statement_folder,
             swiss_sme_chart::swiss_sme_chart_preview,
             swiss_sme_chart::complete_swiss_sme_chart,
