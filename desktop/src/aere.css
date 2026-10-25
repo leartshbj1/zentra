@@ -1,0 +1,198 @@
+/*
+ * Airier screens (October 2026), loaded last.
+ * Leart's ask: the whole app airier and simpler for the owner of a small
+ * business. Each screen opens on its own content: the "how it works" steps fold
+ * into one quiet line, empty counters disappear, and lists get room to breathe.
+ *
+ * No literal colours: everything uses the existing tokens, so
+ * scripts/build-dark-palette.mjs produces nothing for this file.
+ */
+@media screen {
+  /* ---------- How it works: one quiet line, the steps on demand ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line {
+    margin: 0 0 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0 4px;
+    border-radius: 8px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    list-style: none;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > summary::-webkit-details-marker {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > summary:hover {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > summary:focus-visible {
+    outline: 2px solid var(--apple-focus);
+    outline-offset: 2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line__chevron {
+    transition: transform 160ms ease;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line[open] .menu-guide-line__chevron {
+    transform: rotate(180deg);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > ol {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 32px;
+    margin: 12px 0 0;
+    padding: 22px 26px;
+    list-style: none;
+    border-radius: 18px;
+    background: var(--apple-paper);
+    box-shadow: var(--z-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line li > span {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--apple-selection);
+    color: var(--apple-ink);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line li > p {
+    margin: 2px 0 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > button {
+    margin: 10px 0 0 4px;
+    padding: 4px 0;
+    border: 0;
+    background: none;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > button:hover {
+    color: var(--apple-ink);
+  }
+  /* A tab that explains itself, and the Autopilote hero, replace the line. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content:has(.erp-register > details) .menu-guide-line,
+  html[data-app-theme] .desktop-app[data-experience] .page-content[data-screen='automation'] > .menu-guide-line {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line {
+    margin-bottom: 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .menu-guide-line > ol {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px;
+  }
+  /* Purchases: the section picker replaces the tab row on the phone. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content.page-content .purchase-workflow__toolbar > .purchase-workflow__tabs {
+    display: none;
+  }
+}
+
+@media screen and (min-width: 861px) {
+  /* ---------- Sales lists: compact filters, one-line cells ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .sales-documents .sales-list-toolbar label {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .sales-documents .sales-list-toolbar label > span {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .sales-documents .sales-list-toolbar select {
+    width: auto;
+    min-height: 38px;
+    height: 38px;
+    padding-block: 0;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .sales-documents :is(.sales-document__total, .sales-document__status) {
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .sales-documents .sales-document__date > small {
+    display: block;
+    margin-top: 2px;
+    color: var(--apple-secondary);
+  }
+
+  /* ---------- Purchases: four plain figures, no footnotes ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .purchase-workflow__summary small {
+    display: none;
+  }
+}
+
+@media screen and (min-width: 861px) {
+  /* Catalogue: row actions never break inside a word. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .catalog-item__actions .button {
+    white-space: nowrap;
+  }
+  /* Reports: the project list already sits on the left, no second copy. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .project-reports__layout .project-reports__recent {
+    display: none;
+  }
+}
+
+
+@media screen {
+  /* Agenda: Day / Week / Month labels readable on the grey track (was 4.15:1). */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .agenda-display-switch > button:not([aria-pressed='true']) {
+    color: var(--zp-quiet-label);
+  }
+}
+
+@media screen {
+  /* Projects: the count and the view switch on one plain line, no second title. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .project-view-switch.panel {
+    align-items: center;
+    margin-bottom: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .project-view-switch.panel > div:first-child > strong {
+    display: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .project-view-switch.panel > div:first-child > span {
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* Settings checklist: "Voir les détails" belongs to its step, under it, not on the divider. */
+  html[data-app-theme] .desktop-app[data-experience] .page-content .setup-readiness__steps > li:has(> .setup-readiness__details) {
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .setup-readiness__steps > li:has(> .setup-readiness__details) > .setup-readiness__step {
+    padding-bottom: 8px;
+    border-bottom-color: transparent;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-content .setup-readiness__steps > li > .setup-readiness__details {
+    margin-top: 0;
+  }
+}

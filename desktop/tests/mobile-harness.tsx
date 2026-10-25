@@ -380,3 +380,4 @@ import '../src/autopilot-magic.css';
 import '../src/mobile-calm.css';
 import '../src/agenda-calm.css';
 import '../src/parcours-client.css';
+import '../src/aere.css';

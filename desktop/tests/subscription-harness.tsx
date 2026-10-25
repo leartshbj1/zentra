@@ -30,6 +30,7 @@ import '../src/erp-calm.css';
 import '../src/autopilot-magic.css';
 import '../src/mobile-calm.css';
 import '../src/parcours-client.css';
+import '../src/aere.css';
 
 const query = new URLSearchParams(location.search);
 const scene = query.get('scene') ?? 'month';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { ChevronDown, CircleHelp } from 'lucide-react';
 import { guideLessons } from './guideLessons';
 import { t, useAppLanguage } from './language';
 
@@ -23,7 +23,11 @@ function hiddenViews(): string[] {
   }
 }
 
-/** Three plain steps under each menu's title, so a first-time user knows what to do here. */
+/**
+ * Three plain steps under each menu's title, so a first-time user knows what to
+ * do here. Folded into one quiet line by default: the screen's own content
+ * comes first, the steps are one click away.
+ */
 export function MenuGuide({ view }: { view: string }) {
   useAppLanguage();
   const [hidden, setHidden] = useState(() => hiddenViews().includes(view));
@@ -33,11 +37,9 @@ export function MenuGuide({ view }: { view: string }) {
     setHidden(true);
     try { localStorage.setItem(storageKey, JSON.stringify([...new Set([...hiddenViews(), view])])); } catch { /* Hidden for this visit. */ }
   };
-  return <section className="menu-guide" aria-label={t('Comment ça marche')}>
-    <header>
-      <h2>{t('Comment ça marche')}</h2>
-      <button type="button" onClick={hide} aria-label={t('Masquer le mode d’emploi')}><X size={16} aria-hidden="true" /><span>{t('Compris')}</span></button>
-    </header>
+  return <details className="menu-guide-line" aria-label={t('Comment ça marche')}>
+    <summary><CircleHelp size={16} aria-hidden="true" /><span>{t('Comment ça marche')}</span><ChevronDown size={16} aria-hidden="true" className="menu-guide-line__chevron" /></summary>
     <ol>{lesson.actions.slice(0, 3).map((action, index) => <li key={action}><span>{index + 1}</span><p>{t(replacedActions[action] ?? action)}</p></li>)}</ol>
-  </section>;
+    <button type="button" onClick={hide}>{t('Masquer le mode d’emploi')}</button>
+  </details>;
 }
