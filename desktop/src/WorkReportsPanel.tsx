@@ -8,6 +8,7 @@ import type { WorkReport, WorkReportLine, Workspace } from './types';
 import { Button, ErrorPanel, Field } from './ui';
 import { errorMessage, formatDate, formatMoney } from './utils';
 import { reportTotals } from './workReports';
+import { defaultRateTable, reportAtRates } from './laborRates';
 import './erp-registers.css';
 
 type LineDraft = Omit<WorkReportLine, 'id'> & { priceText: string; quantityText: string };
@@ -37,6 +38,10 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
   const [busy, setBusy] = useState(false);
   const locked = disabled || busy;
   const clientName = (id: string) => clients.find((client) => client.id === id)?.name ?? workspace.clients.find((client) => client.id === id)?.name ?? '';
+  const rateTables = (workspace.laborRateTables ?? []).filter((table) => !table.archivedAt);
+  const rateTable = defaultRateTable(rateTables);
+  const [invoiceTables, setInvoiceTables] = useState<Record<string, string>>({});
+  const tableFor = (reportId: string) => invoiceTables[reportId] ?? rateTable?.id ?? '';
 
   async function run<T>(action: () => Promise<T>, after?: (value: T) => void) {
     setBusy(true);
@@ -61,7 +66,7 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
     for (const line of draft.lines) {
       const price = cents(line.priceText || '0'), amount = quantity(line.quantityText);
       if (price === null || amount === null || !line.description.trim()) { setError(t('Vérifiez chaque ligne : description, quantité et prix.')); return; }
-      lines.push({ kind: line.kind, catalogItemId: line.catalogItemId, description: line.description.trim(), quantity: amount, unit: line.unit, unitPriceCents: price, vatBp: line.vatBp });
+      lines.push({ kind: line.kind, catalogItemId: line.catalogItemId, description: line.description.trim(), quantity: amount, unit: line.unit, unitPriceCents: price, vatBp: line.vatBp, laborRateId: line.kind === 'labor' ? line.laborRateId ?? null : null });
     }
     void run(() => desktopApi.saveWorkReport({ ...draft, lines }), (result) => {
       onWorkspace(result.workspace);
@@ -111,6 +116,12 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
         </select>
       </Field>
       <Field label={t('Date')}><input type="date" value={draft.reportDate} disabled={locked} onChange={(event) => setDraft({ ...draft, reportDate: event.target.value })} /></Field>
+      <Field label={t('Chantier')}>
+        <select value={draft.projectId ?? ''} disabled={locked} onChange={(event) => setDraft({ ...draft, projectId: event.target.value || null })}>
+          <option value="">{t('Aucun chantier')}</option>
+          {workspace.projects.filter((project) => !project.archivedAt && (!draft.clientId || project.clientId === draft.clientId)).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </select>
+      </Field>
       <Field label={t('Lieu')}><input value={draft.site} maxLength={300} disabled={locked} onChange={(event) => setDraft({ ...draft, site: event.target.value })} /></Field>
       <Field label={t('Intervenant')}><input value={draft.technician} maxLength={200} disabled={locked} onChange={(event) => setDraft({ ...draft, technician: event.target.value })} /></Field>
       <div className="erp-register__wide"><Field label={t('Travail effectué')}><textarea rows={3} value={draft.description} maxLength={4000} disabled={locked} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></Field></div>
@@ -123,6 +134,12 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
           }}>
             <option value="">{t('Article libre')}</option>
             {workspace.catalogItems.filter((row) => !row.archivedAt).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select> : rateTable ? <select aria-label={t('Tarif de régie')} value={line.laborRateId ?? ''} disabled={locked} onChange={(event) => {
+            const rate = rateTable.rates.find((row) => row.id === event.target.value);
+            setLine(index, rate ? { laborRateId: rate.id, description: rate.label, unit: rate.unit, unitPriceCents: rate.rateCents, priceText: (rate.rateCents / 100).toFixed(2) } : { laborRateId: null });
+          }}>
+            <option value="">{t('Tarif libre')}</option>
+            {rateTable.rates.map((row) => <option key={row.id} value={row.id}>{row.label} · {formatMoney(row.rateCents)} / {row.unit}</option>)}
           </select> : null}
           <input value={line.description} maxLength={500} disabled={locked} placeholder={t('Description')} onChange={(event) => setLine(index, { description: event.target.value })} />
         </Field>
@@ -158,7 +175,17 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
               <button type="button" disabled={locked} onClick={() => { setDraft(toDraft(report)); setError(''); }}>{t('Modifier')}</button>
               <button type="button" disabled={locked} onClick={() => { if (window.confirm(t('Supprimer ce rapport non signé ?'))) void run(() => desktopApi.deleteWorkReport(report.id), onWorkspace); }}>{t('Supprimer')}</button>
             </> : report.status === 'signed'
-              ? <button type="button" disabled={locked} onClick={() => void run(() => desktopApi.invoiceWorkReport(report.id), (result) => { onWorkspace(result.workspace); onOpenInvoice(result.invoiceId); })}>{t('Créer la facture')}</button>
+              ? <>
+                {rateTables.length ? <label className="work-report-rates">
+                  <span>{t('Heures facturées')}</span>
+                  <select value={tableFor(report.id)} disabled={locked} onChange={(event) => setInvoiceTables((current) => ({ ...current, [report.id]: event.target.value }))}>
+                    <option value="">{t('au tarif du rapport')}</option>
+                    {rateTables.map((table) => <option key={table.id} value={table.id}>{t('aux tarifs « {name} »', { name: table.name })}</option>)}
+                  </select>
+                  {(() => { const table = rateTables.find((candidate) => candidate.id === tableFor(report.id)); if (!table) return null; const priced = reportAtRates(report.lines, table, rateTables); return priced.repriced ? <small>{t('{count} ligne(s) au tarif de la table · {amount} HT', { count: priced.repriced, amount: formatMoney(priced.netCents) })}</small> : null; })()}
+                </label> : null}
+                <button type="button" disabled={locked} onClick={() => void run(() => desktopApi.invoiceWorkReport(report.id, tableFor(report.id) || null), (result) => { onWorkspace(result.workspace); onOpenInvoice(result.invoiceId); })}>{t('Créer la facture')}</button>
+              </>
               : report.invoiceId ? <button type="button" onClick={() => onOpenInvoice(report.invoiceId!)}>{t('Voir la facture')}</button> : null}
           </span>
         </li>;

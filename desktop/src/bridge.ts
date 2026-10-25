@@ -429,6 +429,7 @@ import {
 import { expensePaymentStatusFromRaw } from './purchases';
 import { measurementRowsFromRaw, measurementRowsToRaw } from './measurement';
 import { progressFromRaw } from './progressBilling';
+import { laborRatesFromRaw } from './laborRates';
 import {
   pdfDestinationPath,
   salesPdfInvokeInput,
@@ -567,6 +568,8 @@ type RawWorkspace = {
   progress_billing_plans?: RawRecord[];
   progress_bills?: RawRecord[];
   progress_bill_lines?: RawRecord[];
+  labor_rate_tables?: RawRecord[];
+  labor_rates?: RawRecord[];
   opportunities?: RawRecord[];
   warehouses?: RawRecord[];
   stock_movement_warehouses?: RawRecord[];
@@ -611,6 +614,7 @@ function workReportsFromRaw(reports: RawRecord[], lines: RawRecord[]): WorkRepor
       lines: lines.filter((line) => line.report_id === row.id).sort((a, b) => numberValue(a.position) - numberValue(b.position)).map((line) => ({
         id: stringValue(line.id), kind: line.kind === 'material' ? 'material' : 'labor', catalogItemId: stringValue(line.catalog_item_id) || null,
         description: stringValue(line.description), quantity: Number(line.quantity) || 0, unit: stringValue(line.unit), unitPriceCents: numberValue(line.unit_price_cents), vatBp: numberValue(line.vat_bp),
+        laborRateId: stringValue(line.labor_rate_id) || null,
       })),
     };
   });
@@ -3483,6 +3487,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
       decisionNote: stringValue(row.decision_note), payslipId: stringValue(row.payslip_id) || null, createdAt: stringValue(row.created_at),
     })),
     priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
+    laborRateTables: laborRatesFromRaw(raw.labor_rate_tables ?? [], raw.labor_rates ?? []),
     ...(() => { const progress = progressFromRaw(raw.progress_billing_plans ?? [], raw.progress_bills ?? [], raw.progress_bill_lines ?? []); return { progressPlans: progress.plans, progressBills: progress.bills }; })(),
     opportunities: (raw.opportunities ?? []).map(opportunityFromRaw),
     stockLocations: stockLocationsFromRaw(raw),
@@ -7589,7 +7594,7 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('save_work_report', { input: {
       id: report.id || null, client_id: report.clientId, project_id: report.projectId, report_date: report.reportDate, site: report.site || null,
       description: report.description, technician: report.technician || null,
-      lines: report.lines.map((line) => ({ kind: line.kind, catalog_item_id: line.catalogItemId, description: line.description, quantity: line.quantity, unit: line.unit, unit_price_cents: line.unitPriceCents, vat_bp: line.vatBp })),
+      lines: report.lines.map((line) => ({ kind: line.kind, catalog_item_id: line.catalogItemId, description: line.description, quantity: line.quantity, unit: line.unit, unit_price_cents: line.unitPriceCents, vat_bp: line.vatBp, ...(line.laborRateId ? { labor_rate_id: line.laborRateId } : {}) })),
     } });
     return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
@@ -7602,8 +7607,9 @@ export const desktopApi = {
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   /** Facture en brouillon avec les lignes du rapport signé. */
-  async invoiceWorkReport(id: string) {
-    const raw = await invoke<RawRecord>('invoice_work_report', { id });
+  /** Facture d'un rapport signé ; avec une table de tarifs, les heures sont facturées à ses tarifs. */
+  async invoiceWorkReport(id: string, rateTableId: string | null = null) {
+    const raw = await invoke<RawRecord>('invoice_work_report', rateTableId ? { id, rateTableId } : { id });
     return { invoiceId: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async saveLeaveSettings(employeeId: string, vacationDaysPerYear: number, carriedOverDays: number) {
@@ -7699,6 +7705,10 @@ export const desktopApi = {
   async createProgressBill(input: import('./progressBilling').ProgressBillRequest) {
     const raw = await invoke<RawRecord>('create_progress_bill', { input });
     return { invoiceId: stringValue(raw.invoiceId), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async saveLaborRateTable(input: { id: string | null; name: string; source: string; validFrom: string | null; isDefault: boolean; archived: boolean; rates: { id: string | null; kind: 'personnel' | 'machine'; code: string | null; label: string; unit: string; rateCents: number; costCents: number | null }[] }) {
+    const raw = await invoke<RawRecord>('save_labor_rate_table', { input: { ...input, source: input.source.trim() || null } });
+    return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async savePriceList(input: { id: string | null; name: string; discountBp: number; archived: boolean; items: { catalogItemId: string; unitPriceCents: number }[]; clientIds: string[] }) {
     const raw = await invoke<RawRecord>('save_price_list', { input });

@@ -285,12 +285,13 @@ fn read(db: &Connection) -> AppResult<Data> {
     // sales opportunities (v74), local legal archive register (v75),
     // warehouses, transfers, lots and serial numbers (v76),
     // bills of materials and production orders (v77),
-    // construction measurements and chapters (v78), progress invoices (v79).
+    // construction measurements and chapters (v78), progress invoices (v79),
+    // day-work rate tables (v80).
     // Existing v60/v61 references must compare with upgraded branches without
     // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if matches!(version, 60..=78) {
+    if matches!(version, 60..=79) {
         let tx = db.unchecked_transaction()?;
         if version == 60 {
             tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
@@ -348,7 +349,11 @@ fn read(db: &Connection) -> AppResult<Data> {
         if version < 78 {
             tx.execute_batch(crate::schema::MIGRATION_V78_SQL)?;
         }
-        tx.execute_batch(crate::schema::MIGRATION_V79_SQL)?;
+        if version < 79 {
+            tx.execute_batch(crate::schema::MIGRATION_V79_SQL)?;
+        }
+        // Tarifs de régie (v80).
+        tx.execute_batch(crate::schema::MIGRATION_V80_SQL)?;
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
         tx.pragma_update(None, "user_version", crate::schema::SCHEMA_VERSION)?;

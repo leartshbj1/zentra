@@ -24,6 +24,7 @@ import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type CatalogArea, type TimeArea } from './BankAreaTabs';
 import { PriceListsPanel } from './PriceListsPanel';
 import { ProgressBillingDialog } from './ProgressBillingDialog';
+import { LaborRatesPanel } from './LaborRatesPanel';
 import { WarehousesPanel } from './WarehousesPanel';
 import { LotsPanel } from './LotsPanel';
 import { BomPanel } from './BomPanel';
@@ -4217,6 +4218,9 @@ function WorkspaceContent({
             </Suspense>
           ) : null}
           {view === 'time' ? <TimeAreaTabs active={timeArea} onChange={setTimeArea} /> : null}
+          {view === 'time' && timeArea === 'rates' ? (
+            <LaborRatesPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
           {view === 'time' && timeArea === 'reports' ? (
             <WorkReportsPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} onOpenInvoice={openInvoiceById} />
           ) : null}

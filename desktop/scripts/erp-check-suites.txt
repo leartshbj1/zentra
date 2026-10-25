@@ -85,3 +85,6 @@ src/progressBilling.test.ts
 rust:progress_billing::
 src/ProgressBillingDialog.test.tsx
 src/QuoteConversionModal.test.tsx
+src/laborRates.test.ts
+rust:labor_rates::
+rust:work_reports::

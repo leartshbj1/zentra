@@ -273,6 +273,8 @@ export type WorkReportLine = {
   unit: string;
   unitPriceCents: number;
   vatBp: number;
+  /** Tarif de régie choisi pour une ligne d'heures. */
+  laborRateId?: Identifier | null;
 };
 
 export type WorkReport = {
@@ -1964,6 +1966,8 @@ export type Workspace = {
   /** Situations SIA 118 : plans par devis et situations émises ou en brouillon. */
   progressPlans?: import('./progressBilling').ProgressPlan[];
   progressBills?: import('./progressBilling').ProgressBill[];
+  /** Tarifs de régie des associations, importés par l'entreprise. */
+  laborRateTables?: import('./laborRates').LaborRateTable[];
   /** Opportunités de vente (pipeline). */
   opportunities?: import('./pipeline').Opportunity[];
   /** Dépôts, transferts, lots et numéros de série. */
