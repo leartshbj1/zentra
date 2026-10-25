@@ -976,7 +976,7 @@ export function PurchaseOrdersScreen({
                 }}
               >
                 <Icon size={16} /> <span>{t(label)}</span>
-                {sectionCount(id) > 0 ? <em>{sectionCount(id)}</em> : null}
+                {sectionCount(id) !== 0 ? <em>{sectionCount(id)}</em> : null}
               </button>
             ))}
           </div>

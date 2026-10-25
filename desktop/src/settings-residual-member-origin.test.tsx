@@ -96,7 +96,7 @@ type Route='vat'|'payroll'|'finance';
 async function prepare(route:Route){
  if(route==='vat'){await click('Paramètres');await reactAct(async()=>{await vi.dynamicImportSettled();});await until(()=>buttons('Enregistrer les taux').length>0);}
  if(route==='payroll'){
-  await click('Équipe & salaires');await click('Bulletins0');await click('Nouvelle fiche');await reactAct(async()=>{await vi.dynamicImportSettled();});await until(()=>document.querySelector('[role="dialog"]')!==null);
+  await click('Équipe & salaires');await click('Bulletins');await click('Nouvelle fiche');await reactAct(async()=>{await vi.dynamicImportSettled();});await until(()=>document.querySelector('[role="dialog"]')!==null);
   await click('Continuer');const details=document.querySelector<HTMLDetailsElement>('[data-payroll-selection]')!;expect(details).not.toBeNull();await reactAct(async()=>{details.open=true;});await click('Mes caisses et assurances');await until(()=>document.querySelector('.payroll-setup')!==null);
   await changeElement(document.querySelector<HTMLInputElement>('.payroll-setup [name="accidentInsurer"]')!,'Assureur proposé A');
  }
