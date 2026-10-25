@@ -76,3 +76,5 @@ rust:data_imports::
 rust:import_worker_tests
 rust:bexio_import
 rust:migrat
+src/accountingExport.test.ts
+rust:accounting_export::

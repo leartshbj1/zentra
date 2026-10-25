@@ -40,6 +40,7 @@ mod customer_credit_settlements;
 mod customer_credit_attachments;
 mod customer_credit_recovery;
 mod customer_credit_recovery_vat;
+mod accounting_export;
 mod data_imports;
 mod database;
 mod diagnostics;
@@ -341,6 +342,7 @@ pub fn run() {
             data_imports::list_data_imports,
             data_imports::get_data_import_report,
             data_imports::undo_data_import,
+            accounting_export::save_accounting_export,
             online_payments::get_online_payment_settings,
             online_payments::save_online_payment_settings,
             online_payments::create_invoice_payment_link,

@@ -7732,6 +7732,16 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('source_tax_lookup', { canton, code, incomeCents, date });
     return { canton: stringValue(raw.canton), code: stringValue(raw.code), validFrom: stringValue(raw.valid_from), rateBp: numberValue(raw.rate_bp), taxCents: numberValue(raw.tax_cents) };
   },
+  /** Écritures pour la fiduciaire : l'app prépare le fichier, l'utilisateur choisit où l'enregistrer. */
+  async saveAccountingExport(input: { fileName: string; extension: 'txt' | 'csv'; format: string; dateFrom: string; dateTo: string; entries: number; content: string }) {
+    const selected = await chooseSaveFile({ title: 'Enregistrer les écritures', defaultPath: input.fileName, filters: [{ name: input.extension === 'txt' ? 'Texte' : 'CSV', extensions: [input.extension] }] });
+    if (!selected) return null;
+    const destination = selected.toLowerCase().endsWith(`.${input.extension}`) ? selected : `${selected}.${input.extension}`;
+    const raw = await invoke<RawRecord>('save_accounting_export', { input: { destination, format: input.format, date_from: input.dateFrom, date_to: input.dateTo, entries: input.entries, content: input.content } });
+    const path = stringValue(raw.path);
+    if (isMobileRuntime()) await shareMobileExport(path);
+    return { path, sha256: stringValue(raw.sha256) };
+  },
   /** Structure ELM préparée : l'utilisateur choisit où l'enregistrer. */
   async exportElmStructure(year: number, xml: string) {
     const selected = await chooseSaveFile({ title: 'Enregistrer la structure ELM', defaultPath: `declaration-salaires-elm-${year}.xml`, filters: [{ name: 'XML', extensions: ['xml'] }] });
