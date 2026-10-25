@@ -59,7 +59,10 @@ const contactCreationRecovery: Record<AppLanguage, { title: string; message: str
   },
 };
 
-function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = false, close, act }: CommonProps & { kind: 'client' | 'supplier'; item?: Client | Supplier }) {
+function ContactForm({ kind, item: suppliedItem, seedName, workspace, busy, readOnly = false, close, act }: CommonProps & { kind: 'client' | 'supplier'; item?: Client | Supplier; seedName?: string }) {
+  // A new client named in a typed request: a company name goes to Entreprise, a person's to the contact.
+  const seedCompany = !suppliedItem && seedName && /(?<![\p{L}])(?:SA|AG|S[àa]rl|GmbH|Sagl|SNC|KG|Ltd|Inc|Atelier|Garage|Boulangerie|Menuiserie|Cabinet|Fiduciaire|Studio|Restaurant|H[ôo]tel)(?![\p{L}])/u.test(seedName) ? seedName : undefined;
+  const seedPerson = !suppliedItem && seedName && !seedCompany ? seedName : undefined;
   const recovery = contactCreationRecovery[useAppLanguage()];
   const [creationId] = useState(() => suppliedItem ? undefined : createId());
   const current = suppliedItem && workspace ? (kind === 'client' ? workspace.clients : workspace.suppliers).find(row => row.id === suppliedItem.id) : suppliedItem;
@@ -146,7 +149,7 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
         <section className="contact-form-section"><h3>{t(kind === 'client' ? 'Qui est votre client ?' : 'Qui est le fournisseur ?')}</h3>
           <p>{t(kind === 'client' ? 'Renseignez un contact, une entreprise, ou les deux.' : 'Reprenez les informations de sa facture ou de son devis.')}</p>
           <div className="form-grid">
-            {kind === 'client' ? <><Field label={t("Nom du contact")} hint={t("Pour un particulier : prénom et nom.")} error={invalid('contactPerson')}><input {...inputProps('contactPerson')} defaultValue={client?.contactPerson ?? client?.name} autoComplete="name" autoFocus /></Field><Field label={t("Entreprise")}><input name="company" defaultValue={client?.company} autoComplete="organization" /></Field></> : <><Field label={t("Raison sociale / nom")} required wide error={invalid('name')}><input {...inputProps('name')} defaultValue={supplier?.name} maxLength={200} autoComplete="organization" autoFocus /></Field><Field label={t("Personne de contact")} error={invalid('contactName')}><input {...inputProps('contactName')} defaultValue={supplier?.contactName} maxLength={200} autoComplete="name" /></Field></>}
+            {kind === 'client' ? <><Field label={t("Nom du contact")} hint={t("Pour un particulier : prénom et nom.")} error={invalid('contactPerson')}><input {...inputProps('contactPerson')} defaultValue={client?.contactPerson ?? client?.name ?? seedPerson} autoComplete="name" autoFocus /></Field><Field label={t("Entreprise")}><input name="company" defaultValue={client?.company ?? seedCompany} autoComplete="organization" /></Field></> : <><Field label={t("Raison sociale / nom")} required wide error={invalid('name')}><input {...inputProps('name')} defaultValue={supplier?.name} maxLength={200} autoComplete="organization" autoFocus /></Field><Field label={t("Personne de contact")} error={invalid('contactName')}><input {...inputProps('contactName')} defaultValue={supplier?.contactName} maxLength={200} autoComplete="name" /></Field></>}
             <Field label={t("E-mail")} error={invalid('email')}><input {...inputProps('email')} type="email" defaultValue={item?.email} maxLength={254} autoComplete="email" /></Field>
             <Field label={t("Téléphone")} error={invalid('phone')}><input {...inputProps('phone')} type="tel" defaultValue={item?.phone} maxLength={80} autoComplete="tel" /></Field>
           </div>
@@ -180,5 +183,5 @@ function ContactForm({ kind, item: suppliedItem, workspace, busy, readOnly = fal
     </form>
   </Modal>;
 }
-export function ClientForm(props: CommonProps & { item?: Client }) { return <ContactForm {...props} kind="client" />; }
+export function ClientForm(props: CommonProps & { item?: Client; seedName?: string }) { return <ContactForm {...props} kind="client" />; }
 export function SupplierForm(props: CommonProps & { item?: Supplier }) { return <ContactForm {...props} kind="supplier" />; }

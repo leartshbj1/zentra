@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addDays, daysOverdue, followUpEntries, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
+import { addDays, daysOverdue, followUpEntries, promisedDate, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { MailSignal } from './autopilotSignals';
 import type { Quote, Reminder } from './types';
 
@@ -36,5 +36,23 @@ describe('reminders and quote follow-ups', () => {
     expect(quotesToFollowUp([quote()], [], emails, followUpEntries('org'), '2026-10-28')).toMatchObject([{ step: 'follow_up' }]);
     expect(quotesToFollowUp([quote()], [], emails, followUpEntries('org'), '2026-11-01')).toMatchObject([{ step: 'close' }]);
     expect(quotesToFollowUp([quote()], [signal({ kind: 'quote_declined' })], emails, {}, '2026-10-08')).toEqual([]);
+  });
+});
+
+describe('promisedDate', () => {
+  // Tuesday 20 October 2026, 10:00 UTC.
+  const at = Date.UTC(2026, 9, 20, 10) / 1000;
+  it.each([
+    ['Nous réglerons le solde le 30 octobre.', '2026-10-30'],
+    ['Je paierai le 3 janvier.', '2027-01-03'],
+    ['Zahlung folgt am 15.11.2026', '2026-11-15'],
+    ['Je vais payer vendredi.', '2026-10-23'],
+    ['We will pay next week.', '2026-10-27'],
+    ['Pagheremo a fine mese.', '2026-10-31'],
+    ['Wir werden morgen überweisen.', '2026-10-21'],
+    ['Je vais payer bientôt.', null],
+    ['Facture F-2026-0012 de CHF 450.00', null],
+  ])('%s', (text, expected) => {
+    expect(promisedDate(text, at)).toBe(expected);
   });
 });

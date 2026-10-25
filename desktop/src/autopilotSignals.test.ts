@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { mailSignalFrom, proposeForSignal, saveSignalDecision, signalDecisions, type MailSignal } from './autopilotSignals';
+import { mailSignalFrom, proposeForSignal, saveSignalDecision, signalDecisions, signalSettled, type MailSignal } from './autopilotSignals';
 import type { Client, Invoice, Quote, Supplier, SupplierInvoice } from './types';
 
 const line = (cents: number) => [{ id: 'l', description: 'x', quantity: 1, unit: 'pce', unitPriceCents: cents, discountBp: 0, vatRateBp: 0 }];
@@ -43,5 +43,34 @@ describe('mail signals', () => {
     saveSignalDecision('org', 's1', 'ignored');
     expect(signalDecisions('org')).toEqual({ s1: 'ignored' });
     expect(signalDecisions('other')).toEqual({});
+  });
+});
+
+describe('signal settled by its saved result', () => {
+  it('closes a payment card once the payment from this mail exists, or the invoice is paid', () => {
+    const invoices = [invoice('i1', 'F-2026-0012', 'c1', 17800)];
+    const announced = signal({ invoiceReference: 'F-2026-0012', amountCents: 17800 });
+    const open = data({ invoices });
+    expect(signalSettled(announced, proposeForSignal(announced, open), open)).toBe(false);
+    const fromMail = data({ invoices, payments: [{ id: 'p', invoiceId: 'i1', amountCents: 17800, notes: 'Annoncé par mail (s1)' }] as never });
+    expect(signalSettled(announced, proposeForSignal(announced, fromMail), fromMail)).toBe(true);
+    // Paid another way (bank, cash, a note edited by hand): the card still leaves instead of proposing another invoice.
+    const paid = data({ invoices, payments: [{ id: 'p', invoiceId: 'i1', amountCents: 17800, notes: '' }] as never });
+    expect(signalSettled(announced, proposeForSignal(announced, paid), paid)).toBe(true);
+  });
+
+  it('closes a supplier document only once the purchase is entered, never when the form opens', () => {
+    const suppliers = [{ id: 'sup', name: 'Acme SA', email: 'billing@acme.ch' } as Supplier];
+    const sender = { ...signal({}).sender!, email: 'billing@acme.ch' };
+    const doc = signal({ kind: 'supplier_document', documentType: 'supplier_invoice', invoiceReference: 'R-77', receivedAt: Date.parse('2026-10-20T08:00:00Z') / 1000, sender });
+    const before = data({ suppliers });
+    expect(signalSettled(doc, proposeForSignal(doc, before), before)).toBe(false);
+    const entered = data({ suppliers, supplierInvoices: [{ id: 'si', supplierId: 'sup', reference: 'R-77', balanceCents: 100, createdAt: '2026-10-20T09:00:00Z' } as SupplierInvoice] });
+    expect(signalSettled(doc, proposeForSignal(doc, entered), entered)).toBe(true);
+    const noNumber = { ...doc, invoiceReference: null };
+    const later = data({ suppliers, supplierInvoices: [{ id: 'si2', supplierId: 'sup', reference: 'X', balanceCents: 100, createdAt: '2026-10-20T09:00:00Z' } as SupplierInvoice] });
+    expect(signalSettled(noNumber, proposeForSignal(noNumber, later), later)).toBe(true);
+    const older = data({ suppliers, supplierInvoices: [{ id: 'si3', supplierId: 'sup', reference: 'X', balanceCents: 100, createdAt: '2026-10-01T09:00:00Z' } as SupplierInvoice] });
+    expect(signalSettled(noNumber, proposeForSignal(noNumber, older), older)).toBe(false);
   });
 });

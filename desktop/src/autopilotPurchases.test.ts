@@ -14,6 +14,17 @@ describe('purchases Autopilote prepares', () => {
     const rows = [invoice('late', '2026-10-15'), invoice('soon', '2026-10-24'), invoice('later', '2026-11-30'), invoice('draft', '2026-10-15', { documentStatus: 'draft' }), invoice('paid', '2026-10-15', { balanceCents: 0 })];
     expect(invoicesToPay(rows, '2026-10-20').map(row => row.id)).toEqual(['late', 'soon']);
   });
+  it('leaves out invoices already in an exported payment order, so nothing is paid twice', () => {
+    const rows = [invoice('late', '2026-10-15'), invoice('soon', '2026-10-24')];
+    const orders = [{ id: 'po', items: [{ supplierInvoiceId: 'late', endToEndId: 'e', amountCents: 100 }] }] as never;
+    expect(invoicesToPay(rows, '2026-10-20', orders).map(row => row.id)).toEqual(['soon']);
+  });
+  it('proposes to confirm the only draft order when a confirmation mail arrives', () => {
+    const suppliers = [{ id: 'sup', name: 'Acme', email: 'billing@acme.ch' } as Supplier];
+    const draft = order('d1', { status: 'draft' });
+    expect(supplierOrderProposal(signal('Auftragsbestätigung 4500123'), suppliers, [draft])).toMatchObject({ draft: { id: 'd1' }, order: null });
+    expect(supplierOrderProposal(signal('Votre commande a été expédiée'), suppliers, [draft])).toMatchObject({ draft: null });
+  });
   it('finds low stock not already on order, and the last order line to repeat', () => {
     const items = [{ id: 'a', trackStock: true, reorderLevelMilli: 2000, stockQuantityMilli: 1000 }, { id: 'b', trackStock: true, reorderLevelMilli: 2000, stockQuantityMilli: 1000 },
       { id: 'c', trackStock: true, reorderLevelMilli: 2000, stockQuantityMilli: 5000 }] as CatalogItem[];
