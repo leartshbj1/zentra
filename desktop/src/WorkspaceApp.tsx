@@ -52,6 +52,11 @@ import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedP
 import { appendJournal, canUndo, confirmEntries, decideRule, doneToday, entriesToConfirm, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
+import { projectFromQuote, projectKey, quotesToStartProject } from './autopilotProjects';
+import { askKey, mailtoLink, missingInfoDraft, requestsMissingInfo } from './autopilotMissingInfo';
+import { monthFigures, monthSummaryText, owedOver, previousMonth, readQuestion } from './autopilotInsights';
+import { useAutopilotBehaviour, visibleCards } from './autopilotSettings';
+import { autopilotKind } from './autopilotKinds';
 import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, timerEndOfDay, vatReturnDue, yearClosed, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { paymentOrderSummary } from './supplierPaymentOrder';
@@ -59,7 +64,7 @@ import { qrMailProposal, useQrMailBills } from './autopilotQrMail';
 import { qrBillPaymentDetails } from './qrBillPurchase';
 import { purchaseVatOptions } from './purchaseVat';
 import type { PurchaseSection } from './PurchaseOrdersScreen';
-import { addDays, daysOverdue, followUpEntries, promisedDate, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
+import { addDays, daysOverdue, followUpEntries, paymentHabit, promisedDate, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { AutopilotActionCard } from './AutopilotActionList';
 import { proposeForSignal, saveSignalDecision, signalDecisions, signalSettled, type MailSignal } from './autopilotSignals';
 import type { AutopilotSignalCard } from './AutopilotSignalList';
@@ -1050,6 +1055,18 @@ function WorkspaceContent({
   };
   // Journal of every Autopilote click: what was done, and its inverse when the app knows one.
   const [journalVersion, setJournalVersion] = useState(0);
+  // Pause, "only sure" domains and automatic validation of exact cases (all off by default, this device).
+  const [autopilotBehaviour, setAutopilotBehaviour] = useAutopilotBehaviour(autopilotContext?.organizationId);
+  const autoRunning = useRef(false);
+  const autoTried = useRef(new Set<string>());
+  const cardConfidence = (card: AutopilotActionCard) => {
+    const copy = autopilotCopy(getAppLanguage());
+    return card.why?.endsWith(copy.confidenceHigh) ? 'high' as const : card.why?.endsWith(copy.confidenceCheck) ? 'check' as const : null;
+  };
+  const shownFollowUps = () => {
+    const all = followUpCards();
+    return { cards: visibleCards(all.cards, autopilotBehaviour, autopilotKind, cardConfidence), summary: autopilotBehaviour.paused ? '' : all.summary };
+  };
   const actionOutcome = useRef<boolean | null>(null);
   const actionUndo = useRef<UndoSpec | undefined>(undefined);
   const journalAct = async (...args: Parameters<typeof act>) => { const ok = await act(...args); actionOutcome.current = ok; return ok; };
@@ -1090,8 +1107,9 @@ function WorkspaceContent({
     const card = followUpCards().cards.find(row => row.key === key);
     const action = card?.actions.find(row => row.id === actionId);
     const previous = followUpEntries(autopilotContext.organizationId)[key] ?? null;
-    const undo: UndoSpec | undefined = actionId === 'ignore' || actionId === 'postpone' || actionId === 'wait-promise' ? { kind: 'follow-up', key, previous } : undefined;
-    return journalled(key, card?.title ?? '', card?.detail ?? '', action?.label ?? actionId, card?.signature, () => runFollowUp(key, actionId), undo);
+    const undo: UndoSpec | undefined = actionId === 'ignore' || actionId === 'postpone' || actionId === 'wait-promise' || actionId === 'wait-habit' ? { kind: 'follow-up', key, previous } : undefined;
+    const label = autoRunning.current ? `${action?.label ?? actionId} · ${autopilotCopy(getAppLanguage()).autoValidated}` : action?.label ?? actionId;
+    return journalled(key, card?.title ?? '', card?.detail ?? '', label, card?.signature, () => runFollowUp(key, actionId), undo);
   };
   const undoJournal = async (entry: JournalEntry) => {
     if (!autopilotContext || !entry.undo || !canUndo(entry) || readOnly) return;
@@ -1101,6 +1119,7 @@ function WorkspaceContent({
     else if (undo.kind === 'supplier-draft') done = await act(() => desktopApi.deleteSupplierInvoiceDraft(undo.invoiceId), copy.undoDone, false);
     else if (undo.kind === 'record-fields') done = await act(origin => desktopApi.updateEntity(undo.entity, undo.id, { ...undo.fields }, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     else if (undo.kind === 'quote-status') done = await act(() => desktopApi.updateQuoteStatus(undo.quoteId, undo.status as never), copy.undoDone, false);
+    else if (undo.kind === 'archive-project') done = await act(origin => desktopApi.archiveEntity('projects', undo.projectId, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
   };
   const runSignal = async (sourceId: string, choiceId?: string) => {
@@ -1178,7 +1197,8 @@ function WorkspaceContent({
   // Résumé du matin : envoyé seulement s'il est activé, quand les cartes changent.
   const digestSending = useRef(false);
   const sendDigest = async () => {
-    if (!autopilotContext || readOnly || digestSending.current) return;
+    // Paused means silent: no morning e-mail either.
+    if (!autopilotContext || readOnly || digestSending.current || autopilotBehaviour.paused) return;
     const organizationId = autopilotContext.organizationId;
     const saved = savedDigest(organizationId);
     if (!saved.enabled && saved.signature === undefined) return;
@@ -1320,7 +1340,15 @@ function WorkspaceContent({
         wait, { ...send, label: send.id === 'send' ? copy.actionSendAnyway : send.label }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
       else if (context === 'complaint') cards.push({ ...base, note: copy.reminderComplaint, evidence: signal?.evidence, actions: [
         { id: 'invoice', label: copy.actionViewInvoice, primary: true }, { id: 'postpone', label: copy.actionPostpone }, send, { id: 'ignore', label: copy.acceptanceDismiss }] });
-      else { ready++; cards.push({ ...base, actions: [{ ...send, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'invoice', label: copy.actionViewInvoice }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
+      else {
+        // A first reminder follows the client's habit: a late but reliable payer gets a few more days, a punctual one a friendly nudge.
+        const invoice = reminder.level === 1 ? workspace.invoices.find(row => row.id === reminder.invoiceId) : undefined;
+        const habit = invoice ? paymentHabit(invoice.clientId, workspace.invoices, workspace.payments) : null;
+        const waitUntil = habit && habit.averageLateDays > 7 && reminder.dueDate ? addDays(reminder.dueDate, habit.averageLateDays + 2) : null;
+        const note = habit ? (habit.averageLateDays <= 3 ? copy.habitPunctual : copy.habitLate.replace('{days}', String(habit.averageLateDays)).replace('{n}', String(habit.samples))) : undefined;
+        if (waitUntil && waitUntil > today) { waiting++; cards.push({ ...base, note, actions: [{ id: 'wait-habit', label: copy.actionWaitUntil.replace('{date}', date(waitUntil)), primary: true }, send, { id: 'invoice', label: copy.actionViewInvoice }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
+        else { ready++; cards.push({ ...base, note, actions: [{ ...send, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'invoice', label: copy.actionViewInvoice }, { id: 'ignore', label: copy.acceptanceDismiss }] }); }
+      }
     }
     // Last reminder unanswered after its deadline: prepare the debt collection request.
     const preparedRequests = new Set((workspace.debtCollectionRequests ?? []).map(row => row.invoiceId));
@@ -1358,6 +1386,8 @@ function WorkspaceContent({
       else cards.push({ key: proposal.key, title: (proposal.kind === 'update' ? copy.contactUpdateTitle : copy.contactCompleteTitle).replace('{name}', proposal.target!.name),
         detail: proposal.changes.map(change => `${fieldLabel[change.field]} : ${change.before ? change.before + ' → ' : ''}${change.after}`).join(' · '),
         evidence: proposal.kind === 'update' ? proposal.signal.evidence : undefined,
+        // Filling empty fields only is exact and undoable; changing a value never runs alone.
+        autoCase: proposal.kind === 'complete' ? 'contact-complete' : undefined,
         actions: [{ id: 'update-record', label: proposal.kind === 'update' ? copy.actionUpdateRecord : copy.actionCompleteRecord, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
     // Appointments read from mails, and the reminder the day before.
@@ -1449,6 +1479,30 @@ function WorkspaceContent({
         why: nativeReason ? `${nativeReason} · ${row.movement.suggestion?.kind === 'automatic_exact' ? copy.confidenceHigh : copy.confidenceCheck}` : undefined,
         signature: row.action === 'confirm_supplier' && who ? 'supplier:' + who : undefined, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
     }
+    // A request that cannot be priced as written: draft the reply asking only for what is missing.
+    const reviewItems = autopilot.state.status === 'ready' ? autopilot.state.reviews?.items ?? [] : [];
+    for (const item of requestsMissingInfo(reviewItems).filter(row => !entries[askKey(row.proposalId)]?.ignored).slice(0, 5)) {
+      const sender = item.suggestion!.sender!;
+      cards.push({ key: askKey(item.proposalId), title: copy.askTitle.replace('{name}', sender.company || sender.name || sender.email),
+        detail: (item.suggestion?.unmatched?.length ? copy.askDetailItems.replace('{items}', item.suggestion.unmatched.slice(0, 3).join(', ')) : copy.askDetail),
+        actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'ask-info', label: copy.actionAskInfo, primary: true }] });
+    }
+    // The owner's summary of last month, in the first week: figures computed here, text written from them, kept as an editable note.
+    const summaryMonth = previousMonth(today), summaryKey = 'summary:' + summaryMonth;
+    if (Number(today.slice(8, 10)) <= 7 && !entries[summaryKey]?.ignored && workspace.invoices.some(row => row.issueDate?.startsWith(summaryMonth))) {
+      const figures = monthFigures(workspace, summaryMonth, today);
+      cards.push({ key: summaryKey, title: copy.summaryTitle.replace('{month}', monthLabel(summaryMonth)),
+        detail: copy.summaryDetail.replace('{invoiced}', formatMoney(figures.invoicedCents)).replace('{collected}', formatMoney(figures.collectedCents)),
+        actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'save-summary', label: copy.actionSaveSummary, primary: true }] });
+    }
+    // Accepted quotes: the job site is prepared from the quote (client, address, budget, one task per line).
+    for (const quote of quotesToStartProject(workspace.quotes, workspace.projects, today).filter(row => !entries[projectKey(row.id)]?.ignored).slice(0, 5)) {
+      const client = workspace.clients.find(row => row.id === quote.clientId);
+      const plan = projectFromQuote(quote, client, today, copy.projectNote);
+      cards.push({ key: projectKey(quote.id), title: copy.projectTitle.replace('{number}', quote.number).replace('{client}', client?.company || client?.name || ''),
+        detail: copy.projectDetail.replace('{amount}', formatMoney(plan.data.budgetCents, quote.currency || 'CHF')).replace('{n}', String(plan.tasks.length)),
+        actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'create-project', label: copy.actionCreateProject, primary: true }] });
+    }
     // Projects and hours.
     const projectName = (id: string) => workspace.projects.find(row => row.id === id)?.name ?? '';
     const clientName = (id: string) => { const client = workspace.clients.find(row => row.id === id); return client?.company || client?.name || ''; };
@@ -1534,6 +1588,7 @@ function WorkspaceContent({
         detail: (bill.amountCents === null ? copy.qrMailOpen : copy.qrMailDetail.replace('{amount}', formatMoney(bill.amountCents))).replace('{date}', date(proposal.dueDate)),
         evidence: item.subject || undefined,
         why: `${copy.whyQrMail} · ${proposal.draft ? copy.confidenceHigh : copy.confidenceCheck}`, signature: 'qr:' + (proposal.supplier?.name || bill.creditor.name),
+        autoCase: proposal.draft ? 'qrmail' : undefined,
         actions: proposal.draft ? [{ id: 'qr-create', label: copy.actionCreatePurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }]
           : [{ id: 'qr-review', label: copy.actionReviewPurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
@@ -2011,10 +2066,49 @@ function WorkspaceContent({
         actionUndo.current = { kind: 'supplier-draft', invoiceId: item.id };
         saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true }));
         const invoice = workspaceRef.current.supplierInvoices.find(row => row.id === item.id);
-        setSearch(''); setView('expenses');
-        if (invoice) setModal({ type: 'supplierInvoiceDetail', invoice });
+        // Validated alone, the draft waits in Purchases: the person is not taken away from their screen.
+        if (!autoRunning.current) { setSearch(''); setView('expenses'); if (invoice) setModal({ type: 'supplierInvoiceDetail', invoice }); }
         refresh();
       }
+      return;
+    }
+    if (key.startsWith('ask:') && actionId === 'ask-info') {
+      const items = autopilot.state.status === 'ready' ? autopilot.state.reviews?.items ?? [] : [];
+      const item = items.find(row => askKey(row.proposalId) === key);
+      if (!item?.suggestion?.sender?.email) return;
+      // The draft opens in the person's own mail program, to read and change before sending; Zentra sends nothing.
+      const draft = missingInfoDraft(item, getAppLanguage(), workspaceRef.current.settings?.organization.legalName ?? '');
+      window.location.href = mailtoLink(draft);
+      saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true }));
+      refresh();
+      return;
+    }
+    if (key.startsWith('summary:') && actionId === 'save-summary') {
+      const month = key.slice('summary:'.length);
+      const text = monthSummaryText(monthFigures(workspaceRef.current, month, today), monthLabel(month), getAppLanguage(), cents => formatMoney(cents));
+      try {
+        await desktopApi.saveWorkNote({ id: createId(), title: text.title.slice(0, 200), body: text.body, projectId: null, pinned: true,
+          expectedUpdatedAt: null, expectedWorkspaceScope: workspaceRef.current.workNotesScope });
+        saveFollowUp(organizationId, key, entry => ({ ...entry, ignored: true }));
+        setNotice({ tone: 'success', text: copy.summarySaved }); setSearch(''); setView('notes');
+      } catch (reason) { setNotice({ tone: 'error', text: errorMessage(reason, copy.quoteCreateError) }); }
+      refresh();
+      return;
+    }
+    if (key.startsWith('chantier:') && actionId === 'create-project') {
+      const quote = workspaceRef.current.quotes.find(row => projectKey(row.id) === key);
+      if (!quote) return;
+      const client = workspaceRef.current.clients.find(row => row.id === quote.clientId);
+      const plan = projectFromQuote(quote, client, today, copy.projectNote);
+      let projectId = '';
+      const created = await journalAct(async origin => {
+        projectId = await desktopApi.saveProject(plan.data, undefined, origin.workspaceScope, origin.memberContextNonce);
+        for (const task of plan.tasks) await desktopApi.saveProjectTask({ projectId, milestoneId: null, title: task.title, description: '', dueDate: null,
+          priority: 'normal', sortOrder: task.sortOrder, employeeId: null });
+        return desktopApi.loadWorkspace(origin.workspaceScope, origin.memberContextNonce);
+      }, copy.projectCreated.replace('{name}', plan.data.name), false);
+      if (created && projectId) { actionUndo.current = { kind: 'archive-project', projectId }; setSearch(''); setProjectFolderId(projectId); setView('projects'); }
+      refresh();
       return;
     }
     if (key.startsWith('pay:') && actionId !== 'ignore') {
@@ -2102,6 +2196,13 @@ function WorkspaceContent({
     }
     if (key.startsWith('tomorrow:') && actionId === 'open-agenda') { openAutomationAppointment(key.slice('tomorrow:'.length)); return; }
     if (actionId === 'postpone') { saveFollowUp(organizationId, key, entry => ({ ...entry, until: addDays(today, 7) })); refresh(); return; }
+    if (actionId === 'wait-habit') {
+      const reminder = dueReminders.find(row => reminderKey(row.id) === key);
+      const invoice = reminder && workspaceRef.current.invoices.find(row => row.id === reminder.invoiceId);
+      const habit = invoice ? paymentHabit(invoice.clientId, workspaceRef.current.invoices, workspaceRef.current.payments) : null;
+      const until = habit && reminder?.dueDate ? addDays(reminder.dueDate, habit.averageLateDays + 2) : addDays(today, 7);
+      saveFollowUp(organizationId, key, entry => ({ ...entry, until: until > today ? until : addDays(today, 1) })); refresh(); return;
+    }
     if (actionId === 'wait-promise') {
       const reminder = dueReminders.find(row => reminderKey(row.id) === key);
       const signal = reminder ? reminderContext(reminder, mailSignals).signal : undefined;
@@ -2141,9 +2242,29 @@ function WorkspaceContent({
   };
   // "Demander à Autopilote": the sentence is read by the server, then the matching form opens prefilled.
   const [asking, setAsking] = useState(false), [askNotUnderstood, setAskNotUnderstood] = useState(false);
+  const monthLabel = (month: string) => new Intl.DateTimeFormat(getAppLocale(), { month: 'long', year: 'numeric' }).format(Date.parse(month + '-15T12:00:00Z'));
+  const answerQuestion = (question: NonNullable<ReturnType<typeof readQuestion>>): string => {
+    const copy = autopilotCopy(getAppLanguage()), current = workspaceRef.current, today = todayIso();
+    if (question.kind === 'owed') {
+      const rows = owedOver(current, today, question.days);
+      if (!rows.length) return copy.answerOwedNone.replace('{days}', String(question.days));
+      const total = rows.reduce((sum, row) => sum + row.cents, 0);
+      return copy.answerOwed.replace('{n}', String(rows.length)).replace('{days}', String(question.days)).replace('{total}', formatMoney(total))
+        .replace('{list}', rows.slice(0, 5).map(row => `${row.client} ${formatMoney(row.cents)}`).join(' · '));
+    }
+    if (question.kind === 'month') {
+      const month = question.month === 'previous' ? previousMonth(today) : today.slice(0, 7);
+      return monthSummaryText(monthFigures(current, month, today), monthLabel(month), getAppLanguage(), cents => formatMoney(cents)).body.split('\n').slice(0, 4).join(' ');
+    }
+    const pending = current.quotes.filter(quote => quote.status === 'issued');
+    return copy.answerQuotes.replace('{n}', String(pending.length)).replace('{total}', formatMoney(pending.reduce((sum, quote) => sum + documentTotals(quote.lines).netCents, 0)));
+  };
   const askAutopilot = async (text: string) => {
     if (!autopilotContext || asking || busy || modal) return;
     const copy = autopilotCopy(getAppLanguage());
+    // Everyday questions are answered here, read-only: the words only pick a predefined query.
+    const question = readQuestion(text);
+    if (question) { rememberCommand(text); setNotice({ tone: 'success', text: answerQuestion(question) }); return; }
     setAsking(true); setAskNotUnderstood(false);
     let reading: CommandReading | null = null;
     try {
@@ -2213,6 +2334,22 @@ function WorkspaceContent({
     if (notes.length) setNotice({ tone: 'warning', text: notes.join(' ') });
   };
   // The timers call the latest version, which sees the current busy state and workspace.
+  // Automatic validation, only for the exact and undoable cases the company switched on:
+  // each card is tried once per session, one at a time, never while paused or busy.
+  const autoCandidates = autopilotBehaviour.paused || !autopilotBehaviour.autoValidate.length || readOnly ? []
+    : followUpCards().cards.filter(card => card.autoCase && autopilotBehaviour.autoValidate.includes(card.autoCase) && !autoTried.current.has(card.key)
+      && (card.autoCase !== 'qrmail' || cardConfidence(card) === 'high'));
+  const autoKey = autoCandidates.map(card => card.key).join('|');
+  useEffect(() => {
+    const card = autoCandidates[0];
+    if (!card || busy || modal || actionInFlight.current || autoRunning.current) return;
+    const action = card.actions.find(row => row.primary);
+    if (!action) return;
+    autoTried.current.add(card.key);
+    autoRunning.current = true;
+    void runFollowUpJournalled(card.key, action.id).finally(() => { autoRunning.current = false; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoKey, busy, modal]);
   const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); });
   readAcceptancesRef.current = async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); };
   const chooseAcceptanceQuote = async (sourceId: string, quoteId: string | null) => {
@@ -3840,7 +3977,7 @@ function WorkspaceContent({
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
           {debtDialog && <DebtCollectionDialog request={debtDialog.request} invoiceNumber={debtDialog.invoiceNumber} onClose={() => setDebtDialog(null)}
             onSaved={(next, path) => { workspaceRef.current = next; setWorkspace(next); setDebtDialog(null); setNotice({ tone: 'success', text: autopilotCopy(getAppLanguage()).debtSaved.replace('{path}', path) }); }} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignalJournalled(sourceId, choiceId), journal: autopilotContext ? journalEntries(autopilotContext.organizationId).slice(0, 50) : [], journalVersion, onUndo: readOnly ? undefined : (entry: JournalEntry) => void undoJournal(entry), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = followUpCards(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUpJournalled(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, behaviour: autopilotBehaviour, onBehaviour: readOnly ? undefined : setAutopilotBehaviour, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : item => void createAutopilotQuote(item), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: autopilotBehaviour.paused ? [] : acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: autopilotBehaviour.paused ? [] : signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignalJournalled(sourceId, choiceId), journal: autopilotContext ? journalEntries(autopilotContext.organizationId).slice(0, 50) : [], journalVersion, onUndo: readOnly ? undefined : (entry: JournalEntry) => void undoJournal(entry), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = shownFollowUps(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUpJournalled(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (

@@ -14,6 +14,8 @@ export type AutopilotActionCard = Readonly<{
   why?: string;
   /** Same action, same counterpart: three validations propose a learned rule. */
   signature?: string;
+  /** An exact, undoable case the company may let Autopilote validate alone (off by default). */
+  autoCase?: 'qrmail' | 'contact-complete';
   actions: readonly Readonly<{ id: string; label: string; primary?: boolean }>[];
 }>;
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addDays, daysOverdue, followUpEntries, promisedDate, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
+import { addDays, daysOverdue, followUpEntries, paymentHabit, promisedDate, quoteKey, quotesToFollowUp, reminderContext, reminderKey, remindersToShow, saveFollowUp } from './autopilotFollowUps';
 import type { MailSignal } from './autopilotSignals';
 import type { Quote, Reminder } from './types';
 
@@ -54,5 +54,18 @@ describe('promisedDate', () => {
     ['Facture F-2026-0012 de CHF 450.00', null],
   ])('%s', (text, expected) => {
     expect(promisedDate(text, at)).toBe(expected);
+  });
+});
+
+
+describe('paymentHabit', () => {
+  const invoice = (id: string, dueDate: string, status = 'paid') => ({ id, clientId: 'c1', dueDate, type: 'standard', status });
+  it('averages the days after the due date of fully paid invoices, from two invoices on', () => {
+    const invoices = [invoice('a', '2026-08-31'), invoice('b', '2026-09-30'), invoice('c', '2026-10-31', 'issued')];
+    const payments = [{ invoiceId: 'a', date: '2026-09-10' }, { invoiceId: 'b', date: '2026-10-20' }, { invoiceId: 'b', date: '2026-10-05' }];
+    expect(paymentHabit('c1', invoices, payments)).toEqual({ samples: 2, averageLateDays: 15 });
+    expect(paymentHabit('c1', invoices.slice(0, 1), payments)).toBeNull();
+    expect(paymentHabit('c1', [invoice('a', '2026-08-31'), invoice('b', '2026-09-30')], [{ invoiceId: 'a', date: '2026-08-20' }, { invoiceId: 'b', date: '2026-09-30' }]))
+      .toEqual({ samples: 2, averageLateDays: 0 });
   });
 });

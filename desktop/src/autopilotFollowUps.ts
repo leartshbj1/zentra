@@ -126,3 +126,22 @@ export function promisedDate(evidence: string, receivedAt: number): string | nul
   }
   return null;
 }
+
+
+/**
+ * How a client usually pays, from their invoices already paid in full: the average
+ * number of days after the due date (0 when on time). Null with fewer than two invoices.
+ */
+export function paymentHabit(clientId: string, invoices: readonly Readonly<{ id: string; clientId: string; dueDate: string; type: string; status: string }>[],
+  payments: readonly Readonly<{ invoiceId: string; date: string }>[]): Readonly<{ samples: number; averageLateDays: number }> | null {
+  const late: number[] = [];
+  for (const invoice of invoices) {
+    if (invoice.clientId !== clientId || invoice.status !== 'paid' || invoice.type === 'credit_note' || !invoice.dueDate) continue;
+    const dates = payments.filter(payment => payment.invoiceId === invoice.id && payment.date).map(payment => payment.date).sort();
+    const last = dates[dates.length - 1];
+    if (!last) continue;
+    late.push(Math.max(0, Math.round((Date.parse(last + 'T12:00:00Z') - Date.parse(invoice.dueDate + 'T12:00:00Z')) / 86_400_000)));
+  }
+  if (late.length < 2) return null;
+  return { samples: late.length, averageLateDays: Math.round(late.reduce((sum, days) => sum + days, 0) / late.length) };
+}
