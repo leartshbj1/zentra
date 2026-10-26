@@ -273,3 +273,12 @@ html[data-app-theme] .desktop-app[data-experience] .site-map__frame > .site-map_
 html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview:has(.finance-overview > .finance-first-step) .accounting-period-bar {
   display: none;
 }
+
+/* Compteur du menu actif : une pastille arrondie plutôt qu'un petit carré. */
+html[data-app-theme] .desktop-app[data-experience] .sidebar__nav.sidebar__nav button.is-active em {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  text-align: center;
+  box-sizing: border-box;
+}
