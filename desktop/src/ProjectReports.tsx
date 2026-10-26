@@ -23,7 +23,8 @@ export function ReportsScreen({workspace,onOpenAccounting,onOpenProjects}:{works
   const [limit,setLimit]=useState(20);
   const flight=useRef(false);
   const projects=useMemo(()=>recentReportProjects(workspace),[workspace,language]);
-  const project=workspace.projects.find(p=>p.id===chosen) ?? (workspace.projects.length===1 ? workspace.projects[0] : undefined);
+  // Opens on the most recently active project rather than an empty « which project? » panel.
+  const project=workspace.projects.find(p=>p.id===chosen) ?? projects[0];
   const lifetime=useRef({mounted:false,generation:0,scope:workspace.workNotesScope,projectId:project?.id});
   useLayoutEffect(()=>{
     lifetime.current={mounted:true,generation:lifetime.current.generation+1,scope:workspace.workNotesScope,projectId:project?.id};

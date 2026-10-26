@@ -29,14 +29,14 @@ it('opens the unique project with its useful summary before export configuration
   expect(summary.textContent).toContain('Marge sur coûts enregistrés');expect(host.textContent).toContain('Marge estimée');
   expect(exportButton().disabled).toBe(false);expect(exportPdf).not.toHaveBeenCalled();
 });
-it('offers recent project choices without auto-selecting another project when several exist',async()=>{
+it('opens on the most recently active project and still lets the user pick another one',async()=>{
   const w=workspace(4);w.timeEntries=[{projectId:'p-3',date:'2026-10-04',minutes:10,hourlyCostCents:0}] as Workspace['timeEntries'];
   await render(w);
-  const recent=host.querySelector('.project-reports__recent')!;
-  expect(Array.from(recent.querySelectorAll('button')).map(button=>button.textContent)).toEqual(['Projet 4','Projet 1','Projet 2']);
-  expect(host.querySelector('.project-reports__figures')).toBeNull();
-  await act(async()=>recent.querySelector('button')!.click());
-  expect(host.querySelector('h2')?.textContent).toBe('Projet 4');expect(host.querySelector('.project-reports__figures')).not.toBeNull();
+  const list=Array.from(host.querySelectorAll<HTMLButtonElement>('.project-reports__project-list > button'));
+  expect(list.slice(0,3).map(button=>button.querySelector('span')?.firstChild?.textContent)).toEqual(['Projet 4','Projet 1','Projet 2']);
+  expect(host.querySelector('h2')?.textContent).toBe('Projet 4');expect(list[0].getAttribute('aria-pressed')).toBe('true');expect(host.querySelector('.project-reports__figures')).not.toBeNull();
+  await act(async()=>list[1].click());
+  expect(host.querySelector('h2')?.textContent).toBe('Projet 1');
 });
 it('exports client-safe provenance using the existing API and workspace guard',async()=>{
   const exportPdf=vi.spyOn(desktopApi,'exportProjectReportPdf').mockResolvedValue(null);

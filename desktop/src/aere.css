@@ -332,3 +332,8 @@ html[data-app-theme] .desktop-app[data-experience] .dashboard-grid.dashboard-gri
   letter-spacing: 0;
   line-height: 1.3;
 }
+
+/* Rapports : le nom du client sous le projet sélectionné reste lisible sur le fond gris (4,5:1). */
+html[data-app-theme] .desktop-app[data-experience] .project-reports__picker button[aria-pressed='true'] small {
+  color: var(--zp-quiet-label);
+}
