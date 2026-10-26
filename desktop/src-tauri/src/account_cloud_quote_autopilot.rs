@@ -544,8 +544,7 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
             || !unique(data.items.iter().map(|v| v.booking_id.as_str())) || data.items.iter().any(|v| {
                 !id(&v.booking_id) || !key(&v.client_key) || !local_start(&v.start) || !(15..=240).contains(&v.minutes) || !text(&v.contact_name, 200)
                     || v.phone.chars().count() > 40 || v.message.chars().count() > 2000 || !timestamp(v.at)
-                    || v.phone.chars().chain(v.message.chars()).any(|c| c.is_control() && c != '
-')
+                    || v.phone.chars().chain(v.message.chars()).any(|c| c.is_control() && c != '\n')
             }) { return None; }
         return serde_json::to_value(data).ok();
     }
