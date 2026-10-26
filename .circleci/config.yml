@@ -670,6 +670,13 @@ jobs:
           path: desktop/artifacts/windows
           destination: windows
   apple:
+    parameters:
+      verify:
+        type: boolean
+        default: true
+      package:
+        type: boolean
+        default: true
     macos:
       xcode: "26.4.1"
     resource_class: m4pro.medium
@@ -694,35 +701,41 @@ jobs:
       - run:
           name: Prepare Apple build tools
           command: bash desktop/scripts/cloud-release-apple.sh prepare
-      - run:
-          name: Verify the exact session-change refusal with the warm macOS protected cache
-          command: |
-            set -euo pipefail
-            export PATH="$HOME/.zentra-ci-tools/bin:$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
-            mkdir -p desktop/artifacts/validation
-            cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib diagnostics::account_automation_diagnostics_tests::changed_session_or_company_during_transport_refuses_historical_response_without_logging_direct_strings -- --exact --test-threads=1 2>&1 | tee desktop/artifacts/validation/automation-session-change-macos.log
-          no_output_timeout: 20m
-      - run:
-          name: Verify native synchronization and mobile gestures
-          command: bash desktop/scripts/cloud-release-apple.sh test
-          no_output_timeout: 20m
-      - run:
-          name: Build universal Mac
-          command: bash desktop/scripts/codemagic-apple.sh macos
-          no_output_timeout: 20m
-      - run:
-          name: Launch the packaged Mac app in an isolated profile
-          command: python3 desktop/scripts/local-apple-package-smoke.py
-      - run:
-          name: Build physical iPhone IPA and verify touch controls
-          command: bash desktop/scripts/cloud-release-apple.sh iphone
-          no_output_timeout: 20m
-      - run:
-          name: Record the exact Apple pipeline revision
-          command: |
-            set -euo pipefail
-            test -n "$CIRCLE_SHA1"
-            printf '%s\n' "$CIRCLE_SHA1" > desktop/artifacts/VERIFIER-SOURCE.txt
+      - when:
+          condition: << parameters.verify >>
+          steps:
+            - run:
+                name: Verify the exact session-change refusal with the warm macOS protected cache
+                command: |
+                  set -euo pipefail
+                  export PATH="$HOME/.zentra-ci-tools/bin:$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
+                  mkdir -p desktop/artifacts/validation
+                  cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --lib diagnostics::account_automation_diagnostics_tests::changed_session_or_company_during_transport_refuses_historical_response_without_logging_direct_strings -- --exact --test-threads=1 2>&1 | tee desktop/artifacts/validation/automation-session-change-macos.log
+                no_output_timeout: 20m
+            - run:
+                name: Verify native synchronization and mobile gestures
+                command: bash desktop/scripts/cloud-release-apple.sh test
+                no_output_timeout: 20m
+      - when:
+          condition: << parameters.package >>
+          steps:
+            - run:
+                name: Build universal Mac
+                command: bash desktop/scripts/codemagic-apple.sh macos
+                no_output_timeout: 20m
+            - run:
+                name: Launch the packaged Mac app in an isolated profile
+                command: python3 desktop/scripts/local-apple-package-smoke.py
+            - run:
+                name: Build physical iPhone IPA and verify touch controls
+                command: bash desktop/scripts/cloud-release-apple.sh iphone
+                no_output_timeout: 20m
+            - run:
+                name: Record the exact Apple pipeline revision
+                command: |
+                  set -euo pipefail
+                  test -n "$CIRCLE_SHA1"
+                  printf '%s\n' "$CIRCLE_SHA1" > desktop/artifacts/VERIFIER-SOURCE.txt
       - store_artifacts:
           path: desktop/artifacts
           destination: apple
@@ -886,7 +899,12 @@ workflows:
             equal: [action-engine, << pipeline.parameters.diagnostics-native-set >>]
     jobs:
       - windows-autopilot-release-large
-      - apple
+      # The macOS checks and the Mac/iPhone packages run side by side so each stays under the 60-minute job limit.
+      - apple:
+          name: apple-verify
+          package: false
+      - apple:
+          verify: false
   quality-continuity-verification:
     when:
       and:
