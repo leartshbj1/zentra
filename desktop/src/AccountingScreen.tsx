@@ -537,7 +537,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     ['journal', t('Journal'), <BookOpen size={16} />], ['ledger', t('Grand livre'), <ListChecks size={16} />], ['trial', t('Balance'), <Scale size={16} />], ['balance', t('Bilan'), <Landmark size={16} />], ['income', t('Résultat'), <CheckCircle2 size={16} />], ['vat', t('TVA'), <ReceiptText size={16} />], ['closing', t('Dossier de clôture'), <FileCheck2 size={16} />], ['export', t('Export fiduciaire'), <FileOutput size={16} />], ['consolidation', t('Consolidation'), <Layers size={16} />], ['accounts', t('Plan & liaisons'), <ShieldCheck size={16} />], ['periods', t('Exercices'), <LockKeyhole size={16} />], ['currencies', t('Devises'), <Coins size={16} />], ['budget', t('Budget et centres de coûts'), <Target size={16} />], ['archive', t('Archive légale'), <FileArchive size={16} />],
   ];
   const overviewPeriod = (['month', 'quarter', 'year'] as const).find(key => { const dates = financePeriod(key, todayIso()); return dates.dateFrom === displayFilter.dateFrom && dates.dateTo === displayFilter.dateTo; }) || 'custom';
-  const everyday:Tab[]=['overview','income','vat','assets','closing'];
+  // The fiduciary export is a daily need, not an expert tool: it stays visible with the main tabs.
+  const everyday:Tab[]=['overview','income','vat','assets','closing','export'];
   const primaryTabs=tabs.filter(([id])=>everyday.includes(id));
   const advancedTab=tabs.find(([id])=>id===tab&&!everyday.includes(id));
   if(advancedTab)primaryTabs.push(advancedTab);

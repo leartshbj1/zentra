@@ -711,6 +711,12 @@ pub async fn open_automation_settings() -> Result<String,String> {
     let uri="https://zentraapp.ch/compte/automation".to_string();
     tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
 }
+/// API keys, webhooks, online shops and postal mail are set up on the account page.
+#[tauri::command]
+pub async fn open_integrations_settings() -> Result<String,String> {
+    let uri="https://zentraapp.ch/compte/integrations".to_string();
+    tauri::async_runtime::spawn_blocking(move||{launch_external_url(&uri).map_err(command_error)?;Ok(uri)}).await.map_err(|error|error.to_string())?
+}
 #[tauri::command]
 pub async fn open_supplier_inbox_settings(state: State<'_, LocalStore>, section: Option<String>, ticket_id: Option<String>) -> Result<String,String> {
     let store=state.inner().clone();

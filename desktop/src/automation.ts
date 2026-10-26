@@ -203,6 +203,8 @@ export async function automationFeedback(
 }
 export const openAutomationSettings = () =>
   invoke<string>('open_automation_settings');
+export const openIntegrationsSettings = () =>
+  invoke<string>('open_integrations_settings');
 export async function saveAutomationSettings(settings: AutomationState['settings'], consent = false) {
   const result = await invoke<AutomationState['settings']>('automation_request', withDiagnosticIntent({ data: {
     action: 'settings', ...settings,

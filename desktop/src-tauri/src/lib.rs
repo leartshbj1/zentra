@@ -637,6 +637,7 @@ pub fn run() {
             account_cloud::subscription_overview_request,
             supplier_inbox::supplier_inbox_request,
             account_cloud::open_automation_settings,
+            account_cloud::open_integrations_settings,
             account_cloud::open_supplier_inbox_settings,
             account_cloud::join_cloud_company,
             app_reset::reset_local_app,

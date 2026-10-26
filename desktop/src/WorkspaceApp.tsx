@@ -39,6 +39,7 @@ import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
+import { openIntegrationsSettings } from './automation';
 import { CustomerReadiness, CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
 import { findUsualArticles, withUsualArticles } from './usualArticles';
 import { appointmentReminders, normalizedPhone, reminderSms, reviewCandidates, reviewMailto, reviewSms, type SmsSettings } from './customerEngagement';
@@ -191,6 +192,8 @@ import { employeeDraftFields, validEmployeeCreationId, validCreationEmployeeDraf
 import {recordDiagnostic, classifyDiagnosticError, diagnosticOperation, diagnosticInvoke} from './diagnostics';
 import {
   Archive,
+  ExternalLink,
+  Plug,
   ArrowRight,
   Banknote,
   BarChart3,
@@ -7688,6 +7691,18 @@ function TeamScreen({
   );
 }
 
+/** API, shops and postal mail are company-wide connections kept on the Zentra account page. */
+function IntegrationsSetting() {
+  useAppLanguage();
+  const [message, setMessage] = useState('');
+  return <div className="settings-copy-block">
+    <p className="settings-copy">{t('Ces connexions se règlent sur votre compte Zentra, pour toute l’entreprise : clés API et MCP, webhooks, boutiques Shopify et WooCommerce, et compte Pingen pour envoyer les factures par la poste.')}</p>
+    <p className="settings-copy">{t('Ensuite, les commandes des boutiques arrivent dans Zentra Autopilote, et « Envoyer par la poste » apparaît dans le menu « … » de chaque facture émise.')}</p>
+    <div className="form-actions"><Button onClick={() => { setMessage(''); void openIntegrationsSettings().catch(() => setMessage(t('Ouvrez zentraapp.ch/compte/integrations dans votre navigateur.'))); }}><ExternalLink size={16} /> {t('Ouvrir les connexions')}</Button></div>
+    {message ? <p role="status" className="settings-copy">{message}</p> : null}
+  </div>;
+}
+
 function SettingsScreen({
   initialCategory,
   automationActive,
@@ -8026,6 +8041,9 @@ function SettingsScreen({
       <CloudAccountPanel onAccountChange={onCloudAccountChange} settings={settings} />
       </SettingsCategory>
       <SettingsCategory id="automation" lazy title="Zentra Autopilote" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink embedded /></SettingsCategory>
+      <SettingsCategory id="integrations" title={t('API, boutiques et courrier')} description={t('Clés API, Shopify, WooCommerce et factures par la poste')} icon={Plug}>
+        <section className="panel settings-card settings-card--wide"><IntegrationsSetting /></section>
+      </SettingsCategory>
       <SettingsCategory id="mail" lazy title="E-mails" description="Messagerie, devis, factures et textes personnalisés" icon={Mail}>
         <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { await execute((scope, nonce) => refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace(scope, nonce)), 'Modèles enregistrés pour l’entreprise.'); }} />
       </SettingsCategory>

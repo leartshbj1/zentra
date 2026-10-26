@@ -1,7 +1,7 @@
 export const settingsGroups = [
   { title: 'Entreprise et équipe', ids: ['readiness', 'company', 'account', 'payroll'] },
   { title: 'Documents et gestion', ids: ['documents', 'accounting', 'time', 'migration'] },
-  { title: 'Connexions', ids: ['automation', 'mail', 'customers'] },
+  { title: 'Connexions', ids: ['automation', 'mail', 'integrations', 'customers'] },
   { title: 'Préférences et protection', ids: ['appearance', 'personalization', 'language', 'assistant', 'storage'] },
 ] as const;
 
@@ -16,6 +16,7 @@ export const settingsSearchTerms: Record<string, string> = {
   migration: 'bexio, WinBIZ, Crésus, Banana, AbaNinja, Swiss21, Excel, CSV, importer clients, fournisseurs, articles, plan comptable, soldes',
   automation: 'Automatismes, factures fournisseurs, habitudes, consentement',
   mail: 'E-mail, SMTP, Infomaniak, expéditeur, modèles, signature, logo',
+  integrations: 'API, clé API, MCP, webhooks, Shopify, WooCommerce, boutique en ligne, courrier, poste, Pingen',
   appearance: 'Mode sombre, mode clair, thème, taille du texte, lisibilité',
   personalization: 'Raccourcis, barre du bas, accueil, navigation mobile',
   language: 'Langue, français, allemand, italien, anglais',
