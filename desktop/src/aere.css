@@ -235,3 +235,11 @@
     grid-column: 1 / -1;
   }
 }
+
+@media screen {
+  /* Autopilote settings: the team choice (Prépare / Observe / En pause) first,
+     then this device's sure-cards and automatic validation. */
+  html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-hub__settings > section.quote-autopilot--behaviour.quote-autopilot--behaviour {
+    order: 2;
+  }
+}
