@@ -5477,7 +5477,7 @@ function Dashboard({
       </section>
   );
 
-  if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} automation={<AutopilotHome />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
+  if (compact && hasActivity) return <MobileDashboard actions={quickActions} workspace={workspace} onNavigate={onNavigate} onOpenProject={onOpenProject} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} onStart={readOnly ? undefined : kind => onCreate(kind === 'quote' ? { type: 'document', entity: 'quotes' } : { type: 'project' })} automation={<AutopilotHome />} setup={!gettingStarted.complete ? <GettingStartedChecklist compact workspace={workspace} readOnly={readOnly} onAction={runGettingStartedAction} /> : null} />;
   if (!hasActivity)
     return (
       <><GettingStartedChecklist
@@ -5486,6 +5486,8 @@ function Dashboard({
         onAction={runGettingStartedAction}
       /><AutopilotHome />{quickActions}</>
     );
+  const draftQuoteCount = workspace.quotes.filter(quote => quote.status === 'draft').length;
+  const openInvoiceCount = workspace.invoices.filter(invoice => invoice.type !== 'credit_note' && ['issued', 'partially_paid'].includes(invoice.status)).length;
   return (
     <div className="dashboard-grid dashboard-grid--daily">
       <DashboardFinancialSummary workspace={workspace} onAccounting={()=>onNavigate('accounting')} onOpenInvoice={invoice=>onCreate({type:'document',entity:'invoices',item:invoice})} />
@@ -5494,9 +5496,16 @@ function Dashboard({
       <section className="activity-shortcuts" aria-label={t('À suivre')}>
         <div className="activity-shortcuts__heading"><span className="eyebrow">{t('À suivre')}</span><span>{new Intl.DateTimeFormat(getAppLocale(), { day: 'numeric', month: 'long' }).format(new Date())}</span></div>
         <div className="activity-shortcuts__items">
-          <button type="button" onClick={() => onNavigate('quotes')}><span className="activity-shortcuts__icon"><FileText size={19} /></span><span><strong>{workspace.quotes.filter(quote => quote.status === 'draft').length}</strong><span>{t('Devis en préparation')}</span></span><ArrowRight size={17} /></button>
-          <button type="button" onClick={() => onNavigate('invoices')}><span className="activity-shortcuts__icon activity-shortcuts__icon--amber"><Receipt size={19} /></span><span><strong>{workspace.invoices.filter(invoice => invoice.type !== 'credit_note' && ['issued', 'partially_paid'].includes(invoice.status)).length}</strong><span>{t('Factures à encaisser')}</span></span><ArrowRight size={17} /></button>
-          <button type="button" onClick={() => onNavigate('projects')}><span className="activity-shortcuts__icon"><ProjectIcon size={19} /></span><span><strong>{activeProjects.length}</strong><span>{t('Projets actifs')}</span></span><ArrowRight size={17} /></button>
+          {/* A box at zero becomes the next useful step instead of a bare 0. */}
+          {draftQuoteCount || readOnly
+            ? <button type="button" onClick={() => onNavigate('quotes')}><span className="activity-shortcuts__icon"><FileText size={19} /></span><span><strong>{draftQuoteCount}</strong><span>{t('Devis en préparation')}</span></span><ArrowRight size={17} /></button>
+            : <button type="button" className="activity-shortcuts__start" onClick={() => onCreate({ type: 'document', entity: 'quotes' })}><span className="activity-shortcuts__icon"><Plus size={19} /></span><span><strong>{t('Préparer un devis')}</strong></span><ArrowRight size={17} /></button>}
+          {openInvoiceCount
+            ? <button type="button" onClick={() => onNavigate('invoices')}><span className="activity-shortcuts__icon activity-shortcuts__icon--amber"><Receipt size={19} /></span><span><strong>{openInvoiceCount}</strong><span>{t('Factures à encaisser')}</span></span><ArrowRight size={17} /></button>
+            : <button type="button" className="activity-shortcuts__start" onClick={() => onNavigate('invoices')}><span className="activity-shortcuts__icon"><CheckCircle2 size={19} /></span><span><strong>{t('Rien à encaisser')}</strong></span><ArrowRight size={17} /></button>}
+          {activeProjects.length || readOnly
+            ? <button type="button" onClick={() => onNavigate('projects')}><span className="activity-shortcuts__icon"><ProjectIcon size={19} /></span><span><strong>{activeProjects.length}</strong><span>{t('Projets actifs')}</span></span><ArrowRight size={17} /></button>
+            : <button type="button" className="activity-shortcuts__start" onClick={() => onCreate({ type: 'project' })}><span className="activity-shortcuts__icon"><Plus size={19} /></span><span><strong>{t('Créer un projet')}</strong></span><ArrowRight size={17} /></button>}
         </div>
       </section>
       {!gettingStarted.complete ? (

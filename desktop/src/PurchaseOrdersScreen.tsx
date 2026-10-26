@@ -860,39 +860,37 @@ export function PurchaseOrdersScreen({
       </Button>
     ) : null;
 
-  const summary = (
+  // Only the counters that hold something: a row of zeros says nothing.
+  const activeOrderCount = workspace.supplierOrders.filter(order => order.status === 'confirmed').length;
+  const showInbox = mailboxUnavailable || inboxCount > 0;
+  // « À traiter » alone repeats the tab badge, so the strip needs another figure to be worth showing.
+  const summary = activeOrderCount || receiptDraftCount || unpaidCents ? (
       <div
         className="purchase-workflow__summary"
         aria-label={t('Résumé des achats fournisseurs')}
       >
-        <div>
+        {showInbox ? <div>
           <span>{t('À traiter')}</span>
           <strong>{mailboxUnavailable ? '—' : inboxCount}</strong>
           <small>{mailboxUnavailable ? t('Réception mail à actualiser') : mailbox?.linked ? t('Réception mail comprise') : t('Commandes, factures et avoirs')}</small>
-        </div>
-        <div>
+        </div> : null}
+        {activeOrderCount ? <div>
           <span>{t('Commandes actives')}</span>
-          <strong>
-            {
-              workspace.supplierOrders.filter(
-                (order) => order.status === 'confirmed',
-              ).length
-            }
-          </strong>
+          <strong>{activeOrderCount}</strong>
           <small>{t('hors brouillons et clôturées')}</small>
-        </div>
-        <div>
+        </div> : null}
+        {receiptDraftCount ? <div>
           <span>{t('Réceptions à émettre')}</span>
           <strong>{receiptDraftCount}</strong>
           <small>{t('le stock ne bouge qu’à l’émission')}</small>
-        </div>
-        <div>
+        </div> : null}
+        {unpaidCents ? <div>
           <span>{t('Solde fournisseurs')}</span>
           <strong>{formatMoney(unpaidCents)}</strong>
           <small>{t('factures moins paiements et avoirs')}</small>
-        </div>
+        </div> : null}
       </div>
-  );
+  ) : null;
   return (
     <div className="stack-layout purchase-workflow">
       {!compact && summary}
@@ -1187,7 +1185,7 @@ export function PurchaseOrdersScreen({
           ) : null}
         </div>
       </section>
-      {compact && <MobileDetails title={t('Résumé des achats')}>{summary}</MobileDetails>}
+      {compact && summary && <MobileDetails title={t('Résumé des achats')}>{summary}</MobileDetails>}
 
       {modal?.type === 'order' ? (
         <SupplierOrderForm

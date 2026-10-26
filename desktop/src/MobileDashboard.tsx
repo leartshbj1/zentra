@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowUpRight, ChevronRight, TrendingUp, FileText, FolderKanban, Receipt } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, ChevronRight, TrendingUp, FileText, FolderKanban, Plus, Receipt } from 'lucide-react';
 import type { Invoice, Project, Workspace } from './types';
 import { salesTotalsByCurrency, turnoverByCurrency } from './salesFinancials';
 import { ResponsiveMoney } from './ResponsiveMoney';
@@ -8,11 +8,13 @@ import { MobileDetails } from './MobileDetails';
 import { t, useAppLanguage } from './language';
 import { DashboardFinancialDetail, financialMetricLabel, useFinancialDetailSelection } from './DashboardFinancialDetail';
 
-export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenInvoice, setup, automation, actions }: {
+export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenInvoice, onStart, setup, automation, actions }: {
   workspace: Workspace;
   onNavigate: (view: 'invoices' | 'quotes' | 'projects' | 'accounting' | 'time') => void;
   onOpenProject: (project: Project) => void;
   onOpenInvoice: (invoice: Invoice) => void;
+  /** Opens the creation of a first quote or project when that line is at zero. */
+  onStart?: (kind: 'quote' | 'project') => void;
   setup: ReactNode;
   automation?: ReactNode;
   actions?: ReactNode;
@@ -26,9 +28,9 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenIn
   const total = totals.find(item => item.currency === chosen) ?? totals[0];
   const projects = workspace.projects.filter(item => ['in_progress', 'paused'].includes(item.status));
   const links = [
-    { id: 'invoices' as const, label: 'Factures à encaisser', icon: Receipt, count: workspace.invoices.filter(item => item.type !== 'credit_note' && ['issued', 'partially_paid'].includes(item.status)).length },
-    { id: 'quotes' as const, label: 'Devis en préparation', icon: FileText, count: workspace.quotes.filter(item => item.status === 'draft').length },
-    { id: 'projects' as const, label: 'Projets actifs', icon: FolderKanban, count: projects.length },
+    { id: 'invoices' as const, label: 'Factures à encaisser', icon: Receipt, count: workspace.invoices.filter(item => item.type !== 'credit_note' && ['issued', 'partially_paid'].includes(item.status)).length, empty: { label: 'Rien à encaisser', icon: CheckCircle2 } },
+    { id: 'quotes' as const, label: 'Devis en préparation', icon: FileText, count: workspace.quotes.filter(item => item.status === 'draft').length, empty: onStart ? { label: 'Préparer un devis', icon: Plus, start: () => onStart('quote') } : undefined },
+    { id: 'projects' as const, label: 'Projets actifs', icon: FolderKanban, count: projects.length, empty: onStart ? { label: 'Créer un projet', icon: Plus, start: () => onStart('project') } : undefined },
   ];
   return <div className="mobile-home">
     <section className="mobile-home__balance" aria-label={t('Résumé de votre activité')}>
@@ -47,7 +49,12 @@ export function MobileDashboard({ workspace, onNavigate, onOpenProject, onOpenIn
     {metric&&<DashboardFinancialDetail key={`${metric}-${total?.currency}`} workspace={workspace} metric={metric} year={year} currency={metric==='netCents'?undefined:total?.currency} onClose={()=>closeDetail()} onOpenInvoice={invoice=>{closeDetail(false);onOpenInvoice(invoice);}}/>}
     <section className="mobile-home__section" aria-label={t('À suivre')}>
       <h2>{t('À suivre')}</h2>
-      <div className="mobile-home__list">{links.map(item => <button type="button" key={item.id} onClick={() => onNavigate(item.id)}><item.icon size={21} aria-hidden="true"/><span>{t(item.label)}</span><strong>{item.count}</strong><ChevronRight size={17} aria-hidden="true"/></button>)}</div>
+      <div className="mobile-home__list">{links.map(item => {
+        // A line at zero becomes the next step instead of a bare 0.
+        const empty = item.count === 0 ? item.empty : undefined;
+        if (empty) return <button type="button" key={item.id} onClick={() => 'start' in empty && empty.start ? empty.start() : onNavigate(item.id)}><empty.icon size={21} aria-hidden="true"/><span>{t(empty.label)}</span><ChevronRight size={17} aria-hidden="true"/></button>;
+        return <button type="button" key={item.id} onClick={() => onNavigate(item.id)}><item.icon size={21} aria-hidden="true"/><span>{t(item.label)}</span><strong>{item.count}</strong><ChevronRight size={17} aria-hidden="true"/></button>;
+      })}</div>
     </section>
     {automation}
     {actions && <MobileDetails title="Nouvelle saisie">{actions}</MobileDetails>}

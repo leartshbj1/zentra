@@ -324,3 +324,11 @@ html[data-app-theme] .desktop-app[data-experience] .client-directory-toolbar:emp
     display: none;
   }
 }
+
+/* Tableau de bord : une case à zéro devient une action, écrite comme un lien et non comme un chiffre. */
+html[data-app-theme] .desktop-app[data-experience] .dashboard-grid.dashboard-grid--daily > .activity-shortcuts .activity-shortcuts__items button.activity-shortcuts__start strong {
+  font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.3;
+}
