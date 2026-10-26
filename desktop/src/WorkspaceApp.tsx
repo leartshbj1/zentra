@@ -2336,20 +2336,19 @@ function WorkspaceContent({
   // The timers call the latest version, which sees the current busy state and workspace.
   // Automatic validation, only for the exact and undoable cases the company switched on:
   // each card is tried once per session, one at a time, never while paused or busy.
-  const autoCandidates = autopilotBehaviour.paused || !autopilotBehaviour.autoValidate.length || readOnly ? []
-    : followUpCards().cards.filter(card => card.autoCase && autopilotBehaviour.autoValidate.includes(card.autoCase) && !autoTried.current.has(card.key)
-      && (card.autoCase !== 'qrmail' || cardConfidence(card) === 'high'));
-  const autoKey = autoCandidates.map(card => card.key).join('|');
+  // Computed after render: the cards read state declared further down this component,
+  // which is not initialised yet while this line runs during render.
   useEffect(() => {
-    const card = autoCandidates[0];
-    if (!card || busy || modal || actionInFlight.current || autoRunning.current) return;
-    const action = card.actions.find(row => row.primary);
-    if (!action) return;
+    if (autopilotBehaviour.paused || !autopilotBehaviour.autoValidate.length || readOnly) return;
+    if (busy || modal || actionInFlight.current || autoRunning.current) return;
+    const card = followUpCards().cards.find(row => row.autoCase && autopilotBehaviour.autoValidate.includes(row.autoCase) && !autoTried.current.has(row.key)
+      && (row.autoCase !== 'qrmail' || cardConfidence(row) === 'high'));
+    const action = card?.actions.find(row => row.primary);
+    if (!card || !action) return;
     autoTried.current.add(card.key);
     autoRunning.current = true;
     void runFollowUpJournalled(card.key, action.id).finally(() => { autoRunning.current = false; });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoKey, busy, modal]);
+  });
   const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); });
   readAcceptancesRef.current = async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); };
   const chooseAcceptanceQuote = async (sourceId: string, quoteId: string | null) => {
