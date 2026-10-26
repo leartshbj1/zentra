@@ -243,3 +243,28 @@
     order: 2;
   }
 }
+
+@media screen and (min-width: 861px) {
+  /* Sidebar: with the new modules the list grew; slightly tighter rows keep
+     every group visible on a laptop without scrolling the menu. */
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav.sidebar__nav button {
+    min-height: 32px;
+    padding-block: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav.sidebar__nav p {
+    margin-top: 12px;
+    margin-bottom: 4px;
+  }
+}
+
+/* Carte des chantiers vide : une simple ligne au lieu d'un grand cadre gris. */
+html[data-app-theme] .desktop-app[data-experience] .site-map__frame:has(> .site-map__empty) {
+  height: auto !important;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .site-map__frame > .site-map__empty {
+  display: block;
+  padding: 0;
+  text-align: start;
+}
