@@ -25,6 +25,7 @@ import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type Catalo
 import { PriceListsPanel } from './PriceListsPanel';
 import { ProgressBillingDialog } from './ProgressBillingDialog';
 import { LaborRatesPanel } from './LaborRatesPanel';
+import { ServiceKitsPanel } from './ServiceKitsPanel';
 import { autopilotSiteCopy, siteAttachProposals } from './autopilotSite';
 import { WarehousesPanel } from './WarehousesPanel';
 import { LotsPanel } from './LotsPanel';
@@ -4028,6 +4029,9 @@ function WorkspaceContent({
           {view === 'catalog' ? <CatalogAreaTabs active={catalogArea} onChange={(area) => { setLotsDelivery(null); setBomTarget(null); setCatalogArea(area); }} /> : null}
           {view === 'catalog' && catalogArea === 'prices' ? (
             <PriceListsPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
+          {view === 'catalog' && catalogArea === 'kits' ? (
+            <ServiceKitsPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
           {view === 'catalog' && catalogArea === 'warehouses' ? (
             <WarehousesPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />

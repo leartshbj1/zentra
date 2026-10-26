@@ -107,6 +107,8 @@ mod measurement;
 mod progress_billing;
 mod labor_rates;
 mod site_ledger;
+mod service_kits;
+mod offer_export;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -378,6 +380,9 @@ pub fn run() {
             site_ledger::save_project_subcontract,
             site_ledger::link_supplier_invoice_subcontract,
             site_ledger::assign_supplier_invoice_project,
+            service_kits::save_service_kit,
+            service_kits::delete_service_kit,
+            offer_export::export_offer_text,
             opportunities::save_opportunity,
             legal_archive::create_legal_archive,
             legal_archive::list_legal_archives,
@@ -4074,6 +4079,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 sales_price_cents,
                 vat_bp: 810,
                 kind: kind.into(),
+                ean: None,
+                trade_source: None,
             }
         }
 
@@ -4334,6 +4341,8 @@ BEGIN SELECT RAISE(ABORT, 'pending expense requires a due date and no payment da
                 sales_price_cents: 200,
                 vat_bp: 810,
                 kind: "product".into(),
+                ean: None,
+                trade_source: None,
             }
         }
 

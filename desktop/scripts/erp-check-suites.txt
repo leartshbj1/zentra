@@ -91,3 +91,10 @@ rust:work_reports::
 src/siteLedger.test.ts
 rust:site_ledger::
 src/autopilotSite.test.ts
+src/tradeFormats.test.ts
+src/tradeImport.test.ts
+src/serviceKits.test.ts
+src/catalogImport.test.ts
+rust:service_kits::
+rust:offer_export::
+rust:catalog_import

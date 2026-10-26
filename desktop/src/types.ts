@@ -1972,6 +1972,8 @@ export type Workspace = {
   projectBudgetLines?: import('./siteLedger').BudgetLine[];
   projectSubcontracts?: import('./siteLedger').Subcontract[];
   subcontractLinks?: import('./siteLedger').SubcontractLink[];
+  /** Kits de prestations : matériel et main-d'œuvre d'une prestation du catalogue. */
+  serviceKits?: import('./serviceKits').ServiceKit[];
   /** Opportunités de vente (pipeline). */
   opportunities?: import('./pipeline').Opportunity[];
   /** Dépôts, transferts, lots et numéros de série. */

@@ -555,3 +555,39 @@
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- Service kits ---------- */
+@media screen {
+  .service-kits__rows {
+    display: grid;
+    gap: 8px;
+  }
+  .service-kits__row {
+    display: grid;
+    grid-template-columns: minmax(130px, 1fr) minmax(0, 1.6fr) minmax(70px, 0.5fr) minmax(80px, 0.6fr) minmax(80px, 0.6fr) auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .service-kits__row input,
+  .service-kits__row select {
+    min-width: 0;
+    min-height: 36px;
+  }
+  .service-kits__total {
+    margin: 4px 0 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+  }
+}
+@media screen and (max-width: 720px) {
+  .service-kits__row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--apple-line);
+  }
+  .service-kits__row > :first-child,
+  .service-kits__row > input:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+}

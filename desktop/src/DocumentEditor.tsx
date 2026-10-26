@@ -26,6 +26,8 @@ import { activeCatalogItems, catalogItemToDocumentLine } from './catalog';
 import { applyPriceList, clientPriceList } from './priceLists';
 import { findUsualArticles, withUsualArticles } from './usualArticles';
 import { ChapterHeading, MeasurementPanel, withMeasurements } from './LineLayout';
+import { offerExport, parseNpkText, submissionLines } from './tradeFormats';
+import { decodeTradeBytes } from './tradeImport';
 import type { DocumentLine, Invoice, Project, Quote, Workspace } from './types';
 import {
   addDaysIso,
@@ -167,6 +169,31 @@ export function DocumentEditor({
   function removeChapter(start: number) {
     const previous = lines[start]?.sectionTitle;
     setLines(current => { const next = current.slice(); for (let index = start; index < next.length && next[index].sectionTitle === previous; index += 1) { const { sectionTitle: _removed, ...rest } = next[index]; next[index] = rest; } return next; });
+  }
+  const submissionInput = useRef<HTMLInputElement>(null);
+  const [submissionNotice, setSubmissionNotice] = useState('');
+  /** Soumission SIA 451 / NPK en texte : positions et chapitres ajoutés au devis. */
+  async function importSubmission(file: File) {
+    setSubmissionNotice('');
+    try {
+      const parsed = parseNpkText(decodeTradeBytes(new Uint8Array(await file.arrayBuffer())));
+      const vat = settings.organization.vatRegistered ? settings.billing.vatRatesBp?.[0] ?? -1 : 0;
+      const imported = submissionLines(parsed).map(line => ({ id: createId(), catalogItemId: null, description: line.description, quantity: line.quantity, unit: line.unit, unitPriceCents: line.unitPriceCents, discountBp: 0, vatRateBp: vat, sectionTitle: line.sectionTitle }));
+      setLines(current => [...current.filter(line => line.description.trim() || line.unitPriceCents || line.quantity), ...imported]);
+      setSubmissionNotice(t('{count} positions importées. Complétez les prix et les quantités manquantes.', { count: imported.length }));
+    } catch (reason) {
+      setSubmissionNotice(reason instanceof Error ? t(reason.message) : t('La soumission n’a pas pu être lue.'));
+    }
+  }
+  async function exportOffer() {
+    if (!item) return;
+    setSubmissionNotice('');
+    try {
+      const saved = await desktopApi.exportOfferText(item.id, `Offre-${(item.number || documentTitle || 'devis').replace(/[^\p{L}\p{N}-]/gu, '-').slice(0, 60)}.csv`, offerExport(lines, documentTitle || item.title));
+      if (saved) setSubmissionNotice(t('Offre chiffrée enregistrée.'));
+    } catch (reason) {
+      setSubmissionNotice(reason instanceof Error ? reason.message : t('L’offre n’a pas pu être enregistrée.'));
+    }
   }
   function addChapter() {
     const title = t('Chapitre {number}', { number: chapterTitles.length + 1 });
@@ -1038,6 +1065,11 @@ export function DocumentEditor({
                 >
                   <Plus size={15} />{t("Ligne libre")}</Button>
                 {invoiceType !== 'deposit' ? <Button type="button" variant="secondary" size="small" onClick={addChapter}><Plus size={15} />{t('Nouveau chapitre')}</Button> : null}
+                {entity === 'quotes' ? <>
+                  <Button type="button" variant="ghost" size="small" onClick={() => submissionInput.current?.click()}>{t('Importer une soumission')}</Button>
+                  <input ref={submissionInput} type="file" hidden accept=".01s,.sia,.npk,.txt,.csv,.tsv" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void importSubmission(file); }} />
+                  {item ? <Button type="button" variant="ghost" size="small" onClick={() => void exportOffer()}>{t('Exporter l’offre chiffrée')}</Button> : null}
+                </> : null}
                 {usualArticles && usualArticles.lines.length > 0 ? (
                   <Button
                     type="button"
@@ -1053,6 +1085,7 @@ export function DocumentEditor({
                     <History size={15} />{t('Ajouter les articles habituels')}</Button>
                 ) : null}
               </div>
+              {submissionNotice ? <p className="line-editor__usual" role="status">{submissionNotice}</p> : null}
               {usualAdded !== null ? <p className="line-editor__usual" role="status">{usualAdded ? t('{count} articles habituels ajoutés aux prix actuels. Vérifiez les quantités avant d’enregistrer.', { count: usualAdded }) : t('Les articles habituels de ce client sont déjà dans le document.')}</p> : null}
             </header>
             <div className="line-editor__head">

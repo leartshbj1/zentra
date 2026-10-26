@@ -24,6 +24,9 @@ export type CatalogImportRow = {
   vatBp: number;
   kind: CatalogItem['kind'];
   errors: string[];
+  /** Catalogues professionnels (Pack bâtiment) : code EAN et format d'origine. */
+  ean?: string;
+  tradeSource?: 'datanorm' | 'bmecat' | 'npk';
 };
 
 export type CatalogImportPreviewRow = Omit<CatalogImportRow, 'vatBp'> & {

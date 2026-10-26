@@ -34,6 +34,12 @@ pub struct CatalogImportRowInput {
     pub sales_price_cents: i64,
     pub vat_bp: i64,
     pub kind: String,
+    /// Code EAN/GTIN lu dans un catalogue de grossiste (Pack bâtiment).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ean: Option<String>,
+    /// Format d'origine : datanorm, bmecat ou npk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trade_source: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -61,6 +67,8 @@ struct NormalizedRow {
     sales_price_cents: i64,
     vat_bp: i64,
     kind: String,
+    ean: Option<String>,
+    trade_source: Option<String>,
 }
 
 #[derive(Debug)]
@@ -148,6 +156,7 @@ impl LocalStore {
         for mutation in plan {
             match mutation {
                 PlannedMutation::Create(row) => {
+                    let id = Uuid::new_v4().to_string();
                     transaction.execute(
                         "INSERT INTO catalog_items(
                            id,kind,sku,name,description,unit,sales_price_cents,purchase_cost_cents,
@@ -155,7 +164,7 @@ impl LocalStore {
                            created_at,updated_at
                          ) VALUES(?,?,?,?,?,?,?,?,?,0,0,0,NULL,?,?)",
                         params![
-                            Uuid::new_v4().to_string(),
+                            id,
                             row.kind,
                             row.sku,
                             row.name,
@@ -168,6 +177,7 @@ impl LocalStore {
                             now
                         ],
                     )?;
+                    set_trade_fields(&transaction, &id, &row)?;
                     created += 1;
                 }
                 PlannedMutation::Update { row, existing } => {
@@ -195,6 +205,7 @@ impl LocalStore {
                             row.row_number
                         )));
                     }
+                    set_trade_fields(&transaction, &existing.id, &row)?;
                     updated += 1;
                 }
                 PlannedMutation::Skip => skipped += 1,
@@ -225,6 +236,17 @@ impl LocalStore {
             "skipped_count":skipped
         }))
     }
+}
+
+/// EAN et format d'origine d'un catalogue professionnel, gardés s'ils manquent dans la ligne.
+fn set_trade_fields(transaction: &rusqlite::Transaction<'_>, id: &str, row: &NormalizedRow) -> AppResult<()> {
+    if row.ean.is_some() || row.trade_source.is_some() {
+        transaction.execute(
+            "UPDATE catalog_items SET ean=COALESCE(?,ean),trade_source=COALESCE(?,trade_source) WHERE id=?",
+            params![row.ean, row.trade_source, id],
+        )?;
+    }
+    Ok(())
 }
 
 fn normalize_rows(rows: Vec<CatalogImportRowInput>) -> AppResult<Vec<NormalizedRow>> {
@@ -285,6 +307,16 @@ fn normalize_rows(rows: Vec<CatalogImportRowInput>) -> AppResult<Vec<NormalizedR
                 sales_price_cents: row.sales_price_cents,
                 vat_bp: row.vat_bp,
                 kind: row.kind,
+                ean: match row.ean.map(|ean| ean.trim().to_owned()).filter(|ean| !ean.is_empty()) {
+                    Some(ean) if (8..=14).contains(&ean.len()) && ean.chars().all(|c| c.is_ascii_digit()) => Some(ean),
+                    Some(_) => return Err(AppError::Validation(format!("Ligne {} : le code EAN doit compter 8 à 14 chiffres.", row.row_number))),
+                    None => None,
+                },
+                trade_source: match row.trade_source.as_deref() {
+                    None => None,
+                    Some(source @ ("datanorm" | "bmecat" | "npk")) => Some(source.to_owned()),
+                    Some(_) => return Err(AppError::Validation(format!("Ligne {} : format d'origine inconnu.", row.row_number))),
+                },
             })
         })
         .collect()

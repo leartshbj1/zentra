@@ -431,6 +431,7 @@ import { measurementRowsFromRaw, measurementRowsToRaw } from './measurement';
 import { progressFromRaw } from './progressBilling';
 import { laborRatesFromRaw } from './laborRates';
 import { siteFromRaw } from './siteLedger';
+import { serviceKitsFromRaw } from './serviceKits';
 import {
   pdfDestinationPath,
   salesPdfInvokeInput,
@@ -574,6 +575,8 @@ type RawWorkspace = {
   project_budget_lines?: RawRecord[];
   project_subcontracts?: RawRecord[];
   supplier_invoice_subcontracts?: RawRecord[];
+  service_kits?: RawRecord[];
+  service_kit_lines?: RawRecord[];
   opportunities?: RawRecord[];
   warehouses?: RawRecord[];
   stock_movement_warehouses?: RawRecord[];
@@ -3493,6 +3496,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
     laborRateTables: laborRatesFromRaw(raw.labor_rate_tables ?? [], raw.labor_rates ?? []),
     ...siteFromRaw(raw.project_budget_lines ?? [], raw.project_subcontracts ?? [], raw.supplier_invoice_subcontracts ?? []),
+    serviceKits: serviceKitsFromRaw(raw.service_kits ?? [], raw.service_kit_lines ?? []),
     ...(() => { const progress = progressFromRaw(raw.progress_billing_plans ?? [], raw.progress_bills ?? [], raw.progress_bill_lines ?? []); return { progressPlans: progress.plans, progressBills: progress.bills }; })(),
     opportunities: (raw.opportunities ?? []).map(opportunityFromRaw),
     stockLocations: stockLocationsFromRaw(raw),
@@ -3864,6 +3868,8 @@ export function importCatalogItemsMutation(
           sales_price_cents: row.salesPriceCents,
           vat_bp: row.vatBp,
           kind: row.kind,
+          ...(row.ean ? { ean: row.ean } : {}),
+          ...(row.tradeSource ? { trade_source: row.tradeSource } : {}),
         })),
       },
     },
@@ -7710,6 +7716,23 @@ export const desktopApi = {
   async createProgressBill(input: import('./progressBilling').ProgressBillRequest) {
     const raw = await invoke<RawRecord>('create_progress_bill', { input });
     return { invoiceId: stringValue(raw.invoiceId), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Offre chiffrée (structure NPK, « ; ») : la personne choisit où l'enregistrer. */
+  async exportOfferText(quoteId: string, fileName: string, content: string) {
+    const selected = await chooseSaveFile({ title: 'Exporter l’offre chiffrée', defaultPath: fileName, filters: [{ name: 'CSV', extensions: ['csv'] }] });
+    if (!selected) return null;
+    const destination = selected.toLowerCase().endsWith('.csv') ? selected : `${selected}.csv`;
+    const raw = await invoke<RawRecord>('export_offer_text', { quoteId, destination, content });
+    return { path: stringValue(raw.path) };
+  },
+  /** Enregistre un kit ; l'app native calcule le prix et le coût de la prestation. */
+  async saveServiceKit(catalogItemId: string, lines: import('./serviceKits').ServiceKitLine[]) {
+    await invoke<RawRecord>('save_service_kit', { input: { catalogItemId, lines } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async deleteServiceKit(catalogItemId: string) {
+    await invoke<RawRecord>('delete_service_kit', { catalogItemId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   /** Remplace le budget prévu du chantier. */
   async saveProjectBudget(projectId: string, lines: { category: string; label: string; amountCents: number; minutes: number | null }[]) {

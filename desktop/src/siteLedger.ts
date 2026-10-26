@@ -5,6 +5,7 @@
  * calculé ici, de façon déterministe, à partir des données enregistrées.
  */
 import { matchingRate, type LaborRateTable } from './laborRates';
+import { kitTotals } from './serviceKits';
 import type { Project, Workspace } from './types';
 import { documentLineTotals } from './utils';
 
@@ -146,7 +147,13 @@ export function budgetFromQuotes(project: Project, workspace: Workspace): Omit<B
     if (quote.projectId !== project.id || quote.status !== 'accepted') continue;
     for (const line of quote.lines) {
       const item = line.catalogItemId ? workspace.catalogItems.find(candidate => candidate.id === line.catalogItemId) : undefined;
-      if (isHourUnit(line.unit)) laborMinutes += Math.round(line.quantity * 60);
+      const kit = line.catalogItemId ? workspace.serviceKits?.find(candidate => candidate.catalogItemId === line.catalogItemId) : undefined;
+      if (kit) {
+        // Kit : son matériel au coût et ses heures, multipliés par la quantité du devis.
+        const totals = kitTotals(kit.lines);
+        materialCents += Math.round(line.quantity * totals.materialCostCents);
+        laborMinutes += Math.round(line.quantity * totals.laborMinutes);
+      } else if (isHourUnit(line.unit)) laborMinutes += Math.round(line.quantity * 60);
       else if (item?.kind === 'product') materialCents += Math.round(line.quantity * item.purchaseCostCents);
     }
   }
