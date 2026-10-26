@@ -122,6 +122,19 @@ export function installErpBexioFixture(data: Workspace) {
     { id: 'h1', source: 'winbiz', kind: 'clients', fileName: 'adresses-clients.xlsx', createdCount: 48, updatedCount: 0, skippedCount: 2, createdAt: at(1), undoneAt: null, undoReport: null },
     { id: 'h2', source: 'winbiz', kind: 'accounts', fileName: 'plan-comptable.csv', createdCount: 12, updatedCount: 0, skippedCount: 64, createdAt: at(2), undoneAt: at(2), undoReport: { removed: 11, restored: 0, reversed: 0, kept: [{ entity: 'accounts', id: 'a1', name: '1025', reason: 'Déjà utilisée dans Zentra' }] } },
   ];
+  // Journal de démonstration pour l'export fiduciaire : facture, encaissement, achat, facture à deux taux.
+  const entry = (id: string, number: string, entryDate: string, description: string) => ({ id, number, entryDate, description, sourceType: 'manual', sourceId: id, sourceEvent: 'posted', status: 'posted' as const, reversalOf: null, hasReversal: false });
+  const jl = (entryId: string, n: number, code: string, accountName: string, debitCents: number, creditCents: number, memo = '') => ({ id: `${entryId}-${n}`, journalEntryId: entryId, accountId: code, accountCode: code, accountName, entryNumber: entryId, entryDate: '', debitCents, creditCents, currency: 'CHF', memo, projectId: null, clientId: null, employeeId: null });
+  desktopApi.getJournal = async () => ({
+    entries: [entry('e1', 'J-2026-000041', '2026-03-05', 'Émission F-1042 Muster AG'), entry('e2', 'J-2026-000042', '2026-03-20', 'Encaissement F-1042'), entry('e3', 'J-2026-000043', '2026-03-21', 'Facture fournisseur Bois Léman'), entry('e4', 'J-2026-000044', '2026-03-22', 'Émission F-1043 Boulangerie Favre')],
+    lines: [jl('e1', 1, '1100', 'Créances clients', 108_100, 0, 'Créance client'), jl('e1', 2, '3200', 'Ventes de prestations', 0, 100_000, 'Produit facturé'), jl('e1', 3, '2200', 'TVA due', 0, 8_100, 'TVA due'),
+      jl('e2', 1, '1020', 'Banque', 108_100, 0), jl('e2', 2, '1100', 'Créances clients', 0, 108_100),
+      jl('e3', 1, '4000', 'Achats de matériel', 20_000, 0), jl('e3', 2, '1170', 'Impôt préalable', 1_620, 0), jl('e3', 3, '2000', 'Fournisseurs', 0, 21_620),
+      jl('e4', 1, '1100', 'Créances clients', 21_070, 0), jl('e4', 2, '3200', 'Ventes de prestations', 0, 20_000), jl('e4', 3, '2200', 'TVA due', 0, 1_070)],
+    currency: { baseCurrency: 'CHF' },
+  }) as never;
+  const previousSettings = desktopApi.getAccountingSettings;
+  desktopApi.getAccountingSettings = async () => ({ ...(await previousSettings().catch(() => ({}))), enabled: true, vatPayableAccountId: '2200', vatReceivableAccountId: '1170' }) as never;
   desktopApi.undoDataImport = async () => ({ report: { removed: 46, restored: 0, reversed: 0, kept: [{ entity: 'clients', id: 'c1', name: 'Menuiserie Dubois Sàrl', reason: 'Déjà utilisée dans Zentra' }] }, workspace: structuredClone(data) });
 }
 

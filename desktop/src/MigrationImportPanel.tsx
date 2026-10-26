@@ -223,7 +223,7 @@ function ContactImport({
               {invalid.length ? (
                 <label className="migration-only-errors">
                   <input type="checkbox" checked={onlyErrors} onChange={(event) => { setOnlyErrors(event.target.checked); setPage(0); }} />
-                  {t('Voir seulement les {count} lignes à corriger', { count: invalid.length })}
+                  {t(invalid.length === 1 ? 'Voir seulement la ligne à corriger' : 'Voir seulement les {count} lignes à corriger', { count: invalid.length })}
                 </label>
               ) : null}
               <div className="bexio-import-rows">

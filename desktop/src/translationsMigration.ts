@@ -13,6 +13,7 @@ export const migrationTranslations: Record<string, readonly [string, string, str
   'Préparer l’export': ['Export vorbereiten', 'Preparare l’esportazione', 'Prepare the export'],
   'Les pièces jointes et les stocks ne sont pas repris. Chaque import peut être annulé.': ['Anhänge und Lagerbestände werden nicht übernommen. Jeder Import kann rückgängig gemacht werden.', 'Allegati e scorte non vengono ripresi. Ogni importazione può essere annullata.', 'Attachments and stock levels are not imported. Every import can be undone.'],
   'Excel (.xlsx), CSV ou texte tabulé · 20 Mo maximum': ['Excel (.xlsx), CSV oder Tabulatortext · höchstens 20 MB', 'Excel (.xlsx), CSV o testo tabulato · massimo 20 MB', 'Excel (.xlsx), CSV or tab-separated text · 20 MB maximum'],
+  'Voir seulement la ligne à corriger': ['Nur die zu korrigierende Zeile anzeigen', 'Mostra solo la riga da correggere', 'Show only the row to fix'],
   'Voir seulement les {count} lignes à corriger': ['Nur die {count} zu korrigierenden Zeilen anzeigen', 'Mostra solo le {count} righe da correggere', 'Show only the {count} rows to fix'],
   'Import annulé': ['Import rückgängig gemacht', 'Importazione annullata', 'Import undone'],
   'bexio, WinBIZ, Crésus, Banana, AbaNinja ou Excel': ['bexio, WinBIZ, Crésus, Banana, AbaNinja oder Excel', 'bexio, WinBIZ, Crésus, Banana, AbaNinja o Excel', 'bexio, WinBIZ, Crésus, Banana, AbaNinja or Excel'],
