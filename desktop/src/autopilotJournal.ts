@@ -9,7 +9,8 @@ export type UndoSpec =
   | Readonly<{ kind: 'record-fields'; entity: 'clients' | 'suppliers'; id: string; fields: Readonly<Record<string, string>> }>
   | Readonly<{ kind: 'quote-status'; quoteId: string; status: string }>
   | Readonly<{ kind: 'archive-project'; projectId: string }>
-  | Readonly<{ kind: 'supplier-project'; invoiceId: string; projectId: string | null }>;
+  | Readonly<{ kind: 'supplier-project'; invoiceId: string; projectId: string | null }>
+  | Readonly<{ kind: 'payment-approval'; invoiceId: string }>;
 
 export type JournalEntry = Readonly<{
   id: string;

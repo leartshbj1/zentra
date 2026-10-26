@@ -287,12 +287,13 @@ fn read(db: &Connection) -> AppResult<Data> {
     // bills of materials and production orders (v77),
     // construction measurements and chapters (v78), progress invoices (v79),
     // day-work rate tables (v80), site sheet budget and subcontracts (v81),
-    // trade catalogue fields and service kits (v82).
+    // trade catalogue fields and service kits (v82),
+    // payment approvals, safety settings and paid IBANs (v83).
     // Existing v60/v61 references must compare with upgraded branches without
     // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if matches!(version, 60..=81) {
+    if matches!(version, 60..=82) {
         let tx = db.unchecked_transaction()?;
         if version == 60 {
             tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
@@ -363,8 +364,15 @@ fn read(db: &Connection) -> AppResult<Data> {
             tx.execute_batch(crate::schema::MIGRATION_V81_SQL)?;
         }
         // Catalogues professionnels et kits (v82).
-        crate::database::ensure_shared_step_columns(&tx, 82)?;
-        tx.execute_batch(crate::schema::MIGRATION_V82_SQL)?;
+        if version < 82 {
+            crate::database::ensure_shared_step_columns(&tx, 82)?;
+            tx.execute_batch(crate::schema::MIGRATION_V82_SQL)?;
+        }
+        // Paiements sûrs : validations, réglages et IBAN payés (v83).
+        if version < 83 {
+            tx.execute_batch(crate::schema::MIGRATION_V83_SQL)?;
+            crate::payment_safety::migrate_history(&tx, false)?;
+        }
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
         tx.pragma_update(None, "user_version", crate::schema::SCHEMA_VERSION)?;

@@ -7,7 +7,7 @@ export const settingsGroups = [
 
 export const settingsSearchTerms: Record<string, string> = {
   readiness: 'Configuration initiale, étapes à terminer',
-  company: 'Logo, adresse, coordonnées, TVA, IBAN, délais de paiement, numérotation',
+  company: 'Logo, adresse, coordonnées, TVA, IBAN, délais de paiement, numérotation, double validation, approbation des paiements, justificatifs manquants',
   account: 'Connexion, abonnement, invitation, collaborateurs, rôles, espace partagé',
   payroll: 'Salaires, assurances, accidents, pension, LPP, AVS, cotisations',
   documents: 'Logo, couleurs, police, mise en page, devis, factures, bilan, fiches de salaire',

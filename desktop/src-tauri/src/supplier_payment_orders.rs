@@ -72,6 +72,9 @@ pub struct ExportSupplierPaymentOrderInput {
     pub debtor_iban: String,
     pub xml: String,
     pub items: Vec<SupplierPaymentOrderItemInput>,
+    /// Alertes de paiement confirmées en connaissance de cause, par facture.
+    #[serde(default)]
+    pub acknowledged: Vec<crate::payment_safety::AcknowledgedChecksInput>,
 }
 
 fn trimmed(value: &str, label: &str, max: usize) -> AppResult<String> {
@@ -363,6 +366,8 @@ impl LocalStore {
         if duplicate {
             return Err(invalid("Cet ordre de paiement a déjà été enregistré."));
         }
+        // Contrôles avant paiement et double validation, recalculés sur le fichier.
+        let checked = crate::payment_safety::verify_export(&tx, &input.xml, &input.items, &input.acknowledged)?;
 
         let sha = format!("{:x}", Sha256::digest(input.xml.as_bytes()));
         let total: i64 = input.items.iter().map(|item| item.amount_cents).sum();
@@ -385,6 +390,7 @@ impl LocalStore {
                 params![id, item.supplier_invoice_id, item.end_to_end_id, item.amount_cents],
             )?;
         }
+        crate::payment_safety::record_export(&tx, &id, &input.execution_date, &checked)?;
         append_audit(
             &tx,
             "supplier_payment_order.exported",

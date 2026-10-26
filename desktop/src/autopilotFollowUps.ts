@@ -5,7 +5,7 @@ import type { Quote, Reminder } from './types';
  * Autopilote prepares reminders and quote follow-ups; a person sends each one.
  * What this device decided (postponed, ignored, sent) is kept here per company.
  */
-type Entry = Readonly<{ until?: string; ignored?: true; sentCount?: number; lastSentAt?: string }>;
+type Entry = Readonly<{ until?: string; ignored?: true; sentCount?: number; lastSentAt?: string; askedName?: string; askedEmployeeId?: string }>;
 type Store = Record<string, Record<string, Entry>>;
 const KEY = 'zentra.autopilot.follow-ups.v1';
 const MAX = 500;

@@ -98,3 +98,5 @@ src/catalogImport.test.ts
 rust:service_kits::
 rust:offer_export::
 rust:catalog_import
+src/paymentSafety.test.ts
+rust:payment_safety::

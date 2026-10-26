@@ -1975,7 +1975,7 @@ impl LocalStore {
         // données d'entreprise partagées : même horloge et même garde
         // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
         // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
-        let shared_steps: [(i64, &str); 20] = [
+        let shared_steps: [(i64, &str); 21] = [
             (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
             (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
             (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
@@ -1986,6 +1986,7 @@ impl LocalStore {
             (77, crate::schema::MIGRATION_V77_SQL), (78, crate::schema::MIGRATION_V78_SQL),
             (79, crate::schema::MIGRATION_V79_SQL), (80, crate::schema::MIGRATION_V80_SQL),
             (81, crate::schema::MIGRATION_V81_SQL), (82, crate::schema::MIGRATION_V82_SQL),
+            (83, crate::schema::MIGRATION_V83_SQL),
         ];
         if current < crate::schema::SCHEMA_VERSION {
             for (version, sql) in shared_steps {
@@ -1994,6 +1995,7 @@ impl LocalStore {
                     transaction.execute_batch(sql)?;
                 }
             }
+            crate::payment_safety::migrate_history(&transaction, true)?;
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", crate::schema::SCHEMA_VERSION)?;

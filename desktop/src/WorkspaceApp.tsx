@@ -21,6 +21,9 @@ import { suggestExpenseCategory } from './expenseCategory';
 import { buildDebtCollectionRequest, debtCollectionCandidates, type DebtCollectionRequest } from './debtCollection';
 import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
+import { PaymentSafetySettings, ReceiptRequestDialog } from './PaymentSafetyParts';
+import { defaultPaymentSafetySettings, findingTitle, missingReceipts, receiptWho, reviewFor, type MissingReceipt, type PaymentSafetyOverview } from './paymentSafety';
+import { loadPaymentSafety } from './usePaymentSafety';
 import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type CatalogArea, type TimeArea } from './BankAreaTabs';
 import { PriceListsPanel } from './PriceListsPanel';
 import { ProgressBillingDialog } from './ProgressBillingDialog';
@@ -1127,6 +1130,10 @@ function WorkspaceContent({
     else if (undo.kind === 'quote-status') done = await act(() => desktopApi.updateQuoteStatus(undo.quoteId, undo.status as never), copy.undoDone, false);
     else if (undo.kind === 'archive-project') done = await act(origin => desktopApi.archiveEntity('projects', undo.projectId, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     else if (undo.kind === 'supplier-project') done = await act(async () => (await desktopApi.assignSupplierInvoiceProject(undo.invoiceId, undo.projectId)).workspace, copy.undoDone, false);
+    else if (undo.kind === 'payment-approval') {
+      done = await act(async () => { await desktopApi.revokeSupplierPaymentApproval(undo.invoiceId); return workspaceRef.current; }, copy.undoDone, false);
+      void refreshPaymentSafety();
+    }
     if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
   };
   const runSignal = async (sourceId: string, choiceId?: string) => {
@@ -1182,6 +1189,10 @@ function WorkspaceContent({
   const [chargeSettings, setChargeSettings] = useState<ReminderChargeSettings>(defaultChargeSettings);
   const [debtDialog, setDebtDialog] = useState<{ request: DebtCollectionRequest; invoiceNumber: string } | null>(null);
   const [autopilotBank, setAutopilotBank] = useState<BankWorkspace | null>(null);
+  // Paiements sûrs : contrôles et double validation calculés par l'app native, et la demande de justificatif ouverte.
+  const [paymentSafety, setPaymentSafety] = useState<PaymentSafetyOverview | null>(null);
+  const refreshPaymentSafety = async () => { try { setPaymentSafety(await loadPaymentSafety()); } catch { /* read again next time */ } };
+  const [receiptRequest, setReceiptRequest] = useState<{ key: string; receipt: MissingReceipt } | null>(null);
   const [fxPending, setFxPending] = useState<PendingConversion[]>([]);
   const [budgetReport, setBudgetReport] = useState<BudgetReport | null>(null);
   const [legalArchives, setLegalArchives] = useState<LegalArchiveState | null>(null);
@@ -1268,6 +1279,7 @@ function WorkspaceContent({
     } catch { /* read again next time */ }
     let bank: BankWorkspace | null = null;
     try { bank = await desktopApi.getBankWorkspace(workspaceRef.current.workNotesScope); setAutopilotBank(bank); } catch { /* read again next time */ }
+    await refreshPaymentSafety();
     // Statements dropped in the chosen folder (Downloads by default), once a bank account is linked.
     try {
       if (bank?.accounts.some(account => account.linked)) {
@@ -1448,8 +1460,28 @@ function WorkspaceContent({
       cards.push({ key: 'rule:' + signature, title: copy.ruleTitle.replace('{name}', signatureLabel(signature)), detail: copy.ruleDetail,
         actions: [{ id: 'rule-always', label: copy.actionRuleAlways, primary: true }, { id: 'rule-never', label: copy.actionRuleNever }] });
     }
+    // Dépenses bancaires restées sans pièce après le délai réglé : la carte du justificatif
+    // remplace « Créer la dépense » pour le même mouvement.
+    const receiptDays = paymentSafety?.settings.receiptReminderDays ?? defaultPaymentSafetySettings.receiptReminderDays;
+    const receipts = missingReceipts(autopilotBank, workspace.attachments ?? [], workspace.supplierInvoices, receiptDays, today)
+      .filter(row => !entries['receipt:' + row.movement.id]?.ignored && !(entries['receipt:' + row.movement.id]?.until && entries['receipt:' + row.movement.id]!.until! > today));
+    const receiptMovements = new Set(receipts.map(row => row.movement.id));
+    for (const row of receipts.slice(0, 3)) {
+      const key = 'receipt:' + row.movement.id, entry = entries[key];
+      const when = date((row.movement.bookingDate || row.movement.valueDate).slice(0, 10));
+      const detail = (row.reason === 'unlinked' ? copy.receiptDetailUnlinked : row.reason === 'expense' ? copy.receiptDetailExpense : copy.receiptDetailInvoice)
+        .replace('{date}', when).replace('{days}', String(row.ageDays));
+      cards.push({ key, title: copy.receiptTitle.replace('{amount}', formatMoney(Math.abs(row.movement.amountCents), row.movement.currency || 'CHF')).replace('{who}', receiptWho(row.movement)),
+        detail, note: entry?.lastSentAt && entry.askedName ? copy.receiptAsked.replace('{name}', entry.askedName).replace('{date}', date(entry.lastSentAt.slice(0, 10))) : undefined,
+        why: `${copy.whyReceipt.replace('{days}', String(receiptDays))} · ${copy.confidenceHigh}`,
+        actions: [{ id: 'ask-receipt', label: copy.actionAskReceipt }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'attach-receipt', label: copy.actionAttachReceipt, primary: true }] });
+    }
+    if (receipts.length > 3 && !(entries['receipt-more']?.until && entries['receipt-more']!.until! > today))
+      cards.push({ key: 'receipt-more', title: copy.receiptMoreTitle.replace('{n}', String(receipts.length - 3)), detail: copy.receiptMoreDetail,
+        actions: [{ id: 'postpone', label: copy.actionPostpone }, { id: 'open-bank', label: copy.actionOpenBank, primary: true }] });
     for (const row of bankRows) {
       if (batched.has(row.movement.id)) continue;
+      if (row.action === 'create_expense' && receiptMovements.has(row.movement.id)) continue;
       const amount = formatMoney(Math.abs(row.movement.amountCents), row.movement.currency || 'CHF');
       const who = row.movement.counterpartyName || row.movement.unstructured || row.movement.reference;
       const note = row.announcedBy ? copy.bankAnnounced.replace('{date}', new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium' }).format(row.announcedBy.receivedAt * 1000)) : undefined;
@@ -1577,10 +1609,15 @@ function WorkspaceContent({
     const order = paymentOrderSummary(workspace, today);
     const orderKey = 'pay-order:' + order.ids.slice().sort().join('+');
     const orderShown = order.count > 0 && !entries[orderKey]?.ignored && !(entries[orderKey]?.until && entries[orderKey]!.until! > today);
+    // Contrôles avant paiement calculés par l'app : ils accompagnent les cartes de paiement.
+    const payAlerts = (ids: readonly string[]) => {
+      const titles = [...new Set(ids.flatMap(id => reviewFor(paymentSafety, id)?.findings.map(findingTitle) ?? []))];
+      return titles.length ? copy.payAlert.replace('{alerts}', titles.join(' · ')) : undefined;
+    };
     if (orderShown) {
       const names = [...new Set(workspace.supplierInvoices.filter(invoice => order.ids.includes(invoice.id)).map(invoice => invoice.supplierName))];
       cards.push({ key: orderKey, title: (order.count === 1 ? copy.payOrderOne : copy.payOrderTitle.replace('{n}', String(order.count))).replace('{amount}', formatMoney(order.totalCents)),
-        detail: names.slice(0, 3).join(', ') + (names.length > 3 ? '…' : ''),
+        detail: names.slice(0, 3).join(', ') + (names.length > 3 ? '…' : ''), note: payAlerts(order.ids),
         why: `${copy.whyPayOrder} · ${copy.confidenceHigh}`,
         actions: [{ id: 'pay-order', label: copy.actionPayOrder, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
@@ -1615,7 +1652,22 @@ function WorkspaceContent({
       cards.push({ key: 'pay:' + invoice.id, title: copy.payTitle.replace('{supplier}', supplier?.name || invoice.supplierName),
         detail: copy.payDetail.replace('{reference}', invoice.reference).replace('{amount}', formatMoney(invoice.balanceCents, invoice.currency)).replace('{date}', date(invoice.dueDate))
           + (invoice.dueDate < today ? ' · ' + copy.payOverdue : ''),
+        note: payAlerts([invoice.id]),
         actions: [{ id: 'copy-iban', label: copy.actionCopyIban }, { id: 'view-purchase', label: copy.actionViewPurchase }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'pay', label: copy.actionPay, primary: true }] });
+    }
+    // Double validation : un paiement préparé par une autre personne attend votre approbation.
+    let toApprove = 0;
+    for (const review of paymentSafety?.invoices ?? []) {
+      const key = 'approve:' + review.supplierInvoiceId;
+      if (review.approval.status !== 'prepared' || review.approval.refusal || entries[key]?.ignored) continue;
+      const invoice = workspace.supplierInvoices.find(row => row.id === review.supplierInvoiceId);
+      if (!invoice) continue;
+      toApprove++;
+      cards.push({ key, title: copy.approveTitle.replace('{supplier}', invoice.supplierName).replace('{amount}', formatMoney(review.amountCents)),
+        detail: copy.approveDetail.replace('{name}', review.approval.preparedBy ?? '').replace('{reference}', invoice.reference || '—'),
+        note: review.findings.length ? copy.approveAlerts.replace('{alerts}', review.findings.map(findingTitle).join(' · ')) : undefined,
+        why: `${copy.whyApprove.replace('{amount}', formatMoney(paymentSafety!.settings.approvalThresholdCents))} · ${copy.confidenceHigh}`,
+        actions: [{ id: 'view-payments', label: copy.actionViewPayments }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'approve-payment', label: copy.actionApprove, primary: true }] });
     }
     // Équipe : notes de frais à valider ou à rembourser, vacances, arrêts maladie longs.
     const claims = pendingClaims(workspace.expenseClaims ?? []);
@@ -1831,6 +1883,7 @@ function WorkspaceContent({
       orderShown ? copy.summaryPayOrder.replace('{n}', String(order.count)) : '',
       toPay.length ? copy.summaryToPay.replace('{n}', String(toPay.length)) : '', lowStock.length ? copy.summaryLowStock.replace('{n}', String(lowStock.length)) : '',
       deliveries ? copy.summaryDeliveries.replace('{n}', String(deliveries)) : '',
+      toApprove ? copy.summaryApprove.replace('{n}', String(toApprove)) : '', receipts.length ? copy.summaryReceipts.replace('{n}', String(receipts.length)) : '',
       ...bankSummary].filter(Boolean).join(' · ');
     return { cards, summary };
   };
@@ -2135,6 +2188,28 @@ function WorkspaceContent({
       if (actionId === 'site-open') { setSearch(''); setView('expenses'); setModal({ type: 'supplierInvoiceDetail', invoice: proposal.invoice }); return; }
       const attached = await journalAct(async () => (await desktopApi.assignSupplierInvoiceProject(proposal.invoice.id, proposal.project.id)).workspace, autopilotSiteCopy(getAppLanguage()).done, false);
       if (attached) { actionUndo.current = { kind: 'supplier-project', invoiceId: proposal.invoice.id, projectId: proposal.invoice.projectId }; refresh(); }
+      return;
+    }
+    if (key.startsWith('approve:') && actionId === 'view-payments') { setSearch(''); setPurchaseStartSection('payments'); setView('expenses'); return; }
+    if (key.startsWith('approve:') && actionId === 'approve-payment') {
+      const invoiceId = key.slice('approve:'.length);
+      // L'app native refuse si la même personne a préparé le paiement, ou si le montant ou l'IBAN a changé.
+      const approved = await journalAct(async () => { await desktopApi.approveSupplierPayment(invoiceId); return workspaceRef.current; }, copy.approveDone, false);
+      if (approved) actionUndo.current = { kind: 'payment-approval', invoiceId };
+      await refreshPaymentSafety();
+      return;
+    }
+    if (key.startsWith('receipt:') && (actionId === 'attach-receipt' || actionId === 'ask-receipt')) {
+      const row = missingReceipts(autopilotBank, workspaceRef.current.attachments ?? [], workspaceRef.current.supplierInvoices, paymentSafety?.settings.receiptReminderDays ?? defaultPaymentSafetySettings.receiptReminderDays, today)
+        .find(item => 'receipt:' + item.movement.id === key);
+      if (!row) return;
+      if (actionId === 'ask-receipt') { setReceiptRequest({ key, receipt: row }); return; }
+      const invoice = row.supplierInvoiceId ? workspaceRef.current.supplierInvoices.find(item => item.id === row.supplierInvoiceId) : undefined;
+      const expense = row.expenseId ? workspaceRef.current.expenses.find(item => item.id === row.expenseId) : undefined;
+      setSearch('');
+      if (invoice) { setView('expenses'); setModal({ type: 'supplierInvoiceDetail', invoice }); }
+      else if (expense) { setView('expenses'); setModal({ type: 'legacyExpenseDetail', expense }); }
+      else setView('bank');
       return;
     }
     if (key.startsWith('pay:') && actionId !== 'ignore') {
@@ -3708,6 +3783,22 @@ function WorkspaceContent({
         confirmOpened(entry => entry.key === followUpMail.key);
         setFollowUpVersion(version => version + 1);
       }} />}
+      {receiptRequest && autopilotContext && <ReceiptRequestDialog receipt={receiptRequest.receipt} employees={workspace.employees}
+        companyName={workspace.settings?.organization.legalName ?? ''}
+        rememberedId={followUpEntries(autopilotContext.organizationId)['receipt-who:' + receiptWho(receiptRequest.receipt.movement)]?.askedEmployeeId}
+        onClose={() => setReceiptRequest(null)}
+        onOpened={employee => {
+          // Le brouillon s'ouvre dans la messagerie ; la carte revient dans 7 jours si la pièce manque toujours.
+          const organizationId = autopilotContext.organizationId, key = receiptRequest.key, today = todayIso();
+          const previous = followUpEntries(organizationId)[key] ?? null;
+          saveFollowUp(organizationId, key, entry => ({ ...entry, sentCount: (entry.sentCount ?? 0) + 1, lastSentAt: today, until: addDays(today, 7), askedName: employee.name, askedEmployeeId: employee.id }));
+          saveFollowUp(organizationId, 'receipt-who:' + receiptWho(receiptRequest.receipt.movement), entry => ({ ...entry, askedEmployeeId: employee.id }));
+          const copy = autopilotCopy(getAppLanguage());
+          appendJournal(organizationId, { key, title: copy.receiptJournal.replace('{name}', employee.name), detail: employee.email, actionLabel: copy.actionAskReceipt, ok: true, undo: { kind: 'follow-up', key, previous } });
+          setJournalVersion(version => version + 1);
+          setFollowUpVersion(version => version + 1);
+          setReceiptRequest(null);
+        }} />}
       {autopilotMail && <MailComposer target={autopilotMail.target} onClose={() => setAutopilotMail(null)} onSent={() => {
         markAutopilotQuoteSent(autopilotMail.organizationId, autopilotMail.proposalId, Date.now(), autopilotMail.kind ?? 'quote');
         const copy = autopilotCopy(getAppLanguage()), sent = autopilotMail.kind === 'invoice';
@@ -7779,6 +7870,7 @@ function SettingsScreen({
         </div>
       </section>
       <section className="panel settings-card settings-card--wide"><OnlinePaymentSettings disabled={readOnly} /></section>
+      <section className="panel settings-card settings-card--wide"><PaymentSafetySettings disabled={readOnly} /></section>
       </SettingsCategory>
       <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting embedded /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>
