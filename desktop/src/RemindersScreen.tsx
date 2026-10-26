@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { t } from './language';
+import { normalizedPhone } from './customerEngagement';
 import { FinanceFirstStep } from './FinanceFirstStep';
 import { MailDocumentButton, MailSettings } from './OutgoingMailEntry';
 import {
@@ -1297,6 +1298,16 @@ function ReminderDeliveryPreview({
   const confirmationTriggerRef = useRef<HTMLElement | null>(null);
   const logoUrl = localAssetUrl(preview.sender.logoPath);
   const smsDraftUri = reminderSmsDraftUri(preview);
+  // SMS par le compte de l'entreprise : seulement s'il est configuré ; sinon le brouillon s'ouvre dans l'application SMS.
+  const [smsAccount, setSmsAccount] = useState(false);
+  const [smsMessage, setSmsMessage] = useState('');
+  const [smsSending, setSmsSending] = useState(false);
+  const smsRecipient = normalizedPhone(preview.recipientPhone);
+  useEffect(() => {
+    let live = true;
+    desktopApi.getSmsSettings().then(value => { if (live) setSmsAccount(value.enabled); }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
   const legacyTemplateReady =
     (!preview.templateReviewRequired || legacyTemplateConfirmed) && !sentByMail;
 
@@ -1371,6 +1382,23 @@ function ReminderDeliveryPreview({
     setConfirmation('print');
   }
 
+  /** Le texte affiché est le brouillon : le clic l'envoie tel quel, puis la relance est notée envoyée. */
+  async function sendSms() {
+    const refreshed = await onRefresh(preview);
+    if (!refreshed || refreshed.previewSha256 !== preview.previewSha256 || !smsRecipient) return;
+    setSmsSending(true);
+    setSmsMessage('');
+    try {
+      await desktopApi.sendSms({ recipient: smsRecipient, body: refreshed.smsBody, purpose: 'payment_reminder', origin: 'validated', relatedType: 'reminder', relatedId: refreshed.reminderId });
+      await onRecord('manual_sent', t('SMS envoyé par le compte SMS de l’entreprise'));
+      setSmsMessage(t('SMS envoyé au {phone}.', { phone: smsRecipient }));
+    } catch (reason) {
+      setSmsMessage(errorMessage(reason, t('Le SMS n’a pas pu être envoyé.')));
+    } finally {
+      setSmsSending(false);
+    }
+  }
+
   async function prepareManualSend() {
     const refreshed = await onRefresh(preview);
     if (!refreshed || refreshed.previewSha256 !== preview.previewSha256) return;
@@ -1429,6 +1457,15 @@ function ReminderDeliveryPreview({
             >
               <Smartphone size={16} /> Ouvrir le SMS
             </Button>
+            {smsAccount && smsRecipient ? <Button
+              variant="secondary"
+              disabled={busy || readOnly || smsSending || !!confirmation || !preview.smsBody.trim() || !legacyTemplateReady}
+              title={t('Envoyé par votre compte SMS ; coût facturé par votre fournisseur.')}
+              onClick={() => void sendSms()}
+            >
+              <Smartphone size={16} /> {smsSending ? t('Envoi…') : t('Envoyer par SMS')}
+            </Button> : null}
+            {smsMessage ? <p role="status">{smsMessage}</p> : null}
             <Button
               variant="secondary"
               disabled={busy || !!confirmation || !legacyTemplateReady}

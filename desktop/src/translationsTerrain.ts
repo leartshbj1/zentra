@@ -138,6 +138,14 @@ export const terrainTranslations: Record<string, readonly [string, string, strin
   'Lundi': ['Montag', 'Lunedì', 'Monday'], 'Mardi': ['Dienstag', 'Martedì', 'Tuesday'], 'Mercredi': ['Mittwoch', 'Mercoledì', 'Wednesday'], 'Jeudi': ['Donnerstag', 'Giovedì', 'Thursday'],
   'Vendredi': ['Freitag', 'Venerdì', 'Friday'], 'Samedi': ['Samstag', 'Sabato', 'Saturday'], 'Dimanche': ['Sonntag', 'Domenica', 'Sunday'],
 
+  // Relances par SMS
+  'SMS envoyé par le compte SMS de l’entreprise': ['SMS über das SMS-Konto des Unternehmens gesendet', 'SMS inviato con l’account SMS dell’azienda', 'SMS sent through the company SMS account'],
+  'SMS envoyé au {phone}.': ['SMS an {phone} gesendet.', 'SMS inviato al {phone}.', 'SMS sent to {phone}.'],
+  'Le SMS n’a pas pu être envoyé.': ['Die SMS konnte nicht gesendet werden.', 'Non è stato possibile inviare l’SMS.', 'The SMS could not be sent.'],
+  'Envoyé par votre compte SMS ; coût facturé par votre fournisseur.': ['Über Ihr SMS-Konto gesendet; die Kosten verrechnet Ihr Anbieter.', 'Inviato con il vostro account SMS; costo fatturato dal vostro fornitore.', 'Sent through your SMS account; the cost is billed by your provider.'],
+  'Envoi…': ['Wird gesendet …', 'Invio…', 'Sending…'],
+  'Envoyer par SMS': ['Per SMS senden', 'Invia per SMS', 'Send by SMS'],
+
   // Carte des chantiers
   'Carte des chantiers': ['Karte der Baustellen', 'Mappa dei cantieri', 'Job site map'],
   'Recherche des adresses…': ['Adressen werden gesucht …', 'Ricerca degli indirizzi…', 'Looking up the addresses…'],
