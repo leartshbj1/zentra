@@ -55,7 +55,7 @@ function OtherCompany({ onAdd }: { onAdd: (company: CompanyBalance) => void }) {
 }
 
 /** Montants dans le sens normal du compte : passifs, fonds propres et produits en positif. */
-const shown = (line: ConsolidatedLine, cents: number) => (line.type === 'liability' || line.type === 'equity' || line.type === 'revenue' ? -cents : cents);
+const shown = (line: ConsolidatedLine, cents: number) => (cents !== 0 && (line.type === 'liability' || line.type === 'equity' || line.type === 'revenue') ? -cents : cents);
 
 function Lines({ title, lines, companies }: { title: string; lines: ConsolidatedLine[]; companies: CompanyBalance[] }) {
   useAppLanguage();

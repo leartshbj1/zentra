@@ -388,3 +388,8 @@
   html[data-app-theme] .desktop-app[data-experience] .legal-vault__recover input { width: 100%; min-height: 40px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   html[data-app-theme] .desktop-app[data-experience] .legal-vault__show { justify-self: start; min-height: 32px; padding: 0; border: 0; background: none; color: var(--apple-accent); cursor: pointer; font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
 }
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__eliminations { width: 100%; max-width: 760px; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation .bexio-import-file span { display: grid; gap: 2px; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation .bexio-import-file small { display: block; color: var(--apple-secondary); font-size: calc(13px * var(--zentra-ui-text-scale, 1)); }
+}

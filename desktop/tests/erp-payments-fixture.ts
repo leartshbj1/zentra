@@ -135,6 +135,25 @@ export function installErpBexioFixture(data: Workspace) {
   }) as never;
   const previousSettings = desktopApi.getAccountingSettings;
   desktopApi.getAccountingSettings = async () => ({ ...(await previousSettings().catch(() => ({}))), enabled: true, vatPayableAccountId: '2200', vatReceivableAccountId: '1170' }) as never;
+  // Archive légale et coffre chiffré.
+  desktopApi.listLegalArchives = async () => ({
+    archives: [
+      { id: 'la-2025', year: 2025, status: 'provisional', fileName: 'archive-legale-2025.zip', path: '', sha256: 'b'.repeat(64), sizeBytes: 18_400_000, filesCount: 412, missingCount: 0, retainUntil: '2036-12-31', createdAt: at(3), lastVerifiedAt: at(1), lastVerifiedOk: true, present: true },
+      { id: 'la-2024', year: 2024, status: 'final', fileName: 'archive-legale-2024.zip', path: '', sha256: 'a'.repeat(64), sizeBytes: 15_200_000, filesCount: 388, missingCount: 0, retainUntil: '2035-12-31', createdAt: at(200), lastVerifiedAt: at(5), lastVerifiedOk: true, present: true },
+    ],
+    yearsWithEntries: [2024, 2025],
+  });
+  desktopApi.listLegalArchiveCopies = async () => ({
+    copies: [
+      { copyId: 'c-2024', year: 2024, fileName: 'archive-legale-2024.zip', plainSha256: 'a'.repeat(64), sizeBytes: 15_200_400, keyId: 'k1', createdAt: 1, completedAt: 2 },
+      { copyId: 'c-2023', year: 2023, fileName: 'archive-legale-2023.zip', plainSha256: 'c'.repeat(64), sizeBytes: 12_000_000, keyId: 'k0', createdAt: 1, completedAt: 2 },
+    ],
+    localKeyId: 'k1',
+  });
+  desktopApi.legalArchiveRecoveryCode = async () => ({ code: 'K7QX-M2PA-9DTR-W4HN-ZB6C-L3VE-8FSY-UJ5G-TQ2N-RM7D-XK4P-AW9H-C6LB', keyId: 'k1', created: false });
+  // Balance de l'entreprise ouverte pour la consolidation.
+  const tb = (code: string, name: string, accountType: string, debitBalanceCents: number, creditBalanceCents: number) => ({ id: code, code, name, accountType, normalBalance: 'debit', reportSection: 'current_assets', active: true, openingDebitCents: 0, openingCreditCents: 0, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, openingNetDebitCents: 0, debitCents: debitBalanceCents, creditCents: creditBalanceCents, debitBalanceCents, creditBalanceCents, closingNetDebitCents: debitBalanceCents - creditBalanceCents });
+  desktopApi.getTrialBalance = async () => ({ rows: [tb('1020', 'Banque', 'asset', 5_000_000, 0), tb('1100', 'Créances clients', 'asset', 1_000_000, 0), tb('2800', 'Capital propre', 'equity', 0, 4_000_000), tb('3200', 'Ventes de prestations', 'revenue', 0, 3_000_000), tb('4000', 'Achats de matériel', 'expense', 1_000_000, 0)], currency: { baseCurrency: 'CHF' }, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, debitCents: 0, creditCents: 0 }) as never;
   desktopApi.undoDataImport = async () => ({ report: { removed: 46, restored: 0, reversed: 0, kept: [{ entity: 'clients', id: 'c1', name: 'Menuiserie Dubois Sàrl', reason: 'Déjà utilisée dans Zentra' }] }, workspace: structuredClone(data) });
 }
 

@@ -88,7 +88,7 @@ export function LegalArchiveVault({ archives, readOnly }: { archives: readonly L
   }
   const toCopy = copies ? archivesWithoutCopy(archives, copies) : [];
   const toRecover = copies ? copiesToRecover(archives, copies) : [];
-  const stored = copies?.filter((item) => item.completedAt !== null) ?? [];
+  const stored = copies?.filter((item) => item.completedAt !== null && !toRecover.includes(item)) ?? [];
   return (
     <div className="legal-vault">
       <h3>{t('Second support chiffré')}</h3>
