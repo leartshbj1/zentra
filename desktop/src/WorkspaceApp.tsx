@@ -40,6 +40,7 @@ import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
 import { IntegrationsSettings } from './IntegrationsSettings';
+import { useAutopilotBackgroundRunner } from './AutopilotBackgroundSetting';
 import { settingsNavigationSession } from './settingsNavigation';
 import { CustomerReadiness, CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
 import { findUsualArticles, withUsualArticles } from './usualArticles';
@@ -1383,6 +1384,9 @@ function WorkspaceContent({
     return () => { live = false; };
   }, [view]);
   const [vatState, setVatState] = useState<{ profiles: VatProfile[]; exports: VatReturnExport[] } | null>(null);
+  // Autopilote quand les ordinateurs sont éteints : renouvellement du jour et échéancier, seulement si le réglage est actif.
+  const backgroundVat = useMemo(() => vatState ? vatReturnDue(vatState.profiles, vatState.exports, todayIso()) : null, [vatState]);
+  useAutopilotBackgroundRunner(workspace, autopilotContext?.organizationId ?? null, backgroundVat, readOnly);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
   const [followUpMail, setFollowUpMail] = useState<{ target: MailTarget; key: string; subject?: string } | null>(null);
   const [, setFollowUpVersion] = useState(0);

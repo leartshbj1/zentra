@@ -592,3 +592,26 @@ html[data-app-theme] .desktop-app[data-experience] .integration-copy .button {
   flex: none;
   white-space: nowrap;
 }
+
+/* Autopilote : « Continuer quand mes ordinateurs sont éteints », une carte comme les autres réglages. */
+html[data-app-theme] .desktop-app[data-experience] .automation-hub .automation-hub__settings > .autopilot-background.autopilot-background {
+  order: 2;
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--apple-paper);
+  box-shadow: inset 0 0 0 1px var(--apple-line);
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-background__state,
+html[data-app-theme] .desktop-app[data-experience] .autopilot-background__note {
+  margin: 0;
+  color: var(--apple-secondary);
+}
+html[data-app-theme] .desktop-app[data-experience] .autopilot-background > .button {
+  justify-self: start;
+}
+/* Choix « Prépare / Observe / En pause » : les options non choisies restent lisibles (4,5:1). */
+html[data-app-theme] .desktop-app[data-experience] .autopilot-choice label:not(:has(input:checked)) span {
+  color: var(--zp-quiet-label);
+}

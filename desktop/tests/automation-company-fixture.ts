@@ -73,6 +73,8 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
         webhooks:[{endpointId:'whe_demo',url:'https://atelier-exemple.ch/zentra',events:'*',createdAt:'2026-10-21T09:00:00.000Z',paused:false,consecutiveFailures:0,lastSuccessAt:'2026-10-26T08:01:00.000Z',lastFailureAt:null,lastStatus:200}],
         shops:[{connectionId:'shop_demo',platform:'shopify',shopDomain:'atelier-exemple.myshopify.com',receiverUrl:'https://zentraapp.ch/api/commerce/shopify/shop_demo',lastEventAt:'2026-10-25T16:40:00.000Z'}],postal:null};
       if (command === 'integrations_action') return {token:'zk_live_exemple_fictif_0000'};
+      if (command === 'autopilot_background') return {schemaVersion:1,organizationId:'automation-qa',consentVersion:'autopilot-background-2026-10-26',enabled:true,grantedAt:1793050000,expiresAt:1795642000,lastRunAt:Math.floor(Date.now()/1000)-300,lastState:'idle',waiting:2};
+      if (command === 'autopilot_schedule') return {stored:0};
       if (command !== 'automation_request') throw Error('Not available in this fixture');
       if (!args.data) { if (unavailable) throw Error('Offline fixture'); return structuredClone(state); }
       if (args.data.action === 'centre') return structuredClone(centre);

@@ -393,6 +393,8 @@ pub fn run() {
             public_api::postal_letters,
             public_api::integrations_overview,
             public_api::integrations_action,
+            public_api::autopilot_background,
+            public_api::autopilot_schedule,
             cash_book::add_cash_entry,
             cash_book::record_cash_count,
             cash_book::correct_cash_count,

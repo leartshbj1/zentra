@@ -1,0 +1,15 @@
+// Autopilote quand les ordinateurs sont éteints. Ordre : allemand (Suisse), italien, anglais.
+export const autopilotBackgroundTranslations: Record<string, readonly [string, string, string]> = {
+  'Désactivé : Autopilote travaille seulement quand Zentra est ouvert.': ['Deaktiviert: Autopilote arbeitet nur, wenn Zentra geöffnet ist.', 'Disattivato: Autopilote lavora solo quando Zentra è aperto.', 'Off: Autopilote only works while Zentra is open.'],
+  'À renouveler : ouvrez Zentra sur un ordinateur de l’entreprise.': ['Zu erneuern: Öffnen Sie Zentra auf einem Computer des Unternehmens.', 'Da rinnovare: apra Zentra su un computer dell’azienda.', 'To renew: open Zentra on one of the company’s computers.'],
+  'En pause : vérifiez l’abonnement.': ['Pausiert: Prüfen Sie das Abonnement.', 'In pausa: verifichi l’abbonamento.', 'Paused: check the subscription.'],
+  'Indisponible pour le moment. Autopilote réessaie tout seul.': ['Im Moment nicht verfügbar. Autopilote versucht es selbst erneut.', 'Non disponibile al momento. Autopilote riprova da solo.', 'Unavailable for now. Autopilote tries again on its own.'],
+  'Actif · premier passage dans quelques minutes': ['Aktiv · erster Durchgang in wenigen Minuten', 'Attivo · primo passaggio tra pochi minuti', 'On · first run in a few minutes'],
+  'Actif · dernier passage à {time}': ['Aktiv · letzter Durchgang um {time}', 'Attivo · ultimo passaggio alle {time}', 'On · last run at {time}'],
+  'L’état n’a pas pu être lu.': ['Der Status konnte nicht gelesen werden.', 'Non è stato possibile leggere lo stato.', 'The status could not be read.'],
+  'Continuer quand mes ordinateurs sont éteints': ['Weiterarbeiten, wenn meine Computer ausgeschaltet sind', 'Continuare quando i miei computer sono spenti', 'Keep going when my computers are off'],
+  'Autopilote lit vos mails et prépare vos devis et vos rappels même quand vos ordinateurs sont éteints. Il vous prévient sur votre téléphone. Rien n’est créé ni envoyé sans votre clic.': ['Autopilote liest Ihre E-Mails und bereitet Offerten und Erinnerungen vor, auch wenn Ihre Computer ausgeschaltet sind. Er benachrichtigt Sie auf dem Telefon. Ohne Ihren Klick wird nichts erstellt oder gesendet.', 'Autopilote legge le sue e-mail e prepara preventivi e promemoria anche quando i computer sono spenti. La avvisa sul telefono. Nulla viene creato o inviato senza il suo clic.', 'Autopilote reads your e-mails and prepares your quotes and reminders even when your computers are off. It notifies you on your phone. Nothing is created or sent without your click.'],
+  '{n} notification(s) en attente': ['{n} wartende Benachrichtigung(en)', '{n} notifica/che in attesa', '{n} pending notification(s)'],
+  'Reprendre sur cet ordinateur': ['Auf diesem Computer fortsetzen', 'Riprendi su questo computer', 'Resume on this computer'],
+  'Le titulaire ou un administrateur peut changer ce réglage.': ['Der Inhaber oder ein Administrator kann diese Einstellung ändern.', 'Il titolare o un amministratore può modificare questa impostazione.', 'The owner or an administrator can change this setting.'],
+};

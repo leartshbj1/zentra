@@ -28,6 +28,9 @@ pub(crate) const INBOX_PATH: &str = "/api/account/inbox";
 pub(crate) const INBOX_ACK_PATH: &str = "/api/account/inbox/ack";
 pub(crate) const POSTAL_PATH: &str = "/api/account/postal/letters";
 pub(crate) const INTEGRATIONS_PATH: &str = "/api/account/integrations/device";
+pub(crate) const BACKGROUND_PATH: &str = "/api/account/automation/background";
+pub(crate) const SCHEDULE_PATH: &str = "/api/account/automation/schedule";
+const BACKGROUND_CONSENT_VERSION: &str = "autopilot-background-2026-10-26";
 const INTEGRATION_ACTIONS: [&str; 10] = ["create-key", "revoke-key", "create-webhook", "delete-webhook", "resume-webhook", "test-webhook",
     "create-shop", "delete-shop", "save-postal", "delete-postal"];
 
@@ -466,6 +469,87 @@ pub async fn integrations_action(state: State<'_, LocalStore>, input: Value) -> 
     post_json(&session, INTEGRATIONS_PATH, &Value::Object(body)).await.map_err(command_error)
 }
 
+/// État d'Autopilote quand les ordinateurs sont éteints, avec exactement ces clés.
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BackgroundStatus {
+    schema_version: u8,
+    organization_id: String,
+    consent_version: Option<String>,
+    enabled: bool,
+    granted_at: Option<u64>,
+    expires_at: Option<u64>,
+    last_run_at: Option<u64>,
+    last_state: Option<String>,
+    waiting: u32,
+}
+
+fn background_reply(bytes: &[u8], organization_id: &str) -> AppResult<Value> {
+    let status: BackgroundStatus = serde_json::from_slice(bytes).map_err(|_| invalid("Réponse du service Zentra illisible."))?;
+    let known = status.last_state.as_deref().is_none_or(|state| matches!(state, "idle" | "prepared" | "paused" | "renewal_needed" | "unavailable"));
+    if status.schema_version != 1 || status.organization_id != organization_id || !known {
+        return Err(invalid("Réponse du service Zentra illisible."));
+    }
+    Ok(serde_json::to_value(status)?)
+}
+
+/// Lit, active ou arrête Autopilote quand les ordinateurs sont éteints.
+#[tauri::command]
+pub async fn autopilot_background(state: State<'_, LocalStore>, operation: String) -> Result<Value, String> {
+    let store = state.inner().clone();
+    let body = match operation.as_str() {
+        "status" => json!({ "schemaVersion": 1, "operation": "status" }),
+        "enable" => json!({ "schemaVersion": 1, "operation": "enable", "consentVersion": BACKGROUND_CONSENT_VERSION }),
+        "disable" => json!({ "schemaVersion": 1, "operation": "disable" }),
+        _ => return Err("Action inconnue.".into()),
+    };
+    let session = session_for(&store, operation != "status").await.map_err(command_error)?;
+    let (_, bytes) = session
+        .request(Method::POST, BACKGROUND_PATH, &[], &[("Content-Type", "application/json".into())], Some(serde_json::to_vec(&body).map_err(|e| e.to_string())?), false)
+        .await
+        .map_err(command_error)?;
+    background_reply(&bytes, &session.organization_id).map_err(command_error)
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ScheduleItem {
+    kind: String,
+    id: String,
+    due_on: String,
+    party: String,
+    reference: String,
+    amount_cents: Option<i64>,
+}
+
+fn schedule_item_valid(item: &ScheduleItem) -> bool {
+    let date = item.due_on.len() == 10 && item.due_on.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() });
+    let text = |value: &str, max: usize| value.chars().count() <= max && !value.chars().any(char::is_control);
+    matches!(item.kind.as_str(), "invoice_overdue" | "quote_follow_up" | "supplier_due" | "vat_due")
+        && (1..=80).contains(&item.id.len())
+        && item.id.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b':' | b'-'))
+        && date && text(&item.party, 80) && text(&item.reference, 40)
+        && item.amount_cents.is_none_or(|cents| cents >= 0)
+}
+
+/// Remplace l'échéancier que le serveur rappelle sur le téléphone, ordinateurs éteints.
+#[tauri::command]
+pub async fn autopilot_schedule(state: State<'_, LocalStore>, items: Vec<Value>) -> Result<Value, String> {
+    let store = state.inner().clone();
+    if items.len() > 200 { return Err("Échéancier trop long.".into()); }
+    let mut parsed = Vec::with_capacity(items.len());
+    let mut ids = BTreeSet::new();
+    for item in items {
+        let item: ScheduleItem = serde_json::from_value(item).map_err(|_| "Échéancier illisible.".to_string())?;
+        if !schedule_item_valid(&item) || !ids.insert(item.id.clone()) { return Err("Échéancier illisible.".into()); }
+        parsed.push(item);
+    }
+    let session = session_for(&store, true).await.map_err(command_error)?;
+    let reply = post_json(&session, SCHEDULE_PATH, &json!({ "schemaVersion": 1, "items": parsed })).await.map_err(command_error)?;
+    let stored = reply.get("stored").and_then(Value::as_u64).ok_or_else(|| "Réponse du service Zentra illisible.".to_string())?;
+    Ok(json!({ "stored": stored }))
+}
+
 /// Envoie par la poste le PDF d'une facture émise (compte Pingen de l'entreprise).
 #[tauri::command]
 pub async fn postal_send_invoice(state: State<'_, LocalStore>, invoice_id: String, delivery: String, color: bool) -> Result<Value, String> {
@@ -581,5 +665,26 @@ mod tests {
         assert_eq!(order_status("livree"), "confirmed");
         assert_eq!(clip(Some("a\u{0}b"), 10), json!("a b"));
         assert!(!valid_id("-x"));
+    }
+
+    #[test]
+    fn background_status_is_read_with_exact_keys_only() {
+        let ok = br#"{"schemaVersion":1,"organizationId":"org_a","consentVersion":"autopilot-background-2026-10-26","enabled":true,"grantedAt":1,"expiresAt":2,"lastRunAt":null,"lastState":"renewal_needed","waiting":0}"#;
+        assert_eq!(background_reply(ok, "org_a").unwrap()["lastState"], json!("renewal_needed"));
+        assert!(background_reply(ok, "org_b").is_err());
+        let extra = br#"{"schemaVersion":1,"organizationId":"org_a","consentVersion":null,"enabled":false,"grantedAt":null,"expiresAt":null,"lastRunAt":null,"lastState":null,"waiting":0,"device":"x"}"#;
+        assert!(background_reply(extra, "org_a").is_err());
+        let unknown = br#"{"schemaVersion":1,"organizationId":"org_a","consentVersion":null,"enabled":false,"grantedAt":null,"expiresAt":null,"lastRunAt":null,"lastState":"guess","waiting":0}"#;
+        assert!(background_reply(unknown, "org_a").is_err());
+    }
+
+    #[test]
+    fn schedule_items_keep_the_server_limits() {
+        let item = |id: &str, due: &str, party: &str| ScheduleItem { kind: "invoice_overdue".into(), id: id.into(), due_on: due.into(), party: party.into(), reference: "F-1".into(), amount_cents: Some(100) };
+        assert!(schedule_item_valid(&item("inv:i1", "2026-11-03", "Dupont SA")));
+        assert!(!schedule_item_valid(&item("inv i1", "2026-11-03", "Dupont SA")));
+        assert!(!schedule_item_valid(&item("inv:i1", "03.11.2026", "Dupont SA")));
+        assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", "Dupont\nSA")));
+        assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", &"x".repeat(81))));
     }
 }
