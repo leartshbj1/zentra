@@ -247,8 +247,17 @@
     align-items: flex-start;
     flex-direction: column;
   }
+  html[data-app-theme] .modal-backdrop .receipt-request .form-actions {
+    flex-wrap: wrap;
+  }
   html[data-app-theme] .modal-backdrop .receipt-request .form-actions > :is(.button, a.button) {
     width: 100%;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__fallback {
+    order: 3;
+    width: 100%;
+    margin: 4px 0 0;
+    text-align: center;
   }
   html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings .field {
     max-width: none;
