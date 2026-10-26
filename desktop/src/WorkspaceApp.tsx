@@ -40,6 +40,7 @@ import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
 import { CustomerReadiness, CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
+import { findUsualArticles, withUsualArticles } from './usualArticles';
 import { appointmentReminders, normalizedPhone, reminderSms, reviewCandidates, reviewMailto, reviewSms, type SmsSettings } from './customerEngagement';
 import { depositsToRecord, freeSlots, slotsFingerprint } from './portalTerrain';
 import { InstalledEquipmentScreen, serviceTitle } from './InstalledEquipmentScreen';
@@ -893,8 +894,9 @@ function WorkspaceContent({
     const existing = autopilotCreatedQuote(organizationId, item.proposalId);
     if (existing && workspaceRef.current.quotes.some(row => row.id === existing.quoteId)) { openAutopilotCreatedQuote(item); return; }
     const current = workspaceRef.current, locale = getAppLocale();
-    const lines = autopilotQuoteLines(suggestion, autopilotLineLinks(organizationId, item.proposalId), current.catalogItems, createId);
-    if (!lines.length) return;
+    let lines = autopilotQuoteLines(suggestion, autopilotLineLinks(organizationId, item.proposalId), current.catalogItems, createId);
+    // « Comme d'habitude » may come without any item: the client's usual items fill it below.
+    if (!lines.length && !item.usualRequested) return;
     const customer = autopilotCustomer(suggestion);
     // A quote deleted since keeps nothing: the request starts again with new ids.
     const reusable = existing && existing.clientId !== AUTOPILOT_FORM_CLIENT && !existing.sentAt ? existing : null;
@@ -911,6 +913,10 @@ function WorkspaceContent({
     // The same client on a retry, so a second click never makes a second client.
     // A new quote id every time: a deleted quote keeps its creation receipt, so its id cannot be reused.
     const planned = { quoteId: createId(), clientId: reusable?.clientId ?? match?.id ?? createId() };
+    // « Comme d'habitude » from a known client: their usual items at today's prices, without duplicating a line already asked for.
+    if (item.usualRequested && current.clients.some(row => row.id === planned.clientId))
+      lines = withUsualArticles(lines, findUsualArticles(current, planned.clientId, suggestion.currency));
+    if (!lines.length) { setNotice({ tone: 'warning', text: copy.quoteUsualMissing }); return; }
     saveAutopilotCreatedQuote(organizationId, item.proposalId, planned);
     if (!workspaceRef.current.clients.some(row => row.id === planned.clientId)) {
       const client = autopilotNewClient(planned.clientId, customer);

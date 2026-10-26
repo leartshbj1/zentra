@@ -257,7 +257,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
           onSend={onSendInvoice ? () => onSendInvoice(item) : undefined} onOpen={onOpenInvoice ? () => onOpenInvoice(item) : undefined} /> : (() => {
           const links = linksOf(item.proposalId), missing = item.suggestion?.unmatched ?? [];
           const linkedCount = missing.filter(phrase => links[phrase]).length;
-          const canQuote = !!onCreateQuote && ((item.suggestion?.lines.length ?? 0) + linkedCount > 0);
+          const canQuote = !!onCreateQuote && ((item.suggestion?.lines.length ?? 0) + linkedCount > 0 || (item.usualRequested === true && !!item.suggestion));
           const linksDone = linkedCount === missing.length, quote = createdQuote?.(item) ?? null;
           const needsLinks = !quote && missing.length > 0 && !linksDone && !!(onChooseArticle || onCreateArticle);
           const customer = item.suggestion?.customer?.name;

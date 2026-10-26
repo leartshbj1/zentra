@@ -125,6 +125,17 @@ it('still shows a linked line after leaving and coming back, and offers the quot
   expect(create).toHaveBeenCalledOnce();
   window.localStorage.clear();
 });
+it('offers the quote for « comme d’habitude » even when the e-mail names no item', async () => {
+  const copy = autopilotCopy('fr');
+  const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0], usualRequested: true,
+    suggestion: { customer: null, currency: 'CHF', netCents: 0, lines: [], unmatched: [] } }] } as AutopilotView['reviews'];
+  const create = vi.fn();
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}} onCreateQuote={create} />);
+  expect(host.textContent).toContain(autopilotCatalogueCopy('fr').usual);
+  const button = [...host.querySelectorAll('button')].find(item => item.textContent === copy.createQuote)!;
+  await act(async () => { button.click(); });
+  expect(create).toHaveBeenCalledOnce();
+});
 it('after the quote is created, offers to send it by e-mail or open it instead of creating it again', async () => {
   const copy = autopilotCopy('fr');
   const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0],
