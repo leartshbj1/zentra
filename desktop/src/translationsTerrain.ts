@@ -160,4 +160,18 @@ export const terrainTranslations: Record<string, readonly [string, string, strin
   'Placez les adresses pour voir les chantiers sur la carte.': ['Platzieren Sie die Adressen, um die Baustellen auf der Karte zu sehen.', 'Posiziona gli indirizzi per vedere i cantieri sulla mappa.', 'Place the addresses to see the job sites on the map.'],
   'Aucun chantier avec une adresse dans cette période.': ['Keine Baustelle mit Adresse in diesem Zeitraum.', 'Nessun cantiere con indirizzo in questo periodo.', 'No job site with an address in this period.'],
   'Adresse introuvable : {names}': ['Adresse nicht gefunden: {names}', 'Indirizzo non trovato: {names}', 'Address not found: {names}'],
+  // À régler
+  'Tout est prêt': ['Alles ist bereit', 'Tutto è pronto', 'Everything is ready'],
+  'À régler': ['Noch einzurichten', 'Da impostare', 'To set up'],
+  '{done} sur {total} prêts': ['{done} von {total} bereit', '{done} su {total} pronti', '{done} of {total} ready'],
+  'Ces fonctions restent éteintes tant que leur réglage manque. Rien n’est envoyé à vos clients sans votre accord.': ['Diese Funktionen bleiben aus, solange ihre Einstellung fehlt. Ohne Ihre Zustimmung wird nichts an Ihre Kunden gesendet.', 'Queste funzioni restano spente finché manca la loro impostazione. Nulla viene inviato ai clienti senza il suo consenso.', 'These features stay off until they are set up. Nothing is sent to your clients without your approval.'],
+  'Compte SMS': ['SMS-Konto', 'Account SMS', 'SMS account'],
+  'Rappels de rendez-vous et demandes d’avis par SMS.': ['Terminerinnerungen und Bewertungsanfragen per SMS.', 'Promemoria degli appuntamenti e richieste di recensione via SMS.', 'Appointment reminders and review requests by SMS.'],
+  'Lien d’avis Google': ['Google-Bewertungslink', 'Link alle recensioni Google', 'Google review link'],
+  'Demander un avis après une facture payée.': ['Nach einer bezahlten Rechnung um eine Bewertung bitten.', 'Chiedere una recensione dopo una fattura pagata.', 'Ask for a review after a paid invoice.'],
+  'Horaires de rendez-vous en ligne': ['Zeiten für Online-Termine', 'Orari degli appuntamenti online', 'Online booking hours'],
+  'Vos clients choisissent un créneau libre.': ['Ihre Kunden wählen einen freien Termin.', 'I clienti scelgono una fascia libera.', 'Your clients pick a free slot.'],
+  'Pourcentage d’acompte': ['Anzahlung in Prozent', 'Percentuale di acconto', 'Deposit percentage'],
+  'Payé en ligne dès que le client accepte le devis.': ['Online bezahlt, sobald der Kunde die Offerte annimmt.', 'Pagato online appena il cliente accetta il preventivo.', 'Paid online as soon as the client accepts the quote.'],
+  'Régler': ['Einrichten', 'Imposta', 'Set up'],
 };

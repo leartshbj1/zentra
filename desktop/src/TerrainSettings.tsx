@@ -3,11 +3,44 @@ import { desktopApi } from './bridge';
 import { DEFAULT_ENGAGEMENT, type CustomerEngagementSettings, type SmsSettings } from './customerEngagement';
 import { t, useAppLanguage } from './language';
 import type { Workspace } from './types';
+import { CheckCircle2, Circle } from 'lucide-react';
 import { Button, Field } from './ui';
 import { errorMessage } from './utils';
 import './reminder-charges.css';
 
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const;
+
+/** What the client features still need, in one list: each line opens its own setting. */
+export function CustomerReadiness({ workspace, sms }: { workspace: Workspace; sms: SmsSettings | null }) {
+  useAppLanguage();
+  const engagement = workspace.customerEngagement ?? DEFAULT_ENGAGEMENT;
+  const items = [
+    { id: 'sms-settings-title', label: 'Compte SMS', ready: Boolean(sms?.enabled && sms.secretPresent), hint: 'Rappels de rendez-vous et demandes d’avis par SMS.' },
+    { id: 'review-settings-title', label: 'Lien d’avis Google', ready: Boolean(engagement.reviewUrl), hint: 'Demander un avis après une facture payée.' },
+    { id: 'booking-settings-title', label: 'Horaires de rendez-vous en ligne', ready: engagement.bookingEnabled && engagement.bookingDays !== 0, hint: 'Vos clients choisissent un créneau libre.' },
+    { id: 'deposit-settings-title', label: 'Pourcentage d’acompte', ready: engagement.depositPercentBp > 0, hint: 'Payé en ligne dès que le client accepte le devis.' },
+  ];
+  const done = items.filter(item => item.ready).length;
+  const open = (id: string) => {
+    const heading = document.getElementById(id);
+    heading?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    heading?.closest('section')?.querySelector<HTMLElement>('input:not([type=checkbox]):not(:disabled), select:not(:disabled), input:not(:disabled)')?.focus({ preventScroll: true });
+  };
+  return <section className="customer-readiness" aria-labelledby="customer-readiness-title">
+    <div className="customer-readiness__heading">
+      <h3 id="customer-readiness-title">{done === items.length ? t('Tout est prêt') : t('À régler')}</h3>
+      <span>{t('{done} sur {total} prêts', { done, total: items.length })}</span>
+    </div>
+    <p>{t('Ces fonctions restent éteintes tant que leur réglage manque. Rien n’est envoyé à vos clients sans votre accord.')}</p>
+    <ul>
+      {items.map(item => <li key={item.id} className={item.ready ? 'is-ready' : ''}>
+        {item.ready ? <CheckCircle2 size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
+        <span><strong>{t(item.label)}</strong><small>{item.ready ? t('Prêt') : t(item.hint)}</small></span>
+        <Button type="button" variant={item.ready ? 'ghost' : 'secondary'} size="small" onClick={() => open(item.id)}>{item.ready ? t('Modifier') : t('Régler')}</Button>
+      </li>)}
+    </ul>
+  </section>;
+}
 
 /** Avis Google, prise de rendez-vous en ligne et acompte : une seule section, enregistrée d'un clic. */
 export function CustomerSettings({ workspace, disabled, onWorkspace }: { workspace: Workspace; disabled: boolean; onWorkspace: (next: Workspace) => void }) {
@@ -98,7 +131,7 @@ export function CustomerSettings({ workspace, disabled, onWorkspace }: { workspa
 }
 
 /** Compte SMS de l'entreprise : éteint par défaut, facturé par le fournisseur. */
-export function SmsSettingsPanel({ disabled }: { disabled: boolean }) {
+export function SmsSettingsPanel({ disabled, onSettings }: { disabled: boolean; onSettings?: (settings: SmsSettings) => void }) {
   useAppLanguage();
   const [settings, setSettings] = useState<SmsSettings | null>(null);
   const [draft, setDraft] = useState<Omit<SmsSettings, 'secretPresent'>>({ enabled: false, provider: 'aspsms', sender: '', account: '', endpoint: null, appointmentRemindersAuto: false });
@@ -110,6 +143,7 @@ export function SmsSettingsPanel({ disabled }: { disabled: boolean }) {
     desktopApi.getSmsSettings().then(value => {
       if (!live) return;
       setSettings(value);
+      onSettings?.(value);
       const { secretPresent: _present, ...rest } = value;
       setDraft(rest);
     }).catch(() => undefined);
@@ -123,6 +157,7 @@ export function SmsSettingsPanel({ disabled }: { disabled: boolean }) {
     try {
       const next = await desktopApi.saveSmsSettings({ ...draft, ...(secret.trim() ? { secret: secret.trim() } : {}) });
       setSettings(next);
+      onSettings?.(next);
       setSecret('');
       setMessage(next.enabled ? t('SMS activés. Chaque envoi est facturé par votre fournisseur et noté dans le journal.') : t('SMS désactivés. Aucun SMS ne sera envoyé.'));
     } catch (reason) {

@@ -39,7 +39,7 @@ import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
-import { CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
+import { CustomerReadiness, CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
 import { appointmentReminders, normalizedPhone, reminderSms, reviewCandidates, reviewMailto, reviewSms, type SmsSettings } from './customerEngagement';
 import { depositsToRecord, freeSlots, slotsFingerprint } from './portalTerrain';
 import { InstalledEquipmentScreen, serviceTitle } from './InstalledEquipmentScreen';
@@ -7712,6 +7712,7 @@ function SettingsScreen({
   const busy = operationBusy || readOnly;
   const [settings, setSettings] = useState<AppSettings>(workspace.settings!);
   const [vatDraft, setVatDraft] = useState('');
+  const [smsSettings, setSmsSettings] = useState<SmsSettings | null>(null);
   const [payrollSettingsRevision, setPayrollSettingsRevision] = useState(0);
   const [payrollRulesRevision, setPayrollRulesRevision] = useState(0);
   const [payrollDefinitionsRevision, setPayrollDefinitionsRevision] = useState(0);
@@ -8440,8 +8441,9 @@ function SettingsScreen({
       <section className="panel settings-card settings-card--wide"><PaymentSafetySettings disabled={readOnly} /></section>
       </SettingsCategory>
       <SettingsCategory id="customers" title={t('Clients et rendez-vous')} description={t('Avis Google, SMS, rendez-vous en ligne et acompte')} icon={CalendarRange}>
+        <section className="panel settings-card settings-card--wide"><CustomerReadiness workspace={workspace} sms={smsSettings} /></section>
         <section className="panel settings-card settings-card--wide"><CustomerSettings workspace={workspace} disabled={readOnly} onWorkspace={next => onWorkspace(next)} /></section>
-        <section className="panel settings-card settings-card--wide"><SmsSettingsPanel disabled={readOnly} /></section>
+        <section className="panel settings-card settings-card--wide"><SmsSettingsPanel disabled={readOnly} onSettings={setSmsSettings} /></section>
       </SettingsCategory>
       <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Palette}><AppearanceSetting embedded /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>
