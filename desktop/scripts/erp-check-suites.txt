@@ -90,3 +90,4 @@ rust:labor_rates::
 rust:work_reports::
 src/siteLedger.test.ts
 rust:site_ledger::
+src/autopilotSite.test.ts

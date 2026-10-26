@@ -25,6 +25,7 @@ import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type Catalo
 import { PriceListsPanel } from './PriceListsPanel';
 import { ProgressBillingDialog } from './ProgressBillingDialog';
 import { LaborRatesPanel } from './LaborRatesPanel';
+import { autopilotSiteCopy, siteAttachProposals } from './autopilotSite';
 import { WarehousesPanel } from './WarehousesPanel';
 import { LotsPanel } from './LotsPanel';
 import { BomPanel } from './BomPanel';
@@ -1104,6 +1105,7 @@ function WorkspaceContent({
     else if (undo.kind === 'supplier-draft') done = await act(() => desktopApi.deleteSupplierInvoiceDraft(undo.invoiceId), copy.undoDone, false);
     else if (undo.kind === 'record-fields') done = await act(origin => desktopApi.updateEntity(undo.entity, undo.id, { ...undo.fields }, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     else if (undo.kind === 'quote-status') done = await act(() => desktopApi.updateQuoteStatus(undo.quoteId, undo.status as never), copy.undoDone, false);
+    else if (undo.kind === 'supplier-project') done = await act(async () => (await desktopApi.assignSupplierInvoiceProject(undo.invoiceId, undo.projectId)).workspace, copy.undoDone, false);
     if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
   };
   const runSignal = async (sourceId: string, choiceId?: string) => {
@@ -1539,6 +1541,16 @@ function WorkspaceContent({
         why: `${copy.whyQrMail} · ${proposal.draft ? copy.confidenceHigh : copy.confidenceCheck}`, signature: 'qr:' + (proposal.supplier?.name || bill.creditor.name),
         actions: proposal.draft ? [{ id: 'qr-create', label: copy.actionCreatePurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }]
           : [{ id: 'qr-review', label: copy.actionReviewPurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // Achats : facture fournisseur reçue qui cite un seul chantier (commande, adresse, nom).
+    const siteCopy = autopilotSiteCopy(getAppLanguage());
+    for (const proposal of siteAttachProposals(workspace.supplierInvoices, workspace.projects, workspace.supplierOrders)) {
+      const key = 'site:' + proposal.invoice.id;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: siteCopy.title.replace('{project}', proposal.project.name),
+        detail: siteCopy.detail.replace('{supplier}', proposal.invoice.supplierName).replace('{reference}', proposal.invoice.reference).replace('{amount}', formatMoney(proposal.invoice.totalCents, proposal.invoice.currency)),
+        why: siteCopy[proposal.evidence].replace('{matched}', proposal.matched),
+        actions: [{ id: 'site-open', label: siteCopy.open }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'site-attach', label: siteCopy.attach, primary: true }] });
     }
     const toPay = invoicesToPay(workspace.supplierInvoices, today, workspace.supplierPaymentOrders ?? []).filter(invoice => !(orderShown && order.ids.includes(invoice.id)) && !entries['pay:' + invoice.id]?.ignored && !(entries['pay:' + invoice.id]?.until && entries['pay:' + invoice.id]!.until! > today));
     for (const invoice of toPay) {
@@ -2018,6 +2030,15 @@ function WorkspaceContent({
         if (invoice) setModal({ type: 'supplierInvoiceDetail', invoice });
         refresh();
       }
+      return;
+    }
+    if (key.startsWith('site:') && (actionId === 'site-attach' || actionId === 'site-open')) {
+      const current = workspaceRef.current;
+      const proposal = siteAttachProposals(current.supplierInvoices, current.projects, current.supplierOrders).find(row => 'site:' + row.invoice.id === key);
+      if (!proposal) return;
+      if (actionId === 'site-open') { setSearch(''); setView('expenses'); setModal({ type: 'supplierInvoiceDetail', invoice: proposal.invoice }); return; }
+      const attached = await journalAct(async () => (await desktopApi.assignSupplierInvoiceProject(proposal.invoice.id, proposal.project.id)).workspace, autopilotSiteCopy(getAppLanguage()).done, false);
+      if (attached) { actionUndo.current = { kind: 'supplier-project', invoiceId: proposal.invoice.id, projectId: proposal.invoice.projectId }; refresh(); }
       return;
     }
     if (key.startsWith('pay:') && actionId !== 'ignore') {
