@@ -49,6 +49,17 @@ const aliases: Record<ContactField, string[]> = {
     'kontaktnummer',
     'nr',
     'no contact',
+    'numero',
+    'nummer',
+    'numero client',
+    'n client',
+    'no client',
+    'numero d adresse',
+    'kundennummer',
+    'kunden nr',
+    'adressnummer',
+    'customer number',
+    'rowid',
   ],
   company: [
     'entreprise',
@@ -57,23 +68,29 @@ const aliases: Record<ContactField, string[]> = {
     'firma',
     'unternehmen',
     'azienda',
+    'raison sociale',
+    'nom de l entreprise',
+    'firmenname',
+    'organisationname',
+    'organisation',
+    'organization',
   ],
-  lastName: ['nom', 'name', 'last name', 'nachname', 'cognome'],
-  firstName: ['prenom', 'first name', 'vorname', 'nome'],
+  lastName: ['nom', 'name', 'last name', 'nachname', 'cognome', 'nom de famille', 'familyname', 'family name', 'lastname'],
+  firstName: ['prenom', 'first name', 'vorname', 'nome', 'firstname'],
   contact: [
     'interlocuteur',
     'contact person',
     'ansprechpartner',
     'persona di contatto',
   ],
-  email: ['e mail', 'email', 'mail', 'e mail 1'],
-  phone: ['telephone', 'telephone fixe', 'phone', 'telefon', 'telefono'],
-  street: ['rue', 'adresse', 'address', 'street', 'strasse', 'indirizzo'],
-  streetNumber: ['numero de rue', 'house number', 'hausnummer'],
-  addressExtra: ['complement d adresse', 'address addition', 'adresszusatz'],
-  postalCode: ['npa', 'code postal', 'postal code', 'postcode', 'plz', 'cap'],
-  city: ['ville', 'city', 'ort', 'citta'],
-  country: ['pays', 'country', 'land', 'paese'],
+  email: ['e mail', 'email', 'mail', 'e mail 1', 'courriel', 'adresse e mail', 'emailwork', 'email work', 'e mail adresse'],
+  phone: ['telephone', 'telephone fixe', 'phone', 'telefon', 'telefono', 'tel', 'telephone prof', 'telephone 1', 'phonemain', 'phone main', 'natel', 'mobile', 'telefon geschaft'],
+  street: ['rue', 'adresse', 'address', 'street', 'strasse', 'indirizzo', 'adresse 1', 'rue et numero', 'strasse und hausnummer', 'via'],
+  streetNumber: ['numero de rue', 'house number', 'hausnummer', 'n de rue', 'no de rue'],
+  addressExtra: ['complement d adresse', 'address addition', 'adresszusatz', 'adresse 2', 'addressextra', 'complement'],
+  postalCode: ['npa', 'code postal', 'postal code', 'postcode', 'plz', 'cap', 'postalcode', 'zip', 'zip code'],
+  city: ['ville', 'city', 'ort', 'citta', 'localite', 'locality', 'lieu', 'localita'],
+  country: ['pays', 'country', 'land', 'paese', 'countrycode', 'code pays'],
   notes: ['notes', 'remarques', 'bemerkungen', 'note'],
   primary: ['adresse principale', 'main address', 'hauptadresse'],
 };
@@ -141,6 +158,7 @@ export function previewContacts(
   mapping: string[],
   target: ContactTarget,
   existingNames: string[],
+  sourceName = 'bexio',
 ): BexioContactRow[] {
   const headers = catalogHeaders(source, header),
     mapped = mapping.filter((value) => value !== 'ignore');
@@ -191,8 +209,8 @@ export function previewContacts(
       .join('\n');
     const notes = [
       value('reference')
-        ? `Import bexio · contact ${value('reference')}`
-        : 'Import bexio',
+        ? `Import ${sourceName} · contact ${value('reference')}`
+        : `Import ${sourceName}`,
       value('notes'),
     ]
       .filter(Boolean)

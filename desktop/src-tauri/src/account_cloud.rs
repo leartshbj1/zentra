@@ -1676,6 +1676,9 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | crate::public_api::POSTAL_PATH
             | "/api/account/portal/slots"
             | "/api/account/portal/bookings"
+            | crate::fiduciary_summary::PATH
+            | crate::legal_archive_copy::PATH
+            | crate::legal_archive_copy::CHUNK_PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

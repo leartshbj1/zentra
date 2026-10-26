@@ -111,6 +111,50 @@ export function installErpBexioFixture(data: Workspace) {
   };
   desktopApi.importOpeningReceivables = async (rows) => ({ receipt: { created: rows.length, skipped: 0, rows: rows.map((row) => ({ line: row.line, number: row.number, status: 'created' as const })) }, workspace: structuredClone(data) });
   desktopApi.importOpeningBalance = async (entryDate, lines) => ({ plan: await desktopApi.previewOpeningBalance(entryDate, lines), journalNumber: 'J-2026-000001' });
+  desktopApi.importMigrationReceivables = async (_origin, rows) => ({ receipt: { created: rows.length, skipped: 0, import_id: 'import-invoices' }, workspace: structuredClone(data) });
+  desktopApi.importMigrationBalance = async (_origin, entryDate, lines) => ({ plan: await desktopApi.previewOpeningBalance(entryDate, lines), journalNumber: 'J-2026-000001', importId: 'import-balance' });
+  desktopApi.importMigrationContacts = async (_origin, contacts) => ({ created: contacts.rows.length, skipped: 0, import_id: 'import-contacts', rows: contacts.rows.map((row) => ({ line: row.line, name: row.data.name ?? '', status: 'created' as const })) });
+  desktopApi.importMigrationAccounts = async (_origin, rows) => ({ created: rows.length, skipped: 0, import_id: 'import-accounts' });
+  desktopApi.listAccounts = async () => Object.entries(names).map(([code, name]) => ({ id: code, code, name, accountType: code.startsWith('1') ? 'asset' : code.startsWith('28') || code.startsWith('29') ? 'equity' : 'liability', normalBalance: code.startsWith('1') ? 'debit' : 'credit', reportSection: 'current_assets', active: true }));
+  // Historique : deux reprises WinBIZ, dont une déjà annulée.
+  const at = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  desktopApi.listDataImports = async () => [
+    { id: 'h1', source: 'winbiz', kind: 'clients', fileName: 'adresses-clients.xlsx', createdCount: 48, updatedCount: 0, skippedCount: 2, createdAt: at(1), undoneAt: null, undoReport: null },
+    { id: 'h2', source: 'winbiz', kind: 'accounts', fileName: 'plan-comptable.csv', createdCount: 12, updatedCount: 0, skippedCount: 64, createdAt: at(2), undoneAt: at(2), undoReport: { removed: 11, restored: 0, reversed: 0, kept: [{ entity: 'accounts', id: 'a1', name: '1025', reason: 'Déjà utilisée dans Zentra' }] } },
+  ];
+  // Journal de démonstration pour l'export fiduciaire : facture, encaissement, achat, facture à deux taux.
+  const entry = (id: string, number: string, entryDate: string, description: string) => ({ id, number, entryDate, description, sourceType: 'manual', sourceId: id, sourceEvent: 'posted', status: 'posted' as const, reversalOf: null, hasReversal: false });
+  const jl = (entryId: string, n: number, code: string, accountName: string, debitCents: number, creditCents: number, memo = '') => ({ id: `${entryId}-${n}`, journalEntryId: entryId, accountId: code, accountCode: code, accountName, entryNumber: entryId, entryDate: '', debitCents, creditCents, currency: 'CHF', memo, projectId: null, clientId: null, employeeId: null });
+  desktopApi.getJournal = async () => ({
+    entries: [entry('e1', 'J-2026-000041', '2026-03-05', 'Émission F-1042 Muster AG'), entry('e2', 'J-2026-000042', '2026-03-20', 'Encaissement F-1042'), entry('e3', 'J-2026-000043', '2026-03-21', 'Facture fournisseur Bois Léman'), entry('e4', 'J-2026-000044', '2026-03-22', 'Émission F-1043 Boulangerie Favre')],
+    lines: [jl('e1', 1, '1100', 'Créances clients', 108_100, 0, 'Créance client'), jl('e1', 2, '3200', 'Ventes de prestations', 0, 100_000, 'Produit facturé'), jl('e1', 3, '2200', 'TVA due', 0, 8_100, 'TVA due'),
+      jl('e2', 1, '1020', 'Banque', 108_100, 0), jl('e2', 2, '1100', 'Créances clients', 0, 108_100),
+      jl('e3', 1, '4000', 'Achats de matériel', 20_000, 0), jl('e3', 2, '1170', 'Impôt préalable', 1_620, 0), jl('e3', 3, '2000', 'Fournisseurs', 0, 21_620),
+      jl('e4', 1, '1100', 'Créances clients', 21_070, 0), jl('e4', 2, '3200', 'Ventes de prestations', 0, 20_000), jl('e4', 3, '2200', 'TVA due', 0, 1_070)],
+    currency: { baseCurrency: 'CHF' },
+  }) as never;
+  const previousSettings = desktopApi.getAccountingSettings;
+  desktopApi.getAccountingSettings = async () => ({ ...(await previousSettings().catch(() => ({}))), enabled: true, vatPayableAccountId: '2200', vatReceivableAccountId: '1170' }) as never;
+  // Archive légale et coffre chiffré.
+  desktopApi.listLegalArchives = async () => ({
+    archives: [
+      { id: 'la-2025', year: 2025, status: 'provisional', fileName: 'archive-legale-2025.zip', path: '', sha256: 'b'.repeat(64), sizeBytes: 18_400_000, filesCount: 412, missingCount: 0, retainUntil: '2036-12-31', createdAt: at(3), lastVerifiedAt: at(1), lastVerifiedOk: true, present: true },
+      { id: 'la-2024', year: 2024, status: 'final', fileName: 'archive-legale-2024.zip', path: '', sha256: 'a'.repeat(64), sizeBytes: 15_200_000, filesCount: 388, missingCount: 0, retainUntil: '2035-12-31', createdAt: at(200), lastVerifiedAt: at(5), lastVerifiedOk: true, present: true },
+    ],
+    yearsWithEntries: [2024, 2025],
+  });
+  desktopApi.listLegalArchiveCopies = async () => ({
+    copies: [
+      { copyId: 'c-2024', year: 2024, fileName: 'archive-legale-2024.zip', plainSha256: 'a'.repeat(64), sizeBytes: 15_200_400, keyId: 'k1', createdAt: 1, completedAt: 2 },
+      { copyId: 'c-2023', year: 2023, fileName: 'archive-legale-2023.zip', plainSha256: 'c'.repeat(64), sizeBytes: 12_000_000, keyId: 'k0', createdAt: 1, completedAt: 2 },
+    ],
+    localKeyId: 'k1',
+  });
+  desktopApi.legalArchiveRecoveryCode = async () => ({ code: 'K7QX-M2PA-9DTR-W4HN-ZB6C-L3VE-8FSY-UJ5G-TQ2N-RM7D-XK4P-AW9H-C6LB', keyId: 'k1', created: false });
+  // Balance de l'entreprise ouverte pour la consolidation.
+  const tb = (code: string, name: string, accountType: string, debitBalanceCents: number, creditBalanceCents: number) => ({ id: code, code, name, accountType, normalBalance: 'debit', reportSection: 'current_assets', active: true, openingDebitCents: 0, openingCreditCents: 0, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, openingNetDebitCents: 0, debitCents: debitBalanceCents, creditCents: creditBalanceCents, debitBalanceCents, creditBalanceCents, closingNetDebitCents: debitBalanceCents - creditBalanceCents });
+  desktopApi.getTrialBalance = async () => ({ rows: [tb('1020', 'Banque', 'asset', 5_000_000, 0), tb('1100', 'Créances clients', 'asset', 1_000_000, 0), tb('2800', 'Capital propre', 'equity', 0, 4_000_000), tb('3200', 'Ventes de prestations', 'revenue', 0, 3_000_000), tb('4000', 'Achats de matériel', 'expense', 1_000_000, 0)], currency: { baseCurrency: 'CHF' }, openingDebitBalanceCents: 0, openingCreditBalanceCents: 0, debitCents: 0, creditCents: 0 }) as never;
+  desktopApi.undoDataImport = async () => ({ report: { removed: 46, restored: 0, reversed: 0, kept: [{ entity: 'clients', id: 'c1', name: 'Menuiserie Dubois Sàrl', reason: 'Déjà utilisée dans Zentra' }] }, workspace: structuredClone(data) });
 }
 
 /** ?erp=paylink : paiement en ligne activé, un lien payé à enregistrer. */

@@ -3,6 +3,7 @@ import { desktopApi } from './bridge';
 import { t, useAppLanguage } from './language';
 import type { LegalArchiveState } from './legalArchive';
 import { Button, Field } from './ui';
+import { LegalArchiveVault } from './LegalArchiveVault';
 import { errorMessage, formatDate, formatDateTime } from './utils';
 import './erp-registers.css';
 
@@ -53,7 +54,7 @@ export function LegalArchivePanel({ readOnly }: { readOnly: boolean }) {
       <summary>{t('Comment ça marche')}</summary>
       <ol>
         <li>{t('Après la clôture de l’exercice, créez l’archive de l’année : elle est alors « finale ». Avant, elle reste provisoire.')}</li>
-        <li>{t('Copiez le fichier sur un second support, par exemple un disque externe ou un stockage en ligne.')}</li>
+        <li>{t('Copiez-la dans le coffre chiffré de Zentra, ou sur un autre support comme un disque externe.')}</li>
         <li>{t('Zentra revérifie les archives chaque mois et vous prévient si un fichier manque ou a changé.')}</li>
       </ol>
     </details>
@@ -77,5 +78,6 @@ export function LegalArchivePanel({ readOnly }: { readOnly: boolean }) {
         <Button type="button" variant="ghost" size="small" disabled={busy || !archive.present} onClick={() => void verify(archive.id)}>{t('Vérifier')}</Button>
       </li>)}
     </ul> : state ? <p>{t('Aucune archive pour le moment.')}</p> : null}
+    {state ? <LegalArchiveVault archives={state.archives} readOnly={readOnly} /> : null}
   </section>;
 }

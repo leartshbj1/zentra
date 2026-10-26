@@ -119,3 +119,17 @@ src/portalTerrain.test.ts
 rust:quote_deposits::
 rust:portal_bookings::
 rust:online_payments::
+# Lot 6 : reprise multi-logiciels, historique et Annuler.
+src/migrationImport.test.ts
+src/bexioContactRouting.test.ts
+rust:data_imports::
+rust:import_worker_tests
+rust:bexio_import
+rust:migrat
+src/accountingExport.test.ts
+rust:accounting_export::
+rust:fiduciary_summary::
+src/fiduciaryHealth.test.ts
+src/consolidation.test.ts
+src/legalArchiveVault.test.ts
+rust:legal_archive_copy::

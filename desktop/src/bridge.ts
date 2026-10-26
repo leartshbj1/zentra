@@ -12,6 +12,11 @@ import { runSupplierPaymentMutation } from './supplierPaymentWorkflow';
 import { statementFileFromRaw, type StatementFile } from './autopilotStatements';
 import type { ReminderChargeSettings } from './reminderCharges';
 import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } from './bexioOpening';
+import type { NativeAccountRow } from './chartImport';
+import { dataImportFromRaw, undoReportFromRaw, type DataImport, type UndoReport } from './dataImports';
+import { originToRaw, type ImportOrigin } from './migrationSources';
+import type { HealthSummary } from './fiduciaryHealth';
+import { vaultCopyFromRaw, type VaultCopy } from './legalArchive';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import { priceListsFromRaw } from './priceLists';
@@ -6934,6 +6939,13 @@ export const desktopApi = {
     await invoke<AppState>('restore_backup', { source });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
+  /** Tout exporter en un clic : un ZIP lisible sans Zentra, gratuit. */
+  async exportFullArchive() {
+    const raw = await invoke<RawRecord>('export_full_archive', {});
+    const path = stringValue(raw.path);
+    await shareMobileExport(path);
+    return { path, attachments: numberValue(raw.attachments), missingAttachments: numberValue(raw.missing_attachments), legalArchives: numberValue(raw.legal_archives) };
+  },
   async exportData(format: 'json' | 'csv') {
     const command = format === 'json' ? 'export_json' : 'export_csv_archive';
     const path = await invoke<string>(command, {});
@@ -7773,6 +7785,27 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('create_legal_archive', { year });
     return { status: stringValue(raw.status), path: stringValue(raw.path), files: numberValue(raw.files), missing: numberValue(raw.missing) };
   },
+  /** Coffre des archives légales : copies chiffrées sur l'appareil, conservées en ligne. */
+  async listLegalArchiveCopies(): Promise<{ copies: VaultCopy[]; localKeyId: string | null }> {
+    const raw = await invoke<RawRecord>('list_legal_archive_copies');
+    return { copies: rawArray(raw.copies).map(vaultCopyFromRaw), localKeyId: typeof raw.local_key_id === 'string' ? raw.local_key_id : null };
+  },
+  async legalArchiveRecoveryCode() {
+    const raw = await invoke<RawRecord>('legal_archive_recovery_code');
+    return { code: stringValue(raw.code), keyId: stringValue(raw.key_id), created: raw.created === true };
+  },
+  async copyLegalArchiveToVault(archiveId: string) {
+    return vaultCopyFromRaw(await invoke<RawRecord>('copy_legal_archive_to_vault', { archiveId }));
+  },
+  async restoreLegalArchiveCopy(copy: VaultCopy, recoveryCode?: string) {
+    const selected = await chooseSaveFile({ title: 'Enregistrer l’archive récupérée', defaultPath: copy.fileName, filters: [{ name: 'Archive ZIP', extensions: ['zip'] }] });
+    if (!selected) return null;
+    const destination = selected.toLowerCase().endsWith('.zip') ? selected : `${selected}.zip`;
+    const raw = await invoke<RawRecord>('restore_legal_archive_copy', { copyId: copy.copyId, destination, recoveryCode: recoveryCode?.trim() || null });
+    const path = stringValue(raw.path);
+    if (isMobileRuntime()) await shareMobileExport(path);
+    return { path };
+  },
   async verifyLegalArchive(id: string) {
     const raw = await invoke<RawRecord>('verify_legal_archive', { id });
     return { ok: raw.ok === true, detail: stringValue(raw.detail) };
@@ -7942,6 +7975,24 @@ export const desktopApi = {
     const raw = await invoke<RawRecord>('source_tax_lookup', { canton, code, incomeCents, date });
     return { canton: stringValue(raw.canton), code: stringValue(raw.code), validFrom: stringValue(raw.valid_from), rateBp: numberValue(raw.rate_bp), taxCents: numberValue(raw.tax_cents) };
   },
+  /** État du dossier (nombres et dates seulement) montré à la fiduciaire dans son espace web. */
+  async publishFiduciarySummary(summary: HealthSummary) {
+    const raw = await invoke<RawRecord>('publish_fiduciary_summary', { summary });
+    return { receivedAt: typeof raw.received_at === 'number' ? raw.received_at : null };
+  },
+  async stopFiduciarySummary() {
+    await invoke('stop_fiduciary_summary');
+  },
+  /** Écritures pour la fiduciaire : l'app prépare le fichier, l'utilisateur choisit où l'enregistrer. */
+  async saveAccountingExport(input: { fileName: string; extension: 'txt' | 'csv'; format: string; dateFrom: string; dateTo: string; entries: number; content: string }) {
+    const selected = await chooseSaveFile({ title: 'Enregistrer les écritures', defaultPath: input.fileName, filters: [{ name: input.extension === 'txt' ? 'Texte' : 'CSV', extensions: [input.extension] }] });
+    if (!selected) return null;
+    const destination = selected.toLowerCase().endsWith(`.${input.extension}`) ? selected : `${selected}.${input.extension}`;
+    const raw = await invoke<RawRecord>('save_accounting_export', { input: { destination, format: input.format, date_from: input.dateFrom, date_to: input.dateTo, entries: input.entries, content: input.content } });
+    const path = stringValue(raw.path);
+    if (isMobileRuntime()) await shareMobileExport(path);
+    return { path, sha256: stringValue(raw.sha256) };
+  },
   /** Structure ELM préparée : l'utilisateur choisit où l'enregistrer. */
   async exportElmStructure(year: number, xml: string) {
     const selected = await chooseSaveFile({ title: 'Enregistrer la structure ELM', defaultPath: `declaration-salaires-elm-${year}.xml`, filters: [{ name: 'XML', extensions: ['xml'] }] });
@@ -7972,6 +8023,42 @@ export const desktopApi = {
   async importOpeningReceivables(rows: NativeOpeningReceivable[]) {
     const receipt = await invoke<{ created: number; skipped: number; rows: { line: number; number: string; status: 'created' | 'skipped'; reason?: string }[] }>('import_opening_receivables', { input: { rows } });
     return { receipt, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Reprise d'un autre logiciel : chaque import est gardé dans l'historique et peut être annulé. */
+  async importMigrationContacts(origin: ImportOrigin, contacts: { scope: string; entity: 'clients' | 'suppliers'; rows: { line: number; data: Record<string, string> }[] }, expectedWorkspaceScope?: string) {
+    const receipt = await invoke<{ created: number; skipped: number; import_id: string; rows: { line: number; name: string; status: 'created' | 'skipped' }[] }>('import_migration_contacts', {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
+      input: { origin: originToRaw(origin), contacts },
+    });
+    return receipt;
+  },
+  async importMigrationCatalog(origin: ImportOrigin, rows: CatalogImportRow[], conflictPolicy: 'update' | 'skip', expectedWorkspaceScope?: string) {
+    const mutation = importCatalogItemsMutation(rows, conflictPolicy, expectedWorkspaceScope);
+    const { input, ...scope } = mutation.args;
+    await invoke('import_migration_catalog', { ...scope, input: { origin: originToRaw(origin), catalog: input } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async importMigrationAccounts(origin: ImportOrigin, rows: NativeAccountRow[], expectedWorkspaceScope?: string) {
+    return invoke<{ created: number; skipped: number; import_id: string }>('import_migration_accounts', {
+      ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }),
+      input: { origin: originToRaw(origin), rows },
+    });
+  },
+  async importMigrationReceivables(origin: ImportOrigin, rows: NativeOpeningReceivable[]) {
+    const receipt = await invoke<{ created: number; skipped: number; import_id: string }>('import_migration_receivables', { input: { origin: originToRaw(origin), receivables: { rows } } });
+    return { receipt, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async importMigrationBalance(origin: ImportOrigin, entryDate: string, lines: NativeBalanceLine[]) {
+    const result = await invoke<{ plan: RawRecord; journal: RawRecord; import_id: string }>('import_migration_balance', { input: { origin: originToRaw(origin), balance: { entry_date: entryDate, lines } } });
+    return { plan: openingBalancePlan(result.plan), journalNumber: stringValue(result.journal?.number), importId: stringValue(result.import_id) };
+  },
+  async listDataImports(): Promise<DataImport[]> {
+    return rawArray(await invoke<unknown>('list_data_imports')).map(dataImportFromRaw);
+  },
+  async undoDataImport(id: string, expectedWorkspaceScope?: string): Promise<{ report: UndoReport; workspace: Workspace }> {
+    const raw = await invoke<unknown>('undo_data_import', { id, ...(expectedWorkspaceScope === undefined ? {} : { expectedWorkspaceScope }) });
+    const report = undoReportFromRaw(raw) ?? { removed: 0, restored: 0, reversed: 0, kept: [] };
+    return { report, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async previewOpeningBalance(entryDate: string, lines: NativeBalanceLine[]): Promise<OpeningBalancePlan> {
     return openingBalancePlan(await invoke<RawRecord>('preview_opening_balance', { input: { entry_date: entryDate, lines } }));

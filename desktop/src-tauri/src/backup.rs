@@ -478,6 +478,157 @@ impl LocalStore {
         Ok(destination.to_string_lossy().into_owned())
     }
 
+    /// Tout exporter en un clic, gratuitement : un ZIP lisible sans Zentra avec
+    /// les données complètes (JSON), les listes CSV, chaque pièce jointe sous
+    /// son nom d'origine et les archives légales présentes sur l'appareil.
+    pub fn export_full_archive(
+        &self,
+        destination: Option<String>,
+        app_version: &str,
+    ) -> AppResult<Value> {
+        let destination =
+            self.resolve_output_path(destination, &self.exports_dir, "export-complet", "zip")?;
+        let staging = tempfile::Builder::new()
+            .prefix("export-complet-")
+            .tempdir_in(&self.exports_dir)?;
+        let json_path = staging.path().join("donnees.json");
+        self.export_json(Some(json_path.to_string_lossy().into_owned()), app_version)?;
+        let csv_path = staging.path().join("listes.zip");
+        self.export_csv_archive(Some(csv_path.to_string_lossy().into_owned()), app_version)?;
+        let connection = self.connect()?;
+        let attachments = query_all(
+            &connection,
+            "SELECT id,original_name,stored_name FROM attachments ORDER BY created_at,id",
+            [],
+        )?;
+        let archives = query_all(
+            &connection,
+            "SELECT file_name FROM company_local_legal_archives ORDER BY year,created_at",
+            [],
+        )?;
+        drop(connection);
+        let safe = |value: &str| -> String {
+            let cleaned: String = value
+                .chars()
+                .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_' | ' ') { c } else { '_' })
+                .collect();
+            let cleaned = cleaned.trim().trim_matches('.').chars().take(120).collect::<String>();
+            if cleaned.is_empty() { "fichier".into() } else { cleaned }
+        };
+        let file = create_new_file(&destination)?;
+        let result = (|| -> AppResult<(usize, usize, usize)> {
+            let mut archive = ZipWriter::new(file);
+            let deflated = SimpleFileOptions::default()
+                .compression_method(CompressionMethod::Deflated)
+                .unix_permissions(0o600);
+            // PDF, images et ZIP sont déjà compressés : ils sont copiés tels quels.
+            let for_file = |path: &Path| -> AppResult<SimpleFileOptions> {
+                let size = fs::metadata(path)?.len();
+                let compressed = path
+                    .extension()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "pdf" | "jpg" | "jpeg" | "png" | "webp" | "zip" | "heic"));
+                let options = if compressed { deflated.compression_method(CompressionMethod::Stored) } else { deflated };
+                Ok(options.large_file(size >= u64::from(u32::MAX)))
+            };
+            archive.start_file("LISEZ-MOI.txt", deflated)?;
+            archive.write_all(
+                concat!(
+                    "EXPORT COMPLET ZENTRA\r\n",
+                    "=====================\r\n\r\n",
+                    "Toutes les données de l'entreprise au moment de l'export, lisibles sans Zentra.\r\n\r\n",
+                    "donnees-zentra.json : la structure complète (clients, factures, comptabilité, salaires...).\r\n",
+                    "listes-csv/ : les mêmes listes pour un tableur (UTF-8, montants en centimes).\r\n",
+                    "pieces-jointes/ : chaque justificatif et document joint, sous son nom d'origine.\r\n",
+                    "archives-legales/ : les archives annuelles GeBüV créées sur cet appareil.\r\n\r\n",
+                    "Cet export est en clair : conservez-le dans un emplacement protégé.\r\n",
+                    "Il ne remplace pas une sauvegarde .zentra, qui seule peut être restaurée dans Zentra.\r\n",
+                )
+                .as_bytes(),
+            )?;
+            archive.start_file("donnees-zentra.json", deflated)?;
+            io::copy(&mut File::open(&json_path)?, &mut archive)?;
+            let mut lists = ZipArchive::new(File::open(&csv_path)?)?;
+            for index in 0..lists.len() {
+                let mut entry = lists.by_index(index)?;
+                if entry.is_dir() {
+                    continue;
+                }
+                let name = format!("listes-csv/{}", entry.name());
+                archive.start_file(name, deflated)?;
+                io::copy(&mut entry, &mut archive)?;
+            }
+            let mut names = BTreeSet::new();
+            let (mut copied, mut missing) = (0_usize, 0_usize);
+            for row in attachments {
+                let id = row["id"].as_str().unwrap_or_default();
+                let stored = row["stored_name"].as_str().unwrap_or_default();
+                let path = match self.safe_attachment_path(stored) {
+                    Ok(path) if path.is_file() => path,
+                    _ => {
+                        missing += 1;
+                        continue;
+                    }
+                };
+                let original = safe(row["original_name"].as_str().unwrap_or("fichier"));
+                let mut name = format!("pieces-jointes/{original}");
+                if !names.insert(name.clone()) {
+                    name = format!("pieces-jointes/{}-{original}", id.chars().take(8).collect::<String>());
+                    names.insert(name.clone());
+                }
+                archive.start_file(name, for_file(&path)?)?;
+                io::copy(&mut File::open(&path)?, &mut archive)?;
+                copied += 1;
+            }
+            let legal_dir = self.exports_dir.join("archive-legale");
+            let mut legal = 0_usize;
+            for row in archives {
+                let file_name = row["file_name"].as_str().unwrap_or_default();
+                if file_name.is_empty() || file_name.contains(['/', '\\']) || file_name.starts_with('.') {
+                    continue;
+                }
+                let path = legal_dir.join(file_name);
+                if !path.is_file() {
+                    continue;
+                }
+                archive.start_file(format!("archives-legales/{file_name}"), for_file(&path)?)?;
+                io::copy(&mut File::open(&path)?, &mut archive)?;
+                legal += 1;
+            }
+            archive.finish()?;
+            Ok((copied, missing, legal))
+        })();
+        let (copied, missing, legal) = match result {
+            Ok(counts) => counts,
+            Err(error) => {
+                let _ = fs::remove_file(&destination);
+                return Err(error);
+            }
+        };
+        let mut connection = self.connect()?;
+        let transaction = connection.transaction()?;
+        crate::audit::append_audit(
+            &transaction,
+            "export",
+            "full_export",
+            &Uuid::new_v4().to_string(),
+            &json!({
+                "file": destination.file_name().and_then(|value| value.to_str()),
+                "attachments": copied,
+                "missing_attachments": missing,
+                "legal_archives": legal,
+                "at": now_iso(),
+            }),
+        )?;
+        transaction.commit()?;
+        Ok(json!({
+            "path": destination.to_string_lossy(),
+            "attachments": copied,
+            "missing_attachments": missing,
+            "legal_archives": legal,
+        }))
+    }
+
     pub fn restore_backup(&self, source: &str, app_version: &str) -> AppResult<()> {
         self.restore_backup_with_limits(source, app_version, ARCHIVE_EXTRACTION_LIMITS)
     }

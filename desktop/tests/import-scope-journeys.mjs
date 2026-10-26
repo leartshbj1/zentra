@@ -41,7 +41,7 @@ try {
       await page.getByRole('button',{name:'Vérifier la facture',exact:true}).click();
       await page.getByRole('button',{name:'Enregistrer le brouillon',exact:true}).click();
     }
-    const command = {bank:'bank',catalog:'catalog',bexio:'import_bexio_contacts',email:'email-save',attachment:'attachment',scan:'generic-draft-save'}[kind];
+    const command = {bank:'bank',catalog:'catalog',bexio:'import_migration_contacts',email:'email-save',attachment:'attachment',scan:'generic-draft-save'}[kind];
     await page.waitForFunction(command=>window.__qaImport.calls.some(call=>call.command===command),command);
     const calls = await page.evaluate(()=>window.__qaImport.calls);
     assert.equal(calls.find(call=>call.command===command).args.expectedWorkspaceScope,'scope-A',`${kind} kept original scope before await`);

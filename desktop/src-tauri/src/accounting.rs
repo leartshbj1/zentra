@@ -850,181 +850,7 @@ impl LocalStore {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let original = one_json(&tx, "SELECT * FROM journal_entries WHERE id=?", params![id])?;
-        if original["source_type"]=="fixed_asset" {
-            return Err(AppError::Validation("Cette écriture appartient au registre des immobilisations. Annulez un bien non amorti depuis ce registre pour conserver sa valeur et son historique.".into()));
-        }
-        if original["source_type"]=="invoice" && crate::customer_credit_recovery_vat::original_for(&tx,original["source_id"].as_str().unwrap_or_default())?.is_some() {
-            return Err(AppError::Validation("Ce document appartient à une reprise TVA documentée. Son écriture d’origine doit rester liée aux corrections et règlements conservés.".into()));
-        }
-        let rows = query_all(
-            &tx,
-            "SELECT * FROM journal_lines WHERE journal_entry_id=? ORDER BY rowid",
-            params![id],
-        )?;
-        let lines: Vec<EntryLine> = rows
-            .into_iter()
-            .map(|row| EntryLine {
-                account_id: row["account_id"].as_str().unwrap_or("").into(),
-                debit_cents: row["credit_cents"].as_i64().unwrap_or(0),
-                credit_cents: row["debit_cents"].as_i64().unwrap_or(0),
-                currency: row["currency"].as_str().unwrap_or("CHF").into(),
-                memo: Some(format!(
-                    "Extourne {}",
-                    original["number"].as_str().unwrap_or("")
-                )),
-                project_id: row["project_id"].as_str().map(Into::into),
-                client_id: row["client_id"].as_str().map(Into::into),
-                employee_id: row["employee_id"].as_str().map(Into::into),
-            })
-            .collect();
-        let label = description
-            .filter(|v| !v.trim().is_empty())
-            .unwrap_or_else(|| format!("Extourne {}", original["number"].as_str().unwrap_or("")));
-
-        // Un appel peut avoir été validé puis sa réponse perdue. Rejouer
-        // d'abord l'opération idempotente exacte permet à la validation
-        // centralisée de comparer date, libellé, parent et lignes avant que le
-        // garde métier n'interprète la chaîne désormais paire comme un nouvel
-        // essai d'extourne.
-        let exact_reversal_exists: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='journal_reversal' AND source_id=? AND source_event='reverse')",
-            params![id],
-            |row| row.get(0),
-        )?;
-        if exact_reversal_exists {
-            let result = post_entry_with_reversal(
-                &tx,
-                entry_date,
-                &label,
-                "journal_reversal",
-                id,
-                "reverse",
-                lines,
-                Some(id),
-            )?;
-            tx.commit()?;
-            return Ok(result);
-        }
-        let protected_business_source: Option<(String, String, String, i64)> = tx
-            .query_row(
-                "WITH RECURSIVE ancestry(id,source_type,source_id,reversal_of,depth) AS (
-                   SELECT id,source_type,source_id,reversal_of,0
-                   FROM journal_entries WHERE id=?
-                   UNION ALL
-                   SELECT parent.id,parent.source_type,parent.source_id,parent.reversal_of,ancestry.depth+1
-                   FROM ancestry
-                   JOIN journal_entries parent ON parent.id=ancestry.reversal_of
-                 )
-                 SELECT source_type,source_id,id,depth FROM ancestry
-                 WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','expense_refund','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note','supplier_credit_refund','customer_credit_settlement','customer_credit_recovery')
-                 ORDER BY depth DESC LIMIT 1",
-                params![id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )
-            .optional()?;
-        if let Some((source_type, business_source_id, root_entry_id, selected_depth)) =
-            protected_business_source
-        {
-            if matches!(source_type.as_str(),"customer_credit_settlement"|"customer_credit_recovery") {
-                return Err(AppError::Validation("Corrigez ce règlement depuis l’avoir client afin de conserver ses soldes, sa TVA et son historique.".into()));
-            }
-            if source_type == "supplier_credit_refund" {
-                return Err(AppError::Validation("Corrigez le remboursement depuis l’avoir fournisseur pour conserver son solde, sa TVA et son écriture bancaire cohérents.".into()));
-            }
-            if source_type == "expense_refund" {
-                return Err(AppError::Validation("Corrigez le remboursement depuis la dépense afin de rétablir ensemble son coût, sa TVA et son paiement.".into()));
-            }
-            if source_type == "vat_input_reclassification" {
-                return Err(AppError::Validation("Une correction de TVA d'achat ne peut pas être extournée isolément. Modifiez la classification dans le centre TVA afin de conserver le décompte et le bilan cohérents.".into()));
-            }
-            if source_type == "supplier_expense_reclassification" {
-                return Err(AppError::Validation("Une imputation fournisseur ne peut pas être extournée isolément. Reclassez la ligne depuis les achats pour conserver le compte de charge et sa TVA cohérents.".into()));
-            }
-            if source_type == "expense" && crate::expense_journal::reversal_action(&tx,id)? != Some("restore_expense") {
-                return Err(AppError::Validation("Une dépense payée ne peut pas être annulée isolément dans le journal. Son achat, son paiement et sa TVA doivent être corrigés ensemble. Une ancienne extourne erronée peut être rétablie depuis sa dernière écriture ; cela ne constitue pas une annulation financière de l’achat.".into()));
-            }
-            // Avant ce garde, une ancienne version pouvait laisser une écriture
-            // métier inactive en extournant sa racine. On autorise uniquement
-            // l'extourne de la dernière compensation d'une chaîne linéaire et
-            // impaire : cette opération rétablit l'effet attendu. Toute action
-            // qui rendrait une racine active inactive reste bloquée.
-            let restorative_legacy_reversal =
-                if matches!(source_type.as_str(), "payment" | "invoice" | "expense") {
-                    let (max_depth, entry_count): (i64, i64) = tx.query_row(
-                        "WITH RECURSIVE reversal_chain(id,depth) AS (
-                       SELECT ?1,0
-                       UNION ALL
-                       SELECT child.id,reversal_chain.depth+1
-                       FROM reversal_chain
-                       JOIN journal_entries child ON child.reversal_of=reversal_chain.id
-                     )
-                     SELECT COALESCE(MAX(depth),0),COUNT(*) FROM reversal_chain",
-                        params![root_entry_id],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
-                    )?;
-                    max_depth % 2 == 1
-                        && selected_depth == max_depth
-                        && entry_count == max_depth + 1
-                } else {
-                    false
-                };
-            if matches!(
-                source_type.as_str(),
-                "payment" | "vat_cash_reclassification"
-            ) && !restorative_legacy_reversal
-            {
-                return Err(AppError::Validation(
-                    "Une écriture liée à un encaissement client ne peut pas être extournée isolément, y compris sa reclassification de TVA. Le paiement, le solde, la TVA et le rapprochement bancaire doivent rester cohérents. Utilisez un flux métier de remboursement ou d'avoir validé avec votre fiduciaire."
-                        .into(),
-                ));
-            }
-            if source_type == "invoice" {
-                let has_payment: bool = tx.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM payments WHERE invoice_id=?)",
-                    params![business_source_id],
-                    |row| row.get(0),
-                )?;
-                if has_payment && !restorative_legacy_reversal {
-                    return Err(AppError::Validation(
-                        "L'écriture d'une facture encaissée ne peut pas être extournée isolément. Le paiement, le solde et le statut de la facture ainsi que le rapprochement bancaire doivent rester cohérents. Utilisez un flux métier de remboursement ou d'avoir validé avec votre fiduciaire."
-                            .into(),
-                    ));
-                }
-            } else if source_type != "payment" && source_type != "expense" {
-                return Err(AppError::Validation(
-                    "Une écriture fournisseur ne peut pas être extournée isolément. Utilisez le futur flux d’avoir ou de remboursement afin que le document, la dette et le journal restent cohérents."
-                        .into(),
-                ));
-            }
-        }
-        let conflicting_reversal: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE reversal_of=? AND NOT(source_type='journal_reversal' AND source_id=? AND source_event='reverse'))",
-            params![id, id],
-            |row| row.get(0),
-        )?;
-        if conflicting_reversal {
-            return Err(AppError::Validation(
-                "Cette écriture a déjà été extournée. Pour rétablir son effet, extournez l'écriture d'extourne au lieu de créer une seconde compensation."
-                    .into(),
-            ));
-        }
-        if entry_date < original["entry_date"].as_str().unwrap_or("") {
-            return Err(AppError::Validation(
-                "L'extourne ne peut pas précéder l'écriture originale.".into(),
-            ));
-        }
-        let result = post_entry_with_reversal(
-            &tx,
-            entry_date,
-            &label,
-            "journal_reversal",
-            id,
-            "reverse",
-            lines,
-            Some(id),
-        )?;
-        append_audit(&tx, "reverse", "journal_entry", id, &result)?;
+        let result = reverse_journal_entry_tx(&tx, id, entry_date, description)?;
         tx.commit()?;
         Ok(result)
     }
@@ -1225,6 +1051,192 @@ impl LocalStore {
             json!({"settings":settings,"entry_count":entry_count,"trial_balance":trial,"income_statement":income}),
         )
     }
+}
+
+/// Extourne une écriture dans la transaction de l'appelant, avec les mêmes
+/// gardes que la commande du journal.
+pub(crate) fn reverse_journal_entry_tx(
+    tx: &Transaction<'_>,
+    id: &str,
+    entry_date: &str,
+    description: Option<String>,
+) -> AppResult<Value> {
+    validate_date(entry_date, "entry_date")?;
+    let original = one_json(tx, "SELECT * FROM journal_entries WHERE id=?", params![id])?;
+    if original["source_type"]=="fixed_asset" {
+        return Err(AppError::Validation("Cette écriture appartient au registre des immobilisations. Annulez un bien non amorti depuis ce registre pour conserver sa valeur et son historique.".into()));
+    }
+    if original["source_type"]=="invoice" && crate::customer_credit_recovery_vat::original_for(&tx,original["source_id"].as_str().unwrap_or_default())?.is_some() {
+        return Err(AppError::Validation("Ce document appartient à une reprise TVA documentée. Son écriture d’origine doit rester liée aux corrections et règlements conservés.".into()));
+    }
+    let rows = query_all(
+        &tx,
+        "SELECT * FROM journal_lines WHERE journal_entry_id=? ORDER BY rowid",
+        params![id],
+    )?;
+    let lines: Vec<EntryLine> = rows
+        .into_iter()
+        .map(|row| EntryLine {
+            account_id: row["account_id"].as_str().unwrap_or("").into(),
+            debit_cents: row["credit_cents"].as_i64().unwrap_or(0),
+            credit_cents: row["debit_cents"].as_i64().unwrap_or(0),
+            currency: row["currency"].as_str().unwrap_or("CHF").into(),
+            memo: Some(format!(
+                "Extourne {}",
+                original["number"].as_str().unwrap_or("")
+            )),
+            project_id: row["project_id"].as_str().map(Into::into),
+            client_id: row["client_id"].as_str().map(Into::into),
+            employee_id: row["employee_id"].as_str().map(Into::into),
+        })
+        .collect();
+    let label = description
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| format!("Extourne {}", original["number"].as_str().unwrap_or("")));
+
+    // Un appel peut avoir été validé puis sa réponse perdue. Rejouer
+    // d'abord l'opération idempotente exacte permet à la validation
+    // centralisée de comparer date, libellé, parent et lignes avant que le
+    // garde métier n'interprète la chaîne désormais paire comme un nouvel
+    // essai d'extourne.
+    let exact_reversal_exists: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE source_type='journal_reversal' AND source_id=? AND source_event='reverse')",
+        params![id],
+        |row| row.get(0),
+    )?;
+    if exact_reversal_exists {
+        let result = post_entry_with_reversal(
+            &tx,
+            entry_date,
+            &label,
+            "journal_reversal",
+            id,
+            "reverse",
+            lines,
+            Some(id),
+        )?;
+        return Ok(result);
+    }
+    let protected_business_source: Option<(String, String, String, i64)> = tx
+        .query_row(
+            "WITH RECURSIVE ancestry(id,source_type,source_id,reversal_of,depth) AS (
+               SELECT id,source_type,source_id,reversal_of,0
+               FROM journal_entries WHERE id=?
+               UNION ALL
+               SELECT parent.id,parent.source_type,parent.source_id,parent.reversal_of,ancestry.depth+1
+               FROM ancestry
+               JOIN journal_entries parent ON parent.id=ancestry.reversal_of
+             )
+             SELECT source_type,source_id,id,depth FROM ancestry
+             WHERE source_type IN ('payment','vat_cash_reclassification','vat_input_reclassification','expense','expense_refund','invoice','supplier_invoice','supplier_payment','supplier_expense_reclassification','supplier_credit_note','supplier_credit_refund','customer_credit_settlement','customer_credit_recovery')
+             ORDER BY depth DESC LIMIT 1",
+            params![id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()?;
+    if let Some((source_type, business_source_id, root_entry_id, selected_depth)) =
+        protected_business_source
+    {
+        if matches!(source_type.as_str(),"customer_credit_settlement"|"customer_credit_recovery") {
+            return Err(AppError::Validation("Corrigez ce règlement depuis l’avoir client afin de conserver ses soldes, sa TVA et son historique.".into()));
+        }
+        if source_type == "supplier_credit_refund" {
+            return Err(AppError::Validation("Corrigez le remboursement depuis l’avoir fournisseur pour conserver son solde, sa TVA et son écriture bancaire cohérents.".into()));
+        }
+        if source_type == "expense_refund" {
+            return Err(AppError::Validation("Corrigez le remboursement depuis la dépense afin de rétablir ensemble son coût, sa TVA et son paiement.".into()));
+        }
+        if source_type == "vat_input_reclassification" {
+            return Err(AppError::Validation("Une correction de TVA d'achat ne peut pas être extournée isolément. Modifiez la classification dans le centre TVA afin de conserver le décompte et le bilan cohérents.".into()));
+        }
+        if source_type == "supplier_expense_reclassification" {
+            return Err(AppError::Validation("Une imputation fournisseur ne peut pas être extournée isolément. Reclassez la ligne depuis les achats pour conserver le compte de charge et sa TVA cohérents.".into()));
+        }
+        if source_type == "expense" && crate::expense_journal::reversal_action(&tx,id)? != Some("restore_expense") {
+            return Err(AppError::Validation("Une dépense payée ne peut pas être annulée isolément dans le journal. Son achat, son paiement et sa TVA doivent être corrigés ensemble. Une ancienne extourne erronée peut être rétablie depuis sa dernière écriture ; cela ne constitue pas une annulation financière de l’achat.".into()));
+        }
+        // Avant ce garde, une ancienne version pouvait laisser une écriture
+        // métier inactive en extournant sa racine. On autorise uniquement
+        // l'extourne de la dernière compensation d'une chaîne linéaire et
+        // impaire : cette opération rétablit l'effet attendu. Toute action
+        // qui rendrait une racine active inactive reste bloquée.
+        let restorative_legacy_reversal =
+            if matches!(source_type.as_str(), "payment" | "invoice" | "expense") {
+                let (max_depth, entry_count): (i64, i64) = tx.query_row(
+                    "WITH RECURSIVE reversal_chain(id,depth) AS (
+                   SELECT ?1,0
+                   UNION ALL
+                   SELECT child.id,reversal_chain.depth+1
+                   FROM reversal_chain
+                   JOIN journal_entries child ON child.reversal_of=reversal_chain.id
+                 )
+                 SELECT COALESCE(MAX(depth),0),COUNT(*) FROM reversal_chain",
+                    params![root_entry_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                max_depth % 2 == 1
+                    && selected_depth == max_depth
+                    && entry_count == max_depth + 1
+            } else {
+                false
+            };
+        if matches!(
+            source_type.as_str(),
+            "payment" | "vat_cash_reclassification"
+        ) && !restorative_legacy_reversal
+        {
+            return Err(AppError::Validation(
+                "Une écriture liée à un encaissement client ne peut pas être extournée isolément, y compris sa reclassification de TVA. Le paiement, le solde, la TVA et le rapprochement bancaire doivent rester cohérents. Utilisez un flux métier de remboursement ou d'avoir validé avec votre fiduciaire."
+                    .into(),
+            ));
+        }
+        if source_type == "invoice" {
+            let has_payment: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM payments WHERE invoice_id=?)",
+                params![business_source_id],
+                |row| row.get(0),
+            )?;
+            if has_payment && !restorative_legacy_reversal {
+                return Err(AppError::Validation(
+                    "L'écriture d'une facture encaissée ne peut pas être extournée isolément. Le paiement, le solde et le statut de la facture ainsi que le rapprochement bancaire doivent rester cohérents. Utilisez un flux métier de remboursement ou d'avoir validé avec votre fiduciaire."
+                        .into(),
+                ));
+            }
+        } else if source_type != "payment" && source_type != "expense" {
+            return Err(AppError::Validation(
+                "Une écriture fournisseur ne peut pas être extournée isolément. Utilisez le futur flux d’avoir ou de remboursement afin que le document, la dette et le journal restent cohérents."
+                    .into(),
+            ));
+        }
+    }
+    let conflicting_reversal: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM journal_entries WHERE reversal_of=? AND NOT(source_type='journal_reversal' AND source_id=? AND source_event='reverse'))",
+        params![id, id],
+        |row| row.get(0),
+    )?;
+    if conflicting_reversal {
+        return Err(AppError::Validation(
+            "Cette écriture a déjà été extournée. Pour rétablir son effet, extournez l'écriture d'extourne au lieu de créer une seconde compensation."
+                .into(),
+        ));
+    }
+    if entry_date < original["entry_date"].as_str().unwrap_or("") {
+        return Err(AppError::Validation(
+            "L'extourne ne peut pas précéder l'écriture originale.".into(),
+        ));
+    }
+    let result = post_entry_with_reversal(
+        &tx,
+        entry_date,
+        &label,
+        "journal_reversal",
+        id,
+        "reverse",
+        lines,
+        Some(id),
+    )?;
+    append_audit(&tx, "reverse", "journal_entry", id, &result)?;
+    Ok(result)
 }
 
 #[derive(Debug)]
@@ -3573,7 +3585,7 @@ fn required(value: &str, field: &str, max: usize) -> AppResult<String> {
     }
     Ok(v.into())
 }
-fn valid_report_section(account_type: &str, section: &str) -> bool {
+pub(crate) fn valid_report_section(account_type: &str, section: &str) -> bool {
     match account_type {
         "asset" => matches!(section, "current_assets" | "fixed_assets"),
         "liability" => matches!(section, "short_term_liabilities" | "long_term_liabilities"),

@@ -19,14 +19,17 @@ import {
   type OpeningBalancePlan,
 } from './bexioOpening';
 import { desktopApi } from './bridge';
+import { UndoImportButton, UndoReportView } from './DataImportHistory';
+import type { UndoReport } from './dataImports';
+import type { ImportOrigin } from './migrationSources';
 import type { Workspace } from './types';
 import { errorMessage, formatDate, formatMoney } from './utils';
 import { t, useAppLanguage } from './language';
 
-type Mapped = { source: CatalogMappingSource; header: number; mapping: string[] };
+export type Mapped = { source: CatalogMappingSource; header: number; mapping: string[] };
 
 /** Fichier, ligne d'en-tête et colonnes : la même vérification que pour les contacts. */
-function MappedFile({
+export function MappedFile({
   label,
   fields,
   mapped,
@@ -71,9 +74,9 @@ function MappedFile({
         <FileUp size={22} />
         <span>
           {reading ? t('Lecture en cours…') : mapped ? mapped.source.fileName : t(label)}
-          <small>{t('Excel (.xlsx) ou CSV · 20 Mo maximum')}</small>
+          <small>{t('Excel (.xlsx), CSV ou texte tabulé · 20 Mo maximum')}</small>
         </span>
-        <input ref={input} type="file" accept=".xlsx,.csv,.tsv" disabled={disabled} onChange={(event) => void read(event.target.files?.[0])} />
+        <input ref={input} type="file" accept=".xlsx,.csv,.tsv,.txt" disabled={disabled} onChange={(event) => void read(event.target.files?.[0])} />
       </label>
       {mapped ? (
         <details className="bexio-import-mapping">
@@ -112,14 +115,15 @@ function MappedFile({
   );
 }
 
-/** Factures bexio encore ouvertes : créances d'ouverture suivies par les relances et la banque. */
-export function BexioOpenInvoices({ workspace, disabled, onWorkspace }: { workspace: Workspace; disabled: boolean; onWorkspace: (workspace: Workspace) => void }) {
+/** Factures encore ouvertes dans l'ancien logiciel : créances d'ouverture suivies par les relances et la banque. */
+export function BexioOpenInvoices({ workspace, disabled, onWorkspace, origin, onImported }: { workspace: Workspace; disabled: boolean; onWorkspace: (workspace: Workspace) => void; origin: ImportOrigin; onImported?: () => void }) {
   useAppLanguage();
   const [mapped, setMapped] = useState<Mapped | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [receipt, setReceipt] = useState<{ created: number; skipped: number } | null>(null);
+  const [receipt, setReceipt] = useState<{ created: number; skipped: number; import_id: string } | null>(null);
+  const [undone, setUndone] = useState<UndoReport | null>(null);
   const preview = useMemo(() => {
     if (!mapped) return { rows: [], error: '' };
     try {
@@ -142,9 +146,10 @@ export function BexioOpenInvoices({ workspace, disabled, onWorkspace }: { worksp
     setBusy(true);
     setError('');
     try {
-      const result = await desktopApi.importOpeningReceivables(openingReceivableRows(selected));
+      const result = await desktopApi.importMigrationReceivables({ ...origin, fileName: mapped?.source.fileName }, openingReceivableRows(selected));
       setReceipt(result.receipt);
       onWorkspace(result.workspace);
+      onImported?.();
     } catch (reason) {
       setError(errorMessage(reason, 'La reprise n’a pas pu être enregistrée. Rien n’a été ajouté : vous pouvez réessayer.'));
     } finally {
@@ -157,13 +162,17 @@ export function BexioOpenInvoices({ workspace, disabled, onWorkspace }: { worksp
         <h3>{t(receipt.created === 1 ? '{count} facture reprise' : '{count} factures reprises', { count: receipt.created })}</h3>
         <p>{t('Elles apparaissent dans Factures et suivent les relances et la banque comme les autres.')}</p>
         {receipt.skipped ? <p>{t('{count} factures déjà présentes, conservées sans modification.', { count: receipt.skipped })}</p> : null}
-        <Button variant="secondary" onClick={() => { setReceipt(null); setMapped(null); setExcluded(new Set()); }}>{t('Importer un autre fichier')}</Button>
+        {undone ? <UndoReportView report={undone} /> : null}
+        <div className="migration-receipt-actions">
+          <Button variant="secondary" onClick={() => { setReceipt(null); setUndone(null); setMapped(null); setExcluded(new Set()); }}>{t('Importer un autre fichier')}</Button>
+          {!undone && receipt.created > 0 ? <UndoImportButton importId={receipt.import_id} kind="opening_receivables" disabled={disabled} onUndone={(report, next) => { setUndone(report); onWorkspace(next); onImported?.(); }} /> : null}
+        </div>
       </div>
     );
   }
   return (
     <>
-      <p className="bexio-opening-intro">{t('Chaque facture garde son numéro bexio. Elle est reprise sans TVA ni chiffre d’affaires, déjà comptés dans bexio, et reçoit une QR-facture pour les relances.')}</p>
+      <p className="bexio-opening-intro">{t('Chaque facture garde son numéro. Elle est reprise sans TVA ni chiffre d’affaires, déjà comptés dans votre ancien logiciel, et reçoit une QR-facture pour les relances.')}</p>
       {error ? <ErrorPanel message={error} /> : null}
       <MappedFile
         label="Choisir la liste des factures ouvertes"
@@ -215,8 +224,8 @@ export function BexioOpenInvoices({ workspace, disabled, onWorkspace }: { worksp
   );
 }
 
-/** Bilan d'ouverture bexio : une écriture, équilibrée sur le compte 9100. */
-export function BexioOpeningBalance({ disabled }: { disabled: boolean }) {
+/** Bilan d'ouverture repris : une écriture, équilibrée sur le compte 9100. */
+export function BexioOpeningBalance({ disabled, origin, onImported }: { disabled: boolean; origin: ImportOrigin; onImported?: () => void }) {
   useAppLanguage();
   const [date, setDate] = useState(defaultOpeningDate());
   const [mapped, setMapped] = useState<Mapped | null>(null);
@@ -224,7 +233,8 @@ export function BexioOpeningBalance({ disabled }: { disabled: boolean }) {
   const [plan, setPlan] = useState<OpeningBalancePlan | null>(null);
   const [planError, setPlanError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [posted, setPosted] = useState('');
+  const [posted, setPosted] = useState<{ number: string; importId: string } | null>(null);
+  const [undone, setUndone] = useState<UndoReport | null>(null);
   const rows = useMemo(() => {
     if (!mapped) return { rows: [], error: '' };
     try {
@@ -252,8 +262,9 @@ export function BexioOpeningBalance({ disabled }: { disabled: boolean }) {
     setBusy(true);
     setError('');
     try {
-      const result = await desktopApi.importOpeningBalance(date, lines);
-      setPosted(result.journalNumber);
+      const result = await desktopApi.importMigrationBalance({ ...origin, fileName: mapped?.source.fileName }, date, lines);
+      setPosted({ number: result.journalNumber, importId: result.importId });
+      onImported?.();
     } catch (reason) {
       setError(errorMessage(reason, 'L’écriture n’a pas pu être passée. Rien n’a été enregistré.'));
     } finally {
@@ -263,8 +274,13 @@ export function BexioOpeningBalance({ disabled }: { disabled: boolean }) {
   if (posted) {
     return (
       <div role="status" className="bexio-import-receipt">
-        <h3>{t('Bilan d’ouverture repris')}</h3>
-        <p>{t('L’écriture {number} est dans le journal. Pour la corriger, extournez-la depuis le journal, puis reprenez le bilan.', { number: posted })}</p>
+        <h3>{undone ? t('Bilan d’ouverture annulé') : t('Bilan d’ouverture repris')}</h3>
+        {undone ? <UndoReportView report={undone} /> : <p>{t('L’écriture {number} est dans le journal. Pour la corriger, annulez cet import, puis reprenez le bilan.', { number: posted.number })}</p>}
+        <div className="migration-receipt-actions">
+          {undone ? <Button variant="secondary" onClick={() => { setPosted(null); setUndone(null); setMapped(null); }}>{t('Reprendre un autre bilan')}</Button> : (
+            <UndoImportButton importId={posted.importId} kind="opening_balance" disabled={disabled} onUndone={(report) => { setUndone(report); onImported?.(); }} />
+          )}
+        </div>
       </div>
     );
   }
@@ -277,7 +293,7 @@ export function BexioOpeningBalance({ disabled }: { disabled: boolean }) {
         <input type="date" value={date} disabled={locked} onChange={(event) => setDate(event.target.value)} />
       </Field></div>
       <MappedFile
-        label="Choisir le bilan bexio"
+        label="Choisir le bilan"
         fields={balanceFields}
         mapped={mapped}
         disabled={locked}

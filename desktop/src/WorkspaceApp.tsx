@@ -97,7 +97,7 @@ import './dashboard-workflow.css';
 import { dashboardDeadlines } from './dashboardDeadlines';
 import { AppearanceSetting } from './AppearanceSetting';
 import { CompanySettingsSync } from './CompanySettingsSync';
-import { BexioImportPanel } from './BexioImportPanel';
+import { MigrationImportPanel } from './MigrationImportPanel';
 import { MailComposer, MailDocumentButton, MailSettings } from './OutgoingMailEntry';
 import type { MailTarget } from './outgoingMail';
 import { ElapsedTimer } from './ElapsedTimer';
@@ -7824,6 +7824,24 @@ function SettingsScreen({
     }
   }
 
+  async function exportEverything() {
+    setBusy(true);
+    onNotice(null);
+    try {
+      const result = await desktopApi.exportFullArchive();
+      onNotice({
+        tone: 'success',
+        text: result.missingAttachments
+          ? t('Export complet créé : {path}. {missing} pièce(s) jointe(s) introuvable(s) sur cet appareil n’ont pas pu être incluses.', { path: result.path, missing: result.missingAttachments })
+          : t('Export complet créé : {path}', { path: result.path }),
+      });
+    } catch (reason) {
+      onNotice({ tone: 'error', text: errorMessage(reason, t('L’export complet n’a pas pu être créé.')) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function exportPortableData(format: 'json' | 'csv') {
     setBusy(true);
     onNotice(null);
@@ -8602,8 +8620,8 @@ function SettingsScreen({
         <SourceTaxTariffsPanel disabled={readOnly} />
       </SettingsAfterOpen>
       </SettingsCategory>
-      <SettingsCategory id="migration" lazy title="Importer depuis bexio" description="Reprendre contacts, articles, factures ouvertes et soldes" icon={Database}>
-        <BexioImportPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace}/>
+      <SettingsCategory id="migration" lazy title="Reprendre vos données" description="bexio, WinBIZ, Crésus, Banana, AbaNinja ou Excel" icon={Database}>
+        <MigrationImportPanel workspace={workspace} disabled={busy} onWorkspace={onWorkspace}/>
       </SettingsCategory>
       <SettingsCategory id="storage" title="Sauvegardes et mises à jour" description="Protéger, restaurer et exporter vos données" icon={Database}>
       <DiagnosticsPanel/>
@@ -8699,7 +8717,11 @@ function SettingsScreen({
           exports restent en clair&nbsp;: conservez-les dans un emplacement
           protégé.
         </p>
+        <p className="settings-copy">{t('Tout exporter réunit en un seul fichier les données complètes, les listes, chaque pièce jointe et les archives légales. C’est gratuit et lisible sans Zentra.')}</p>
         <div className="settings-actions">
+          <Button disabled={operationBusy} onClick={() => void exportEverything()}>
+            <Download size={16} /> {t('Tout exporter')}
+          </Button>
           <Button
             variant="secondary"
             disabled={operationBusy}

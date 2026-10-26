@@ -6,6 +6,8 @@ import { SwissChartPanel } from './SwissChartPanel';
 import { CurrenciesPanel } from './CurrenciesPanel';
 import { BudgetPanel } from './BudgetPanel';
 import { LegalArchivePanel } from './LegalArchivePanel';
+import { FiduciaryExportPanel } from './FiduciaryExportPanel';
+import { ConsolidationPanel } from './ConsolidationPanel';
 import { formatRate } from './currencies';
 import { AccountingSetupDialog } from './AccountingSetupDialog';
 import { accountingMappingFields, accountingMappingIssues } from './accountingSetup';
@@ -13,7 +15,7 @@ import type { AccountingConfigurationResult } from './types';
 import { PdfExportReceipt } from './PdfExportReceipt';
 import type { PdfExportReceipt as Receipt } from './pdfExportDelivery';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Archive, BookOpen, CheckCircle2, ChevronDown, Coins, FileArchive, FileCheck2, Target, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
+import { Archive, BookOpen, CheckCircle2, ChevronDown, Coins, FileArchive, FileCheck2, FileOutput, Layers, Target, Landmark, ListChecks, LockKeyhole, Plus, ReceiptText, RefreshCw, RotateCcw, Scale, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { SectionTabs } from './SectionTabs';
 import { FinanceOverview } from './FinanceOverview';
@@ -40,7 +42,7 @@ import {
   type ManualJournalAttempt,
 } from './accountingManualJournal';
 
-type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'accounts' | 'periods' | 'assets' | 'currencies' | 'budget' | 'archive';
+type Tab = 'overview' | 'journal' | 'ledger' | 'trial' | 'balance' | 'income' | 'vat' | 'closing' | 'export' | 'consolidation' | 'accounts' | 'periods' | 'assets' | 'currencies' | 'budget' | 'archive';
 type ReportSelection = { tab: Tab; filter: PeriodFilter; accountId: string };
 export type AccountingNavigationContext = ReportSelection & { workspaceScope?: string; periodId: string; vatSubmissionType?: VatSubmissionType };
 type Reports = { journal: JournalReport | null; trial: TrialBalanceReport | null; ledger: LedgerReport | null; balance: BalanceSheetReport | null; income: IncomeStatementReport | null };
@@ -171,7 +173,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const credit = entryLines.reduce((sum, line) => sum + line.creditCents, 0);
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const reportState = selectedPeriod?.status === 'closed' ? 'Clôturé' : 'Provisoire';
-  const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods' && tab !== 'assets' && tab !== 'currencies' && tab !== 'budget' && tab !== 'archive';
+  const hasPeriodFilter = tab !== 'accounts' && tab !== 'periods' && tab !== 'assets' && tab !== 'currencies' && tab !== 'budget' && tab !== 'archive' && tab !== 'export' && tab !== 'consolidation';
   // Statements resolve their own exercise when a journal filter has open ends.
   // Always describe the dates actually returned with the displayed amounts.
   const statementScope = tab === 'balance' ? balance?.scope : (tab === 'overview' || tab === 'income') ? income?.scope : undefined;
@@ -532,7 +534,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
   const tabs: Array<[Tab, string, React.ReactNode]> = [
     ['overview', t('Vue d’ensemble'), <Landmark size={16}/>],
     ['assets', t('Immobilisations'), <Archive size={16}/>],
-    ['journal', t('Journal'), <BookOpen size={16} />], ['ledger', t('Grand livre'), <ListChecks size={16} />], ['trial', t('Balance'), <Scale size={16} />], ['balance', t('Bilan'), <Landmark size={16} />], ['income', t('Résultat'), <CheckCircle2 size={16} />], ['vat', t('TVA'), <ReceiptText size={16} />], ['closing', t('Dossier de clôture'), <FileCheck2 size={16} />], ['accounts', t('Plan & liaisons'), <ShieldCheck size={16} />], ['periods', t('Exercices'), <LockKeyhole size={16} />], ['currencies', t('Devises'), <Coins size={16} />], ['budget', t('Budget et centres de coûts'), <Target size={16} />], ['archive', t('Archive légale'), <FileArchive size={16} />],
+    ['journal', t('Journal'), <BookOpen size={16} />], ['ledger', t('Grand livre'), <ListChecks size={16} />], ['trial', t('Balance'), <Scale size={16} />], ['balance', t('Bilan'), <Landmark size={16} />], ['income', t('Résultat'), <CheckCircle2 size={16} />], ['vat', t('TVA'), <ReceiptText size={16} />], ['closing', t('Dossier de clôture'), <FileCheck2 size={16} />], ['export', t('Export fiduciaire'), <FileOutput size={16} />], ['consolidation', t('Consolidation'), <Layers size={16} />], ['accounts', t('Plan & liaisons'), <ShieldCheck size={16} />], ['periods', t('Exercices'), <LockKeyhole size={16} />], ['currencies', t('Devises'), <Coins size={16} />], ['budget', t('Budget et centres de coûts'), <Target size={16} />], ['archive', t('Archive légale'), <FileArchive size={16} />],
   ];
   const overviewPeriod = (['month', 'quarter', 'year'] as const).find(key => { const dates = financePeriod(key, todayIso()); return dates.dateFrom === displayFilter.dateFrom && dates.dateTo === displayFilter.dateTo; }) || 'custom';
   const everyday:Tab[]=['overview','income','vat','assets','closing'];
@@ -614,6 +616,8 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     {setupReview && <AccountingSetupDialog mode={setupReview.mode} settings={setupReview.settings} accounts={accounts} fields={mappingFields} continuity={continuity} busy={busy} readOnly={readOnly} onClose={() => setSetupReview(null)} onCommit={commitAccountingSetup} onRefresh={refreshAccountingSetup} />}
 
     {tab === 'archive' ? <LegalArchivePanel readOnly={Boolean(readOnly)} /> : null}
+    {tab === 'consolidation' ? <ConsolidationPanel workspace={workspace} /> : null}
+    {tab === 'export' ? <FiduciaryExportPanel filter={filter} workspaceScope={workspace.workNotesScope} workspace={workspace} /> : null}
     {tab === 'budget' ? <BudgetPanel accounts={accounts} projects={workspace.projects} employees={workspace.employees} readOnly={Boolean(readOnly)} /> : null}
     {tab === 'currencies' ? <CurrenciesPanel readOnly={Boolean(readOnly)} onChanged={() => void reloadAll()} /> : null}
     {tab === 'periods' ? <AccountingPeriodsPanel periods={periods} busy={busy} readOnly={readOnly} onRefresh={refreshSavedPeriod} onOpenClosing={openClosingPeriod} /> : null}

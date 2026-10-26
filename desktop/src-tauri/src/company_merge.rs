@@ -289,12 +289,13 @@ fn read(db: &Connection) -> AppResult<Data> {
     // day-work rate tables (v80), site sheet budget and subcontracts (v81),
     // trade catalogue fields and service kits (v82),
     // payment approvals, safety settings and paid IBANs (v83),
-    // matériel installé, SMS, acomptes et réservations du portail (v85).
+    // matériel installé, SMS, acomptes et réservations du portail (v85),
+    // historique des imports de données (v86).
     // Existing v60/v61 references must compare with upgraded branches without
     // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if matches!(version, 60..=84) {
+    if matches!(version, 60..=85) {
         let tx = db.unchecked_transaction()?;
         if version == 60 {
             tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
@@ -379,6 +380,10 @@ fn read(db: &Connection) -> AppResult<Data> {
         }
         if version < 85 {
             tx.execute_batch(crate::schema::MIGRATION_V85_SQL)?;
+        }
+        if version < 86 {
+            tx.execute_batch(crate::schema::MIGRATION_V86_SQL)?;
+            crate::data_imports::ensure_invoice_guard(&tx)?;
         }
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;

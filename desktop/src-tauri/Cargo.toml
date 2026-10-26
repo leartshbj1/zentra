@@ -41,6 +41,8 @@ quick-xml = "0.41"
 qrcode = { version = "0.14", default-features = false }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream", "system-proxy"] }
+# Déjà utilisé par rustls : chiffrement de la copie de l'archive légale.
+ring = "0.17"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rusqlite = { version = "0.32", features = ["backup", "bundled", "functions", "hooks"] }
 serde = { version = "1", features = ["derive"] }

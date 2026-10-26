@@ -523,7 +523,8 @@ async function workbookRows(file: File, headerScore?: ImportHeaderScore): Promis
     throw new Error('Le fichier dépasse 20 Mo. Réduisez le catalogue avant de recommencer.');
   }
   const extension = file.name.split('.').pop()?.toLowerCase();
-  if (extension === 'csv' || extension === 'tsv') {
+  // Crésus et Banana exportent du texte tabulé en .txt : on le lit comme un CSV.
+  if (extension === 'csv' || extension === 'tsv' || extension === 'txt') {
     const text = await delimitedFileText(file);
     const separator = extension === 'tsv' ? '\t' : csvSeparator(text, headerScore);
     return {
@@ -534,7 +535,7 @@ async function workbookRows(file: File, headerScore?: ImportHeaderScore): Promis
     };
   }
   if (extension !== 'xlsx') {
-    throw new Error('Format non pris en charge. Choisissez un fichier .xlsx, .csv ou .tsv.');
+    throw new Error('Format non pris en charge. Choisissez un fichier .xlsx, .csv, .tsv ou .txt.');
   }
   return xlsxRows(await file.arrayBuffer(), headerScore);
 }
