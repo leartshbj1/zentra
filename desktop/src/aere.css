@@ -268,3 +268,8 @@ html[data-app-theme] .desktop-app[data-experience] .site-map__frame > .site-map_
   padding: 0;
   text-align: start;
 }
+
+/* Comptabilité pas encore préparée : pas de période ni d'actualisation au-dessus de l'étape à faire. */
+html[data-app-theme] .desktop-app[data-experience] .accounting-screen--overview:has(.finance-overview > .finance-first-step) .accounting-period-bar {
+  display: none;
+}
