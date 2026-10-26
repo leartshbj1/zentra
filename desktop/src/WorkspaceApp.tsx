@@ -6000,6 +6000,7 @@ function ClientsScreen({
         role="group"
         aria-label={t('État des clients')}
       >
+        {archivedCount || visibility === 'archived' ? <>
         <button
           type="button"
           className={visibility === 'active' ? 'is-active' : ''}
@@ -6017,6 +6018,7 @@ function ClientsScreen({
           {t('Archivés')} <span>{archivedCount}</span>
         </button>
         {(!compact || visibility === 'archived') && <p>{t('Archiver conserve tout l’historique commercial et comptable.')}</p>}
+        </> : null}
       </div>
       <div className="collection-page-start" ref={pagination.startRef} tabIndex={-1} role="group" aria-label={t('Liste des clients')}>
       <CollectionPagination pagination={pagination} label={t('Pages des clients')}/>

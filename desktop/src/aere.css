@@ -282,3 +282,8 @@ html[data-app-theme] .desktop-app[data-experience] .sidebar__nav.sidebar__nav bu
   text-align: center;
   box-sizing: border-box;
 }
+
+/* Clients sans archive : la barre Actifs / Archivés disparaît, sans laisser d'espace. */
+html[data-app-theme] .desktop-app[data-experience] .client-directory-toolbar:empty {
+  display: none;
+}
