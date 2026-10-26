@@ -317,3 +317,10 @@ html[data-app-theme] .desktop-app[data-experience] .client-directory-toolbar:emp
     mask-image: linear-gradient(to bottom, transparent 0, currentColor 10px, currentColor calc(100% - 10px), transparent 100%);
   }
 }
+
+/* Agenda vide sur téléphone : pas de légende de couleurs sous « Rien de prévu ici ». */
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .agenda-layout:has(.agenda-list-panel > .empty-state) .agenda-legend {
+    display: none;
+  }
+}
