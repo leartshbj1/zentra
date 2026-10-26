@@ -293,7 +293,7 @@ fn read(db: &Connection) -> AppResult<Data> {
     // changing any business row or touching the original archives/live profile.
     // Other schema differences continue to require an explicit app update.
     let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if matches!(version, 60..=82) {
+    if matches!(version, 60..=83) {
         let tx = db.unchecked_transaction()?;
         if version == 60 {
             tx.execute_batch(crate::schema::MIGRATION_V61_SQL)?;
@@ -372,6 +372,9 @@ fn read(db: &Connection) -> AppResult<Data> {
         if version < 83 {
             tx.execute_batch(crate::schema::MIGRATION_V83_SQL)?;
             crate::payment_safety::migrate_history(&tx, false)?;
+        }
+        if version < 84 {
+            tx.execute_batch(crate::schema::MIGRATION_V84_SQL)?;
         }
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;

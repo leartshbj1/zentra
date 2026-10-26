@@ -47,6 +47,7 @@ import { FormDraftIdentityProvider } from '../src/useFormDraft';
 import { WorkspaceApp } from '../src/WorkspaceApp';
 import { desktopApi } from '../src/bridge';
 import { installCompanyRealtimeFixture } from './company-realtime-fixture';
+import { installPosFixture } from './pos-fixture';
 import { initialOnboardingSettings } from '../src/onboardingDraft';
 import { useMobileLayout } from '../src/useMobileLayout';
 import type { Project, Workspace } from '../src/types';
@@ -187,6 +188,7 @@ if (new URLSearchParams(location.search).has('documentOrder')) {
   }
 }
 if (new URLSearchParams(location.search).has('bank')) installBankFixture(() => data);
+if (previewQuery.has('pos')) installPosFixture(data);
 if (new URLSearchParams(location.search).has('bankExpenses')) installBankExpenseFixture(() => data);
 if (new URLSearchParams(location.search).has('bankCreate')) installBankCreateFixture(() => data);
 if (new URLSearchParams(location.search).has('bankUnlink')) installBankUnlinkFixture(() => data);

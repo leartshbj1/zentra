@@ -42,6 +42,10 @@ import { ElmExportPanel, SourceTaxTariffsPanel } from './SourceTaxPanels';
 import { ijmToDeclare, negativeBalances, pendingClaims } from './teamTime';
 import { reportTotals, reportsToInvoice } from './workReports';
 import { CashBookPanel } from './CashBookPanel';
+import { PosPanel } from './PosPanel';
+import { openApi, posApi, type InboxItem, type OpenApiStatus, type PosDay } from './openApi';
+import { closingInvoiceLines, closingMarker, closingPayments } from './pos';
+import { apiDraftLines, inboxCardSource, invoiceForShopPayment, matchShopPayout, PLATFORM_LABEL, partyCustomer, partyFrom, quoteLines, shopMarker, shopOrderLines } from './inboxDrafts';
 import { TreasuryPanel, forecastLabel } from './TreasuryPanel';
 import { ContractsPanel } from './ContractsPanel';
 import { eveningCountDue, localDate, uncorrectedCount, cashBalance } from './cashBook';
@@ -233,6 +237,7 @@ import {
   UserRound,
   Users,
   WalletCards,
+  Mailbox,
   X,
   Link2,
 } from 'lucide-react';
@@ -1134,6 +1139,9 @@ function WorkspaceContent({
       done = await act(async () => { await desktopApi.revokeSupplierPaymentApproval(undo.invoiceId); return workspaceRef.current; }, copy.undoDone, false);
       void refreshPaymentSafety();
     }
+    else if (undo.kind === 'sales-order-draft') done = await act(() => desktopApi.cancelSalesOrder(createId(), undo.orderId, t('Annulée depuis le journal Autopilote')), copy.undoDone, false);
+    else if (undo.kind === 'quote-draft') done = await act(origin => desktopApi.archiveEntity('quotes', undo.quoteId, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
+    else if (undo.kind === 'archive-client') done = await act(origin => desktopApi.archiveEntity('clients', undo.clientId, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
   };
   const runSignal = async (sourceId: string, choiceId?: string) => {
@@ -1199,6 +1207,10 @@ function WorkspaceContent({
   const [fixedAssetRows, setFixedAssetRows] = useState<readonly FixedAssetRow[]>([]);
   const [statementFiles, setStatementFiles] = useState<{ folder: string; files: readonly StatementFile[] } | null>(null);
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
+  // Ouverture (lot 5) : état de l'API, brouillons reçus de l'extérieur, journées de caisse à clôturer.
+  const [openStatus, setOpenStatus] = useState<OpenApiStatus | null>(null);
+  const [inboxItems, setInboxItems] = useState<readonly InboxItem[]>([]);
+  const [posToClose, setPosToClose] = useState<readonly PosDay[]>([]);
   const [bankArea, setBankArea] = useState<BankArea>('account');
   const [catalogArea, setCatalogArea] = useState<CatalogArea>('items');
   const [lotsDelivery, setLotsDelivery] = useState<string | null>(null);
@@ -1251,7 +1263,7 @@ function WorkspaceContent({
     ? [{ date: new Date(Date.parse(vatAmount.to + 'T00:00:00Z') + 60 * 86_400_000).toISOString().slice(0, 10), kind: 'vat', label: '', amountCents: -vatAmount.payableTaxCents }] : [], [vatAmount]);
   const [contractToOpen, setContractToOpen] = useState<{ id: string; side: 'customer' | 'supplier' } | null>(null);
   useEffect(() => {
-    if (view !== 'invoices') return;
+    if (view !== 'invoices' && view !== 'bank') return;
     let live = true;
     desktopApi.getOnlinePaymentSettings().then(value => { if (live) setOnlinePaymentEnabled(value.enabled); }).catch(() => undefined);
     return () => { live = false; };
@@ -1262,6 +1274,20 @@ function WorkspaceContent({
   const [, setFollowUpVersion] = useState(0);
   const readFollowUps = async () => {
     if (!autopilotContext || readOnly) return;
+    // Ouverture (lot 5) : la projection lue par l'API et MCP, puis les brouillons reçus.
+    try {
+      const status = await openApi.status();
+      setOpenStatus(status);
+      if (status.projection.wanted) await openApi.publish();
+      setInboxItems(status.inboxPending > 0 ? await openApi.inbox() : []);
+    } catch { /* read again next time */ }
+    // Caisse : la veille non clôturée, et aujourd'hui en fin de journée.
+    try {
+      const now = new Date(), yesterday = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+      const dates = now.getHours() >= 17 ? [yesterday, todayIso()] : [yesterday];
+      const days = await Promise.all(dates.map(date => posApi.day(date)));
+      setPosToClose(days.filter(day => day.totals.ticketCount > 0 && !day.closing));
+    } catch { /* read again next time */ }
     // The closing card ends when the year's accounting period is closed, not only when ignored.
     if (yearEndMoments(todayIso()).closingYear) {
       try { setClosedPeriods(await desktopApi.listAccountingPeriods()); } catch { /* read again next time */ }
@@ -1428,6 +1454,9 @@ function WorkspaceContent({
       cards.push({ key, title: copy.tomorrowTitle.replace('{time}', item.extraction.allDay ? '' : item.extraction.startTime).replace('{title}', item.extraction.title || item.subject),
         detail: item.extraction.location || item.sender, actions: [{ id: 'open-agenda', label: copy.actionOpenAgenda, primary: true }, { id: 'ignore', label: copy.actionDone }] });
     }
+    // Paiements de boutique déjà enregistrés, du plus ancien au plus récent, pour reconnaître un versement.
+    const shopPayments = workspace.payments.filter(payment => /^(Shopify|WooCommerce)/.test(payment.method ?? '')).sort((a, b) => a.date.localeCompare(b.date))
+      .map(payment => ({ platform: /^Shopify/.test(payment.method ?? '') ? 'shopify' : 'woocommerce', amountCents: payment.amountCents }));
     // Bank: movements to confirm (the surest first), then those to identify.
     const bankRows = bankProposals(autopilotBank, mailSignals, workspace.invoices, workspace.clients).filter(row => !entries['bank:' + row.movement.id]?.ignored);
     let toConfirm = 0, toIdentify = 0;
@@ -1503,7 +1532,11 @@ function WorkspaceContent({
           actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'link-fee', label: copy.actionLinkWithFee, primary: true }] });
         continue;
       }
-      if (row.action === 'choose') { toIdentify++; cards.push({ key: 'bank:' + row.movement.id, title: copy.bankUnknown.replace('{amount}', amount), detail: [who, date(row.movement.bookingDate)].filter(Boolean).join(' · '), note,
+      if (row.action === 'choose') {
+        // Versement d'une boutique : il regroupe des paiements Shopify ou WooCommerce déjà enregistrés, frais déduits.
+        const payout = row.movement.creditDebit === 'CRDT' ? matchShopPayout({ amountCents: Math.abs(row.movement.amountCents), text: [row.movement.counterpartyName, row.movement.unstructured, row.movement.reference].join(' ') }, shopPayments) : null;
+        const payoutNote = payout ? t('Versement {platform} : {n} paiements de la boutique ({gross}), frais {fee}. Rapprochez-le dans la banque et comptabilisez les frais.', { platform: PLATFORM_LABEL[payout.platform], n: payout.count, gross: formatMoney(payout.grossCents), fee: formatMoney(payout.feeCents) }) : undefined;
+        toIdentify++; cards.push({ key: 'bank:' + row.movement.id, title: copy.bankUnknown.replace('{amount}', amount), detail: [who, date(row.movement.bookingDate)].filter(Boolean).join(' · '), note: [note, payoutNote].filter(Boolean).join(' ') || undefined,
         actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-bank', label: copy.actionChooseInvoice, primary: true }] }); continue; }
       toConfirm++;
       const title = (row.movement.creditDebit === 'CRDT' ? copy.bankReceived.replace('{from}', who) : copy.bankPaid.replace('{to}', who)).replace('{amount}', amount);
@@ -1774,6 +1807,32 @@ function WorkspaceContent({
       cards.push({ key: 'inventory:' + inventory.year, title: copy.inventoryTitle.replace('{year}', String(inventory.year)).replace('{n}', String(inventory.items.length)),
         detail: inventory.items.slice(0, 5).map(item => item.name).join(', ') + (inventory.items.length > 5 ? ' …' : ''), why: copy.whyInventory,
         actions: [{ id: 'open-inventory', label: copy.actionOpenInventory, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    // Brouillons reçus de l'API, de MCP ou d'une boutique : rien n'est créé sans clic.
+    for (const item of inboxItems) {
+      const key = 'inbox:' + item.itemId;
+      if (entries[key]?.ignored) continue;
+      const source = inboxCardSource(item);
+      const paidInvoice = item.kind === 'payment' ? invoiceForShopPayment(item.payload, workspace.invoices) : undefined;
+      const amount = typeof item.payload.amountCents === 'number' ? formatMoney(item.payload.amountCents, String(item.payload.currency || 'CHF')) : '';
+      const main = item.kind === 'order' ? { id: 'inbox-order', label: t('Créer la commande client'), primary: true }
+        : item.kind === 'quote' ? { id: 'inbox-quote', label: t('Créer le devis'), primary: true }
+        : item.kind === 'customer' ? { id: 'inbox-customer', label: t('Créer le client'), primary: true }
+        : item.kind === 'payment' ? paidInvoice ? { id: 'inbox-payment', label: t('Enregistrer le paiement'), primary: true } : { id: 'open-orders', label: t('Facturer la commande'), primary: true }
+        : { id: 'inbox-noted', label: t('C’est noté'), primary: true };
+      cards.push({ key, title: t(source.titleKey, source.values), detail: [amount, source.detail].filter(Boolean).join(' · '),
+        note: item.kind === 'payment' && !paidInvoice ? t('Facturez d’abord la commande : le paiement se rapprochera ensuite de la facture.') : undefined,
+        why: t('Reçu de l’extérieur. Zentra applique ses propres prix et calcule les montants ; rien n’est enregistré avant votre clic.'),
+        actions: [main, { id: 'inbox-reject', label: t('Refuser') }] });
+    }
+    // Caisse du jour à clôturer : la facture des ventes au comptoir, payée, en un clic.
+    for (const day of posToClose) {
+      const key = 'pos-close:' + day.date;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: t('Clôturer la caisse du {date}', { date: date(day.date) }),
+        detail: t('{n} tickets · {amount}', { n: day.totals.ticketCount, amount: formatMoney(day.totals.totalCents) }),
+        why: t('Les ventes du jour deviennent une facture payée : la TVA, la comptabilité et l’archive suivent comme pour toute facture.'),
+        actions: [{ id: 'pos-close', label: t('Clôturer la caisse'), primary: true }, { id: 'open-counter', label: t('Ouvrir le comptoir') }] });
+    }
     // Commandes dont le reste à livrer est en stock.
     for (const order of ordersReadyToDeliver(workspace)) {
       const key = 'deliver:' + order.id;
@@ -1887,10 +1946,144 @@ function WorkspaceContent({
       ...bankSummary].filter(Boolean).join(' · ');
     return { cards, summary };
   };
+  // Un brouillon reçu de l'extérieur devient, au clic, un client, un devis, une commande client ou un paiement.
+  const runInbox = async (itemId: string, actionId: string) => {
+    const item = inboxItems.find(row => row.itemId === itemId);
+    if (!item || !autopilotContext) return;
+    const finish = async (decision: 'imported' | 'rejected', reference: string | null) => {
+      try {
+        await openApi.decide(itemId, decision, reference);
+        setInboxItems(items => items.filter(row => row.itemId !== itemId));
+      } catch (reason) {
+        setNotice({ tone: 'warning', text: errorMessage(reason, t('Le brouillon est traité ici, mais le serveur ne l’a pas encore noté. Zentra réessaiera.')) });
+      }
+    };
+    if (actionId === 'inbox-reject') { await finish('rejected', null); return; }
+    if (actionId === 'inbox-noted') { await finish('imported', null); actionOutcome.current = true; return; }
+    if (actionId === 'open-orders') { setSearch(''); setView('orders'); return; }
+    const current = workspaceRef.current, payload = item.payload;
+    const defaultVat = current.settings?.organization.vatRegistered === false ? 0 : (current.settings?.billing.vatRatesBp?.[0] ?? 810);
+    const platform = PLATFORM_LABEL[item.source] ?? item.source, number = String(payload.number ?? '');
+    if (actionId === 'inbox-payment') {
+      const invoice = invoiceForShopPayment(payload, current.invoices), amount = Number(payload.amountCents);
+      if (!invoice || !Number.isSafeInteger(amount) || amount <= 0) return;
+      const gateway = String(payload.gateway ?? '').trim();
+      const ok = await journalAct(() => desktopApi.addPayment(invoice.id, { requestId: itemId.slice(3), amountCents: amount, date: String(payload.paidAt || todayIso()).slice(0, 10),
+        method: gateway ? `${platform} (${gateway})` : platform, reference: `${platform} ${number}`.trim(), notes: shopMarker(payload) }), t('Paiement enregistré.'), false);
+      if (ok) await finish('imported', invoice.id);
+      return;
+    }
+    const party = partyFrom(payload.customer);
+    const ensureClient = async (): Promise<string | null> => {
+      if (party.id && workspaceRef.current.clients.some(row => row.id === party.id)) return party.id;
+      const customer = partyCustomer(party), match = findAutopilotClient(workspaceRef.current.clients, customer, getAppLocale());
+      if (match === 'ambiguous') { setNotice({ tone: 'warning', text: t('Plusieurs clients correspondent à ce brouillon. Créez-le depuis le formulaire en choisissant le client.') }); return null; }
+      if (match) return match.id;
+      const id = createId(), client = autopilotNewClient(id, customer);
+      if (!client) { setNotice({ tone: 'warning', text: t('Ce brouillon n’indique aucun client.') }); return null; }
+      const added = await act(origin => desktopApi.createEntity('clients', { ...client, country: /^[A-Z]{2}$/.test(party.country) ? party.country : 'CH' }, origin.workspaceScope, origin.memberContextNonce),
+        t('Client {name} créé.', { name: client.name }), false);
+      if (!added) return null;
+      if (actionId === 'inbox-customer') actionUndo.current = { kind: 'archive-client', clientId: id };
+      return id;
+    };
+    if (actionId === 'inbox-customer') {
+      const clientId = await ensureClient();
+      if (clientId) { actionOutcome.current = true; await finish('imported', clientId); }
+      return;
+    }
+    if (actionId !== 'inbox-order' && actionId !== 'inbox-quote') return;
+    const shop = item.source === 'shopify' || item.source === 'woocommerce';
+    if (shop && String(payload.currency) !== 'CHF') { setNotice({ tone: 'warning', text: t('Cette commande est en {currency}. Zentra reprend les commandes de boutique en CHF : saisissez-la à la main.', { currency: String(payload.currency) }) }); return; }
+    const lines = shop ? shopOrderLines(payload, current.catalogItems, defaultVat) : apiDraftLines(payload, current.catalogItems, defaultVat);
+    if (!lines.length) return;
+    const clientId = await ensureClient();
+    if (!clientId) return;
+    const client = workspaceRef.current.clients.find(row => row.id === clientId), label = client?.company || client?.name || '';
+    if (actionId === 'inbox-order') {
+      const before = new Set(workspaceRef.current.salesOrders.map(row => row.id));
+      const ok = await journalAct(() => desktopApi.saveSalesOrderDraft({ clientId, orderDate: String(payload.createdAt || todayIso()).slice(0, 10), currency: 'CHF',
+        title: shop ? t('Commande {platform} {number}', { platform, number }) : t('Commande – {client}', { client: label }),
+        notes: [shop ? shopMarker(payload) : '', String(payload.note ?? '')].filter(Boolean).join('\n'), lines }), t('Commande client créée en brouillon.'), false);
+      if (!ok) return;
+      const created = workspaceRef.current.salesOrders.find(row => !before.has(row.id));
+      if (created) actionUndo.current = { kind: 'sales-order-draft', orderId: created.id };
+      await finish('imported', created?.id ?? null);
+      return;
+    }
+    const memberId = consultationIdentity.memberId;
+    if (!memberId) { setNotice({ tone: 'error', text: t('Le compte doit être vérifié avant cette action.') }); return; }
+    const quoteId = createId(), documentLines = quoteLines(lines, createId), totals = documentTotals(documentLines);
+    const settings = workspaceRef.current.settings, issueDate = todayIso();
+    const data: Record<string, unknown> = { clientId, projectId: null, title: t('Devis – {client}', { client: label }), status: 'draft', issueDate,
+      validUntil: addDaysIso(issueDate, settings?.billing.quoteValidityDays ?? 30), currency: 'CHF', subtotalCents: totals.subtotalCents, discountCents: totals.discountCents,
+      vatCents: totals.vatCents, totalCents: totals.totalCents, notes: String(payload.note ?? ''), terms: settings?.billing.defaultFooter ?? '' };
+    const ok = await journalAct(origin => {
+      const request = prepareDocumentCreationRequest(quoteId, desktopApi.prepareDocumentSaveInput('quotes', data, documentLines) as DocumentCreationInput, origin.workspaceScope, memberId);
+      return desktopApi.saveDocumentCreation(request, origin.workspaceScope, origin.memberContextNonce);
+    }, t('Devis créé en brouillon.'), false);
+    if (!ok) return;
+    actionUndo.current = { kind: 'quote-draft', quoteId };
+    await finish('imported', quoteId);
+  };
+  // Clôture de caisse : une facture « Ventes au comptoir » émise et payée par moyen de paiement.
+  const closePosDay = async (day: PosDay): Promise<boolean> => {
+    if (readOnly) return false;
+    const date = day.date, marker = closingMarker(date);
+    const fail = (reason: unknown) => { setNotice({ tone: 'error', text: errorMessage(reason, t('La caisse n’a pas pu être clôturée.')) }); return false; };
+    if (day.totals.totalCents <= 0) {
+      try { await posApi.close(date, null); return true; } catch (reason) { return fail(reason); }
+    }
+    const memberId = consultationIdentity.memberId;
+    if (!memberId) return fail(Error(t('Le compte doit être vérifié avant cette action.')));
+    // Nom fixe : le client est retrouvé par son nom, quelle que soit la langue de l'interface.
+    const counterName = 'Ventes au comptoir';
+    let client = workspaceRef.current.clients.find(row => !row.archivedAt && row.name === counterName);
+    if (!client) {
+      const id = createId();
+      const ok = await act(origin => desktopApi.createEntity('clients', { id, name: counterName, contactPerson: '', company: '', email: '', phone: '', addressLine1: '', addressLine2: '',
+        postalCode: '', city: '', canton: '', country: 'CH', notes: t('Client des ventes au comptoir, utilisé par la clôture de caisse.') }, origin.workspaceScope, origin.memberContextNonce), t('Client des ventes au comptoir créé.'), false);
+      client = workspaceRef.current.clients.find(row => row.id === id);
+      if (!ok || !client) return false;
+    }
+    let invoice = workspaceRef.current.invoices.find(row => (row.notes ?? '').includes(marker) && row.status !== 'cancelled');
+    if (!invoice) {
+      const invoiceId = createId(), lines = closingInvoiceLines(day.tickets, day.lines, createId), totals = documentTotals(lines);
+      if (totals.totalCents !== day.totals.totalCents) return fail(Error(t('Les tickets du jour ne donnent pas le même total que la facture préparée. La clôture est arrêtée.')));
+      const data: Record<string, unknown> = { clientId: client.id, projectId: null, title: t('Ventes au comptoir du {date}', { date: formatDate(date) }), status: 'draft', issueDate: date, dueDate: date,
+        currency: 'CHF', subtotalCents: totals.subtotalCents, discountCents: totals.discountCents, vatCents: totals.vatCents, totalCents: totals.totalCents, notes: marker, terms: '' };
+      const ok = await act(origin => {
+        const request = prepareDocumentCreationRequest(invoiceId, desktopApi.prepareDocumentSaveInput('invoices', data, lines) as DocumentCreationInput, origin.workspaceScope, memberId);
+        return desktopApi.saveDocumentCreation(request, origin.workspaceScope, origin.memberContextNonce);
+      }, t('Facture des ventes au comptoir préparée.'), false);
+      invoice = workspaceRef.current.invoices.find(row => row.id === invoiceId);
+      if (!ok || !invoice) return false;
+    }
+    const target = invoice;
+    if (target.status === 'draft' && !await act(() => desktopApi.issueDocument('invoices', target.id, date, date), t('Facture des ventes au comptoir émise.'), false)) return false;
+    for (const payment of closingPayments(day.totals)) {
+      const recorded = workspaceRef.current.payments.some(row => row.invoiceId === target.id && row.method === payment.label && row.amountCents === payment.amountCents);
+      if (recorded) continue;
+      const ok = await act(() => desktopApi.addPayment(target.id, { requestId: createId(), amountCents: payment.amountCents, date, method: payment.label, reference: t('Clôture de caisse {date}', { date }), notes: marker }),
+        t('Paiement enregistré.'), false);
+      if (!ok) return false;
+    }
+    try { await posApi.close(date, target.id); } catch (reason) { return fail(reason); }
+    setNotice({ tone: 'success', text: t('Caisse du {date} clôturée : facture {number}.', { date: formatDate(date), number: workspaceRef.current.invoices.find(row => row.id === target.id)?.number ?? '' }) });
+    return true;
+  };
   const runFollowUp = async (key: string, actionId: string) => {
     if (!autopilotContext || busy || modal || readOnly) return;
     const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage()), today = todayIso();
     const refresh = () => setFollowUpVersion(version => version + 1);
+    if (key.startsWith('inbox:')) { await runInbox(key.slice('inbox:'.length), actionId); refresh(); return; }
+    if (actionId === 'open-counter') { setSearch(''); setBankArea('counter'); setView('bank'); return; }
+    if (key.startsWith('pos-close:') && actionId === 'pos-close') {
+      const day = posToClose.find(row => row.date === key.slice('pos-close:'.length));
+      if (day && await closePosDay(day)) { setPosToClose(rows => rows.filter(row => row.date !== day.date)); actionOutcome.current = true; }
+      refresh();
+      return;
+    }
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
     if (key.startsWith('payroll:') && actionId === 'prepare-payroll') {
@@ -3123,6 +3316,28 @@ function WorkspaceContent({
       setNotice({ tone: 'success', text: t('Lien de paiement copié : collez-le dans votre message au client. Autopilote vous signalera le paiement.') });
     } catch {
       setNotice({ tone: 'success', text: t('Lien de paiement : {url}', { url }) });
+    }
+  }
+
+  /** Facture émise envoyée par la poste avec le compte Pingen de l'entreprise, après confirmation du coût. */
+  async function sendByPost(item: Invoice) {
+    if (busy || readOnly) return;
+    const staging = openStatus?.postal.mode === 'staging';
+    const question = staging
+      ? t('Envoyer la facture {number} en mode d’essai Pingen ? Aucune lettre n’est imprimée ni facturée.', { number: item.number })
+      : t('Envoyer la facture {number} par Courrier B avec votre compte Pingen ? Pingen vous facture la lettre, environ CHF 1.50.', { number: item.number });
+    if (!window.confirm(question)) return;
+    setBusy(true);
+    try {
+      const letter = await openApi.sendLetter(item.id, 'economy', false);
+      if (letter.status === 'failed') setNotice({ tone: 'error', text: letter.error ?? t('Pingen a refusé la lettre.') });
+      else setNotice({ tone: 'success', text: letter.priceCents !== null
+        ? t('Lettre transmise à Pingen ({price}). Son suivi apparaît dans votre compte Pingen.', { price: formatMoney(letter.priceCents, letter.priceCurrency ?? 'CHF') })
+        : t('Lettre transmise à Pingen. Son suivi apparaît dans votre compte Pingen.') });
+    } catch (reason) {
+      setNotice({ tone: 'error', text: errorMessage(reason, t('La lettre n’a pas pu être envoyée.')) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -4435,6 +4650,7 @@ function WorkspaceContent({
               }
               onArchiveCloud={(item) => void archiveInvoiceToCloud(item)}
               onPaymentLink={onlinePaymentEnabled ? (item) => void createPaymentLink(item) : undefined}
+              onPostal={openStatus?.postal.configured ? (item) => void sendByPost(item) : undefined}
               onCreate={() =>
                 setModal({ type: 'document', entity: 'invoices' })
               }
@@ -4600,6 +4816,9 @@ function WorkspaceContent({
           {view === 'bank' ? <BankAreaTabs active={bankArea} onChange={setBankArea} /> : null}
           {view === 'bank' && bankArea === 'cash' ? (
             <CashBookPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
+          {view === 'bank' && bankArea === 'counter' ? (
+            <PosPanel workspace={workspace} disabled={readOnly || busy} payrexxEnabled={onlinePaymentEnabled} onCloseDay={closePosDay} />
           ) : null}
           {view === 'bank' && bankArea === 'treasury' ? (
             <TreasuryPanel workspace={workspace} organizationId={autopilotContext?.organizationId ?? companyAutomation.organizationId ?? 'local'} extraEvents={vatForecast} />
@@ -5839,6 +6058,7 @@ type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boole
       onPrint: (item: Quote) => void;
       onArchive: (item: Quote) => void;
       onAcceptanceLink?: (item: Quote) => void;
+      onPostal?: never;
       onPayment?: never;
       onOpenPaymentJournal?: never;
     }
@@ -5859,6 +6079,7 @@ type DocumentsProps = { onOpenFolder: (quoteId: string) => void; readOnly: boole
       onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
       onArchiveCloud: (item: Invoice) => void;
       onPaymentLink?: (item: Invoice) => void;
+      onPostal?: (item: Invoice) => void;
       onAcceptanceLink?: never;
       onConvert?: never;
       onStatus?: never;
@@ -5880,6 +6101,7 @@ type LooseDocumentsProps = {
   onAbandonCorrection: (workflow: InvoiceCorrectionWorkflow) => void;
   onArchiveCloud: (item: Invoice) => void;
   onPaymentLink?: (item: Invoice) => void;
+  onPostal?: (item: Invoice) => void;
 };
 
 function DocumentsScreen(sourceProps: DocumentsProps) {
@@ -6481,6 +6703,20 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                         aria-label={t('Lien de paiement TWINT ou carte pour {number}', { number: item.number || item.title })}
                       >
                         <WalletCards size={16} />
+                      </Button>
+                    ) : null}
+                    {entity === 'invoices' && props.onPostal &&
+                    invoice?.type !== 'credit_note' &&
+                    item.status !== 'draft' &&
+                    item.status !== 'cancelled' ? (
+                      <Button disabled={mutationsDisabled}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => props.onPostal?.(item as Invoice)}
+                        title={t('Envoyer par la poste')}
+                        aria-label={t('Envoyer par la poste la facture {number}', { number: item.number || item.title })}
+                      >
+                        <Mailbox size={16} />
                       </Button>
                     ) : null}
                       <Button

@@ -10,7 +10,10 @@ export type UndoSpec =
   | Readonly<{ kind: 'quote-status'; quoteId: string; status: string }>
   | Readonly<{ kind: 'archive-project'; projectId: string }>
   | Readonly<{ kind: 'supplier-project'; invoiceId: string; projectId: string | null }>
-  | Readonly<{ kind: 'payment-approval'; invoiceId: string }>;
+  | Readonly<{ kind: 'payment-approval'; invoiceId: string }>
+  | Readonly<{ kind: 'sales-order-draft'; orderId: string }>
+  | Readonly<{ kind: 'quote-draft'; quoteId: string }>
+  | Readonly<{ kind: 'archive-client'; clientId: string }>;
 
 export type JournalEntry = Readonly<{
   id: string;

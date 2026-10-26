@@ -100,3 +100,9 @@ rust:offer_export::
 rust:catalog_import
 src/paymentSafety.test.ts
 rust:payment_safety::
+rust:pos::
+rust:public_api::
+rust:company_merge::
+src/pos.test.ts
+src/inboxDrafts.test.ts
+src/languageCatalogCoverage.test.ts

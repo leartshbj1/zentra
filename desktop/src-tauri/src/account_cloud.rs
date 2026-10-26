@@ -201,7 +201,7 @@ fn inbox_read_context_changed() -> AppError {
 /// keep their existing guards; this helper never refreshes the account, retries
 /// a request, changes a license or turns an obsolete response into an empty list.
 pub(crate) async fn bound_inbox_get(store: &LocalStore, path: &'static str) -> AppResult<serde_json::Value> {
-    if ![crate::supplier_inbox::PATH, crate::appointment_inbox::PATH].contains(&path) {
+    if ![crate::supplier_inbox::PATH, crate::appointment_inbox::PATH, crate::public_api::STATUS_PATH, crate::public_api::INBOX_PATH].contains(&path) {
         return Err(AppError::Validation("Cette réception n’est pas disponible.".into()));
     }
     bound_inbox_get_with(store, |session| async move {
@@ -1669,6 +1669,11 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | "/api/account/automation/digest"
             | "/api/account/portal/publish"
             | "/api/account/portal/events"
+            | crate::public_api::STATUS_PATH
+            | crate::public_api::PROJECTION_PATH
+            | crate::public_api::INBOX_PATH
+            | crate::public_api::INBOX_ACK_PATH
+            | crate::public_api::POSTAL_PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

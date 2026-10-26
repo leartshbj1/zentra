@@ -1,0 +1,84 @@
+/* Comptoir : la grille d'articles à gauche, le ticket à droite ; une colonne sur téléphone. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .erp-register.pos {
+    max-width: 1120px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__articles,
+  html[data-app-theme] .desktop-app[data-experience] .pos__cart,
+  html[data-app-theme] .desktop-app[data-experience] .pos__pay {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__grid button {
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-control, 10px);
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__grid button:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__grid span {
+    overflow-wrap: anywhere;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__grid small {
+    color: var(--apple-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__free {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: end;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__quantity,
+  html[data-app-theme] .desktop-app[data-experience] .pos__ticket-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__qr {
+    display: grid;
+    justify-items: start;
+    gap: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .pos__qr svg {
+    padding: 8px;
+    border-radius: 8px;
+    /* Le code reste noir sur blanc, même en mode sombre, pour être lisible par TWINT. */
+    background: #fff;
+  }
+  @media (max-width: 760px) {
+    html[data-app-theme] .desktop-app[data-experience] .pos__layout,
+    html[data-app-theme] .desktop-app[data-experience] .pos__free {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
