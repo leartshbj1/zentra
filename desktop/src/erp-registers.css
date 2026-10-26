@@ -364,3 +364,19 @@
   html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing__toggle input { width: 20px; height: 20px; accent-color: var(--green-700); }
   html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing small { color: var(--apple-secondary); }
 }
+/* Consolidation : sociétés, éliminations et tableaux combinés. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__add { display: grid; gap: 12px; max-width: 720px; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__add-confirm { display: grid; gap: 12px; max-width: 420px; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__add-confirm input { width: 100%; min-height: 44px; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__eliminations { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__eliminations li { display: grid; grid-template-columns: 110px minmax(0, 1fr) 120px 120px 44px; gap: 12px; align-items: end; padding-bottom: 12px; border-bottom: 1px solid var(--apple-separator, var(--line)); }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__eliminations input { width: 100%; min-height: 44px; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 16px; margin: 8px 0 0; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__totals dt { color: var(--apple-secondary); font-size: calc(13px * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__totals dd { margin: 4px 0 0; color: var(--apple-ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+  html[data-app-theme] .desktop-app[data-experience] .consolidation__table h3 { margin: 16px 0 8px; }
+  @media (max-width: 700px) {
+    html[data-app-theme] .desktop-app[data-experience] .consolidation__eliminations li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+}
