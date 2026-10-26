@@ -5841,20 +5841,20 @@ export function ProjectsScreen({
                     </strong>
                   </div>
                 </div>
-                <div className="project-dates">
-                  <span>
+                {project.plannedStart || project.plannedEnd || project.actualStart || project.actualEnd || projectTasks.length ? <div className="project-dates">
+                  {project.plannedStart || project.plannedEnd ? <span>
                     <CalendarDays size={14} /> {t('Prévu :')}{' '}
                     {formatDate(project.plannedStart)} →{' '}
                     {formatDate(project.plannedEnd)}
-                  </span>
-                  <span>
+                  </span> : null}
+                  {project.actualStart || project.actualEnd ? <span>
                     {t('Réel :')} {formatDate(project.actualStart)} →{' '}
                     {formatDate(project.actualEnd)}
-                  </span>
-                  <span>
+                  </span> : null}
+                  {projectTasks.length ? <span>
                     <ListChecks size={14} /> {t('Tâches terminées : {done} / {total}', {done:completedTasks,total:projectTasks.length})}
-                  </span>
-                </div>
+                  </span> : null}
+                </div> : null}
                 <footer>
                   <Button size="small" onClick={() => onFolderChange(project.id)}>
                     <FolderOpen size={16} /> {t('Ouvrir le dossier')}
