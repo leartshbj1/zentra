@@ -591,3 +591,33 @@
     grid-column: 1 / -1;
   }
 }
+
+/* Native radios and checkboxes keep their natural size inside the pack screens. */
+@media screen {
+  :is(.progress-dialog, .line-editor__print-measures, .measure-panel__deduct, .site-sheet__check, .labor-rates__default) :is(input[type='radio'], input[type='checkbox']) {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--apple-accent);
+  }
+  .progress-dialog__kind label {
+    white-space: nowrap;
+  }
+}
+
+/* Secondary actions stay grey: green is kept for the main action and « done ». */
+@media screen {
+  html[data-app-theme] :is(.line-editor__more, .line-chapter, .measure-panel__footer, .measure-panel__row, .site-sheet__block > header, .site-sheet__links, .site-sheet__actions, .labor-rates__rows, .service-kits__rows) .button.button--ghost {
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] :is(.line-editor__more, .line-chapter, .measure-panel__footer, .site-sheet__block > header, .site-sheet__links, .site-sheet__actions, .labor-rates__rows, .service-kits__rows) .button.button--ghost:hover {
+    color: var(--apple-ink);
+  }
+  .line-editor__chapter span {
+    white-space: nowrap;
+  }
+}

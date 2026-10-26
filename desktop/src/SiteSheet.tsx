@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { desktopApi } from './bridge';
-import { t, useAppLanguage } from './language';
+import { getAppLocale, t, useAppLanguage } from './language';
 import { parseRateAmount } from './laborRates';
 import { SITE_CATEGORIES, budgetFromQuotes, siteLedger, type SiteCategory } from './siteLedger';
 import type { Project, Workspace } from './types';
@@ -60,8 +60,8 @@ export function SiteSheet({ project, workspace, readOnly, onWorkspaceChange }: {
     <h3 id={`site-sheet-${project.id}`}>{ledger.finished ? t('Post-calcul du chantier') : t('Fiche chantier')}</h3>
     <dl className="site-sheet__figures">
       <div><dt>{t('Contrat (devis acceptés, HT)')}</dt><dd>{ledger.contractNetCents ? formatMoney(ledger.contractNetCents) : '—'}</dd></div>
-      <div><dt>{t('Facturé (HT)')}</dt><dd>{formatMoney(ledger.invoicedNetCents)}{ledger.invoicedPermille !== null ? <small>{t('{percent} % du contrat', { percent: ledger.invoicedPermille / 10 })}</small> : null}</dd></div>
-      <div><dt>{ledger.finished ? t('Marge finale') : t('Marge à ce jour')}</dt><dd>{formatMoney(ledger.actualMarginCents)}{marginPermille !== null ? <small>{t('{percent} % du facturé', { percent: marginPermille / 10 })}</small> : null}</dd></div>
+      <div><dt>{t('Facturé (HT)')}</dt><dd>{formatMoney(ledger.invoicedNetCents)}{ledger.invoicedPermille !== null ? <small>{t('{percent} % du contrat', { percent: (ledger.invoicedPermille / 10).toLocaleString(getAppLocale()) })}</small> : null}</dd></div>
+      <div><dt>{ledger.finished ? t('Marge finale') : t('Marge à ce jour')}</dt><dd>{formatMoney(ledger.actualMarginCents)}{marginPermille !== null ? <small>{t('{percent} % du facturé', { percent: (marginPermille / 10).toLocaleString(getAppLocale()) })}</small> : null}</dd></div>
       <div><dt>{t('Marge prévue')}</dt><dd>{ledger.plannedMarginCents === null ? '—' : formatMoney(ledger.plannedMarginCents)}</dd></div>
     </dl>
 

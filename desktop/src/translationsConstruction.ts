@@ -109,6 +109,11 @@ export const constructionTranslations: Record<string, readonly [string, string, 
   'Heures facturées': ['Verrechnete Stunden', 'Ore fatturate', 'Hours invoiced'],
   'au tarif du rapport': ['zum Ansatz des Rapports', 'alla tariffa del rapporto', 'at the report rate'],
   'aux tarifs « {name} »': ['zu den Ansätzen «{name}»', 'alle tariffe «{name}»', 'at the “{name}” rates'],
+  'Préparer la situation suivante, le décompte final ou la libération de la retenue': ['Nächste Akontorechnung, Schlussabrechnung oder Freigabe des Rückbehalts vorbereiten', 'Prepara lo stato successivo, il conteggio finale o lo svincolo della trattenuta', 'Prepare the next progress invoice, the final account or the retention release'],
+  'Libérer la retenue': ['Rückbehalt freigeben', 'Svincola la trattenuta', 'Release the retention'],
+  'Situation en brouillon': ['Akontorechnung im Entwurf', 'Stato d’avanzamento in bozza', 'Progress invoice in draft'],
+  'Situation suivante': ['Nächste Akontorechnung', 'Stato successivo', 'Next progress invoice'],
+
   // Kits et imports
   'Ajouter de la main-d’œuvre': ['Arbeit hinzufügen', 'Aggiungi manodopera', 'Add labour'],
   'Aucun kit pour l’instant.': ['Noch keine Kits.', 'Ancora nessun kit.', 'No kits yet.'],

@@ -27,6 +27,7 @@ import { ProgressBillingDialog } from './ProgressBillingDialog';
 import { LaborRatesPanel } from './LaborRatesPanel';
 import { ServiceKitsPanel } from './ServiceKitsPanel';
 import { autopilotSiteCopy, siteAttachProposals } from './autopilotSite';
+import { nextProgressStep, previousProgress } from './progressBilling';
 import { WarehousesPanel } from './WarehousesPanel';
 import { LotsPanel } from './LotsPanel';
 import { BomPanel } from './BomPanel';
@@ -5747,6 +5748,10 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
               const convertedOrder = workspace.salesOrders.some(
                 (order) => order.quoteId === quote.id,
               );
+              // Facturation par situations : la suivante se prépare depuis le devis.
+              const progressStep = workspace.progressPlans?.some((plan) => plan.quoteId === quote.id)
+                ? nextProgressStep(previousProgress(quote.id, workspace.progressBills ?? [], workspace.invoices))
+                : null;
               const requiresOrder = quoteRequiresSalesOrder(
                 quote,
                 workspace.catalogItems,
@@ -5878,6 +5883,18 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                             </Button>
                           ) : null}
                         </>
+                      ) : null}
+                      {quote.status === 'accepted' && progressStep && progressStep !== 'done' ? (
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          className="quote-convert-button"
+                          disabled={mutationsDisabled}
+                          onClick={() => props.onConvert(quote)}
+                          title={t('Préparer la situation suivante, le décompte final ou la libération de la retenue')}
+                        >
+                          <ArrowRight size={15} /> {progressStep === 'retention_release' ? t('Libérer la retenue') : progressStep === 'draft' ? t('Situation en brouillon') : t('Situation suivante')}
+                        </Button>
                       ) : null}
                       {quote.status === 'accepted' &&
                       !converted &&
