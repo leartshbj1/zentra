@@ -16,6 +16,8 @@ export type PortalPublishInput = {
   totalCents: number;
   lines: { description: string; quantity: string; totalCents: number }[];
   pdfBase64: string | null;
+  /** Acompte calculé par l'app et sa page Payrexx ; publié en schemaVersion 2. */
+  deposit?: { amountCents: number; paymentUrl: string };
 };
 export type PortalLink = { url: string; clientUrl: string; expiresAt: string; publishedAt: number };
 export type PortalEvent = { eventId: string; documentId: string; kind: 'accepted' | 'declined'; signerName: string; comment: string; at: number };

@@ -150,7 +150,7 @@ fn secret_path(store: &LocalStore) -> PathBuf {
     store.data_dir.join(SECRET_FILE)
 }
 
-fn read_secret(store: &LocalStore) -> AppResult<Option<String>> {
+pub(crate) fn read_secret(store: &LocalStore) -> AppResult<Option<String>> {
     let path = secret_path(store);
     if !path.exists() {
         return Ok(None);
@@ -160,7 +160,7 @@ fn read_secret(store: &LocalStore) -> AppResult<Option<String>> {
     Ok(String::from_utf8(clear).ok().filter(|value| !value.is_empty()))
 }
 
-fn settings_row(connection: &Connection) -> AppResult<(bool, Option<String>)> {
+pub(crate) fn settings_row(connection: &Connection) -> AppResult<(bool, Option<String>)> {
     Ok(connection
         .query_row("SELECT enabled,instance FROM online_payment_settings WHERE id=1", [], |row| Ok((row.get::<_, bool>(0)?, row.get(1)?)))
         .optional()?
@@ -179,7 +179,7 @@ fn http_client() -> AppResult<reqwest::Client> {
         .map_err(|_| invalid("La connexion sécurisée à Payrexx est indisponible."))
 }
 
-async fn payrexx(method: reqwest::Method, resource: &str, instance: &str, secret: &str, pairs: Vec<(String, String)>) -> AppResult<Value> {
+pub(crate) async fn payrexx(method: reqwest::Method, resource: &str, instance: &str, secret: &str, pairs: Vec<(String, String)>) -> AppResult<Value> {
     let body = build_query(&pairs);
     let signature = api_signature(&body, secret);
     let mut url = url::Url::parse(&format!("{API}/{resource}/")).map_err(|_| invalid("Adresse Payrexx invalide."))?;

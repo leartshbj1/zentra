@@ -4,7 +4,7 @@
  */
 const KINDS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Ventes', ['reminder', 'poursuite', 'quote', 'acceptance', 'portal', 'opportunity', 'deliver', 'reminders-offer']],
-  ['Banque', ['bank', 'bank-batch', 'statement', 'statement-file', 'pay', 'pay-order', 'online', 'treasury-low', 'cash-diff', 'cash-count', 'fx-rate', 'claims-pay']],
+  ['Banque', ['bank', 'bank-batch', 'statement', 'statement-file', 'pay', 'pay-order', 'online', 'deposit', 'treasury-low', 'cash-diff', 'cash-count', 'fx-rate', 'claims-pay']],
   ['Achats', ['qrmail', 'order']],
   ['Stock', ['stock', 'produce', 'inventory', 'trace', 'lot-expiry', 'warehouse-negative']],
   ['Clients', ['contact']],
@@ -13,6 +13,7 @@ const KINDS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Équipe', ['payroll', 'certificates', 'vacation', 'ijm', 'claims']],
   ['Comptabilité', ['vat', 'budget', 'closing', 'depreciation', 'archive', 'archive-problem', 'contract']],
   ['Parc installé', ['service']],
+  ['Rendez-vous en ligne', ['booking']],
   ['Autopilote', ['rule']],
 ];
 

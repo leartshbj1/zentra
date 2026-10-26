@@ -1968,6 +1968,9 @@ export type Workspace = {
   customerEngagement?: import('./customerEngagement').CustomerEngagementSettings;
   smsMessages?: import('./customerEngagement').SmsMessage[];
   reviewRequests?: import('./customerEngagement').ReviewRequest[];
+  /** Acomptes Payrexx des devis et demandes de rendez-vous du portail client. */
+  quoteDepositLinks?: import('./portalTerrain').QuoteDepositLink[];
+  portalBookingRequests?: import('./portalTerrain').PortalBookingRequest[];
   supplierCreditNotes: SupplierCreditNote[];
   supplierExpenseReclassifications: SupplierExpenseReclassification[];
   payslips: Payslip[];

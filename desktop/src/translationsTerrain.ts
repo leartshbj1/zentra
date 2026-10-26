@@ -146,6 +146,8 @@ export const terrainTranslations: Record<string, readonly [string, string, strin
   'Envoi…': ['Wird gesendet …', 'Invio…', 'Sending…'],
   'Envoyer par SMS': ['Per SMS senden', 'Invia per SMS', 'Send by SMS'],
 
+  'L’acompte en ligne n’a pas pu être préparé ; le lien part sans acompte.': ['Die Online-Anzahlung konnte nicht vorbereitet werden; der Link wird ohne Anzahlung versendet.', 'Non è stato possibile preparare l’acconto online; il link parte senza acconto.', 'The online deposit could not be prepared; the link goes without a deposit.'],
+
   // Carte des chantiers
   'Carte des chantiers': ['Karte der Baustellen', 'Mappa dei cantieri', 'Job site map'],
   'Recherche des adresses…': ['Adressen werden gesucht …', 'Ricerca degli indirizzi…', 'Looking up the addresses…'],

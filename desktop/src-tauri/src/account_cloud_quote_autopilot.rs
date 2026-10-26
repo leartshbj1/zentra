@@ -17,6 +17,8 @@ const COMMAND_PATH: &str = "/api/account/automation/command";
 const DIGEST_PATH: &str = "/api/account/automation/digest";
 const PORTAL_PUBLISH_PATH: &str = "/api/account/portal/publish";
 const PORTAL_EVENTS_PATH: &str = "/api/account/portal/events";
+const PORTAL_SLOTS_PATH: &str = "/api/account/portal/slots";
+const PORTAL_BOOKINGS_PATH: &str = "/api/account/portal/bookings";
 const CONSENT_VERSION: &str = "action-engine-quote-draft-customer-2026-10-11";
 
 #[derive(Default)]
@@ -212,7 +214,12 @@ pub(crate) struct PortalPublishInput {
     kind: String, document_id: String, client_key: String, number: String, title: String, client_name: String, company_name: String,
     issue_date: String, #[serde(deserialize_with = "required_nullable")] valid_until: Option<String>, currency: String, total_cents: i64,
     lines: Vec<PortalLine>, #[serde(deserialize_with = "required_nullable")] pdf_base64: Option<String>,
+    /// Acompte calculé par l'app, payé sur la page Payrexx de l'entreprise : publié en schemaVersion 2.
+    #[serde(default)] deposit: Option<PortalDepositInput>,
 }
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct PortalDepositInput { amount_cents: i64, payment_url: String }
 impl PortalPublishInput {
     fn valid(&self) -> bool {
         let key = |v: &str| (1..=64).contains(&v.len()) && v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
@@ -223,13 +230,21 @@ impl PortalPublishInput {
             && (0..=100_000_000_000).contains(&self.total_cents) && self.lines.len() <= 200
             && self.lines.iter().all(|l| text(&l.description, 500) && l.quantity.chars().count() <= 32 && !l.quantity.chars().any(char::is_control) && l.total_cents.abs() <= 100_000_000_000)
             && self.pdf_base64.as_deref().is_none_or(|p| p.len() <= 7_000_000 && p.starts_with("JVBERi0"))
+            && self.deposit.as_ref().is_none_or(|d| self.kind == "quote" && (1..=self.total_cents).contains(&d.amount_cents)
+                && d.payment_url.len() <= 500 && crate::online_payments::valid_link(&d.payment_url))
     }
     fn body(&self) -> serde_json::Value {
-        serde_json::json!({ "schemaVersion": 1, "kind": self.kind, "documentId": self.document_id, "clientKey": self.client_key, "number": self.number,
+        let mut body = serde_json::json!({ "schemaVersion": 1, "kind": self.kind, "documentId": self.document_id, "clientKey": self.client_key, "number": self.number,
             "title": self.title, "clientName": self.client_name, "companyName": self.company_name, "issueDate": self.issue_date, "validUntil": self.valid_until,
             "currency": self.currency, "totalCents": self.total_cents,
             "lines": self.lines.iter().map(|l| serde_json::json!({ "description": l.description, "quantity": l.quantity, "totalCents": l.total_cents })).collect::<Vec<_>>(),
-            "pdfBase64": self.pdf_base64 })
+            "pdfBase64": self.pdf_base64 });
+        // Sans acompte, le corps reste exactement celui de schemaVersion 1.
+        if let (Some(deposit), Some(object)) = (&self.deposit, body.as_object_mut()) {
+            object.insert("schemaVersion".into(), serde_json::json!(2));
+            object.insert("deposit".into(), serde_json::json!({ "amountCents": deposit.amount_cents, "paymentUrl": deposit.payment_url }));
+        }
+        body
     }
 }
 #[derive(Deserialize, Serialize)]
@@ -238,6 +253,33 @@ struct PortalPublishReply { schema_version: u8, organization_id: String, documen
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PortalEvent { event_id: String, document_id: String, kind: String, signer_name: String, comment: String, at: u64 }
+/// Créneaux libres de l'agenda publiés pour la prise de rendez-vous : un début (heure suisse) et une durée.
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct PortalSlot { start: String, minutes: u16 }
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct PortalSlotsInput { slots: Vec<PortalSlot> }
+fn local_start(value: &str) -> bool {
+    value.len() == 16 && chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M").is_ok()
+}
+impl PortalSlotsInput {
+    fn valid(&self) -> bool {
+        self.slots.len() <= 500 && unique(self.slots.iter().map(|s| s.start.as_str())) && self.slots.iter().all(|s| local_start(&s.start) && (15..=240).contains(&s.minutes))
+    }
+    fn body(&self) -> serde_json::Value {
+        serde_json::json!({ "schemaVersion": 1, "slots": self.slots.iter().map(|s| serde_json::json!({ "start": s.start, "minutes": s.minutes })).collect::<Vec<_>>() })
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortalSlotsReply { schema_version: u8, organization_id: String, slots: u32 }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortalBooking { booking_id: String, client_key: String, start: String, minutes: u16, contact_name: String, phone: String, message: String, at: u64 }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortalBookingsPage { schema_version: u8, organization_id: String, items: Vec<PortalBooking>, #[serde(deserialize_with = "required_nullable")] next_cursor: Option<String> }
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PortalEventsPage { schema_version: u8, organization_id: String, items: Vec<PortalEvent>, #[serde(deserialize_with = "required_nullable")] next_cursor: Option<String> }
@@ -490,6 +532,23 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
             }) { return None; }
         return serde_json::to_value(data).ok();
     }
+    if path == PORTAL_SLOTS_PATH {
+        let data: PortalSlotsReply = serde_json::from_slice(bytes).ok()?;
+        return (data.schema_version == 1 && data.organization_id == stamp.inbox.session.organization_id && data.slots <= 500)
+            .then(|| serde_json::to_value(data).ok()).flatten();
+    }
+    if path == PORTAL_BOOKINGS_PATH {
+        let data: PortalBookingsPage = serde_json::from_slice(bytes).ok()?;
+        let key = |v: &str| (1..=64).contains(&v.len()) && v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+        if data.schema_version != 1 || data.organization_id != stamp.inbox.session.organization_id || data.items.len() > limit || !cursor(&data.next_cursor)
+            || !unique(data.items.iter().map(|v| v.booking_id.as_str())) || data.items.iter().any(|v| {
+                !id(&v.booking_id) || !key(&v.client_key) || !local_start(&v.start) || !(15..=240).contains(&v.minutes) || !text(&v.contact_name, 200)
+                    || v.phone.chars().count() > 40 || v.message.chars().count() > 2000 || !timestamp(v.at)
+                    || v.phone.chars().chain(v.message.chars()).any(|c| c.is_control() && c != '
+')
+            }) { return None; }
+        return serde_json::to_value(data).ok();
+    }
     if path == DIGEST_PATH {
         let data: DigestReply = serde_json::from_slice(bytes).ok()?;
         let date = |v: &str| v.len() == 10 && v.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() });
@@ -628,6 +687,19 @@ pub(crate) async fn portal_publish(store: State<'_, LocalStore>, origin: Origin,
     let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, PORTAL_PUBLISH_PATH, None, Some(body)).await });
     Ok(deliver_read(owned, origin, task).await)
 }
+/// Remplace les créneaux libres proposés sur les pages client ; jamais le contenu de l'agenda.
+#[tauri::command]
+pub(crate) async fn portal_publish_slots(store: State<'_, LocalStore>, origin: Origin, input: PortalSlotsInput) -> Result<ReadReply, String> {
+    if let Err(code) = admission(&origin) { return Ok(ReadReply::refused(code)); }
+    if !input.valid() { return Ok(ReadReply::refused("invalid_request")); }
+    let owned = store.inner().clone(); let worker = owned.clone(); let captured = origin.clone();
+    let body = input.body();
+    let task = tauri::async_runtime::spawn(async move { read_at(&worker, &captured, PORTAL_SLOTS_PATH, None, Some(body)).await });
+    Ok(deliver_read(owned, origin, task).await)
+}
+/// Demandes de rendez-vous des clients depuis la dernière position lue.
+#[tauri::command]
+pub(crate) async fn portal_bookings(store: State<'_, LocalStore>, origin: Origin, input: PageInput) -> Result<ReadReply, String> { Ok(read_page(&store, origin, input, PORTAL_BOOKINGS_PATH).await) }
 #[tauri::command]
 pub(crate) async fn portal_events(store: State<'_, LocalStore>, origin: Origin, input: PageInput) -> Result<ReadReply, String> { Ok(read_page(&store, origin, input, PORTAL_EVENTS_PATH).await) }
 #[tauri::command]

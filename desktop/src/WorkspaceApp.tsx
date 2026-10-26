@@ -33,6 +33,7 @@ import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
 import { CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
 import { appointmentReminders, normalizedPhone, reminderSms, reviewCandidates, reviewMailto, reviewSms, type SmsSettings } from './customerEngagement';
+import { depositsToRecord, freeSlots, slotsFingerprint } from './portalTerrain';
 import { InstalledEquipmentScreen, serviceTitle } from './InstalledEquipmentScreen';
 import { clientLabel as equipmentClientLabel, equipmentLabel, serviceKind, servicesToPlan, suggestedServiceSlot } from './installedEquipment';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
@@ -1184,6 +1185,46 @@ function WorkspaceContent({
     desktopApi.getSmsSettings().then(value => { if (live) setSmsSettings(value); }).catch(() => undefined);
     return () => { live = false; };
   }, [view]);
+  // Portail client : créneaux libres publiés quand ils changent, demandes de rendez-vous lues
+  // depuis la dernière position, acomptes Payrexx relus. Seulement pendant qu'Autopilote,
+  // le planning ou l'accueil est ouvert, et jamais en lecture seule.
+  const portalSyncing = useRef(false);
+  useEffect(() => {
+    if (!autopilotContext || readOnly || portalSyncing.current || !['automation', 'dashboard', 'planning'].includes(view)) return;
+    const { organizationId, origin } = autopilotContext;
+    portalSyncing.current = true;
+    void (async () => {
+      try {
+        const current = workspaceRef.current, engagement = current.customerEngagement;
+        let next: Workspace | null = null;
+        if (engagement?.bookingEnabled) {
+          const slots = freeSlots(engagement, current.agendaEvents, current.portalBookingRequests ?? [], todayIso());
+          const key = 'zentra.portal.slots.v1.' + organizationId, fingerprint = slotsFingerprint(slots);
+          let stored: string | null = null;
+          try { stored = localStorage.getItem(key); } catch { stored = null; }
+          if (stored !== fingerprint) {
+            const reply = await desktopApi.publishPortalSlots(origin, slots);
+            if (reply.status === 'available') try { localStorage.setItem(key, fingerprint); } catch { /* republié la prochaine fois */ }
+          }
+          const cursorKey = 'zentra.portal.bookings.v1.' + organizationId;
+          let cursor: string | null = null;
+          try { cursor = localStorage.getItem(cursorKey); } catch { cursor = null; }
+          for (let page = 0; page < 5; page++) {
+            const reply = await desktopApi.readPortalBookings(origin, { limit: 50, cursor });
+            if (reply.status !== 'available' || !reply.data) break;
+            if (reply.data.items.length) next = await desktopApi.savePortalBookingRequests(reply.data.items);
+            if (!reply.data.nextCursor || reply.data.nextCursor === cursor) break;
+            cursor = reply.data.nextCursor;
+            try { localStorage.setItem(cursorKey, cursor); } catch { /* relu la prochaine fois, sans doublon */ }
+            if (reply.data.items.length < 50) break;
+          }
+        }
+        if ((current.quoteDepositLinks ?? []).some(link => link.status === 'open')) next = await desktopApi.refreshQuoteDepositLinks();
+        if (next) { workspaceRef.current = next; setWorkspace(next); }
+      } catch { /* la synchronisation reprend à la prochaine ouverture */ } finally { portalSyncing.current = false; }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, autopilotContext?.organizationId, readOnly, workspace.customerEngagement?.bookingEnabled]);
   // Règles explicites choisies dans les réglages : rappels SMS la veille, avis par SMS.
   // Jamais la nuit, une seule tentative par élément et par ouverture ; chaque envoi va au journal.
   const ruleAttempts = useRef(new Set<string>());
@@ -1658,6 +1699,24 @@ function WorkspaceContent({
         why: `${copy.whyService.replace('{months}', String(due.equipment.serviceIntervalMonths))} · ${copy.confidenceHigh}`, signature: 'service',
         actions: [{ id: 'plan-service', label: copy.actionPlanService, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
+    // Portail client : demandes de rendez-vous à valider, acomptes payés en ligne à rapprocher.
+    for (const request of (workspace.portalBookingRequests ?? []).filter(row => row.status === 'pending')) {
+      const key = 'booking:' + request.id;
+      if (entries[key]?.ignored) continue;
+      const client = workspace.clients.find(row => row.id === request.clientId);
+      const when = new Intl.DateTimeFormat(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(Date.parse(request.startAt.slice(0, 10) + 'T12:00:00Z'));
+      cards.push({ key, title: copy.bookingTitle.replace('{name}', client?.company || client?.name || request.contactName).replace('{date}', when).replace('{time}', request.startAt.slice(11)),
+        detail: [request.contactName, request.phone, copy.bookingLength.replace('{n}', String(request.minutes))].filter(Boolean).join(' · '), evidence: request.message || undefined, why: copy.whyBooking,
+        actions: [{ id: 'booking-accept', label: copy.actionAcceptBooking, primary: true }, { id: 'booking-decline', label: copy.actionDeclineBooking }] });
+    }
+    for (const row of depositsToRecord(workspace.quoteDepositLinks ?? [], workspace.quotes, workspace.invoices)) {
+      const key = 'deposit:' + row.link.id;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.depositPaidTitle.replace('{amount}', formatMoney(row.link.amountCents, row.link.currency)).replace('{number}', row.quote.number),
+        detail: row.invoice ? copy.depositRecordDetail.replace('{invoice}', row.invoice.number || row.invoice.title) : copy.depositInvoiceDetail,
+        why: `${copy.whyDeposit} · ${copy.confidenceHigh}`,
+        actions: row.invoice ? [{ id: 'deposit-record', label: copy.actionRecordDeposit, primary: true }] : [{ id: 'deposit-invoice', label: copy.actionDepositInvoice, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
     // Avis Google : facture payée ces 30 derniers jours, une demande par client et par période.
     const engagement = workspace.customerEngagement;
     if (engagement?.reviewUrl) for (const row of reviewCandidates(workspace.invoices, workspace.payments, workspace.clients, workspace.reviewRequests ?? [], engagement, today).slice(0, 3)) {
@@ -1898,6 +1957,41 @@ function WorkspaceContent({
       let invoiceId = '';
       const done = await journalAct(async () => { const result = await desktopApi.invoiceWorkReport(key.slice('report:'.length)); invoiceId = result.invoiceId; return result.workspace; }, copy.reportInvoiced, false);
       if (done && invoiceId) { refresh(); openInvoiceById(invoiceId); }
+      return;
+    }
+    if (key.startsWith('booking:') && (actionId === 'booking-accept' || actionId === 'booking-decline')) {
+      const request = (workspaceRef.current.portalBookingRequests ?? []).find(row => 'booking:' + row.id === key);
+      if (!request) return;
+      if (actionId === 'booking-decline') {
+        const done = await journalAct(() => desktopApi.decidePortalBooking(request.id, 'declined', null), copy.bookingDeclined, false);
+        if (done) refresh();
+        return;
+      }
+      // Le rendez-vous entre dans l'agenda comme tout autre ; la demande garde son lien.
+      const client = workspaceRef.current.clients.find(row => row.id === request.clientId);
+      const start = request.startAt.slice(11), total = Number(start.slice(0, 2)) * 60 + Number(start.slice(3, 5)) + request.minutes;
+      const end = `${String(Math.min(23, Math.floor(total / 60))).padStart(2, '0')}:${String(total >= 24 * 60 ? 45 : total % 60).padStart(2, '0')}`;
+      const eventId = createId();
+      const done = await journalAct(async () => {
+        await desktopApi.saveAgendaEvent({ id: eventId, isNew: true, expectedUpdatedAt: null, title: copy.bookingEventTitle.replace('{name}', client?.company || client?.name || request.contactName),
+          startDate: request.startAt.slice(0, 10), endDate: request.startAt.slice(0, 10), allDay: false, startTime: start, endTime: end, kind: 'appointment', status: 'scheduled',
+          location: client?.address?.replace(/\n/g, ', ') ?? '', notes: [request.contactName, request.phone, request.message].filter(Boolean).join('\n'), projectId: null, employeeId: null });
+        return desktopApi.decidePortalBooking(request.id, 'accepted', eventId);
+      }, copy.bookingAccepted, false);
+      if (done) refresh();
+      return;
+    }
+    if (key.startsWith('deposit:') && (actionId === 'deposit-record' || actionId === 'deposit-invoice')) {
+      const row = depositsToRecord(workspaceRef.current.quoteDepositLinks ?? [], workspaceRef.current.quotes, workspaceRef.current.invoices).find(item => 'deposit:' + item.link.id === key);
+      if (!row) return;
+      if (actionId === 'deposit-invoice' || !row.invoice) {
+        // La facture d'acompte se crée comme pour tout devis accepté ; la carte revient pour le rapprochement.
+        setSearch(''); setView('quotes'); setModal({ type: 'quoteConversion', quote: row.quote });
+        return;
+      }
+      const invoiceId = row.invoice.id;
+      const done = await journalAct(() => desktopApi.recordQuoteDeposit(row.link.id, invoiceId), copy.depositRecorded, false);
+      if (done) refresh();
       return;
     }
     if (key.startsWith('review:') && ['review-mail', 'review-sms', 'review-copy'].includes(actionId)) {
@@ -3080,7 +3174,17 @@ function WorkspaceContent({
     try {
       let pdf: string | null = null;
       try { pdf = bytesToBase64(await desktopApi.documentPdfPreview('quotes', item.id)); } catch { pdf = null; }
-      const reply = await desktopApi.publishQuotePortal(origin, portalPublishInput(item, workspaceRef.current, pdf));
+      const input = portalPublishInput(item, workspaceRef.current, pdf);
+      // Acompte : montant calculé par l'app, page de paiement du compte Payrexx de l'entreprise.
+      if ((workspaceRef.current.customerEngagement?.depositPercentBp ?? 0) > 0 && (await desktopApi.getOnlinePaymentSettings().catch(() => null))?.enabled) {
+        try {
+          const deposit = await desktopApi.createQuoteDepositLink(item.id);
+          if (deposit.url && deposit.amountCents > 0) input.deposit = { amountCents: deposit.amountCents, paymentUrl: deposit.url };
+        } catch (reason) {
+          setNotice({ tone: 'warning', text: errorMessage(reason, t('L’acompte en ligne n’a pas pu être préparé ; le lien part sans acompte.')) });
+        }
+      }
+      const reply = await desktopApi.publishQuotePortal(origin, input);
       if (reply.status !== 'available' || !reply.data) {
         setNotice({ tone: 'warning', text: reply.code === 'revision_conflict' ? t('Le client a déjà répondu à ce devis : sa réponse apparaît dans À faire.') : t('Le lien d’acceptation n’a pas pu être créé. Vérifiez la connexion au compte Zentra, puis réessayez.') });
         return;

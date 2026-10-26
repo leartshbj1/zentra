@@ -78,3 +78,7 @@ src/dictation.test.ts
 src/customerEngagement.test.ts
 rust:customer_engagement::
 rust:sms::
+src/portalTerrain.test.ts
+rust:quote_deposits::
+rust:portal_bookings::
+rust:online_payments::

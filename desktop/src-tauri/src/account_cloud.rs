@@ -1669,6 +1669,8 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | "/api/account/automation/digest"
             | "/api/account/portal/publish"
             | "/api/account/portal/events"
+            | "/api/account/portal/slots"
+            | "/api/account/portal/bookings"
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }
