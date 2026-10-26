@@ -39,7 +39,8 @@ import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline
 import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
-import { openIntegrationsSettings } from './automation';
+import { IntegrationsSettings } from './IntegrationsSettings';
+import { settingsNavigationSession } from './settingsNavigation';
 import { CustomerReadiness, CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
 import { findUsualArticles, withUsualArticles } from './usualArticles';
 import { appointmentReminders, normalizedPhone, reminderSms, reviewCandidates, reviewMailto, reviewSms, type SmsSettings } from './customerEngagement';
@@ -5214,7 +5215,12 @@ function WorkspaceContent({
         ...visibleNavigation.map((item) => ({ ...item, label: item.id === 'quotes' ? 'Devis' : item.label, description: viewTitles[item.id][1] })),
         { id: 'orders' as const, label: 'Commandes & livraisons', description: viewTitles.orders[1], icon: Package },
         { id: 'invoices' as const, label: 'Factures', description: viewTitles.invoices[1], icon: Receipt },
-      ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => { setView(next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false); }} /> : null}
+        // Company connections live in a settings section; the switcher opens it directly.
+        { id: 'settings:integrations' as const, label: 'API, boutiques et courrier', description: 'Clés API, Shopify, WooCommerce et factures par la poste', icon: Plug },
+      ]} onClose={() => setNavigationOpen(false)} onSelect={(next) => {
+        if (next === 'settings:integrations') settingsNavigationSession.category = 'integrations';
+        setView(next === 'settings:integrations' ? 'settings' : next); setProjectFolderId(null); setSearch(''); setAccountingEntryFocus(null); setMenuOpen(false); setNavigationOpen(false);
+      }} /> : null}
       <nav ref={mobileNavigationRef} className="mobile-navigation" data-personalized aria-label={t("Navigation mobile")} hidden={nativeNavigation}>
         <span className="mobile-navigation__selection" aria-hidden="true" />
         <div className="mobile-navigation__shortcuts">
@@ -7691,18 +7697,6 @@ function TeamScreen({
   );
 }
 
-/** API, shops and postal mail are company-wide connections kept on the Zentra account page. */
-function IntegrationsSetting() {
-  useAppLanguage();
-  const [message, setMessage] = useState('');
-  return <div className="settings-copy-block">
-    <p className="settings-copy">{t('Ces connexions se règlent sur votre compte Zentra, pour toute l’entreprise : clés API et MCP, webhooks, boutiques Shopify et WooCommerce, et compte Pingen pour envoyer les factures par la poste.')}</p>
-    <p className="settings-copy">{t('Ensuite, les commandes des boutiques arrivent dans Zentra Autopilote, et « Envoyer par la poste » apparaît dans le menu « … » de chaque facture émise.')}</p>
-    <div className="form-actions"><Button onClick={() => { setMessage(''); void openIntegrationsSettings().catch(() => setMessage(t('Ouvrez zentraapp.ch/compte/integrations dans votre navigateur.'))); }}><ExternalLink size={16} /> {t('Ouvrir les connexions')}</Button></div>
-    {message ? <p role="status" className="settings-copy">{message}</p> : null}
-  </div>;
-}
-
 function SettingsScreen({
   initialCategory,
   automationActive,
@@ -8042,7 +8036,7 @@ function SettingsScreen({
       </SettingsCategory>
       <SettingsCategory id="automation" lazy title="Zentra Autopilote" description="Suggestions et réglages de l’équipe" icon={ListChecks}><AutomationSettings showHubLink embedded /></SettingsCategory>
       <SettingsCategory id="integrations" title={t('API, boutiques et courrier')} description={t('Clés API, Shopify, WooCommerce et factures par la poste')} icon={Plug}>
-        <section className="panel settings-card settings-card--wide"><IntegrationsSetting /></section>
+        <section className="panel settings-card settings-card--wide"><IntegrationsSettings disabled={readOnly} /></section>
       </SettingsCategory>
       <SettingsCategory id="mail" lazy title="E-mails" description="Messagerie, devis, factures et textes personnalisés" icon={Mail}>
         <MailSettings embedded companyName={org.legalName} companyEmail={org.email} readOnly={readOnly} onSaved={async () => { await execute((scope, nonce) => refreshWorkspaceAfterMutation(() => desktopApi.loadWorkspace(scope, nonce)), 'Modèles enregistrés pour l’entreprise.'); }} />

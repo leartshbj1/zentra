@@ -68,6 +68,11 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
         if (args.data.action==='import' && workspace) {const v=args.data.event as Record<string,unknown>; workspace.agendaEvents.push({id:String(args.data.id),title:String(v.title),startDate:String(v.start_date),endDate:String(v.end_date),startTime:String(v.start_time),endTime:String(v.end_time),allDay:!!v.all_day,kind:'appointment',status:'scheduled',location:String(v.location),notes:String(v.notes),projectId:null,employeeId:null,updatedAt:new Date().toISOString(),createdAt:new Date().toISOString()} as Workspace['agendaEvents'][number]);return{saved:true};}
         return {saved:true};
       }
+      if (command === 'integrations_overview') return {apiBaseUrl:'https://zentraapp.ch/api/v1',mcpUrl:'https://zentraapp.ch/api/mcp',projection:{revision:4,publishedAt:'2026-10-26T08:12:00.000Z'},pendingDrafts:1,
+        keys:[{keyId:'key_demo',name:'Site internet',prefix:'zk_live_4f2a',scopes:'read drafts',createdAt:'2026-10-20T09:00:00.000Z',lastUsedAt:'2026-10-26T07:55:00.000Z'}],
+        webhooks:[{endpointId:'whe_demo',url:'https://atelier-exemple.ch/zentra',events:'*',createdAt:'2026-10-21T09:00:00.000Z',paused:false,consecutiveFailures:0,lastSuccessAt:'2026-10-26T08:01:00.000Z',lastFailureAt:null,lastStatus:200}],
+        shops:[{connectionId:'shop_demo',platform:'shopify',shopDomain:'atelier-exemple.myshopify.com',receiverUrl:'https://zentraapp.ch/api/commerce/shopify/shop_demo',lastEventAt:'2026-10-25T16:40:00.000Z'}],postal:null};
+      if (command === 'integrations_action') return {token:'zk_live_exemple_fictif_0000'};
       if (command !== 'automation_request') throw Error('Not available in this fixture');
       if (!args.data) { if (unavailable) throw Error('Offline fixture'); return structuredClone(state); }
       if (args.data.action === 'centre') return structuredClone(centre);

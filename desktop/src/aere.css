@@ -454,3 +454,141 @@ html[data-app-theme] .desktop-app[data-experience] .customer-readiness li > span
   gap: 2px;
   min-width: 0;
 }
+
+/* Paramètres › API, boutiques et courrier. */
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings {
+  display: grid;
+  gap: 28px;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings > section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings > section + section {
+  padding-top: 24px;
+  border-top: 1px solid var(--apple-line);
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings h3 {
+  margin: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__facts > div {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__facts dt {
+  color: var(--apple-secondary);
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__facts dd {
+  min-width: 0;
+  margin: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integration-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integration-copy code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--apple-line);
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__list li > span:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__list small {
+  color: var(--apple-secondary);
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__form > :is(.settings-copy, .form-actions, fieldset) {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 0;
+  border: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__events legend {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__events label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__secret {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--apple-grouped);
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__secret p {
+  margin: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__error {
+  margin: 0;
+  color: var(--apple-danger, var(--apple-ink));
+  font-weight: 600;
+}
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .integrations-settings__facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .integrations-settings__list li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__events label input[type='checkbox'] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+}
+html[data-app-theme] .desktop-app[data-experience] .integrations-settings__events label {
+  white-space: nowrap;
+}
+html[data-app-theme] .desktop-app[data-experience] .integration-copy .button {
+  flex: none;
+  white-space: nowrap;
+}

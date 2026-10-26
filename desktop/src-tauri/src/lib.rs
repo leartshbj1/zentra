@@ -391,6 +391,8 @@ pub fn run() {
             public_api::public_api_inbox_decide,
             public_api::postal_send_invoice,
             public_api::postal_letters,
+            public_api::integrations_overview,
+            public_api::integrations_action,
             cash_book::add_cash_entry,
             cash_book::record_cash_count,
             cash_book::correct_cash_count,

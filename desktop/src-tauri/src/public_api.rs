@@ -27,6 +27,9 @@ pub(crate) const PROJECTION_PATH: &str = "/api/account/api/projection";
 pub(crate) const INBOX_PATH: &str = "/api/account/inbox";
 pub(crate) const INBOX_ACK_PATH: &str = "/api/account/inbox/ack";
 pub(crate) const POSTAL_PATH: &str = "/api/account/postal/letters";
+pub(crate) const INTEGRATIONS_PATH: &str = "/api/account/integrations/device";
+const INTEGRATION_ACTIONS: [&str; 10] = ["create-key", "revoke-key", "create-webhook", "delete-webhook", "resume-webhook", "test-webhook",
+    "create-shop", "delete-shop", "save-postal", "delete-postal"];
 
 const PAGE_OPERATIONS: usize = 300;
 const PAGE_BYTES: usize = 700_000;
@@ -434,6 +437,33 @@ pub async fn public_api_inbox_decide(state: State<'_, LocalStore>, item_id: Stri
     post_json(&session, INBOX_ACK_PATH, &json!({ "schemaVersion": 1, "itemId": item_id, "state": decision, "reference": reference }))
         .await
         .map_err(command_error)
+}
+
+/// Réglages « API, boutiques et courrier » de l'entreprise (titulaire et administrateurs).
+#[tauri::command]
+pub async fn integrations_overview(state: State<'_, LocalStore>) -> Result<Value, String> {
+    let store = state.inner().clone();
+    let session = session_for(&store, true).await.map_err(command_error)?;
+    let (_, bytes) = session.request(Method::GET, INTEGRATIONS_PATH, &[], &[], None, false).await.map_err(command_error)?;
+    checked_reply(&bytes, &session.organization_id).map_err(command_error)
+}
+
+/// Crée ou retire une clé API, un webhook, une boutique ou le compte Pingen. Les
+/// jetons et secrets reviennent une seule fois, dans cette réponse.
+#[tauri::command]
+pub async fn integrations_action(state: State<'_, LocalStore>, input: Value) -> Result<Value, String> {
+    let store = state.inner().clone();
+    let mut body = match input { Value::Object(map) => map, _ => return Err("Réglage illisible.".into()) };
+    let action = body.get("action").and_then(Value::as_str).unwrap_or_default().to_string();
+    if !INTEGRATION_ACTIONS.contains(&action.as_str()) {
+        return Err("Action inconnue.".into());
+    }
+    if serde_json::to_vec(&body).map(|v| v.len()).unwrap_or(usize::MAX) > 12_000 {
+        return Err("Réglage trop long.".into());
+    }
+    body.insert("schemaVersion".into(), json!(1));
+    let session = session_for(&store, true).await.map_err(command_error)?;
+    post_json(&session, INTEGRATIONS_PATH, &Value::Object(body)).await.map_err(command_error)
 }
 
 /// Envoie par la poste le PDF d'une facture émise (compte Pingen de l'entreprise).

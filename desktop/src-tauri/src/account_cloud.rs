@@ -1680,6 +1680,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | crate::public_api::INBOX_PATH
             | crate::public_api::INBOX_ACK_PATH
             | crate::public_api::POSTAL_PATH
+            | crate::public_api::INTEGRATIONS_PATH
             | "/api/account/portal/slots"
             | "/api/account/portal/bookings"
             | crate::fiduciary_summary::PATH
