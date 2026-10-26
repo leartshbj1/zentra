@@ -345,6 +345,7 @@ fn read(db: &Connection) -> AppResult<Data> {
             tx.execute_batch(crate::schema::MIGRATION_V77_SQL)?;
         }
         tx.execute_batch(crate::schema::MIGRATION_V78_SQL)?;
+        crate::payment_safety::migrate_history(&tx, false)?;
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
         tx.pragma_update(None, "user_version", 78)?;

@@ -498,6 +498,24 @@ fn table_exists(connection: &Connection, name: &str) -> AppResult<bool> {
     Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [name], |row| row.get(0))?)
 }
 
+/// Historique des IBAN (v78), seulement quand les tables d'achat existent :
+/// toute vraie base les a, les bases partielles des anciens tests non.
+/// La reprise des ordres déjà préparés ne se fait que dans la base de
+/// l'appareil (`with_orders`) : dans une copie d'archive, la table porte déjà
+/// la garde d'écriture de l'entreprise.
+pub(crate) fn migrate_history(connection: &Connection, with_orders: bool) -> AppResult<()> {
+    for table in ["suppliers", "supplier_invoices", "supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items"] {
+        if !table_exists(connection, table)? {
+            return Ok(());
+        }
+    }
+    if with_orders {
+        connection.execute_batch(crate::schema::MIGRATION_V78_ORDERS_SQL)?;
+    }
+    connection.execute_batch(crate::schema::MIGRATION_V78_HISTORY_SQL)?;
+    Ok(())
+}
+
 pub(crate) fn load_settings(connection: &Connection) -> AppResult<Settings> {
     if !table_exists(connection, "payment_safety_settings")? {
         return Ok(Settings::default());

@@ -1957,6 +1957,7 @@ impl LocalStore {
                     transaction.execute_batch(sql)?;
                 }
             }
+            crate::payment_safety::migrate_history(&transaction, true)?;
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
             transaction.pragma_update(None, "user_version", 78)?;
