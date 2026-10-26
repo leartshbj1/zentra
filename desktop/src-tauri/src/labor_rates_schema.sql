@@ -24,5 +24,5 @@ CREATE TABLE IF NOT EXISTS labor_rates (
   cost_cents INTEGER CHECK(cost_cents IS NULL OR cost_cents BETWEEN 0 AND 100000000)
 );
 CREATE INDEX IF NOT EXISTS idx_labor_rates_table ON labor_rates(table_id, position);
-ALTER TABLE work_report_lines ADD COLUMN labor_rate_id TEXT;
+-- work_report_lines.labor_rate_id : ajouté par database::ensure_shared_step_columns.
 PRAGMA user_version=80;

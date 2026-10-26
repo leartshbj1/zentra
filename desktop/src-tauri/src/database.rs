@@ -767,6 +767,36 @@ fn migrate_v25(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+/// Colonnes ajoutées aux tables existantes par les étapes partagées du Pack
+/// bâtiment. ALTER TABLE n'étant pas rejouable, chaque colonne n'est ajoutée
+/// que si elle manque (une copie déjà migrée peut repasser par l'étape).
+pub(crate) fn ensure_shared_step_columns(transaction: &Transaction<'_>, version: i64) -> AppResult<()> {
+    let columns: &[(&str, &str, &str)] = match version {
+        78 => &[
+            ("quote_items", "section_title", "section_title TEXT CHECK(section_title IS NULL OR LENGTH(section_title) BETWEEN 1 AND 120)"),
+            ("quote_items", "measurements_json", "measurements_json TEXT CHECK(measurements_json IS NULL OR json_valid(measurements_json))"),
+            ("invoice_items", "section_title", "section_title TEXT CHECK(section_title IS NULL OR LENGTH(section_title) BETWEEN 1 AND 120)"),
+            ("invoice_items", "measurements_json", "measurements_json TEXT CHECK(measurements_json IS NULL OR json_valid(measurements_json))"),
+            ("quotes", "show_measurements", "show_measurements INTEGER NOT NULL DEFAULT 0 CHECK(show_measurements IN (0,1))"),
+            ("invoices", "show_measurements", "show_measurements INTEGER NOT NULL DEFAULT 0 CHECK(show_measurements IN (0,1))"),
+        ],
+        80 => &[("work_report_lines", "labor_rate_id", "labor_rate_id TEXT")],
+        _ => &[],
+    };
+    for (table, column, definition) in columns {
+        // Une base réduite (anciens tests de migration) peut ne pas avoir la table.
+        let exists: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)",
+            [table],
+            |row| row.get(0),
+        )?;
+        if exists {
+            add_column_if_missing(transaction, table, column, definition)?;
+        }
+    }
+    Ok(())
+}
+
 fn add_column_if_missing(
     transaction: &Transaction<'_>,
     table: &str,
@@ -1955,6 +1985,7 @@ impl LocalStore {
         if current < crate::schema::SCHEMA_VERSION {
             for (version, sql) in shared_steps {
                 if current < version {
+                    ensure_shared_step_columns(&transaction, version)?;
                     transaction.execute_batch(sql)?;
                 }
             }

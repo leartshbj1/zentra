@@ -347,12 +347,14 @@ fn read(db: &Connection) -> AppResult<Data> {
         }
         // Pack bâtiment : métré et chapitres (v78), situations SIA 118 (v79).
         if version < 78 {
+            crate::database::ensure_shared_step_columns(&tx, 78)?;
             tx.execute_batch(crate::schema::MIGRATION_V78_SQL)?;
         }
         if version < 79 {
             tx.execute_batch(crate::schema::MIGRATION_V79_SQL)?;
         }
         // Tarifs de régie (v80).
+        crate::database::ensure_shared_step_columns(&tx, 80)?;
         tx.execute_batch(crate::schema::MIGRATION_V80_SQL)?;
         tx.execute_batch("DROP TABLE IF EXISTS company_local_tracking_version;")?;
         crate::company_collaboration::migrate(&tx)?;
