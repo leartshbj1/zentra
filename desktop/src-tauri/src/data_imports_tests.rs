@@ -99,6 +99,8 @@ fn article(row_number: usize, sku: &str, price: i64) -> CatalogImportRowInput {
         sales_price_cents: price,
         vat_bp: 810,
         kind: "product".into(),
+        ean: None,
+        trade_source: None,
     }
 }
 
