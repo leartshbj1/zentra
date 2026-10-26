@@ -425,9 +425,23 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = LocalStore::initialize(dir.path().join("profile")).unwrap();
         let now = now_iso();
-        let connection = store.connect().unwrap();
+        let mut connection = store.connect().unwrap();
         connection.execute("INSERT INTO settings(id,onboarding_completed,company_name,created_at,updated_at) VALUES(1,1,'Caisse test',?,?)", params![now, now]).unwrap();
-        connection.execute("INSERT INTO catalog_items(id,kind,sku,name,unit,sales_price_cents,vat_bp,track_stock,stock_quantity_milli,created_at,updated_at) VALUES('cafe','product','CAF','Café en grains','pce',1850,260,1,5000,?,?)", params![now, now]).unwrap();
+        // Un article suivi commence à zéro : le stock entre par un mouvement.
+        connection.execute("INSERT INTO catalog_items(id,kind,sku,name,unit,sales_price_cents,vat_bp,track_stock,stock_quantity_milli,created_at,updated_at) VALUES('cafe','product','CAF','Café en grains','pce',1850,260,1,0,?,?)", params![now, now]).unwrap();
+        let tx = connection.transaction().unwrap();
+        record_manual_stock_movement_in(&tx, ManualMovement {
+            request_id: Uuid::new_v4().to_string(),
+            catalog_item_id: "cafe".into(),
+            movement_type: ManualMovementType::Entry,
+            quantity_delta_milli: 5000,
+            reason: "Stock initial".into(),
+            reference: None,
+            requested_date: Some("2026-10-01".into()),
+            expected_balance: None,
+        })
+        .unwrap();
+        tx.commit().unwrap();
         (dir, store)
     }
 
