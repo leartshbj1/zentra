@@ -7033,6 +7033,24 @@ function SettingsScreen({
     }
   }
 
+  async function exportEverything() {
+    setBusy(true);
+    onNotice(null);
+    try {
+      const result = await desktopApi.exportFullArchive();
+      onNotice({
+        tone: 'success',
+        text: result.missingAttachments
+          ? t('Export complet créé : {path}. {missing} pièce(s) jointe(s) introuvable(s) sur cet appareil n’ont pas pu être incluses.', { path: result.path, missing: result.missingAttachments })
+          : t('Export complet créé : {path}', { path: result.path }),
+      });
+    } catch (reason) {
+      onNotice({ tone: 'error', text: errorMessage(reason, t('L’export complet n’a pas pu être créé.')) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function exportPortableData(format: 'json' | 'csv') {
     setBusy(true);
     onNotice(null);
@@ -7903,7 +7921,11 @@ function SettingsScreen({
           exports restent en clair&nbsp;: conservez-les dans un emplacement
           protégé.
         </p>
+        <p className="settings-copy">{t('Tout exporter réunit en un seul fichier les données complètes, les listes, chaque pièce jointe et les archives légales. C’est gratuit et lisible sans Zentra.')}</p>
         <div className="settings-actions">
+          <Button disabled={operationBusy} onClick={() => void exportEverything()}>
+            <Download size={16} /> {t('Tout exporter')}
+          </Button>
           <Button
             variant="secondary"
             disabled={operationBusy}

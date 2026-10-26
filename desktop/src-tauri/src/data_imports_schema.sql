@@ -52,10 +52,4 @@ CREATE TRIGGER IF NOT EXISTS data_import_invoice_cancellations_no_update BEFORE 
 BEGIN SELECT RAISE(ABORT,'Une annulation de reprise ne se modifie pas.'); END;
 CREATE TRIGGER IF NOT EXISTS data_import_invoice_cancellations_no_delete BEFORE DELETE ON data_import_invoice_cancellations
 BEGIN SELECT RAISE(ABORT,'Une annulation de reprise est conservée.'); END;
-DROP TRIGGER IF EXISTS invoices_issued_no_unsafe_cancel;
-CREATE TRIGGER invoices_issued_no_unsafe_cancel
-BEFORE UPDATE OF status ON invoices
-WHEN OLD.number IS NOT NULL AND OLD.status<>'annulee' AND NEW.status='annulee'
-  AND NOT EXISTS(SELECT 1 FROM data_import_invoice_cancellations c WHERE c.invoice_id=OLD.id)
-BEGIN SELECT RAISE(ABORT,'issued invoices cannot be cancelled; issue a traceable credit note'); END;
 PRAGMA user_version=78;

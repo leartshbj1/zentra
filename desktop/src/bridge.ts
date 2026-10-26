@@ -6839,6 +6839,13 @@ export const desktopApi = {
     await invoke<AppState>('restore_backup', { source });
     return refreshWorkspaceAfterMutation(loadWorkspace);
   },
+  /** Tout exporter en un clic : un ZIP lisible sans Zentra, gratuit. */
+  async exportFullArchive() {
+    const raw = await invoke<RawRecord>('export_full_archive', {});
+    const path = stringValue(raw.path);
+    await shareMobileExport(path);
+    return { path, attachments: numberValue(raw.attachments), missingAttachments: numberValue(raw.missing_attachments), legalArchives: numberValue(raw.legal_archives) };
+  },
   async exportData(format: 'json' | 'csv') {
     const command = format === 'json' ? 'export_json' : 'export_csv_archive';
     const path = await invoke<string>(command, {});

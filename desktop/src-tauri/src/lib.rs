@@ -606,6 +606,7 @@ pub fn run() {
             restore_backup,
             export_json,
             export_csv_archive,
+            export_full_archive,
             add_supplier_invoice_attachment,
             add_scanned_supplier_attachment,
             fixed_assets::list_fixed_assets,

@@ -85,6 +85,16 @@ pub struct MigrationBalanceInput {
     pub balance: OpeningBalanceInput,
 }
 
+/// Garde d'annulation des factures émises, avec la seule exception d'une
+/// reprise annulée (v78). Une base sans table de factures n'en a pas besoin.
+pub(crate) fn ensure_invoice_guard(tx: &Transaction<'_>) -> AppResult<()> {
+    let invoices: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='invoices')", [], |row| row.get(0))?;
+    if invoices {
+        tx.execute_batch(crate::schema::MIGRATION_V78_INVOICE_GUARD_SQL)?;
+    }
+    Ok(())
+}
+
 /// Nom affiché du logiciel d'origine, repris dans les libellés créés.
 pub(crate) fn source_label(source: &str) -> AppResult<&'static str> {
     Ok(match source {

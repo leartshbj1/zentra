@@ -154,3 +154,40 @@ mod tests {
         assert!(!csv.exists());
     }
 }
+
+#[cfg(test)]
+mod full_export_tests {
+    use std::io::Read;
+
+    #[test]
+    fn the_full_export_holds_data_lists_attachments_and_records_itself() {
+        let temporary = tempfile::tempdir().unwrap();
+        let store = crate::database::LocalStore::initialize(temporary.path().join("profile")).unwrap();
+        store.complete_onboarding(crate::tests::test_onboarding(), "full-export-test").unwrap();
+        std::fs::write(store.attachments_dir.join("stored-1.pdf"), b"%PDF-1.4 justificatif").unwrap();
+        store
+            .connect()
+            .unwrap()
+            .execute_batch(
+                "INSERT INTO attachments(id,entity_type,entity_id,original_name,stored_name,size_bytes,created_at,updated_at)
+                 VALUES('att-1','expense','exp-1','Quittance essence.pdf','stored-1.pdf',21,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+                       ('att-2','expense','exp-2','Perdu.pdf','missing.pdf',5,'2026-01-02T00:00:00Z','2026-01-02T00:00:00Z');",
+            )
+            .unwrap();
+        let destination = temporary.path().join("tout.zip");
+        let result = store.export_full_archive(Some(destination.to_string_lossy().into_owned()), "test").unwrap();
+        assert_eq!((result["attachments"].as_u64(), result["missing_attachments"].as_u64()), (Some(1), Some(1)));
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&destination).unwrap()).unwrap();
+        let names: Vec<String> = (0..archive.len()).map(|index| archive.by_index(index).unwrap().name().to_owned()).collect();
+        assert!(names.contains(&"LISEZ-MOI.txt".to_owned()));
+        assert!(names.contains(&"donnees-zentra.json".to_owned()));
+        assert!(names.iter().any(|name| name.starts_with("listes-csv/") && name.ends_with(".csv")));
+        let mut pdf = String::new();
+        archive.by_name("pieces-jointes/Quittance essence.pdf").unwrap().read_to_string(&mut pdf).unwrap();
+        assert_eq!(pdf, "%PDF-1.4 justificatif");
+        let audits: i64 = store.connect().unwrap().query_row("SELECT COUNT(*) FROM audit_log WHERE entity_type='full_export'", [], |row| row.get(0)).unwrap();
+        assert_eq!(audits, 1);
+        // Une destination existante n'est jamais écrasée.
+        assert!(store.export_full_archive(Some(destination.to_string_lossy().into_owned()), "test").is_err());
+    }
+}

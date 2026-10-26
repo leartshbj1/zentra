@@ -2052,6 +2052,18 @@ pub async fn export_csv_archive(
     run_locked_local_operation(store, move |store| store.export_csv_archive(destination, &version)).await
 }
 
+/// Export complet gratuit : données, listes, pièces jointes et archives légales.
+#[tauri::command]
+pub async fn export_full_archive(
+    state: State<'_, LocalStore>,
+    app: AppHandle,
+    destination: Option<String>,
+) -> Result<Value, String> {
+    let store = state.inner().clone();
+    let version = app_version(&app);
+    run_locked_local_operation(store, move |store| store.export_full_archive(destination, &version)).await
+}
+
 #[cfg(test)]
 #[path = "commands_worker_tests.rs"]
 mod worker_tests;
