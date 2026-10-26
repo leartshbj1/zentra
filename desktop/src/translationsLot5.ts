@@ -86,6 +86,7 @@ export const lot5Translations: Record<string, readonly [string, string, string]>
   'Le compte doit être vérifié avant cette action.': ['Das Konto muss vor dieser Aktion geprüft werden.', 'Il conto deve essere verificato prima di questa azione.', 'The account must be checked before this action.'],
   'Devis créé en brouillon.': ['Offerte als Entwurf erstellt.', 'Offerta creata in bozza.', 'Quote created as a draft.'],
   'Annulée depuis le journal Autopilote': ['Aus dem Autopilote-Journal storniert', 'Annullato dal giornale di Autopilote', 'Cancelled from the Autopilote journal'],
+  'Versement {platform} : {n} paiements de la boutique ({gross}), frais {fee}. Rapprochez-le dans la banque et comptabilisez les frais.': ['{platform}-Auszahlung: {n} Shop-Zahlungen ({gross}), Gebühren {fee}. Gleichen Sie sie in der Bank ab und verbuchen Sie die Gebühren.', 'Versamento {platform}: {n} pagamenti del negozio ({gross}), commissioni {fee}. Riconciliatelo in banca e registrate le commissioni.', '{platform} payout: {n} shop payments ({gross}), fees {fee}. Reconcile it in the bank and book the fees.'],
   // Courrier
   'Envoyer par la poste': ['Per Post senden', 'Invia per posta', 'Send by post'],
   'Envoyer par la poste la facture {number}': ['Rechnung {number} per Post senden', 'Invia per posta la fattura {number}', 'Send invoice {number} by post'],

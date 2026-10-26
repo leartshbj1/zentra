@@ -37,7 +37,7 @@ import { CashBookPanel } from './CashBookPanel';
 import { PosPanel } from './PosPanel';
 import { openApi, posApi, type InboxItem, type OpenApiStatus, type PosDay } from './openApi';
 import { closingInvoiceLines, closingMarker, closingPayments } from './pos';
-import { apiDraftLines, inboxCardSource, invoiceForShopPayment, PLATFORM_LABEL, partyCustomer, partyFrom, quoteLines, shopMarker, shopOrderLines } from './inboxDrafts';
+import { apiDraftLines, inboxCardSource, invoiceForShopPayment, matchShopPayout, PLATFORM_LABEL, partyCustomer, partyFrom, quoteLines, shopMarker, shopOrderLines } from './inboxDrafts';
 import { TreasuryPanel, forecastLabel } from './TreasuryPanel';
 import { ContractsPanel } from './ContractsPanel';
 import { eveningCountDue, localDate, uncorrectedCount, cashBalance } from './cashBook';
@@ -1405,6 +1405,9 @@ function WorkspaceContent({
       cards.push({ key, title: copy.tomorrowTitle.replace('{time}', item.extraction.allDay ? '' : item.extraction.startTime).replace('{title}', item.extraction.title || item.subject),
         detail: item.extraction.location || item.sender, actions: [{ id: 'open-agenda', label: copy.actionOpenAgenda, primary: true }, { id: 'ignore', label: copy.actionDone }] });
     }
+    // Paiements de boutique déjà enregistrés, du plus ancien au plus récent, pour reconnaître un versement.
+    const shopPayments = workspace.payments.filter(payment => /^(Shopify|WooCommerce)/.test(payment.method ?? '')).sort((a, b) => a.date.localeCompare(b.date))
+      .map(payment => ({ platform: /^Shopify/.test(payment.method ?? '') ? 'shopify' : 'woocommerce', amountCents: payment.amountCents }));
     // Bank: movements to confirm (the surest first), then those to identify.
     const bankRows = bankProposals(autopilotBank, mailSignals, workspace.invoices, workspace.clients).filter(row => !entries['bank:' + row.movement.id]?.ignored);
     let toConfirm = 0, toIdentify = 0;
@@ -1460,7 +1463,11 @@ function WorkspaceContent({
           actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'link-fee', label: copy.actionLinkWithFee, primary: true }] });
         continue;
       }
-      if (row.action === 'choose') { toIdentify++; cards.push({ key: 'bank:' + row.movement.id, title: copy.bankUnknown.replace('{amount}', amount), detail: [who, date(row.movement.bookingDate)].filter(Boolean).join(' · '), note,
+      if (row.action === 'choose') {
+        // Versement d'une boutique : il regroupe des paiements Shopify ou WooCommerce déjà enregistrés, frais déduits.
+        const payout = row.movement.creditDebit === 'CRDT' ? matchShopPayout({ amountCents: Math.abs(row.movement.amountCents), text: [row.movement.counterpartyName, row.movement.unstructured, row.movement.reference].join(' ') }, shopPayments) : null;
+        const payoutNote = payout ? t('Versement {platform} : {n} paiements de la boutique ({gross}), frais {fee}. Rapprochez-le dans la banque et comptabilisez les frais.', { platform: PLATFORM_LABEL[payout.platform], n: payout.count, gross: formatMoney(payout.grossCents), fee: formatMoney(payout.feeCents) }) : undefined;
+        toIdentify++; cards.push({ key: 'bank:' + row.movement.id, title: copy.bankUnknown.replace('{amount}', amount), detail: [who, date(row.movement.bookingDate)].filter(Boolean).join(' · '), note: [note, payoutNote].filter(Boolean).join(' ') || undefined,
         actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-bank', label: copy.actionChooseInvoice, primary: true }] }); continue; }
       toConfirm++;
       const title = (row.movement.creditDebit === 'CRDT' ? copy.bankReceived.replace('{from}', who) : copy.bankPaid.replace('{to}', who)).replace('{amount}', amount);
