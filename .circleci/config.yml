@@ -850,6 +850,14 @@ workflows:
         - not: << pipeline.parameters.verify-only >>
     jobs:
       - windows-erp-check
+  integration-1-90-49-check:
+    when:
+      and:
+        - equal: [claude/integration-1-90-49, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not: << pipeline.parameters.verify-only >>
+    jobs:
+      - windows-erp-check
   pack-batiment-check:
     when:
       and:
