@@ -309,3 +309,11 @@ html[data-app-theme] .desktop-app[data-experience] .client-directory-toolbar:emp
     white-space: nowrap;
   }
 }
+
+/* Menu qui défile : un fondu doux en haut et en bas plutôt qu'une ligne coupée net. */
+@media screen and (min-width: 861px) {
+  html[data-app-theme] .desktop-app[data-experience] .sidebar__nav.sidebar__nav {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, currentColor 10px, currentColor calc(100% - 10px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, currentColor 10px, currentColor calc(100% - 10px), transparent 100%);
+  }
+}
