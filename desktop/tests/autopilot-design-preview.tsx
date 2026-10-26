@@ -66,6 +66,21 @@ const created: Record<string, AutopilotCreatedQuoteView> = {
 };
 const acceptances: AutopilotAcceptanceCard[] = [{ key: 'a1', sourceId: 's9', receivedAt: at - 3600, sender: 'Alex Morel', evidence: '« Bonjour, c’est d’accord pour le devis, vous pouvez commencer lundi. »', candidates: [{ id: 'q1', label: 'D-2026-003 · Entretien annuel' }, { id: 'q2', label: 'D-2026-001 · Rénovation' }] }];
 const followUps: AutopilotActionCard[] = [
+  { key: 'service:eq-keller:x', title: 'Entretien chaudière Famille Keller dans 30 jours', detail: 'Proposé le 24 nov. 2026 à 08:00 · Chaudière Viessmann Vitodens 200-W · Sous-sol, Rue du Lac 4, Nyon',
+    why: 'Entretien tous les 12 mois, d’après le parc installé. · Confiance élevée',
+    actions: [{ id: 'plan-service', label: 'Planifier', primary: true }, { id: 'postpone', label: 'Plus tard' }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'booking:pb1', title: 'Demande de rendez-vous de Famille Keller : mardi 3 novembre à 09:00', detail: 'Marc Keller · 079 555 01 12 · 60 minutes', evidence: 'Plutôt le matin, la porte du garage est ouverte.',
+    why: 'Créneau libre choisi par le client sur sa page ; rien n’est confirmé avant votre clic.',
+    actions: [{ id: 'booking-accept', label: 'Accepter et planifier', primary: true }, { id: 'booking-decline', label: 'Refuser' }] },
+  { key: 'deposit:l1', title: 'Acompte de 3 600.00 CHF payé en ligne · devis D-2026-0042', detail: 'À rapprocher de la facture d’acompte F-2026-0118',
+    why: 'Payrexx a confirmé le paiement ; le montant est celui calculé par Zentra · Confiance élevée',
+    actions: [{ id: 'deposit-record', label: 'Rapprocher le paiement', primary: true }] },
+  { key: 'review:c-rochat:i1', title: 'Demander un avis à Claire Rochat', detail: 'Facture F-2026-0112 payée le 22 oct. 2026',
+    why: 'Client satisfait qui vient de payer ; une seule demande par période.',
+    actions: [{ id: 'review-mail', label: 'Préparer l’e-mail', primary: true }, { id: 'review-sms', label: 'Envoyer par SMS' }, { id: 'review-copy', label: 'Copier le lien' }, { id: 'ignore', label: 'Ignorer' }] },
+  { key: 'sms-reminder:ev-5', title: 'Rappel SMS à Alex Morel : rendez-vous demain à 10:00', detail: 'Bonjour, nous vous rappelons notre rendez-vous de demain mardi 27 octobre à 10:00. Atelier du Léman 021 555 00 00',
+    evidence: 'Visite salle de bain Morel', why: 'Rendez-vous de demain avec le numéro du client ; coût facturé par votre fournisseur SMS.',
+    actions: [{ id: 'sms-send', label: 'Envoyer le SMS', primary: true }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'reminder:r1', title: 'Relance n°1 prête', detail: 'Résidence Bellevue · F-2026-0012 · CHF 1 780.00 · échue depuis 12 jours',
     actions: [{ id: 'send', label: 'Envoyer par mail', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'invoice', label: 'Voir la facture' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'reminder:r2', title: 'Relance n°2 prête', detail: 'Camille Martin · F-2026-0009 · CHF 640.00 · échue depuis 21 jours', note: 'Le client a promis de payer.',
