@@ -3,7 +3,8 @@
  * so a list of mixed cards reads at a glance. Presentation only.
  */
 const KINDS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ['Ventes', ['reminder', 'poursuite', 'quote', 'acceptance', 'portal', 'opportunity', 'deliver', 'reminders-offer']],
+  ['Ventes', ['reminder', 'poursuite', 'quote', 'acceptance', 'portal', 'opportunity', 'deliver', 'reminders-offer', 'inbox']],
+  ['Caisse', ['pos-close']],
   ['Banque', ['bank', 'bank-batch', 'statement', 'statement-file', 'pay', 'pay-order', 'online', 'treasury-low', 'cash-diff', 'cash-count', 'fx-rate', 'claims-pay']],
   ['Achats', ['qrmail', 'order']],
   ['Stock', ['stock', 'produce', 'inventory', 'trace', 'lot-expiry', 'warehouse-negative']],

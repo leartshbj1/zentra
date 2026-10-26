@@ -72,3 +72,6 @@ src/autopilotYearEnd.test.ts
 rust:pos::
 rust:public_api::
 rust:company_merge::
+src/pos.test.ts
+src/inboxDrafts.test.ts
+src/languageCatalogCoverage.test.ts
