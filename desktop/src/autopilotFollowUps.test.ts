@@ -37,6 +37,12 @@ describe('reminders and quote follow-ups', () => {
     expect(quotesToFollowUp([quote()], [], emails, followUpEntries('org'), '2026-11-01')).toMatchObject([{ step: 'close' }]);
     expect(quotesToFollowUp([quote()], [signal({ kind: 'quote_declined' })], emails, {}, '2026-10-08')).toEqual([]);
   });
+  it('lets a reply without a number answer only the client\'s latest quote', () => {
+    const emails = { c1: 'marie@rive.ch' };
+    const older = { ...quote(), id: 'q0', number: 'D-2026-0001', issueDate: '2026-09-20', validUntil: '2026-10-30' };
+    const rows = quotesToFollowUp([older, quote()], [signal({ kind: 'quote_accepted' })], emails, {}, '2026-10-08');
+    expect(rows.map(row => row.quote.id)).toEqual(['q0']);
+  });
 });
 
 describe('promisedDate', () => {

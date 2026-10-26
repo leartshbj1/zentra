@@ -76,7 +76,7 @@ import { askKey, mailtoLink, missingInfoDraft, requestsMissingInfo } from './aut
 import { monthFigures, monthSummaryText, owedOver, previousMonth, readQuestion } from './autopilotInsights';
 import { useAutopilotBehaviour, visibleCards } from './autopilotSettings';
 import { autopilotKind } from './autopilotKinds';
-import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, timerEndOfDay, vatReturnDue, yearClosed, yearEndMoments } from './autopilotOperations';
+import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, recurringDraftsToIssue, timerEndOfDay, vatReturnDue, yearClosed, yearEndMoments } from './autopilotOperations';
 import { invoicesToPay, lastOrderLine, lowStockItems, supplierOrderProposal } from './autopilotPurchases';
 import { paymentOrderSummary } from './supplierPaymentOrder';
 import { qrMailProposal, useQrMailBills } from './autopilotQrMail';
@@ -659,6 +659,8 @@ function WorkspaceContent({
   const [view, setView] = useState<View>('dashboard');
   useEffect(()=>{recordDiagnostic({area:'navigation',operation:`screen.${view}`,phase:'info'});},[view]);
   const [agendaEventToOpen, setAgendaEventToOpen] = useState<{organizationId:string; id:string} | null>(null);
+  const [bankExpenseToOpen, setBankExpenseToOpen] = useState<string | null>(null);
+  const clearBankExpenseToOpen = useCallback(() => setBankExpenseToOpen(null), []);
   const [agendaDraftToOpen, setAgendaDraftToOpen] = useState<{ title: string; date: string | null; time: string | null; notes?: string } | null>(null);
   const clearAgendaDraftToOpen = useCallback(() => setAgendaDraftToOpen(null), []);
   const [notesProjectId, setNotesProjectId] = useState<string | null>(null);
@@ -1628,7 +1630,7 @@ function WorkspaceContent({
         cards.push({ key: 'bank:' + row.movement.id, title: copy.expensePaidTitle.replace('{amount}', amount).replace('{who}', who || ''),
           detail: usual ? copy.expenseCategoryDetail.replace('{category}', usual.category) : date(row.movement.bookingDate),
           why: usual ? `${copy.whyExpense} · ${copy.confidenceCheck}` : undefined, signature: who ? 'expense:' + who : undefined,
-          actions: [{ id: 'open-bank', label: copy.actionCreateExpense, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+          actions: [{ id: 'create-expense', label: copy.actionCreateExpense, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
         continue;
       }
       if (row.action === 'link_with_fee') {
@@ -1658,6 +1660,14 @@ function WorkspaceContent({
       cards.push({ key: 'bank:' + row.movement.id, title, detail, note: [note, discountNote].filter(Boolean).join(' ') || undefined,
         why: nativeReason ? `${nativeReason} · ${row.movement.suggestion?.kind === 'automatic_exact' ? copy.confidenceHigh : copy.confidenceCheck}` : undefined,
         signature: row.action === 'confirm_supplier' && who ? 'supplier:' + who : undefined, actions: [{ id: 'open-bank', label: copy.actionOpenBank }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'confirm-bank', label: copy.actionConfirm, primary: true }] });
+    }
+    // Recurring invoices generated as drafts: issue them (usual confirmation), then the e-mail opens.
+    for (const invoiceId of recurringDraftsToIssue(workspace.recurrenceOccurrences ?? [], workspace.invoices, today).filter(id => !entries['recurring:' + id]?.ignored).slice(0, 10)) {
+      const invoice = workspace.invoices.find(row => row.id === invoiceId)!;
+      const client = workspace.clients.find(row => row.id === invoice.clientId);
+      cards.push({ key: 'recurring:' + invoiceId, title: copy.recurringTitle.replace('{client}', client?.company || client?.name || ''),
+        detail: copy.recurringDetail.replace('{amount}', formatMoney(documentTotals(invoice.lines).totalCents, invoice.currency || 'CHF')).replace('{title}', invoice.title || ''),
+        actions: [{ id: 'ignore', label: copy.acceptanceDismiss }, { id: 'open-invoice', label: copy.actionViewInvoice }, { id: 'issue-recurring', label: client?.email ? copy.actionIssueSend : copy.actionIssue, primary: true }] });
     }
     // A request that cannot be priced as written: draft the reply asking only for what is missing.
     const reviewItems = autopilot.state.status === 'ready' ? autopilot.state.reviews?.items ?? [] : [];
@@ -2242,6 +2252,8 @@ function WorkspaceContent({
     }
     if (actionId === 'ignore' && (key.startsWith('contact:') || key.startsWith('order:'))) { saveSignalDecision(organizationId, key, 'ignored'); refresh(); return; }
     if (actionId === 'open-bank') { setSearch(''); setView('bank'); return; }
+    // The expense form opens on this debit, its category already proposed from the supplier's past expenses.
+    if (actionId === 'create-expense' && key.startsWith('bank:')) { setBankExpenseToOpen(key.slice('bank:'.length)); setSearch(''); setView('bank'); return; }
     if (key.startsWith('payroll:') && actionId === 'prepare-payroll') {
       const period = key.slice('payroll:'.length);
       let created = 0, failed: string[] = [];
@@ -2573,6 +2585,15 @@ function WorkspaceContent({
         if (!autoRunning.current) { setSearch(''); setView('expenses'); if (invoice) setModal({ type: 'supplierInvoiceDetail', invoice }); }
         refresh();
       }
+      return;
+    }
+    if (key.startsWith('recurring:') && (actionId === 'issue-recurring' || actionId === 'open-invoice')) {
+      const invoice = workspaceRef.current.invoices.find(row => 'recurring:' + row.id === key);
+      if (!invoice) return;
+      setSearch(''); setView('invoices');
+      if (actionId === 'open-invoice') { setModal({ type: 'document', entity: 'invoices', item: invoice }); return; }
+      // The card leaves once the invoice is issued; the e-mail then opens when the client has an address.
+      void issueInvoice(invoice);
       return;
     }
     if (key.startsWith('ask:') && actionId === 'ask-info') {
@@ -5108,6 +5129,8 @@ function WorkspaceContent({
                 onOpenCustomerCredit={(id)=>{const credit=workspace.invoices.find(row=>row.id===id);if(credit){setSearch('');setView('invoices');setModal({type:'document',entity:'invoices',item:credit});}}}
                 onOpenSupplierCredit={(id)=>{setSupplierCreditToOpenId(id);setSearch('');setView('expenses');}}
                 onOpenExpense={openExpenseSource}
+                initialExpenseMovementId={bankExpenseToOpen}
+                onInitialExpenseHandled={clearBankExpenseToOpen}
                 workspace={workspace}
                 readOnly={readOnly}
                 onWorkspaceChange={(next) => setWorkspace(next)}

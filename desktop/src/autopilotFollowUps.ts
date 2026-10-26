@@ -65,13 +65,21 @@ export function daysOverdue(reminder: Reminder, today: string) { return reminder
  */
 export function quotesToFollowUp(quotes: readonly Quote[], signals: readonly MailSignal[], clientEmails: Readonly<Record<string, string>>,
   entries: Readonly<Record<string, Entry>>, today: string): readonly Readonly<{ quote: Quote; step: 'follow_up' | 'close' }>[] {
+  // A reply without a quote number answers the client's latest issued quote only, not all of them.
+  const latest = new Map<string, Quote>();
+  for (const quote of quotes) {
+    if (quote.status !== 'issued') continue;
+    const current = latest.get(quote.clientId);
+    if (!current || (quote.issueDate + quote.createdAt) > (current.issueDate + current.createdAt)) latest.set(quote.clientId, quote);
+  }
   return quotes.flatMap((quote): { quote: Quote; step: 'follow_up' | 'close' }[] => {
     if (quote.status !== 'issued' || !quote.number) return [];
     const entry = entries[quoteKey(quote.id)];
     if (entry?.ignored || (entry?.until && entry.until > today)) return [];
     const number = reference(quote.number), email = lower(clientEmails[quote.clientId]);
     const answered = signals.some(signal => (signal.quoteReference && reference(signal.quoteReference) === number)
-      || (!!email && lower(signal.sender?.email) === email && (signal.kind === 'quote_accepted' || signal.kind === 'quote_declined')));
+      || (!signal.quoteReference && latest.get(quote.clientId)?.id === quote.id && !!email && lower(signal.sender?.email) === email
+        && (signal.kind === 'quote_accepted' || signal.kind === 'quote_declined')));
     if (answered) return [];
     if (quote.validUntil && today > quote.validUntil) return [{ quote, step: 'close' as const }];
     const sent = entry?.sentCount ?? 0;

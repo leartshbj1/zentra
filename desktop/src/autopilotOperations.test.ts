@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetAlerts, forgottenTimer, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, timerEndOfDay, yearClosed, yearEndMoments } from './autopilotOperations';
+import { budgetAlerts, forgottenTimer, recurringDraftsToIssue, hoursToBill, overdueTasks, payrollToPrepare, projectsPastEnd, timerEndOfDay, yearClosed, yearEndMoments } from './autopilotOperations';
 import type { ActiveTimer, Employee, Payslip, Project, ProjectTask, TimeEntry } from './types';
 
 const project = (values: Partial<Project>) => ({ id: 'p1', name: 'Cuisine', clientId: 'c1', status: 'in_progress', plannedEnd: '', budgetCents: 0, ...values }) as Project;
@@ -59,5 +59,18 @@ describe('yearClosed', () => {
     expect(yearClosed([{ status: 'closed', dateFrom: '2026-01-01', dateTo: '2026-12-31' }], 2026)).toBe(true);
     expect(yearClosed([{ status: 'open', dateFrom: '2026-01-01', dateTo: '2026-12-31' }], 2026)).toBe(false);
     expect(yearClosed([{ status: 'closed', dateFrom: '2026-01-01', dateTo: '2026-06-30' }], 2026)).toBe(false);
+  });
+});
+
+
+describe('recurringDraftsToIssue', () => {
+  it('lists recurring drafts still to issue, recent first, once each', () => {
+    const occurrences = [
+      { invoiceId: 'a', scheduledFor: '2026-10-01', invoiceStatus: 'draft' }, { invoiceId: 'b', scheduledFor: '2026-10-20', invoiceStatus: 'draft' },
+      { invoiceId: 'c', scheduledFor: '2026-10-21', invoiceStatus: 'issued' }, { invoiceId: 'd', scheduledFor: '2026-08-01', invoiceStatus: 'draft' },
+      { invoiceId: 'e', scheduledFor: '2026-11-01', invoiceStatus: 'draft' }, { invoiceId: 'b', scheduledFor: '2026-10-20', invoiceStatus: 'draft' },
+    ];
+    const invoices = [{ id: 'a', status: 'draft' }, { id: 'b', status: 'draft' }, { id: 'c', status: 'issued' }, { id: 'd', status: 'draft' }, { id: 'e', status: 'draft' }];
+    expect(recurringDraftsToIssue(occurrences, invoices, '2026-10-26')).toEqual(['b', 'a']);
   });
 });

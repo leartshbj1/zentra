@@ -112,3 +112,16 @@ export function timerEndOfDay(startedAt: string): string | null {
 export function yearClosed(periods: readonly Readonly<{ status: string; dateFrom: string; dateTo: string }>[], year: number): boolean {
   return periods.some(period => period.status === 'closed' && period.dateFrom <= `${year}-12-31` && period.dateTo >= `${year}-12-31`);
 }
+
+
+/**
+ * Recurring invoices generated as drafts and still waiting to be issued (last 45
+ * days, newest first). Issuing them keeps its usual confirmation, then the e-mail opens.
+ */
+export function recurringDraftsToIssue(occurrences: readonly Readonly<{ invoiceId: string; scheduledFor: string; invoiceStatus: string }>[],
+  invoices: readonly Readonly<{ id: string; status: string }>[], today: string): string[] {
+  const since = new Date(Date.parse(today + 'T12:00:00Z') - 45 * 86_400_000).toISOString().slice(0, 10);
+  const drafts = new Set(invoices.filter(invoice => invoice.status === 'draft').map(invoice => invoice.id));
+  return [...new Set(occurrences.filter(row => row.invoiceStatus === 'draft' && drafts.has(row.invoiceId) && row.scheduledFor >= since && row.scheduledFor <= today)
+    .sort((a, b) => b.scheduledFor.localeCompare(a.scheduledFor)).map(row => row.invoiceId))];
+}
