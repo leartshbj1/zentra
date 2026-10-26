@@ -456,6 +456,10 @@ fn undo_import_tx(tx: &Transaction<'_>, id: &str) -> AppResult<Value> {
                     reverse_journal_entry_tx(tx, &entry, &date, Some(format!("Annulation de la reprise {label} {name}")))?;
                     reversed += 1;
                 }
+                tx.execute(
+                    "INSERT INTO data_import_invoice_cancellations(invoice_id,import_id,created_at) VALUES(?,?,?)",
+                    params![record_id, id, now],
+                )?;
                 tx.execute("UPDATE invoices SET status='annulee',updated_at=? WHERE id=?", params![now, record_id])?;
                 append_audit(tx, "undo_import", "invoice", &record_id, &json!({"import_id":id,"status":"annulee"}))?;
                 removed += 1;

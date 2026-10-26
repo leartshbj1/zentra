@@ -39,4 +39,23 @@ CREATE TRIGGER IF NOT EXISTS data_import_records_no_update BEFORE UPDATE ON data
 BEGIN SELECT RAISE(ABORT,'Un import enregistré ne se modifie pas.'); END;
 CREATE TRIGGER IF NOT EXISTS data_import_records_no_delete BEFORE DELETE ON data_import_records
 BEGIN SELECT RAISE(ABORT,'L''historique des imports est conservé.'); END;
+-- Une facture reprise d'un autre logiciel (sans TVA ni produit dans Zentra)
+-- peut être annulée seulement par l'annulation de son import : la ligne
+-- ci-dessous, gardée pour toujours, l'autorise et en garde la trace. Toute
+-- autre facture émise reste corrigée par un avoir.
+CREATE TABLE IF NOT EXISTS data_import_invoice_cancellations (
+  invoice_id TEXT PRIMARY KEY REFERENCES opening_receivables(invoice_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  import_id TEXT NOT NULL REFERENCES data_imports(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  created_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS data_import_invoice_cancellations_no_update BEFORE UPDATE ON data_import_invoice_cancellations
+BEGIN SELECT RAISE(ABORT,'Une annulation de reprise ne se modifie pas.'); END;
+CREATE TRIGGER IF NOT EXISTS data_import_invoice_cancellations_no_delete BEFORE DELETE ON data_import_invoice_cancellations
+BEGIN SELECT RAISE(ABORT,'Une annulation de reprise est conservée.'); END;
+DROP TRIGGER IF EXISTS invoices_issued_no_unsafe_cancel;
+CREATE TRIGGER invoices_issued_no_unsafe_cancel
+BEFORE UPDATE OF status ON invoices
+WHEN OLD.number IS NOT NULL AND OLD.status<>'annulee' AND NEW.status='annulee'
+  AND NOT EXISTS(SELECT 1 FROM data_import_invoice_cancellations c WHERE c.invoice_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'issued invoices cannot be cancelled; issue a traceable credit note'); END;
 PRAGMA user_version=78;
