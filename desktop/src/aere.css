@@ -287,3 +287,25 @@ html[data-app-theme] .desktop-app[data-experience] .sidebar__nav.sidebar__nav bu
 html[data-app-theme] .desktop-app[data-experience] .client-directory-toolbar:empty {
   display: none;
 }
+
+/* Téléphone : l'étape préalable devient un bouton avec une ligne discrète dessous, comme sur ordinateur. */
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions .creation-action:has(> .creation-action__help) {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions .creation-action__help.creation-action__help {
+    display: contents;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions .creation-action__help p {
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .page-header__actions .creation-action__help .button {
+    white-space: nowrap;
+  }
+}
