@@ -4,8 +4,9 @@ import { AUTO_VALIDATION_CASES, type AutopilotBehaviour } from './autopilotSetti
 import { t, useAppLanguage } from './language';
 
 /**
- * How Autopilote behaves for this company on this device: pause, the domains where
- * only sure cards show, and the exact cases it may validate alone (off by default).
+ * How Autopilote behaves for this company on this device: the domains where only
+ * sure cards show, and the exact cases it may validate alone (off by default).
+ * Pausing lives in the team choice above (Prépare / Observe / En pause), once.
  */
 export function AutopilotBehaviourSettings({ behaviour, onChange, disabled = false }: { behaviour: AutopilotBehaviour;
   onChange: (change: Partial<AutopilotBehaviour>) => void; disabled?: boolean }) {
@@ -13,10 +14,6 @@ export function AutopilotBehaviourSettings({ behaviour, onChange, disabled = fal
   const toggle = <T extends string>(list: readonly T[], value: T, on: boolean) => on ? [...new Set([...list, value])] : list.filter(item => item !== value);
   return <section className="quote-autopilot quote-autopilot--settings quote-autopilot--behaviour" aria-labelledby="autopilot-behaviour-title">
     <header><div><h2 id="autopilot-behaviour-title">{copy.behaviourTitle}</h2><p>{copy.behaviourDetail}</p></div></header>
-    <label className="quote-autopilot__consent">
-      <input type="checkbox" checked={behaviour.paused} disabled={disabled} onChange={event => onChange({ paused: event.target.checked })} />
-      <span><strong>{copy.pauseLabel}</strong><small>{copy.pauseDetail}</small></span>
-    </label>
     <fieldset className="quote-autopilot__behaviour-group" disabled={disabled || behaviour.paused}>
       <legend>{copy.onlySureTitle}</legend>
       <p className="quote-autopilot__context">{copy.onlySureDetail}</p>

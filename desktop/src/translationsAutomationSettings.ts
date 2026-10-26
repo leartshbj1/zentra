@@ -45,4 +45,8 @@ export const automationSettingsTranslations: Record<string, readonly [string, st
   'Précisez votre demande ou utilisez le menu de l’application.': ['Präzisieren Sie Ihre Anfrage oder nutzen Sie das App-Menü.', 'Precisa la richiesta o usa il menu dell’app.', 'Clarify your request or use the app menu.'],
   'Analyse enregistrée en mode observation.': ['Analyse im Beobachtungsmodus gespeichert.', 'Analisi registrata in modalità osservazione.', 'Analysis recorded in observation mode.'],
   'Votre accès permet la consultation uniquement.': ['Ihr Zugang erlaubt nur das Anzeigen.', 'Il tuo accesso consente solo la consultazione.', 'Your access allows viewing only.'],
+  'Prépare, vous validez': ['Bereitet vor, Sie bestätigen', 'Prepara, tu approvi', 'Prepares, you approve'],
+  'Observe seulement': ['Nur beobachten', 'Osserva soltanto', 'Observe only'],
+  'Arrêté': ['Aus', 'Disattivato', 'Off'],
+  'Bientôt disponible': ['Bald verfügbar', 'Presto disponibile', 'Coming soon'],
 };

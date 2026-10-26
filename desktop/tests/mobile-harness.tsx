@@ -381,3 +381,4 @@ import '../src/mobile-calm.css';
 import '../src/agenda-calm.css';
 import '../src/parcours-client.css';
 import '../src/aere.css';
+import '../src/autopilot-aujourdhui.css';

@@ -14,6 +14,9 @@ import { AutopilotJournalList } from './AutopilotJournalList';
 import { AutopilotDoneList } from './AutopilotDoneList';
 import type { JournalEntry } from './autopilotJournal';
 
+/** The one-line state of Autopilote when its list cannot be read. */
+export function autopilotStatusText(state: AutopilotView, language: string) { return statusText(state, language); }
+
 function statusText(state: AutopilotView, language: string) {
   const copy = autopilotCopy(language);
   if (state.status === 'checking') return copy.checking;
