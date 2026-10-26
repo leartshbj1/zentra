@@ -210,7 +210,12 @@ export function BankScreen({
   onOpenCustomerCredit,
   autoReconcile,
   setAutoReconcile,
+  initialExpenseMovementId,
+  onInitialExpenseHandled,
 }: {
+  /** A bank debit Autopilote proposed to record as an expense: its form opens once the movements are read. */
+  initialExpenseMovementId?: string | null;
+  onInitialExpenseHandled?: () => void;
   workspace: Workspace;
   autoReconcile: boolean;
   setAutoReconcile: (value: boolean) => void;
@@ -520,6 +525,12 @@ export function BankScreen({
   }
 
   const [newExpenseMovement, setNewExpenseMovement] = useState<BankMovement | null>(null);
+  useEffect(() => {
+    if (!initialExpenseMovementId || !bank) return;
+    const movement = bank.movements.find(row => row.id === initialExpenseMovementId);
+    if (movement && !movement.expenseReconciliation) setNewExpenseMovement(movement);
+    onInitialExpenseHandled?.();
+  }, [bank, initialExpenseMovementId, onInitialExpenseHandled]);
   const [correctionMovement, setCorrectionMovement] = useState<BankMovement | null>(null);
   async function unlinkExpense(requestId: string, reconciliationId: string, reason: string) {
     if (writesDisabled) throw new Error('Actualisez les données avant de corriger une association.');
