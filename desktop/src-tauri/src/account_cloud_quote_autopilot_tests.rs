@@ -124,6 +124,12 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
     lines["items"][0]["suggestion"]["unmatched"] = json!(["x".repeat(201)]);
     assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
+    // details=4: the client asked for "the usual"; only a boolean is accepted.
+    let mut usual = suggested.clone(); usual["items"][0]["usualRequested"] = json!(true);
+    assert_eq!(parse(&usual).unwrap()["items"][0]["usualRequested"], json!(true));
+    assert!(parse(&suggested).unwrap()["items"][0].get("usualRequested").is_none());
+    usual["items"][0]["usualRequested"] = json!("yes");
+    assert!(parse(&usual).is_none());
     // details=3: who wrote the request; a malformed sender is dropped alone.
     let mut sent = suggested.clone();
     sent["items"][0]["suggestion"]["sender"] = json!({"email":"marie@rive.ch","name":"Marie Rochat","company":"Atelier Rive SA","phone":null,

@@ -338,6 +338,9 @@ struct ReviewItem {
     // the ordinary quote form and saves it; nothing is created from it here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     suggestion: Option<Suggestion>,
+    // The client asked for "the usual" (details=4): the quote then takes their usual items.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    usual_requested: Option<bool>,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -614,7 +617,7 @@ async fn read_at(store: &LocalStore, origin: &Origin, path: &'static str, page: 
     if let Some(page) = page {
         let mut query = url.query_pairs_mut(); query.append_pair("limit", &page.limit.to_string());
         if let Some(cursor) = page.cursor { query.append_pair("cursor", &cursor); }
-        if path == REVIEW_PATH { query.append_pair("details", "3"); }
+        if path == REVIEW_PATH { query.append_pair("details", "4"); }
     }
     let write = input.is_some();
     let body = match input.map(|v| serde_json::to_vec(&v)).transpose() {
