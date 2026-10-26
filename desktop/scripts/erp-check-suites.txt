@@ -71,3 +71,5 @@ src/bom.test.ts
 src/autopilotYearEnd.test.ts
 src/paymentSafety.test.ts
 rust:payment_safety::
+src/ReceiptRequestDialog.test.tsx
+rust:outgoing_mail::receipt_request::

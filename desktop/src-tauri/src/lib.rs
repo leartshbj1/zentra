@@ -496,6 +496,7 @@ pub fn run() {
             outgoing_mail::shared::connect_shared_mail,
             outgoing_mail::shared::disconnect_shared_mail,
             outgoing_mail::shared::send_shared_mail,
+            outgoing_mail::receipt_request::send_receipt_request,
             outgoing_mail::shared::recover_shared_mail,
             update_reminder_settings,
             install_reminder_cycle,

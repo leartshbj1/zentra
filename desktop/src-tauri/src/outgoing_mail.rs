@@ -471,6 +471,8 @@ pub struct SendMailInput {
 
 #[path = "outgoing_mail_shared.rs"]
 pub mod shared;
+#[path = "receipt_request_mail.rs"]
+pub mod receipt_request;
 fn money(cents: i64, currency: &str) -> String {
     format!("{}.{:02} {currency}", cents / 100, cents.abs() % 100)
 }

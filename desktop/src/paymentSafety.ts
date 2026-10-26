@@ -204,6 +204,11 @@ export function receiptRecipients(employees: readonly Employee[], rememberedId?:
   return reachable.sort((left, right) => Number(right.id === rememberedId) - Number(left.id === rememberedId) || left.name.localeCompare(right.name));
 }
 
+/** Messagerie qui envoie la demande : celle de l'entreprise (serveur Zentra) ou celle de cet appareil. */
+export type ReceiptRequestChannel =
+  | { kind: 'company'; scope: string; connectionId: string; fromEmail: string }
+  | { kind: 'device'; scope: string; fromEmail: string };
+
 /** Brouillon écrit par l'app : montant, date et bénéficiaire viennent du relevé. */
 export function receiptRequestDraft(receipt: MissingReceipt, employee: Pick<Employee, 'name' | 'email'>, companyName: string): { subject: string; body: string; href: string } {
   const amount = formatMoney(Math.abs(receipt.movement.amountCents), receipt.movement.currency || 'CHF');

@@ -18,7 +18,8 @@ import { priceListsFromRaw } from './priceLists';
 import { legalArchiveFromRaw } from './legalArchive';
 import { stockLocationsFromRaw } from './stockLocations';
 import { billsFromRaw, productionOrdersFromRaw } from './bom';
-import { paymentSafetyFromRaw, type PaymentSafetyOverview } from './paymentSafety';
+import { paymentSafetyFromRaw, type PaymentSafetyOverview, type ReceiptRequestChannel } from './paymentSafety';
+import { outgoingMail } from './outgoingMail';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -6143,6 +6144,20 @@ export const desktopApi = {
   revokeSupplierPaymentApproval: (supplierInvoiceId: string) => invoke('revoke_supplier_payment_approval', { supplierInvoiceId }),
   withdrawSupplierPaymentPreparation: (supplierInvoiceId: string) => invoke('withdraw_supplier_payment_preparation', { supplierInvoiceId }),
   reviewSupplierInvoiceEntry: (supplierInvoiceId: string) => invoke<import('./paymentSafety').EntryReview>('review_supplier_invoice_entry', { supplierInvoiceId }),
+  /** Messagerie de l'entreprise si elle est connectée, sinon celle de cet appareil, sinon aucune. */
+  async receiptRequestChannel(): Promise<ReceiptRequestChannel | null> {
+    const device = await outgoingMail.state();
+    try {
+      const shared = await outgoingMail.sharedState(device.scope);
+      if (shared.available && shared.connection.connected && shared.connection.connectionId && shared.canSend !== false)
+        return { kind: 'company', scope: device.scope, connectionId: shared.connection.connectionId, fromEmail: shared.connection.fromEmail ?? '' };
+    } catch { /* messagerie de l'entreprise indisponible : on essaie celle de l'appareil */ }
+    return device.connection.connected ? { kind: 'device', scope: device.scope, fromEmail: device.connection.fromEmail ?? '' } : null;
+  },
+  sendReceiptRequest: (channel: ReceiptRequestChannel, input: { requestId: string; reference: string; recipient: string; subject: string; body: string }) =>
+    invoke<{ status: 'accepted' | 'pending'; replayed: boolean; historyWarning?: boolean }>('send_receipt_request', {
+      input: { requestId: input.requestId, scope: channel.scope, channel: channel.kind, connectionId: channel.kind === 'company' ? channel.connectionId : null, reference: input.reference, recipient: input.recipient, subject: input.subject, body: input.body },
+    }),
   recordPaymentSafetyAcknowledgement: (supplierInvoiceId: string, context: 'entry' | 'payment', kinds: readonly string[]) =>
     invoke('record_payment_safety_acknowledgement', { input: { supplier_invoice_id: supplierInvoiceId, context, kinds: [...kinds] } }),
   async chooseSupplierEmailFile(): Promise<string | null> {
