@@ -1971,7 +1971,7 @@ impl LocalStore {
         // données d'entreprise partagées : même horloge et même garde
         // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
         // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
-        let shared_steps: [(i64, &str); 18] = [
+        let shared_steps: [(i64, &str); 19] = [
             (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
             (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
             (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
@@ -1981,6 +1981,7 @@ impl LocalStore {
             (75, crate::schema::MIGRATION_V75_SQL), (76, crate::schema::MIGRATION_V76_SQL),
             (77, crate::schema::MIGRATION_V77_SQL), (78, crate::schema::MIGRATION_V78_SQL),
             (79, crate::schema::MIGRATION_V79_SQL), (80, crate::schema::MIGRATION_V80_SQL),
+            (81, crate::schema::MIGRATION_V81_SQL),
         ];
         if current < crate::schema::SCHEMA_VERSION {
             for (version, sql) in shared_steps {
@@ -2949,7 +2950,7 @@ impl LocalStore {
         workspace["stock_availability"] = Value::Array(stock_availability);
         workspace["project_milestones"] = Value::Array(project_milestones);
         workspace["project_tasks"] = Value::Array(project_tasks);
-        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims", "price_lists", "price_list_items", "client_price_lists", "opportunities", "progress_billing_plans", "progress_bills", "progress_bill_lines", "labor_rate_tables", "labor_rates", "warehouses", "stock_movement_warehouses", "stock_transfers", "catalog_item_tracking", "stock_lots", "stock_lot_movements", "bills_of_materials", "bom_lines", "production_orders"] {
+        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims", "price_lists", "price_list_items", "client_price_lists", "opportunities", "progress_billing_plans", "progress_bills", "progress_bill_lines", "labor_rate_tables", "labor_rates", "project_budget_lines", "project_subcontracts", "supplier_invoice_subcontracts", "warehouses", "stock_movement_warehouses", "stock_transfers", "catalog_item_tracking", "stock_lots", "stock_lot_movements", "bills_of_materials", "bom_lines", "production_orders"] {
             let present: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [table], |row| row.get(0))?;
             workspace[table] = Value::Array(if present { query_all(connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [])? } else { Vec::new() });
         }

@@ -88,3 +88,5 @@ src/QuoteConversionModal.test.tsx
 src/laborRates.test.ts
 rust:labor_rates::
 rust:work_reports::
+src/siteLedger.test.ts
+rust:site_ledger::

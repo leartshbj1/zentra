@@ -1968,6 +1968,10 @@ export type Workspace = {
   progressBills?: import('./progressBilling').ProgressBill[];
   /** Tarifs de régie des associations, importés par l'entreprise. */
   laborRateTables?: import('./laborRates').LaborRateTable[];
+  /** Fiche chantier : budget prévu, sous-traitances et factures qui les facturent. */
+  projectBudgetLines?: import('./siteLedger').BudgetLine[];
+  projectSubcontracts?: import('./siteLedger').Subcontract[];
+  subcontractLinks?: import('./siteLedger').SubcontractLink[];
   /** Opportunités de vente (pipeline). */
   opportunities?: import('./pipeline').Opportunity[];
   /** Dépôts, transferts, lots et numéros de série. */

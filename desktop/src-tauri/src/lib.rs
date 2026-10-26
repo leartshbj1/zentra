@@ -106,6 +106,7 @@ mod production;
 mod measurement;
 mod progress_billing;
 mod labor_rates;
+mod site_ledger;
 mod supplier_credit_refunds;
 mod supplier_credit_refund_attachments;
 mod swiss_payroll_rules;
@@ -373,6 +374,10 @@ pub fn run() {
             price_lists::save_price_list,
             progress_billing::create_progress_bill,
             labor_rates::save_labor_rate_table,
+            site_ledger::save_project_budget,
+            site_ledger::save_project_subcontract,
+            site_ledger::link_supplier_invoice_subcontract,
+            site_ledger::assign_supplier_invoice_project,
             opportunities::save_opportunity,
             legal_archive::create_legal_archive,
             legal_archive::list_legal_archives,

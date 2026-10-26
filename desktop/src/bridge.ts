@@ -430,6 +430,7 @@ import { expensePaymentStatusFromRaw } from './purchases';
 import { measurementRowsFromRaw, measurementRowsToRaw } from './measurement';
 import { progressFromRaw } from './progressBilling';
 import { laborRatesFromRaw } from './laborRates';
+import { siteFromRaw } from './siteLedger';
 import {
   pdfDestinationPath,
   salesPdfInvokeInput,
@@ -570,6 +571,9 @@ type RawWorkspace = {
   progress_bill_lines?: RawRecord[];
   labor_rate_tables?: RawRecord[];
   labor_rates?: RawRecord[];
+  project_budget_lines?: RawRecord[];
+  project_subcontracts?: RawRecord[];
+  supplier_invoice_subcontracts?: RawRecord[];
   opportunities?: RawRecord[];
   warehouses?: RawRecord[];
   stock_movement_warehouses?: RawRecord[];
@@ -3488,6 +3492,7 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     })),
     priceLists: priceListsFromRaw(raw.price_lists ?? [], raw.price_list_items ?? [], raw.client_price_lists ?? []),
     laborRateTables: laborRatesFromRaw(raw.labor_rate_tables ?? [], raw.labor_rates ?? []),
+    ...siteFromRaw(raw.project_budget_lines ?? [], raw.project_subcontracts ?? [], raw.supplier_invoice_subcontracts ?? []),
     ...(() => { const progress = progressFromRaw(raw.progress_billing_plans ?? [], raw.progress_bills ?? [], raw.progress_bill_lines ?? []); return { progressPlans: progress.plans, progressBills: progress.bills }; })(),
     opportunities: (raw.opportunities ?? []).map(opportunityFromRaw),
     stockLocations: stockLocationsFromRaw(raw),
@@ -7705,6 +7710,24 @@ export const desktopApi = {
   async createProgressBill(input: import('./progressBilling').ProgressBillRequest) {
     const raw = await invoke<RawRecord>('create_progress_bill', { input });
     return { invoiceId: stringValue(raw.invoiceId), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Remplace le budget prévu du chantier. */
+  async saveProjectBudget(projectId: string, lines: { category: string; label: string; amountCents: number; minutes: number | null }[]) {
+    await invoke<RawRecord>('save_project_budget', { input: { projectId, lines } });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveProjectSubcontract(input: { id: string | null; projectId: string; supplierId: string | null; label: string; agreedCents: number; closed: boolean }) {
+    await invoke<RawRecord>('save_project_subcontract', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async linkSupplierInvoiceSubcontract(supplierInvoiceId: string, subcontractId: string | null) {
+    const raw = await invoke<RawRecord>('link_supplier_invoice_subcontract', { supplierInvoiceId, subcontractId });
+    return { previousSubcontractId: stringValue(raw.previousSubcontractId) || null, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  /** Rattache une facture fournisseur brouillon à un chantier ; rend le chantier précédent pour Annuler. */
+  async assignSupplierInvoiceProject(supplierInvoiceId: string, projectId: string | null) {
+    const raw = await invoke<RawRecord>('assign_supplier_invoice_project', { supplierInvoiceId, projectId });
+    return { previousProjectId: stringValue(raw.previousProjectId) || null, workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
   },
   async saveLaborRateTable(input: { id: string | null; name: string; source: string; validFrom: string | null; isDefault: boolean; archived: boolean; rates: { id: string | null; kind: 'personnel' | 'machine'; code: string | null; label: string; unit: string; rateCents: number; costCents: number | null }[] }) {
     const raw = await invoke<RawRecord>('save_labor_rate_table', { input: { ...input, source: input.source.trim() || null } });
