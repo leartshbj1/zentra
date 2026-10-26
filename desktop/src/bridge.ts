@@ -15,6 +15,7 @@ import type { NativeBalanceLine, NativeOpeningReceivable, OpeningBalancePlan } f
 import type { NativeAccountRow } from './chartImport';
 import { dataImportFromRaw, undoReportFromRaw, type DataImport, type UndoReport } from './dataImports';
 import { originToRaw, type ImportOrigin } from './migrationSources';
+import type { HealthSummary } from './fiduciaryHealth';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import { priceListsFromRaw } from './priceLists';
@@ -7731,6 +7732,14 @@ export const desktopApi = {
   async sourceTaxLookup(canton: string, code: string, incomeCents: number, date: string) {
     const raw = await invoke<RawRecord>('source_tax_lookup', { canton, code, incomeCents, date });
     return { canton: stringValue(raw.canton), code: stringValue(raw.code), validFrom: stringValue(raw.valid_from), rateBp: numberValue(raw.rate_bp), taxCents: numberValue(raw.tax_cents) };
+  },
+  /** État du dossier (nombres et dates seulement) montré à la fiduciaire dans son espace web. */
+  async publishFiduciarySummary(summary: HealthSummary) {
+    const raw = await invoke<RawRecord>('publish_fiduciary_summary', { summary });
+    return { receivedAt: typeof raw.received_at === 'number' ? raw.received_at : null };
+  },
+  async stopFiduciarySummary() {
+    await invoke('stop_fiduciary_summary');
   },
   /** Écritures pour la fiduciaire : l'app prépare le fichier, l'utilisateur choisit où l'enregistrer. */
   async saveAccountingExport(input: { fileName: string; extension: 'txt' | 'csv'; format: string; dateFrom: string; dateTo: string; entries: number; content: string }) {

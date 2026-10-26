@@ -42,6 +42,7 @@ mod customer_credit_recovery;
 mod customer_credit_recovery_vat;
 mod accounting_export;
 mod data_imports;
+mod fiduciary_summary;
 mod database;
 mod diagnostics;
 mod member_context;
@@ -343,6 +344,8 @@ pub fn run() {
             data_imports::get_data_import_report,
             data_imports::undo_data_import,
             accounting_export::save_accounting_export,
+            fiduciary_summary::publish_fiduciary_summary,
+            fiduciary_summary::stop_fiduciary_summary,
             online_payments::get_online_payment_settings,
             online_payments::save_online_payment_settings,
             online_payments::create_invoice_payment_link,

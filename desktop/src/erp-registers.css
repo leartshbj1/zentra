@@ -353,3 +353,14 @@
     html[data-app-theme] .desktop-app[data-experience] .fiduciary-export__map li { grid-template-columns: minmax(0, 1fr) 110px; gap: 12px; }
   }
 }
+/* État du dossier partagé avec la fiduciaire. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing { display: grid; gap: 12px; max-width: 560px; padding-bottom: 24px; border-bottom: 1px solid var(--apple-separator, var(--line)); }
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing dl { display: grid; margin: 0; }
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing dl > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--apple-separator, var(--line)); }
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing dt { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing dd { margin: 0; color: var(--apple-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing__toggle { display: flex; align-items: center; gap: 12px; min-height: 44px; color: var(--apple-ink); cursor: pointer; }
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing__toggle input { width: 20px; height: 20px; accent-color: var(--green-700); }
+  html[data-app-theme] .desktop-app[data-experience] .fiduciary-sharing small { color: var(--apple-secondary); }
+}

@@ -615,7 +615,7 @@ export function AccountingScreen({ workspace, onWorkspaceChange, focusEntry, onF
     {setupReview && <AccountingSetupDialog mode={setupReview.mode} settings={setupReview.settings} accounts={accounts} fields={mappingFields} continuity={continuity} busy={busy} readOnly={readOnly} onClose={() => setSetupReview(null)} onCommit={commitAccountingSetup} onRefresh={refreshAccountingSetup} />}
 
     {tab === 'archive' ? <LegalArchivePanel readOnly={Boolean(readOnly)} /> : null}
-    {tab === 'export' ? <FiduciaryExportPanel filter={filter} workspaceScope={workspace.workNotesScope} /> : null}
+    {tab === 'export' ? <FiduciaryExportPanel filter={filter} workspaceScope={workspace.workNotesScope} workspace={workspace} /> : null}
     {tab === 'budget' ? <BudgetPanel accounts={accounts} projects={workspace.projects} employees={workspace.employees} readOnly={Boolean(readOnly)} /> : null}
     {tab === 'currencies' ? <CurrenciesPanel readOnly={Boolean(readOnly)} onChanged={() => void reloadAll()} /> : null}
     {tab === 'periods' ? <AccountingPeriodsPanel periods={periods} busy={busy} readOnly={readOnly} onRefresh={refreshSavedPeriod} onOpenClosing={openClosingPeriod} /> : null}

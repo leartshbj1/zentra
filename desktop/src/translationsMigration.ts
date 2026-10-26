@@ -112,6 +112,19 @@ export const migrationTranslations: Record<string, readonly [string, string, str
   '{count} déjà présent': ['{count} bereits vorhanden', '{count} già presente', '{count} already there'],
   '{count} déjà présents': ['{count} bereits vorhanden', '{count} già presenti', '{count} already there'],
 
+  // Dossier status shared with the fiduciary
+  'État du dossier pour votre fiduciaire': ['Dossierstand für Ihre Treuhand', 'Stato del dossier per la vostra fiduciaria', 'File status for your accountant'],
+  'Votre fiduciaire voit dans son espace Zentra ce qui manque encore. Seuls ces nombres et ces dates sont envoyés, jamais un montant ni une pièce.': ['Ihre Treuhand sieht in ihrem Zentra-Bereich, was noch fehlt. Gesendet werden nur diese Zahlen und Daten, nie ein Betrag oder ein Beleg.', 'La vostra fiduciaria vede nel suo spazio Zentra ciò che manca ancora. Vengono inviati solo questi numeri e queste date, mai un importo né un documento.', 'Your accountant sees in their Zentra space what is still missing. Only these numbers and dates are sent, never an amount or a document.'],
+  'Justificatifs manquants': ['Fehlende Belege', 'Giustificativi mancanti', 'Missing receipts'],
+  'Mouvements bancaires à rapprocher': ['Abzustimmende Bankbewegungen', 'Movimenti bancari da riconciliare', 'Bank movements to reconcile'],
+  'TVA déclarée jusqu’au': ['MWST abgerechnet bis', 'IVA dichiarata fino al', 'VAT filed up to'],
+  'Exercice clôturé jusqu’au': ['Geschäftsjahr abgeschlossen bis', 'Esercizio chiuso fino al', 'Year closed up to'],
+  'Pas encore': ['Noch nicht', 'Non ancora', 'Not yet'],
+  'Partager l’état du dossier': ['Dossierstand teilen', 'Condividi lo stato del dossier', 'Share the file status'],
+  'Envoyé le {date}': ['Gesendet am {date}', 'Inviato il {date}', 'Sent on {date}'],
+  'Le partage n’a pas pu être mis à jour.': ['Die Freigabe konnte nicht aktualisiert werden.', 'Impossibile aggiornare la condivisione.', 'Sharing could not be updated.'],
+  'Fichier d’écritures': ['Buchungsdatei', 'File di registrazioni', 'Entries file'],
+
   // Accounting export for the fiduciary
   'Export fiduciaire': ['Export für Treuhand', 'Esportazione fiduciaria', 'Export for accountant'],
   'Exporter pour la fiduciaire': ['Für die Treuhand exportieren', 'Esporta per la fiduciaria', 'Export for your accountant'],

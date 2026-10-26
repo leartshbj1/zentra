@@ -78,3 +78,5 @@ rust:bexio_import
 rust:migrat
 src/accountingExport.test.ts
 rust:accounting_export::
+rust:fiduciary_summary::
+src/fiduciaryHealth.test.ts

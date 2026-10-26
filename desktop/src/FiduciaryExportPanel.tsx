@@ -11,9 +11,10 @@ import {
   type ExportFormat,
   type VatMode,
 } from './accountingExport';
-import type { Account, AccountingSettings, PeriodFilter } from './types';
+import { computeHealthSummary, readSharing, writeSharing, type HealthSummary } from './fiduciaryHealth';
+import type { Account, AccountingSettings, PeriodFilter, Workspace } from './types';
 import { Button, ErrorPanel, Field } from './ui';
-import { errorMessage } from './utils';
+import { errorMessage, formatDate, formatDateTime } from './utils';
 import { t, useAppLanguage } from './language';
 import './erp-registers.css';
 
@@ -53,8 +54,83 @@ const yearStart = () => `${new Date().getFullYear()}-01-01`;
 const yearEnd = () => `${new Date().getFullYear()}-12-31`;
 const percent = (bp: number) => (bp / 100).toLocaleString('fr-CH', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 
+/** État du dossier montré à la fiduciaire : des nombres et des dates, envoyés seulement si l'entreprise le veut. */
+function DossierSharing({ workspace, accountingEnabled }: { workspace: Workspace; accountingEnabled: boolean }) {
+  useAppLanguage();
+  const scope = workspace.workNotesScope;
+  const [on, setOn] = useState(() => readSharing(scope));
+  const [summary, setSummary] = useState<HealthSummary | null>(null);
+  const [sentAt, setSentAt] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let live = true;
+    void Promise.all([
+      desktopApi.getBankWorkspace(scope).catch(() => null),
+      desktopApi.listVatReturnExports({}).catch(() => []),
+      desktopApi.listAccountingPeriods().catch(() => []),
+    ]).then(([bank, vatExports, periods]) => {
+      if (!live) return;
+      setSummary(computeHealthSummary({
+        expenses: workspace.expenses,
+        supplierInvoices: workspace.supplierInvoices,
+        attachments: workspace.attachments ?? [],
+        unreconciledBank: bank?.summary.unreconciledCount ?? 0,
+        vatExports,
+        periods,
+        accountingEnabled,
+        now: new Date(),
+      }));
+    });
+    return () => { live = false; };
+  }, [workspace, scope, accountingEnabled]);
+  async function publish(next: HealthSummary) {
+    const result = await desktopApi.publishFiduciarySummary(next);
+    setSentAt(result.receivedAt);
+  }
+  // Partage actif : l'état envoyé suit le dossier à chaque ouverture de l'écran.
+  useEffect(() => {
+    if (on && summary && sentAt === null) void publish(summary).catch(() => undefined);
+  }, [on, summary]);
+  async function toggle(next: boolean) {
+    if (busy || !summary) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (next) await publish(summary);
+      else { await desktopApi.stopFiduciarySummary(); setSentAt(null); }
+      writeSharing(scope, next);
+      setOn(next);
+    } catch (reason) {
+      setError(errorMessage(reason, t('Le partage n’a pas pu être mis à jour.')));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="fiduciary-sharing">
+      <h3>{t('État du dossier pour votre fiduciaire')}</h3>
+      <p>{t('Votre fiduciaire voit dans son espace Zentra ce qui manque encore. Seuls ces nombres et ces dates sont envoyés, jamais un montant ni une pièce.')}</p>
+      {summary ? (
+        <dl>
+          <div><dt>{t('Justificatifs manquants')}</dt><dd>{summary.missingReceipts}</dd></div>
+          <div><dt>{t('Mouvements bancaires à rapprocher')}</dt><dd>{summary.unreconciledBank}</dd></div>
+          <div><dt>{t('TVA déclarée jusqu’au')}</dt><dd>{summary.vatFiledThrough ? formatDate(summary.vatFiledThrough) : t('Pas encore')}</dd></div>
+          <div><dt>{t('Exercice clôturé jusqu’au')}</dt><dd>{summary.closedThrough ? formatDate(summary.closedThrough) : t('Pas encore')}</dd></div>
+        </dl>
+      ) : null}
+      {error ? <ErrorPanel message={error} /> : null}
+      <label className="fiduciary-sharing__toggle">
+        <input type="checkbox" checked={on} disabled={busy || !summary} onChange={(event) => void toggle(event.target.checked)} />
+        {t('Partager l’état du dossier')}
+      </label>
+      {on && sentAt ? <small>{t('Envoyé le {date}', { date: formatDateTime(new Date(sentAt * 1000).toISOString()) })}</small> : null}
+    </div>
+  );
+}
+
 /** Fichier d'écritures pour le logiciel de la fiduciaire, par période. */
-export function FiduciaryExportPanel({ filter, workspaceScope }: { filter: PeriodFilter; workspaceScope?: string }) {
+export function FiduciaryExportPanel({ filter, workspaceScope, workspace }: { filter: PeriodFilter; workspaceScope?: string; workspace?: Workspace }) {
   useAppLanguage();
   const [saved, setSaved] = useState<Saved>(() => readSaved(workspaceScope));
   const [dateFrom, setDateFrom] = useState(filter.dateFrom || yearStart());
@@ -114,6 +190,8 @@ export function FiduciaryExportPanel({ filter, workspaceScope }: { filter: Perio
   return (
     <section className="erp-register fiduciary-export" aria-labelledby="fiduciary-export-title">
       <h2 id="fiduciary-export-title">{t('Exporter pour la fiduciaire')}</h2>
+      {workspace ? <DossierSharing workspace={workspace} accountingEnabled={Boolean(settings?.enabled)} /> : null}
+      <h3>{t('Fichier d’écritures')}</h3>
       <p>{t('Un fichier d’écritures que votre fiduciaire importe dans son logiciel. Les montants sont ceux de votre journal, en CHF, compte par compte.')}</p>
       {error ? <ErrorPanel message={error} /> : null}
       <div className="fiduciary-export__fields">
