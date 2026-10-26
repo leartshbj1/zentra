@@ -110,6 +110,8 @@ fn catalog(sku: &str) -> ImportCatalogItemsInput {
             sales_price_cents: 200,
             vat_bp: 0,
             kind: "product".into(),
+            ean: None,
+            trade_source: None,
         }],
     }
 }

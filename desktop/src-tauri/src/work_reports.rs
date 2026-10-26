@@ -37,6 +37,9 @@ pub struct WorkReportLineInput {
     pub unit_price_cents: i64,
     #[serde(default)]
     pub vat_bp: i64,
+    /// Tarif de régie choisi pour une ligne d'heures (Pack bâtiment).
+    #[serde(default)]
+    pub labor_rate_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -121,9 +124,10 @@ impl LocalStore {
         };
         for (position, line) in input.lines.iter().enumerate() {
             tx.execute(
-                "INSERT INTO work_report_lines(id,report_id,position,kind,catalog_item_id,description,quantity,unit,unit_price_cents,vat_bp,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO work_report_lines(id,report_id,position,kind,catalog_item_id,description,quantity,unit,unit_price_cents,vat_bp,created_at,labor_rate_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                 params![Uuid::new_v4().to_string(), id, position as i64, line.kind, line.catalog_item_id.as_deref().filter(|v| !v.is_empty()),
-                    line.description.trim(), line.quantity, line.unit.trim(), line.unit_price_cents, line.vat_bp, now],
+                    line.description.trim(), line.quantity, line.unit.trim(), line.unit_price_cents, line.vat_bp, now,
+                    line.labor_rate_id.as_deref().filter(|v| !v.is_empty() && line.kind == "labor")],
             )?;
         }
         let record = query_record_tx(&tx, "work_reports", &id)?;
@@ -174,8 +178,10 @@ impl LocalStore {
         Ok(record)
     }
 
-    /// Facture en brouillon avec exactement les lignes du rapport signé.
-    pub fn invoice_work_report(&self, id: &str) -> AppResult<Value> {
+    /// Facture en brouillon avec exactement les lignes du rapport signé. Avec
+    /// une table de tarifs de régie, les heures sont facturées à ses tarifs
+    /// (le rapport signé, lui, ne change pas).
+    pub fn invoice_work_report(&self, id: &str, rate_table_id: Option<&str>) -> AppResult<Value> {
         let mut connection = self.connect()?;
         self.require_onboarding(&connection)?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -195,20 +201,36 @@ impl LocalStore {
         if status != "signed" {
             return Err(invalid("Faites d'abord signer le rapport."));
         }
-        let lines = query_all(&tx, "SELECT catalog_item_id,description,quantity,unit,unit_price_cents,vat_bp FROM work_report_lines WHERE report_id=? ORDER BY position,id", params![id])?;
+        let lines = query_all(&tx, "SELECT kind,catalog_item_id,description,quantity,unit,unit_price_cents,vat_bp,labor_rate_id FROM work_report_lines WHERE report_id=? ORDER BY position,id", params![id])?;
+        let rate_table: Option<String> = match rate_table_id.filter(|value| !value.is_empty()) {
+            Some(table_id) => Some(
+                tx.query_row("SELECT name FROM labor_rate_tables WHERE id=?", [table_id], |r| r.get(0))
+                    .optional()?
+                    .ok_or_else(|| invalid("Table de tarifs introuvable."))?,
+            ),
+            None => None,
+        };
         let invoice_id = Uuid::new_v4().to_string();
         let now = now_iso();
         let title = match site { Some(site) => format!("Intervention du {date} · {site}"), None => format!("Intervention du {date}") };
         let title: String = title.chars().take(200).collect();
         tx.execute(
             "INSERT INTO invoices(id,client_id,project_id,title,type,status,service_date_from,service_date_to,currency,notes,created_at,updated_at) VALUES(?,?,?,?,'standard','brouillon',?,?,'CHF',?,?,?)",
-            params![invoice_id, client_id, project_id, title, date, date, "Selon rapport d'intervention signé.", now, now],
+            params![invoice_id, client_id, project_id, title, date, date,
+                match &rate_table { Some(name) => format!("Selon rapport d'intervention signé. Heures aux tarifs de régie « {name} »."), None => "Selon rapport d'intervention signé.".to_owned() },
+                now, now],
         )?;
         for (position, line) in lines.iter().enumerate() {
+            let mut price = line["unit_price_cents"].as_i64().unwrap_or(0);
+            if let (Some(table_id), Some("labor")) = (rate_table_id.filter(|value| !value.is_empty()), line["kind"].as_str()) {
+                if let Some(rate) = crate::labor_rates::matching_rate(&tx, table_id, line["labor_rate_id"].as_str(), line["description"].as_str().unwrap_or_default())? {
+                    price = rate;
+                }
+            }
             tx.execute(
                 "INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,0,?,0,0,0,?,?)",
                 params![Uuid::new_v4().to_string(), invoice_id, line["catalog_item_id"].as_str(), position as i64, line["description"].as_str(),
-                    line["quantity"].as_f64(), line["unit"].as_str(), line["unit_price_cents"].as_i64(), line["vat_bp"].as_i64(), now, now],
+                    line["quantity"].as_f64(), line["unit"].as_str(), price, line["vat_bp"].as_i64(), now, now],
             )?;
         }
         recompute_all_invoice_lines(&tx, &invoice_id)?;
@@ -243,10 +265,10 @@ pub fn sign_work_report(state: tauri::State<'_, LocalStore>, id: String, signer_
 }
 
 #[tauri::command]
-pub fn invoice_work_report(state: tauri::State<'_, LocalStore>, id: String) -> Result<Value, String> {
+pub fn invoice_work_report(state: tauri::State<'_, LocalStore>, id: String, rate_table_id: Option<String>) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.require_write_access().map_err(command_error)?;
-    state.invoice_work_report(&id).map_err(command_error)
+    state.invoice_work_report(&id, rate_table_id.as_deref()).map_err(command_error)
 }
 
 #[cfg(test)]
@@ -273,7 +295,7 @@ mod tests {
     }
 
     fn line(kind: &str, quantity: f64, price: i64) -> WorkReportLineInput {
-        WorkReportLineInput { kind: kind.into(), catalog_item_id: None, description: format!("{kind} {quantity}"), quantity, unit: if kind == "labor" { "h".into() } else { "pce".into() }, unit_price_cents: price, vat_bp: 810 }
+        WorkReportLineInput { kind: kind.into(), catalog_item_id: None, description: format!("{kind} {quantity}"), quantity, unit: if kind == "labor" { "h".into() } else { "pce".into() }, unit_price_cents: price, vat_bp: 810, labor_rate_id: None }
     }
 
     #[test]
@@ -300,12 +322,12 @@ mod tests {
         assert!(connection.execute("UPDATE work_reports SET description='autre' WHERE id=?", [&id]).is_err());
         assert!(connection.execute("DELETE FROM work_report_lines WHERE report_id=?", [&id]).is_err());
         drop(connection);
-        let invoice = store.invoice_work_report(&id).unwrap();
+        let invoice = store.invoice_work_report(&id, None).unwrap();
         assert_eq!(invoice["status"], "brouillon");
         // 3 h × 95.00 + 120.00 = 405.00 net, TVA 8.1 % ligne par ligne.
         assert_eq!(invoice["subtotal_cents"], 40_500);
         assert_eq!(invoice["total_cents"], 40_500 + 2_309 + 972);
-        assert_eq!(store.invoice_work_report(&id).unwrap()["id"], invoice["id"]);
+        assert_eq!(store.invoice_work_report(&id, None).unwrap()["id"], invoice["id"]);
         let status: String = store.connect().unwrap().query_row("SELECT status FROM work_reports WHERE id=?", [&id], |r| r.get(0)).unwrap();
         assert_eq!(status, "invoiced");
     }

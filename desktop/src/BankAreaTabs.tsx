@@ -17,7 +17,7 @@ export function BankAreaTabs({ active, onChange }: { active: BankArea; onChange:
   </nav>;
 }
 
-export type TimeArea = 'hours' | 'reports';
+export type TimeArea = 'hours' | 'reports' | 'rates';
 
 /** Temps : les heures pointées et les rapports d'intervention signés. */
 export function TimeAreaTabs({ active, onChange }: { active: TimeArea; onChange: (area: TimeArea) => void }) {
@@ -26,13 +26,13 @@ export function TimeAreaTabs({ active, onChange }: { active: TimeArea; onChange:
   useNavigationSelection(navigation, active, false);
   return <nav ref={navigation} className="sales-tabs" aria-label={t('Heures et rapports')}>
     <span className="sales-tabs__selection" aria-hidden="true" />
-    {([['hours', 'Heures'], ['reports', 'Rapports d’intervention']] as const).map(([id, label]) =>
+    {([['hours', 'Heures'], ['reports', 'Rapports d’intervention'], ['rates', 'Tarifs de régie']] as const).map(([id, label]) =>
       <button key={id} type="button" className={active === id ? 'is-active' : ''} aria-current={active === id ? 'page' : undefined} onClick={() => onChange(id)}>{t(label)}</button>,
     )}
   </nav>;
 }
 
-export type CatalogArea = 'items' | 'prices' | 'warehouses' | 'lots' | 'bom';
+export type CatalogArea = 'items' | 'prices' | 'kits' | 'warehouses' | 'lots' | 'bom';
 
 /** Produits et services : le catalogue et les listes de prix des clients. */
 export function CatalogAreaTabs({ active, onChange }: { active: CatalogArea; onChange: (area: CatalogArea) => void }) {
@@ -41,7 +41,7 @@ export function CatalogAreaTabs({ active, onChange }: { active: CatalogArea; onC
   useNavigationSelection(navigation, active, false);
   return <nav ref={navigation} className="sales-tabs" aria-label={t('Catalogue et prix')}>
     <span className="sales-tabs__selection" aria-hidden="true" />
-    {([['items', 'Articles et services'], ['prices', 'Listes de prix'], ['warehouses', 'Dépôts'], ['lots', 'Lots et séries'], ['bom', 'Nomenclatures']] as const).map(([id, label]) =>
+    {([['items', 'Articles et services'], ['prices', 'Listes de prix'], ['kits', 'Kits de prestations'], ['warehouses', 'Dépôts'], ['lots', 'Lots et séries'], ['bom', 'Nomenclatures']] as const).map(([id, label]) =>
       <button key={id} type="button" className={active === id ? 'is-active' : ''} aria-current={active === id ? 'page' : undefined} onClick={() => onChange(id)}>{t(label)}</button>,
     )}
   </nav>;

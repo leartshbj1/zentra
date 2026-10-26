@@ -273,6 +273,8 @@ export type WorkReportLine = {
   unit: string;
   unitPriceCents: number;
   vatBp: number;
+  /** Tarif de régie choisi pour une ligne d'heures. */
+  laborRateId?: Identifier | null;
 };
 
 export type WorkReport = {
@@ -487,6 +489,10 @@ export type DocumentLine = {
   unitPriceCents: number;
   discountBp?: number;
   vatRateBp: number;
+  /** Chapitre de la position : les lignes consécutives de même titre forment un chapitre avec sous-total. */
+  sectionTitle?: string | null;
+  /** Métré : la quantité est la somme des lignes (déductions soustraites). */
+  measurements?: import('./measurement').MeasurementRow[];
 };
 
 export type FrozenIssuer = {
@@ -582,6 +588,8 @@ export type Quote = {
   lines: DocumentLine[];
   notes: string;
   terms: string;
+  /** Le PDF imprime le détail du métré sous chaque position mesurée. */
+  showMeasurements?: boolean;
   createdAt: string;
   snapshot?: FrozenDocumentSnapshot | null;
 };
@@ -637,6 +645,7 @@ export type Invoice = {
   terms: string;
   depositPercentageBp: number | null;
   depositBasisLines: DocumentLine[] | null;
+  showMeasurements?: boolean;
   createdAt: string;
   snapshot?: FrozenDocumentSnapshot | null;
   qrBill?: StoredSwissQrBill | null;
@@ -1954,6 +1963,17 @@ export type Workspace = {
   expenseClaims?: ExpenseClaim[];
   /** Listes de prix par client. */
   priceLists?: import('./priceLists').PriceList[];
+  /** Situations SIA 118 : plans par devis et situations émises ou en brouillon. */
+  progressPlans?: import('./progressBilling').ProgressPlan[];
+  progressBills?: import('./progressBilling').ProgressBill[];
+  /** Tarifs de régie des associations, importés par l'entreprise. */
+  laborRateTables?: import('./laborRates').LaborRateTable[];
+  /** Fiche chantier : budget prévu, sous-traitances et factures qui les facturent. */
+  projectBudgetLines?: import('./siteLedger').BudgetLine[];
+  projectSubcontracts?: import('./siteLedger').Subcontract[];
+  subcontractLinks?: import('./siteLedger').SubcontractLink[];
+  /** Kits de prestations : matériel et main-d'œuvre d'une prestation du catalogue. */
+  serviceKits?: import('./serviceKits').ServiceKit[];
   /** Opportunités de vente (pipeline). */
   opportunities?: import('./pipeline').Opportunity[];
   /** Dépôts, transferts, lots et numéros de série. */

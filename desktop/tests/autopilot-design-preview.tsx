@@ -45,6 +45,9 @@ import '../src/erp-calm.css';
 import '../src/autopilot-magic.css';
 import '../src/mobile-calm.css';
 import '../src/agenda-calm.css';
+import '../src/parcours-client.css';
+import '../src/pack-batiment.css';
+import '../src/aere.css';
 
 const query = new URLSearchParams(location.search);
 document.documentElement.dataset.appTheme = query.get('theme') === 'dark' ? 'dark' : 'light';
@@ -71,6 +74,9 @@ const acceptances: AutopilotAcceptanceCard[] = [{ key: 'a1', sourceId: 's9', rec
 const followUps: AutopilotActionCard[] = [
   { key: 'ask:p1', title: 'Demande incomplète de Menuiserie Favre Sàrl', detail: 'À préciser : portes coulissantes, plinthes chêne. Un brouillon de réponse le demande.',
     actions: [{ id: 'ignore', label: 'Ignorer' }, { id: 'ask-info', label: 'Préparer la réponse', primary: true }] },
+  { key: 'site:si-new', title: 'Rattacher au chantier Villa Dupont', detail: 'Couleurs Romandes SA · facture CR-88590 · 136.21 CHF',
+    why: 'La facture mentionne l’adresse du chantier (Chemin des Vignes 14).',
+    actions: [{ id: 'site-open', label: 'Voir la facture' }, { id: 'ignore', label: 'Ignorer' }, { id: 'site-attach', label: 'Rattacher', primary: true }] },
   { key: 'reminder:r1', title: 'Relance n°1 prête', detail: 'Résidence Bellevue · F-2026-0012 · CHF 1 780.00 · échue depuis 12 jours',
     actions: [{ id: 'send', label: 'Envoyer par mail', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'invoice', label: 'Voir la facture' }, { id: 'ignore', label: 'Ignorer' }] },
   { key: 'reminder:r2', title: 'Relance n°2 prête', detail: 'Camille Martin · F-2026-0009 · CHF 640.00 · échue depuis 21 jours', note: 'Le client a promis de payer.',

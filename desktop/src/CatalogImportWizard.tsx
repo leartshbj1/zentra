@@ -17,6 +17,7 @@ import { Button, ErrorPanel, Field, FormActions, Modal, submitForm } from './ui'
 import './CatalogImportWizard.css';
 import { AutomationCatalogMapping } from './AutomationCatalogMapping';
 import { catalogMappingSource,previewCatalogGrid,catalogHeaders,type CatalogMappingSource } from './catalogImport';
+import { tradeCatalogPreview } from './tradeImport';
 import { automationFeedback,type AutomationDecision } from './automation';
 
 export type CatalogImportConflictPolicy = 'update' | 'skip';
@@ -104,6 +105,14 @@ export function CatalogImportWizard({
     setMappingSource(null);mappingAudit.current=null;
     setParsing(true);
     try {
+      // Datanorm, BMEcat ou NPK / CAN : aperçu direct, sans colonnes à associer.
+      const trade = await tradeCatalogPreview(file);
+      if (trade) {
+        setPreview(trade);
+        setPage(0);
+        setOnlyIssues(trade.rows.some(row => row.errors.length > 0));
+        return;
+      }
       const source=await catalogMappingSource(file);
       catalogHeaders(source,source.headerIndex);
       setMappingSource(source);
@@ -159,7 +168,7 @@ export function CatalogImportWizard({
           ref={fileInput}
           className="sr-only"
           type="file"
-          accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"
+          accept=".xlsx,.csv,.tsv,.001,.002,.003,.dat,.xml,.txt,.01s,.sia,.npk,.can,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,application/xml,text/xml,text/plain"
           onChange={(event) => void inspectFile(event.target.files?.[0])}
         />
         <button
@@ -170,7 +179,7 @@ export function CatalogImportWizard({
         >
           <span><FileSpreadsheet size={25} /></span>
           <strong>{parsing ? 'Analyse du fichier…' : preview ? 'Choisir un autre fichier' : 'Choisir le catalogue'}</strong>
-          <small>.xlsx, .csv ou .tsv · {Math.round(CATALOG_IMPORT_MAX_BYTES / 1024 / 1024)} Mo maximum · analyse locale</small>
+          <small>.xlsx, .csv, .tsv, Datanorm, BMEcat ou NPK / CAN · {Math.round(CATALOG_IMPORT_MAX_BYTES / 1024 / 1024)} Mo maximum · analyse locale</small>
         </button>
 
         {preview ? (

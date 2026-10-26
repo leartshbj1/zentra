@@ -24,6 +24,9 @@ export type CatalogImportRow = {
   vatBp: number;
   kind: CatalogItem['kind'];
   errors: string[];
+  /** Catalogues professionnels (Pack bâtiment) : code EAN et format d'origine. */
+  ean?: string;
+  tradeSource?: 'datanorm' | 'bmecat' | 'npk';
 };
 
 export type CatalogImportPreviewRow = Omit<CatalogImportRow, 'vatBp'> & {
@@ -534,6 +537,12 @@ async function workbookRows(file: File, headerScore?: ImportHeaderScore): Promis
     throw new Error('Format non pris en charge. Choisissez un fichier .xlsx, .csv ou .tsv.');
   }
   return xlsxRows(await file.arrayBuffer(), headerScore);
+}
+
+/** Grille texte d'un fichier .xlsx, .csv ou .tsv (première feuille lisible). */
+export async function fileTextGrid(file: File): Promise<string[][]> {
+  const source = await workbookRows(file);
+  return source.rows.map((row) => row.map(visibleCellText));
 }
 
 async function xlsxRows(data: ArrayBuffer, headerScore?: ImportHeaderScore): Promise<{ sheetName: string; rows: GridRow[] }> {

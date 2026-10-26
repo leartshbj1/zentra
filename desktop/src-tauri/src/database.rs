@@ -767,6 +767,40 @@ fn migrate_v25(transaction: &Transaction<'_>) -> AppResult<()> {
     Ok(())
 }
 
+/// Colonnes ajoutées aux tables existantes par les étapes partagées du Pack
+/// bâtiment. ALTER TABLE n'étant pas rejouable, chaque colonne n'est ajoutée
+/// que si elle manque (une copie déjà migrée peut repasser par l'étape).
+pub(crate) fn ensure_shared_step_columns(transaction: &Transaction<'_>, version: i64) -> AppResult<()> {
+    let columns: &[(&str, &str, &str)] = match version {
+        78 => &[
+            ("quote_items", "section_title", "section_title TEXT CHECK(section_title IS NULL OR LENGTH(section_title) BETWEEN 1 AND 120)"),
+            ("quote_items", "measurements_json", "measurements_json TEXT CHECK(measurements_json IS NULL OR json_valid(measurements_json))"),
+            ("invoice_items", "section_title", "section_title TEXT CHECK(section_title IS NULL OR LENGTH(section_title) BETWEEN 1 AND 120)"),
+            ("invoice_items", "measurements_json", "measurements_json TEXT CHECK(measurements_json IS NULL OR json_valid(measurements_json))"),
+            ("quotes", "show_measurements", "show_measurements INTEGER NOT NULL DEFAULT 0 CHECK(show_measurements IN (0,1))"),
+            ("invoices", "show_measurements", "show_measurements INTEGER NOT NULL DEFAULT 0 CHECK(show_measurements IN (0,1))"),
+        ],
+        80 => &[("work_report_lines", "labor_rate_id", "labor_rate_id TEXT")],
+        82 => &[
+            ("catalog_items", "ean", "ean TEXT CHECK(ean IS NULL OR (LENGTH(ean) BETWEEN 8 AND 14 AND ean NOT GLOB '*[^0-9]*'))"),
+            ("catalog_items", "trade_source", "trade_source TEXT CHECK(trade_source IS NULL OR trade_source IN ('datanorm','bmecat','npk'))"),
+        ],
+        _ => &[],
+    };
+    for (table, column, definition) in columns {
+        // Une base réduite (anciens tests de migration) peut ne pas avoir la table.
+        let exists: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)",
+            [table],
+            |row| row.get(0),
+        )?;
+        if exists {
+            add_column_if_missing(transaction, table, column, definition)?;
+        }
+    }
+    Ok(())
+}
+
 fn add_column_if_missing(
     transaction: &Transaction<'_>,
     table: &str,
@@ -1941,7 +1975,7 @@ impl LocalStore {
         // données d'entreprise partagées : même horloge et même garde
         // d'écriture. Le suivi est reconstruit une seule fois après les étapes,
         // car chaque reconstruction réécrit les déclencheurs de toutes les tables.
-        let shared_steps: [(i64, &str); 15] = [
+        let shared_steps: [(i64, &str); 20] = [
             (63, crate::schema::MIGRATION_V63_SQL), (64, crate::schema::MIGRATION_V64_SQL),
             (65, crate::schema::MIGRATION_V65_SQL), (66, crate::schema::MIGRATION_V66_SQL),
             (67, crate::schema::MIGRATION_V67_SQL), (68, crate::schema::MIGRATION_V68_SQL),
@@ -1949,17 +1983,20 @@ impl LocalStore {
             (71, crate::schema::MIGRATION_V71_SQL), (72, crate::schema::MIGRATION_V72_SQL),
             (73, crate::schema::MIGRATION_V73_SQL), (74, crate::schema::MIGRATION_V74_SQL),
             (75, crate::schema::MIGRATION_V75_SQL), (76, crate::schema::MIGRATION_V76_SQL),
-            (77, crate::schema::MIGRATION_V77_SQL),
+            (77, crate::schema::MIGRATION_V77_SQL), (78, crate::schema::MIGRATION_V78_SQL),
+            (79, crate::schema::MIGRATION_V79_SQL), (80, crate::schema::MIGRATION_V80_SQL),
+            (81, crate::schema::MIGRATION_V81_SQL), (82, crate::schema::MIGRATION_V82_SQL),
         ];
-        if current < 77 {
+        if current < crate::schema::SCHEMA_VERSION {
             for (version, sql) in shared_steps {
                 if current < version {
+                    ensure_shared_step_columns(&transaction, version)?;
                     transaction.execute_batch(sql)?;
                 }
             }
             transaction.execute("DELETE FROM company_local_tracking_version", [])?;
             crate::company_collaboration::migrate(&transaction)?;
-            transaction.pragma_update(None, "user_version", 77)?;
+            transaction.pragma_update(None, "user_version", crate::schema::SCHEMA_VERSION)?;
         }
         // Archives strip private scopes even when their v61 table already
         // exists. Repair the singleton for every upgrade in this transaction.
@@ -2917,7 +2954,7 @@ impl LocalStore {
         workspace["stock_availability"] = Value::Array(stock_availability);
         workspace["project_milestones"] = Value::Array(project_milestones);
         workspace["project_tasks"] = Value::Array(project_tasks);
-        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims", "price_lists", "price_list_items", "client_price_lists", "opportunities", "warehouses", "stock_movement_warehouses", "stock_transfers", "catalog_item_tracking", "stock_lots", "stock_lot_movements", "bills_of_materials", "bom_lines", "production_orders"] {
+        for table in ["supplier_invoice_payment_details", "supplier_payment_orders", "supplier_payment_order_items", "debt_collection_requests", "opening_receivables", "invoice_payment_links", "cash_book_entries", "cash_counts", "contracts", "work_reports", "work_report_lines", "employee_leave_settings", "absences", "expense_claims", "price_lists", "price_list_items", "client_price_lists", "opportunities", "progress_billing_plans", "progress_bills", "progress_bill_lines", "labor_rate_tables", "labor_rates", "project_budget_lines", "project_subcontracts", "supplier_invoice_subcontracts", "service_kits", "service_kit_lines", "warehouses", "stock_movement_warehouses", "stock_transfers", "catalog_item_tracking", "stock_lots", "stock_lot_movements", "bills_of_materials", "bom_lines", "production_orders"] {
             let present: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", [table], |row| row.get(0))?;
             workspace[table] = Value::Array(if present { query_all(connection, &format!("SELECT * FROM {table} ORDER BY rowid"), [])? } else { Vec::new() });
         }
@@ -3165,6 +3202,9 @@ impl LocalStore {
             Some(id) => {
                 let previous = query_record_tx(&transaction, document_spec.table, &id)?;
                 ensure_record_mutable(&transaction, entity, &previous)?;
+                if entity == "invoices" {
+                    crate::progress_billing::ensure_lines_editable(&transaction, &id)?;
+                }
                 normalize_record_patch(entity, &mut document_data, &previous)?;
                 if !document_data.is_empty() {
                     let mut assignments = Vec::new();
@@ -3962,7 +4002,7 @@ impl LocalStore {
             recompute_invoice(&transaction, id)?;
         } else {
             let negative:bool=transaction.query_row("SELECT EXISTS(SELECT 1 FROM invoice_items WHERE invoice_id=? AND (unit_price_cents<0 OR line_total_cents<0))",params![id],|r|r.get(0))?;
-            if negative && !paired_balance {
+            if negative && !paired_balance && !crate::progress_billing::is_progress_invoice(&transaction, id)? {
                 return Err(AppError::Validation(
                     "Les montants négatifs sont réservés aux avoirs.".into(),
                 ));
@@ -4338,6 +4378,9 @@ impl LocalStore {
                     ],
                 )?;
             }
+        }
+        for target in [credit_id.as_str(), replacement_id.as_str()] {
+            copy_line_layout(&transaction, ("invoices", "invoice_items", "invoice_id", original_id), ("invoices", "invoice_items", "invoice_id", target))?;
         }
         recompute_all_invoice_lines(&transaction, &credit_id)?;
         recompute_invoice(&transaction, &credit_id)?;
@@ -4816,6 +4859,7 @@ impl LocalStore {
                 params![now_iso(), id],
             )?;
         }
+        copy_line_layout(&transaction, ("quotes", "quote_items", "quote_id", &id), ("quotes", "quote_items", "quote_id", &revision_id))?;
         let revision = query_record_tx(&transaction, "quotes", &revision_id)?;
         let items = query_all(
             &transaction,
@@ -4886,6 +4930,11 @@ impl LocalStore {
         self.require_onboarding(&connection)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let quote = query_record_tx(&transaction, "quotes", &input.quote_id)?;
+        if crate::progress_billing::quote_has_plan(&transaction, &input.quote_id)? {
+            return Err(AppError::Validation(
+                "Ce devis est facturé par situations : préparez la situation suivante ou le décompte final.".into(),
+            ));
+        }
         if quote["status"] != "accepte" {
             return Err(AppError::Validation(
                 "Seul un devis accepté peut être converti en facture.".into(),
@@ -5064,6 +5113,9 @@ impl LocalStore {
             } else {
                 transaction.execute("INSERT INTO invoice_items(id,invoice_id,catalog_item_id,position,description,quantity,unit,unit_price_cents,discount_bp,vat_bp,line_net_cents,line_vat_cents,line_total_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",params![Uuid::new_v4().to_string(),invoice_id,item.2,item.1,item.3,item.4,item.5,item.6,item.7,item.8,item.9,item.10,item.11,now,now])?;
             }
+        }
+        if deposit_percentage_bp.is_none() {
+            copy_line_layout(&transaction, ("quotes", "quote_items", "quote_id", input.quote_id.as_str()), ("invoices", "invoice_items", "invoice_id", invoice_id.as_str()))?;
         }
         recompute_invoice(&transaction, &invoice_id)?;
         if deposit_percentage_bp.is_some() {
@@ -5459,6 +5511,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "currency",
                 "notes",
                 "terms",
+                "show_measurements",
             ],
             required: &["title"],
         },
@@ -5477,6 +5530,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "line_net_cents",
                 "line_vat_cents",
                 "line_total_cents",
+                "section_title",
+                "measurements_json",
             ],
             required: &["quote_id", "description", "vat_bp"],
         },
@@ -5499,6 +5554,7 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "currency",
                 "notes",
                 "terms",
+                "show_measurements",
             ],
             required: &["title"],
         },
@@ -5517,6 +5573,8 @@ fn entity_spec(entity: &str) -> AppResult<EntitySpec> {
                 "line_net_cents",
                 "line_vat_cents",
                 "line_total_cents",
+                "section_title",
+                "measurements_json",
             ],
             required: &["invoice_id", "description", "vat_bp"],
         },
@@ -6344,10 +6402,19 @@ fn normalize_record(
         let value = currency.as_str().unwrap_or("CHF");
         *currency = Value::String(normalized_code(value, "currency", 3, "CHF")?);
     }
+    if matches!(entity, "quotes" | "invoices") {
+        if let Some(flag) = object.get_mut("show_measurements") {
+            let enabled = flag.as_bool().unwrap_or_else(|| flag.as_i64() == Some(1));
+            *flag = json!(i64::from(enabled));
+        }
+    }
     match entity {
         "catalog_items" => normalize_catalog_item(object)?,
         "suppliers" => normalize_supplier(object)?,
-        "quote_items" | "invoice_items" => normalize_line_item(object)?,
+        "quote_items" | "invoice_items" => {
+            crate::measurement::normalize_line(object)?;
+            normalize_line_item(object)?
+        }
         "invoices" => {
             if let Some(invoice_type) = object.get_mut("type") {
                 let normalized = match invoice_type.as_str().unwrap_or_default() {
@@ -7161,7 +7228,7 @@ fn normalize_record_patch(
     }
     match entity {
         "quote_items" | "invoice_items" => {
-            for field in ["line_net_cents", "line_vat_cents", "line_total_cents"] {
+            for field in ["line_net_cents", "line_vat_cents", "line_total_cents", "quantity"] {
                 if let Some(value) = merged.get(field) {
                     object.insert(field.into(), value.clone());
                 }
@@ -7237,6 +7304,30 @@ fn round_basis_points(value: i64, basis_points: i64) -> i64 {
     let sign = if value < 0 { -1_i128 } else { 1_i128 };
     let absolute = (value as i128).abs();
     (sign * ((absolute * basis_points as i128 + 5_000) / 10_000)) as i64
+}
+
+/// Reprend les chapitres et le métré d'un document sur sa copie (révision,
+/// conversion, correction), ligne par ligne selon la position. Les noms de
+/// tables sont internes.
+pub(crate) fn copy_line_layout(
+    transaction: &Transaction<'_>,
+    (from_document, from_items, from_parent, from_id): (&str, &str, &str, &str),
+    (to_document, to_items, to_parent, to_id): (&str, &str, &str, &str),
+) -> AppResult<()> {
+    transaction.execute(
+        &format!(
+            "UPDATE {to_items} SET
+               section_title=(SELECT s.section_title FROM {from_items} s WHERE s.{from_parent}=?1 AND s.position={to_items}.position ORDER BY s.rowid LIMIT 1),
+               measurements_json=(SELECT s.measurements_json FROM {from_items} s WHERE s.{from_parent}=?1 AND s.position={to_items}.position ORDER BY s.rowid LIMIT 1)
+             WHERE {to_parent}=?2"
+        ),
+        params![from_id, to_id],
+    )?;
+    transaction.execute(
+        &format!("UPDATE {to_document} SET show_measurements=COALESCE((SELECT show_measurements FROM {from_document} WHERE id=?1),0) WHERE id=?2"),
+        params![from_id, to_id],
+    )?;
+    Ok(())
 }
 
 fn deposit_line_description(percentage_bp: i64, description: &str) -> String {

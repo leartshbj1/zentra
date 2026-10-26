@@ -23,6 +23,11 @@ import { DebtCollectionDialog } from './DebtCollectionDialog';
 import { OnlinePaymentSettings } from './OnlinePaymentSettings';
 import { BankAreaTabs, CatalogAreaTabs, TimeAreaTabs, type BankArea, type CatalogArea, type TimeArea } from './BankAreaTabs';
 import { PriceListsPanel } from './PriceListsPanel';
+import { ProgressBillingDialog } from './ProgressBillingDialog';
+import { LaborRatesPanel } from './LaborRatesPanel';
+import { ServiceKitsPanel } from './ServiceKitsPanel';
+import { autopilotSiteCopy, siteAttachProposals } from './autopilotSite';
+import { nextProgressStep, previousProgress } from './progressBilling';
 import { WarehousesPanel } from './WarehousesPanel';
 import { LotsPanel } from './LotsPanel';
 import { BomPanel } from './BomPanel';
@@ -506,6 +511,7 @@ type ModalState = (
       consultation?:DocumentCreationConsultation;
     }
   | { type: 'quoteConversion'; quote: Quote }
+  | { type: 'progressBilling'; quote: Quote }
   | { type: 'quoteInvoiceFolder'; quoteId: string }
   | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
@@ -1120,6 +1126,7 @@ function WorkspaceContent({
     else if (undo.kind === 'record-fields') done = await act(origin => desktopApi.updateEntity(undo.entity, undo.id, { ...undo.fields }, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     else if (undo.kind === 'quote-status') done = await act(() => desktopApi.updateQuoteStatus(undo.quoteId, undo.status as never), copy.undoDone, false);
     else if (undo.kind === 'archive-project') done = await act(origin => desktopApi.archiveEntity('projects', undo.projectId, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
+    else if (undo.kind === 'supplier-project') done = await act(async () => (await desktopApi.assignSupplierInvoiceProject(undo.invoiceId, undo.projectId)).workspace, copy.undoDone, false);
     if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
   };
   const runSignal = async (sourceId: string, choiceId?: string) => {
@@ -1591,6 +1598,16 @@ function WorkspaceContent({
         autoCase: proposal.draft ? 'qrmail' : undefined,
         actions: proposal.draft ? [{ id: 'qr-create', label: copy.actionCreatePurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }]
           : [{ id: 'qr-review', label: copy.actionReviewPurchase, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // Achats : facture fournisseur reçue qui cite un seul chantier (commande, adresse, nom).
+    const siteCopy = autopilotSiteCopy(getAppLanguage());
+    for (const proposal of siteAttachProposals(workspace.supplierInvoices, workspace.projects, workspace.supplierOrders)) {
+      const key = 'site:' + proposal.invoice.id;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: siteCopy.title.replace('{project}', proposal.project.name),
+        detail: siteCopy.detail.replace('{supplier}', proposal.invoice.supplierName).replace('{reference}', proposal.invoice.reference).replace('{amount}', formatMoney(proposal.invoice.totalCents, proposal.invoice.currency)),
+        why: siteCopy[proposal.evidence].replace('{matched}', proposal.matched),
+        actions: [{ id: 'site-open', label: siteCopy.open }, { id: 'ignore', label: copy.acceptanceDismiss }, { id: 'site-attach', label: siteCopy.attach, primary: true }] });
     }
     const toPay = invoicesToPay(workspace.supplierInvoices, today, workspace.supplierPaymentOrders ?? []).filter(invoice => !(orderShown && order.ids.includes(invoice.id)) && !entries['pay:' + invoice.id]?.ignored && !(entries['pay:' + invoice.id]?.until && entries['pay:' + invoice.id]!.until! > today));
     for (const invoice of toPay) {
@@ -2109,6 +2126,15 @@ function WorkspaceContent({
       }, copy.projectCreated.replace('{name}', plan.data.name), false);
       if (created && projectId) { actionUndo.current = { kind: 'archive-project', projectId }; setSearch(''); setProjectFolderId(projectId); setView('projects'); }
       refresh();
+      return;
+    }
+    if (key.startsWith('site:') && (actionId === 'site-attach' || actionId === 'site-open')) {
+      const current = workspaceRef.current;
+      const proposal = siteAttachProposals(current.supplierInvoices, current.projects, current.supplierOrders).find(row => 'site:' + row.invoice.id === key);
+      if (!proposal) return;
+      if (actionId === 'site-open') { setSearch(''); setView('expenses'); setModal({ type: 'supplierInvoiceDetail', invoice: proposal.invoice }); return; }
+      const attached = await journalAct(async () => (await desktopApi.assignSupplierInvoiceProject(proposal.invoice.id, proposal.project.id)).workspace, autopilotSiteCopy(getAppLanguage()).done, false);
+      if (attached) { actionUndo.current = { kind: 'supplier-project', invoiceId: proposal.invoice.id, projectId: proposal.invoice.projectId }; refresh(); }
       return;
     }
     if (key.startsWith('pay:') && actionId !== 'ignore') {
@@ -4141,6 +4167,9 @@ function WorkspaceContent({
           {view === 'catalog' && catalogArea === 'prices' ? (
             <PriceListsPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
+          {view === 'catalog' && catalogArea === 'kits' ? (
+            <ServiceKitsPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
           {view === 'catalog' && catalogArea === 'warehouses' ? (
             <WarehousesPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
@@ -4242,7 +4271,9 @@ function WorkspaceContent({
                 );
               }}
               onConvert={(item) =>
-                setModal({ type: 'quoteConversion', quote: item })
+                setModal(workspace.progressPlans?.some(plan => plan.quoteId === item.id)
+                  ? { type: 'progressBilling', quote: item }
+                  : { type: 'quoteConversion', quote: item })
               }
               onCreateOrder={(item) => void convertAcceptedQuoteToOrder(item)}
               onAcceptanceLink={readOnly ? undefined : (item) => void sendAcceptanceLink(item)}
@@ -4349,6 +4380,9 @@ function WorkspaceContent({
             </Suspense>
           ) : null}
           {view === 'time' ? <TimeAreaTabs active={timeArea} onChange={setTimeArea} /> : null}
+          {view === 'time' && timeArea === 'rates' ? (
+            <LaborRatesPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
+          ) : null}
           {view === 'time' && timeArea === 'reports' ? (
             <WorkReportsPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} onOpenInvoice={openInvoiceById} />
           ) : null}
@@ -5850,6 +5884,10 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
               const convertedOrder = workspace.salesOrders.some(
                 (order) => order.quoteId === quote.id,
               );
+              // Facturation par situations : la suivante se prépare depuis le devis.
+              const progressStep = workspace.progressPlans?.some((plan) => plan.quoteId === quote.id)
+                ? nextProgressStep(previousProgress(quote.id, workspace.progressBills ?? [], workspace.invoices))
+                : null;
               const requiresOrder = quoteRequiresSalesOrder(
                 quote,
                 workspace.catalogItems,
@@ -5981,6 +6019,18 @@ function DocumentsScreen(sourceProps: DocumentsProps) {
                             </Button>
                           ) : null}
                         </>
+                      ) : null}
+                      {quote.status === 'accepted' && progressStep && progressStep !== 'done' ? (
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          className="quote-convert-button"
+                          disabled={mutationsDisabled}
+                          onClick={() => props.onConvert(quote)}
+                          title={t('Préparer la situation suivante, le décompte final ou la libération de la retenue')}
+                        >
+                          <ArrowRight size={15} /> {progressStep === 'retention_release' ? t('Libérer la retenue') : progressStep === 'draft' ? t('Situation en brouillon') : t('Situation suivante')}
+                        </Button>
                       ) : null}
                       {quote.status === 'accepted' &&
                       !converted &&
@@ -8296,7 +8346,9 @@ function WorkspaceModal({
             (batch) => batch.invoiceId === state.item?.id,
           )
             ? 'Cette facture brouillon est générée depuis une commande client. Consultez-la ici; utilisez la fiche commande pour l’émettre ou supprimer le brouillon avec un motif.'
-            : undefined
+            : state.entity === 'invoices' && state.item?.status === 'draft' && workspace.progressBills?.some(bill => bill.invoiceId === state.item?.id)
+              ? t('Cette situation est calculée depuis le devis. Émettez-la depuis la liste des factures ; pour la changer, supprimez le brouillon et préparez-la à nouveau.')
+              : undefined
         }
         close={close}
         act={act}
@@ -8309,6 +8361,17 @@ function WorkspaceModal({
         busy={busy}
         close={close}
         onConvert={onConvertQuote}
+        onProgress={() => replace({ type: 'progressBilling', quote: state.quote })}
+      />
+    );
+  if (state.type === 'progressBilling')
+    return (
+      <ProgressBillingDialog
+        quote={state.quote}
+        workspace={workspace}
+        busy={busy}
+        close={close}
+        onCreate={(input, onError) => act(async () => (await desktopApi.createProgressBill(input)).workspace, t('La facture est prête en brouillon. Vérifiez-la puis émettez-la.'), true, onError)}
       />
     );
   if (state.type === 'invoiceCorrection')

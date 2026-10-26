@@ -58,5 +58,6 @@ import './autopilot-magic.css';
 import './mobile-calm.css';
 import './agenda-calm.css';
 import './parcours-client.css';
+import './pack-batiment.css';
 import './aere.css';
 import './autopilot-aujourdhui.css';

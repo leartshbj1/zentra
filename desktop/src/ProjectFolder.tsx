@@ -1,3 +1,4 @@
+import { SiteSheet } from './SiteSheet';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowLeft, FileText, Image, Plus, Trash2 } from 'lucide-react';
 import { desktopApi } from './bridge';
@@ -26,7 +27,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
   onOpenNotes?: (projectId: string) => void;
 }) {
   useAppLanguage();
-  const [tab, setTab] = useState<'all' | 'files' | 'quotes' | 'invoices'>('all');
+  const [tab, setTab] = useState<'all' | 'site' | 'files' | 'quotes' | 'invoices'>('all');
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
   const receiver = useRef(onWorkspaceChange);
@@ -130,8 +131,10 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     </header>
     <nav className="project-folder__tabs" aria-label={t('Contenu du projet')}>{([
       ['all', 'Tout', contents.files.length + contents.quotes.length + contents.invoices.length],
+      ['site', 'Chantier', null],
       ['files', 'Documents', contents.files.length], ['quotes', 'Devis', contents.quotes.length], ['invoices', 'Factures', contents.invoices.length],
-    ] as const).map(([id, label, count]) => <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{t(label)} <span>{count}</span></button>)}</nav>
+    ] as const).map(([id, label, count]) => <button key={id} type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{t(label)}{count === null ? null : <> <span>{count}</span></>}</button>)}</nav>
+    {tab === 'site' ? <section className="panel project-folder__section"><SiteSheet project={project} workspace={workspace} readOnly={readOnly || busy} onWorkspaceChange={onWorkspaceChange} /></section> : null}
     {notice ? <p className="project-file-notice" role="status">{projectFileMessageText(notice)}</p> : null}
     {saving && progress ? <p role="status">{progress}</p> : null}
     {refreshPending ? <div ref={recoveryPanel} tabIndex={-1} className="project-file-recovery" role="alert">
