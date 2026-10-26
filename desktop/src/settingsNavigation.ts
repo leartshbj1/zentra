@@ -1,7 +1,7 @@
 export const settingsGroups = [
   { title: 'Entreprise et équipe', ids: ['readiness', 'company', 'account', 'payroll'] },
   { title: 'Documents et gestion', ids: ['documents', 'accounting', 'time', 'migration'] },
-  { title: 'Connexions', ids: ['automation', 'mail'] },
+  { title: 'Connexions', ids: ['automation', 'mail', 'customers'] },
   { title: 'Préférences et protection', ids: ['appearance', 'personalization', 'language', 'assistant', 'storage'] },
 ] as const;
 

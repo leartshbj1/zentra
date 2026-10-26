@@ -111,7 +111,7 @@ import { t, useAppLanguage, getAppLocale, getAppLanguage } from './language';
 import { projectFileMessageText } from './projectLanguage';
 import { createLocalValidationError } from './localValidation';
 import './manual-backup.css';
-import { Languages } from 'lucide-react';
+import { Languages, Palette } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
 import {CollectionPagination,useCollectionPage} from './CollectionPagination';
 import {CustomerSettlementOutcomeUnknownError,CustomerSettlementRefreshError} from './customerSettlementWorkflow';
@@ -8434,7 +8434,7 @@ function SettingsScreen({
         <section className="panel settings-card settings-card--wide"><CustomerSettings workspace={workspace} disabled={readOnly} onWorkspace={next => onWorkspace(next)} /></section>
         <section className="panel settings-card settings-card--wide"><SmsSettingsPanel disabled={readOnly} /></section>
       </SettingsCategory>
-      <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting embedded /></SettingsCategory>
+      <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Palette}><AppearanceSetting embedded /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>
       <SettingsCategory id="language" title={t('Langue et région')} description={t('Français, allemand, italien ou anglais')} icon={Languages}><LanguageSetting embedded /></SettingsCategory>
       <SettingsCategory id="assistant" lazy title="Assistant local" description="Installer Qwen et obtenir de l’aide dans Zentra" icon={MessageCircle}><LocalAssistantSetup /></SettingsCategory>
