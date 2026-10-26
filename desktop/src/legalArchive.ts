@@ -46,3 +46,35 @@ export function archiveProblems(state: LegalArchiveState): LegalArchive[] {
 export function archivesToVerify(state: LegalArchiveState, now: number): LegalArchive[] {
   return state.archives.filter(archive => archive.present && (!archive.lastVerifiedAt || now - Date.parse(archive.lastVerifiedAt) > 30 * 86_400_000));
 }
+
+/** Copie chiffrée d'une archive dans le coffre Zentra (second support). */
+export type VaultCopy = {
+  copyId: string;
+  year: number;
+  fileName: string;
+  plainSha256: string;
+  sizeBytes: number;
+  keyId: string;
+  createdAt: number;
+  completedAt: number | null;
+};
+
+export function vaultCopyFromRaw(row: RawRow): VaultCopy {
+  return {
+    copyId: text(row.copy_id), year: number(row.year), fileName: text(row.file_name), plainSha256: text(row.plain_sha256),
+    sizeBytes: number(row.size_bytes), keyId: text(row.key_id), createdAt: number(row.created_at),
+    completedAt: typeof row.completed_at === 'number' ? row.completed_at : null,
+  };
+}
+
+/** Archives présentes sur l'appareil sans copie complète dans le coffre. */
+export function archivesWithoutCopy(archives: readonly LegalArchive[], copies: readonly VaultCopy[]): LegalArchive[] {
+  const copied = new Set(copies.filter((copy) => copy.completedAt !== null).map((copy) => copy.plainSha256));
+  return archives.filter((archive) => archive.present && !copied.has(archive.sha256));
+}
+
+/** Copies du coffre dont l'archive manque sur cet appareil : à récupérer. */
+export function copiesToRecover(archives: readonly LegalArchive[], copies: readonly VaultCopy[]): VaultCopy[] {
+  const present = new Set(archives.filter((archive) => archive.present).map((archive) => archive.sha256));
+  return copies.filter((copy) => copy.completedAt !== null && !present.has(copy.plainSha256));
+}

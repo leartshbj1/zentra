@@ -16,6 +16,7 @@ import type { NativeAccountRow } from './chartImport';
 import { dataImportFromRaw, undoReportFromRaw, type DataImport, type UndoReport } from './dataImports';
 import { originToRaw, type ImportOrigin } from './migrationSources';
 import type { HealthSummary } from './fiduciaryHealth';
+import { vaultCopyFromRaw, type VaultCopy } from './legalArchive';
 import type { MorningDigestInput, MorningDigestState } from './morningDigest';
 import type { PortalEvent, PortalPage, PortalPublishInput } from './quotePortal';
 import { priceListsFromRaw } from './priceLists';
@@ -7683,6 +7684,27 @@ export const desktopApi = {
   async createLegalArchive(year: number) {
     const raw = await invoke<RawRecord>('create_legal_archive', { year });
     return { status: stringValue(raw.status), path: stringValue(raw.path), files: numberValue(raw.files), missing: numberValue(raw.missing) };
+  },
+  /** Coffre des archives légales : copies chiffrées sur l'appareil, conservées en ligne. */
+  async listLegalArchiveCopies(): Promise<{ copies: VaultCopy[]; localKeyId: string | null }> {
+    const raw = await invoke<RawRecord>('list_legal_archive_copies');
+    return { copies: rawArray(raw.copies).map(vaultCopyFromRaw), localKeyId: typeof raw.local_key_id === 'string' ? raw.local_key_id : null };
+  },
+  async legalArchiveRecoveryCode() {
+    const raw = await invoke<RawRecord>('legal_archive_recovery_code');
+    return { code: stringValue(raw.code), keyId: stringValue(raw.key_id), created: raw.created === true };
+  },
+  async copyLegalArchiveToVault(archiveId: string) {
+    return vaultCopyFromRaw(await invoke<RawRecord>('copy_legal_archive_to_vault', { archiveId }));
+  },
+  async restoreLegalArchiveCopy(copy: VaultCopy, recoveryCode?: string) {
+    const selected = await chooseSaveFile({ title: 'Enregistrer l’archive récupérée', defaultPath: copy.fileName, filters: [{ name: 'Archive ZIP', extensions: ['zip'] }] });
+    if (!selected) return null;
+    const destination = selected.toLowerCase().endsWith('.zip') ? selected : `${selected}.zip`;
+    const raw = await invoke<RawRecord>('restore_legal_archive_copy', { copyId: copy.copyId, destination, recoveryCode: recoveryCode?.trim() || null });
+    const path = stringValue(raw.path);
+    if (isMobileRuntime()) await shareMobileExport(path);
+    return { path };
   },
   async verifyLegalArchive(id: string) {
     const raw = await invoke<RawRecord>('verify_legal_archive', { id });

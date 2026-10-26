@@ -43,6 +43,7 @@ mod customer_credit_recovery_vat;
 mod accounting_export;
 mod data_imports;
 mod fiduciary_summary;
+mod legal_archive_copy;
 mod database;
 mod diagnostics;
 mod member_context;
@@ -346,6 +347,10 @@ pub fn run() {
             accounting_export::save_accounting_export,
             fiduciary_summary::publish_fiduciary_summary,
             fiduciary_summary::stop_fiduciary_summary,
+            legal_archive_copy::list_legal_archive_copies,
+            legal_archive_copy::legal_archive_recovery_code,
+            legal_archive_copy::copy_legal_archive_to_vault,
+            legal_archive_copy::restore_legal_archive_copy,
             online_payments::get_online_payment_settings,
             online_payments::save_online_payment_settings,
             online_payments::create_invoice_payment_link,

@@ -1670,6 +1670,8 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | "/api/account/portal/publish"
             | "/api/account/portal/events"
             | crate::fiduciary_summary::PATH
+            | crate::legal_archive_copy::PATH
+            | crate::legal_archive_copy::CHUNK_PATH
     ) {
         return Err(AppError::Validation("Route de compte refusée.".into()));
     }

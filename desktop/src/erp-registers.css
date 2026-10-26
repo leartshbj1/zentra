@@ -380,3 +380,11 @@
     html[data-app-theme] .desktop-app[data-experience] .consolidation__eliminations li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   }
 }
+/* Coffre des archives légales : copie chiffrée et clé de récupération. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .legal-vault { display: grid; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--apple-separator, var(--line)); }
+  html[data-app-theme] .desktop-app[data-experience] .legal-vault__code { display: grid; gap: 8px; max-width: 640px; }
+  html[data-app-theme] .desktop-app[data-experience] .legal-vault__code code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: calc(15px * var(--zentra-ui-text-scale, 1)); color: var(--apple-ink); letter-spacing: 0.04em; overflow-wrap: anywhere; user-select: all; }
+  html[data-app-theme] .desktop-app[data-experience] .legal-vault__recover input { width: 100%; min-height: 40px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  html[data-app-theme] .desktop-app[data-experience] .legal-vault__show { justify-self: start; min-height: 32px; padding: 0; border: 0; background: none; color: var(--apple-accent); cursor: pointer; font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+}

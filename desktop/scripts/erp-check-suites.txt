@@ -81,3 +81,5 @@ rust:accounting_export::
 rust:fiduciary_summary::
 src/fiduciaryHealth.test.ts
 src/consolidation.test.ts
+src/legalArchiveVault.test.ts
+rust:legal_archive_copy::
