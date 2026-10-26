@@ -37,6 +37,13 @@ import { BomPanel } from './BomPanel';
 import { PipelinePanel } from './PipelinePanel';
 import { pipelineRows, stalledOpportunities, type Opportunity } from './pipeline';
 import { WorkReportsPanel } from './WorkReportsPanel';
+import { PlanningScreen } from './PlanningScreen';
+import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
+import { CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
+import { appointmentReminders, normalizedPhone, reminderSms, reviewCandidates, reviewMailto, reviewSms, type SmsSettings } from './customerEngagement';
+import { depositsToRecord, freeSlots, slotsFingerprint } from './portalTerrain';
+import { InstalledEquipmentScreen, serviceTitle } from './InstalledEquipmentScreen';
+import { clientLabel as equipmentClientLabel, equipmentLabel, serviceKind, servicesToPlan, suggestedServiceSlot } from './installedEquipment';
 import { AbsencesPanel, ExpenseClaimsPanel } from './TeamTimePanels';
 import { ElmExportPanel, SourceTaxTariffsPanel } from './SourceTaxPanels';
 import { ijmToDeclare, negativeBalances, pendingClaims } from './teamTime';
@@ -240,6 +247,8 @@ import {
   Mailbox,
   X,
   Link2,
+  CalendarRange,
+  Wrench,
 } from 'lucide-react';
 import { desktopApi, type CloudAccountState } from './bridge';
 import { WorkspaceRefreshAfterMutationError, refreshWorkspaceAfterMutation } from './workspaceMutation';
@@ -493,7 +502,7 @@ function ViewLoading({ label }: { label: string }) {
 
 const NotesScreen = lazy(() => import('./NotesScreen').then(module => ({ default: module.NotesScreen })));
 
-type View = TourView | 'orders' | 'agenda' | 'automation' | 'notes';
+type View = TourView | 'orders' | 'agenda' | 'automation' | 'notes' | 'planning' | 'equipment';
 type ModalState = (
   | {type:'documentCreationDrafts';selections:readonly DocumentCreationConsultation[]}
   | { type: 'client'; item?: Client; seedName?: string }
@@ -520,6 +529,7 @@ type ModalState = (
     }
   | { type: 'quoteConversion'; quote: Quote }
   | { type: 'progressBilling'; quote: Quote }
+  | { type: 'dictation'; target: DictationTarget }
   | { type: 'quoteInvoiceFolder'; quoteId: string }
   | { type: 'invoiceCorrection'; invoice: Invoice }
   | { type: 'time'; item?: TimeEntry }
@@ -563,6 +573,8 @@ const navigation: Array<{
   { id: 'reminders', label: 'Relances', icon: MessageSquareWarning },
   { id: 'catalog', label: 'Produits & services', icon: Package },
   { id: 'projects', label: 'Projets', icon: FolderKanban, group: 'Réaliser' },
+  { id: 'planning', label: 'Planning', icon: CalendarRange },
+  { id: 'equipment', label: 'Parc installé', icon: Wrench },
   { id: 'time', label: 'Temps', icon: Clock3 },
   { id: 'team', label: 'Équipe & salaires', icon: Users },
   { id: 'expenses', label: 'Achats & fournisseurs', icon: WalletCards, group: 'Acheter et payer' },
@@ -593,6 +605,8 @@ const viewTitles: Record<View, [string, string]> = {
     'Rendez-vous et échéances réelles réunis au même endroit',
   ],
   projects: ['Projets', 'Documents, budget, temps et rentabilité par projet'],
+  planning: ['Planning', 'Qui fait quoi, quel jour, et où'],
+  equipment: ['Parc installé', 'Équipements posés chez vos clients et leurs entretiens'],
   clients: ['Clients', 'Coordonnées et historique des travaux'],
   catalog: [
     'Produits & services',
@@ -1142,6 +1156,7 @@ function WorkspaceContent({
     else if (undo.kind === 'sales-order-draft') done = await act(() => desktopApi.cancelSalesOrder(createId(), undo.orderId, t('Annulée depuis le journal Autopilote')), copy.undoDone, false);
     else if (undo.kind === 'quote-draft') done = await act(origin => desktopApi.archiveEntity('quotes', undo.quoteId, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
     else if (undo.kind === 'archive-client') done = await act(origin => desktopApi.archiveEntity('clients', undo.clientId, origin.workspaceScope, origin.memberContextNonce), copy.undoDone, false);
+    else if (undo.kind === 'equipment-service') done = await act(() => desktopApi.cancelEquipmentService(undo.serviceId), copy.undoDone, false);
     if (done) { markUndone(organizationId, entry.id); setJournalVersion(version => version + 1); if (undo.kind === 'follow-up') setNotice({ tone: 'success', text: copy.undoDone }); }
   };
   const runSignal = async (sourceId: string, choiceId?: string) => {
@@ -1211,6 +1226,93 @@ function WorkspaceContent({
   const [openStatus, setOpenStatus] = useState<OpenApiStatus | null>(null);
   const [inboxItems, setInboxItems] = useState<readonly InboxItem[]>([]);
   const [posToClose, setPosToClose] = useState<readonly PosDay[]>([]);
+  // Compte SMS de l'entreprise : relu en ouvrant Autopilote, l'accueil ou les réglages.
+  const [smsSettings, setSmsSettings] = useState<SmsSettings | null>(null);
+  useEffect(() => {
+    if (!['automation', 'dashboard', 'settings', 'planning'].includes(view)) return;
+    let live = true;
+    desktopApi.getSmsSettings().then(value => { if (live) setSmsSettings(value); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [view]);
+  // Portail client : créneaux libres publiés quand ils changent, demandes de rendez-vous lues
+  // depuis la dernière position, acomptes Payrexx relus. Seulement pendant qu'Autopilote,
+  // le planning ou l'accueil est ouvert, et jamais en lecture seule.
+  const portalSyncing = useRef(false);
+  useEffect(() => {
+    if (!autopilotContext || readOnly || portalSyncing.current || !['automation', 'dashboard', 'planning'].includes(view)) return;
+    const { organizationId, origin } = autopilotContext;
+    portalSyncing.current = true;
+    void (async () => {
+      try {
+        const current = workspaceRef.current, engagement = current.customerEngagement;
+        let next: Workspace | null = null;
+        if (engagement?.bookingEnabled) {
+          const slots = freeSlots(engagement, current.agendaEvents, current.portalBookingRequests ?? [], todayIso());
+          const key = 'zentra.portal.slots.v1.' + organizationId, fingerprint = slotsFingerprint(slots);
+          let stored: string | null = null;
+          try { stored = localStorage.getItem(key); } catch { stored = null; }
+          if (stored !== fingerprint) {
+            const reply = await desktopApi.publishPortalSlots(origin, slots);
+            if (reply.status === 'available') try { localStorage.setItem(key, fingerprint); } catch { /* republié la prochaine fois */ }
+          }
+          const cursorKey = 'zentra.portal.bookings.v1.' + organizationId;
+          let cursor: string | null = null;
+          try { cursor = localStorage.getItem(cursorKey); } catch { cursor = null; }
+          for (let page = 0; page < 5; page++) {
+            const reply = await desktopApi.readPortalBookings(origin, { limit: 50, cursor });
+            if (reply.status !== 'available' || !reply.data) break;
+            if (reply.data.items.length) next = await desktopApi.savePortalBookingRequests(reply.data.items);
+            if (!reply.data.nextCursor || reply.data.nextCursor === cursor) break;
+            cursor = reply.data.nextCursor;
+            try { localStorage.setItem(cursorKey, cursor); } catch { /* relu la prochaine fois, sans doublon */ }
+            if (reply.data.items.length < 50) break;
+          }
+        }
+        if ((current.quoteDepositLinks ?? []).some(link => link.status === 'open')) next = await desktopApi.refreshQuoteDepositLinks();
+        if (next) { workspaceRef.current = next; setWorkspace(next); }
+      } catch { /* la synchronisation reprend à la prochaine ouverture */ } finally { portalSyncing.current = false; }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, autopilotContext?.organizationId, readOnly, workspace.customerEngagement?.bookingEnabled]);
+  // Règles explicites choisies dans les réglages : rappels SMS la veille, avis par SMS.
+  // Jamais la nuit, une seule tentative par élément et par ouverture ; chaque envoi va au journal.
+  const ruleAttempts = useRef(new Set<string>());
+  useEffect(() => {
+    if (!autopilotContext || readOnly || !smsSettings?.enabled) return;
+    const hour = new Date().getHours();
+    if (hour < 8 || hour >= 20) return;
+    const current = workspaceRef.current, today = todayIso(), copy = autopilotCopy(getAppLanguage());
+    const jobs: { key: string; title: string; send: () => Promise<unknown> }[] = [];
+    if (smsSettings.appointmentRemindersAuto) {
+      for (const row of appointmentReminders(current.agendaEvents, current.projects, current.clients, current.installedEquipment ?? [], current.equipmentServices ?? [], current.smsMessages ?? [], today))
+        jobs.push({ key: 'sms-reminder:' + row.event.id, title: copy.smsRuleSent.replace('{client}', row.client.company || row.client.name),
+          send: () => desktopApi.sendSms({ recipient: row.phone, body: reminderSmsFor(row.event), purpose: 'appointment_reminder', origin: 'rule', relatedType: 'agenda_event', relatedId: row.event.id }) });
+    }
+    const engagement = current.customerEngagement, company = current.settings?.organization.legalName ?? '';
+    if (engagement?.reviewAuto && engagement.reviewUrl) {
+      for (const row of reviewCandidates(current.invoices, current.payments, current.clients, current.reviewRequests ?? [], engagement, today)) {
+        const phone = normalizedPhone(row.client.phone ?? '');
+        if (!phone) continue;
+        const url = engagement.reviewUrl;
+        jobs.push({ key: `review:${row.client.id}:${row.invoice.id}`, title: copy.googleReviewRecorded.replace('{client}', row.client.company || row.client.name),
+          send: async () => {
+            await desktopApi.sendSms({ recipient: phone, body: reviewSms(getAppLanguage(), url, company), purpose: 'review_request', origin: 'rule', relatedType: 'client', relatedId: row.client.id });
+            await desktopApi.recordReviewRequest({ clientId: row.client.id, invoiceId: row.invoice.id, channel: 'sms', origin: 'rule' });
+          } });
+      }
+    }
+    const pending = jobs.filter(job => !ruleAttempts.current.has(job.key));
+    if (!pending.length) return;
+    for (const job of pending) ruleAttempts.current.add(job.key);
+    void (async () => {
+      for (const job of pending) {
+        try { await job.send(); recordDone(job.key, job.title, copy.actionSendSms); } catch { /* reste une carte : la personne voit l'erreur en cliquant */ }
+      }
+      const next = await desktopApi.loadWorkspace().catch(() => null);
+      if (next) { workspaceRef.current = next; setWorkspace(next); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smsSettings, workspace.agendaEvents, workspace.invoices, workspace.payments, autopilotContext?.organizationId, readOnly]);
   const [bankArea, setBankArea] = useState<BankArea>('account');
   const [catalogArea, setCatalogArea] = useState<CatalogArea>('items');
   const [lotsDelivery, setLotsDelivery] = useState<string | null>(null);
@@ -1356,6 +1458,12 @@ function WorkspaceContent({
       }
       if (fresh) setFollowUpVersion(version => version + 1);
     } catch { /* read again next time */ }
+  };
+  /** Texte du rappel SMS : date en toutes lettres, heure, nom et téléphone de l'entreprise. */
+  const reminderSmsFor = (event: Workspace['agendaEvents'][number]) => {
+    const organization = workspaceRef.current.settings?.organization;
+    const day = new Intl.DateTimeFormat(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(Date.parse(event.startDate + 'T12:00:00Z'));
+    return reminderSms(getAppLanguage(), day, event.startTime ?? '', organization?.legalName ?? '', organization?.phone ?? '');
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
     if (!autopilotContext) return { cards: [], summary: '' };
@@ -1736,6 +1844,54 @@ function WorkspaceContent({
         detail: copy.reportDetail.replace('{amount}', formatMoney(totals.totalCents)).replace('{date}', date(report.reportDate)).replace('{name}', report.signerName),
         why: `${copy.whyReport} · ${copy.confidenceHigh}`,
         actions: [{ id: 'open-reports', label: copy.actionOpenReports }, { id: 'report-invoice', label: copy.actionInvoiceReport, primary: true }] });
+    }
+    // Parc installé : entretien périodique dans les 30 jours, sans rendez-vous encore prévu.
+    for (const due of servicesToPlan(workspace.installedEquipment ?? [], workspace.equipmentServices ?? [], workspace.agendaEvents, today)) {
+      const key = `service:${due.equipment.id}:${due.due}`;
+      if (entries[key]?.ignored || (entries[key]?.until && entries[key]!.until! > today)) continue;
+      const client = equipmentClientLabel(workspace.clients.find(row => row.id === due.equipment.clientId));
+      const slot = suggestedServiceSlot(due.due, today, workspace.agendaEvents);
+      cards.push({ key, title: (due.days < 0 ? copy.serviceLateTitle : copy.serviceTitle).replace('{equipment}', serviceKind(due.equipment.kind, getAppLanguage())).replace('{client}', client).replace('{n}', String(Math.abs(due.days))),
+        detail: [copy.serviceDetail.replace('{date}', date(slot.date)).replace('{time}', slot.startTime), equipmentLabel(due.equipment), due.equipment.location].filter(Boolean).join(' · '),
+        why: `${copy.whyService.replace('{months}', String(due.equipment.serviceIntervalMonths))} · ${copy.confidenceHigh}`, signature: 'service',
+        actions: [{ id: 'plan-service', label: copy.actionPlanService, primary: true }, { id: 'postpone', label: copy.actionPostpone }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // Portail client : demandes de rendez-vous à valider, acomptes payés en ligne à rapprocher.
+    for (const request of (workspace.portalBookingRequests ?? []).filter(row => row.status === 'pending')) {
+      const key = 'booking:' + request.id;
+      if (entries[key]?.ignored) continue;
+      const client = workspace.clients.find(row => row.id === request.clientId);
+      const when = new Intl.DateTimeFormat(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(Date.parse(request.startAt.slice(0, 10) + 'T12:00:00Z'));
+      cards.push({ key, title: copy.bookingTitle.replace('{name}', client?.company || client?.name || request.contactName).replace('{date}', when).replace('{time}', request.startAt.slice(11)),
+        detail: [request.contactName, request.phone, copy.bookingLength.replace('{n}', String(request.minutes))].filter(Boolean).join(' · '), evidence: request.message || undefined, why: copy.whyBooking,
+        actions: [{ id: 'booking-accept', label: copy.actionAcceptBooking, primary: true }, { id: 'booking-decline', label: copy.actionDeclineBooking }] });
+    }
+    for (const row of depositsToRecord(workspace.quoteDepositLinks ?? [], workspace.quotes, workspace.invoices)) {
+      const key = 'deposit:' + row.link.id;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.depositPaidTitle.replace('{amount}', formatMoney(row.link.amountCents, row.link.currency)).replace('{number}', row.quote.number),
+        detail: row.invoice ? copy.depositRecordDetail.replace('{invoice}', row.invoice.number || row.invoice.title) : copy.depositInvoiceDetail,
+        why: `${copy.whyDeposit} · ${copy.confidenceHigh}`,
+        actions: row.invoice ? [{ id: 'deposit-record', label: copy.actionRecordDeposit, primary: true }] : [{ id: 'deposit-invoice', label: copy.actionDepositInvoice, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // Avis Google : facture payée ces 30 derniers jours, une demande par client et par période.
+    const engagement = workspace.customerEngagement;
+    if (engagement?.reviewUrl) for (const row of reviewCandidates(workspace.invoices, workspace.payments, workspace.clients, workspace.reviewRequests ?? [], engagement, today).slice(0, 3)) {
+      const key = `review:${row.client.id}:${row.invoice.id}`;
+      if (entries[key]?.ignored) continue;
+      const name = row.client.company || row.client.name, phone = normalizedPhone(row.client.phone ?? '');
+      cards.push({ key, title: copy.googleReviewTitle.replace('{client}', name), detail: copy.googleReviewDetail.replace('{number}', row.invoice.number || row.invoice.title).replace('{date}', date(row.paidOn)),
+        why: copy.whyGoogleReview, signature: 'review',
+        actions: [...(row.client.email ? [{ id: 'review-mail', label: copy.actionReviewMail, primary: true }] : []), ...(smsSettings?.enabled && phone ? [{ id: 'review-sms', label: copy.actionReviewSms, primary: !row.client.email }] : []),
+          { id: 'review-copy', label: copy.actionReviewCopy }, { id: 'ignore', label: copy.acceptanceDismiss }] });
+    }
+    // SMS : rappel la veille d'un rendez-vous, seulement avec le compte SMS de l'entreprise.
+    if (smsSettings?.enabled && !smsSettings.appointmentRemindersAuto) for (const row of appointmentReminders(workspace.agendaEvents, workspace.projects, workspace.clients, workspace.installedEquipment ?? [], workspace.equipmentServices ?? [], workspace.smsMessages ?? [], today)) {
+      const key = 'sms-reminder:' + row.event.id;
+      if (entries[key]?.ignored) continue;
+      cards.push({ key, title: copy.smsReminderTitle.replace('{client}', row.client.company || row.client.name).replace('{time}', row.event.startTime ?? ''),
+        detail: reminderSmsFor(row.event), evidence: row.event.title, why: copy.whySmsReminder,
+        actions: [{ id: 'sms-send', label: copy.actionSendSms, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     }
     // Devises : sans cours du mois, les écritures en EUR n'ont pas encore leur contre-valeur CHF.
     for (const row of fxPending) {
@@ -2119,6 +2275,90 @@ function WorkspaceContent({
       let invoiceId = '';
       const done = await journalAct(async () => { const result = await desktopApi.invoiceWorkReport(key.slice('report:'.length)); invoiceId = result.invoiceId; return result.workspace; }, copy.reportInvoiced, false);
       if (done && invoiceId) { refresh(); openInvoiceById(invoiceId); }
+      return;
+    }
+    if (key.startsWith('booking:') && (actionId === 'booking-accept' || actionId === 'booking-decline')) {
+      const request = (workspaceRef.current.portalBookingRequests ?? []).find(row => 'booking:' + row.id === key);
+      if (!request) return;
+      if (actionId === 'booking-decline') {
+        const done = await journalAct(() => desktopApi.decidePortalBooking(request.id, 'declined', null), copy.bookingDeclined, false);
+        if (done) refresh();
+        return;
+      }
+      // Le rendez-vous entre dans l'agenda comme tout autre ; la demande garde son lien.
+      const client = workspaceRef.current.clients.find(row => row.id === request.clientId);
+      const start = request.startAt.slice(11), total = Number(start.slice(0, 2)) * 60 + Number(start.slice(3, 5)) + request.minutes;
+      const end = `${String(Math.min(23, Math.floor(total / 60))).padStart(2, '0')}:${String(total >= 24 * 60 ? 45 : total % 60).padStart(2, '0')}`;
+      const eventId = createId();
+      const done = await journalAct(async () => {
+        await desktopApi.saveAgendaEvent({ id: eventId, isNew: true, expectedUpdatedAt: null, title: copy.bookingEventTitle.replace('{name}', client?.company || client?.name || request.contactName),
+          startDate: request.startAt.slice(0, 10), endDate: request.startAt.slice(0, 10), allDay: false, startTime: start, endTime: end, kind: 'appointment', status: 'scheduled',
+          location: client?.address?.replace(/\n/g, ', ') ?? '', notes: [request.contactName, request.phone, request.message].filter(Boolean).join('\n'), projectId: null, employeeId: null });
+        return desktopApi.decidePortalBooking(request.id, 'accepted', eventId);
+      }, copy.bookingAccepted, false);
+      if (done) refresh();
+      return;
+    }
+    if (key.startsWith('deposit:') && (actionId === 'deposit-record' || actionId === 'deposit-invoice')) {
+      const row = depositsToRecord(workspaceRef.current.quoteDepositLinks ?? [], workspaceRef.current.quotes, workspaceRef.current.invoices).find(item => 'deposit:' + item.link.id === key);
+      if (!row) return;
+      if (actionId === 'deposit-invoice' || !row.invoice) {
+        // La facture d'acompte se crée comme pour tout devis accepté ; la carte revient pour le rapprochement.
+        setSearch(''); setView('quotes'); setModal({ type: 'quoteConversion', quote: row.quote });
+        return;
+      }
+      const invoiceId = row.invoice.id;
+      const done = await journalAct(() => desktopApi.recordQuoteDeposit(row.link.id, invoiceId), copy.depositRecorded, false);
+      if (done) refresh();
+      return;
+    }
+    if (key.startsWith('review:') && ['review-mail', 'review-sms', 'review-copy'].includes(actionId)) {
+      const [, clientId, invoiceId] = key.split(':');
+      const current = workspaceRef.current, url = current.customerEngagement?.reviewUrl;
+      const client = current.clients.find(row => row.id === clientId);
+      if (!client || !url) return;
+      const name = client.company || client.name, company = current.settings?.organization.legalName ?? '';
+      const channel = actionId === 'review-mail' ? 'email' : actionId === 'review-sms' ? 'sms' : 'copy';
+      if (channel === 'sms') {
+        const phone = normalizedPhone(client.phone ?? '');
+        if (!phone) return;
+        const sent = await journalAct(() => desktopApi.sendSms({ recipient: phone, body: reviewSms(getAppLanguage(), url, company), purpose: 'review_request', origin: 'validated', relatedType: 'client', relatedId: client.id }),
+          copy.smsSent.replace('{client}', name), false);
+        if (!sent) return;
+      } else if (channel === 'email') {
+        window.location.href = reviewMailto(getAppLanguage(), client.email, client.contactPerson || client.name, url, company);
+      } else {
+        try { await navigator.clipboard.writeText(url); setNotice({ tone: 'success', text: copy.googleReviewCopied.replace('{client}', name) }); } catch { setNotice({ tone: 'warning', text: url }); }
+      }
+      const recorded = await journalAct(() => desktopApi.recordReviewRequest({ clientId: client.id, invoiceId: invoiceId || null, channel, origin: 'validated' }),
+        channel === 'copy' ? copy.googleReviewCopied.replace('{client}', name) : copy.googleReviewRecorded.replace('{client}', name), false);
+      if (recorded) refresh();
+      return;
+    }
+    if (key.startsWith('sms-reminder:') && actionId === 'sms-send') {
+      const current = workspaceRef.current;
+      const row = appointmentReminders(current.agendaEvents, current.projects, current.clients, current.installedEquipment ?? [], current.equipmentServices ?? [], current.smsMessages ?? [], today)
+        .find(item => item.event.id === key.slice('sms-reminder:'.length));
+      if (!row) return;
+      const sent = await journalAct(() => desktopApi.sendSms({ recipient: row.phone, body: reminderSmsFor(row.event), purpose: 'appointment_reminder', origin: 'validated', relatedType: 'agenda_event', relatedId: row.event.id }),
+        copy.smsSent.replace('{client}', row.client.company || row.client.name), false);
+      if (sent) refresh();
+      return;
+    }
+    if (key.startsWith('service:') && actionId === 'plan-service') {
+      // Un clic : le rendez-vous d'entretien arrive dans le planning au créneau proposé ; Annuler le retire.
+      const current = workspaceRef.current;
+      const due = servicesToPlan(current.installedEquipment ?? [], current.equipmentServices ?? [], current.agendaEvents, today).find(row => key === `service:${row.equipment.id}:${row.due}`);
+      if (!due) return;
+      const slot = suggestedServiceSlot(due.due, today, current.agendaEvents);
+      const client = equipmentClientLabel(current.clients.find(row => row.id === due.equipment.clientId));
+      let serviceId = '';
+      const planned = await journalAct(async () => {
+        const result = await desktopApi.planEquipmentService({ equipmentId: due.equipment.id, ...slot, employeeId: null, title: serviceTitle(due.equipment, client) });
+        serviceId = result.serviceId;
+        return result.workspace;
+      }, copy.servicePlanned.replace('{date}', formatDate(slot.date)).replace('{time}', slot.startTime), false);
+      if (planned && serviceId) { actionUndo.current = { kind: 'equipment-service', serviceId }; refresh(); }
       return;
     }
     if (actionId === 'open-cash') { setSearch(''); setBankArea('cash'); setView('bank'); return; }
@@ -3342,6 +3582,25 @@ function WorkspaceContent({
   }
 
   /** « Créer le devis » d'une opportunité : le devis prérempli reste lié à l'opportunité. */
+  /** Dictée : le rapport s'enregistre en brouillon, le devis s'ouvre pré-rempli ; rien n'est émis. */
+  async function createDictatedDraft(result: DictationResult) {
+    if (busy || readOnly) return;
+    const settings = workspaceRef.current.settings;
+    const defaultVat = settings?.organization.vatRegistered ? settings.billing.vatRatesBp[0] ?? 810 : 0;
+    if (result.target === 'quote') {
+      setSearch(''); setView('quotes');
+      setModal({ type: 'document', entity: 'quotes', seed: { id: 'dictation:' + createId(), clientId: result.clientId ?? undefined, newClientName: result.clientId ? undefined : result.partyName ?? undefined,
+        title: result.description.slice(0, 120) || undefined, lines: result.lines } });
+      return;
+    }
+    if (!result.clientId) return;
+    const lines = result.lines.map(line => ({ kind: (line.unit === 'h' ? 'labor' : 'material') as 'labor' | 'material', catalogItemId: line.catalogItemId ?? null, description: line.description,
+      quantity: line.quantity, unit: line.unit || 'pce', unitPriceCents: line.unitPriceCents, vatBp: line.vatRateBp < 0 ? defaultVat : line.vatRateBp }));
+    const saved = await act(async () => (await desktopApi.saveWorkReport({ clientId: result.clientId!, projectId: null, reportDate: result.reportDate, site: '',
+      description: result.description || result.lines[0]?.description || t('Intervention'), technician: '', lines })).workspace, t('Rapport enregistré en brouillon. Relisez-le puis faites-le signer.'), false);
+    if (saved) { setModal(null); setSearch(''); setTimeArea('reports'); setView('time'); }
+  }
+
   async function createOpportunityQuote(opportunity: Opportunity) {
     if (busy || readOnly) return;
     const quoteId = createId();
@@ -3367,7 +3626,17 @@ function WorkspaceContent({
     try {
       let pdf: string | null = null;
       try { pdf = bytesToBase64(await desktopApi.documentPdfPreview('quotes', item.id)); } catch { pdf = null; }
-      const reply = await desktopApi.publishQuotePortal(origin, portalPublishInput(item, workspaceRef.current, pdf));
+      const input = portalPublishInput(item, workspaceRef.current, pdf);
+      // Acompte : montant calculé par l'app, page de paiement du compte Payrexx de l'entreprise.
+      if ((workspaceRef.current.customerEngagement?.depositPercentBp ?? 0) > 0 && (await desktopApi.getOnlinePaymentSettings().catch(() => null))?.enabled) {
+        try {
+          const deposit = await desktopApi.createQuoteDepositLink(item.id);
+          if (deposit.url && deposit.amountCents > 0) input.deposit = { amountCents: deposit.amountCents, paymentUrl: deposit.url };
+        } catch (reason) {
+          setNotice({ tone: 'warning', text: errorMessage(reason, t('L’acompte en ligne n’a pas pu être préparé ; le lien part sans acompte.')) });
+        }
+      }
+      const reply = await desktopApi.publishQuotePortal(origin, input);
       if (reply.status !== 'available' || !reply.data) {
         setNotice({ tone: 'warning', text: reply.code === 'revision_conflict' ? t('Le client a déjà répondu à ce devis : sa réponse apparaît dans À faire.') : t('Le lien d’acceptation n’a pas pu être créé. Vérifiez la connexion au compte Zentra, puis réessayez.') });
         return;
@@ -4334,6 +4603,13 @@ function WorkspaceContent({
             />
             </>
           ) : null}
+          {view === 'planning' ? (
+            <PlanningScreen workspace={workspace} readOnly={readOnly} onWorkspace={next => { workspaceRef.current = next; setWorkspace(next); }}
+              onOpenEvent={id => { setAgendaEventToOpen({ organizationId: cloudAccount?.organizationId as string, id }); setView('agenda'); setSearch(''); }} />
+          ) : null}
+          {view === 'equipment' ? (
+            <InstalledEquipmentScreen workspace={workspace} readOnly={readOnly} onWorkspace={next => { workspaceRef.current = next; setWorkspace(next); }} onOpenPlanning={() => { setView('planning'); setSearch(''); }} />
+          ) : null}
           {view === 'agenda' ? (
             <Suspense fallback={<ViewLoading label={t("Ouverture de l’agenda…")} />}>
               <AgendaScreen
@@ -4691,7 +4967,7 @@ function WorkspaceContent({
             <LaborRatesPanel workspace={workspace} readOnly={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} />
           ) : null}
           {view === 'time' && timeArea === 'reports' ? (
-            <WorkReportsPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} onOpenInvoice={openInvoiceById} />
+            <WorkReportsPanel workspace={workspace} disabled={readOnly || busy} onWorkspace={(next) => { workspaceRef.current = next; setWorkspace(next); }} onOpenInvoice={openInvoiceById} onDictate={() => setModal({ type: 'dictation', target: 'report' })} />
           ) : null}
           {view === 'time' && timeArea === 'hours' ? (
             <TimeScreen
@@ -4914,7 +5190,8 @@ function WorkspaceContent({
         <button type="button" aria-label={t("Tous les modules")} aria-current={selectedMobileShortcut === 'menu' ? 'true' : undefined} aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(true)}><Menu size={21} aria-hidden="true" /><span>{t("Menu")}</span></button>
       </nav>
 
-      {modal && !invoiceToIssueId && !supplierInvoiceReviewId && !payslipPostingId ? (
+      {modal?.type === 'dictation' ? <DictationDialog workspace={workspace} initialTarget={modal.target} busy={busy || readOnly} onClose={() => setModal(null)} onCreate={result => void createDictatedDraft(result)} /> : null}
+      {modal && modal.type !== 'dictation' && !invoiceToIssueId && !supplierInvoiceReviewId && !payslipPostingId ? (
         <ReadOnlyFormScope readOnly={readOnly && modal.type !== 'qrPrint'}>
         <WorkspaceModal
           state={modal}
@@ -5167,6 +5444,7 @@ function Dashboard({
               else if (block) onNavigate(id === 'project' ? 'projects' : id === 'purchase' ? 'expenses' : id === 'invoice' ? 'invoices' : 'quotes');
               else if (id === 'quote' || id === 'invoice') onCreate({ type: 'document', entity: id === 'quote' ? 'quotes' : 'invoices' });
               else if (id === 'purchase') onCreate({ type: 'supplierInvoice' });
+              else if (id === 'dictate') onCreate({ type: 'dictation', target: 'report' });
               else onCreate({ type: id });
             };
             return <button type="button" key={id} disabled={readOnly && changesData} title={block ? t(block) : t(label)} onClick={run}><Icon aria-hidden="true" /><span>{t(label)}</span></button>;
@@ -8107,6 +8385,10 @@ function SettingsScreen({
       </section>
       <section className="panel settings-card settings-card--wide"><OnlinePaymentSettings disabled={readOnly} /></section>
       <section className="panel settings-card settings-card--wide"><PaymentSafetySettings disabled={readOnly} /></section>
+      </SettingsCategory>
+      <SettingsCategory id="customers" title={t('Clients et rendez-vous')} description={t('Avis Google, SMS, rendez-vous en ligne et acompte')} icon={CalendarRange}>
+        <section className="panel settings-card settings-card--wide"><CustomerSettings workspace={workspace} disabled={readOnly} onWorkspace={next => onWorkspace(next)} /></section>
+        <section className="panel settings-card settings-card--wide"><SmsSettingsPanel disabled={readOnly} /></section>
       </SettingsCategory>
       <SettingsCategory id="appearance" title={t('Apparence')} description={t('Clair, sombre ou automatique')} icon={Languages}><AppearanceSetting embedded /></SettingsCategory>
       <SettingsCategory id="personalization" title={t('Mes raccourcis')} description={t('Barre du bas et actions de l’accueil')} icon={Settings}><WorkspacePersonalization automationActive={automationActive} /></SettingsCategory>

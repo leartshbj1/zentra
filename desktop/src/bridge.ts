@@ -19,6 +19,9 @@ import { legalArchiveFromRaw } from './legalArchive';
 import { stockLocationsFromRaw } from './stockLocations';
 import { billsFromRaw, productionOrdersFromRaw } from './bom';
 import { paymentSafetyFromRaw, type PaymentSafetyOverview } from './paymentSafety';
+import { equipmentFromRaw, equipmentServiceFromRaw, type InstalledEquipment } from './installedEquipment';
+import { engagementFromRaw, reviewRequestFromRaw, smsMessageFromRaw, type CustomerEngagementSettings, type SmsSettings } from './customerEngagement';
+import { bookingRequestFromRaw, depositLinkFromRaw, type PortalBookingItem, type PortalSlot } from './portalTerrain';
 import { opportunityFromRaw, type Opportunity } from './pipeline';
 import type { CashBookEntry, CashCount, Contract, InvoicePaymentLink, OnlinePaymentSettings, WorkNote, WorkNoteDraft, WorkReport, WorkReportLine, Absence, LeaveSettings, ExpenseClaim } from './types';
 import { groupRows, firstRows, groupRowsByKeys, firstRowsByKeys } from './rowIndex';
@@ -120,7 +123,7 @@ function quoteAutopilotArray(raw: unknown, maximum: number): readonly unknown[] 
 /** A remembered request line: the next requests with this wording use this article. */
 export type QuoteAutopilotArticleChoice = Readonly<{ schemaVersion: 1; term: string; articleId: string }>;
 export type QuoteAutopilotArticleChoiceInput = Readonly<{ phrase: string; articleId: string }>;
-export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias' | 'acceptances' | 'signals' | 'command' | 'digest' | 'portalPublish' | 'portalEvents', limit = 50): QuoteAutopilotRead<T> {
+export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilotOrigin, kind: 'consent' | 'activity' | 'review' | 'alias' | 'acceptances' | 'signals' | 'command' | 'digest' | 'portalPublish' | 'portalEvents' | 'portalSlots' | 'portalBookings', limit = 50): QuoteAutopilotRead<T> {
   const value = quoteAutopilotEnvelope(raw, origin, ['data'], ['available', 'unavailable', 'context_changed', 'error']);
   if (value.status !== 'available') {
     if (value.data !== null) return quoteAutopilotInvalid();
@@ -132,6 +135,26 @@ export function quoteAutopilotReadFromRaw<T>(raw: unknown, origin: QuoteAutopilo
     if (reply.schemaVersion !== 1 || reply.organizationId !== value.organizationId || typeof reply.documentId !== 'string' || !link(reply.url) || !link(reply.clientUrl)
       || typeof reply.expiresAt !== 'string' || !reply.expiresAt || reply.expiresAt.length > 40) return quoteAutopilotInvalid();
     return Object.freeze({ ...value, data: Object.freeze({ documentId: reply.documentId, url: reply.url, clientUrl: reply.clientUrl, expiresAt: reply.expiresAt }) }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'portalSlots') {
+    const reply = quoteAutopilotExact(value.data, ['schemaVersion', 'organizationId', 'slots']);
+    if (reply.schemaVersion !== 1 || reply.organizationId !== value.organizationId || !quoteAutopilotInteger(reply.slots, 0, 500)) return quoteAutopilotInvalid();
+    return Object.freeze({ ...value, data: Object.freeze({ slots: reply.slots }) }) as QuoteAutopilotRead<T>;
+  }
+  if (kind === 'portalBookings') {
+    const page = quoteAutopilotExact(value.data, ['schemaVersion', 'organizationId', 'items', 'nextCursor']);
+    if (page.schemaVersion !== 1 || page.organizationId !== value.organizationId || !quoteAutopilotCursor(page.nextCursor) || !quoteAutopilotInteger(limit, 1, 50)) return quoteAutopilotInvalid();
+    const seen = new Set<string>();
+    const items = quoteAutopilotArray(page.items, limit).map(rawItem => {
+      const item = quoteAutopilotExact(rawItem, ['bookingId', 'clientKey', 'start', 'minutes', 'contactName', 'phone', 'message', 'at']);
+      if (!quoteAutopilotIdentifier(item.bookingId) || seen.has(item.bookingId) || typeof item.clientKey !== 'string' || !/^[A-Za-z0-9-]{1,64}$/.test(item.clientKey)
+        || typeof item.start !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(item.start) || !quoteAutopilotInteger(item.minutes, 15, 240)
+        || typeof item.contactName !== 'string' || !item.contactName.trim() || [...item.contactName].length > 200 || typeof item.phone !== 'string' || [...item.phone].length > 40
+        || typeof item.message !== 'string' || [...item.message].length > 2000 || !quoteAutopilotInteger(item.at, 1, 253402300799)) return quoteAutopilotInvalid();
+      seen.add(item.bookingId);
+      return Object.freeze({ bookingId: item.bookingId, clientKey: item.clientKey, start: item.start, minutes: item.minutes, contactName: item.contactName, phone: item.phone, message: item.message, at: item.at }) as PortalBookingItem;
+    });
+    return Object.freeze({ ...value, data: Object.freeze({ items: Object.freeze(items), nextCursor: page.nextCursor }) }) as QuoteAutopilotRead<T>;
   }
   if (kind === 'portalEvents') {
     const page = quoteAutopilotExact(value.data, ['schemaVersion', 'organizationId', 'items', 'nextCursor']);
@@ -588,6 +611,13 @@ type RawWorkspace = {
   bills_of_materials?: RawRecord[];
   bom_lines?: RawRecord[];
   production_orders?: RawRecord[];
+  installed_equipment?: RawRecord[];
+  equipment_services?: RawRecord[];
+  customer_engagement_settings?: RawRecord[];
+  sms_messages?: RawRecord[];
+  review_requests?: RawRecord[];
+  quote_deposit_links?: RawRecord[];
+  portal_booking_requests?: RawRecord[];
   accounts?: RawRecord[];
   attachments?: RawRecord[];
   payslips?: RawRecord[];
@@ -3503,6 +3533,13 @@ function normalizeWorkspace(raw: RawWorkspace, appState: AppState): Workspace {
     stockLocations: stockLocationsFromRaw(raw),
     billsOfMaterials: billsFromRaw(raw.bills_of_materials ?? [], raw.bom_lines ?? []),
     productionOrders: productionOrdersFromRaw(raw.production_orders ?? []),
+    installedEquipment: (raw.installed_equipment ?? []).map(equipmentFromRaw),
+    equipmentServices: (raw.equipment_services ?? []).map(equipmentServiceFromRaw),
+    customerEngagement: engagementFromRaw(raw.customer_engagement_settings?.[0]),
+    smsMessages: (raw.sms_messages ?? []).map(smsMessageFromRaw),
+    reviewRequests: (raw.review_requests ?? []).map(reviewRequestFromRaw),
+    quoteDepositLinks: (raw.quote_deposit_links ?? []).map(depositLinkFromRaw),
+    portalBookingRequests: (raw.portal_booking_requests ?? []).map(bookingRequestFromRaw),
     supplierCreditNotes,
     supplierExpenseReclassifications,
     payslips,
@@ -5282,6 +5319,17 @@ export const desktopApi = {
   async publishQuotePortal(origin: QuoteAutopilotOrigin, input: PortalPublishInput): Promise<QuoteAutopilotRead<Readonly<{ documentId: string; url: string; clientUrl: string; expiresAt: string }>>> {
     const captured = captureQuoteAutopilotOrigin(origin);
     return quoteAutopilotReadFromRaw(await invoke<unknown>('portal_publish', { origin: captured, input }), captured, 'portalPublish');
+  },
+  /** Free slots offered on the client pages: only starts and lengths, never the agenda's content. */
+  async publishPortalSlots(origin: QuoteAutopilotOrigin, slots: readonly PortalSlot[]): Promise<QuoteAutopilotRead<Readonly<{ slots: number }>>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('portal_publish_slots', { origin: captured, input: { slots: slots.map(slot => ({ start: slot.start, minutes: slot.minutes })) } }), captured, 'portalSlots');
+  },
+  /** Customers' appointment requests since the last position read. */
+  async readPortalBookings(origin: QuoteAutopilotOrigin, input: QuoteAutopilotPageInput): Promise<QuoteAutopilotRead<Readonly<{ items: readonly PortalBookingItem[]; nextCursor: string | null }>>> {
+    const captured = captureQuoteAutopilotOrigin(origin);
+    const request = captureQuoteAutopilotPageInput(input);
+    return quoteAutopilotReadFromRaw(await invoke<unknown>('portal_bookings', { origin: captured, input: request }), captured, 'portalBookings', request.limit);
   },
   /** Customer answers (accepted or declined) since the last position read. */
   async readQuotePortalEvents(origin: QuoteAutopilotOrigin, input: QuoteAutopilotPageInput): Promise<QuoteAutopilotRead<PortalPage>> {
@@ -7728,6 +7776,75 @@ export const desktopApi = {
   async verifyLegalArchive(id: string) {
     const raw = await invoke<RawRecord>('verify_legal_archive', { id });
     return { ok: raw.ok === true, detail: stringValue(raw.detail) };
+  },
+  async saveInstalledEquipment(input: Omit<InstalledEquipment, 'id' | 'archivedAt' | 'createdAt' | 'updatedAt'> & { id: string | null; archived: boolean }) {
+    // Champs exacts : le natif refuse toute clé inconnue.
+    const raw = await invoke<RawRecord>('save_installed_equipment', { input: {
+      id: input.id || null, clientId: input.clientId, projectId: input.projectId, kind: input.kind, brand: input.brand, model: input.model, serialNumber: input.serialNumber,
+      installedOn: input.installedOn, warrantyUntil: input.warrantyUntil, location: input.location, serviceIntervalMonths: input.serviceIntervalMonths,
+      lastServiceOn: input.lastServiceOn, notes: input.notes, archived: input.archived,
+    } });
+    return { id: stringValue(raw.id), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async deleteInstalledEquipment(id: string) {
+    await invoke('delete_installed_equipment', { id });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async planEquipmentService(input: { equipmentId: string; date: string; startTime: string; endTime: string; employeeId: string | null; title: string }) {
+    const raw = await invoke<RawRecord>('plan_equipment_service', { input });
+    return { serviceId: stringValue(raw.serviceId), agendaEventId: stringValue(raw.agendaEventId), workspace: await refreshWorkspaceAfterMutation(loadWorkspace) };
+  },
+  async cancelEquipmentService(serviceId: string) {
+    await invoke('cancel_equipment_service', { serviceId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async completeEquipmentService(equipmentId: string, serviceId: string | null, date: string, notes: string) {
+    await invoke('complete_equipment_service', { equipmentId, serviceId, date, notes });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async saveCustomerEngagementSettings(input: CustomerEngagementSettings) {
+    await invoke<RawRecord>('save_customer_engagement_settings', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async recordReviewRequest(input: { clientId: string; invoiceId: string | null; channel: 'email' | 'sms' | 'copy'; origin: 'validated' | 'rule' }) {
+    await invoke<RawRecord>('record_review_request', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async getSmsSettings(): Promise<SmsSettings> {
+    const raw = await invoke<RawRecord>('get_sms_settings');
+    const provider = stringValue(raw.provider);
+    return { enabled: raw.enabled === true, provider: provider === 'swisscom' || provider === 'generic' ? provider : 'aspsms', sender: stringValue(raw.sender), account: stringValue(raw.account),
+      endpoint: stringValue(raw.endpoint) || null, appointmentRemindersAuto: raw.appointment_reminders_auto === true, secretPresent: raw.secret_present === true };
+  },
+  async saveSmsSettings(input: Omit<SmsSettings, 'secretPresent'> & { secret?: string }) {
+    await invoke<RawRecord>('save_sms_settings', { input: { enabled: input.enabled, provider: input.provider, sender: input.sender, account: input.account, endpoint: input.endpoint,
+      appointmentRemindersAuto: input.appointmentRemindersAuto, secret: input.secret ?? null } });
+    return desktopApi.getSmsSettings();
+  },
+  async sendSms(input: { recipient: string; body: string; purpose: 'appointment_reminder' | 'payment_reminder' | 'review_request' | 'booking' | 'other'; origin: 'validated' | 'rule'; relatedType: string | null; relatedId: string | null }) {
+    await invoke<RawRecord>('send_sms', { input });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async savePortalBookingRequests(items: readonly PortalBookingItem[]) {
+    await invoke<RawRecord>('save_portal_booking_requests', { items: items.map(item => ({ bookingId: item.bookingId, clientKey: item.clientKey, start: item.start, minutes: item.minutes,
+      contactName: item.contactName, phone: item.phone, message: item.message, at: item.at })) });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async decidePortalBooking(id: string, decision: 'accepted' | 'declined', agendaEventId: string | null) {
+    await invoke<RawRecord>('decide_portal_booking', { id, decision, agendaEventId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
+  },
+  async createQuoteDepositLink(quoteId: string) {
+    const raw = await invoke<RawRecord>('create_quote_deposit_link', { quoteId });
+    return { id: stringValue(raw.id), url: stringValue(raw.url), amountCents: numberValue(raw.amount_cents) };
+  },
+  async refreshQuoteDepositLinks() {
+    await invoke<RawRecord>('refresh_quote_deposit_links');
+    return loadWorkspace();
+  },
+  async recordQuoteDeposit(linkId: string, invoiceId: string) {
+    await invoke<RawRecord>('record_quote_deposit', { linkId, invoiceId });
+    return refreshWorkspaceAfterMutation(loadWorkspace);
   },
   async saveOpportunity(input: Omit<Opportunity, 'id' | 'stageChangedAt' | 'createdAt' | 'updatedAt'> & { id: string | null }) {
     const raw = await invoke<RawRecord>('save_opportunity', { input });

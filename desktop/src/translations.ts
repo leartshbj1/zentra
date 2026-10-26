@@ -58,11 +58,13 @@ import { customerCreditTranslations } from './translationsCustomerCredit';
 import { erpTranslations } from './translationsErp';
 import { constructionTranslations } from './translationsConstruction';
 import { lot5Translations } from './translationsLot5';
+import { terrainTranslations } from './translationsTerrain';
 export const translations: Record<string, readonly [string, string, string]> = {
   // New ERP strings first, so earlier wording of identical keys keeps priority.
   ...constructionTranslations,
   ...erpTranslations,
   ...lot5Translations,
+  ...terrainTranslations,
   ...demoTranslations,
   ...plansTranslations,
   ...salesOrdersTranslations,

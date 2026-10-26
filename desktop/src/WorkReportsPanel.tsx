@@ -24,7 +24,7 @@ const quantity = (value: string) => {
 };
 
 /** Rapports de régie : saisie sur place, signature du client, puis facture en brouillon. */
-export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoice }: { workspace: Workspace; disabled: boolean; onWorkspace: (next: Workspace) => void; onOpenInvoice: (invoiceId: string) => void }) {
+export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoice, onDictate }: { workspace: Workspace; disabled: boolean; onWorkspace: (next: Workspace) => void; onOpenInvoice: (invoiceId: string) => void; onDictate?: () => void }) {
   useAppLanguage();
   const today = localDate(new Date());
   const reports = useMemo(() => [...(workspace.workReports ?? [])].sort((a, b) => b.reportDate.localeCompare(a.reportDate)), [workspace.workReports]);
@@ -109,6 +109,7 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
     </details>
     {error ? <ErrorPanel message={error} /> : null}
     {!draft ? <div className="erp-register__actions"><Button disabled={locked || !clients.length} onClick={() => { setDraft(toDraft()); setError(''); }}>{t('Nouveau rapport')}</Button>
+      {onDictate ? <Button variant="secondary" disabled={locked || !clients.length} onClick={onDictate}>{t('Dicter un rapport')}</Button> : null}
       {!clients.length ? <p>{t('Ajoutez d’abord un client.')}</p> : null}</div> : <div className="erp-register__form">
       <Field label={t('Client')}>
         <select value={draft.clientId} disabled={locked} onChange={(event) => setDraft({ ...draft, clientId: event.target.value })}>

@@ -74,6 +74,7 @@ import { installContactFolderFixture } from './contact-folder-fixture';
 import { installCreationOutcomeFixture } from './creation-outcome-fixture';
 import { installPayslipPostingFixture } from './payslip-posting-fixture';
 import { installSettingsRecoveryFixture } from './settings-recovery-fixture';
+import { installTerrainFixture } from './terrain-fixture';
 import { installErpBexioFixture, installErpCashFixture, installErpReportsFixture, installErpTeamFixture, installErpPortalFixture, installErpPricesFixture, installErpPipelineFixture, installErpStockFixture, installErpChartFixture, installErpPaymentLinkFixture, installErpPaymentsFixture } from './erp-payments-fixture';
 import { installErpSafetyFixture } from './erp-safety-fixture';
 import '../src/styles.css';
@@ -210,6 +211,7 @@ if (new URLSearchParams(location.search).get('erp') === 'team') installErpTeamFi
 if (new URLSearchParams(location.search).get('erp') === 'portal') installErpPortalFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'prices') installErpPricesFixture(data);
 if (new URLSearchParams(location.search).get('erp') === 'pipeline') installErpPipelineFixture(data);
+if (new URLSearchParams(location.search).get('erp') === 'terrain') installTerrainFixture(() => data);
 if (new URLSearchParams(location.search).get('erp') === 'stock') installErpStockFixture(data);
 if (new URLSearchParams(location.search).has('statementFolder')) localStorage.setItem('zentra.bank.statement-folder.v1', JSON.stringify({ local: 'C:/Users/Vous/Downloads' }));
 if (new URLSearchParams(location.search).has('directoryRecovery')) installDirectoryRecoveryFixture(data);

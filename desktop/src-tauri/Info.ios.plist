@@ -3,6 +3,8 @@
 <plist version="1.0"><dict>
   <key>NSCameraUsageDescription</key><string>Photographier un document ou ajouter une photo à votre projet.</string>
   <key>NSPhotoLibraryUsageDescription</key><string>Choisir les photos à ajouter à vos projets.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Dicter un rapport ou un devis depuis le chantier.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Transformer votre dictée en texte que vous relisez avant d’enregistrer.</string>
   <key>LSSupportsOpeningDocumentsInPlace</key><true/>
   <key>UIFileSharingEnabled</key><false/>
   <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>

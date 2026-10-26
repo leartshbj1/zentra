@@ -4,7 +4,7 @@
  */
 const KINDS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Ventes', ['ask', 'reminder', 'poursuite', 'quote', 'acceptance', 'portal', 'opportunity', 'deliver', 'reminders-offer', 'inbox']],
-  ['Banque', ['bank', 'bank-batch', 'statement', 'statement-file', 'pay', 'pay-order', 'online', 'treasury-low', 'cash-diff', 'cash-count', 'fx-rate', 'claims-pay', 'approve', 'receipt', 'receipt-more']],
+  ['Banque', ['bank', 'bank-batch', 'statement', 'statement-file', 'pay', 'pay-order', 'online', 'treasury-low', 'cash-diff', 'cash-count', 'fx-rate', 'claims-pay', 'approve', 'receipt', 'receipt-more', 'deposit']],
   ['Achats', ['qrmail', 'order', 'site']],
   ['Caisse', ['pos-close']],
   ['Stock', ['stock', 'produce', 'inventory', 'trace', 'lot-expiry', 'warehouse-negative']],
@@ -13,6 +13,8 @@ const KINDS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['Projets', ['hours', 'timer', 'task', 'end', 'report', 'chantier']],
   ['Équipe', ['payroll', 'certificates', 'vacation', 'ijm', 'claims']],
   ['Comptabilité', ['summary', 'vat', 'budget', 'closing', 'depreciation', 'archive', 'archive-problem', 'contract']],
+  ['Parc installé', ['service']],
+  ['Rendez-vous en ligne', ['booking']],
   ['Autopilote', ['rule']],
 ];
 

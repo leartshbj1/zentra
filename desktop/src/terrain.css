@@ -1,0 +1,635 @@
+/*
+ * Terrain et clients : planning des équipes, carte des chantiers, parc installé
+ * et dictée. Des lignes calmes, une seule action verte, beaucoup d'air.
+ * Aucune couleur littérale : tout passe par les jetons du thème, donc
+ * scripts/build-dark-palette.mjs ne produit rien pour ce fichier.
+ */
+@media screen {
+  /* ---------- Parc installé ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__filters input[type=search] {
+    flex: 1 1 280px;
+    max-width: 420px;
+    min-height: 40px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__due {
+    max-width: 280px;
+    text-align: right;
+    white-space: normal;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__due small {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__plan {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    align-items: end;
+    gap: 12px 16px;
+    padding: 12px 0 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__plan > .erp-register__actions {
+    grid-column: 1 / -1;
+  }
+
+  /* ---------- Planning des équipes ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .team-planning {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning h2 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(20px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__header p,
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__range,
+  html[data-app-theme] .desktop-app[data-experience] .planning-backlog p {
+    max-width: 68ch;
+    margin: 4px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__range {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-switch {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-switch > button,
+  html[data-app-theme] .desktop-app[data-experience] .planning-nav > button {
+    min-height: 32px;
+    margin: 0;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--apple-ink);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    box-shadow: none;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-switch > button[aria-pressed="true"] {
+    background: var(--z7-segment-thumb);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z7-segment-shadow);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-nav {
+    display: inline-flex;
+    gap: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-nav > button {
+    color: var(--apple-ink);
+    box-shadow: inset 0 0 0 1px var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-nav > button:focus-visible,
+  html[data-app-theme] .desktop-app[data-experience] .planning-switch > button:focus-visible,
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip:focus-visible,
+  html[data-app-theme] .desktop-app[data-experience] .site-map button:focus-visible {
+    outline: 2px solid var(--apple-focus);
+    outline-offset: 2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__notice {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__notice button,
+  html[data-app-theme] .desktop-app[data-experience] .site-map__link {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-accent);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    align-items: start;
+    gap: 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-board {
+    display: grid;
+    min-width: 0;
+    overflow-x: auto;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-board__head,
+  html[data-app-theme] .desktop-app[data-experience] .planning-board__row {
+    display: grid;
+    grid-template-columns: 132px repeat(var(--planning-columns, 7), minmax(108px, 1fr));
+    min-width: calc(132px + var(--planning-columns, 7) * 108px);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-board--day .planning-board__head,
+  html[data-app-theme] .desktop-app[data-experience] .planning-board--day .planning-board__row {
+    grid-template-columns: 132px minmax(600px, 1fr);
+    min-width: 732px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-board__head > span {
+    padding: 0 8px 8px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    box-shadow: inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-board__head > span.is-today {
+    color: var(--apple-ink);
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-hours {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-board__name {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px 8px;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    box-shadow: inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-cell,
+  html[data-app-theme] .desktop-app[data-experience] .planning-track {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-height: 76px;
+    padding: 8px 6px;
+    box-shadow: inset 0 -1px 0 var(--apple-line), inset 1px 0 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-track {
+    position: relative;
+    min-height: 88px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-track__allday {
+    max-width: 220px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.planning-cell, .planning-track).is-absent {
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .desktop-app[data-experience] :is(.planning-cell, .planning-track).is-target {
+    box-shadow: inset 0 0 0 2px var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-absence {
+    color: var(--apple-ink);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-track .planning-chip[style] {
+    top: 34px;
+    min-height: 44px;
+    overflow: hidden;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip {
+    display: grid;
+    gap: 1px;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font: inherit;
+    text-align: left;
+    box-shadow: inset 0 0 0 1px var(--apple-line);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip:disabled {
+    cursor: default;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip.is-dragging {
+    opacity: 0.4;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip.is-done .planning-chip__title {
+    color: var(--apple-secondary);
+    text-decoration: line-through;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip__time,
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip__detail {
+    overflow: hidden;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-chip__title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-board__empty {
+    margin: 12px 0 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-backlog {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-backlog :is(h3, h4),
+  html[data-app-theme] .desktop-app[data-experience] .site-map h3,
+  html[data-app-theme] .desktop-app[data-experience] .planning-list__row h3 {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-backlog h4 {
+    margin-top: 8px;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-backlog ul,
+  html[data-app-theme] .desktop-app[data-experience] .site-map__legend {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-ghost {
+    position: fixed;
+    z-index: 1000;
+    top: 0;
+    left: 0;
+    max-width: 240px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--apple-line), var(--z7-segment-shadow);
+    pointer-events: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-list {
+    display: grid;
+    gap: 20px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-list__row {
+    display: grid;
+    gap: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-list__row small {
+    color: var(--apple-secondary);
+    font-weight: 400;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .planning-list__row p {
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+
+  /* ---------- Carte des chantiers ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .site-map {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    margin-top: 8px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__note,
+  html[data-app-theme] .desktop-app[data-experience] .site-map__current {
+    max-width: 68ch;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__current strong {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__frame {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    background: var(--z7-segment);
+    box-shadow: inset 0 0 0 1px var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__tiles img {
+    position: absolute;
+    width: 256px;
+    height: 256px;
+    max-width: none;
+    user-select: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__marker {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    min-height: 0;
+    margin: -14px 0 0 -14px;
+    padding: 0;
+    border: 2px solid var(--apple-paper);
+    border-radius: 50%;
+    background: var(--apple-ink);
+    color: var(--apple-paper);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__marker.is-selected {
+    background: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__zoom {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    gap: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__zoom button {
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font: inherit;
+    font-size: 18px;
+    box-shadow: inset 0 0 0 1px var(--apple-line);
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__attribution {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 2px 6px;
+    border-top-left-radius: 6px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font-size: 11px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__attribution a {
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__empty {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    margin: 0;
+    padding: 16px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    text-align: center;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__legend {
+    counter-reset: site;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 4px 24px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__legend li {
+    counter-increment: site;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__legend button {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    column-gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--apple-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__legend button::before {
+    content: counter(site);
+    grid-row: span 2;
+    color: var(--apple-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__legend strong {
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .site-map__legend small {
+    overflow: hidden;
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+}
+@media screen and (max-width: 900px) {
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media screen and (max-width: 640px) {
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__due {
+    max-width: none;
+    text-align: left;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__header {
+    align-items: flex-start;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .team-planning__warning {
+    max-width: 68ch;
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+}
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-equipment__toggle input[type=checkbox] {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    accent-color: var(--apple-accent);
+  }
+}
+/* Dictée : la fenêtre s'ouvre hors de .desktop-app, d'où des sélecteurs propres. */
+@media screen {
+  html[data-app-theme] .modal .dictation {
+    display: grid;
+    gap: 16px;
+  }
+  html[data-app-theme] .modal .dictation h3 {
+    margin: 0 0 8px;
+    color: var(--apple-ink);
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+  }
+  html[data-app-theme] .modal .dictation p {
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .modal .dictation section {
+    display: grid;
+    gap: 12px;
+  }
+  html[data-app-theme] .modal .dictation textarea {
+    min-height: 160px;
+    font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .modal .dictation .erp-register__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+  }
+  html[data-app-theme] .modal .dictation .planning-switch {
+    display: inline-flex;
+    justify-self: start;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--z7-segment);
+  }
+  html[data-app-theme] .modal .dictation .planning-switch > button {
+    min-height: 36px;
+    margin: 0;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--apple-ink);
+    font: inherit;
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    cursor: pointer;
+  }
+  html[data-app-theme] .modal .dictation .planning-switch > button[aria-pressed="true"] {
+    background: var(--z7-segment-thumb);
+    color: var(--apple-ink);
+    font-weight: 600;
+    box-shadow: var(--z7-segment-shadow);
+  }
+  html[data-app-theme] .modal .dictation__listening {
+    color: var(--apple-ink);
+    font-weight: 600;
+  }
+  html[data-app-theme] .modal .dictation__lines {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .modal .dictation__lines li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 16px;
+    padding: 10px 0;
+    color: var(--apple-ink);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+    box-shadow: inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .modal .dictation__lines small {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+}
+/* Réglages clients : jours proposés pour les rendez-vous en ligne. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days legend {
+    margin-bottom: 8px;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .terrain-days input[type=checkbox] {
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+    margin: 0;
+    accent-color: var(--apple-accent);
+  }
+}

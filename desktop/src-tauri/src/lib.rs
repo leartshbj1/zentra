@@ -103,6 +103,11 @@ mod currencies;
 mod cost_centers;
 mod price_lists;
 mod opportunities;
+mod installed_equipment;
+mod customer_engagement;
+mod sms;
+mod quote_deposits;
+mod portal_bookings;
 mod legal_archive;
 mod stock_locations;
 mod production;
@@ -408,6 +413,22 @@ pub fn run() {
             service_kits::delete_service_kit,
             offer_export::export_offer_text,
             opportunities::save_opportunity,
+            installed_equipment::save_installed_equipment,
+            installed_equipment::delete_installed_equipment,
+            installed_equipment::plan_equipment_service,
+            installed_equipment::cancel_equipment_service,
+            installed_equipment::complete_equipment_service,
+            customer_engagement::get_customer_engagement_settings,
+            customer_engagement::save_customer_engagement_settings,
+            customer_engagement::record_review_request,
+            sms::get_sms_settings,
+            sms::save_sms_settings,
+            sms::send_sms,
+            quote_deposits::create_quote_deposit_link,
+            quote_deposits::refresh_quote_deposit_links,
+            quote_deposits::record_quote_deposit,
+            portal_bookings::save_portal_booking_requests,
+            portal_bookings::decide_portal_booking,
             legal_archive::create_legal_archive,
             legal_archive::list_legal_archives,
             legal_archive::verify_legal_archive,
@@ -591,6 +612,8 @@ pub fn run() {
             account_cloud::action_engine::supervisor::quote_autopilot_digest,
             account_cloud::action_engine::supervisor::portal_publish,
             account_cloud::action_engine::supervisor::portal_events,
+            account_cloud::action_engine::supervisor::portal_publish_slots,
+            account_cloud::action_engine::supervisor::portal_bookings,
             account_cloud::subscription_overview_request,
             supplier_inbox::supplier_inbox_request,
             account_cloud::open_automation_settings,

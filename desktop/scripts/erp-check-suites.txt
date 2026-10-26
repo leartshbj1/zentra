@@ -106,3 +106,16 @@ rust:company_merge::
 src/pos.test.ts
 src/inboxDrafts.test.ts
 src/languageCatalogCoverage.test.ts
+src/installedEquipment.test.ts
+src/teamPlanning.test.ts
+src/mapTiles.test.ts
+src/languageCatalogCoverage.test.ts
+rust:installed_equipment::
+src/dictation.test.ts
+src/customerEngagement.test.ts
+rust:customer_engagement::
+rust:sms::
+src/portalTerrain.test.ts
+rust:quote_deposits::
+rust:portal_bookings::
+rust:online_payments::

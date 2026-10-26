@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, BarChart3, BookOpen, CalendarDays, Check, FileCheck2, FileText, FolderKanban, Home, Landmark, ListChecks, Menu, MessageSquareWarning, Package, Receipt, Settings, SlidersHorizontal, UserRound, Users, WalletCards, Clock3, Banknote } from 'lucide-react';
 import { t, useAppLanguage } from './language';
-import { NotebookPen } from 'lucide-react';
+import { Mic, NotebookPen } from 'lucide-react';
 import { Button } from './ui';
 import { availableShortcuts, defaultPreferences, navigationIds, quickActionIds, replaceShortcut, saveWorkspacePreferences, useWorkspacePreferences, type ShortcutId, type QuickActionId } from './workspacePreferences';
 
@@ -19,6 +19,7 @@ export const quickActionMeta = {
   quote: { label: 'Préparer un devis', icon: FileCheck2 }, invoice: { label: 'Préparer une facture', icon: Receipt },
   purchase: { label: 'Facture fournisseur', icon: WalletCards }, employee: { label: 'Ajouter un collaborateur', icon: Users },
   agenda: { label: 'Ouvrir l’agenda', icon: CalendarDays }, clients: { label: 'Trouver un client', icon: BookOpen },
+  dictate: { label: 'Dicter un rapport', icon: Mic },
 } satisfies Record<QuickActionId, { label: string; icon: typeof Home }>;
 
 export function WorkspacePersonalization({ automationActive }: { automationActive: boolean }) {
