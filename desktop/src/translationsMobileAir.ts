@@ -32,6 +32,7 @@ export const mobileAirTranslations: Record<string, readonly [string, string, str
   'Projets récents': ['Aktuelle Projekte', 'Progetti recenti', 'Recent projects'],
   'Tout voir': ['Alle anzeigen', 'Mostra tutto', 'View all'],
   'Actions du document': ['Dokumentaktionen', 'Azioni del documento', 'Document actions'],
+  'Autres actions': ['Weitere Aktionen', 'Altre azioni', 'More actions'],
   'Comprendre ces montants': ['Diese Beträge verstehen', 'Capire questi importi', 'Understand these amounts'],
   'Options de la paie': ['Lohnoptionen', 'Opzioni salariali', 'Payroll options'],
   'À préparer': ['Vorbereitung', 'Da preparare', 'To prepare'],

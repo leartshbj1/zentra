@@ -337,3 +337,71 @@ html[data-app-theme] .desktop-app[data-experience] .dashboard-grid.dashboard-gri
 html[data-app-theme] .desktop-app[data-experience] .project-reports__picker button[aria-pressed='true'] small {
   color: var(--zp-quiet-label);
 }
+
+/* Ventes : « Aperçu » reste visible, les autres actions passent dans un menu « … ». */
+html[data-app-theme] .desktop-app[data-experience] .document-actions--menu {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more {
+  position: relative;
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more > summary {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--apple-ink);
+  list-style: none;
+  cursor: pointer;
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more > summary::-webkit-details-marker {
+  display: none;
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more > summary:hover,
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more[open] > summary {
+  background: var(--apple-grouped);
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: 2px;
+  min-width: 240px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--apple-paper);
+  border: 1px solid var(--apple-line);
+  box-shadow: var(--z-shadow-lifted);
+  text-align: start;
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__menu .button {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  padding: 8px 10px;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--apple-ink);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: start;
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__menu .button:hover:not(:disabled) {
+  background: var(--apple-grouped);
+}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__menu .button--icon[title]::after {
+  content: attr(title);
+}

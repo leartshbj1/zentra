@@ -1,5 +1,5 @@
-import { Children, Fragment, cloneElement, isValidElement, useSyncExternalStore, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Children, Fragment, cloneElement, isValidElement, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import { ChevronDown, MoreHorizontal } from 'lucide-react';
 import { t, useAppLanguage } from './language';
 
 const compactQuery = '(max-width: 860px)';
@@ -13,9 +13,8 @@ function subscribe(callback: () => void) {
 export function MobileDocumentActions({ children, metadata }: { children: ReactNode; metadata?: ReactNode }) {
   useAppLanguage();
   const compact = useCompactLayout();
-  if (!compact) return <div className="document-actions">{children}</div>;
-  // Action titles were previously just tooltips. They become visible labels on
-  // mobile, so localize them, including buttons inside conditional fragments.
+  // Action titles were previously just tooltips. They become visible labels in
+  // the menus, so localize them, including buttons inside conditional fragments.
   const labelAction = (node: ReactNode): ReactNode => {
     if (!isValidElement<{ title?: string; children?: ReactNode }>(node)) return node;
     if (node.type === Fragment) return cloneElement(node, {}, Children.map(node.props.children, labelAction));
@@ -24,11 +23,67 @@ export function MobileDocumentActions({ children, metadata }: { children: ReactN
   const actions = Children.toArray(children).map(labelAction);
   const isPreview = (node: ReactNode) => isValidElement<{ className?: string }>(node)
     && node.props.className?.split(' ').includes('document-preview-action');
+  if (!compact) {
+    // Desktop: the preview stays visible, every other action sits behind one « … » button.
+    const rest = actions.filter(node => !isPreview(node) && hasContent(node));
+    return <div className="document-actions document-actions--menu">
+      {actions.filter(isPreview)}
+      {rest.length ? <DocumentMoreMenu>{rest}</DocumentMoreMenu> : null}
+    </div>;
+  }
   return <div className="document-actions document-actions--compact">
     {actions.filter(isPreview)}
     <MobileDetails title="Actions du document">{metadata}{actions.filter(node => !isPreview(node))}</MobileDetails>
   </div>;
 }
+function hasContent(node: ReactNode): boolean {
+  if (node === null || node === undefined || typeof node === 'boolean' || node === '') return false;
+  if (isValidElement<{ children?: ReactNode }>(node) && node.type === Fragment) return Children.toArray(node.props.children).some(hasContent);
+  return true;
+}
+
+function DocumentMoreMenu({ children }: { children: ReactNode }) {
+  const menu = useRef<HTMLDetailsElement>(null);
+  // Placed against the window so a table panel never clips it; opens upwards near the bottom.
+  const [place, setPlace] = useState<CSSProperties>();
+  useEffect(() => {
+    const close = (event: Event) => {
+      const element = menu.current;
+      if (element?.open && !element.contains(event.target as Node)) element.open = false;
+    };
+    const escape = (event: KeyboardEvent) => {
+      const element = menu.current;
+      if (event.key === 'Escape' && element?.open) { element.open = false; element.querySelector('summary')?.focus(); }
+    };
+    const scrolled = (event: Event) => {
+      const element = menu.current;
+      if (element?.open && !element.contains(event.target as Node)) element.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('scroll', scrolled, true);
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); window.removeEventListener('scroll', scrolled, true); };
+  }, []);
+  const toggled = () => {
+    const element = menu.current;
+    if (!element?.open) return;
+    const anchor = element.querySelector('summary')!.getBoundingClientRect();
+    const height = element.querySelector<HTMLElement>('.document-actions__menu')?.offsetHeight ?? 0;
+    const below = window.innerHeight - anchor.bottom;
+    const right = Math.max(8, window.innerWidth - anchor.right);
+    setPlace(below < height + 16 && anchor.top > below
+      ? { position: 'fixed', right, bottom: window.innerHeight - anchor.top + 6, top: 'auto' }
+      : { position: 'fixed', right, top: anchor.bottom + 6 });
+  };
+  return <details ref={menu} className="document-actions__more" onToggle={toggled}>
+    <summary title={t('Autres actions')} aria-label={t('Autres actions')}><MoreHorizontal size={18} aria-hidden="true" /></summary>
+    {/* An action closes the menu; its own dialog or result then takes over. */}
+    <div className="document-actions__menu" style={place} role="group" aria-label={t('Actions du document')} onClick={event => { if ((event.target as HTMLElement).closest('button') && menu.current) menu.current.open = false; }}>
+      {children}
+    </div>
+  </details>;
+}
+
 export function useCompactLayout() {
   return useSyncExternalStore(subscribe, () => window.matchMedia(compactQuery).matches, () => false);
 }
