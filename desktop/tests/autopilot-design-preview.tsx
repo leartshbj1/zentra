@@ -10,6 +10,7 @@ import { parseLanguage, setAppLanguage } from '../src/language';
 import type { AutopilotView } from '../src/autopilotView';
 import { DebtCollectionDialog } from '../src/DebtCollectionDialog';
 import { ReceiptRequestDialog } from '../src/PaymentSafetyParts';
+import { desktopApi } from '../src/bridge';
 import type { MissingReceipt } from '../src/paymentSafety';
 import type { BankMovement, Employee } from '../src/types';
 import '../src/styles.css';
@@ -216,11 +217,14 @@ function BehaviourPreview() {
     </section></div></section>
   </main></div>;
 }
-// Demande de justificatif : données fictives, le brouillon s'ouvre dans la messagerie.
+// Demande de justificatif : données fictives. « justificatif » : messagerie de l'entreprise connectée ;
+// « justificatif-brouillon » : aucune messagerie, le message s'ouvre dans celle de l'utilisateur.
+if (query.get('dialog') === 'justificatif') desktopApi.receiptRequestChannel = async () => ({ kind: 'company', scope: 'preview', connectionId: '00000000-0000-4000-8000-000000000001', fromEmail: 'bureau@atelier-leman.example' });
+if (query.get('dialog') === 'justificatif-brouillon') desktopApi.receiptRequestChannel = async () => null;
 const receiptPerson = (id: string, name: string, email: string) => ({ id, name, email, employmentEnd: '' }) as unknown as Employee;
 const missingReceipt: MissingReceipt = { reason: 'unlinked', ageDays: 22, movement: { id: 'm1', amountCents: 8_450, currency: 'CHF', bookingDate: '2026-10-03', valueDate: '2026-10-03', counterpartyName: 'Coop Bau+Hobby Bulle', unstructured: '', reference: '' } as BankMovement };
 createRoot(document.getElementById('root')!).render(query.get('view') === 'behaviour' ? <BehaviourPreview /> : query.get('dialog') === 'poursuite'
   ? <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><DebtCollectionDialog request={debtRequest} invoiceNumber="F-2026-0009" onClose={noop} onSaved={noop} /></div>
-  : query.get('dialog') === 'justificatif'
-    ? <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><ReceiptRequestDialog receipt={missingReceipt} employees={[receiptPerson('e1', 'Luca Rossi', 'luca.rossi@atelier-leman.example'), receiptPerson('e2', 'Sara Meier', 'sara.meier@atelier-leman.example')]} companyName="Atelier du Léman Sàrl" onClose={noop} onOpened={noop} /></div>
+  : query.get('dialog')?.startsWith('justificatif')
+    ? <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><ReceiptRequestDialog receipt={missingReceipt} employees={[receiptPerson('e1', 'Luca Rossi', 'luca.rossi@atelier-leman.example'), receiptPerson('e2', 'Sara Meier', 'sara.meier@atelier-leman.example')]} companyName="Atelier du Léman Sàrl" onClose={noop} onSent={noop} /></div>
     : <Preview />);

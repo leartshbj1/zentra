@@ -15,11 +15,12 @@ import {
   type MissingReceipt,
   type PaymentReview,
   type PaymentSafetySettings as Settings,
+  type ReceiptRequestChannel,
   type SupplierPaymentHistory,
 } from './paymentSafety';
 import type { Employee, SupplierInvoice } from './types';
 import { Button, Field, Modal } from './ui';
-import { errorMessage, formatDate, formatMoney } from './utils';
+import { createId, errorMessage, formatDate, formatMoney } from './utils';
 import './payment-safety.css';
 
 /** Résumé du fournisseur : nombre de paiements, 12 mois, dernier paiement, montant habituel, IBAN. */
@@ -155,39 +156,78 @@ export function PaymentSafetySettings({ disabled }: { disabled: boolean }) {
   </section>;
 }
 
-/** Brouillon de demande de justificatif, ouvert dans la messagerie : rien ne part sans votre clic. */
-export function ReceiptRequestDialog({ receipt, employees, companyName, rememberedId, onClose, onOpened }: {
+/**
+ * Demande de justificatif à un collaborateur : le texte préparé par l'app est
+ * modifiable, puis envoyé d'un clic par la messagerie de l'entreprise ou de cet
+ * appareil. Sans messagerie connectée, ou si l'envoi échoue, le brouillon
+ * s'ouvre dans votre messagerie.
+ */
+export function ReceiptRequestDialog({ receipt, employees, companyName, rememberedId, onClose, onSent }: {
   receipt: MissingReceipt;
   employees: readonly Employee[];
   companyName: string;
   rememberedId?: string;
   onClose: () => void;
-  onOpened: (employee: Employee) => void;
+  onSent: (employee: Employee, how: 'sent' | 'draft') => void;
 }) {
   useAppLanguage();
   const people = useMemo(() => receiptRecipients(employees, rememberedId), [employees, rememberedId]);
   const [employeeId, setEmployeeId] = useState(people[0]?.id ?? '');
   const employee = people.find((person) => person.id === employeeId) ?? null;
-  const draft = employee ? receiptRequestDraft(receipt, employee, companyName) : null;
+  const prepared = employee ? receiptRequestDraft(receipt, employee, companyName) : null;
+  const [edited, setEdited] = useState<{ forId: string; subject: string; body: string } | null>(null);
+  const subject = edited?.forId === employeeId ? edited.subject : prepared?.subject ?? '';
+  const body = edited?.forId === employeeId ? edited.body : prepared?.body ?? '';
+  const [channel, setChannel] = useState<ReceiptRequestChannel | null | undefined>(undefined);
+  const [requestId] = useState(() => createId());
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let live = true;
+    Promise.resolve().then(() => desktopApi.receiptRequestChannel()).then((value) => { if (live) setChannel(value); }).catch(() => { if (live) setChannel(null); });
+    return () => { live = false; };
+  }, []);
   const amount = formatMoney(Math.abs(receipt.movement.amountCents), receipt.movement.currency || 'CHF');
-  return <Modal title={t('Demander le justificatif')} description={[amount, formatDate((receipt.movement.bookingDate || receipt.movement.valueDate).slice(0, 10)), receiptWho(receipt.movement)].filter(Boolean).join(' · ')} onClose={onClose} className="receipt-request-modal">
+  const href = employee ? `mailto:${encodeURIComponent(employee.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` : '';
+  const ready = !!employee && !!channel && !!subject.trim() && !!body.trim();
+
+  async function send() {
+    if (!employee || !channel || sending) return;
+    setSending(true); setError('');
+    try {
+      await desktopApi.sendReceiptRequest(channel, { requestId, reference: receipt.movement.id, recipient: employee.email, subject: subject.trim(), body });
+      onSent(employee, 'sent');
+    } catch (reason) {
+      setError(errorMessage(reason, t('Le message n’a pas pu être envoyé.')));
+    } finally { setSending(false); }
+  }
+
+  return <Modal title={t('Demander le justificatif')} description={[amount, formatDate((receipt.movement.bookingDate || receipt.movement.valueDate).slice(0, 10)), receiptWho(receipt.movement)].filter(Boolean).join(' · ')} onClose={onClose} dismissible={!sending} className="receipt-request-modal">
     <div className="receipt-request">
       {people.length ? <>
         <Field label={t('Collaborateur')}>
-          <select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
+          <select value={employeeId} disabled={sending} onChange={(event) => setEmployeeId(event.target.value)}>
             {people.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.email}</option>)}
           </select>
         </Field>
-        {draft && <dl className="receipt-request__draft">
-          <div><dt>{t('À')}</dt><dd>{employee!.email}</dd></div>
-          <div><dt>{t('Objet')}</dt><dd>{draft.subject}</dd></div>
-          <div><dt>{t('Message')}</dt><dd className="receipt-request__body">{draft.body}</dd></div>
-        </dl>}
-        <p className="receipt-request__note">{t('Le message s’ouvre dans votre messagerie. Relisez-le, puis envoyez-le : Zentra n’envoie rien tout seul.')}</p>
+        <Field label={t('Objet')}>
+          <input value={subject} maxLength={200} disabled={sending} onChange={(event) => setEdited({ forId: employeeId, subject: event.target.value, body })} />
+        </Field>
+        <Field label={t('Message')}>
+          <textarea value={body} rows={9} maxLength={4000} disabled={sending} onChange={(event) => setEdited({ forId: employeeId, subject, body: event.target.value })} />
+        </Field>
+        <p className="receipt-request__note">{channel === undefined
+          ? t('Recherche de votre messagerie…')
+          : channel
+            ? t('Envoyé depuis {email}, seulement quand vous cliquez sur Envoyer.', { email: channel.fromEmail })
+            : t('Aucune messagerie n’est connectée dans Zentra : le message s’ouvrira dans votre messagerie, à envoyer vous-même.')}</p>
       </> : <p className="receipt-request__note">{t('Aucun collaborateur n’a d’adresse e-mail. Ajoutez-la dans sa fiche, rubrique Équipe.')}</p>}
+      {error && <p className="receipt-request__error" role="alert">{error} {t('Vous pouvez aussi ouvrir le message dans votre messagerie.')}</p>}
       <div className="form-actions">
-        <Button type="button" variant="secondary" onClick={onClose}>{t('Fermer')}</Button>
-        {draft && employee && <a className="button button--primary button--normal" href={draft.href} onClick={() => onOpened(employee)}>{t('Ouvrir le brouillon dans la messagerie')}</a>}
+        <Button type="button" variant="secondary" disabled={sending} onClick={onClose}>{t('Fermer')}</Button>
+        {employee && (channel ? <a className="receipt-request__fallback" href={href} onClick={() => onSent(employee, 'draft')}>{t('Ouvrir dans ma messagerie')}</a>
+          : channel === null && <a className="button button--primary button--normal" href={href} onClick={() => onSent(employee, 'draft')}>{t('Ouvrir le brouillon dans la messagerie')}</a>)}
+        {channel && <Button type="button" disabled={!ready || sending} onClick={() => void send()}>{sending ? t('Envoi…') : t('Envoyer')}</Button>}
       </div>
     </div>
   </Modal>;

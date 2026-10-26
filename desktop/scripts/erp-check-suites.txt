@@ -133,3 +133,5 @@ src/fiduciaryHealth.test.ts
 src/consolidation.test.ts
 src/legalArchiveVault.test.ts
 rust:legal_archive_copy::
+src/ReceiptRequestDialog.test.tsx
+rust:outgoing_mail::receipt_request::

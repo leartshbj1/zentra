@@ -4271,15 +4271,16 @@ function WorkspaceContent({
         companyName={workspace.settings?.organization.legalName ?? ''}
         rememberedId={followUpEntries(autopilotContext.organizationId)['receipt-who:' + receiptWho(receiptRequest.receipt.movement)]?.askedEmployeeId}
         onClose={() => setReceiptRequest(null)}
-        onOpened={employee => {
-          // Le brouillon s'ouvre dans la messagerie ; la carte revient dans 7 jours si la pièce manque toujours.
+        onSent={(employee, how) => {
+          // Envoyée par Zentra, ou brouillon ouvert dans la messagerie ; la carte revient dans 7 jours si la pièce manque toujours.
           const organizationId = autopilotContext.organizationId, key = receiptRequest.key, today = todayIso();
           const previous = followUpEntries(organizationId)[key] ?? null;
           saveFollowUp(organizationId, key, entry => ({ ...entry, sentCount: (entry.sentCount ?? 0) + 1, lastSentAt: today, until: addDays(today, 7), askedName: employee.name, askedEmployeeId: employee.id }));
           saveFollowUp(organizationId, 'receipt-who:' + receiptWho(receiptRequest.receipt.movement), entry => ({ ...entry, askedEmployeeId: employee.id }));
           const copy = autopilotCopy(getAppLanguage());
-          appendJournal(organizationId, { key, title: copy.receiptJournal.replace('{name}', employee.name), detail: employee.email, actionLabel: copy.actionAskReceipt, ok: true, undo: { kind: 'follow-up', key, previous } });
+          appendJournal(organizationId, { key, title: copy.receiptJournal.replace('{name}', employee.name), detail: employee.email, actionLabel: how === 'sent' ? copy.actionSendReceipt : copy.actionAskReceipt, ok: true, undo: { kind: 'follow-up', key, previous } });
           setJournalVersion(version => version + 1);
+          if (how === 'sent') setNotice({ tone: 'success', text: copy.receiptSent.replace('{name}', employee.name) });
           setFollowUpVersion(version => version + 1);
           setReceiptRequest(null);
         }} />}

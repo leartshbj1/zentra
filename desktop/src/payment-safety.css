@@ -166,6 +166,28 @@
   html[data-app-theme] .modal-backdrop .receipt-request a.button {
     text-decoration: none;
   }
+  html[data-app-theme] .modal-backdrop .receipt-request textarea {
+    min-height: 180px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request .form-actions {
+    align-items: center;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__fallback {
+    margin-right: auto;
+    color: var(--apple-accent);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    text-decoration: none;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__fallback:hover {
+    text-decoration: underline;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__error {
+    margin: 0;
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
 
   /* Paramètres */
   html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings {
@@ -225,8 +247,17 @@
     align-items: flex-start;
     flex-direction: column;
   }
+  html[data-app-theme] .modal-backdrop .receipt-request .form-actions {
+    flex-wrap: wrap;
+  }
   html[data-app-theme] .modal-backdrop .receipt-request .form-actions > :is(.button, a.button) {
     width: 100%;
+  }
+  html[data-app-theme] .modal-backdrop .receipt-request__fallback {
+    order: 3;
+    width: 100%;
+    margin: 4px 0 0;
+    text-align: center;
   }
   html[data-app-theme] .desktop-app[data-experience] .payment-safety-settings .field {
     max-width: none;
