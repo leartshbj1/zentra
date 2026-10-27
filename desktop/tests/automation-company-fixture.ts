@@ -75,6 +75,7 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
       if (command === 'integrations_action') return {token:'zk_live_exemple_fictif_0000'};
       if (command === 'autopilot_background') return {schemaVersion:1,organizationId:'automation-qa',consentVersion:'autopilot-background-2026-10-26',enabled:true,grantedAt:1793050000,expiresAt:1795642000,lastRunAt:Math.floor(Date.now()/1000)-300,lastState:'idle',waiting:2};
       if (command === 'autopilot_schedule') return {stored:0};
+      if (command === 'public_api_tasks') return {stored:0};
       if (command !== 'automation_request') throw Error('Not available in this fixture');
       if (!args.data) { if (unavailable) throw Error('Offline fixture'); return structuredClone(state); }
       if (args.data.action === 'centre') return structuredClone(centre);

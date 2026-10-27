@@ -30,6 +30,7 @@ pub(crate) const POSTAL_PATH: &str = "/api/account/postal/letters";
 pub(crate) const INTEGRATIONS_PATH: &str = "/api/account/integrations/device";
 pub(crate) const BACKGROUND_PATH: &str = "/api/account/automation/background";
 pub(crate) const SCHEDULE_PATH: &str = "/api/account/automation/schedule";
+pub(crate) const TASKS_PATH: &str = "/api/account/api/tasks";
 const BACKGROUND_CONSENT_VERSION: &str = "autopilot-background-2026-10-26";
 const INTEGRATION_ACTIONS: [&str; 10] = ["create-key", "revoke-key", "create-webhook", "delete-webhook", "resume-webhook", "test-webhook",
     "create-shop", "delete-shop", "save-postal", "delete-postal"];
@@ -550,6 +551,65 @@ pub async fn autopilot_schedule(state: State<'_, LocalStore>, items: Vec<Value>)
     Ok(json!({ "stored": stored }))
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TaskAction {
+    id: String,
+    label: String,
+}
+
+/// Carte Autopilote lue par un assistant connecté (MCP), avec exactement ces clés.
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PublishedTask {
+    key: String,
+    kind: String,
+    title: String,
+    detail: String,
+    why: String,
+    actions: Vec<TaskAction>,
+    assistant_actions: Vec<String>,
+}
+
+fn task_valid(task: &PublishedTask) -> bool {
+    let printable = |value: &str| (1..=160).contains(&value.len()) && value.bytes().all(|b| (0x21..=0x7e).contains(&b));
+    let action_id = |value: &str| {
+        (1..=40).contains(&value.len())
+            && value.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
+            && value.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    };
+    let text = |value: &str, max: usize| value.encode_utf16().count() <= max;
+    printable(&task.key)
+        && text(&task.kind, 60)
+        && !task.title.trim().is_empty()
+        && text(&task.title, 300)
+        && text(&task.detail, 600)
+        && text(&task.why, 600)
+        && task.actions.len() <= 8
+        && task.assistant_actions.len() <= 8
+        && task.actions.iter().all(|action| action_id(&action.id) && !action.label.trim().is_empty() && text(&action.label, 80))
+        && task.assistant_actions.iter().all(|id| task.actions.iter().any(|action| &action.id == id))
+}
+
+/// Remplace les tâches Autopilote que lit l'assistant connecté de l'entreprise.
+/// Le serveur ne garde la liste que si l'API est ouverte et revérifie chaque clé.
+#[tauri::command]
+pub async fn public_api_tasks(state: State<'_, LocalStore>, items: Vec<Value>) -> Result<Value, String> {
+    let store = state.inner().clone();
+    if items.len() > 100 { return Err("Trop de tâches.".into()); }
+    let mut parsed = Vec::with_capacity(items.len());
+    let mut keys = BTreeSet::new();
+    for item in items {
+        let task: PublishedTask = serde_json::from_value(item).map_err(|_| "Tâches illisibles.".to_string())?;
+        if !task_valid(&task) || !keys.insert(task.key.clone()) { return Err("Tâches illisibles.".into()); }
+        parsed.push(task);
+    }
+    let session = session_for(&store, true).await.map_err(command_error)?;
+    let reply = post_json(&session, TASKS_PATH, &json!({ "schemaVersion": 1, "items": parsed })).await.map_err(command_error)?;
+    let stored = reply.get("stored").and_then(Value::as_u64).ok_or_else(|| "Réponse du service Zentra illisible.".to_string())?;
+    Ok(json!({ "stored": stored }))
+}
+
 /// Envoie par la poste le PDF d'une facture émise (compte Pingen de l'entreprise).
 #[tauri::command]
 pub async fn postal_send_invoice(state: State<'_, LocalStore>, invoice_id: String, delivery: String, color: bool) -> Result<Value, String> {
@@ -686,5 +746,19 @@ mod tests {
         assert!(!schedule_item_valid(&item("inv:i1", "03.11.2026", "Dupont SA")));
         assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", "Dupont\nSA")));
         assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", &"x".repeat(81))));
+    }
+
+    #[test]
+    fn published_tasks_keep_the_server_contract() {
+        let task = |key: &str, assistant: &[&str]| PublishedTask {
+            key: key.into(), kind: "Relance".into(), title: "Relance 1".into(), detail: "Dupont SA".into(), why: String::new(),
+            actions: vec![TaskAction { id: "send".into(), label: "Envoyer".into() }, TaskAction { id: "postpone".into(), label: "Reporter".into() }],
+            assistant_actions: assistant.iter().map(|id| id.to_string()).collect(),
+        };
+        assert!(task_valid(&task("reminder:r1", &["postpone"])));
+        assert!(!task_valid(&task("reminder r1", &[])));
+        assert!(!task_valid(&task("reminder:r1", &["pay"])));
+        let extra = json!({ "key": "k", "kind": "", "title": "T", "detail": "", "why": "", "actions": [], "assistantActions": [], "more": 1 });
+        assert!(serde_json::from_value::<PublishedTask>(extra).is_err());
     }
 }

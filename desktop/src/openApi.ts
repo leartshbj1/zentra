@@ -19,11 +19,11 @@ export type OpenApiStatus = Readonly<{
 }>;
 
 export type InboxSource = 'api' | 'mcp' | 'shopify' | 'woocommerce';
-export type InboxKind = 'customer' | 'quote' | 'order' | 'payment' | 'order_cancelled';
+export type InboxKind = 'customer' | 'quote' | 'order' | 'payment' | 'order_cancelled' | 'article' | 'project' | 'task_action';
 export type InboxItem = Readonly<{ itemId: string; seq: number; source: InboxSource; kind: InboxKind; createdAt: string; payload: Raw }>;
 
 const SOURCES: readonly InboxSource[] = ['api', 'mcp', 'shopify', 'woocommerce'];
-const KINDS: readonly InboxKind[] = ['customer', 'quote', 'order', 'payment', 'order_cancelled'];
+const KINDS: readonly InboxKind[] = ['customer', 'quote', 'order', 'payment', 'order_cancelled', 'article', 'project', 'task_action'];
 
 export function statusFromRaw(raw: unknown): OpenApiStatus {
   const value = record(raw), projection = record(value.projection), postal = record(value.postal), inbox = record(value.inbox);
@@ -46,6 +46,8 @@ export function inboxFromRaw(raw: unknown): InboxItem[] {
     return [{ itemId: text(item.itemId), seq: count(item.seq), source, kind, createdAt: text(item.createdAt), payload: record(item.payload) }];
   });
 }
+
+export type PublishedTask = Readonly<{ key: string; kind: string; title: string; detail: string; why: string; actions: readonly Readonly<{ id: string; label: string }>[]; assistantActions: readonly string[] }>;
 
 export type PostalLetter = Readonly<{
   letterId: string; documentId: string; status: string; providerStatus: string | null;
@@ -75,6 +77,10 @@ export const openApi = {
   },
   async decide(itemId: string, decision: 'imported' | 'rejected', reference?: string | null) {
     await invoke('public_api_inbox_decide', { itemId, decision, reference: reference ?? null });
+  },
+  /** Remplace les tâches Autopilote que lit l'assistant connecté (MCP). */
+  async publishTasks(items: readonly PublishedTask[]): Promise<number> {
+    return count(record(await invoke('public_api_tasks', { items })).stored);
   },
   async sendLetter(invoiceId: string, delivery: 'economy' | 'priority', color: boolean): Promise<PostalLetter> {
     return letterFromRaw(record(await invoke('postal_send_invoice', { invoiceId, delivery, color })).letter);

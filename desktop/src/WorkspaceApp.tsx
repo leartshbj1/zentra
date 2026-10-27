@@ -79,6 +79,7 @@ import { appendJournal, canUndo, confirmEntries, decideRule, doneToday, entriesT
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
 import { projectFromQuote, projectKey, quotesToStartProject } from './autopilotProjects';
+import { articleFromDraft, projectFromDraft, publishableTasks, taskDecision, taskRequest, tasksFingerprint } from './assistantTasks';
 import { askKey, mailtoLink, missingInfoDraft, requestsMissingInfo } from './autopilotMissingInfo';
 import { monthFigures, monthSummaryText, owedOver, previousMonth, readQuestion } from './autopilotInsights';
 import { useAutopilotBehaviour, visibleCards } from './autopilotSettings';
@@ -1103,6 +1104,10 @@ function WorkspaceContent({
   const [autopilotBehaviour, setAutopilotBehaviour] = useAutopilotBehaviour(autopilotContext?.organizationId);
   const autoRunning = useRef(false);
   const autoTried = useRef(new Set<string>());
+  // Action demandée par un assistant connecté (MCP) en cours d'exécution, et demandes déjà traitées.
+  const assistantRunning = useRef(false);
+  const assistantHandled = useRef(new Set<string>());
+  const publishedTasks = useRef(''), tasksCheckedAt = useRef(0);
   const cardConfidence = (card: AutopilotActionCard) => {
     const copy = autopilotCopy(getAppLanguage());
     return card.why?.endsWith(copy.confidenceHigh) ? 'high' as const : card.why?.endsWith(copy.confidenceCheck) ? 'check' as const : null;
@@ -1156,7 +1161,8 @@ function WorkspaceContent({
     const action = card?.actions.find(row => row.id === actionId);
     const previous = followUpEntries(autopilotContext.organizationId)[key] ?? null;
     const undo: UndoSpec | undefined = actionId === 'ignore' || actionId === 'postpone' || actionId === 'wait-promise' || actionId === 'wait-habit' ? { kind: 'follow-up', key, previous } : undefined;
-    const label = autoRunning.current ? `${action?.label ?? actionId} · ${autopilotCopy(getAppLanguage()).autoValidated}` : action?.label ?? actionId;
+    const label = autoRunning.current ? `${action?.label ?? actionId} · ${autopilotCopy(getAppLanguage()).autoValidated}`
+      : assistantRunning.current ? `${action?.label ?? actionId} · ${t('demandé par l’assistant')}` : action?.label ?? actionId;
     return journalled(key, card?.title ?? '', card?.detail ?? '', label, card?.signature, () => runFollowUp(key, actionId), undo);
   };
   const undoJournal = async (entry: JournalEntry) => {
@@ -1494,13 +1500,15 @@ function WorkspaceContent({
     const cards: AutopilotActionCard[] = [];
     for (const item of inboxItems) {
       const key = 'inbox:' + item.itemId;
-      if (entries[key]?.ignored) continue;
+      if (entries[key]?.ignored || item.kind === 'task_action') continue;
       const source = inboxCardSource(item);
       const paidInvoice = item.kind === 'payment' ? invoiceForShopPayment(item.payload, workspace.invoices) : undefined;
       const amount = typeof item.payload.amountCents === 'number' ? formatMoney(item.payload.amountCents, String(item.payload.currency || 'CHF')) : '';
       const main = item.kind === 'order' ? { id: 'inbox-order', label: t('Créer la commande client'), primary: true }
         : item.kind === 'quote' ? { id: 'inbox-quote', label: t('Créer le devis'), primary: true }
         : item.kind === 'customer' ? { id: 'inbox-customer', label: t('Créer le client'), primary: true }
+        : item.kind === 'article' ? { id: 'inbox-article', label: t('Créer l’article'), primary: true }
+        : item.kind === 'project' ? { id: 'inbox-project', label: t('Créer le projet'), primary: true }
         : item.kind === 'payment' ? paidInvoice ? { id: 'inbox-payment', label: t('Enregistrer le paiement'), primary: true } : { id: 'open-orders', label: t('Facturer la commande'), primary: true }
         : { id: 'inbox-noted', label: t('C’est noté'), primary: true };
       // What arrived, how and from whom, so "Aujourd'hui" can put it first and say so.
@@ -1510,8 +1518,8 @@ function WorkspaceContent({
       const arrival = Number.isFinite(arrivedAt) ? {
         at: arrivedAt,
         origin: item.source === 'mcp' ? t('par un assistant (MCP)') : item.source === 'api' ? t('par l’API') : t('par {platform}', { platform: PLATFORM_LABEL[item.source] ?? item.source }),
-        what: t({ quote: 'Devis', order: 'Commande', customer: 'Client', payment: 'Paiement', order_cancelled: 'Commande' }[item.kind]),
-        subject: t({ quote: 'Devis à préparer', order: 'Commande à valider', customer: 'Nouveau client', payment: 'Paiement reçu', order_cancelled: 'Commande annulée' }[item.kind]),
+        what: t({ quote: 'Devis', order: 'Commande', customer: 'Client', payment: 'Paiement', order_cancelled: 'Commande', article: 'Article', project: 'Projet' }[item.kind]),
+        subject: t({ quote: 'Devis à préparer', order: 'Commande à valider', customer: 'Nouveau client', payment: 'Paiement reçu', order_cancelled: 'Commande annulée', article: 'Nouvel article', project: 'Nouveau projet' }[item.kind]),
         from: (() => { const party = partyFrom(item.payload.customer); return party.company || party.name || party.email || source.detail; })(),
         lines: asked.map(line => `${(line.quantityMilli / 1000).toLocaleString(getAppLocale())} ${line.unit} · ${line.description}`),
       } : undefined;
@@ -2197,6 +2205,28 @@ function WorkspaceContent({
     if (actionId === 'inbox-customer') {
       const clientId = await ensureClient();
       if (clientId) { actionOutcome.current = true; await finish('imported', clientId); }
+      return;
+    }
+    if (actionId === 'inbox-article') {
+      const data = articleFromDraft(payload, defaultVat);
+      if (!data) { setNotice({ tone: 'warning', text: t('Ce brouillon n’indique pas le nom de l’article.') }); return; }
+      const id = createId();
+      const ok = await journalAct(origin => desktopApi.saveCatalogItem(id, data, undefined, origin.workspaceScope, origin.memberContextNonce), t('Article {name} créé.', { name: data.name }), false);
+      if (ok) { actionOutcome.current = true; await finish('imported', id); }
+      return;
+    }
+    if (actionId === 'inbox-project') {
+      const named = !!(party.id || party.name || party.company || party.email);
+      const clientId = named ? await ensureClient() : null;
+      if (named && !clientId) return;
+      const data = projectFromDraft(payload, clientId, todayIso());
+      if (!data) { setNotice({ tone: 'warning', text: t('Ce brouillon n’indique pas le nom du projet.') }); return; }
+      let projectId = '';
+      const ok = await journalAct(async origin => {
+        projectId = await desktopApi.saveProject(data, undefined, origin.workspaceScope, origin.memberContextNonce);
+        return desktopApi.loadWorkspace(origin.workspaceScope, origin.memberContextNonce);
+      }, t('Projet {name} créé.', { name: data.name }), false);
+      if (ok && projectId) { actionUndo.current = { kind: 'archive-project', projectId }; actionOutcome.current = true; await finish('imported', projectId); }
       return;
     }
     if (actionId !== 'inbox-order' && actionId !== 'inbox-quote') return;
@@ -2944,6 +2974,35 @@ function WorkspaceContent({
     autoTried.current.add(card.key);
     autoRunning.current = true;
     void runFollowUpJournalled(card.key, action.id).finally(() => { autoRunning.current = false; });
+  });
+  // Demandes d'un assistant connecté (MCP) : une à la fois, comme un clic, quand rien d'autre ne tourne.
+  // L'app revérifie la carte et la liste des actions permises ; le serveur apprend le résultat.
+  useEffect(() => {
+    if (!autopilotContext || readOnly || busy || modal || actionInFlight.current || autoRunning.current || assistantRunning.current) return;
+    const item = inboxItems.find(row => row.kind === 'task_action' && !assistantHandled.current.has(row.itemId));
+    if (!item) return;
+    assistantHandled.current.add(item.itemId);
+    const request = taskRequest(item), decision = taskDecision(request, followUpCards().cards);
+    const settle = async (state: 'imported' | 'rejected', reference: string) => {
+      try { await openApi.decide(item.itemId, state, reference); setInboxItems(items => items.filter(row => row.itemId !== item.itemId)); }
+      catch { assistantHandled.current.delete(item.itemId); }
+    };
+    if (!decision.run || !request) { void settle('rejected', decision.run ? 'invalid' : decision.reason); return; }
+    assistantRunning.current = true;
+    void runFollowUpJournalled(request.taskKey, request.actionId)
+      .then(() => settle('imported', 'done'))
+      .finally(() => { assistantRunning.current = false; });
+  });
+  // Les cartes que lit l'assistant, republiées seulement quand elles changent.
+  useEffect(() => {
+    // Au plus toutes les 10 secondes : les cartes se calculent sur tout l'espace de travail.
+    if (!autopilotContext || readOnly || !openStatus?.projection.wanted || Date.now() - tasksCheckedAt.current < 10_000) return;
+    tasksCheckedAt.current = Date.now();
+    const tasks = publishableTasks(followUpCards().cards, card => card.arrival?.what ?? (autopilotKind(card.key) ? t(autopilotKind(card.key)!) : 'Autopilote'));
+    const fingerprint = tasksFingerprint(tasks);
+    if (fingerprint === publishedTasks.current) return;
+    publishedTasks.current = fingerprint;
+    openApi.publishTasks(tasks).catch(() => { publishedTasks.current = ''; });
   });
   const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); });
   readAcceptancesRef.current = async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); };

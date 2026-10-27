@@ -120,6 +120,12 @@ export function inboxCardSource(item: InboxItem): { titleKey: string; values: Re
       return { titleKey: 'Commande {platform} {number} payée', values: { platform, number }, detail: text(payload.gateway) };
     case 'order_cancelled':
       return { titleKey: 'Commande {platform} {number} annulée', values: { platform, number }, detail: '' };
+    case 'article':
+      return { titleKey: 'Article proposé par {platform}', values: { platform }, detail: text(record(payload.article).name) };
+    case 'project':
+      return { titleKey: 'Projet proposé par {platform}', values: { platform }, detail: [text(record(payload.project).name), who].filter(Boolean).join(' · ') };
+    case 'task_action':
+      return { titleKey: 'Action demandée par {platform}', values: { platform }, detail: text(payload.title) };
   }
 }
 

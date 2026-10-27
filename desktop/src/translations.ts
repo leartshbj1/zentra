@@ -61,6 +61,7 @@ import { lot5Translations } from './translationsLot5';
 import { terrainTranslations } from './translationsTerrain';
 import { integrationsTranslations } from './translationsIntegrations';
 import { autopilotBackgroundTranslations } from './translationsAutopilotBackground';
+import { assistantTasksTranslations } from './translationsAssistantTasks';
 import { migrationTranslations } from './translationsMigration';
 import { autopilotArrivalsTranslations } from './translationsAutopilotArrivals';
 export const translations: Record<string, readonly [string, string, string]> = {
@@ -72,6 +73,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...terrainTranslations,
   ...integrationsTranslations,
   ...autopilotBackgroundTranslations,
+  ...assistantTasksTranslations,
   ...autopilotArrivalsTranslations,
   ...demoTranslations,
   ...plansTranslations,
