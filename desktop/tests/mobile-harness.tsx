@@ -391,3 +391,4 @@ import '../src/parcours-client.css';
 import '../src/pack-batiment.css';
 import '../src/aere.css';
 import '../src/autopilot-aujourdhui.css';
+import '../src/autopilot-nouveautes.css';

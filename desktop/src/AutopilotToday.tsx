@@ -13,6 +13,7 @@ import type { AutopilotSignalCard } from './AutopilotSignalList';
 import type { AutopilotActionCard } from './AutopilotActionList';
 import type { AutopilotView } from './autopilotView';
 import type { BriefActivity, BriefDestination } from './AutomationBrief';
+import { isFresh, onAutopilotFocus, peekAutopilotFocus, takeAutopilotFocus, useAutopilotSeen } from './autopilotSeen';
 
 /*
  * "Aujourd'hui": everything Autopilote prepared, one thing at a time.
@@ -62,7 +63,28 @@ const copy: Copy = {
   briefTools: ['Classements à vérifier', 'Zuordnungen prüfen', 'Classificazioni da verificare', 'Classifications to review'],
   settings: ['Réglages', 'Einstellungen', 'Impostazioni', 'Settings'],
   observation: ['Mode observation : Autopilote prépare sans rien modifier.', 'Beobachtungsmodus: Autopilote bereitet vor, ohne etwas zu ändern.', 'Modalità osservazione: Autopilote prepara senza modificare nulla.', 'Observation mode: Autopilote prepares without changing anything.'],
+  fresh: ['Nouveau', 'Neu', 'Nuovo', 'New'],
+  byMail: ['par e-mail', 'per E-Mail', 'per e-mail', 'by e-mail'],
+  receivedVia: ['Reçu {origin}', 'Erhalten {origin}', 'Ricevuto {origin}', 'Received {origin}'],
+  asked: ['Demandé', 'Angefragt', 'Richiesto', 'Requested'],
 };
+
+// "il y a 4 min", "hier": how long ago something arrived, in the page's language.
+export function sinceText(seconds: number, language: string, now = Date.now()): string {
+  const rtf = new Intl.RelativeTimeFormat(localeOf(language), { numeric: 'auto' });
+  const ago = Math.max(0, now / 1000 - seconds);
+  if (ago < 60) return rtf.format(0, 'minute');
+  if (ago < 3600) return rtf.format(-Math.floor(ago / 60), 'minute');
+  if (ago < 86_400) return rtf.format(-Math.floor(ago / 3600), 'hour');
+  return rtf.format(-Math.floor(ago / 86_400), 'day');
+}
+
+// "4 min", "2 h", "3 j": the same, short enough for the right edge of a row.
+export function sinceShort(seconds: number, language: string, now = Date.now()): string {
+  const ago = Math.max(0, now / 1000 - seconds);
+  const [value, unit] = ago < 3600 ? [Math.max(1, Math.floor(ago / 60)), 'minute'] : ago < 86_400 ? [Math.floor(ago / 3600), 'hour'] : [Math.floor(ago / 86_400), 'day'];
+  return new Intl.NumberFormat(localeOf(language), { style: 'unit', unit, unitDisplay: 'short' }).format(value);
+}
 
 // Same output as the app's money format, from the language given to the page.
 const locales = ['fr-CH', 'de-CH', 'it-CH', 'en-CH'] as const;
@@ -70,7 +92,8 @@ const localeOf = (language: string) => locales[Math.max(0, ['fr', 'de', 'it', 'e
 const formatMoney = (cents: number, currency: string, language: string) =>
   new Intl.NumberFormat(localeOf(language), { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 
-type Entry = Readonly<{ id: string; kind: string; title: string; sub?: string; side?: string }> & (
+/** `at` (seconds) and `origin` are set for what arrived from outside: it can be new. */
+type Entry = Readonly<{ id: string; kind: string; title: string; sub?: string; side?: string; at?: number; origin?: string }> & (
   | { type: 'request'; item: AutopilotReviewItem }
   | { type: 'acceptance'; card: AutopilotAcceptanceCard }
   | { type: 'signal'; card: AutopilotSignalCard }
@@ -99,16 +122,25 @@ export type AutopilotTodayProps = {
   onCreateArticle?: (item: AutopilotReviewItem, phrase: string) => void;
 };
 
-export function AutopilotToday(props: AutopilotTodayProps) {
-  const { language, organizationId, state, createdQuote, acceptances = [], signals = [], followUps = [], journal = [] } = props;
+export type TodayEntry = Entry;
+type EntrySource = Pick<AutopilotTodayProps, 'language' | 'organizationId' | 'state' | 'createdQuote' | 'acceptances' | 'signals' | 'followUps' | 'activity'>;
+
+const sayIn = (language: string) => {
   const index = Math.max(0, ['fr', 'de', 'it', 'en'].indexOf(language));
-  const say = (key: string, values: Record<string, string | number> = {}) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, String(value)), copy[key][index]);
+  return (key: string, values: Record<string, string | number> = {}) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, String(value)), copy[key][index]);
+};
+
+/**
+ * Everything that waits, in the order of importance of the cards it replaces.
+ * The notifications read the same list, so an item has one id everywhere.
+ */
+export function todayEntries(source: EntrySource): Entry[] {
+  const { language, organizationId, state, createdQuote, acceptances = [], signals = [], followUps = [] } = source;
+  const say = sayIn(language);
   const common = autopilotCopy(language);
   const readable = state?.status === 'ready' && !state.reviewsUnavailable;
   const page = readable ? normalizeAutopilotReviewPage(state.reviews, organizationId) : null;
   const stageOf = (key: AutopilotRequestKey) => autopilotRequestStage(createdQuote?.(key) ?? null);
-
-  // The same items, in the same order of importance, as the cards they replace.
   const entries: Entry[] = [];
   if (readable) {
     for (const item of page?.items ?? []) {
@@ -118,7 +150,8 @@ export function AutopilotToday(props: AutopilotTodayProps) {
       const who = s?.customer?.name ?? s?.sender?.company ?? s?.sender?.name ?? common.acceptanceUnknownSender;
       entries.push({ id: `request:${item.proposalId}`, type: 'request', item, kind: stage === 'accepted' ? say('invoiceKind') : say('quoteKind'),
         title: stage === 'accepted' && quote ? common.acceptedTitle.replace('{number}', quote.number) : who,
-        sub: stage === 'accepted' ? quote?.clientName : common.request, side: s && s.netCents > 0 ? formatMoney(s.netCents, s.currency, language) : undefined });
+        sub: stage === 'accepted' ? quote?.clientName : common.request, side: s && s.netCents > 0 ? formatMoney(s.netCents, s.currency, language) : undefined,
+        at: item.createdAt, origin: say('byMail') });
     }
     for (const card of acceptances) {
       const accepted = !card.candidates && stageOf({ proposalId: card.key }) === 'accepted';
@@ -126,34 +159,58 @@ export function AutopilotToday(props: AutopilotTodayProps) {
       const quote = accepted ? createdQuote?.({ proposalId: card.key }) ?? null : null;
       entries.push({ id: `acceptance:${card.key}`, type: 'acceptance', card, kind: accepted ? say('invoiceKind') : say('quoteKind'),
         title: quote ? common.acceptedTitle.replace('{number}', quote.number) : common.acceptanceChooseTitle.replace('{sender}', card.sender || common.acceptanceUnknownSender),
-        sub: quote?.clientName ?? card.sender });
+        sub: quote?.clientName ?? card.sender, at: card.receivedAt, origin: say('byMail') });
     }
-    for (const card of signals) entries.push({ id: `signal:${card.sourceId}`, type: 'signal', card, kind: common.kindMail, title: card.title, sub: card.sender });
+    // The kind already says "from an e-mail".
+    for (const card of signals) entries.push({ id: `signal:${card.sourceId}`, type: 'signal', card, kind: common.kindMail, title: card.title, sub: card.sender, at: card.receivedAt });
     for (const card of followUps) {
-      const kind = autopilotKind(card.key);
-      entries.push({ id: `followup:${card.key}`, type: 'followup', card, kind: kind ? t(kind) : 'Autopilote', title: card.title, sub: card.detail });
+      const kind = autopilotKind(card.key), arrival = card.arrival;
+      entries.push(arrival
+        ? { id: `followup:${card.key}`, type: 'followup', card, kind: arrival.what, title: arrival.from || card.title, sub: arrival.subject, at: arrival.at, origin: arrival.origin }
+        : { id: `followup:${card.key}`, type: 'followup', card, kind: kind ? t(kind) : 'Autopilote', title: card.title, sub: card.detail });
     }
   }
   const brief: [BriefDestination, number, string][] = [
-    ['invoices', props.activity?.supplierInbox?.needsReview ?? 0, 'briefInvoices'],
-    ['appointments', props.activity?.appointments?.pending ?? 0, 'briefAppointments'],
-    ['review', props.activity?.workflows?.review ?? 0, 'briefReview'],
-    ['work', props.activity?.workflows?.open ?? 0, 'briefWork'],
-    ['tools', props.activity?.totals.needsReview ?? 0, 'briefTools'],
+    ['invoices', source.activity?.supplierInbox?.needsReview ?? 0, 'briefInvoices'],
+    ['appointments', source.activity?.appointments?.pending ?? 0, 'briefAppointments'],
+    ['review', source.activity?.workflows?.review ?? 0, 'briefReview'],
+    ['work', source.activity?.workflows?.open ?? 0, 'briefWork'],
+    ['tools', source.activity?.totals.needsReview ?? 0, 'briefTools'],
   ];
   for (const [destination, count, label] of brief) if (count > 0) entries.push({ id: `brief:${destination}`, type: 'brief', destination, count, kind: say('manageKind'), title: say(label), side: String(count) });
+  return entries;
+}
+
+export function AutopilotToday(props: AutopilotTodayProps) {
+  const { language, organizationId, state, journal = [] } = props;
+  const say = sayIn(language);
+  const readable = state?.status === 'ready' && !state.reviewsUnavailable;
+  const all = todayEntries(props);
+
+  // What arrived and was never opened comes first, newest on top, and keeps
+  // its place and its "Nouveau" for the whole visit, even once opened.
+  const { seen, markSeen } = useAutopilotSeen(organizationId);
+  const pinned = useRef(new Set<string>());
+  for (const entry of all) if (isFresh(entry.id, entry.at, seen)) pinned.current.add(entry.id);
+  const fresh = all.filter(entry => pinned.current.has(entry.id)).sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+  const entries = [...fresh, ...all.filter(entry => !pinned.current.has(entry.id))];
 
   // Brief rows stand for several items: the title counts them all, like the sidebar badge.
   const waiting = entries.reduce((total, entry) => total + (entry.type === 'brief' ? entry.count : 1), 0);
   const done = doneToday(journal).length;
   const total = waiting + done;
 
-  const [selected, setSelected] = useState<string | null>(null);
+  // Opened from a notification: that item first.
+  const [selected, setSelected] = useState<string | null>(peekAutopilotFocus);
+  useEffect(() => { takeAutopilotFocus(); }, []);
+  useEffect(() => onAutopilotFocus(id => { setSelected(id); focusRef.current?.scrollIntoView?.({ block: 'start' }); }), []);
   const lastIndex = useRef(0);
   // When the open item leaves the list (validated), the next one takes its place.
   const current = entries.find(entry => entry.id === selected) ?? entries[Math.min(lastIndex.current, entries.length - 1)] ?? null;
   const at = current ? entries.indexOf(current) : -1;
   useEffect(() => { if (current) { lastIndex.current = at; if (current.id !== selected) setSelected(current.id); } }, [current?.id]);
+  // Opening an item is reading it: the notifications stop counting it.
+  useEffect(() => { if (current?.at) markSeen([current.id]); }, [current?.id, markSeen]);
   const focusRef = useRef<HTMLElement>(null);
   const choose = (id: string, reveal = false) => {
     setSelected(id);
@@ -206,16 +263,17 @@ export function AutopilotToday(props: AutopilotTodayProps) {
 
     <div className="autopilot-today__grid">
       <aside className="autopilot-today__aside">
-        {entries.length > 0 && <>
-          <h3 className="autopilot-today__label"><span className="autopilot-today__label-wide">{say('queue')}</span><span className="autopilot-today__label-narrow">{say('then')}</span></h3>
-          <ol className="autopilot-today__queue">{entries.map((entry, i) => <li key={entry.id}>
-            <button type="button" aria-current={entry.id === current?.id || undefined} onClick={() => choose(entry.id, true)}>
-              <span className="autopilot-today__n">{i + 1}</span>
-              <span className="autopilot-today__what"><small>{entry.kind}</small><strong>{entry.title}</strong></span>
-              {entry.side ? <span className="autopilot-today__amount">{entry.side}</span> : null}
-            </button>
-          </li>)}</ol>
-        </>}
+        {[[say('fresh'), say('fresh'), entries.slice(0, fresh.length), 0] as const, [say('queue'), say('then'), entries.slice(fresh.length), fresh.length] as const]
+          .filter(([, , rows]) => rows.length > 0).map(([wide, narrow, rows, offset]) => <div key={offset} className="autopilot-today__group" data-fresh={offset === 0 && fresh.length > 0 || undefined}>
+            <h3 className="autopilot-today__label"><span className="autopilot-today__label-wide">{wide}</span><span className="autopilot-today__label-narrow">{narrow}</span></h3>
+            <ol className="autopilot-today__queue">{rows.map((entry, i) => <li key={entry.id}>
+              <button type="button" aria-current={entry.id === current?.id || undefined} onClick={() => choose(entry.id, true)}>
+                {pinned.current.has(entry.id) ? <span className="autopilot-today__n autopilot-today__dot" aria-hidden="true" /> : <span className="autopilot-today__n">{offset + i + 1}</span>}
+                <span className="autopilot-today__what"><small>{[entry.kind, entry.origin].filter(Boolean).join(' · ')}</small><strong>{entry.title}</strong></span>
+                {entry.side ? <span className="autopilot-today__amount">{entry.side}</span> : pinned.current.has(entry.id) && entry.at ? <time className="autopilot-today__amount" dateTime={new Date(entry.at * 1000).toISOString()}>{sinceShort(entry.at, language)}</time> : null}
+              </button>
+            </li>)}</ol>
+          </div>)}
         <section className="autopilot-today__done" aria-label={say('doneHeading')}>
           <h3 className="autopilot-today__label">{say('doneHeading')}</h3>
           {done ? <AutopilotDoneList entries={journal} onUndo={props.onUndo} /> : <p className="autopilot-today__quiet">{say('doneEmpty')}</p>}
@@ -226,7 +284,12 @@ export function AutopilotToday(props: AutopilotTodayProps) {
       <section className="autopilot-today__focus" ref={focusRef} aria-live="polite" aria-label={current?.title ?? say('doneTitle')}>
         {current ? <>
           <header className="autopilot-today__focus-head">
-            <div><small>{current.kind}</small><h3>{current.title}</h3>{current.sub && current.sub !== current.title ? <p>{current.sub}</p> : null}</div>
+            <div>
+              <small>{pinned.current.has(current.id) ? <span className="autopilot-today__fresh">{say('fresh')}</span> : null}{current.kind}</small>
+              <h3>{current.title}</h3>
+              {current.sub && current.sub !== current.title ? <p>{current.sub}</p> : null}
+              {current.at && current.origin ? <p className="autopilot-today__origin">{say('receivedVia', { origin: current.origin })} · {sinceText(current.at, language)}</p> : null}
+            </div>
             {entries.length > 1 && <nav className="autopilot-today__pager" aria-label={say('position', { i: at + 1, n: entries.length })}>
               <span>{say('position', { i: at + 1, n: entries.length })}</span>
               <button type="button" aria-label={say('previous')} onClick={() => step(-1)}><ChevronLeft size={18} aria-hidden="true" /></button>
@@ -299,10 +362,15 @@ function Focus({ entry, props, say, onLater }: { entry: Entry; props: AutopilotT
     const others = card.actions.filter(action => action !== primary);
     const act = props.onFollowUp;
     return <>
-      <div className={card.evidence ? 'autopilot-today__pair' : 'autopilot-today__single'}>
-        {card.evidence && <div className="autopilot-today__received">
+      <div className={card.evidence || card.arrival ? 'autopilot-today__pair' : 'autopilot-today__single'}>
+        {(card.evidence || card.arrival) && <div className="autopilot-today__received">
           <h4>{say('received')}</h4>
-          <blockquote>{card.evidence}</blockquote>
+          {card.arrival && <>
+            <p className="autopilot-today__from">{card.arrival.from || card.title}</p>
+            <p className="autopilot-today__meta">{time(card.arrival.at)}</p>
+            {card.arrival.lines?.length ? <ul className="autopilot-today__asked" aria-label={say('asked')}>{card.arrival.lines.map((line, i) => <li key={i}>{line}</li>)}</ul> : null}
+          </>}
+          {card.evidence && <blockquote>{card.evidence}</blockquote>}
         </div>}
         <div className="autopilot-today__prepared">
           <h4>{say('prepared')}</h4>

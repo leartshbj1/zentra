@@ -10,6 +10,8 @@ import type { AutopilotActionCard } from '../src/AutopilotActionList';
 import type { AutopilotSignalCard } from '../src/AutopilotSignalList';
 import type { AutopilotView } from '../src/autopilotView';
 import { parseLanguage, setAppLanguage } from '../src/language';
+import { AutopilotNotifications } from '../src/AutopilotNotifications';
+import { todayEntries } from '../src/AutopilotToday';
 import '../src/styles.css';
 import '../src/workspace-design.css';
 import '../src/mobile.css';
@@ -50,6 +52,7 @@ import '../src/agenda-calm.css';
 import '../src/parcours-client.css';
 import '../src/aere.css';
 import '../src/autopilot-aujourdhui.css';
+import '../src/autopilot-nouveautes.css';
 
 const query = new URLSearchParams(location.search);
 document.documentElement.dataset.appTheme = query.get('theme') === 'dark' ? 'dark' : 'light';
@@ -88,6 +91,10 @@ const created: Record<string, AutopilotCreatedQuoteView> = {
   p5: { number: 'D-2026-001', issued: true, clientEmail: 'm@example.invalid', clientName: 'Camille Martin', sentAt: (at - 200000) * 1000 },
 };
 const acceptances: AutopilotAcceptanceCard[] = [{ key: 'a1', sourceId: 's9', receivedAt: at - 3600, sender: 'Alex Morel', evidence: '« Bonjour, c’est d’accord pour le devis, vous pouvez commencer lundi. »', candidates: [{ id: 'q1', label: 'D-2026-003 · Entretien annuel' }, { id: 'q2', label: 'D-2026-001 · Rénovation' }] }];
+// A quote dropped by an assistant through MCP a few minutes ago.
+const nowSeconds = Math.floor(Date.now() / 1000);
+const inboxArrival = { detail: 'Garage Dupont', arrival: { at: nowSeconds - 240, origin: 'par un assistant (MCP)', what: 'Devis', subject: 'Devis à préparer', from: 'Garage Dupont',
+  lines: ['3 pce · Pneus hiver 205/55 R16', '1 forfait · Montage et équilibrage', '2 h · Contrôle freins'] }, evidence: 'Le client passe jeudi matin, merci d’envoyer le devis avant.' };
 const followUps: AutopilotActionCard[] = [
   { key: 'reminder:r1', title: 'Relance n°1 prête', detail: 'Résidence Bellevue · F-2026-0012 · CHF 1 780.00 · échue depuis 12 jours',
     actions: [{ id: 'send', label: 'Envoyer par mail', primary: true }, { id: 'postpone', label: 'Reporter de 7 jours' }, { id: 'invoice', label: 'Voir la facture' }, { id: 'ignore', label: 'Ignorer' }] },
@@ -164,30 +171,39 @@ const followUps: AutopilotActionCard[] = [
     actions: [{ id: 'ignore', label: 'Ignorer' }, { id: 'open-payroll', label: 'Ouvrir les salaires' }, { id: 'prepare-payroll', label: 'Préparer les 4 fiches', primary: true }] },
   { key: 'vat:v1', title: 'Décompte TVA 1 juil. 2026 – 30 sept. 2026 · 3 412.60 CHF à payer', detail: 'Échéance indicative 29 nov. 2026', why: 'Montant calculé par l’app sur les documents de la période, comme dans le décompte.', actions: [{ id: 'postpone', label: 'Reporter' }, { id: 'vat', label: 'Ouvrir la TVA', primary: true }] },
 
+  { key: 'inbox:in_q1', title: 'Devis demandé par MCP à préparer', ...inboxArrival,
+    why: 'Reçu de l’extérieur. Zentra applique ses propres prix et calcule les montants ; rien n’est enregistré avant votre clic.',
+    actions: [{ id: 'inbox-quote', label: 'Créer le devis', primary: true }, { id: 'inbox-reject', label: 'Refuser' }] },
 ];
 const signals: AutopilotSignalCard[] = [
-  { sourceId: 'm1', receivedAt: at - 7200, title: 'Paiement annoncé', sender: 'Résidence Bellevue', evidence: '« Le virement de CHF 178.00 a été effectué ce matin. »', actionLabel: 'Enregistrer le paiement de CHF 178.00 sur F-2026-0012' },
+  { sourceId: 'm1', receivedAt: query.has('before') ? at - 7200 : Math.floor(Date.now() / 1000) - 3000, title: 'Paiement annoncé', sender: 'Résidence Bellevue', evidence: '« Le virement de CHF 178.00 a été effectué ce matin. »', actionLabel: 'Enregistrer le paiement de CHF 178.00 sur F-2026-0012' },
   { sourceId: 'm2', receivedAt: at - 9000, title: 'Réclamation ou demande de suivi', sender: 'Alex Morel', evidence: '« La plinthe posée hier se décolle déjà. »', actionLabel: 'Créer un suivi' },
 ];
 const state = { status: 'ready', canManage: true, consent: null, saving: false, error: null, activity: null, readingReviews: false, reviewsUnavailable: false,
   reviews: { organizationId: 'qa-company', nextCursor: null, items } } as unknown as AutopilotView;
 const noop = () => undefined;
 const journal = [
+  { id: 'j0', at: '2026-10-20T10:02:00Z', key: 'bank:b9', actionLabel: 'Confirmer · validé automatiquement', title: '486.00 CHF reçu de Résidence Bellevue', detail: '', ok: true },
   { id: 'j1', at: '2026-10-20T09:12:00Z', key: 'qrmail:m0', actionLabel: 'Créer la facture fournisseur', title: 'Facture QR reçue · Scierie du Jura Sàrl', detail: '', ok: true, undo: { kind: 'supplier-draft' as const, invoiceId: 'x' } },
   { id: 'j2', at: '2026-10-20T08:40:00Z', key: 'bank:b0', actionLabel: 'Confirmer', title: '1 780.00 CHF reçu de Résidence Bellevue', detail: '', ok: true },
   { id: 'j3', at: '2026-10-19T17:05:00Z', key: 'reminder:r1', actionLabel: 'Reporter de 7 jours', title: 'Relance n°1 prête', detail: '', ok: true, undo: { kind: 'follow-up' as const, key: 'reminder:r1', previous: null }, undoneAt: '2026-10-19T17:06:00Z' },
 ];
 const short = query.has('short');
-const shownFollowUps = short ? followUps.slice(0, 3) : followUps.filter(card => ['reminder:r1', 'bank:b1', 'qrmail:m1', 'stock:s1', 'payroll:2026-10', 'vat:v1', 'hours:h1'].includes(card.key));
+const shownFollowUps = short ? followUps.slice(0, 3) : followUps.filter(card => ['reminder:r1', 'bank:b1', 'qrmail:m1', 'stock:s1', 'payroll:2026-10', 'vat:v1', 'hours:h1', 'inbox:in_q1'].includes(card.key));
 const today = new Date();
 const todayJournal = journal.map((entry, i) => ({ ...entry, at: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 8 - i, 12).toISOString(), undoneAt: undefined }));
 function Preview() {
   const [page, setPage] = useState<AutomationPage>((query.get('page') as AutomationPage) || 'overview');
-  return <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><main className="app-main" style={{ marginLeft: 0, padding: 'clamp(16px, 4vw, 40px)' }}>
+  const autopilotState = query.has('empty') ? { ...state, reviews: { ...state.reviews!, items: [] } } as AutopilotView : state;
+  const entries = todayEntries({ language: query.get('language') ?? 'fr', organizationId: 'qa-company', state: autopilotState, createdQuote: item => created[item.proposalId] ?? null,
+    acceptances: query.has('empty') ? [] : acceptances, signals: query.has('empty') ? [] : signals, followUps: query.has('empty') ? [] : shownFollowUps });
+  return <div className="desktop-app" data-experience="workspace" style={{ minHeight: '100vh' }}><main className="app-main" style={{ marginLeft: 0, padding: '0 clamp(16px, 4vw, 40px) clamp(16px, 4vw, 40px)' }}>
+    {query.has('before') ? null : <header className="topbar"><div className="topbar__title"><span className="topbar__company">Atelier du Léman</span></div>
+      <div className="topbar__tools"><AutopilotNotifications language={query.get('language') ?? 'fr'} organizationId="qa-company" entries={entries} journal={todayJournal} autoLabel="validé automatiquement" onOpen={noop} onOpenHistory={noop} /></div></header>}
     <section className="page-content" data-screen="automation">
       <AutomationCompanyProvider organizationId="qa-company">
         <AutomationHub page={page} onPage={setPage} onNavigate={() => undefined} workspace={{ invoices: [], settings: { organization: { legalName: 'Atelier du Léman' } } } as unknown as Workspace}
-          autopilot={{ state: query.has('empty') ? { ...state, reviews: { ...state.reviews!, items: [] } } as AutopilotView : state, onConsent: async () => undefined, onRefresh: async () => undefined, onNextReviews: async () => undefined, onOpenQuote: noop,
+          autopilot={{ state: autopilotState, onConsent: async () => undefined, onRefresh: async () => undefined, onNextReviews: async () => undefined, onOpenQuote: noop,
             onCatalogue: noop, canAddCatalogue: true, onCreateQuote: noop, createdQuote: item => created[item.proposalId] ?? null, onOpenCreatedQuote: noop, onSendCreatedQuote: noop,
             acceptances: query.has('empty') ? [] : acceptances, onChooseAcceptance: noop, signals: query.has('empty') ? [] : signals, onSignal: noop, onIgnoreSignal: noop,
             followUps: query.has('empty') ? [] : shownFollowUps, onFollowUp: noop, journal: todayJournal, onUndo: noop, onAsk: noop,

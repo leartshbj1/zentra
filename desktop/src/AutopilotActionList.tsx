@@ -16,6 +16,8 @@ export type AutopilotActionCard = Readonly<{
   signature?: string;
   /** An exact, undoable case the company may let Autopilote validate alone (off by default). */
   autoCase?: 'qrmail' | 'contact-complete';
+  /** Set when the card stands for something that arrived from outside (API, MCP, a shop): when, how, what and from whom. */
+  arrival?: Readonly<{ at: number; origin: string; what: string; subject: string; from: string; lines?: readonly string[] }>;
   actions: readonly Readonly<{ id: string; label: string; primary?: boolean }>[];
 }>;
 

@@ -56,6 +56,9 @@ import { CashBookPanel } from './CashBookPanel';
 import { PosPanel } from './PosPanel';
 import { openApi, posApi, type InboxItem, type OpenApiStatus, type PosDay } from './openApi';
 import { closingInvoiceLines, closingMarker, closingPayments } from './pos';
+import { AutopilotNotifications } from './AutopilotNotifications';
+import { todayEntries } from './AutopilotToday';
+import { requestAutopilotFocus } from './autopilotSeen';
 import { apiDraftLines, inboxCardSource, invoiceForShopPayment, matchShopPayout, PLATFORM_LABEL, partyCustomer, partyFrom, quoteLines, shopMarker, shopOrderLines } from './inboxDrafts';
 import { TreasuryPanel, forecastLabel } from './TreasuryPanel';
 import { ContractsPanel } from './ContractsPanel';
@@ -1108,6 +1111,10 @@ function WorkspaceContent({
     const all = followUpCards();
     return { cards: visibleCards(all.cards, autopilotBehaviour, autopilotKind, cardConfidence), summary: autopilotBehaviour.paused ? '' : all.summary };
   };
+  // Notifications : ce qui est arrivé, avec les mêmes éléments qu'« Aujourd'hui », et ce que Zentra a fait.
+  const notificationEntries = () => !autopilotContext || autopilotBehaviour.paused ? [] : todayEntries({ language: consultationLanguage, organizationId: autopilotContext.organizationId,
+    state: autopilot.state, createdQuote: autopilotQuoteOf, acceptances: acceptanceCards(), signals: signalCards(), followUps: inboxCards(followUpEntries(autopilotContext.organizationId)) });
+  const openAutopilotItem = (page: AutomationPage, id?: string) => { if (id) requestAutopilotFocus(id); setAutomationPage(page); setView('automation'); setSearch(''); setMenuOpen(false); };
   const actionOutcome = useRef<boolean | null>(null);
   const actionUndo = useRef<UndoSpec | undefined>(undefined);
   const journalAct = async (...args: Parameters<typeof act>) => { const ok = await act(...args); actionOutcome.current = ok; return ok; };
@@ -1480,6 +1487,41 @@ function WorkspaceContent({
     const organization = workspaceRef.current.settings?.organization;
     const day = new Intl.DateTimeFormat(getAppLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(Date.parse(event.startDate + 'T12:00:00Z'));
     return reminderSms(getAppLanguage(), day, event.startTime ?? '', organization?.legalName ?? '', organization?.phone ?? '');
+  };
+  // Brouillons reçus de l'API, de MCP ou d'une boutique : rien n'est créé sans clic.
+  // Lus aussi par les notifications, sans calculer toutes les autres cartes.
+  const inboxCards = (entries: ReturnType<typeof followUpEntries>): AutopilotActionCard[] => {
+    const cards: AutopilotActionCard[] = [];
+    for (const item of inboxItems) {
+      const key = 'inbox:' + item.itemId;
+      if (entries[key]?.ignored) continue;
+      const source = inboxCardSource(item);
+      const paidInvoice = item.kind === 'payment' ? invoiceForShopPayment(item.payload, workspace.invoices) : undefined;
+      const amount = typeof item.payload.amountCents === 'number' ? formatMoney(item.payload.amountCents, String(item.payload.currency || 'CHF')) : '';
+      const main = item.kind === 'order' ? { id: 'inbox-order', label: t('Créer la commande client'), primary: true }
+        : item.kind === 'quote' ? { id: 'inbox-quote', label: t('Créer le devis'), primary: true }
+        : item.kind === 'customer' ? { id: 'inbox-customer', label: t('Créer le client'), primary: true }
+        : item.kind === 'payment' ? paidInvoice ? { id: 'inbox-payment', label: t('Enregistrer le paiement'), primary: true } : { id: 'open-orders', label: t('Facturer la commande'), primary: true }
+        : { id: 'inbox-noted', label: t('C’est noté'), primary: true };
+      // What arrived, how and from whom, so "Aujourd'hui" can put it first and say so.
+      const shop = item.source === 'shopify' || item.source === 'woocommerce';
+      const asked = item.kind === 'quote' || item.kind === 'order' ? (shop ? shopOrderLines : apiDraftLines)(item.payload, workspace.catalogItems, 0) : [];
+      const arrivedAt = Math.floor(Date.parse(item.createdAt) / 1000);
+      const arrival = Number.isFinite(arrivedAt) ? {
+        at: arrivedAt,
+        origin: item.source === 'mcp' ? t('par un assistant (MCP)') : item.source === 'api' ? t('par l’API') : t('par {platform}', { platform: PLATFORM_LABEL[item.source] ?? item.source }),
+        what: t({ quote: 'Devis', order: 'Commande', customer: 'Client', payment: 'Paiement', order_cancelled: 'Commande' }[item.kind]),
+        subject: t({ quote: 'Devis à préparer', order: 'Commande à valider', customer: 'Nouveau client', payment: 'Paiement reçu', order_cancelled: 'Commande annulée' }[item.kind]),
+        from: (() => { const party = partyFrom(item.payload.customer); return party.company || party.name || party.email || source.detail; })(),
+        lines: asked.map(line => `${(line.quantityMilli / 1000).toLocaleString(getAppLocale())} ${line.unit} · ${line.description}`),
+      } : undefined;
+      cards.push({ key, title: t(source.titleKey, source.values), detail: [amount, source.detail].filter(Boolean).join(' · '), arrival,
+        evidence: typeof item.payload.note === 'string' && item.payload.note.trim() ? item.payload.note.trim() : undefined,
+        note: item.kind === 'payment' && !paidInvoice ? t('Facturez d’abord la commande : le paiement se rapprochera ensuite de la facture.') : undefined,
+        why: t('Reçu de l’extérieur. Zentra applique ses propres prix et calcule les montants ; rien n’est enregistré avant votre clic.'),
+        actions: [main, { id: 'inbox-reject', label: t('Refuser') }] });
+    }
+    return cards;
   };
   const followUpCards = (): { cards: AutopilotActionCard[]; summary: string } => {
     if (!autopilotContext) return { cards: [], summary: '' };
@@ -1988,22 +2030,7 @@ function WorkspaceContent({
         detail: inventory.items.slice(0, 5).map(item => item.name).join(', ') + (inventory.items.length > 5 ? ' …' : ''), why: copy.whyInventory,
         actions: [{ id: 'open-inventory', label: copy.actionOpenInventory, primary: true }, { id: 'ignore', label: copy.acceptanceDismiss }] });
     // Brouillons reçus de l'API, de MCP ou d'une boutique : rien n'est créé sans clic.
-    for (const item of inboxItems) {
-      const key = 'inbox:' + item.itemId;
-      if (entries[key]?.ignored) continue;
-      const source = inboxCardSource(item);
-      const paidInvoice = item.kind === 'payment' ? invoiceForShopPayment(item.payload, workspace.invoices) : undefined;
-      const amount = typeof item.payload.amountCents === 'number' ? formatMoney(item.payload.amountCents, String(item.payload.currency || 'CHF')) : '';
-      const main = item.kind === 'order' ? { id: 'inbox-order', label: t('Créer la commande client'), primary: true }
-        : item.kind === 'quote' ? { id: 'inbox-quote', label: t('Créer le devis'), primary: true }
-        : item.kind === 'customer' ? { id: 'inbox-customer', label: t('Créer le client'), primary: true }
-        : item.kind === 'payment' ? paidInvoice ? { id: 'inbox-payment', label: t('Enregistrer le paiement'), primary: true } : { id: 'open-orders', label: t('Facturer la commande'), primary: true }
-        : { id: 'inbox-noted', label: t('C’est noté'), primary: true };
-      cards.push({ key, title: t(source.titleKey, source.values), detail: [amount, source.detail].filter(Boolean).join(' · '),
-        note: item.kind === 'payment' && !paidInvoice ? t('Facturez d’abord la commande : le paiement se rapprochera ensuite de la facture.') : undefined,
-        why: t('Reçu de l’extérieur. Zentra applique ses propres prix et calcule les montants ; rien n’est enregistré avant votre clic.'),
-        actions: [main, { id: 'inbox-reject', label: t('Refuser') }] });
-    }
+    cards.push(...inboxCards(entries));
     // Caisse du jour à clôturer : la facture des ventes au comptoir, payée, en un clic.
     for (const day of posToClose) {
       const key = 'pos-close:' + day.date;
@@ -4437,6 +4464,8 @@ function WorkspaceContent({
           </div>
           <div className="topbar__tools">
             <CompanySyncIndicator organizationId={cloudAccount?.status === 'connected' ? cloudAccount.organizationId : null} onOpen={() => { navigateTour('settings'); setSettingsFocusTarget('automation-account-target'); }} />
+            {autopilotContext && companyAutomation.knownActive && !readOnly ? <AutopilotNotifications language={consultationLanguage} organizationId={autopilotContext.organizationId} entries={notificationEntries()}
+              journal={journalEntries(autopilotContext.organizationId)} autoLabel={autopilotCopy(consultationLanguage).autoValidated} onOpen={id => openAutopilotItem('overview', id)} onOpenHistory={() => openAutopilotItem('history')} /> : null}
             {searchableView && !compactSales && view !== 'catalog' ? (
               <label className="global-search">
                 <Search size={16} />

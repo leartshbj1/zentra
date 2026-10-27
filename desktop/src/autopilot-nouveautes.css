@@ -1,0 +1,261 @@
+/*
+ * Autopilote: what is new, and the notifications. Loaded last.
+ * New is a small blue dot and the word "Nouveau", as in Mail: no counter,
+ * no coloured card. Green stays for the one action that validates.
+ * Colours come only from custom properties, so the dark palette script
+ * produces nothing for this file.
+ */
+@media screen {
+  :root {
+    --z7-unread: #007aff;
+    --z7-popover: #fff;
+    --z7-popover-shadow: 0 0 0 1px rgb(0 0 0 / 0.08), 0 18px 48px -12px rgb(0 0 0 / 0.22);
+  }
+  html[data-app-theme='dark'] {
+    --z7-unread: #0a84ff;
+    --z7-popover: #1c1c1e;
+    --z7-popover-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 18px 48px -12px rgb(0 0 0 / 0.7);
+  }
+
+  /* ---------- "Aujourd'hui": what arrived comes first ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__group + .autopilot-today__group { margin-top: 22px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__dot {
+    justify-self: center;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--z7-unread);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__what small {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__fresh {
+    margin-right: 8px;
+    color: var(--z7-unread);
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today .autopilot-today__origin {
+    margin-top: 4px;
+    font-size: calc(14px * var(--apt-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-today__asked {
+    display: grid;
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: var(--z7-hero-inset);
+    color: var(--apple-ink);
+    font-size: calc(14.5px * var(--apt-scale, 1));
+    line-height: 1.45;
+    list-style: none;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------- The bell ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-bell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--apple-ink);
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-bell:hover,
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-bell[aria-expanded='true'] { background: var(--z7-segment); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-bell:focus-visible {
+    outline: 2px solid var(--apple-focus, var(--apple-accent));
+    outline-offset: 1px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-bell__dot {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--z7-unread);
+    box-shadow: 0 0 0 2px var(--apple-canvas, var(--apple-paper));
+  }
+
+  /* ---------- The panel ---------- */
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__panel {
+    position: absolute;
+    z-index: 60;
+    top: calc(100% + 8px);
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    width: min(400px, calc(100vw - 32px));
+    max-height: min(620px, calc(100vh - 96px));
+    border-radius: 16px;
+    background: var(--z7-popover);
+    box-shadow: var(--z7-popover-shadow);
+    color: var(--apple-ink);
+    text-align: left;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px 6px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__head h2 {
+    margin: 0;
+    font-size: calc(19px * var(--zentra-ui-text-scale, 1));
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__text {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--apple-secondary);
+    font: inherit;
+    font-size: calc(13.5px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll {
+    min-height: 0;
+    padding: 0 8px 4px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll h3 {
+    margin: 14px 12px 4px;
+    color: var(--apple-secondary);
+    font-size: calc(12.5px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll ul {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll li button {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+    width: 100%;
+    min-height: 52px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--apple-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll li button:hover { background: var(--z7-hero-inset); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll li button:focus-visible {
+    outline: 2px solid var(--apple-focus, var(--apple-accent));
+    outline-offset: -2px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__mark {
+    width: 8px;
+    height: 8px;
+    margin: 6px 0 0 3px;
+    border-radius: 50%;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices button[data-unread] .autopilot-notices__mark { background: var(--z7-unread); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__check {
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    margin-top: 3px;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices button[data-unread] .autopilot-notices__check { color: var(--z7-unread); }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__text-block {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__text-block small {
+    overflow: hidden;
+    color: var(--apple-secondary);
+    font-size: calc(12.5px * var(--zentra-ui-text-scale, 1));
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__text-block strong {
+    overflow: hidden;
+    font-size: calc(14.5px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 1.35;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices button[data-unread] .autopilot-notices__text-block strong { font-weight: 650; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__text-block > span {
+    overflow: hidden;
+    color: var(--apple-secondary);
+    font-size: calc(13.5px * var(--zentra-ui-text-scale, 1));
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll time {
+    padding-top: 1px;
+    color: var(--apple-secondary);
+    font-size: calc(12.5px * var(--zentra-ui-text-scale, 1));
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__empty {
+    margin: 10px 12px 14px;
+    color: var(--apple-secondary);
+    font-size: calc(14.5px * var(--zentra-ui-text-scale, 1));
+    line-height: 1.5;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__foot {
+    padding: 8px 20px 12px;
+    border-top: 1px solid var(--z-hairline);
+  }
+}
+
+/* ---------- Phone: the panel is a sheet under the top bar ---------- */
+@media screen and (max-width: 860px) {
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices { position: static; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-bell { width: 44px; height: 44px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-bell__dot { top: 10px; right: 11px; }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__panel {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 60px);
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 84px);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__scroll li button { min-height: 56px; }
+}
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  html[data-app-theme] .desktop-app[data-experience] .autopilot-notices__panel { animation: autopilot-notices-in 0.18s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  @keyframes autopilot-notices-in { from { opacity: 0; transform: translateY(-4px); } }
+}
