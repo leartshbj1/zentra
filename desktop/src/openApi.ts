@@ -16,6 +16,8 @@ export type OpenApiStatus = Readonly<{
   projection: Readonly<{ wanted: boolean; revision: number; publishedAt: string | null }>;
   inboxPending: number;
   postal: Readonly<{ configured: boolean; mode: 'staging' | 'production' | null }>;
+  /** Un lien d'agenda existe : l'app publie ses rendez-vous pour Google, Outlook ou Apple. */
+  calendarWanted: boolean;
 }>;
 
 export type InboxSource = 'api' | 'mcp' | 'shopify' | 'woocommerce';
@@ -26,12 +28,13 @@ const SOURCES: readonly InboxSource[] = ['api', 'mcp', 'shopify', 'woocommerce']
 const KINDS: readonly InboxKind[] = ['customer', 'quote', 'order', 'payment', 'order_cancelled', 'article', 'project', 'task_action'];
 
 export function statusFromRaw(raw: unknown): OpenApiStatus {
-  const value = record(raw), projection = record(value.projection), postal = record(value.postal), inbox = record(value.inbox);
+  const value = record(raw), projection = record(value.projection), postal = record(value.postal), inbox = record(value.inbox), calendar = record(value.calendar);
   const mode = postal.mode === 'staging' || postal.mode === 'production' ? postal.mode : null;
   return {
     projection: { wanted: projection.wanted === true, revision: count(projection.revision), publishedAt: text(projection.publishedAt) || null },
     inboxPending: count(inbox.pending),
     postal: { configured: postal.configured === true, mode },
+    calendarWanted: calendar.wanted === true,
   };
 }
 
@@ -48,6 +51,8 @@ export function inboxFromRaw(raw: unknown): InboxItem[] {
 }
 
 export type PublishedTask = Readonly<{ key: string; kind: string; title: string; detail: string; why: string; actions: readonly Readonly<{ id: string; label: string }>[]; assistantActions: readonly string[] }>;
+
+export type CalendarEventInput = Readonly<{ id: string; title: string; startDate: string; endDate: string; allDay: boolean; startTime: string | null; endTime: string | null; location: string; status: 'scheduled' | 'completed' | 'cancelled'; updatedAt: string }>;
 
 export type PostalLetter = Readonly<{
   letterId: string; documentId: string; status: string; providerStatus: string | null;
@@ -81,6 +86,10 @@ export const openApi = {
   /** Remplace les tâches Autopilote que lit l'assistant connecté (MCP). */
   async publishTasks(items: readonly PublishedTask[]): Promise<number> {
     return count(record(await invoke('public_api_tasks', { items })).stored);
+  },
+  /** Remplace les rendez-vous de l'agenda d'abonnement (Google, Outlook, Apple). */
+  async publishCalendar(events: readonly CalendarEventInput[]): Promise<number> {
+    return count(record(await invoke('public_api_calendar', { events })).stored);
   },
   async sendLetter(invoiceId: string, delivery: 'economy' | 'priority', color: boolean): Promise<PostalLetter> {
     return letterFromRaw(record(await invoke('postal_send_invoice', { invoiceId, delivery, color })).letter);

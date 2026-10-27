@@ -1,5 +1,6 @@
 import type { AutopilotActionCard } from './AutopilotActionList';
-import type { InboxItem, PublishedTask } from './openApi';
+import type { CalendarEventInput, InboxItem, PublishedTask } from './openApi';
+import type { AgendaEvent } from './types';
 
 /**
  * Un assistant connecté (MCP) lit les cartes Autopilote et peut demander une
@@ -33,6 +34,28 @@ export function publishableTasks(cards: readonly AutopilotActionCard[], kindOf: 
       assistantActions: actions.filter(action => ASSISTANT_ACTIONS.has(action.id)).map(action => action.id) });
   }
   return tasks;
+}
+
+const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Rendez-vous de l'agenda Zentra pour le lien d'abonnement : 30 jours passés et un an à venir, 1000 au plus. */
+export function calendarEvents(events: readonly AgendaEvent[], today: string): CalendarEventInput[] {
+  const from = new Date(`${today}T12:00:00Z`), to = new Date(from);
+  from.setUTCDate(from.getUTCDate() - 30);
+  to.setUTCDate(to.getUTCDate() + 366);
+  const first = from.toISOString().slice(0, 10), last = to.toISOString().slice(0, 10);
+  return events
+    .filter(event => ID.test(event.id) && DATE.test(event.startDate) && event.startDate <= last && (event.endDate || event.startDate) >= first && event.title.trim())
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .slice(0, 1000)
+    .map(event => {
+      const start = event.allDay ? null : TIME.test(event.startTime ?? '') ? event.startTime : null;
+      const endDate = DATE.test(event.endDate) && event.endDate >= event.startDate ? event.endDate : event.startDate;
+      return { id: event.id, title: clip(event.title, 300), startDate: event.startDate, endDate, allDay: start === null, startTime: start,
+        endTime: start && TIME.test(event.endTime ?? '') ? event.endTime : null, location: clip(event.location, 300), status: event.status, updatedAt: clip(event.updatedAt, 40) || today };
+    });
 }
 
 /** Empreinte d'une liste publiée : on ne republie que si elle change. */

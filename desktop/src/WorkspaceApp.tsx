@@ -79,7 +79,7 @@ import { appendJournal, canUndo, confirmEntries, decideRule, doneToday, entriesT
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
 import { projectFromQuote, projectKey, quotesToStartProject } from './autopilotProjects';
-import { articleFromDraft, projectFromDraft, publishableTasks, taskDecision, taskRequest, tasksFingerprint } from './assistantTasks';
+import { articleFromDraft, calendarEvents, projectFromDraft, publishableTasks, taskDecision, taskRequest, tasksFingerprint } from './assistantTasks';
 import { askKey, mailtoLink, missingInfoDraft, requestsMissingInfo } from './autopilotMissingInfo';
 import { monthFigures, monthSummaryText, owedOver, previousMonth, readQuestion } from './autopilotInsights';
 import { useAutopilotBehaviour, visibleCards } from './autopilotSettings';
@@ -1107,7 +1107,7 @@ function WorkspaceContent({
   // Action demandée par un assistant connecté (MCP) en cours d'exécution, et demandes déjà traitées.
   const assistantRunning = useRef(false);
   const assistantHandled = useRef(new Set<string>());
-  const publishedTasks = useRef(''), tasksCheckedAt = useRef(0);
+  const publishedTasks = useRef(''), tasksCheckedAt = useRef(0), publishedCalendar = useRef('');
   const cardConfidence = (card: AutopilotActionCard) => {
     const copy = autopilotCopy(getAppLanguage());
     return card.why?.endsWith(copy.confidenceHigh) ? 'high' as const : card.why?.endsWith(copy.confidenceCheck) ? 'check' as const : null;
@@ -2993,6 +2993,15 @@ function WorkspaceContent({
       .then(() => settle('imported', 'done'))
       .finally(() => { assistantRunning.current = false; });
   });
+  // L'agenda d'abonnement (Google, Outlook, Apple), republié seulement quand les rendez-vous changent.
+  useEffect(() => {
+    if (readOnly || !openStatus?.calendarWanted) return;
+    const events = calendarEvents(workspace.agendaEvents ?? [], todayIso());
+    const fingerprint = JSON.stringify(events);
+    if (fingerprint === publishedCalendar.current) return;
+    publishedCalendar.current = fingerprint;
+    openApi.publishCalendar(events).catch(() => { publishedCalendar.current = ''; });
+  }, [workspace.agendaEvents, openStatus?.calendarWanted, readOnly]);
   // Les cartes que lit l'assistant, republiées seulement quand elles changent.
   useEffect(() => {
     // Au plus toutes les 10 secondes : les cartes se calculent sur tout l'espace de travail.

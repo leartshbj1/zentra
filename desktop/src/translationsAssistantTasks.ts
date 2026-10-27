@@ -12,4 +12,7 @@ export const assistantTasksTranslations: Record<string, readonly [string, string
   'Ce brouillon n’indique pas le nom du projet.': ['Dieser Entwurf nennt keinen Projektnamen.', 'Questa bozza non indica il nome del progetto.', 'This draft does not give the project’s name.'],
   'Article {name} créé.': ['Artikel {name} erstellt.', 'Articolo {name} creato.', 'Item {name} created.'],
   'Projet {name} créé.': ['Projekt {name} erstellt.', 'Progetto {name} creato.', 'Project {name} created.'],
+  'Connecter Claude, ChatGPT ou Le Chat': ['Claude, ChatGPT oder Le Chat verbinden', 'Collegare Claude, ChatGPT o Le Chat', 'Connect Claude, ChatGPT or Le Chat'],
+  'Agenda dans Google, Outlook ou Apple': ['Kalender in Google, Outlook oder Apple', 'Agenda in Google, Outlook o Apple', 'Calendar in Google, Outlook or Apple'],
+  'Zapier, Make et n8n': ['Zapier, Make und n8n', 'Zapier, Make e n8n', 'Zapier, Make and n8n'],
 };

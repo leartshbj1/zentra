@@ -615,3 +615,4 @@ html[data-app-theme] .desktop-app[data-experience] .autopilot-background > .butt
 html[data-app-theme] .desktop-app[data-experience] .autopilot-choice label:not(:has(input:checked)) span {
   color: var(--zp-quiet-label);
 }
+.integrations-settings__links{display:flex;flex-wrap:wrap;gap:8px 20px;margin:14px 0 4px;font-size:14px}.integrations-settings__links a{color:inherit;text-decoration:underline;text-underline-offset:3px}

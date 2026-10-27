@@ -31,6 +31,7 @@ pub(crate) const INTEGRATIONS_PATH: &str = "/api/account/integrations/device";
 pub(crate) const BACKGROUND_PATH: &str = "/api/account/automation/background";
 pub(crate) const SCHEDULE_PATH: &str = "/api/account/automation/schedule";
 pub(crate) const TASKS_PATH: &str = "/api/account/api/tasks";
+pub(crate) const CALENDAR_PATH: &str = "/api/account/api/calendar";
 const BACKGROUND_CONSENT_VERSION: &str = "autopilot-background-2026-10-26";
 const INTEGRATION_ACTIONS: [&str; 10] = ["create-key", "revoke-key", "create-webhook", "delete-webhook", "resume-webhook", "test-webhook",
     "create-shop", "delete-shop", "save-postal", "delete-postal"];
@@ -610,6 +611,59 @@ pub async fn public_api_tasks(state: State<'_, LocalStore>, items: Vec<Value>) -
     Ok(json!({ "stored": stored }))
 }
 
+/// Rendez-vous de l'agenda d'abonnement (Google, Outlook, Apple), avec exactement ces clés.
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CalendarEvent {
+    id: String,
+    title: String,
+    start_date: String,
+    end_date: String,
+    all_day: bool,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    location: String,
+    status: String,
+    updated_at: String,
+}
+
+fn calendar_event_valid(event: &CalendarEvent) -> bool {
+    let day = |value: &str| value.len() == 10 && value.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() });
+    let time = |value: &Option<String>| value.as_deref().is_none_or(|text| text.len() == 5 && text.as_bytes()[2] == b':' && text.bytes().enumerate().all(|(i, b)| i == 2 || b.is_ascii_digit()));
+    let text = |value: &str, max: usize| value.encode_utf16().count() <= max;
+    valid_id(&event.id)
+        && !event.title.trim().is_empty()
+        && text(&event.title, 300)
+        && text(&event.location, 300)
+        && (1..=40).contains(&event.updated_at.len())
+        && day(&event.start_date)
+        && day(&event.end_date)
+        && event.end_date >= event.start_date
+        && time(&event.start_time)
+        && time(&event.end_time)
+        && (event.all_day || event.start_time.is_some())
+        && matches!(event.status.as_str(), "scheduled" | "completed" | "cancelled")
+}
+
+/// Remplace les rendez-vous lus par le lien d'agenda de l'entreprise. Le serveur
+/// ne les garde que si ce lien existe et revérifie chaque clé.
+#[tauri::command]
+pub async fn public_api_calendar(state: State<'_, LocalStore>, events: Vec<Value>) -> Result<Value, String> {
+    let store = state.inner().clone();
+    if events.len() > 1000 { return Err("Trop de rendez-vous.".into()); }
+    let mut parsed = Vec::with_capacity(events.len());
+    let mut ids = BTreeSet::new();
+    for event in events {
+        let event: CalendarEvent = serde_json::from_value(event).map_err(|_| "Agenda illisible.".to_string())?;
+        if !calendar_event_valid(&event) || !ids.insert(event.id.clone()) { return Err("Agenda illisible.".into()); }
+        parsed.push(event);
+    }
+    let session = session_for(&store, false).await.map_err(command_error)?;
+    let reply = post_json(&session, CALENDAR_PATH, &json!({ "schemaVersion": 1, "events": parsed })).await.map_err(command_error)?;
+    let stored = reply.get("stored").and_then(Value::as_u64).ok_or_else(|| "Réponse du service Zentra illisible.".to_string())?;
+    Ok(json!({ "stored": stored }))
+}
+
 /// Envoie par la poste le PDF d'une facture émise (compte Pingen de l'entreprise).
 #[tauri::command]
 pub async fn postal_send_invoice(state: State<'_, LocalStore>, invoice_id: String, delivery: String, color: bool) -> Result<Value, String> {
@@ -746,6 +800,19 @@ mod tests {
         assert!(!schedule_item_valid(&item("inv:i1", "03.11.2026", "Dupont SA")));
         assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", "Dupont\nSA")));
         assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", &"x".repeat(81))));
+    }
+
+    #[test]
+    fn calendar_events_keep_the_server_contract() {
+        let event = |start: Option<&str>, all_day: bool, end_date: &str| CalendarEvent {
+            id: "ag-1".into(), title: "Visite".into(), start_date: "2026-11-03".into(), end_date: end_date.into(), all_day,
+            start_time: start.map(str::to_string), end_time: None, location: String::new(), status: "scheduled".into(), updated_at: "2026-10-27".into(),
+        };
+        assert!(calendar_event_valid(&event(Some("09:30"), false, "2026-11-03")));
+        assert!(calendar_event_valid(&event(None, true, "2026-11-04")));
+        assert!(!calendar_event_valid(&event(None, false, "2026-11-03")));
+        assert!(!calendar_event_valid(&event(Some("9h30"), false, "2026-11-03")));
+        assert!(!calendar_event_valid(&event(Some("09:30"), false, "2026-11-02")));
     }
 
     #[test]

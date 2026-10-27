@@ -65,7 +65,7 @@ describe('réponses natives du lot 5', () => {
     ] });
     expect(items.map((item) => item.seq)).toEqual([1]);
     expect(statusFromRaw({ projection: { wanted: true, revision: 3, publishedAt: null }, inbox: { pending: 2 }, postal: { configured: true, mode: 'staging' } }))
-      .toEqual({ projection: { wanted: true, revision: 3, publishedAt: null }, inboxPending: 2, postal: { configured: true, mode: 'staging' } });
+      .toEqual({ projection: { wanted: true, revision: 3, publishedAt: null }, inboxPending: 2, postal: { configured: true, mode: 'staging' }, calendarWanted: false });
   });
 
   it('lit une journée de caisse', () => {

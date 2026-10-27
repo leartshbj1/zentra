@@ -1684,6 +1684,7 @@ fn endpoint(path: &str) -> AppResult<Url> {
             | crate::public_api::BACKGROUND_PATH
             | crate::public_api::SCHEDULE_PATH
             | crate::public_api::TASKS_PATH
+            | crate::public_api::CALENDAR_PATH
             | "/api/account/portal/slots"
             | "/api/account/portal/bookings"
             | crate::fiduciary_summary::PATH

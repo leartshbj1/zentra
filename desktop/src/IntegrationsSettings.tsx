@@ -109,6 +109,11 @@ export function IntegrationsSettings({ disabled }: { disabled: boolean }) {
         <div><dt>{t('Données publiées par l’app')}</dt><dd>{data.projection?.publishedAt ? when(data.projection.publishedAt) : t('Pas encore : elles partent dès qu’une clé existe.')}</dd></div>
         <div><dt>{t('Brouillons en attente')}</dt><dd>{data.pendingDrafts}</dd></div>
       </dl>
+      <p className="integrations-settings__links">
+        <a href="https://zentraapp.ch/compte/integrations#assistants" target="_blank" rel="noreferrer">{t('Connecter Claude, ChatGPT ou Le Chat')}</a>
+        <a href="https://zentraapp.ch/compte/integrations#agenda" target="_blank" rel="noreferrer">{t('Agenda dans Google, Outlook ou Apple')}</a>
+        <a href="https://zentraapp.ch/tutoriels#zapier" target="_blank" rel="noreferrer">{t('Zapier, Make et n8n')}</a>
+      </p>
       {data.keys.length ? <ul className="integrations-settings__list">
         {data.keys.map(key => <li key={key.keyId}>
           <span><strong>{key.name}</strong><small><code>{key.prefix}…</code> · {key.scopes === 'read drafts' ? t('Lecture et brouillons') : t('Lecture')} · {t('Dernier usage')} {when(key.lastUsedAt)}</small></span>

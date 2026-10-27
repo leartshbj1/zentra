@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AutopilotActionCard } from './AutopilotActionList';
 import type { InboxItem } from './openApi';
-import { articleFromDraft, projectFromDraft, publishableTasks, taskDecision, taskRequest } from './assistantTasks';
+import { articleFromDraft, calendarEvents, projectFromDraft, publishableTasks, taskDecision, taskRequest } from './assistantTasks';
 
 const reminder: AutopilotActionCard = {
   key: 'reminder:r1', title: 'Relance 1', detail: 'Dupont SA · F-1', why: 'Échue depuis 12 jours.',
@@ -37,5 +37,17 @@ describe('tâches Autopilote pour un assistant connecté', () => {
     expect(projectFromDraft({ project: { name: 'Cuisine', plannedStart: '2026-11-02', budgetCents: 1200000 }, note: 'Client pressé' }, 'c1', '2026-10-27')).toMatchObject({
       clientId: 'c1', name: 'Cuisine', status: 'planned', plannedStartDate: '2026-11-02', budgetCents: 1200000, notes: 'Client pressé' });
     expect(projectFromDraft({ project: { name: 'Sans date', plannedStart: 'bientôt' } }, null, '2026-10-27')).toMatchObject({ clientId: null, plannedStartDate: '2026-10-27' });
+  });
+});
+
+describe('agenda d’abonnement', () => {
+  const base = { id: 'ag-1', title: 'Visite', startDate: '2026-11-03', endDate: '2026-11-03', allDay: false, startTime: '09:30', endTime: '11:00',
+    kind: 'visit' as const, status: 'scheduled' as const, location: 'Vevey', notes: 'privé', projectId: null, employeeId: null, createdAt: '2026-10-01', updatedAt: '2026-10-02' };
+  it('garde un an à venir et 30 jours passés, sans les notes', () => {
+    const events = calendarEvents([base, { ...base, id: 'old', startDate: '2026-01-01', endDate: '2026-01-01' }, { ...base, id: 'day', allDay: true, startTime: null, endTime: null }], '2026-10-27');
+    expect(events.map(event => event.id)).toEqual(['ag-1', 'day']);
+    expect(events[0]).toEqual({ id: 'ag-1', title: 'Visite', startDate: '2026-11-03', endDate: '2026-11-03', allDay: false, startTime: '09:30', endTime: '11:00', location: 'Vevey', status: 'scheduled', updatedAt: '2026-10-02' });
+    expect(events[1]).toMatchObject({ allDay: true, startTime: null, endTime: null });
+    expect(calendarEvents([{ ...base, startTime: 'midi' }], '2026-10-27')[0]).toMatchObject({ allDay: true, startTime: null });
   });
 });
