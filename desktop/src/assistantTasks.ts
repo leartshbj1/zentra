@@ -1,6 +1,6 @@
 import type { AutopilotActionCard } from './AutopilotActionList';
-import type { CalendarEventInput, InboxItem, PublishedTask } from './openApi';
-import type { AgendaEvent } from './types';
+import type { CalendarEventInput, DirectoryEntry, InboxItem, PublishedTask } from './openApi';
+import type { AgendaEvent, Client, Project, Supplier } from './types';
 
 /**
  * Un assistant connecté (MCP) lit les cartes Autopilote et peut demander une
@@ -11,6 +11,7 @@ import type { AgendaEvent } from './types';
  */
 export const ASSISTANT_ACTIONS: ReadonlySet<string> = new Set([
   'inbox-customer', 'inbox-quote', 'inbox-order', 'inbox-article', 'inbox-project', 'inbox-reject', 'inbox-noted',
+  'inbox-supplier', 'inbox-appointment', 'inbox-task', 'inbox-invoice', 'inbox-note',
   'create-client', 'update-record', 'add-appointment', 'ignore-appointment',
   'postpone', 'ignore', 'wait-promise', 'wait-habit', 'task-done', 'close',
 ]);
@@ -56,6 +57,60 @@ export function calendarEvents(events: readonly AgendaEvent[], today: string): C
       return { id: event.id, title: clip(event.title, 300), startDate: event.startDate, endDate, allDay: start === null, startTime: start,
         endTime: start && TIME.test(event.endTime ?? '') ? event.endTime : null, location: clip(event.location, 300), status: event.status, updatedAt: clip(event.updatedAt, 40) || today };
     });
+}
+
+/** Fournisseur reçu de l'assistant : jamais d'IBAN, il se saisit dans l'app. */
+export function supplierFromDraft(payload: Raw, defaultTermsDays: number) {
+  const supplier = record(payload.supplier);
+  const name = text(supplier.name, 300);
+  if (!name) return null;
+  const terms = cents(supplier.paymentTermsDays);
+  return { name, contactName: text(supplier.contactName, 300), email: text(supplier.email, 254), phone: text(supplier.phone, 64), address: text(supplier.address, 600),
+    uidNumber: text(supplier.uidNumber, 40), iban: '', currency: 'CHF', paymentTermsDays: terms !== null && terms <= 365 ? terms : defaultTermsDays, notes: text(payload.note, 2000) };
+}
+
+/** Rendez-vous reçu de l'assistant, dans la forme de l'agenda. */
+export function appointmentFromDraft(payload: Raw, id: string) {
+  const event = record(payload.appointment);
+  const title = text(event.title, 300), date = text(event.date, 10);
+  if (!title || !DAY.test(date)) return null;
+  const end = text(event.endDate, 10), start = text(event.startTime, 5), finish = text(event.endTime, 5);
+  const allDay = event.allDay === true || !TIME.test(start);
+  const kind = event.type === 'visit' || event.type === 'deadline' || event.type === 'other' ? event.type : 'appointment';
+  return { id, isNew: true, expectedUpdatedAt: null, title, startDate: date, endDate: DAY.test(end) && end >= date ? end : date, allDay,
+    startTime: allDay ? null : start, endTime: allDay || !TIME.test(finish) ? null : finish, kind: kind as AgendaEvent['kind'], status: 'scheduled' as const,
+    location: text(event.location, 300), notes: text(payload.note, 2000), projectId: text(event.projectId, 128) || null, employeeId: null };
+}
+
+/** Tâche de projet reçue de l'assistant ; le projet doit exister. */
+export function taskFromDraft(payload: Raw, projects: readonly Project[]) {
+  const task = record(payload.task);
+  const title = text(task.title, 200), projectId = text(task.projectId, 128);
+  if (!title || !projects.some(project => project.id === projectId && !project.archivedAt)) return null;
+  const due = text(task.dueDate, 10);
+  const priority = task.priority === 'low' || task.priority === 'high' || task.priority === 'urgent' ? task.priority : 'normal';
+  return { projectId, milestoneId: null, title, description: [text(task.description, 2000), text(payload.note, 2000)].filter(Boolean).join('\n'), dueDate: DAY.test(due) ? due : null,
+    priority: priority as 'low' | 'normal' | 'high' | 'urgent', sortOrder: 0, employeeId: null };
+}
+
+/** Note reçue de l'assistant. */
+export function noteFromDraft(payload: Raw, id: string, projects: readonly Project[], scope: string | undefined) {
+  const note = record(payload.workNote);
+  const title = text(note.title, 200), body = text(note.body, 20_000);
+  if (!title || !body) return null;
+  const projectId = text(note.projectId, 128);
+  return { id, title, body, projectId: projects.some(project => project.id === projectId) ? projectId : null, pinned: false, expectedUpdatedAt: null, expectedWorkspaceScope: scope };
+}
+
+/** Annuaire que lit l'assistant : projets (avec leur client) et fournisseurs actifs, sans montant. */
+export function directoryEntries(projects: readonly Project[], suppliers: readonly Supplier[], clients: readonly Client[]): DirectoryEntry[] {
+  const clientName = new Map(clients.map(client => [client.id, client.company || client.name]));
+  return [
+    ...projects.filter(project => !project.archivedAt && ID.test(project.id) && project.name.trim()).map(project => ({ kind: 'project' as const, id: project.id, name: clip(project.name, 300),
+      detail: clip(clientName.get(project.clientId) ?? '', 300), status: clip(project.status, 40) })),
+    ...suppliers.filter(supplier => !supplier.archivedAt && ID.test(supplier.id) && supplier.name.trim()).map(supplier => ({ kind: 'supplier' as const, id: supplier.id, name: clip(supplier.name, 300),
+      detail: clip(supplier.contactName, 300), status: '' })),
+  ].slice(0, 2000);
 }
 
 /** Empreinte d'une liste publiée : on ne republie que si elle change. */

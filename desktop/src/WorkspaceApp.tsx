@@ -79,7 +79,7 @@ import { appendJournal, canUndo, confirmEntries, decideRule, doneToday, entriesT
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
 import { projectFromQuote, projectKey, quotesToStartProject } from './autopilotProjects';
-import { articleFromDraft, calendarEvents, projectFromDraft, publishableTasks, taskDecision, taskRequest, tasksFingerprint } from './assistantTasks';
+import { appointmentFromDraft, articleFromDraft, calendarEvents, directoryEntries, noteFromDraft, projectFromDraft, publishableTasks, supplierFromDraft, taskDecision, taskFromDraft, taskRequest, tasksFingerprint } from './assistantTasks';
 import { askKey, mailtoLink, missingInfoDraft, requestsMissingInfo } from './autopilotMissingInfo';
 import { monthFigures, monthSummaryText, owedOver, previousMonth, readQuestion } from './autopilotInsights';
 import { useAutopilotBehaviour, visibleCards } from './autopilotSettings';
@@ -1107,7 +1107,7 @@ function WorkspaceContent({
   // Action demandée par un assistant connecté (MCP) en cours d'exécution, et demandes déjà traitées.
   const assistantRunning = useRef(false);
   const assistantHandled = useRef(new Set<string>());
-  const publishedTasks = useRef(''), tasksCheckedAt = useRef(0), publishedCalendar = useRef('');
+  const publishedTasks = useRef(''), tasksCheckedAt = useRef(0), publishedCalendar = useRef(''), publishedDirectory = useRef('');
   const cardConfidence = (card: AutopilotActionCard) => {
     const copy = autopilotCopy(getAppLanguage());
     return card.why?.endsWith(copy.confidenceHigh) ? 'high' as const : card.why?.endsWith(copy.confidenceCheck) ? 'check' as const : null;
@@ -1509,17 +1509,22 @@ function WorkspaceContent({
         : item.kind === 'customer' ? { id: 'inbox-customer', label: t('Créer le client'), primary: true }
         : item.kind === 'article' ? { id: 'inbox-article', label: t('Créer l’article'), primary: true }
         : item.kind === 'project' ? { id: 'inbox-project', label: t('Créer le projet'), primary: true }
+        : item.kind === 'supplier' ? { id: 'inbox-supplier', label: t('Créer le fournisseur'), primary: true }
+        : item.kind === 'appointment' ? { id: 'inbox-appointment', label: t('Ajouter à l’agenda'), primary: true }
+        : item.kind === 'project_task' ? { id: 'inbox-task', label: t('Ajouter la tâche'), primary: true }
+        : item.kind === 'invoice' ? { id: 'inbox-invoice', label: t('Créer la facture en brouillon'), primary: true }
+        : item.kind === 'work_note' ? { id: 'inbox-note', label: t('Enregistrer la note'), primary: true }
         : item.kind === 'payment' ? paidInvoice ? { id: 'inbox-payment', label: t('Enregistrer le paiement'), primary: true } : { id: 'open-orders', label: t('Facturer la commande'), primary: true }
         : { id: 'inbox-noted', label: t('C’est noté'), primary: true };
       // What arrived, how and from whom, so "Aujourd'hui" can put it first and say so.
       const shop = item.source === 'shopify' || item.source === 'woocommerce';
-      const asked = item.kind === 'quote' || item.kind === 'order' ? (shop ? shopOrderLines : apiDraftLines)(item.payload, workspace.catalogItems, 0) : [];
+      const asked = item.kind === 'quote' || item.kind === 'order' || item.kind === 'invoice' ? (shop ? shopOrderLines : apiDraftLines)(item.payload, workspace.catalogItems, 0) : [];
       const arrivedAt = Math.floor(Date.parse(item.createdAt) / 1000);
       const arrival = Number.isFinite(arrivedAt) ? {
         at: arrivedAt,
         origin: item.source === 'mcp' ? t('par un assistant (MCP)') : item.source === 'api' ? t('par l’API') : t('par {platform}', { platform: PLATFORM_LABEL[item.source] ?? item.source }),
-        what: t({ quote: 'Devis', order: 'Commande', customer: 'Client', payment: 'Paiement', order_cancelled: 'Commande', article: 'Article', project: 'Projet' }[item.kind]),
-        subject: t({ quote: 'Devis à préparer', order: 'Commande à valider', customer: 'Nouveau client', payment: 'Paiement reçu', order_cancelled: 'Commande annulée', article: 'Nouvel article', project: 'Nouveau projet' }[item.kind]),
+        what: t({ quote: 'Devis', order: 'Commande', customer: 'Client', payment: 'Paiement', order_cancelled: 'Commande', article: 'Article', project: 'Projet', supplier: 'Fournisseur', appointment: 'Rendez-vous', project_task: 'Tâche', invoice: 'Facture', work_note: 'Note' }[item.kind]),
+        subject: t({ quote: 'Devis à préparer', order: 'Commande à valider', customer: 'Nouveau client', payment: 'Paiement reçu', order_cancelled: 'Commande annulée', article: 'Nouvel article', project: 'Nouveau projet', supplier: 'Nouveau fournisseur', appointment: 'Rendez-vous à ajouter', project_task: 'Tâche à ajouter', invoice: 'Facture à préparer', work_note: 'Note à enregistrer' }[item.kind]),
         from: (() => { const party = partyFrom(item.payload.customer); return party.company || party.name || party.email || source.detail; })(),
         lines: asked.map(line => `${(line.quantityMilli / 1000).toLocaleString(getAppLocale())} ${line.unit} · ${line.description}`),
       } : undefined;
@@ -2229,7 +2234,47 @@ function WorkspaceContent({
       if (ok && projectId) { actionUndo.current = { kind: 'archive-project', projectId }; actionOutcome.current = true; await finish('imported', projectId); }
       return;
     }
-    if (actionId !== 'inbox-order' && actionId !== 'inbox-quote') return;
+    if (actionId === 'inbox-supplier') {
+      const data = supplierFromDraft(payload, current.settings?.billing.paymentTermsDays ?? 30);
+      if (!data) return;
+      const id = createId();
+      const ok = await journalAct(origin => desktopApi.createEntity('suppliers', { id, ...data }, origin.workspaceScope, origin.memberContextNonce), t('Fournisseur {name} créé.', { name: data.name }), false);
+      if (ok) { actionOutcome.current = true; await finish('imported', id); }
+      return;
+    }
+    if (actionId === 'inbox-appointment') {
+      const id = createId(), event = appointmentFromDraft(payload, id);
+      if (!event) { setNotice({ tone: 'warning', text: t('Ce rendez-vous n’indique pas de date valable.') }); return; }
+      const named = !!(party.id || party.name || party.company || party.email);
+      const clientId = named ? await ensureClient() : null;
+      if (named && !clientId) return;
+      const client = clientId ? workspaceRef.current.clients.find(row => row.id === clientId) : undefined;
+      const projectId = event.projectId && workspaceRef.current.projects.some(row => row.id === event.projectId) ? event.projectId : null;
+      const ok = await journalAct(() => desktopApi.saveAgendaEvent({ ...event, projectId, title: client ? `${event.title} · ${client.company || client.name}` : event.title }), t('Rendez-vous ajouté à l’agenda.'), false);
+      if (ok) { actionOutcome.current = true; await finish('imported', id); }
+      return;
+    }
+    if (actionId === 'inbox-task') {
+      const task = taskFromDraft(payload, workspaceRef.current.projects);
+      if (!task) { setNotice({ tone: 'warning', text: t('Le projet de cette tâche est introuvable. Ajoutez-la depuis le projet.') }); return; }
+      const sortOrder = Math.max(0, ...workspaceRef.current.projectTasks.filter(row => row.projectId === task.projectId).map(row => row.sortOrder)) + 1;
+      const ok = await journalAct(async origin => { await desktopApi.saveProjectTask({ ...task, sortOrder }); return desktopApi.loadWorkspace(origin.workspaceScope, origin.memberContextNonce); },
+        t('Tâche {title} ajoutée au projet.', { title: task.title }), false);
+      if (ok) { actionOutcome.current = true; await finish('imported', task.projectId); }
+      return;
+    }
+    if (actionId === 'inbox-note') {
+      const id = createId(), note = noteFromDraft(payload, id, workspaceRef.current.projects, workspaceRef.current.workNotesScope);
+      if (!note) return;
+      try {
+        await desktopApi.saveWorkNote(note);
+        setNotice({ tone: 'success', text: t('Note {title} enregistrée.', { title: note.title }) });
+        actionOutcome.current = true;
+        await finish('imported', id);
+      } catch (reason) { setNotice({ tone: 'error', text: errorMessage(reason, t('La note n’a pas pu être enregistrée.')) }); }
+      return;
+    }
+    if (actionId !== 'inbox-order' && actionId !== 'inbox-quote' && actionId !== 'inbox-invoice') return;
     const shop = item.source === 'shopify' || item.source === 'woocommerce';
     if (shop && String(payload.currency) !== 'CHF') { setNotice({ tone: 'warning', text: t('Cette commande est en {currency}. Zentra reprend les commandes de boutique en CHF : saisissez-la à la main.', { currency: String(payload.currency) }) }); return; }
     const lines = shop ? shopOrderLines(payload, current.catalogItems, defaultVat) : apiDraftLines(payload, current.catalogItems, defaultVat);
@@ -2250,6 +2295,20 @@ function WorkspaceContent({
     }
     const memberId = consultationIdentity.memberId;
     if (!memberId) { setNotice({ tone: 'error', text: t('Le compte doit être vérifié avant cette action.') }); return; }
+    if (actionId === 'inbox-invoice') {
+      // Une facture en brouillon seulement : l'émettre et l'envoyer restent un clic dans l'app.
+      const invoiceId = createId(), invoiceLines = quoteLines(lines, createId), sums = documentTotals(invoiceLines);
+      const billing = workspaceRef.current.settings?.billing, issued = todayIso();
+      const invoice: Record<string, unknown> = { clientId, projectId: null, title: t('Facture – {client}', { client: label }), status: 'draft', issueDate: issued,
+        dueDate: addDaysIso(issued, billing?.paymentTermsDays ?? 30), currency: 'CHF', subtotalCents: sums.subtotalCents, discountCents: sums.discountCents,
+        vatCents: sums.vatCents, totalCents: sums.totalCents, notes: String(payload.note ?? ''), terms: billing?.defaultFooter ?? '' };
+      const created = await journalAct(origin => {
+        const request = prepareDocumentCreationRequest(invoiceId, desktopApi.prepareDocumentSaveInput('invoices', invoice, invoiceLines) as DocumentCreationInput, origin.workspaceScope, memberId);
+        return desktopApi.saveDocumentCreation(request, origin.workspaceScope, origin.memberContextNonce);
+      }, t('Facture créée en brouillon.'), false);
+      if (created) { actionOutcome.current = true; await finish('imported', invoiceId); }
+      return;
+    }
     const quoteId = createId(), documentLines = quoteLines(lines, createId), totals = documentTotals(documentLines);
     const settings = workspaceRef.current.settings, issueDate = todayIso();
     const data: Record<string, unknown> = { clientId, projectId: null, title: t('Devis – {client}', { client: label }), status: 'draft', issueDate,
@@ -3002,6 +3061,15 @@ function WorkspaceContent({
     publishedCalendar.current = fingerprint;
     openApi.publishCalendar(events).catch(() => { publishedCalendar.current = ''; });
   }, [workspace.agendaEvents, openStatus?.calendarWanted, readOnly]);
+  // Projets et fournisseurs que l'assistant retrouve par leur nom, republiés seulement quand ils changent.
+  useEffect(() => {
+    if (readOnly || !openStatus?.projection.wanted) return;
+    const entries = directoryEntries(workspace.projects ?? [], workspace.suppliers ?? [], workspace.clients ?? []);
+    const fingerprint = JSON.stringify(entries);
+    if (fingerprint === publishedDirectory.current) return;
+    publishedDirectory.current = fingerprint;
+    openApi.publishDirectory(entries).catch(() => { publishedDirectory.current = ''; });
+  }, [workspace.projects, workspace.suppliers, workspace.clients, openStatus?.projection.wanted, readOnly]);
   // Les cartes que lit l'assistant, republiées seulement quand elles changent.
   useEffect(() => {
     // Au plus toutes les 10 secondes : les cartes se calculent sur tout l'espace de travail.

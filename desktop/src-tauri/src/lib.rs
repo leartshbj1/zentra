@@ -397,6 +397,7 @@ pub fn run() {
             public_api::autopilot_schedule,
             public_api::public_api_tasks,
             public_api::public_api_calendar,
+            public_api::public_api_directory,
             cash_book::add_cash_entry,
             cash_book::record_cash_count,
             cash_book::correct_cash_count,

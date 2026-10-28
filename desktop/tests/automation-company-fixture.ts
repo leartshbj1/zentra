@@ -77,6 +77,7 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
       if (command === 'autopilot_schedule') return {stored:0};
       if (command === 'public_api_tasks') return {stored:0};
       if (command === 'public_api_calendar') return {stored:0};
+      if (command === 'public_api_directory') return {stored:0};
       if (command !== 'automation_request') throw Error('Not available in this fixture');
       if (!args.data) { if (unavailable) throw Error('Offline fixture'); return structuredClone(state); }
       if (args.data.action === 'centre') return structuredClone(centre);

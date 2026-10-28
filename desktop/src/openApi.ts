@@ -21,11 +21,11 @@ export type OpenApiStatus = Readonly<{
 }>;
 
 export type InboxSource = 'api' | 'mcp' | 'shopify' | 'woocommerce';
-export type InboxKind = 'customer' | 'quote' | 'order' | 'payment' | 'order_cancelled' | 'article' | 'project' | 'task_action';
+export type InboxKind = 'customer' | 'quote' | 'order' | 'payment' | 'order_cancelled' | 'article' | 'project' | 'task_action' | 'supplier' | 'appointment' | 'project_task' | 'invoice' | 'work_note';
 export type InboxItem = Readonly<{ itemId: string; seq: number; source: InboxSource; kind: InboxKind; createdAt: string; payload: Raw }>;
 
 const SOURCES: readonly InboxSource[] = ['api', 'mcp', 'shopify', 'woocommerce'];
-const KINDS: readonly InboxKind[] = ['customer', 'quote', 'order', 'payment', 'order_cancelled', 'article', 'project', 'task_action'];
+const KINDS: readonly InboxKind[] = ['customer', 'quote', 'order', 'payment', 'order_cancelled', 'article', 'project', 'task_action', 'supplier', 'appointment', 'project_task', 'invoice', 'work_note'];
 
 export function statusFromRaw(raw: unknown): OpenApiStatus {
   const value = record(raw), projection = record(value.projection), postal = record(value.postal), inbox = record(value.inbox), calendar = record(value.calendar);
@@ -53,6 +53,8 @@ export function inboxFromRaw(raw: unknown): InboxItem[] {
 export type PublishedTask = Readonly<{ key: string; kind: string; title: string; detail: string; why: string; actions: readonly Readonly<{ id: string; label: string }>[]; assistantActions: readonly string[] }>;
 
 export type CalendarEventInput = Readonly<{ id: string; title: string; startDate: string; endDate: string; allDay: boolean; startTime: string | null; endTime: string | null; location: string; status: 'scheduled' | 'completed' | 'cancelled'; updatedAt: string }>;
+
+export type DirectoryEntry = Readonly<{ kind: 'project' | 'supplier'; id: string; name: string; detail: string; status: string }>;
 
 export type PostalLetter = Readonly<{
   letterId: string; documentId: string; status: string; providerStatus: string | null;
@@ -90,6 +92,10 @@ export const openApi = {
   /** Remplace les rendez-vous de l'agenda d'abonnement (Google, Outlook, Apple). */
   async publishCalendar(events: readonly CalendarEventInput[]): Promise<number> {
     return count(record(await invoke('public_api_calendar', { events })).stored);
+  },
+  /** Remplace l'annuaire léger (projets, fournisseurs) que lit l'assistant connecté. */
+  async publishDirectory(entries: readonly DirectoryEntry[]): Promise<number> {
+    return count(record(await invoke('public_api_directory', { entries })).stored);
   },
   async sendLetter(invoiceId: string, delivery: 'economy' | 'priority', color: boolean): Promise<PostalLetter> {
     return letterFromRaw(record(await invoke('postal_send_invoice', { invoiceId, delivery, color })).letter);

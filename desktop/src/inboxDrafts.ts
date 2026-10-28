@@ -124,6 +124,16 @@ export function inboxCardSource(item: InboxItem): { titleKey: string; values: Re
       return { titleKey: 'Article proposé par {platform}', values: { platform }, detail: text(record(payload.article).name) };
     case 'project':
       return { titleKey: 'Projet proposé par {platform}', values: { platform }, detail: [text(record(payload.project).name), who].filter(Boolean).join(' · ') };
+    case 'supplier':
+      return { titleKey: 'Fournisseur proposé par {platform}', values: { platform }, detail: text(record(payload.supplier).name) };
+    case 'appointment':
+      return { titleKey: 'Rendez-vous proposé par {platform}', values: { platform }, detail: [text(record(payload.appointment).title), text(record(payload.appointment).date), text(record(payload.appointment).startTime)].filter(Boolean).join(' · ') };
+    case 'project_task':
+      return { titleKey: 'Tâche de projet proposée par {platform}', values: { platform }, detail: text(record(payload.task).title) };
+    case 'invoice':
+      return { titleKey: 'Facture demandée par {platform} à préparer', values: { platform }, detail: who };
+    case 'work_note':
+      return { titleKey: 'Note proposée par {platform}', values: { platform }, detail: text(record(payload.workNote).title) };
     case 'task_action':
       return { titleKey: 'Action demandée par {platform}', values: { platform }, detail: text(payload.title) };
   }

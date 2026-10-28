@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AutopilotActionCard } from './AutopilotActionList';
 import type { InboxItem } from './openApi';
-import { articleFromDraft, calendarEvents, projectFromDraft, publishableTasks, taskDecision, taskRequest } from './assistantTasks';
+import { appointmentFromDraft, articleFromDraft, calendarEvents, directoryEntries, noteFromDraft, projectFromDraft, publishableTasks, supplierFromDraft, taskDecision, taskFromDraft, taskRequest } from './assistantTasks';
 
 const reminder: AutopilotActionCard = {
   key: 'reminder:r1', title: 'Relance 1', detail: 'Dupont SA · F-1', why: 'Échue depuis 12 jours.',
@@ -49,5 +49,22 @@ describe('agenda d’abonnement', () => {
     expect(events[0]).toEqual({ id: 'ag-1', title: 'Visite', startDate: '2026-11-03', endDate: '2026-11-03', allDay: false, startTime: '09:30', endTime: '11:00', location: 'Vevey', status: 'scheduled', updatedAt: '2026-10-02' });
     expect(events[1]).toMatchObject({ allDay: true, startTime: null, endTime: null });
     expect(calendarEvents([{ ...base, startTime: 'midi' }], '2026-10-27')[0]).toMatchObject({ allDay: true, startTime: null });
+  });
+});
+
+describe('nouvelles sortes de brouillons', () => {
+  const project = { id: 'p1', clientId: 'c1', name: 'Cuisine', address: '', status: 'active', plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', budgetCents: 0, plannedMinutes: 0, notes: '', archivedAt: null } as never;
+  it('prépare fournisseur, rendez-vous, tâche et note sans rien inventer', () => {
+    expect(supplierFromDraft({ supplier: { name: 'Bois & Cie', email: 'info@bois.test', iban: 'CH93' } }, 30)).toMatchObject({ name: 'Bois & Cie', iban: '', paymentTermsDays: 30, currency: 'CHF' });
+    expect(appointmentFromDraft({ appointment: { title: 'Visite', date: '2026-11-03', startTime: '09:30', endTime: '10:30', type: 'visit' } }, 'e1')).toMatchObject({ allDay: false, startTime: '09:30', endTime: '10:30', kind: 'visit', isNew: true });
+    expect(appointmentFromDraft({ appointment: { title: 'Congé', date: '2026-11-10' } }, 'e2')).toMatchObject({ allDay: true, startTime: null });
+    expect(appointmentFromDraft({ appointment: { title: 'X', date: 'demain' } }, 'e3')).toBeNull();
+    expect(taskFromDraft({ task: { title: 'Commander le bois', projectId: 'p1', priority: 'urgent', dueDate: '2026-11-05' } }, [project])).toMatchObject({ projectId: 'p1', priority: 'urgent', dueDate: '2026-11-05' });
+    expect(taskFromDraft({ task: { title: 'X', projectId: 'p9' } }, [project])).toBeNull();
+    expect(noteFromDraft({ workNote: { title: 'Mesures', body: '3,2 × 4,1 m', projectId: 'p9' } }, 'n1', [project], 'scope')).toMatchObject({ projectId: null, pinned: false, expectedWorkspaceScope: 'scope' });
+  });
+  it('publie un annuaire sans montant', () => {
+    const entries = directoryEntries([project], [{ id: 's1', name: 'Bois & Cie', contactName: 'Paul', archivedAt: null } as never], [{ id: 'c1', name: 'Anna', company: 'Muster AG' } as never]);
+    expect(entries).toEqual([{ kind: 'project', id: 'p1', name: 'Cuisine', detail: 'Muster AG', status: 'active' }, { kind: 'supplier', id: 's1', name: 'Bois & Cie', detail: 'Paul', status: '' }]);
   });
 });

@@ -32,6 +32,7 @@ pub(crate) const BACKGROUND_PATH: &str = "/api/account/automation/background";
 pub(crate) const SCHEDULE_PATH: &str = "/api/account/automation/schedule";
 pub(crate) const TASKS_PATH: &str = "/api/account/api/tasks";
 pub(crate) const CALENDAR_PATH: &str = "/api/account/api/calendar";
+pub(crate) const DIRECTORY_PATH: &str = "/api/account/api/directory";
 const BACKGROUND_CONSENT_VERSION: &str = "autopilot-background-2026-10-26";
 const INTEGRATION_ACTIONS: [&str; 10] = ["create-key", "revoke-key", "create-webhook", "delete-webhook", "resume-webhook", "test-webhook",
     "create-shop", "delete-shop", "save-postal", "delete-postal"];
@@ -664,6 +665,46 @@ pub async fn public_api_calendar(state: State<'_, LocalStore>, events: Vec<Value
     Ok(json!({ "stored": stored }))
 }
 
+/// Entrée de l'annuaire léger lu par l'assistant (projets, fournisseurs), avec exactement ces clés.
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DirectoryEntry {
+    kind: String,
+    id: String,
+    name: String,
+    detail: String,
+    status: String,
+}
+
+fn directory_entry_valid(entry: &DirectoryEntry) -> bool {
+    let text = |value: &str, max: usize| value.encode_utf16().count() <= max;
+    matches!(entry.kind.as_str(), "project" | "supplier")
+        && valid_id(&entry.id)
+        && !entry.name.trim().is_empty()
+        && text(&entry.name, 300)
+        && text(&entry.detail, 300)
+        && text(&entry.status, 40)
+}
+
+/// Remplace l'annuaire (projets et fournisseurs) que lit l'assistant connecté.
+/// Le serveur ne le garde que si l'API de l'entreprise est ouverte.
+#[tauri::command]
+pub async fn public_api_directory(state: State<'_, LocalStore>, entries: Vec<Value>) -> Result<Value, String> {
+    let store = state.inner().clone();
+    if entries.len() > 2000 { return Err("Annuaire trop long.".into()); }
+    let mut parsed = Vec::with_capacity(entries.len());
+    let mut keys = BTreeSet::new();
+    for entry in entries {
+        let entry: DirectoryEntry = serde_json::from_value(entry).map_err(|_| "Annuaire illisible.".to_string())?;
+        if !directory_entry_valid(&entry) || !keys.insert(format!("{}:{}", entry.kind, entry.id)) { return Err("Annuaire illisible.".into()); }
+        parsed.push(entry);
+    }
+    let session = session_for(&store, true).await.map_err(command_error)?;
+    let reply = post_json(&session, DIRECTORY_PATH, &json!({ "schemaVersion": 1, "entries": parsed })).await.map_err(command_error)?;
+    let stored = reply.get("stored").and_then(Value::as_u64).ok_or_else(|| "Réponse du service Zentra illisible.".to_string())?;
+    Ok(json!({ "stored": stored }))
+}
+
 /// Envoie par la poste le PDF d'une facture émise (compte Pingen de l'entreprise).
 #[tauri::command]
 pub async fn postal_send_invoice(state: State<'_, LocalStore>, invoice_id: String, delivery: String, color: bool) -> Result<Value, String> {
@@ -800,6 +841,16 @@ mod tests {
         assert!(!schedule_item_valid(&item("inv:i1", "03.11.2026", "Dupont SA")));
         assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", "Dupont\nSA")));
         assert!(!schedule_item_valid(&item("inv:i1", "2026-11-03", &"x".repeat(81))));
+    }
+
+    #[test]
+    fn directory_entries_keep_the_server_contract() {
+        let entry = |kind: &str, id: &str, name: &str| DirectoryEntry { kind: kind.into(), id: id.into(), name: name.into(), detail: String::new(), status: "active".into() };
+        assert!(directory_entry_valid(&entry("project", "p1", "Cuisine")));
+        assert!(directory_entry_valid(&entry("supplier", "s1", "Bois & Cie")));
+        assert!(!directory_entry_valid(&entry("customer", "c1", "Dupont")));
+        assert!(!directory_entry_valid(&entry("project", "p 1", "Cuisine")));
+        assert!(!directory_entry_valid(&entry("project", "p1", " ")));
     }
 
     #[test]
