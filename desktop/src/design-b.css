@@ -37,6 +37,8 @@
     --zb-field: #f2f2f7;
     --zb-avatar: #e5e5ea;
     --zb-grabber: #c7c7cc;
+    --zb-thumb: #fff;
+    --zb-thumb-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 0 0 0.5px rgb(0 0 0 / 0.04);
     --zb-dialog-ring: 0 24px 60px -20px rgb(0 0 0 / 0.3);
   }
   html[data-design='b'][data-app-theme='dark'] {
@@ -58,6 +60,8 @@
     --zb-field: #2c2c2e;
     --zb-avatar: #2c2c2e;
     --zb-grabber: #48484a;
+    --zb-thumb: #636366;
+    --zb-thumb-shadow: none;
     --zb-dialog-ring: 0 0 0 1px rgb(255 255 255 / 0.08), 0 24px 60px -20px rgb(0 0 0 / 0.9);
   }
 
@@ -393,5 +397,61 @@
   }
   html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-view-switch > [role='group'] > button > svg {
     color: currentColor;
+  }
+
+  /* ---------- Segmented controls: one row, a thumb that slides ---------- */
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs {
+    display: flex !important; /* parcours-client.css turns four tabs into a 2 × 2 grid with a much stronger selector */
+    flex-wrap: nowrap;
+    gap: 2px;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 0;
+    padding: 3px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--zb-fill);
+    box-shadow: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs > button {
+    flex: 1 0 auto;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs > button:is(.is-active, [aria-current]) {
+    background: transparent;
+    color: var(--apple-ink);
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs > .sales-tabs__selection {
+    top: 0;
+    left: 0;
+    border: 0;
+    border-radius: 9px;
+    background: var(--zb-thumb);
+    box-shadow: var(--zb-thumb-shadow);
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs {
+      width: 100%;
+    }
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs > button {
+      padding: 0 12px;
+      font-size: calc(13.5px * var(--zentra-ui-text-scale, 1));
+    }
   }
 }
