@@ -1,5 +1,6 @@
 /*
- * Design B, « Groupé » (October 2026 proposal), loaded last.
+ * Design « Groupé » (October 2026), loaded last. Chosen by Leart over a flat
+ * one-surface variant; main.tsx sets html[data-design='b'] at start.
  *
  * The grouped lists of iPhone Settings, on every screen: a soft grey canvas
  * (true black in dark mode) and white groups with rounded corners, one level
@@ -113,7 +114,7 @@
   }
 
   /* ---------- Groups: white, rounded, one level only ---------- */
-  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content :is(.panel, .table-panel, .autopilot-home, .setup-strip, .activity-shortcuts__items > *, .metric-card, .settings-card) {
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content :is(.panel, .table-panel, .autopilot-home, .setup-strip, .activity-shortcuts__items > *, .metric-card, .settings-card):not(.agenda-toolbar) {
     border: 0;
     border-radius: 14px;
     background: var(--apple-paper);
@@ -263,8 +264,41 @@
       min-height: 50px;
       background: transparent;
     }
+    /* The chosen tab sits on a soft pill that slides to the next choice. */
     html[data-app-theme][data-design='b'] .desktop-app[data-experience] .mobile-navigation__selection {
-      display: none;
+      display: block;
+      border: 0;
+      border-radius: 14px;
+      background: var(--zb-fill);
+      box-shadow: none;
+    }
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .mobile-navigation button[aria-current] {
+      color: var(--apple-ink);
+      font-weight: 650;
+    }
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .mobile-navigation button:not([aria-current]) {
+      color: var(--apple-secondary);
+    }
+
+    /* A screen without a main action: the Autopilote shortcut keeps its word. */
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-header:has(> .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher)))) > div:first-child {
+      padding-right: 140px;
+    }
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-header > .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher))) > .automation-tools-launcher {
+      right: max(20px, env(safe-area-inset-right, 0px));
+      left: auto;
+      width: max-content;
+      max-width: none;
+      white-space: nowrap;
+      min-width: 0;
+      padding: 0 14px;
+      gap: 6px;
+      border-radius: 999px;
+      background: var(--zb-fill);
+      color: var(--apple-ink);
+    }
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-header > .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher))) > .automation-tools-launcher > span {
+      display: inline;
     }
     html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .client-mobile-list > li {
       padding-inline: 16px;

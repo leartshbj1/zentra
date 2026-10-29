@@ -22,6 +22,8 @@ const root = document.getElementById('root');
 installDiagnosticCapture();
 installFullscreenShortcuts();
 if (!root) throw new Error('Le point de montage de l’application est introuvable.');
+// The grouped design (design-b.css) and its motion (motion.css) key on this attribute.
+document.documentElement.dataset.design = 'b';
 
 createRoot(root).render(
   <StrictMode>
@@ -62,6 +64,5 @@ import './pack-batiment.css';
 import './aere.css';
 import './autopilot-aujourdhui.css';
 import './autopilot-nouveautes.css';
-import './design-a.css';
 import './design-b.css';
 import './motion.css';
