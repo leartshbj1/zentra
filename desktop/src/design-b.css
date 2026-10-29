@@ -268,6 +268,13 @@
       min-height: 50px;
       background: transparent;
     }
+    /* The menu drawer starts below the Dynamic Island and ends above the home bar,
+       so its close button and last rows stay where a thumb can reach them. */
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .sidebar.sidebar {
+      padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    }
+
     /* The chosen tab sits on a soft pill that slides to the next choice. */
     html[data-app-theme][data-design='b'] .desktop-app[data-experience] .mobile-navigation__selection {
       display: block;
@@ -452,6 +459,78 @@
     html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .sales-tabs > button {
       padding: 0 12px;
       font-size: calc(13.5px * var(--zentra-ui-text-scale, 1));
+    }
+  }
+
+  /* ---------- Document preview: a way back within thumb reach ---------- */
+  html[data-app-theme][data-design='b'] .document-preview .document-preview__back {
+    display: none;
+  }
+  html[data-app-theme][data-design='b'] .document-preview .document-preview__export {
+    border-top: 1px solid var(--z-hairline);
+    background: var(--apple-paper);
+  }
+  html[data-app-theme][data-design='b'] .document-preview .document-preview__export .button {
+    border: 0;
+    border-radius: 999px;
+    background: var(--zb-fill);
+    color: var(--apple-ink);
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='b'] .document-preview .document-preview__export .button:hover:not(:disabled) {
+    background: var(--zb-fill-hover);
+  }
+  /* Exporting is the main action of a preview: the one green button. */
+  html[data-app-theme][data-design='b'] .document-preview .document-preview__export > span + .button,
+  html[data-app-theme][data-design='b'] .document-preview .document-preview__export > span + * + .button:not(.document-preview__back) {
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+  html[data-app-theme][data-design='b'] .document-preview .document-preview__export > .button:last-child:not(.document-preview__back) {
+    background: var(--zb-fill);
+    color: var(--apple-ink);
+  }
+  @media (max-width: 860px) {
+    /* Phone: nothing under the Dynamic Island, and the way back sits at the bottom, under the thumb. */
+    html[data-app-theme][data-design='b'] .document-preview .document-preview__header {
+      padding-top: calc(max(6px, env(safe-area-inset-top, 0px)) + 14px);
+      touch-action: none;
+    }
+    html[data-app-theme][data-design='b'] .document-preview .document-preview__header::before {
+      content: '';
+      position: absolute;
+      top: calc(max(6px, env(safe-area-inset-top, 0px)) + 4px);
+      left: 50%;
+      width: 36px;
+      height: 5px;
+      margin-left: -18px;
+      border-radius: 3px;
+      background: var(--zb-grabber);
+    }
+    html[data-app-theme][data-design='b'] .document-preview .document-preview__export {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      padding: 10px max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    }
+    html[data-app-theme][data-design='b'] .document-preview .document-preview__export > span {
+      grid-column: 1 / -1;
+      max-height: 2.8em;
+      font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+      color: var(--apple-secondary);
+    }
+    html[data-app-theme][data-design='b'] .document-preview .document-preview__export .button {
+      width: 100%;
+      min-height: 48px;
+      padding-inline: 12px;
+      white-space: nowrap;
+    }
+    html[data-app-theme][data-design='b'] .document-preview .document-preview__export > .document-preview__back {
+      display: inline-flex;
+      order: 10;
+      grid-column: 1 / -1;
+      min-height: 50px;
+      font-weight: 650;
     }
   }
 }

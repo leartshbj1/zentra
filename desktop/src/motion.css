@@ -150,6 +150,18 @@
     }
   }
 
+  /* The document preview arrives the same way. Fill mode stays backwards so that,
+   * once in place, a finger pulling the sheet down (DocumentPreviewFrame) can move it. */
+  html[data-app-theme][data-design] .document-preview {
+    animation: zentra-dialog-in var(--motion-pop) var(--spring-pop) backwards !important;
+    transition: translate 420ms var(--spring-soft);
+  }
+  @media (max-width: 860px) {
+    html[data-app-theme][data-design] .document-preview {
+      animation: zentra-sheet-in var(--motion-sheet) var(--ease-sheet) backwards !important;
+    }
+  }
+
   /* ---------- Menus and popovers open from where they were asked ---------- */
   html[data-app-theme][data-design] :is(.navigation-palette, .autopilot-notices__panel, .account-menu__panel, [role='menu'], [role='listbox']) {
     transform-origin: top center;

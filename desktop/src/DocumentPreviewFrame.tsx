@@ -1,6 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUp, BookOpen, Check, FileText, List, Maximize, Minus, Plus, X } from 'lucide-react';
+import { ArrowUp, BookOpen, Check, ChevronLeft, FileText, List, Maximize, Minus, Plus, X } from 'lucide-react';
 import { Button } from './ui';
 import './DocumentPreviewFrame.css';
 import { useTouchZoom } from './useTouchZoom';
@@ -26,6 +26,27 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
   const [lineCount, setLineCount] = useState(0);
   const scale = zoom ?? Math.min(1, measure.width / 794);
   useTouchZoom(viewport, paper, scale, setZoom, mode === 'page', Math.min(1, measure.width / 794), 4);
+  // On a phone the preview is a full-screen sheet: pulling its header down closes it, like an iOS sheet.
+  const pull = useRef<{ id: number; y: number; dy: number } | null>(null);
+  const pullStart = (event: ReactPointerEvent) => {
+    if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 860px)').matches || (event.target as HTMLElement).closest('button')) return;
+    pull.current = { id: event.pointerId, y: event.clientY, dy: 0 };
+  };
+  const pullMove = (event: ReactPointerEvent) => {
+    const state = pull.current;
+    if (!state || state.id !== event.pointerId || !root.current) return;
+    state.dy = Math.max(0, event.clientY - state.y);
+    root.current.style.transition = 'none';
+    root.current.style.translate = `0 ${state.dy}px`;
+  };
+  const pullEnd = (event: ReactPointerEvent) => {
+    const state = pull.current;
+    if (!state || state.id !== event.pointerId || !root.current) return;
+    pull.current = null;
+    root.current.style.transition = '';
+    root.current.style.translate = '';
+    if (state.dy > 90) onClose();
+  };
 
   const goTo = (selector: string) => {
     const area = viewport.current;
@@ -135,7 +156,7 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
         if (event.shiftKey && (document.activeElement === first || document.activeElement === root.current)) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && (document.activeElement === last || document.activeElement === root.current)) { event.preventDefault(); first?.focus(); }
       }}>
-      <header className="document-preview__header">
+      <header className="document-preview__header" onPointerDown={pullStart} onPointerMove={pullMove} onPointerUp={pullEnd} onPointerCancel={pullEnd}>
         <span className="document-preview__icon" aria-hidden="true"><FileText size={23} /></span>
         <div className="document-preview__identity"><h2 id={id}>{title} <span>{number || t('Sans numéro')}</span></h2><p>{customer || t('Destinataire à compléter')}</p></div>
         <span className={`document-preview__state ${finalDocument ? 'is-final' : ''}`}>{finalDocument ? <Check size={14} aria-hidden="true" /> : <span className="document-preview__draft-dot" aria-hidden="true" />}{t(finalDocument ? 'Document final' : 'Brouillon')}</span>
@@ -172,7 +193,7 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
           </div>
         </div>
       </div>
-      <footer className="document-preview__export">{actions}</footer>
+      <footer className="document-preview__export"><Button type="button" variant="secondary" className="document-preview__back" onClick={onClose}><ChevronLeft size={18} aria-hidden="true" />{t('Retour')}</Button>{actions}</footer>
     </div>, document.body,
   );
 }
