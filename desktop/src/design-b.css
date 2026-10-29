@@ -281,8 +281,19 @@
     }
 
     /* A screen without a main action: the Autopilote shortcut keeps its word. */
-    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-header:has(> .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher)))) > div:first-child {
-      padding-right: 140px;
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .app-main .page-header:has(> .page-header__actions > .automation-tools-launcher):not(:has(> .page-header__actions > :not(.automation-tools-launcher, .screen-help-launcher))) > div:first-child {
+      padding-right: 132px; /* :has() cannot nest, so the aere.css form of this selector never applied */
+    }
+
+    /* Two actions side by side wrap their words into tall capsules; stack them instead. */
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .catalog-heading-actions {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+    html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .catalog-heading-actions > .button {
+      width: 100%;
+      min-height: 48px;
+      white-space: nowrap;
     }
     html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-header > .page-header__actions:not(:has(> :not(.automation-tools-launcher, .screen-help-launcher))) > .automation-tools-launcher {
       right: max(20px, env(safe-area-inset-right, 0px));
