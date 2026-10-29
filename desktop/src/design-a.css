@@ -1,0 +1,255 @@
+/*
+ * Design A, « Une seule page » (October 2026 proposal), loaded last.
+ *
+ * Everything sits on one surface: white in light mode, true black in dark
+ * mode. No floating sidebar, no cards, no shadows. Hierarchy comes from type
+ * size, weight and space; hairlines separate what needs separating. Green is
+ * kept for the primary action and for what is done.
+ *
+ * Literal colours live only in custom properties so
+ * scripts/build-dark-palette.mjs produces nothing for this file.
+ */
+@media screen {
+  html[data-design='a'] {
+    --apple-canvas: #fff;
+    --apple-paper: #fff;
+    --apple-grouped: #f5f5f7;
+    --apple-rail: #fff;
+    --apple-line: #e8e8ed;
+    --apple-selection: #f0f0f3;
+    --apple-secondary: #6e6e73;
+    --z-hover: #f5f5f7;
+    --z-pane: #fff;
+    --z-hairline: rgb(0 0 0 / 0.08);
+    --z-shadow: none;
+    --z-shadow-pill: none;
+    --work-shadow: none;
+    --z7-sidebar: #fff;
+    --z7-sidebar-shadow: none;
+    --z7-selected: #f0f0f3;
+    --z7-shadow-card: none;
+    --z7-hero-surface: #fff;
+    --za-field: #fff;
+    --za-field-line: #d2d2d7;
+    --za-dialog-ring: 0 0 0 1px rgb(0 0 0 / 0.06), 0 24px 60px -20px rgb(0 0 0 / 0.25);
+  }
+  html[data-design='a'][data-app-theme='dark'] {
+    --apple-canvas: #000;
+    --apple-paper: #000;
+    --apple-grouped: #1c1c1e;
+    --apple-rail: #000;
+    --apple-line: #2c2c2e;
+    --apple-selection: #1c1c1e;
+    --apple-secondary: #a1a1a6;
+    --z-hover: #141416;
+    --z-pane: #000;
+    --z-hairline: rgb(255 255 255 / 0.1);
+    --z7-sidebar: #000;
+    --z7-selected: #1c1c1e;
+    --z7-hero-surface: #000;
+    --za-field: #000;
+    --za-field-line: #3a3a3c;
+    --za-dialog-ring: 0 0 0 1px rgb(255 255 255 / 0.12), 0 24px 60px -20px rgb(0 0 0 / 0.9);
+  }
+
+  /* ---------- One surface ---------- */
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience],
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] :is(.app-main, .topbar) {
+    background: var(--apple-canvas);
+  }
+  @media (min-width: 861px) {
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience]:not([data-native-desktop='true']) {
+      --shell-sidebar: 248px;
+    }
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience]:not([data-native-desktop='true']) .sidebar,
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience] .sidebar {
+      inset: 0 auto 0 0;
+      width: var(--shell-sidebar);
+      height: 100vh;
+      padding: 18px 12px 12px;
+      border: 0;
+      border-right: 1px solid var(--z-hairline);
+      border-radius: 0;
+      background: var(--apple-canvas);
+      box-shadow: none;
+    }
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .sidebar__search {
+    border: 0;
+    border-radius: 10px;
+    background: var(--apple-grouped);
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .sidebar__nav button {
+    min-height: 34px;
+    border-radius: 8px;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .sidebar__selection {
+    border-radius: 8px;
+    background: var(--apple-selection);
+    box-shadow: none;
+  }
+
+  /* ---------- Titles carry the hierarchy ---------- */
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-header h1 {
+    font-size: calc(32px * var(--zentra-ui-text-scale, 1));
+    font-weight: 700;
+    letter-spacing: -0.022em;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-header .screen-help-launcher {
+    display: none;
+  }
+
+  /* ---------- No cards: content lies on the page, hairlines between ---------- */
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content :is(.panel, .table-panel, .autopilot-home, .metric-card, .setup-strip, .activity-shortcuts__items > *, .empty-state, .settings-card) {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content :is(.panel, .table-panel) {
+    padding-inline: 0;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content .autopilot-home {
+    padding: 8px 0 36px;
+    border-bottom: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content .activity-shortcuts__items {
+    gap: 0;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content .activity-shortcuts__items > * {
+    padding-inline: 4px 20px;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content .activity-shortcuts__items > * + * {
+    border-left: 1px solid var(--z-hairline);
+    padding-left: 24px;
+  }
+
+  /* Tables: a header in small grey type, rows split by hairlines. */
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content table th {
+    background: transparent;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    border-bottom: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content table td {
+    border-bottom: 1px solid var(--z-hairline);
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content tbody tr:hover {
+    background: var(--z-hover);
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content :is(.identity-cell > span:first-child, .client-mobile-list__avatar) {
+    display: none;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content .count-pill {
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--apple-ink);
+    font-size: inherit;
+    font-weight: 500;
+  }
+
+  /* ---------- Buttons ---------- */
+  html[data-app-theme][data-design='a'] :is(.desktop-app[data-experience], .modal-backdrop) .button {
+    border-radius: 10px;
+  }
+  html[data-app-theme][data-design='a'] :is(.desktop-app[data-experience], .modal-backdrop) .button--secondary {
+    border: 1px solid var(--za-field-line);
+    background: transparent;
+    color: var(--apple-ink);
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='a'] :is(.desktop-app[data-experience], .modal-backdrop) .button--secondary:hover {
+    background: var(--z-hover);
+  }
+  html[data-app-theme][data-design='a'] :is(.desktop-app[data-experience], .modal-backdrop) .button--ghost {
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme][data-design='a'] :is(.desktop-app[data-experience], .modal-backdrop) .button--ghost:hover {
+    color: var(--apple-ink);
+    background: var(--z-hover);
+  }
+
+  /* ---------- Fields ---------- */
+  html[data-app-theme][data-design='a'] :is(.desktop-app[data-experience], .modal-backdrop) :is(input:where(:not([type='checkbox'], [type='radio'], [type='range'])), select, textarea) {
+    border: 1px solid var(--za-field-line);
+    border-radius: 10px;
+    background: var(--za-field);
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .global-search {
+    border: 0;
+    border-radius: 10px;
+    background: var(--apple-grouped);
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .global-search input {
+    border: 0;
+    background: transparent;
+    outline: 0;
+  }
+  html[data-app-theme][data-design='a'] :is(.desktop-app[data-experience], .modal-backdrop) :is(input, select, textarea):focus-visible {
+    border-color: var(--apple-focus);
+    outline: 3px solid var(--z-ring);
+    outline-offset: 0;
+  }
+
+  /* ---------- Dialogs: a plain sheet ---------- */
+  html[data-app-theme][data-design='a'] .modal-backdrop > .modal {
+    border: 0;
+    border-radius: 20px;
+    background: var(--apple-paper);
+    box-shadow: var(--za-dialog-ring);
+  }
+  html[data-app-theme][data-design='a'] .modal-backdrop > .modal .modal__header {
+    border-bottom: 0;
+    background: transparent;
+  }
+  html[data-app-theme][data-design='a'] .modal-backdrop > .modal .modal__header h2 {
+    font-size: calc(22px * var(--zentra-ui-text-scale, 1));
+    letter-spacing: -0.015em;
+  }
+
+  /* ---------- Phone ---------- */
+  @media (max-width: 860px) {
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience] .topbar {
+      background: var(--apple-canvas);
+      border-bottom: 1px solid var(--z-hairline);
+    }
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience] .mobile-navigation {
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: auto;
+      transform: none;
+      padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
+      border: 0;
+      border-top: 1px solid var(--z-hairline);
+      border-radius: 0;
+      background: var(--apple-canvas);
+      box-shadow: none;
+    }
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience] .mobile-navigation button {
+      min-height: 50px;
+      background: transparent;
+    }
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience] .mobile-navigation__selection {
+      display: none;
+    }
+    html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-header h1 {
+      font-size: calc(30px * var(--zentra-ui-text-scale, 1));
+    }
+    html[data-app-theme][data-design='a'] .modal-backdrop > .modal {
+      border-radius: 16px 16px 0 0;
+    }
+  }
+
+  /* ---------- Green only for the primary action ---------- */
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .autopilot-home__secondary {
+    color: var(--apple-ink) !important; /* the base layer sets the accent with !important */
+  }
+  html[data-app-theme][data-design='a'] .desktop-app[data-experience] .page-content .row-actions .button--ghost {
+    color: var(--apple-secondary);
+  }
+}

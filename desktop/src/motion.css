@@ -1,0 +1,162 @@
+/*
+ * Motion (October 2026), loaded last. One short, gentle movement system for
+ * the whole app, the same on Windows, macOS and iPhone:
+ *
+ * - durations 150 to 300 ms, always ease-out, only transform and opacity,
+ *   so WebView2 and WKWebView keep them on the compositor;
+ * - a screen arrives, a list settles, a dialog rises; nothing loops, bounces
+ *   or blurs;
+ * - prefers-reduced-motion turns every movement off and keeps colour changes
+ *   instant.
+ *
+ * Earlier layers switched .page-content animations off one by one; this layer
+ * is the single place that decides them again.
+ */
+@media screen {
+  :root {
+    --motion-fast: 150ms;
+    --motion-base: 220ms;
+    --motion-slow: 300ms;
+    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-ease-soft: cubic-bezier(0.25, 0.8, 0.25, 1);
+    --motion-rise: 8px;
+    --motion-shift: 0px;
+  }
+  html[data-design='b'] {
+    --motion-rise: 0px;
+    --motion-shift: 14px;
+  }
+
+  @keyframes zentra-screen-in {
+    from { opacity: 0; transform: translate3d(var(--motion-shift), var(--motion-rise), 0); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes zentra-row-in {
+    from { opacity: 0; transform: translate3d(0, 4px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes zentra-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  /* Dialogs move with the individual translate and scale properties: older
+   * layers pin their transform with !important, which would beat an animation. */
+  @keyframes zentra-dialog-in {
+    from { opacity: 0; translate: 0 10px; scale: 0.98; }
+    to { opacity: 1; translate: none; scale: none; }
+  }
+  @keyframes zentra-sheet-in {
+    from { translate: 0 100%; }
+    to { translate: none; }
+  }
+  @keyframes zentra-pop-in {
+    from { opacity: 0; translate: 0 -4px; scale: 0.98; }
+    to { opacity: 1; translate: none; scale: none; }
+  }
+
+  /* ---------- A screen arrives ---------- */
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-content {
+    animation: zentra-screen-in var(--motion-slow) var(--motion-ease) both;
+  }
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-header {
+    animation: zentra-fade-in var(--motion-base) var(--motion-ease) both;
+  }
+
+  /* ---------- Lists settle, the first rows one after the other ---------- */
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-content :is(tbody > tr, .table-panel ul > li, .autopilot-today__queue li, .deadline-list > *, .activity-shortcuts__items > *) {
+    animation: zentra-row-in var(--motion-base) var(--motion-ease) both;
+  }
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-content :is(tbody > tr, .table-panel ul > li, .autopilot-today__queue li, .deadline-list > *, .activity-shortcuts__items > *):nth-child(2) { animation-delay: 30ms; }
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-content :is(tbody > tr, .table-panel ul > li, .autopilot-today__queue li, .deadline-list > *, .activity-shortcuts__items > *):nth-child(3) { animation-delay: 60ms; }
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-content :is(tbody > tr, .table-panel ul > li, .autopilot-today__queue li, .deadline-list > *, .activity-shortcuts__items > *):nth-child(4) { animation-delay: 90ms; }
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-content :is(tbody > tr, .table-panel ul > li, .autopilot-today__queue li, .deadline-list > *, .activity-shortcuts__items > *):nth-child(5) { animation-delay: 120ms; }
+  html[data-app-theme][data-design] .desktop-app[data-experience] .page-content :is(tbody > tr, .table-panel ul > li, .autopilot-today__queue li, .deadline-list > *, .activity-shortcuts__items > *):nth-child(n + 6) { animation-delay: 150ms; }
+
+  /* ---------- Dialogs rise, on a phone they slide up as a sheet ----------
+   * experience.css sets the dialog animation with !important, so these do too. */
+  html[data-app-theme][data-design] .modal-backdrop {
+    animation: zentra-fade-in var(--motion-base) var(--motion-ease-soft) both !important;
+  }
+  html[data-app-theme][data-design] .modal-backdrop > .modal {
+    animation: zentra-dialog-in var(--motion-slow) var(--motion-ease) both !important;
+  }
+  /* On a phone the sheet covers the screen. The whole layer slides: moving the
+   * sheet inside its scrolling backdrop would be undone when the first field
+   * takes focus and the backdrop scrolls it back into view. */
+  @media (max-width: 860px) {
+    html[data-app-theme][data-design] .modal-backdrop {
+      animation: zentra-sheet-in var(--motion-slow) var(--motion-ease) both !important;
+    }
+    html[data-app-theme][data-design] .modal-backdrop > .modal {
+      animation: none !important;
+    }
+  }
+
+  /* ---------- Menus and popovers drop in ---------- */
+  html[data-app-theme][data-design] :is(.navigation-palette, .autopilot-notices__panel, .account-menu__panel, [role='menu'], [role='listbox']) {
+    animation: zentra-pop-in var(--motion-fast) var(--motion-ease) both;
+  }
+
+  /* ---------- Controls answer the finger and the pointer ---------- */
+  html[data-app-theme][data-design] :is(.desktop-app[data-experience], .modal-backdrop) :is(.button, .sidebar__nav button, .mobile-navigation button, summary, a, tr, li, input, select, textarea) {
+    transition-property: background-color, border-color, color, opacity, transform;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--motion-ease-soft);
+  }
+  html[data-app-theme][data-design] :is(.desktop-app[data-experience], .modal-backdrop) :is(.button, .sidebar__nav button, .mobile-navigation button) {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  html[data-app-theme][data-design] :is(.desktop-app[data-experience], .modal-backdrop) .button:not(:disabled):active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+  html[data-app-theme][data-design] .desktop-app[data-experience] .mobile-navigation button:active {
+    transform: scale(0.94);
+  }
+
+  /* The sliding selection under the menu follows the choice. */
+  html[data-app-theme][data-design] .desktop-app[data-experience] :is(.sidebar__selection, .mobile-navigation__selection, .section-navigation__selection, .sales-tabs__selection) {
+    transition: transform var(--motion-slow) var(--motion-ease), width var(--motion-slow) var(--motion-ease), height var(--motion-slow) var(--motion-ease), opacity var(--motion-base) var(--motion-ease);
+  }
+
+  /* Folding sections open smoothly where the browser can animate to auto. */
+  @supports (interpolate-size: allow-keywords) {
+    html[data-design] {
+      interpolate-size: allow-keywords;
+    }
+    html[data-app-theme][data-design] .desktop-app[data-experience] details::details-content {
+      overflow: clip;
+      block-size: 0;
+      transition: block-size var(--motion-slow) var(--motion-ease), content-visibility var(--motion-slow) allow-discrete;
+    }
+    html[data-app-theme][data-design] .desktop-app[data-experience] details[open]::details-content {
+      block-size: auto;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html[data-app-theme][data-design] .desktop-app[data-experience] details::details-content {
+        transition: none;
+      }
+    }
+  }
+
+  /* ---------- Reduced motion: nothing moves ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    html[data-design] *,
+    html[data-design] *::before,
+    html[data-design] *::after {
+      animation-duration: 1ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      transition-delay: 0ms !important;
+    }
+    html[data-app-theme][data-design] :is(.desktop-app[data-experience], .modal-backdrop) .button:not(:disabled):active {
+      transform: none;
+    }
+    html[data-app-theme][data-design] .modal-backdrop,
+    html[data-app-theme][data-design] .modal-backdrop > .modal {
+      animation: none !important;
+    }
+  }
+}

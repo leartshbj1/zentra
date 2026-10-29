@@ -62,3 +62,6 @@ import './pack-batiment.css';
 import './aere.css';
 import './autopilot-aujourdhui.css';
 import './autopilot-nouveautes.css';
+import './design-a.css';
+import './design-b.css';
+import './motion.css';

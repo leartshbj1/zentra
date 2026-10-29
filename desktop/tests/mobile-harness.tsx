@@ -392,3 +392,6 @@ import '../src/pack-batiment.css';
 import '../src/aere.css';
 import '../src/autopilot-aujourdhui.css';
 import '../src/autopilot-nouveautes.css';
+import '../src/design-a.css';
+import '../src/design-b.css';
+import '../src/motion.css';
