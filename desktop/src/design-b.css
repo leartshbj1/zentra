@@ -331,4 +331,56 @@
   html[data-app-theme][data-design='b'] .desktop-app[data-experience] .sidebar__nav button {
     min-height: 34px;
   }
+
+  /* ---------- Projects: each project is its own group, nothing behind them ---------- */
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-card-grid {
+    gap: 12px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-card-grid > .project-card {
+    border: 0;
+    border-radius: 14px;
+    background: var(--apple-paper);
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-card footer {
+    border-top-color: var(--z-hairline);
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-card footer .button--primary {
+    border: 0;
+    background: var(--apple-accent);
+    color: var(--apple-on-accent);
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-card__icon {
+    border: 0;
+    background: var(--zb-fill);
+    color: var(--apple-secondary);
+  }
+  /* The view switch is a toolbar on the canvas, not a group. */
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-view-switch.panel {
+    padding: 0;
+    background: transparent;
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-view-switch > [role='group'] {
+    padding: 3px;
+    border: 0;
+    border-radius: 11px;
+    background: var(--zb-fill);
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-view-switch > [role='group'] > button {
+    border-radius: 8px;
+    color: var(--apple-secondary);
+    box-shadow: none;
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-view-switch > [role='group'] > button.is-active {
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+  }
+  html[data-app-theme][data-design='b'] .desktop-app[data-experience] .page-content .project-view-switch > [role='group'] > button > svg {
+    color: currentColor;
+  }
 }
