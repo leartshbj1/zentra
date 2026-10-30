@@ -1,0 +1,739 @@
+/*
+ * Menus, October 2026 (unslop pass), loaded last on every platform, iPhone included.
+ *
+ * One quiet system for every menu: the sidebar, the phone menu and tab bar,
+ * « Aller à… », the section tabs, the « … » menu, the phone action list and the
+ * filter lists. Grey ink on the canvas, one surface step for the current choice,
+ * hairlines instead of boxes, text tabs with a sliding underline. Green stays
+ * for the primary action and for what is done, so no menu uses it.
+ *
+ * Plain CSS only (no backdrop blur, no :has), so the iOS web view keeps the
+ * 1.90.57 behaviour it is proven on. Literal colours live only in custom
+ * properties, so scripts/build-dark-palette.mjs produces nothing for this file.
+ * `:not(#m)` lifts these rules above the earlier layers without !important.
+ */
+@media screen {
+  html[data-app-theme] {
+    --mn-canvas: #f2f2f7;
+    --mn-ink: #1d1d1f;
+    --mn-ink-2: #3a3a3c;
+    --mn-mute: #6e6e73;
+    --mn-line: rgb(0 0 0 / 0.08);
+    --mn-hover: rgb(0 0 0 / 0.04);
+    --mn-press: rgb(0 0 0 / 0.07);
+    --mn-current: #fff;
+    --mn-current-ring: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+    --mn-field: rgb(0 0 0 / 0.05);
+    --mn-pop: #fff;
+    --mn-pop-ring: 0 0 0 1px rgb(0 0 0 / 0.07), 0 8px 24px rgb(0 0 0 / 0.08);
+    --mn-bar: rgb(249 249 251);
+    --mn-scrim: rgb(0 0 0 / 0.2);
+    --mn-danger: #c4141f;
+    --mn-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --mn-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html[data-app-theme='dark'] {
+    --mn-canvas: #000;
+    --mn-ink: #f5f5f7;
+    --mn-ink-2: #d1d1d6;
+    --mn-mute: #98989f;
+    --mn-line: rgb(255 255 255 / 0.1);
+    --mn-hover: rgb(255 255 255 / 0.06);
+    --mn-press: rgb(255 255 255 / 0.1);
+    --mn-current: #1c1c1e;
+    --mn-current-ring: 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.06);
+    --mn-field: rgb(255 255 255 / 0.08);
+    --mn-pop: #1c1c1e;
+    --mn-pop-ring: 0 0 0 1px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.6);
+    --mn-bar: #000;
+    --mn-scrim: rgb(0 0 0 / 0.6);
+    --mn-danger: #ff6961;
+    --mn-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2398989f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- Sidebar (computer) and the full menu (phone) ---------- */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__product { display: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    height: 32px;
+    padding: 0 8px 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--mn-field);
+    box-shadow: none;
+    color: var(--mn-mute);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__search > svg { width: 16px; height: 16px; stroke-width: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__search kbd {
+    margin-left: auto;
+    padding: 1px 5px;
+    border: 1px solid var(--mn-line);
+    border-radius: 4px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-mute);
+    font-family: inherit;
+    font-size: calc(11px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav { gap: 2px; padding-top: 4px; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav p {
+    margin: 20px 10px 6px;
+    padding: 0;
+    color: var(--mn-mute);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 34px;
+    height: 34px;
+    margin: 0;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-ink-2);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+    letter-spacing: 0;
+    transition: background-color 140ms var(--mn-ease), color 140ms var(--mn-ease);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button > svg {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.5;
+    color: var(--mn-mute);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button.is-active {
+    background: transparent;
+    color: var(--mn-ink);
+    font-weight: 500;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button.is-active > svg { color: var(--mn-ink); }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button > em,
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button.is-active > em {
+    min-width: 0;
+    height: auto;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-mute);
+    font: 400 12px/16px ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-style: normal;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__selection {
+    border: 0;
+    border-radius: 8px;
+    background: var(--mn-current);
+    box-shadow: var(--mn-current-ring);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__divider { display: none; }
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button:not(.is-active):hover { background: var(--mn-hover); color: var(--mn-ink); }
+  }
+
+  /* Help, shortcuts, updates and local data: one quiet group at the foot. */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__guide { margin-top: auto; border-top: 1px solid var(--mn-line); padding-top: 8px; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar__guide, .personalize-shortcuts, .sidebar__local) { display: flex; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar__guide, .personalize-shortcuts, .sidebar__updates, .sidebar__local) {
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 32px;
+    margin: 0;
+    padding-inline: 10px;
+    padding-bottom: 0;
+    border-radius: 8px;
+    border-inline: 0;
+    border-bottom: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-mute);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+    text-align: start;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.personalize-shortcuts, .sidebar__updates, .sidebar__local) { border-top: 0; padding-top: 0; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__guide { min-height: 41px; padding-top: 8px; border-radius: 0; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar__guide, .personalize-shortcuts, .sidebar__updates, .sidebar__local) > svg {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.5;
+    color: var(--mn-mute);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__guide strong,
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__local strong { color: inherit; font-size: calc(13px * var(--zentra-ui-text-scale, 1)); font-weight: 400; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar__guide small, .sidebar__guide > svg:last-child, .sidebar__local span, .sidebar__local i) { display: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__local { cursor: default; }
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.personalize-shortcuts, .sidebar__updates):hover { background: var(--mn-hover); color: var(--mn-ink); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__guide:hover { color: var(--mn-ink); }
+  }
+
+  /* ---------- Top bar tools ---------- */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .topbar__tools > :is(.button--icon, .update-launcher, .tour-launcher, .navigation-launcher) {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-mute);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .topbar__tools svg { stroke-width: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .topbar__tools .account-launcher {
+    min-height: 32px;
+    height: 32px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--mn-field);
+    box-shadow: none;
+    color: var(--mn-ink);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+  }
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .topbar__tools > :is(.button--icon, .update-launcher, .tour-launcher, .navigation-launcher):hover { background: var(--mn-hover); color: var(--mn-ink); }
+  }
+
+  /* The menu button is a tool, not an action: ink, never green. */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .topbar .menu-button { color: var(--mn-ink-2); background: transparent; box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .topbar .menu-button svg { stroke-width: 1.5; }
+  /* Keyboard focus on every menu control: one ink ring, no green. */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar button, .mobile-navigation button, .sales-tabs button, .section-navigation__tabs button, .tab-strip button, .team-navigation button, .document-actions__trigger, .document-actions__menu .button, [data-settings-link], .topbar__tools .button, .sales-list-toolbar select, .finance-navigation__more select, .document-list-tools button):focus-visible {
+    outline: 2px solid var(--mn-ink);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-list-toolbar, .document-list-tools, .finance-navigation__more, .purchase-toolbar) select:focus { border: 0; box-shadow: none; }
+
+  /* ---------- « Aller à… » ---------- */
+  html[data-app-theme] .modal-backdrop:not(#m) > .modal.navigation-dialog {
+    width: min(560px, calc(100vw - 32px));
+    max-width: 560px;
+    align-self: start;
+    margin-top: 12vh;
+    padding: 0;
+    border: 0;
+    border-radius: 14px;
+    background: var(--mn-pop);
+    box-shadow: var(--mn-pop-ring);
+    overflow: hidden;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) > .modal.navigation-dialog .modal__header {
+    min-height: 0;
+    padding: 12px 12px 0 20px;
+    border: 0;
+    background: transparent;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) > .modal.navigation-dialog .modal__header h2 {
+    margin: 0;
+    color: var(--mn-mute);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    font-weight: 500;
+    line-height: 20px;
+    letter-spacing: 0;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) > .modal.navigation-dialog .modal__header p { display: none; }
+  html[data-app-theme] .modal-backdrop:not(#m) > .modal.navigation-dialog .modal__header .button {
+    width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0; border-radius: 6px; color: var(--mn-mute); background: transparent; box-shadow: none;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) > .modal.navigation-dialog .modal__body { padding: 0; overflow: hidden; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette { display: grid; gap: 0; padding: 0; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    margin: 0;
+    padding: 0 20px;
+    border: 0;
+    border-bottom: 1px solid var(--mn-line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    outline: 0;
+    color: var(--mn-mute);
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__search > svg { width: 18px; height: 18px; stroke-width: 1.5; flex: 0 0 18px; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__search input {
+    width: 100%;
+    min-height: 51px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    outline: 0;
+    color: var(--mn-ink);
+    font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__search input::placeholder { color: var(--mn-mute); opacity: 1; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__search input::-webkit-search-cancel-button { display: none; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__count {
+    margin: 0;
+    padding: 12px 20px 4px;
+    color: var(--mn-mute);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results {
+    display: grid;
+    gap: 0;
+    max-height: min(420px, 56vh);
+    padding: 0 8px 8px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results button {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-ink);
+    text-align: start;
+    transition: background-color 120ms var(--mn-ease);
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results button > svg:first-child { width: 18px; height: 18px; stroke-width: 1.5; color: var(--mn-mute); }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results button > svg:last-child:not(:first-child) { display: none; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results button > span { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results strong { flex: 0 0 auto; color: var(--mn-ink); font-size: calc(14px * var(--zentra-ui-text-scale, 1)); font-weight: 500; line-height: 20px; }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results small {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mn-mute);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+    line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results button:first-child,
+  html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results button:focus-visible { background: var(--mn-hover); outline: 0; }
+  @media (hover: hover) {
+    html[data-app-theme] .modal-backdrop:not(#m) .navigation-palette__results button:hover { background: var(--mn-hover); }
+  }
+
+  /* ---------- Section tabs: words with a sliding underline ---------- */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs, .tab-strip, .team-navigation, .supplier-file__tabs) {
+    position: relative;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 24px;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    margin-inline: 0;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--mn-line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    isolation: isolate;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs, .tab-strip, .team-navigation, .supplier-file__tabs)::-webkit-scrollbar { display: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs, .tab-strip, .team-navigation, .supplier-file__tabs) > button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    width: auto;
+    min-width: 0;
+    height: 40px;
+    min-height: 40px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-mute);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+    letter-spacing: 0;
+    white-space: nowrap;
+    transition: color 140ms var(--mn-ease);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs, .tab-strip, .team-navigation, .supplier-file__tabs) > :is(button.is-active, button[aria-selected='true'], button[aria-pressed='true'], button[aria-current]:not([aria-current='false'])) {
+    background: transparent;
+    color: var(--mn-ink);
+    font-weight: 500;
+  }
+  /* Strips without a moving indicator mark the choice in place. */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.tab-strip:not(.section-navigation__tabs), .team-navigation, .supplier-file__tabs) > :is(button.is-active, button[aria-selected='true'], button[aria-pressed='true']) {
+    box-shadow: inset 0 -2px 0 var(--mn-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs__selection, .section-navigation__selection) {
+    display: block;
+    top: 0;
+    left: 0;
+    width: var(--selection-width, 0);
+    height: 2px;
+    transform: translate(var(--selection-x, 0), calc(var(--selection-y, 0px) + var(--selection-height, 40px) - 2px));
+    border: 0;
+    border-radius: 1px;
+    background: var(--mn-ink);
+    box-shadow: none;
+    z-index: 1;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs)[data-selection-ready] > :is(.sales-tabs__selection, .section-navigation__selection) { opacity: 1; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.section-navigation__tabs .section-navigation__icon, .tab-strip > button > svg) { display: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.tab-strip, .team-navigation, .supplier-file__tabs) > button :is(em, .team-navigation__count) {
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--mn-mute);
+    font: 400 12px/16px ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-style: normal;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .team-navigation__title { font: inherit; color: inherit; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .section-navigation__title { font: inherit; }
+  /* The section picker was a second way to do the same thing on phones: one strip everywhere. */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .section-navigation__mobile { display: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .section-navigation { display: block; width: 100%; min-width: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs, .tab-strip, .team-navigation, .supplier-file__tabs) > button:hover { color: var(--mn-ink); background: transparent; }
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .finance-navigation {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 24px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .finance-navigation > .section-navigation { flex: 1 1 360px; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .accounting-toolbar.panel:not(#m) { padding: 0; background: transparent; border: 0; box-shadow: none; }
+
+  /* ---------- Settings menu ---------- */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link] {
+    gap: 10px;
+    min-height: 34px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-ink-2);
+    transition: background-color 140ms var(--mn-ease), color 140ms var(--mn-ease);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link] strong { font-size: calc(14px * var(--zentra-ui-text-scale, 1)); font-weight: 400; color: inherit; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation .settings-browser__icon { flex: 0 0 16px; width: 16px; height: auto; color: var(--mn-mute); background: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation :is(.settings-browser__icon svg, [data-settings-link] > svg) { width: 16px; height: 16px; stroke-width: 1.5; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link] > svg:last-child { display: none; color: var(--mn-mute); }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link][aria-current] { background: var(--mn-current); box-shadow: var(--mn-current-ring); color: var(--mn-ink); }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link][aria-current] strong { font-weight: 500; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link][aria-current] .settings-browser__icon { color: var(--mn-ink); }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__search { min-height: 32px; height: 32px; padding-left: 10px; border: 0; border-radius: 8px; background: var(--mn-field); box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__search input { min-height: 30px; height: 30px; font-size: calc(14px * var(--zentra-ui-text-scale, 1)); }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__search > svg { width: 16px; height: 16px; stroke-width: 1.5; color: var(--mn-mute); }
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link]:not([aria-current]):hover { background: var(--mn-hover); color: var(--mn-ink); }
+  }
+  @media (min-width: 1101px) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__group { margin-top: 16px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__group + .settings-browser__group { padding-top: 16px; border-top: 1px solid var(--mn-line); }
+  }
+  /* On a phone the list is a list: no row looks chosen, each one leads on with a chevron. */
+  @media (max-width: 1100px) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link] { min-height: 48px; padding: 0 4px 0 12px; border-radius: 0; gap: 14px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link] strong { font-size: calc(16px * var(--zentra-ui-text-scale, 1)); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation .settings-browser__icon { flex-basis: 20px; width: 20px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation .settings-browser__icon svg { width: 20px; height: 20px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link] > svg:last-child { display: block; flex: 0 0 16px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link][aria-current] { background: transparent; box-shadow: none; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__navigation [data-settings-link][aria-current] strong { font-weight: 400; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__search { min-height: 44px; height: 44px; border-radius: 10px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .settings-browser__search input { min-height: 42px; height: 42px; font-size: calc(16px * var(--zentra-ui-text-scale, 1)); }
+  }
+
+  /* ---------- Lists that open: filters and sorting ---------- */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-list-toolbar, .document-list-tools, .finance-navigation__more, .purchase-toolbar, .supplier-visibility, [class*='filter'], [class*='toolbar']) select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 32px;
+    min-height: 32px;
+    padding: 0 32px 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--mn-field) var(--mn-chevron) no-repeat right 10px center / 16px 16px;
+    box-shadow: none;
+    color: var(--mn-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+    text-overflow: ellipsis;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .finance-navigation__more--tools { display: grid; gap: 4px; min-width: 200px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .finance-navigation__more--tools > span { color: var(--mn-mute); font-size: calc(12px * var(--zentra-ui-text-scale, 1)); font-weight: 400; line-height: 16px; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .finance-navigation__more--tools select { width: 100%; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-list-toolbar, .document-list-tools) label > span:first-child { color: var(--mn-mute); font-size: calc(13px * var(--zentra-ui-text-scale, 1)); font-weight: 400; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-list-tools__compact > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    height: 32px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--mn-field);
+    box-shadow: none;
+    color: var(--mn-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-list-tools__compact > button > svg { width: 16px; height: 16px; stroke-width: 1.5; color: var(--mn-mute); }
+
+  /* ---------- The « … » menu ---------- */
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__more > .document-actions__trigger {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-mute);
+    transition: background-color 120ms var(--mn-ease), color 120ms var(--mn-ease);
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__more > .document-actions__trigger[aria-expanded='true'] { background: var(--mn-press); color: var(--mn-ink); }
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__more > .document-actions__trigger:hover { background: var(--mn-hover); color: var(--mn-ink); }
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu {
+    gap: 0;
+    min-width: 220px;
+    padding: 4px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--mn-pop);
+    box-shadow: var(--mn-pop-ring);
+    animation: mn-menu-in 180ms var(--mn-ease);
+    transform-origin: top right;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu[hidden] { display: none; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu :is(.button, a) {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-height: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 400;
+    text-decoration: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu :is(.button, a) > svg { flex: 0 0 16px; width: 16px; height: 16px; stroke-width: 1.5; color: var(--mn-mute); }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu :is(.button--danger, [title^='Supprimer'], [title^='Delete'], [title^='Löschen'], [title^='Elimina']),
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu :is(.button--danger, [title^='Supprimer'], [title^='Delete'], [title^='Löschen'], [title^='Elimina']) > svg { color: var(--mn-danger); }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu :is(.button--danger, [title^='Supprimer'], [title^='Delete'], [title^='Löschen'], [title^='Elimina']) { margin-top: 4px; position: relative; }
+  html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu :is(.button--danger, [title^='Supprimer'], [title^='Delete'], [title^='Löschen'], [title^='Elimina'])::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 10px;
+    right: 10px;
+    border-top: 1px solid var(--mn-line);
+  }
+  @media (hover: hover) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions__menu :is(.button, a):hover:not(:disabled) { background: var(--mn-hover); }
+  }
+  @keyframes mn-menu-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ---------- Phone ---------- */
+  @media (max-width: 860px) {
+    /* The full menu takes the whole screen, like a page, instead of a sheet over the page. */
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar {
+      width: 100vw;
+      max-width: 100vw;
+      padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+      border: 0;
+      border-radius: 0;
+      background: var(--mn-canvas);
+      box-shadow: none;
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .navigation-scrim { background: var(--mn-scrim); backdrop-filter: none; -webkit-backdrop-filter: none; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__search { min-height: 40px; height: 40px; border-radius: 10px; font-size: calc(16px * var(--zentra-ui-text-scale, 1)); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__search kbd { display: none; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav p { margin: 24px 12px 8px; font-size: calc(13px * var(--zentra-ui-text-scale, 1)); line-height: 18px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button {
+      min-height: 44px;
+      height: 44px;
+      gap: 14px;
+      padding: 0 12px;
+      border-radius: 10px;
+      font-size: calc(17px * var(--zentra-ui-text-scale, 1));
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button > svg { flex-basis: 20px; width: 20px; height: 20px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__selection { border-radius: 10px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__nav button > em { font-size: calc(13px * var(--zentra-ui-text-scale, 1)); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar__guide, .personalize-shortcuts, .sidebar__updates, .sidebar__local) { min-height: 40px; padding-inline: 12px; font-size: calc(15px * var(--zentra-ui-text-scale, 1)); gap: 14px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar__guide strong, .sidebar__local strong) { font-size: calc(15px * var(--zentra-ui-text-scale, 1)); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__guide { min-height: 49px; margin-top: 16px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sidebar__guide, .personalize-shortcuts, .sidebar__updates, .sidebar__local) > svg { flex-basis: 20px; width: 20px; height: 20px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .sidebar__close { width: 36px; min-width: 36px; height: 36px; min-height: 36px; border-radius: 18px; background: var(--mn-field); color: var(--mn-ink-2); box-shadow: none; }
+
+    /* The tab bar (phones without Apple's own bar): flat, one hairline, the current tab in ink. */
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .mobile-navigation {
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: auto;
+      max-width: none;
+      transform: none;
+      padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
+      border: 0;
+      border-top: 1px solid var(--mn-line);
+      border-radius: 0;
+      background: var(--mn-bar);
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .mobile-navigation button {
+      min-height: 50px;
+      gap: 3px;
+      padding: 4px 0;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      box-shadow: none;
+      color: var(--mn-mute);
+      font-size: calc(11px * var(--zentra-ui-text-scale, 1));
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .mobile-navigation button > svg { width: 24px; height: 24px; stroke-width: 1.5; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .mobile-navigation button[aria-current]:not([aria-current='false']) { color: var(--mn-ink); background: transparent; font-weight: 600; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .mobile-navigation button[aria-current]:not([aria-current='false']) > svg { stroke-width: 2; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .mobile-navigation__selection { display: none; }
+
+    /* Tabs: one line that scrolls sideways, never a grid of boxes. */
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs, .tab-strip, .team-navigation, .supplier-file__tabs) {
+      display: flex;
+      gap: 20px;
+      padding-inline: 0;
+      grid-template-columns: none;
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-tabs, .section-navigation__tabs, .tab-strip, .team-navigation, .supplier-file__tabs) > button { height: 44px; min-height: 44px; font-size: calc(15px * var(--zentra-ui-text-scale, 1)); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .finance-navigation { display: grid; gap: 12px; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .finance-navigation__more--tools { min-width: 0; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.sales-list-toolbar, .document-list-tools, .finance-navigation__more, .purchase-toolbar, .supplier-visibility, [class*='filter'], [class*='toolbar']) select { height: 44px; min-height: 44px; font-size: calc(16px * var(--zentra-ui-text-scale, 1)); border-radius: 10px; }
+
+    /* « Actions du document »: a plain list, aligned left, the delete in red. */
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details { width: 100%; justify-self: stretch; margin: 0; padding: 0; border: 0; background: transparent; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 44px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--mn-ink-2);
+      font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+      font-weight: 400;
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details > summary > svg { width: 18px; height: 18px; stroke-width: 1.5; color: var(--mn-mute); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details__content {
+      display: grid;
+      gap: 0;
+      padding: 0;
+      text-align: start;
+      animation: mn-list-in 220ms var(--mn-ease);
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details__content > :not(.button) { padding: 0 0 8px; color: var(--mn-mute); font-size: calc(13px * var(--zentra-ui-text-scale, 1)); text-align: start; justify-self: stretch; }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details__content .button {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      width: 100%;
+      min-height: 48px;
+      height: 48px;
+      margin: 0;
+      padding: 0 4px;
+      border: 0;
+      border-top: 1px solid var(--mn-line);
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      color: var(--mn-ink);
+      font-size: calc(16px * var(--zentra-ui-text-scale, 1));
+      font-weight: 400;
+      text-align: start;
+    }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details__content .button > svg { flex: 0 0 18px; width: 18px; height: 18px; stroke-width: 1.5; color: var(--mn-mute); }
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details__content :is(.button--danger, [title^='Supprimer'], [title^='Delete'], [title^='Löschen'], [title^='Elimina']),
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) .document-actions--compact .mobile-details__content :is(.button--danger, [title^='Supprimer'], [title^='Delete'], [title^='Löschen'], [title^='Elimina']) > svg { color: var(--mn-danger); }
+    @keyframes mn-list-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: none; }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html[data-app-theme] .desktop-app[data-experience]:not(#m) :is(.document-actions__menu, .mobile-details__content) { animation: none; }
+  }
+}

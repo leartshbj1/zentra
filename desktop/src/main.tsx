@@ -69,3 +69,4 @@ import './autopilot-aujourdhui.css';
 import './autopilot-nouveautes.css';
 import './design-b.css';
 import './motion.css';
+import './menus-2026.css';

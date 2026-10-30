@@ -356,7 +356,7 @@ const paymentCompany=previewQuery.get('paymentCompany')||'qa-payment-company',pa
 if(paymentGuidedScope)data.workNotesScope=paymentCompany;
 if (!previewQuery.has('appDraftIdentity')) data.workNotesScope ??= 'qa-preview-company';
 const scopedApplication = application;
-document.documentElement.dataset.design = 'b';
+if (!previewQuery.has('ios')) document.documentElement.dataset.design = 'b';
 createRoot(document.getElementById('root')!).render(previewQuery.has('appDraftIdentity') ? <StrictMode>{scopedApplication}</StrictMode> : previewQuery.has('runtimePerformance') ? <Profiler id="workspace" onRender={(_,phase,duration,__,time)=>runtimeCommits.push({phase,duration,time})}>{scopedApplication}</Profiler> : scopedApplication);
 
 import '../src/appearance';
@@ -395,3 +395,4 @@ import '../src/autopilot-aujourdhui.css';
 import '../src/autopilot-nouveautes.css';
 import '../src/design-b.css';
 import '../src/motion.css';
+import '../src/menus-2026.css';
