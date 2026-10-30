@@ -23,7 +23,10 @@ installDiagnosticCapture();
 installFullscreenShortcuts();
 if (!root) throw new Error('Le point de montage de l’application est introuvable.');
 // The grouped design (design-b.css) and its motion (motion.css) key on this attribute.
-document.documentElement.dataset.design = 'b';
+// Not on iPhone and iPad: 1.90.58 made the iOS web view restart in a loop a few seconds after
+// opening, so iOS keeps the 1.90.57 look until that design is proven on a device.
+const appleTouch = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (!appleTouch) document.documentElement.dataset.design = 'b';
 
 createRoot(root).render(
   <StrictMode>

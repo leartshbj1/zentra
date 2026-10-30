@@ -1,4 +1,5 @@
-import { Children, Fragment, cloneElement, isValidElement, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import { Children, Fragment, cloneElement, isValidElement, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, MoreHorizontal } from 'lucide-react';
 import { t, useAppLanguage } from './language';
 
@@ -43,45 +44,53 @@ function hasContent(node: ReactNode): boolean {
 }
 
 function DocumentMoreMenu({ children }: { children: ReactNode }) {
-  const menu = useRef<HTMLDetailsElement>(null);
-  // Placed against the window so a table panel never clips it; opens upwards near the bottom.
-  const [place, setPlace] = useState<CSSProperties>();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  // The panel lives at the top of the app (portal), placed against the window from its button:
+  // animated cards, table panels and status badges can then neither move, clip nor cover it.
+  const [place, setPlace] = useState<CSSProperties>({ position: 'fixed', top: 0, left: 0, visibility: 'hidden' });
+  useLayoutEffect(() => {
+    if (!open || !trigger.current || !panel.current) return;
+    const anchor = trigger.current.getBoundingClientRect();
+    const { offsetHeight: height, offsetWidth: width } = panel.current;
+    const below = window.innerHeight - anchor.bottom;
+    const up = below < height + 16 && anchor.top > below;
+    const left = Math.min(Math.max(8, anchor.right - width), window.innerWidth - width - 8);
+    setPlace(up
+      ? { position: 'fixed', left, top: 'auto', bottom: window.innerHeight - anchor.top + 6 }
+      : { position: 'fixed', left, top: anchor.bottom + 6, bottom: 'auto' });
+    panel.current.querySelector<HTMLElement>('button:not(:disabled)')?.focus({ preventScroll: true });
+  }, [open]);
   useEffect(() => {
-    const close = (event: Event) => {
-      const element = menu.current;
-      if (element?.open && !element.contains(event.target as Node)) element.open = false;
-    };
-    const escape = (event: KeyboardEvent) => {
-      const element = menu.current;
-      if (event.key === 'Escape' && element?.open) { element.open = false; element.querySelector('summary')?.focus(); }
-    };
-    const scrolled = (event: Event) => {
-      const element = menu.current;
-      if (element?.open && !element.contains(event.target as Node)) element.open = false;
-    };
+    if (!open) return;
+    const inside = (target: EventTarget | null) => !!target && (trigger.current?.contains(target as Node) || panel.current?.contains(target as Node));
+    const close = (event: Event) => { if (!inside(event.target)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(false); trigger.current?.focus(); } };
+    const away = () => setOpen(false);
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', escape);
-    window.addEventListener('scroll', scrolled, true);
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); window.removeEventListener('scroll', scrolled, true); };
-  }, []);
-  const toggled = () => {
-    const element = menu.current;
-    if (!element?.open) return;
-    const anchor = element.querySelector('summary')!.getBoundingClientRect();
-    const height = element.querySelector<HTMLElement>('.document-actions__menu')?.offsetHeight ?? 0;
-    const below = window.innerHeight - anchor.bottom;
-    const right = Math.max(8, window.innerWidth - anchor.right);
-    setPlace(below < height + 16 && anchor.top > below
-      ? { position: 'fixed', right, bottom: window.innerHeight - anchor.top + 6, top: 'auto' }
-      : { position: 'fixed', right, top: anchor.bottom + 6 });
-  };
-  return <details ref={menu} className="document-actions__more" onToggle={toggled}>
-    <summary title={t('Autres actions')} aria-label={t('Autres actions')}><MoreHorizontal size={18} aria-hidden="true" /></summary>
-    {/* An action closes the menu; its own dialog or result then takes over. */}
-    <div className="document-actions__menu" style={place} role="group" aria-label={t('Actions du document')} onClick={event => { if ((event.target as HTMLElement).closest('button') && menu.current) menu.current.open = false; }}>
-      {children}
-    </div>
-  </details>;
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', away);
+    return () => {
+      document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape);
+      window.removeEventListener('scroll', close, true); window.removeEventListener('resize', away);
+    };
+  }, [open]);
+  useEffect(() => { if (!open) setPlace(current => ({ ...current, visibility: 'hidden' })); }, [open]);
+  const host = typeof document === 'undefined' ? null : document.querySelector('.desktop-app') ?? document.body;
+  const menu = <div ref={panel} className="document-actions__menu" style={place} hidden={!open} role="group" aria-label={t('Actions du document')}
+    // An action closes the menu; its own dialog or result then takes over.
+    onClick={event => { if ((event.target as HTMLElement).closest('button')) setOpen(false); }}>
+    {children}
+  </div>;
+  return <div className="document-actions__more">
+    <button ref={trigger} type="button" className="document-actions__trigger" aria-haspopup="true" aria-expanded={open}
+      title={t('Autres actions')} aria-label={t('Autres actions')} onClick={() => setOpen(value => !value)}>
+      <MoreHorizontal size={18} aria-hidden="true" />
+    </button>
+    {host ? createPortal(menu, host) : menu}
+  </div>;
 }
 
 export function useCompactLayout() {

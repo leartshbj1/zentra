@@ -74,7 +74,9 @@ function suggestionFrom(raw: unknown): AutopilotReviewSuggestion | undefined {
     unmatched = Object.freeze(rows as string[]);
   }
   const sender = 'sender' in value ? senderFrom(value.sender) : undefined;
-  return Object.freeze({ customer, currency: value.currency, netCents: value.netCents, lines: Object.freeze(lines),
+  // The lines are priced from the catalogue, which is in CHF: a request that mentions euros must not
+  // turn those CHF amounts into a euro quote. The prepared quote always uses CHF.
+  return Object.freeze({ customer, currency: 'CHF' as const, netCents: value.netCents, lines: Object.freeze(lines),
     ...(unmatched ? { unmatched } : {}), ...(sender ? { sender } : {}) });
 }
 export type AutopilotReviewPage = Readonly<{

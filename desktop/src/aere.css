@@ -349,7 +349,10 @@ html[data-app-theme] .desktop-app[data-experience] .document-actions--menu {
 html[data-app-theme] .desktop-app[data-experience] .document-actions__more {
   position: relative;
 }
-html[data-app-theme] .desktop-app[data-experience] .document-actions__more > summary {
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more > .document-actions__trigger {
+  border: 0;
+  padding: 0;
+  background: transparent;
   display: grid;
   place-items: center;
   width: 34px;
@@ -359,18 +362,14 @@ html[data-app-theme] .desktop-app[data-experience] .document-actions__more > sum
   list-style: none;
   cursor: pointer;
 }
-html[data-app-theme] .desktop-app[data-experience] .document-actions__more > summary::-webkit-details-marker {
-  display: none;
-}
-html[data-app-theme] .desktop-app[data-experience] .document-actions__more > summary:hover,
-html[data-app-theme] .desktop-app[data-experience] .document-actions__more[open] > summary {
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more > .document-actions__trigger:hover,
+html[data-app-theme] .desktop-app[data-experience] .document-actions__more > .document-actions__trigger[aria-expanded='true'] {
   background: var(--apple-grouped);
 }
+/* Placed by the app against the window (portal at the top of the app), above every row and badge. */
 html[data-app-theme] .desktop-app[data-experience] .document-actions__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 40;
+  position: fixed;
+  z-index: 1000;
   display: grid;
   gap: 2px;
   min-width: 240px;
@@ -616,3 +615,6 @@ html[data-app-theme] .desktop-app[data-experience] .autopilot-choice label:not(:
   color: var(--zp-quiet-label);
 }
 .integrations-settings__links{display:flex;flex-wrap:wrap;gap:8px 20px;margin:14px 0 4px;font-size:14px}.integrations-settings__links a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+html[data-app-theme] .desktop-app[data-experience] .document-actions__menu[hidden] {
+  display: none;
+}

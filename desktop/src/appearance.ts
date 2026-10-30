@@ -49,7 +49,7 @@ function apply() {
   listeners.forEach(notify=>notify());
 }
 /** Light and dark cross-fade where the engine supports view transitions (motion.css sets the timing). */
-function applyWithCrossFade(){const start=(document as Document&{startViewTransition?:(update:()=>void)=>unknown}).startViewTransition;if(typeof start!=='function'||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){apply();return;}try{start.call(document,apply);}catch{apply();}}
+function applyWithCrossFade(){const start=(document as Document&{startViewTransition?:(update:()=>void)=>unknown}).startViewTransition;if(typeof start!=='function'||document.documentElement.dataset.design!=='b'||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){apply();return;}try{start.call(document,apply);}catch{apply();}}
 export function setAppearance(value:Appearance) {if(!valid(value))return false;preference=value;let saved=true;try{localStorage.setItem(key,value);}catch{saved=false;}applyWithCrossFade();return saved;}
 export function useAppearance(){return useSyncExternalStore(notify=>{listeners.add(notify);return()=>{listeners.delete(notify);};},()=>preference);}
 media.addEventListener('change',()=>{if(preference==='system')apply();});
