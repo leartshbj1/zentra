@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { autopilotCreatedQuote, autopilotCustomer, autopilotNewClient, autopilotRequestStage, linkAutopilotInvoice, markAutopilotDocumentSent, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { autopilotCreatedQuote, autopilotCustomer, autopilotDeposit, quoteTermsWithDeposit, withAutopilotDiscount, autopilotNewClient, autopilotRequestStage, linkAutopilotInvoice, markAutopilotDocumentSent, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import type { AutopilotReviewSuggestion } from './autopilotReview';
 import type { CatalogItem, Client } from './types';
+import { documentTotals } from './utils';
 
 const client = (id: string, values: Partial<Client>) => ({ id, name: '', company: '', email: '', ...values }) as Client;
 const article = (id: string, name: string) => ({ id, name, unit: 'pce', salesPriceCents: 4500, vatBp: 810 }) as CatalogItem;
@@ -91,5 +92,46 @@ describe('sent from any screen', () => {
     expect(markAutopilotDocumentSent('invoices', 'i1', 9)).toBe(true);
     expect(autopilotCreatedQuote('org', 'p1')?.invoiceSentAt).toBe(9);
     expect(markAutopilotDocumentSent('reminders', 'i1', 9)).toBe(false);
+  });
+});
+
+describe('discount and deposit chosen with the quote', () => {
+  const line = (id: string, quantity: number, unitPriceCents: number, vatRateBp = 810, discountBp = 0) =>
+    ({ id, catalogItemId: null, description: id, quantity, unit: 'pce', unitPriceCents, discountBp, vatRateBp });
+
+  it('puts a percentage on every line and keeps a list discount already there', () => {
+    const lines = withAutopilotDiscount([line('a', 2, 10_000), line('b', 1, 5_000, 810, 1000)], { unit: 'percent', value: 1000 });
+    expect(lines.map(row => row.discountBp)).toEqual([1000, 1900]);
+  });
+
+  it('turns an amount into the percentage that comes closest to it', () => {
+    const lines = [line('a', 3, 33_333), line('b', 1, 12_345, 260)];
+    const before = documentTotals(lines).netCents;
+    const after = documentTotals(withAutopilotDiscount(lines, { unit: 'amount', value: 10_000 })).netCents;
+    expect(Math.abs(before - after - 10_000)).toBeLessThanOrEqual(6);
+    expect(withAutopilotDiscount(lines, undefined)).toEqual(lines);
+  });
+
+  it('never discounts more than the quote', () => {
+    const lines = withAutopilotDiscount([line('a', 1, 1_000)], { unit: 'amount', value: 50_000 });
+    expect(documentTotals(lines).netCents).toBe(0);
+  });
+
+  it('computes the deposit like the deposit invoice: each line net, then its VAT', () => {
+    const lines = [line('a', 1, 100_000), line('b', 1, 10_000, 0)];
+    expect(autopilotDeposit(lines, { unit: 'percent', value: 3000 })).toEqual({ bp: 3000, amountCents: 30_000 + 2_430 + 3_000 });
+    const asAmount = autopilotDeposit(lines, { unit: 'amount', value: 50_000 })!;
+    expect(asAmount.bp).toBe(Math.round(50_000 * 10_000 / documentTotals(lines).totalCents));
+    expect(Math.abs(asAmount.amountCents - 50_000)).toBeLessThanOrEqual(10);
+    expect(autopilotDeposit(lines, undefined)).toBeNull();
+  });
+
+  it('writes the deposit in the quote terms and keeps it for the invoice', () => {
+    expect(quoteTermsWithDeposit('Merci de votre confiance.', { bp: 3000, amountCents: 35_430 }, 'CHF'))
+      .toMatch(/^Merci de votre confiance\.\n\nAcompte de 30 % à la commande, soit .*354\.30.*\.$/);
+    saveAutopilotCreatedQuote('org', 'p1', { quoteId: 'q1', clientId: 'c1', depositBp: 3000 });
+    expect(autopilotCreatedQuote('org', 'p1')).toEqual({ quoteId: 'q1', clientId: 'c1', depositBp: 3000 });
+    saveAutopilotCreatedQuote('org', 'p2', { quoteId: 'q2', clientId: 'c1', depositBp: 20_000 });
+    expect(autopilotCreatedQuote('org', 'p2')).toEqual({ quoteId: 'q2', clientId: 'c1' });
   });
 });

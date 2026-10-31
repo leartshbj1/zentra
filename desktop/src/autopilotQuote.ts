@@ -2,6 +2,8 @@ import type { AutopilotReviewSuggestion } from './autopilotReview';
 import type { AutopilotLineLink } from './autopilotLinks';
 import { phraseQuantity } from './autopilotLinks';
 import type { CatalogItem, Client, DocumentLine } from './types';
+import { documentLineTotals, documentTotals, formatMoney, roundBasisPoints } from './utils';
+import { getAppLocale, t } from './language';
 
 /**
  * "Créer le devis" on a request in review: the quote is written in one step,
@@ -22,6 +24,61 @@ export function autopilotQuoteLines(suggestion: AutopilotReviewSuggestion, links
       unit: article.unit, unitPriceCents: article.salesPriceCents, discountBp: 0, vatRateBp: article.vatBp }] : [];
   });
   return [...matched, ...linked];
+}
+
+/**
+ * A discount or a deposit chosen just before "Créer le devis": a percentage in
+ * basis points, or an amount in cents (the discount before VAT, the deposit on the total).
+ */
+export type AutopilotQuoteAdjustment = Readonly<{ unit: 'percent' | 'amount'; value: number }>;
+export type AutopilotQuoteExtras = Readonly<{ discount?: AutopilotQuoteAdjustment; deposit?: AutopilotQuoteAdjustment }>;
+
+const clampBp = (value: number) => Math.max(0, Math.min(10_000, Math.round(value)));
+/** A list discount already on the line is kept: both apply one after the other. */
+const stacked = (current: number, added: number) => clampBp(current + added - current * added / 10_000);
+const withDiscountBp = (lines: readonly DocumentLine[], bp: number) => lines.map(line => ({ ...line, discountBp: stacked(line.discountBp ?? 0, bp) }));
+
+/**
+ * The quote lines with the chosen discount on every line, so the quote, the
+ * PDF and the invoice show it the usual way. An amount becomes the percentage
+ * whose rounded result comes closest to it.
+ */
+export function withAutopilotDiscount(lines: readonly DocumentLine[], discount: AutopilotQuoteAdjustment | undefined): DocumentLine[] {
+  if (!discount || discount.value <= 0) return lines.map(line => ({ ...line }));
+  if (discount.unit === 'percent') return withDiscountBp(lines, clampBp(discount.value));
+  const before = documentTotals([...lines]);
+  const net = before.netCents;
+  if (net <= 0) return lines.map(line => ({ ...line }));
+  const wanted = Math.min(discount.value, net), first = clampBp(wanted * 10_000 / net);
+  let best = first, gap = Infinity;
+  for (let bp = Math.max(1, first - 25); bp <= Math.min(10_000, first + 25); bp++) {
+    const off = Math.abs(before.netCents - documentTotals(withDiscountBp(lines, bp)).netCents - wanted);
+    if (off < gap) { best = bp; gap = off; }
+  }
+  return withDiscountBp(lines, best);
+}
+
+/**
+ * The deposit as the percentage the invoice will use, and its amount computed
+ * like the deposit invoice does (each line's net, then its VAT).
+ */
+export function autopilotDeposit(lines: readonly DocumentLine[], deposit: AutopilotQuoteAdjustment | undefined): { bp: number; amountCents: number } | null {
+  if (!deposit || deposit.value <= 0) return null;
+  const total = documentTotals([...lines]).totalCents;
+  const bp = deposit.unit === 'percent' ? clampBp(deposit.value) : total > 0 ? clampBp(deposit.value * 10_000 / total) : 0;
+  if (bp <= 0) return null;
+  const amountCents = lines.reduce((sum, line) => {
+    const net = roundBasisPoints(documentLineTotals(line).netCents, bp);
+    return sum + net + roundBasisPoints(net, Math.max(0, line.vatRateBp));
+  }, 0);
+  return { bp, amountCents };
+}
+
+/** The quote's terms with the deposit asked at order, so the client reads it on the quote. */
+export function quoteTermsWithDeposit(terms: string, deposit: { bp: number; amountCents: number }, currency: string) {
+  const percent = new Intl.NumberFormat(getAppLocale(), { maximumFractionDigits: 2 }).format(deposit.bp / 100);
+  const sentence = t('Acompte de {percent} % à la commande, soit {amount}.', { percent, amount: formatMoney(deposit.amountCents, currency) });
+  return [terms.trim(), sentence].filter(Boolean).join('\n\n');
 }
 
 const normal = (value: string | undefined | null, locale: string) => (value ?? '').trim().toLocaleLowerCase(locale);
@@ -65,6 +122,7 @@ export function autopilotNewClient(id: string, customer: AutopilotCustomer) {
 
 /** Quotes created from a request, kept on this device so a second click opens the same quote. */
 export type AutopilotCreatedQuote = Readonly<{ quoteId: string; clientId: string;
+  /** Deposit chosen with the quote: the invoice made once it is accepted is this deposit. */ depositBp?: number;
   /** Unix ms when the quote e-mail was accepted; the request is then done. */ sentAt?: number;
   /** The invoice made once the client accepted the quote, and when it was sent. */ invoiceId?: string; invoiceSentAt?: number }>;
 type Store = Record<string, Record<string, AutopilotCreatedQuote>>;
@@ -82,7 +140,8 @@ export function autopilotCreatedQuote(organizationId: string, proposalId: string
   if (!entry || !isId(entry.quoteId) || !isId(entry.clientId)) return null;
   const time = (value: unknown) => Number.isSafeInteger(value) && (value as number) > 0 ? value as number : undefined;
   const sentAt = time(entry.sentAt), invoiceSentAt = time(entry.invoiceSentAt), invoiceId = isId(entry.invoiceId) ? entry.invoiceId : undefined;
-  return { quoteId: entry.quoteId, clientId: entry.clientId, ...(sentAt ? { sentAt } : {}),
+  const depositBp = Number.isSafeInteger(entry.depositBp) && (entry.depositBp as number) > 0 && (entry.depositBp as number) <= 10_000 ? entry.depositBp : undefined;
+  return { quoteId: entry.quoteId, clientId: entry.clientId, ...(depositBp ? { depositBp } : {}), ...(sentAt ? { sentAt } : {}),
     ...(invoiceId ? { invoiceId } : {}), ...(invoiceId && invoiceSentAt ? { invoiceSentAt } : {}) };
 }
 /** The quote (or, later, the invoice) of this request was sent by e-mail. */

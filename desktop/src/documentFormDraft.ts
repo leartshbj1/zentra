@@ -20,7 +20,8 @@ export type DocumentFormDraft = {
 };
 /** Values to start a new document with; the person reviews and saves them. */
 export type DocumentSeed = Readonly<{ id: string; clientId?: string; newClientName?: string; title?: string; lines: readonly DocumentLine[];
-  /** The id the saved document will have, so the caller can follow it. */ creationId?: string }>;
+  /** The id the saved document will have, so the caller can follow it. */ creationId?: string;
+  /** Terms to start with instead of the usual footer. */ terms?: string }>;
 export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings: AppSettings, emptyLineId: string, item?: Quote | Invoice, quoteSource?: Quote, initialProject?: Project, initialStep = 0, quickClientCreationId?: string, documentCreationId?:string, seed?: DocumentSeed): DocumentFormDraft {
   const current = item ?? quoteSource, invoice = entity === 'invoices' ? item as Invoice | undefined : undefined;
   const seeded = !current && seed?.lines.length ? seed : undefined;
@@ -36,7 +37,7 @@ export function initialDocumentFormDraft(entity: 'quotes' | 'invoices', settings
     issueDate, dueDate: entity === 'quotes' ? (item as Quote | undefined)?.validUntil || addDaysIso(issueDate, settings.billing.quoteValidityDays) : invoice?.dueDate || addDaysIso(issueDate, settings.billing.paymentTermsDays),
     invoiceType: invoice?.type ?? '', depositPercentage: percentage ? String(percentage / 100) : invoice?.type === 'deposit' ? '100' : '30',
     serviceDateFrom: invoice?.serviceDateFrom ?? '', serviceDateTo: invoice?.serviceDateTo ?? '', originalInvoiceId: invoice?.originalInvoiceId ?? '',
-    footerText: current?.terms ?? settings.billing.defaultFooter, footerTemplateId: '', footerTemplateName: '', step: initialStep,
+    footerText: current?.terms ?? seeded?.terms ?? settings.billing.defaultFooter, footerTemplateId: '', footerTemplateName: '', step: initialStep,
     documentTitle: current?.title ?? seeded?.title ?? '', documentNotes: current?.notes ?? '', numberInputs: {},
     ...(current?.showMeasurements ? { showMeasurements: true } : {}),
   };

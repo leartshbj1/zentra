@@ -108,7 +108,7 @@ export type AutopilotTodayProps = {
   onNextReviews?: () => Promise<void>; onRefresh?: () => Promise<void>;
   onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
   canAddCatalogue?: boolean;
-  onCreateQuote?: (item: AutopilotReviewItem) => void;
+  onCreateQuote?: (item: AutopilotReviewItem, extras?: import('./autopilotQuote').AutopilotQuoteExtras) => void;
   createdQuote?: (item: AutopilotRequestKey) => AutopilotCreatedQuoteView | null;
   onOpenCreatedQuote?: (item: AutopilotRequestKey) => void; onSendCreatedQuote?: (item: AutopilotRequestKey) => void;
   acceptances?: readonly AutopilotAcceptanceCard[]; onChooseAcceptance?: (sourceId: string, quoteId: string | null) => void;

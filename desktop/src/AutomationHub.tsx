@@ -44,7 +44,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
     onRefresh: () => Promise<void>; onNextReviews: () => Promise<void>; onOpenQuote: (id: string) => void;
     onCatalogue?: (item: Pick<AutopilotReviewItem, 'proposalId' | 'sourceId'>, mode: 'browse' | 'create') => void;
     canAddCatalogue?: boolean;
-    onCreateQuote?: (item: AutopilotReviewItem) => void;
+    onCreateQuote?: (item: AutopilotReviewItem, extras?: import('./autopilotQuote').AutopilotQuoteExtras) => void;
     createdQuote?: (item: AutopilotRequestKey) => AutopilotCreatedQuoteView | null;
     onOpenCreatedQuote?: (item: AutopilotRequestKey) => void;
     onSendCreatedQuote?: (item: AutopilotRequestKey) => void;

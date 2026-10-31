@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus, type AutopilotCreatedQuoteView } from './AutopilotPanel';
+import { autopilotQuoteExtrasCopy } from './AutopilotQuoteExtras';
 import { autopilotCopy, autopilotCatalogueCopy } from './autopilotPresentation';
 import type { AutopilotView } from './autopilotView';
 const locale = vi.hoisted(() => ({ language: 'fr' }));
@@ -122,7 +123,10 @@ it('still shows a linked line after leaving and coming back, and offers the quot
   const button = [...host.querySelectorAll('button')].find(item => item.textContent === copy.createQuote)!;
   expect(button.className).toContain('is-ready');
   await act(async () => { button.click(); });
+  expect(create).not.toHaveBeenCalled();
+  await act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === autopilotQuoteExtrasCopy('fr').no)!.click(); });
   expect(create).toHaveBeenCalledOnce();
+  expect(create.mock.calls[0][1]).toBeUndefined();
   window.localStorage.clear();
 });
 it('offers the quote for « comme d’habitude » even when the e-mail names no item', async () => {
@@ -134,7 +138,49 @@ it('offers the quote for « comme d’habitude » even when the e-mail names no 
   expect(host.textContent).toContain(autopilotCatalogueCopy('fr').usual);
   const button = [...host.querySelectorAll('button')].find(item => item.textContent === copy.createQuote)!;
   await act(async () => { button.click(); });
+  await act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === autopilotQuoteExtrasCopy('fr').no)!.click(); });
   expect(create).toHaveBeenCalledOnce();
+});
+it('asks for a discount or a deposit before creating the quote, in one small step', async () => {
+  const copy = autopilotCopy('fr'), extras = autopilotQuoteExtrasCopy('fr');
+  const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0],
+    suggestion: { customer: { kind: 'new', name: 'Atelier Rive' }, currency: 'CHF', netCents: 800,
+      lines: [{ articleId: 'a1', description: 'Pose', unit: 'h', quantityMilli: 1000, unitPriceCents: 800, taxRateBp: 810, netCents: 800 }] } }] } as AutopilotView['reviews'];
+  const create = vi.fn();
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}} onCreateQuote={create} />);
+  const press = (label: string) => act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === label)!.click(); });
+  const type = (index: number, value: string) => act(async () => { const input = host.querySelectorAll<HTMLInputElement>('.quote-extras input')[index];
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await press(copy.createQuote);
+  expect(host.textContent).toContain(extras.ask);
+  expect(document.activeElement?.textContent).toBe(extras.no);
+  await press(extras.yes);
+  await type(0, '150');
+  expect(host.textContent).toContain(extras.invalid);
+  expect(host.querySelector<HTMLButtonElement>('.quote-extras button[type="submit"]')!.disabled).toBe(true);
+  await press('CHF');
+  await type(1, '12,5');
+  expect(host.textContent).not.toContain(extras.invalid);
+  await act(async () => { host.querySelector<HTMLFormElement>('.quote-extras')!.requestSubmit(); });
+  expect(create).toHaveBeenCalledWith(expect.objectContaining({ proposalId: reviews!.items[0].proposalId }),
+    { discount: { unit: 'amount', value: 15000 }, deposit: { unit: 'percent', value: 1250 } });
+});
+it('reads only the fields the person filled, and Annuler goes back to the button', async () => {
+  const copy = autopilotCopy('fr'), extras = autopilotQuoteExtrasCopy('fr');
+  const reviews = { ...state.reviews!, items: [{ ...state.reviews!.items[0],
+    suggestion: { customer: null, currency: 'CHF', netCents: 800,
+      lines: [{ articleId: 'a1', description: 'Pose', unit: 'h', quantityMilli: 1000, unitPriceCents: 800, taxRateBp: 810, netCents: 800 }] } }] } as AutopilotView['reviews'];
+  const create = vi.fn();
+  const { host } = await mount(<AutopilotReviews state={{ ...state, reviews }} organizationId="company-a" onOpenSource={async () => {}} onCreateQuote={create} />);
+  const press = (label: string) => act(async () => { [...host.querySelectorAll('button')].find(item => item.textContent === label)!.click(); });
+  await press(copy.createQuote); await press(extras.yes); await press(extras.cancel);
+  expect(host.querySelector('.quote-extras')).toBeNull();
+  expect(create).not.toHaveBeenCalled();
+  await press(copy.createQuote); await press(extras.yes);
+  await act(async () => { const input = host.querySelectorAll<HTMLInputElement>('.quote-extras input')[1];
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '30'); input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await act(async () => { host.querySelector<HTMLFormElement>('.quote-extras')!.requestSubmit(); });
+  expect(create.mock.calls[0][1]).toEqual({ deposit: { unit: 'percent', value: 3000 } });
 });
 it('after the quote is created, offers to send it by e-mail or open it instead of creating it again', async () => {
   const copy = autopilotCopy('fr');

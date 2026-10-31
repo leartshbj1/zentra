@@ -166,6 +166,7 @@ export const documentEditorTranslations: Record<string, readonly [string, string
   'Prestation du {from} au {to}': ['Leistung vom {from} bis {to}', 'Prestazione dal {from} al {to}', 'Service from {from} to {to}'],
   'Avoir lié à {number}': ['Gutschrift zu {number}', 'Nota di credito collegata a {number}', 'Credit note linked to {number}'],
   'Acompte de {percentage} % sur une base TTC de {amount}': ['Anzahlung von {percentage} % auf eine Basis von {amount} inkl. MWST', 'Acconto del {percentage}% su una base IVA inclusa di {amount}', 'Deposit of {percentage}% on a basis of {amount} incl. VAT'],
+  'Acompte de {percent} % à la commande, soit {amount}.': ['Anzahlung von {percent} % bei Auftragserteilung, d. h. {amount}.', 'Acconto del {percent} % all’ordine, pari a {amount}.', 'Deposit of {percent} % on order, i.e. {amount}.'],
   'Prestation {number}': ['Leistung {number}', 'Prestazione {number}', 'Service {number}'],
   'Enregistrez le brouillon pour ouvrir son aperçu et exporter un PDF. Le numéro définitif sera attribué à l’émission.': ['Speichern Sie den Entwurf, um die Vorschau zu öffnen und ein PDF zu exportieren. Die endgültige Nummer wird bei der Ausstellung vergeben.', 'Salva la bozza per aprire l’anteprima ed esportare un PDF. Il numero definitivo sarà assegnato all’emissione.', 'Save the draft to open its preview and export a PDF. The final number will be assigned when issued.'],
   'Brouillon piloté depuis la commande': ['Entwurf über den Auftrag verwaltet', 'Bozza gestita dall’ordine', 'Draft managed from the order'],

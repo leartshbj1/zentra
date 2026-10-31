@@ -4,7 +4,8 @@ import { useAppLanguage, getAppLocale } from './language';
 import { autopilotCopy, autopilotCatalogueCopy, autopilotReviewReason } from './autopilotPresentation';
 import { normalizeAutopilotReviewPage, type AutopilotReviewItem, type AutopilotRequestKey } from './autopilotReview';
 import { autopilotLineLinks, saveAutopilotLineLink, type AutopilotLineLink } from './autopilotLinks';
-import { autopilotRequestStage } from './autopilotQuote';
+import { autopilotRequestStage, type AutopilotQuoteExtras } from './autopilotQuote';
+import { AutopilotQuoteAsk, AutopilotQuoteExtrasForm, autopilotQuoteExtrasCopy } from './AutopilotQuoteExtras';
 import { AutopilotSignals, type AutopilotSignalCard } from './AutopilotSignalList';
 import { AutopilotActionList, type AutopilotActionCard } from './AutopilotActionList';
 import { AutopilotCommandBar } from './AutopilotCommandBar';
@@ -158,7 +159,7 @@ function AcceptanceChoice({ card, disabled, onChoose }: { card: AutopilotAccepta
 /** A request whose quote the client accepted: the invoice is made, then sent, the same way. */
 function AcceptedRequest({ quote, disabled, onCreate, onSend, onOpen }: { quote: AutopilotCreatedQuoteView; disabled: boolean;
   onCreate?: () => void; onSend?: () => void; onOpen?: () => void }) {
-  const copy = autopilotCopy(useAppLanguage());
+  const language = useAppLanguage(), copy = autopilotCopy(language);
   const invoice = quote.invoice;
   return <li data-state="accepted">
     <div className="quote-autopilot__row">
@@ -166,7 +167,7 @@ function AcceptedRequest({ quote, disabled, onCreate, onSend, onOpen }: { quote:
         <span>{invoice ? (invoice.issued ? copy.invoiceDone.replace('{number}', invoice.number) : `${copy.invoiceDraftDone}. ${copy.sendInvoiceHint}`) : copy.rowAccepted}</span></div>
       <div className="quote-autopilot__row-action">
         {invoice ? onSend && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onSend}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>
-          : onCreate && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onCreate}>{copy.createInvoice}</button>}
+          : onCreate && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={disabled} onClick={onCreate}>{quote.depositBp ? autopilotQuoteExtrasCopy(language).depositInvoice : copy.createInvoice}</button>}
       </div>
     </div>
     {invoice && onOpen && <div className="quote-autopilot__request-actions"><button type="button" disabled={disabled} onClick={onOpen}>{copy.openInvoice}</button></div>}
@@ -175,6 +176,7 @@ function AcceptedRequest({ quote, disabled, onCreate, onSend, onOpen }: { quote:
 
 /** What the review card shows about the quote created from a request. */
 export type AutopilotCreatedQuoteView = Readonly<{ number: string; issued: boolean; clientEmail: string; clientName?: string; sentAt?: number;
+  /** A deposit was chosen with the quote: the invoice once accepted is the deposit invoice. */ depositBp?: number;
   /** The client accepted the quote; an invoice is the next step. */ accepted?: boolean;
   invoice?: Readonly<{ number: string; issued: boolean }>; invoiceSentAt?: number }>;
 
@@ -202,7 +204,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
   followUpSummary?: string;
   onFollowUp?: (key: string, actionId: string) => void;
   /** Creates the quote at once, with its client and lines. */
-  onCreateQuote?: (item: AutopilotReviewItem) => void;
+  onCreateQuote?: (item: AutopilotReviewItem, extras?: AutopilotQuoteExtras) => void;
   /** The quote already created from this request, if any. */
   createdQuote?: (item: AutopilotRequestKey) => AutopilotCreatedQuoteView | null;
   onOpenCreatedQuote?: (item: AutopilotRequestKey) => void;
@@ -228,6 +230,9 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
   };
   const page = useMemo(() => normalizeAutopilotReviewPage(state.reviews, organizationId), [state.reviews, organizationId]);
   const [opening, setOpening] = useState<string | null>(null), [openFailed, setOpenFailed] = useState(false);
+  // "Créer le devis" first asks, in one line, for a discount or a deposit.
+  const [extras, setExtras] = useState<{ proposalId: string; step: 'ask' | 'choose' } | null>(null);
+  const createQuote = (item: AutopilotReviewItem, chosen?: AutopilotQuoteExtras) => { setExtras(null); onCreateQuote!(item, chosen); };
   const epoch = useRef(0);
   useEffect(() => { epoch.current++; setOpening(null); setOpenFailed(false); return () => { epoch.current++; }; }, [organizationId]);
   const open = async (proposalId: string, sourceId: string) => {
@@ -269,10 +274,14 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
               <div className="quote-autopilot__row-text"><span className="quote-autopilot__kind">{copy.kindSales}</span><strong>{title}</strong><span>{sentence}</span></div>
               <div className="quote-autopilot__row-action">
                 {quote ? onSendCreatedQuote && <button type="button" className="quote-autopilot__create-quote is-ready" disabled={opening !== null} onClick={() => onSendCreatedQuote(item)}><Mail size={16} aria-hidden="true" />{copy.sendQuote}</button>
-                  : canQuote ? <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'} disabled={opening !== null} onClick={() => onCreateQuote!(item)}>{copy.createQuote}</button>
+                  : canQuote ? extras?.proposalId === item.proposalId
+                    ? extras.step === 'ask' && <AutopilotQuoteAsk disabled={opening !== null} onNo={() => createQuote(item)} onYes={() => setExtras({ proposalId: item.proposalId, step: 'choose' })} />
+                    : <button type="button" className={linksDone ? 'quote-autopilot__create-quote is-ready' : 'quote-autopilot__create-quote'} disabled={opening !== null} onClick={() => setExtras({ proposalId: item.proposalId, step: 'ask' })}>{copy.createQuote}</button>
                     : !needsLinks ? <button type="button" className="quote-autopilot__create-quote is-ready" disabled={opening !== null} onClick={() => { void open(item.proposalId, item.sourceId); }}>{copy.openRequest}<ArrowUpRight size={16} aria-hidden="true" /></button> : null}
               </div>
             </div>
+            {!quote && canQuote && extras?.proposalId === item.proposalId && extras.step === 'choose' && <AutopilotQuoteExtrasForm currency={item.suggestion?.currency ?? 'CHF'}
+              disabled={opening !== null} onCreate={chosen => createQuote(item, chosen)} onCancel={() => setExtras(null)} />}
             {!quote && missing.length && (onChooseArticle || onCreateArticle) ? <UnmatchedLines phrases={missing} catalogue={catalogueArticles} disabled={opening !== null} onChoose={onChooseArticle} links={links} onLinked={remember(item.proposalId)}
               onCreate={onCreateArticle ? value => onCreateArticle(item, value) : undefined} /> : null}
             <details className="quote-autopilot__more">

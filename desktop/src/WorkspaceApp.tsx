@@ -96,7 +96,7 @@ import type { AutopilotActionCard } from './AutopilotActionList';
 import { proposeForSignal, saveSignalDecision, signalDecisions, signalSettled, type MailSignal } from './autopilotSignals';
 import type { AutopilotSignalCard } from './AutopilotSignalList';
 import { acceptanceDecisions, acceptanceKey, acceptanceSettles, matchAcceptance, saveAcceptanceDecision, type AutopilotAcceptance } from './autopilotAcceptance';
-import { AUTOPILOT_FORM_CLIENT, AUTOPILOT_SENT_EVENT, autopilotCreatedQuote, autopilotCustomer, autopilotLinkedRequest, autopilotNewClient, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
+import { AUTOPILOT_FORM_CLIENT, AUTOPILOT_SENT_EVENT, autopilotCreatedQuote, autopilotDeposit, quoteTermsWithDeposit, withAutopilotDiscount, type AutopilotQuoteExtras, autopilotCustomer, autopilotLinkedRequest, autopilotNewClient, linkAutopilotInvoice, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import { prepareDocumentCreationRequest, type DocumentCreationInput } from './documentCreationRequest';
 import './first-client-clarity.css';
 import { WorkNotesStore, persistNoteDrafts, readNoteDrafts } from './workNotes';
@@ -896,7 +896,8 @@ function WorkspaceContent({
   // "Créer le devis" from Autopilote: the ordinary quote form, filled from the
   // suggestion. The person checks and saves it; nothing is created before that.
   // "Créer le devis": the quote is written at once, with its client, then can be sent.
-  const createAutopilotQuote = async (item: AutopilotReviewItem) => {
+  // A discount chosen before goes on every line; a deposit is written in the quote's terms and makes the invoice, once accepted, a deposit invoice.
+  const createAutopilotQuote = async (item: AutopilotReviewItem, extras?: AutopilotQuoteExtras) => {
     const suggestion = item.suggestion;
     if (!suggestion || busy || modal || readOnly || !autopilotContext) return;
     const organizationId = autopilotContext.organizationId, copy = autopilotCopy(getAppLanguage());
@@ -912,11 +913,12 @@ function WorkspaceContent({
     const match = reusable ? undefined : findAutopilotClient(current.clients, customer, locale);
     if (match === 'ambiguous') {
       // Several clients fit: the person picks one in the ordinary quote form, whose quote is then followed.
-      const quoteId = createId();
-      saveAutopilotCreatedQuote(organizationId, item.proposalId, { quoteId, clientId: AUTOPILOT_FORM_CLIENT });
+      const quoteId = createId(), seeded = withAutopilotDiscount(lines, extras?.discount), deposit = autopilotDeposit(seeded, extras?.deposit);
+      saveAutopilotCreatedQuote(organizationId, item.proposalId, { quoteId, clientId: AUTOPILOT_FORM_CLIENT, ...(deposit ? { depositBp: deposit.bp } : {}) });
       setNotice({ tone: 'warning', text: copy.quoteAmbiguousCustomer });
       setSearch(''); setView('quotes');
-      setModal({ type: 'document', entity: 'quotes', seed: { id: item.proposalId + ':' + quoteId, creationId: quoteId, lines } });
+      setModal({ type: 'document', entity: 'quotes', seed: { id: item.proposalId + ':' + quoteId, creationId: quoteId, lines: seeded,
+        ...(deposit ? { terms: quoteTermsWithDeposit(workspaceRef.current.settings?.billing.defaultFooter ?? '', deposit, suggestion.currency) } : {}) } });
       return;
     }
     // The same client on a retry, so a second click never makes a second client.
@@ -939,13 +941,15 @@ function WorkspaceContent({
     const settings = workspaceRef.current.settings, client = workspaceRef.current.clients.find(row => row.id === planned.clientId);
     // Les prix de la liste du client, comme dans le formulaire.
     const list = clientPriceList(workspaceRef.current.priceLists, planned.clientId);
-    const priced = lines.map(line => applyPriceList(line, list));
+    const priced = withAutopilotDiscount(lines.map(line => applyPriceList(line, list)), extras?.discount);
+    const deposit = autopilotDeposit(priced, extras?.deposit);
+    if (deposit) saveAutopilotCreatedQuote(organizationId, item.proposalId, { ...planned, depositBp: deposit.bp });
     const issueDate = todayIso(), totals = documentTotals(priced);
     const data: Record<string, unknown> = { clientId: planned.clientId, projectId: null,
       title: t('Devis – {client}', { client: client?.company || client?.name || '' }), status: 'draft', issueDate,
       validUntil: addDaysIso(issueDate, settings?.billing.quoteValidityDays ?? 30), currency: suggestion.currency,
       subtotalCents: totals.subtotalCents, discountCents: totals.discountCents, vatCents: totals.vatCents, totalCents: totals.totalCents,
-      notes: '', terms: settings?.billing.defaultFooter ?? '' };
+      notes: '', terms: deposit ? quoteTermsWithDeposit(settings?.billing.defaultFooter ?? '', deposit, suggestion.currency) : settings?.billing.defaultFooter ?? '' };
     const created = await act(origin => {
       const request = prepareDocumentCreationRequest(planned.quoteId,
         desktopApi.prepareDocumentSaveInput('quotes', data, priced) as DocumentCreationInput, origin.workspaceScope, memberId);
@@ -966,7 +970,7 @@ function WorkspaceContent({
     const client = quote && workspace.clients.find(row => row.id === quote.clientId);
     const invoice = quote && entry.invoiceId ? workspace.invoices.find(row => row.id === entry.invoiceId) : undefined;
     return quote ? { number: quote.number, issued: quote.status !== 'draft', clientEmail: client?.email ?? '',
-      clientName: client?.company || client?.name || '', ...(entry.sentAt ? { sentAt: entry.sentAt } : {}),
+      clientName: client?.company || client?.name || '', ...(entry.sentAt ? { sentAt: entry.sentAt } : {}), ...(entry.depositBp ? { depositBp: entry.depositBp } : {}),
       accepted: quote.status === 'accepted' || !!invoice,
       ...(invoice ? { invoice: { number: invoice.number, issued: invoice.status !== 'draft' } } : {}),
       ...(invoice && entry.invoiceSentAt ? { invoiceSentAt: entry.invoiceSentAt } : {}) } : null;
@@ -981,7 +985,7 @@ function WorkspaceContent({
       || workspaceRef.current.invoices.find(row => row.quoteId === quote.id && row.type !== 'credit_note' && row.status !== 'cancelled');
     if (existing) { linkAutopilotInvoice(organizationId, item.proposalId, existing.id); setAutopilotQuotesVersion(version => version + 1); return; }
     const before = new Set(workspaceRef.current.invoices.map(row => row.id));
-    const created = await act(() => desktopApi.convertQuote(quote, null), autopilotCopy(getAppLanguage()).invoiceCreated, false);
+    const created = await act(() => desktopApi.convertQuote(quote, entry.depositBp ?? null), autopilotCopy(getAppLanguage()).invoiceCreated, false);
     if (!created) return;
     const invoice = workspaceRef.current.invoices.find(row => row.quoteId === quote.id && !before.has(row.id));
     if (invoice) {

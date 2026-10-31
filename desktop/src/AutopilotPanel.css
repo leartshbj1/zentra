@@ -113,3 +113,41 @@
 .autopilot-command__help p { margin: 0 0 6px; }
 .autopilot-command__help ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .autopilot-command__help button { font-size: 13px; }
+
+/* "Créer le devis" asks first, in one line, for a discount or a deposit; "Oui" opens two small fields. */
+.quote-autopilot .quote-extras__ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.quote-autopilot .quote-extras__ask > span { color: var(--apple-secondary); font-size: calc(14px * var(--zentra-ui-text-scale, 1)); margin-inline-end: 4px; }
+:is(html, html[data-app-theme]) .quote-autopilot :is(.quote-extras__ask, .quote-extras__actions) > button {
+  min-height: 36px; margin: 0; padding: 0 16px; border-radius: 8px; font-weight: 600; white-space: nowrap; }
+:is(html, html[data-app-theme]) .quote-autopilot :is(.quote-extras__ask, .quote-extras__actions) > button.quote-extras__primary {
+  background: var(--apple-accent, #24664f); color: var(--apple-on-accent, #fff); }
+/* The calm row buttons of the Today page would otherwise turn "Non" white. */
+html[data-app-theme] .desktop-app[data-experience] .quote-autopilot__requests > li > div .quote-extras__ask > button.quote-extras__primary {
+  border-color: transparent; background: var(--apple-accent, #24664f); color: var(--apple-on-accent, #fff); }
+:is(html, html[data-app-theme]) .quote-autopilot :is(.quote-extras__ask, .quote-extras__actions) > button.quote-extras__secondary {
+  border: 1px solid var(--z7-button-line, rgba(0,0,0,.14)); background: var(--z7-button-paper, transparent); color: var(--apple-ink, #1d1d1f); }
+.quote-autopilot .quote-extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 12px 16px;
+  margin-top: 12px; padding: 14px 16px; border-radius: 14px; background: var(--z-pane, rgba(0,0,0,.03)); }
+.quote-autopilot .quote-extras__field { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }
+.quote-autopilot .quote-extras__field label { display: grid; gap: 4px; flex: 1 1 auto; min-width: 0; color: var(--apple-secondary);
+  font-size: calc(13px * var(--zentra-ui-text-scale, 1)); font-weight: 550; }
+.quote-autopilot .quote-extras__field input { inline-size: 100%; min-width: 0; min-height: 36px; padding: 0 10px; box-sizing: border-box;
+  border: 1px solid var(--z7-button-line, rgba(0,0,0,.14)); border-radius: 8px; background: var(--apple-paper, #fff); color: var(--apple-ink, #1d1d1f);
+  font: inherit; font-size: calc(15px * var(--zentra-ui-text-scale, 1)); font-variant-numeric: tabular-nums; text-align: end; }
+.quote-autopilot .quote-extras__field input[aria-invalid="true"] { border-color: var(--apple-red, #c4271b); }
+.quote-autopilot .quote-extras__units { display: inline-flex; flex: none; padding: 2px; border-radius: 9px; background: var(--apple-grouped, #efeff2); }
+.quote-autopilot .quote-extras__units button { min-height: 32px; min-width: 44px; padding: 0 10px; border-radius: 7px; background: transparent;
+  color: var(--apple-secondary); font-size: calc(13px * var(--zentra-ui-text-scale, 1)); font-weight: 600; justify-content: center; }
+.quote-autopilot .quote-extras__units button[aria-pressed="true"] { background: var(--apple-paper, #fff); color: var(--apple-ink, #1d1d1f); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+html[data-app-theme="dark"] .quote-autopilot .quote-extras__units { background: #1c1c1e; }
+html[data-app-theme="dark"] .quote-autopilot .quote-extras__units button { color: #a1a1a6; }
+html[data-app-theme="dark"] .quote-autopilot .quote-extras__units button[aria-pressed="true"] { background: #48484a; color: #fff; box-shadow: none; }
+.quote-autopilot .quote-extras__error { grid-column: 1 / -1; margin: 0; color: var(--apple-red, #c4271b); font-size: calc(13px * var(--zentra-ui-text-scale, 1)); }
+.quote-autopilot .quote-extras__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+@media (max-width: 600px) {
+  .quote-autopilot .quote-extras__ask { justify-content: flex-start; }
+  .quote-autopilot .quote-extras__ask > span { flex-basis: 100%; }
+  :is(html, html[data-app-theme]) .quote-autopilot .quote-extras__ask > button { flex: 1 1 0; justify-content: center; }
+}
+@media (prefers-reduced-motion: no-preference) { .quote-autopilot .quote-extras { animation: quote-extras-in 180ms ease-out; } }
+@keyframes quote-extras-in { from { opacity: 0; transform: translateY(-4px); } }
