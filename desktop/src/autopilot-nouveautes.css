@@ -8,11 +8,14 @@
 @media screen {
   :root {
     --z7-unread: #007aff;
+    /* The word « Nouveau » itself: a darker blue so it reads at 4.5:1 on white. */
+    --z7-unread-text: #0062cc;
     --z7-popover: #fff;
     --z7-popover-shadow: 0 0 0 1px rgb(0 0 0 / 0.08), 0 18px 48px -12px rgb(0 0 0 / 0.22);
   }
   html[data-app-theme='dark'] {
     --z7-unread: #0a84ff;
+    --z7-unread-text: #4da3ff;
     --z7-popover: #1c1c1e;
     --z7-popover-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 18px 48px -12px rgb(0 0 0 / 0.7);
   }
@@ -33,7 +36,7 @@
   }
   html[data-app-theme] .desktop-app[data-experience] .autopilot-today__fresh {
     margin-right: 8px;
-    color: var(--z7-unread);
+    color: var(--z7-unread-text);
     font-weight: 600;
   }
   html[data-app-theme] .desktop-app[data-experience] .autopilot-today .autopilot-today__origin {
