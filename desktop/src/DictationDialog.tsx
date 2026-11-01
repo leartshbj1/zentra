@@ -7,6 +7,7 @@ import type { Workspace } from './types';
 import { Button, Field, Modal } from './ui';
 import { formatMoney } from './utils';
 import './terrain.css';
+import { ZSegment } from './ZSegment';
 
 export type DictationTarget = 'report' | 'quote';
 export type DictationResult = DictationDraft & { target: DictationTarget; clientId: string | null; reportDate: string };
@@ -49,10 +50,7 @@ export function DictationDialog({ workspace, initialTarget, busy, onClose, onCre
   const ready = text.trim().length > 0 && (target === 'quote' || Boolean(chosenClient));
   return <Modal title={t('Dicter un brouillon')} description={t('Parlez, relisez le texte, puis Zentra prépare le brouillon. Les prix viennent de votre catalogue.')} onClose={() => { stop.current(); onClose(); }}>
     <div className="erp-register dictation">
-      <div className="planning-switch" role="group" aria-label={t('Brouillon à préparer')}>
-        <button type="button" aria-pressed={target === 'report'} onClick={() => setTarget('report')}>{t('Rapport d’intervention')}</button>
-        <button type="button" aria-pressed={target === 'quote'} onClick={() => setTarget('quote')}>{t('Devis')}</button>
-      </div>
+      <ZSegment ariaLabel={t('Brouillon à préparer')} value={target} onChange={setTarget} items={[{ value: 'report', label: t('Rapport d’intervention') }, { value: 'quote', label: t('Devis') }]} />
       <Field label={t('Ce que vous dites')} hint={canListen ? undefined : t('Touchez le micro du clavier de votre téléphone pour dicter.')}>
         <textarea value={text} rows={6} maxLength={4000} placeholder={t('Par exemple : chez Keller, remplacement de la vanne thermostatique, une heure et demie de travail, trois coudes de 22.')}
           onChange={event => setText(event.target.value)} />

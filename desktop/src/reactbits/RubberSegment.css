@@ -1,0 +1,138 @@
+/* RubberSegment (React Bits, MIT) in Zentra colours: a grey well, a white (dark: raised grey) thumb, readable labels. */
+:root {
+  --zrs-track: #e5e5ea;
+  --zrs-thumb: #ffffff;
+  --zrs-ink: #3a3a3f;
+  --zrs-ink-active: #111114;
+  --zrs-focus: #1f7a52;
+}
+html[data-app-theme='dark'] {
+  --zrs-track: #2c2c2e;
+  --zrs-thumb: #5a5a5f;
+  --zrs-ink: #d6d6db;
+  --zrs-ink-active: #ffffff;
+  --zrs-focus: #34c27d;
+}
+
+.rubber-segment {
+  --rs-radius: 10px;
+  --rs-inset: 3px;
+  --rs-thumb-radius: 7px;
+  --rs-h: 36px;
+  --rs-font: 13px;
+  --rs-pad: 14px;
+  --rs-min: 44px;
+  --rs-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  vertical-align: middle;
+  max-width: 100%;
+  padding: var(--rs-inset);
+  border-radius: var(--rs-radius);
+  background: var(--rs-track);
+  font-family: inherit;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rubber-segment[data-equal] {
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.rubber-segment[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.rubber-segment .rubber-segment__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: calc(var(--rs-h) - var(--rs-inset) * 2);
+  min-width: var(--rs-min);
+  min-height: 0;
+  margin: 0;
+  padding: 0 var(--rs-pad);
+  border: 0;
+  border-radius: var(--rs-thumb-radius);
+  background: none;
+  box-shadow: none;
+  color: var(--rs-ink);
+  font: inherit;
+  font-size: var(--rs-font);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: transform 160ms var(--rs-ease-out);
+}
+
+.rubber-segment__item[aria-checked='true'] {
+  cursor: default;
+}
+
+.rubber-segment[data-draggable] .rubber-segment__item[aria-checked='true'] {
+  cursor: grab;
+}
+
+.rubber-segment[data-held],
+.rubber-segment[data-held] .rubber-segment__item {
+  cursor: grabbing;
+}
+
+.rubber-segment__item[data-pressed] {
+  transform: scale(0.96);
+}
+
+.rubber-segment .rubber-segment__item:focus-visible {
+  outline: 2px solid var(--zrs-focus);
+  outline-offset: 3px;
+}
+
+.rubber-segment__thumb {
+  position: absolute;
+  inset: var(--rs-inset);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  border-radius: var(--rs-thumb-radius);
+  background: var(--rs-thumb);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  color: var(--rs-ink-active);
+  pointer-events: none;
+}
+
+.rubber-segment[data-equal] .rubber-segment__thumb {
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.rubber-segment .rubber-segment__copy {
+  color: inherit;
+  font-weight: 600;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rubber-segment .rubber-segment__item {
+    transition: none;
+  }
+}
+
+/* Where Zentra places it. */
+.document-preview__mode-switch .rubber-segment__item { gap: 8px; }
+.personalization-segment { display: grid; width: 100%; margin-bottom: 24px; }
+@media (max-width: 760px) {
+  .document-preview__mode-switch { flex: 1; }
+}
+.autopilot-segment { display: grid; width: 100%; }
+@media (max-width: 560px) {
+  .autopilot-segment .rubber-segment__item { padding-inline: 6px; font-size: 12px; white-space: normal; text-align: center; line-height: 1.15; }
+}

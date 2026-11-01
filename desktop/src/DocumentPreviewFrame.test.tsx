@@ -33,8 +33,8 @@ it.each([
   expect(html).toContain('<article>Conditions</article>');
   expect(html).toContain('<button>Exporter</button>');
   expect(html).toContain(`aria-label="${close}"`);
-  expect(html).toContain(`</svg> ${reading}</button>`);
-  expect(html).toContain(`</svg> ${layout}</button>`);
+  expect(html).toContain(`</svg>${reading}</button>`);
+  expect(html).toContain(`</svg>${layout}</button>`);
 });
 
 it.each(['fr', 'de', 'it', 'en'] as const)('localizes empty interface fallbacks and interpolates the total without altering it in %s', async (language: AppLanguage) => {

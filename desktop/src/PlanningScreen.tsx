@@ -11,6 +11,7 @@ import { useCompactLayout } from './MobileDetails';
 import { Button, ErrorPanel, Field } from './ui';
 import { errorMessage, formatDate } from './utils';
 import './terrain.css';
+import { ZSegment } from './ZSegment';
 
 const ABSENCE_LABEL: Record<Absence['kind'], string> = {
   vacation: 'Vacances', sick: 'Maladie', accident: 'Accident', military: 'Service militaire ou civil', maternity: 'Congé maternité',
@@ -200,10 +201,7 @@ export function PlanningScreen({ workspace, readOnly, onWorkspace, onOpenEvent }
         <p>{compact ? t('Touchez un rendez-vous pour changer le jour, l’heure ou le collaborateur.') : t('Glissez un rendez-vous ou un chantier vers un jour et un collaborateur. Les absences viennent de l’équipe.')}</p>
       </div>
       <div className="team-planning__controls">
-        {!compact ? <div className="planning-switch" role="group" aria-label={t('Vue du planning')}>
-          <button type="button" aria-pressed={mode === 'day'} onClick={() => setMode('day')}>{t('Jour')}</button>
-          <button type="button" aria-pressed={mode === 'week'} onClick={() => setMode('week')}>{t('Semaine')}</button>
-        </div> : null}
+        {!compact ? <ZSegment ariaLabel={t('Vue du planning')} value={mode} onChange={setMode} items={[{ value: 'day', label: t('Jour') }, { value: 'week', label: t('Semaine') }]} /> : null}
         <div className="planning-nav">
           <button type="button" aria-label={t('Période précédente')} onClick={() => setDate(shiftPlanning(range.mode, date, -1))}>‹</button>
           <button type="button" onClick={() => setDate(today)}>{t('Aujourd’hui')}</button>

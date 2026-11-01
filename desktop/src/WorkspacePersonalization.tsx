@@ -4,6 +4,7 @@ import { t, useAppLanguage } from './language';
 import { Mic, NotebookPen } from 'lucide-react';
 import { Button } from './ui';
 import { availableShortcuts, defaultPreferences, navigationIds, quickActionIds, replaceShortcut, saveWorkspacePreferences, useWorkspacePreferences, type ShortcutId, type QuickActionId } from './workspacePreferences';
+import { ZSegment } from './ZSegment';
 
 export const shortcutMeta = {
   notes: { label: 'Notes', icon: NotebookPen },
@@ -63,10 +64,7 @@ export function WorkspacePersonalization({ automationActive }: { automationActiv
   }
   return <section className="workspace-personalization" id="workspace-personalization" tabIndex={-1} aria-labelledby="personalization-title">
     <header><SlidersHorizontal size={22} aria-hidden="true" /><h2 id="personalization-title">{t('Zentra, à votre façon')}</h2><p>{t('Vos raccourcis sur cet appareil. Votre équipe garde les siens.')}</p></header>
-    <div className="personalization-switch" role="group" aria-label={t('Personnaliser')}>
-      <button type="button" aria-pressed={section === 'shortcuts'} onClick={() => setSection('shortcuts')}>{t('Barre du bas')}</button>
-      <button type="button" aria-pressed={section === 'actions'} onClick={() => setSection('actions')}>{t('Actions de l’accueil')}</button>
-    </div>
+    <ZSegment className="personalization-segment" ariaLabel={t('Personnaliser')} value={section} onChange={setSection} items={[{ value: 'shortcuts', label: t('Barre du bas') }, { value: 'actions', label: t('Actions de l’accueil') }]} />
     <div ref={preview} className="personalization-preview" aria-label={t('Aperçu')}>
       <span>{t('Aperçu')}</span>
       {section === 'shortcuts' ? <div className="personalization-preview__dock">{availableShortcuts(draft, automationActive).map(id => {

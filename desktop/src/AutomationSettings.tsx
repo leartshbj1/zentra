@@ -14,6 +14,7 @@ import {SupplierHabits} from './SupplierHabits';
 import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 import { replayAutomationWelcome } from './automationWelcomeState';
 import { MorningDigestSetting } from './MorningDigestSetting';
+import { ZSegment } from './ZSegment';
 
 export function AutomationSettings({ showHubLink = false, embedded = false }: { showHubLink?: boolean; embedded?: boolean }) {
   useAppLanguage();
@@ -48,11 +49,9 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
     <fieldset className="automation-settings__functioning" disabled={!canManage || busy}>
       <legend>{t('Fonctionnement')}</legend>
       {/* One choice for the whole team: Zentra prepares and you approve, it only observes, or it rests. */}
-      <div className="autopilot-choice autopilot-choice--three" role="radiogroup" aria-label={t('Fonctionnement')}>{(['suggest', 'shadow', 'paused'] as const).map(value => {
-        const current = draft.enabled ? draft.mode : 'paused';
-        return <label key={value} data-on={current === value || undefined}><input type="radio" name="automation-run" checked={current === value}
-          onChange={() => setDraft(value === 'paused' ? { ...draft, enabled: false } : { ...draft, enabled: true, mode: value })} /><span>{t(value === 'suggest' ? 'Prépare, vous validez' : value === 'shadow' ? 'Observe seulement' : 'En pause')}</span></label>;
-      })}</div>
+      <ZSegment className="autopilot-segment" ariaLabel={t('Fonctionnement')} disabled={!canManage || busy} value={draft.enabled ? draft.mode : 'paused'}
+        onChange={value => setDraft(value === 'paused' ? { ...draft, enabled: false } : { ...draft, enabled: true, mode: value })}
+        items={[{ value: 'suggest', label: t('Prépare, vous validez') }, { value: 'shadow', label: t('Observe seulement') }, { value: 'paused', label: t('En pause') }]} />
       <p className="automation-settings__current-mode">{t(!draft.enabled ? 'Suggestions en pause' : draft.mode === 'shadow' ? 'Observation · sans modifier vos choix' : 'Vous gardez la validation des actions importantes.')}</p>
     </fieldset>
     <MorningDigestSetting organizationId={state.organizationId} disabled={readOnly} />
@@ -63,10 +62,9 @@ function CompanySettings({ state, embedded }: { state: AutomationState; embedded
         const available = state.available.includes(feature);
         const on = available && draft.flags.includes(feature);
         return <div className="automation-settings__toggle automation-settings__choice-row" key={key}><span><strong>{t(item.title)}</strong><small>{t(available ? item.description : 'Cette fonction n’est pas encore disponible.')}</small></span>
-          {available ? <span className="autopilot-choice" role="radiogroup" aria-label={t(item.title)}>
-            <label data-on={on || undefined}><input type="radio" name={`automation-feature-${key}`} checked={on} onChange={() => setDraft({ ...draft, flags: draft.flags.includes(feature) ? draft.flags : [...draft.flags, feature] })} /><span>{t('À valider')}</span></label>
-            <label data-on={!on || undefined}><input type="radio" name={`automation-feature-${key}`} checked={!on} onChange={() => setDraft({ ...draft, flags: draft.flags.filter(f => f !== feature) })} /><span>{t('Arrêté')}</span></label>
-          </span> : <span className="automation-settings__soon">{t('Bientôt disponible')}</span>}</div>;
+          {available ? <ZSegment size="sm" ariaLabel={t(item.title)} disabled={!canManage || busy} value={on ? 'on' : 'off'}
+            onChange={value => setDraft({ ...draft, flags: value === 'on' ? (draft.flags.includes(feature) ? draft.flags : [...draft.flags, feature]) : draft.flags.filter(f => f !== feature) })}
+            items={[{ value: 'on', label: t('À valider') }, { value: 'off', label: t('Arrêté') }]} /> : <span className="automation-settings__soon">{t('Bientôt disponible')}</span>}</div>;
       })}</div>
     </fieldset></details>
     {canManage && <>

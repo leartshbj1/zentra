@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import type { AutopilotQuoteAdjustment, AutopilotQuoteExtras } from './autopilotQuote';
 import { useAppLanguage } from './language';
+import { ZSegment } from './ZSegment';
 
 /**
  * Before "Créer le devis": a one-line question, a discount or a deposit?
@@ -52,10 +53,7 @@ function Field({ label, value, unit, currency, onValue, onUnit, invalid, autoFoc
       <input ref={input} inputMode="decimal" autoComplete="off" value={value} placeholder="0" aria-invalid={invalid || undefined}
         onChange={event => onValue(event.target.value)} />
     </label>
-    <div className="quote-extras__units" role="group" aria-label={`${label} · ${say.unit}`}>
-      {(['percent', 'amount'] as const).map(option => <button key={option} type="button" aria-pressed={unit === option}
-        onClick={() => onUnit(option)}>{option === 'percent' ? '%' : currency}</button>)}
-    </div>
+    <ZSegment className="quote-extras__unit-switch" size="sm" ariaLabel={`${label} · ${say.unit}`} value={unit} onChange={onUnit} items={[{ value: 'percent', label: '%' }, { value: 'amount', label: currency }]} />
   </div>;
 }
 

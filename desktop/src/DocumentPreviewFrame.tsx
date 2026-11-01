@@ -5,6 +5,7 @@ import { Button } from './ui';
 import './DocumentPreviewFrame.css';
 import { useTouchZoom } from './useTouchZoom';
 import { t, useAppLanguage } from './language';
+import { ZSegment } from './ZSegment';
 
 /** A reading surface around the existing document; never changes its financial content. */
 export function DocumentPreviewFrame({ title, number, customer, total, finalDocument, actions, children, onClose }: {
@@ -163,10 +164,7 @@ export function DocumentPreviewFrame({ title, number, customer, total, finalDocu
         <Button variant="ghost" size="icon" aria-label={t('Fermer l’aperçu')} title={t('Fermer l’aperçu (Échap)')} onClick={onClose}><X size={21} /></Button>
       </header>
       <div className="document-preview__controls">
-        <div className="document-preview__modes" role="group" aria-label={t('Mode d’aperçu')}>
-          <button type="button" aria-pressed={mode === 'reading'} onClick={() => changeMode('reading')}><BookOpen size={17} /> {t('Lecture')}</button>
-          <button type="button" aria-pressed={mode === 'page'} onClick={() => changeMode('page')}><FileText size={17} /> {t('Mise en page')}</button>
-        </div>
+        <ZSegment className="document-preview__mode-switch" ariaLabel={t('Mode d’aperçu')} value={mode} onChange={changeMode} items={[{ value: 'reading', icon: <BookOpen size={17} />, label: t('Lecture') }, { value: 'page', icon: <FileText size={17} />, label: t('Mise en page') }]} />
         {mode === 'page' ? <div className="document-preview__zoom" role="group" aria-label={t('Zoom du document')}>
           <Button variant="ghost" size="icon" aria-label={t('Réduire le zoom')} disabled={scale <= .25} onClick={() => setZoom(Math.max(.25, Math.round((scale - .15) * 100) / 100))}><Minus size={17} /></Button>
           <output aria-live="polite">{Math.round(scale * 100)} %</output>
