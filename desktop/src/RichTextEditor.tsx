@@ -1,5 +1,6 @@
 import { t, useAppLanguage } from './language';
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import WarmTooltipSource, { WarmTooltipGroup as WarmTooltipGroupSource } from './reactbits/WarmTooltip';
+import { cloneElement, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline, List, ListOrdered, IndentIncrease, IndentDecrease, Undo2, Redo2, Highlighter, Baseline, RemoveFormatting, Search } from 'lucide-react';
 import { normalizeRichText, richPlainText, richColor, richFont, richFontSize, documentFontCss, documentFontChoices, type RichRun, type RichText } from './documentComposition';
 import './DocumentFonts.css';
@@ -92,6 +93,15 @@ function paint(root: HTMLElement, value: RichText) {
       paragraph.appendChild(span);
     }); if (!paragraph.childNodes.length) { paragraph.appendChild(document.createTextNode('')); const placeholder = document.createElement('br'); placeholder.dataset.placeholder = 'true'; paragraph.appendChild(placeholder); } root.appendChild(paragraph);
   });
+}
+
+// The React Bits source is plain JavaScript; its props are typed here.
+const WarmTooltip = WarmTooltipSource as unknown as ComponentType<{ content: ReactNode; children: ReactElement; side?: string }>;
+const WarmTooltipGroup = WarmTooltipGroupSource as unknown as ComponentType<{ children: ReactNode }>;
+
+/** A warm tooltip on hover, keyboard focus or a long press on iPhone; a hidden tool keeps no wrapper. */
+function Tip({ label, hidden = false, children }: { label: string; hidden?: boolean; children: ReactElement<{ hidden?: boolean }> }) {
+  return hidden ? cloneElement(children, { hidden: true }) : <WarmTooltip content={label}>{cloneElement(children, { hidden: false })}</WarmTooltip>;
 }
 
 export function RichTextEditor({ label, value, onChange, disabled = false, maxLength = 5000, fontFamily, baseFontSize = 9, compact = false }: { label: string; value: RichText; onChange: (value: RichText) => void; disabled?: boolean; maxLength?: number; fontFamily?: string; baseFontSize?: number; compact?: boolean }) {
@@ -286,19 +296,19 @@ export function RichTextEditor({ label, value, onChange, disabled = false, maxLe
         {typeof paragraphFormat.spaceAfter === 'number' && ![0,3,6,12,18].includes(paragraphFormat.spaceAfter) && <option value={paragraphFormat.spaceAfter}>{paragraphFormat.spaceAfter} pt</option>}
       </select></label><small>{t("S’applique au paragraphe courant ou à ceux que vous avez sélectionnés.")}</small>
     </details>
-    <div className="rich-editor__toolbar" role="group" aria-label={t('Mise en forme : {label}', { label })} onMouseDown={e => e.preventDefault()}>
-      {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <button key={key} type="button" title={t(title)} aria-label={t(title)} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button>)}
-      {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <button key={align} type="button" title={t(title)} aria-label={t(title)} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button>)}
-      <button hidden={!extended} type="button" aria-label={t("Liste à puces")} title={t("Liste à puces")} aria-pressed={paragraphFormat.bullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button>
-      <button hidden={!extended} type="button" aria-label={t("Liste numérotée")} title={t("Liste numérotée")} aria-pressed={paragraphFormat.numbered} disabled={disabled} onClick={() => paragraph({ numbered: true })}><ListOrdered size={17} /></button>
-      <button hidden={!extended} type="button" aria-label={t("Diminuer le retrait")} title={t("Diminuer le retrait")} disabled={disabled || !paragraphFormat.canOutdent} onClick={() => paragraph('outdent')}><IndentDecrease size={17} /></button>
-      <button hidden={!extended} type="button" aria-label={t("Augmenter le retrait")} title={t("Augmenter le retrait")} disabled={disabled || !paragraphFormat.canIndent} onClick={() => paragraph('indent')}><IndentIncrease size={17} /></button>
-      <button type="button" aria-label={t("Couleur du texte")} title={t("Couleur du texte")} aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button>
-      <button type="button" aria-label={t("Surligner le texte")} title={t("Surligner le texte")} aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button>
-      <button hidden={!extended} type="button" aria-label={t("Effacer la mise en forme")} title={t("Effacer la mise en forme des mots sélectionnés")} disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button>
-      <button type="button" aria-label={t("Annuler la modification du texte")} title={t("Annuler")} disabled={disabled || !history.current.length} onClick={() => undo()}><Undo2 size={17} /></button>
-      <button type="button" aria-label={t("Rétablir la modification du texte")} title={t("Rétablir")} disabled={disabled || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /></button>
-    </div>
+    <div className="rich-editor__toolbar" role="group" aria-label={t('Mise en forme : {label}', { label })} onMouseDown={e => e.preventDefault()}><WarmTooltipGroup>
+      {([['bold', Bold, 'Gras'], ['italic', Italic, 'Italique'], ['underline', Underline, 'Souligner']] as const).map(([key, Icon, title]) => <Tip key={key} label={t(title)}><button type="button" aria-label={t(title)} aria-pressed={activeMarks[key]} disabled={disabled} onClick={() => mark(key)}><Icon size={17} /></button></Tip>)}
+      {([['left', AlignLeft, 'Aligner à gauche'], ['center', AlignCenter, 'Centrer'], ['right', AlignRight, 'Aligner à droite']] as const).map(([align, Icon, title]) => <Tip key={align} label={t(title)}><button type="button" aria-label={t(title)} disabled={disabled} onClick={() => paragraph({ align })}><Icon size={17} /></button></Tip>)}
+      <Tip label={t("Liste à puces")} hidden={!extended}><button hidden={!extended} type="button" aria-label={t("Liste à puces")} aria-pressed={paragraphFormat.bullet} disabled={disabled} onClick={() => paragraph({ bullet: true })}><List size={17} /></button></Tip>
+      <Tip label={t("Liste numérotée")} hidden={!extended}><button hidden={!extended} type="button" aria-label={t("Liste numérotée")} aria-pressed={paragraphFormat.numbered} disabled={disabled} onClick={() => paragraph({ numbered: true })}><ListOrdered size={17} /></button></Tip>
+      <Tip label={t("Diminuer le retrait")} hidden={!extended}><button hidden={!extended} type="button" aria-label={t("Diminuer le retrait")} disabled={disabled || !paragraphFormat.canOutdent} onClick={() => paragraph('outdent')}><IndentDecrease size={17} /></button></Tip>
+      <Tip label={t("Augmenter le retrait")} hidden={!extended}><button hidden={!extended} type="button" aria-label={t("Augmenter le retrait")} disabled={disabled || !paragraphFormat.canIndent} onClick={() => paragraph('indent')}><IndentIncrease size={17} /></button></Tip>
+      <Tip label={t("Couleur du texte")}><button type="button" aria-label={t("Couleur du texte")} aria-expanded={colorTool === 'color'} disabled={disabled} onClick={() => setColorTool(colorTool === 'color' ? null : 'color')}><Baseline size={17} style={{ color: activeMarks.color }} /></button></Tip>
+      <Tip label={t("Surligner le texte")}><button type="button" aria-label={t("Surligner le texte")} aria-expanded={colorTool === 'highlight'} disabled={disabled} onClick={() => setColorTool(colorTool === 'highlight' ? null : 'highlight')}><Highlighter size={17} /></button></Tip>
+      <Tip label={t("Effacer la mise en forme des mots sélectionnés")} hidden={!extended}><button hidden={!extended} type="button" aria-label={t("Effacer la mise en forme")} disabled={disabled} onClick={() => applyMarks({ ...noTextMarks, color: undefined, highlight: undefined, fontFamily: undefined, fontSize: undefined })}><RemoveFormatting size={17} /></button></Tip>
+      <Tip label={t("Annuler")}><button type="button" aria-label={t("Annuler la modification du texte")} disabled={disabled || !history.current.length} onClick={() => undo()}><Undo2 size={17} /></button></Tip>
+      <Tip label={t("Rétablir")}><button type="button" aria-label={t("Rétablir la modification du texte")} disabled={disabled || !future.current.length} onClick={() => undo(true)}><Redo2 size={17} /></button></Tip>
+    </WarmTooltipGroup></div>
     {colorTool && <div className="rich-editor__colors" role="group" aria-label={colorTool === 'color' ? t('Choisir la couleur du texte') : t('Choisir le surlignage')} onMouseDown={e => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
       <span>{colorTool === 'color' ? t('Couleur des mots sélectionnés') : t('Surlignage des mots sélectionnés')}</span>
       <div className="rich-editor__swatches">{(colorTool === 'color' ? textColors : highlightColors).map(([color, name]) => <button type="button" key={color} aria-label={t(name)} title={t(name)} aria-pressed={activeMarks[colorTool] === color} disabled={disabled} style={{ backgroundColor: color }} onClick={() => applyMarks({ [colorTool]: color })} />)}</div>
