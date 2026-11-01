@@ -429,3 +429,5 @@ html[data-app-theme="dark"] body .first-run--account .first-run__actions>.button
   .zentra-arrival__quote blockquote {font-size:28px;max-width:700px;}
   .zentra-arrival__controls {flex-direction:row;gap:24px;justify-content:center;bottom:max(20px,var(--safe-bottom,env(safe-area-inset-bottom,0px)));}
 }
+/* The opening line shows a calm, offline texture through its letters (React Bits MaskedHeading). No glow, no spotlight. */
+.zentra-arrival__masked {display:block;width:min(790px,86vw);margin:0 auto;color:#f1faf5;}

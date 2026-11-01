@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { ArrowRight, RotateCcw } from 'lucide-react';
 import { BrandWordmark } from './BrandMark';
 import wordmarkUrl from './assets/zentra-wordmark.png';
+import introTextureUrl from './assets/zentra-intro-texture.svg';
+import MaskedHeadingSource from './reactbits/MaskedHeading';
+import SpecularButtonSource from './reactbits/SpecularButton';
 import { t } from './language';
 import { claimPresentationTheme } from './appearance';
+
+// The React Bits source is plain JavaScript; its props are typed here.
+const MaskedHeading = MaskedHeadingSource as unknown as ComponentType<Record<string, unknown>>;
+const SpecularButton = SpecularButtonSource as unknown as ComponentType<Record<string, unknown>>;
 
 const seenKey = 'zentra.onboarding.intro.v1';
 const duration = 7800;
@@ -123,12 +130,16 @@ export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenK
     if(!document.hidden)frame=requestAnimationFrame(draw);
     return () => { cancelled=true;cancelAnimationFrame(frame);observer.disconnect();document.removeEventListener('visibilitychange',visibility);mark.onload=null;ctx.clearRect(0,0,width,height); };
   }, [run, playing, reduced, storageKey]);
+  const quote = t(product === 'automation' ? 'Place à ce qui compte.' : 'Faites grandir vos idées.');
   function start() { rememberIntro(storageKey); onStart(); }
   function skip() { rememberIntro(storageKey);setPhase('ready'); }
   return <div ref={rootRef} className="zentra-arrival" data-phase={phase} data-product={product}>
     <canvas ref={canvasRef} className="zentra-arrival__light" aria-hidden="true"/>
     <figure className="zentra-arrival__quote" aria-hidden={phase!=='quote' && phase!=='ready'}>
-      <blockquote ref={quoteRef} tabIndex={-1}>{t(product === 'automation' ? 'Place à ce qui compte.' : 'Faites grandir vos idées.')}</blockquote>
+      <blockquote ref={quoteRef} tabIndex={-1}>{playing && !reduced
+        ? <MaskedHeading tag="span" className="zentra-arrival__masked" text={quote} src={introTextureUrl} reveal="rise" trigger="mount" duration={1.2}
+          drift={8} parallax={0} fillScale={1.12} spotlight={false} weight={650} tracking={-0.035} textScale={0.088} />
+        : quote}</blockquote>
       <figcaption>Zentra</figcaption>
     </figure>
     <div className="zentra-arrival__identity" aria-hidden={playing && phase!=='logo'}>
@@ -137,7 +148,8 @@ export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenK
     </div>
     <div className="zentra-arrival__controls">
       {playing ? <button ref={skipRef} type="button" className="zentra-arrival__skip" onClick={skip}>{t('Passer l’introduction')}<ArrowRight size={17}/></button> : <>
-        <button ref={startRef} type="button" className="zentra-arrival__start" onClick={start}>{t(startLabel)}<ArrowRight size={19}/></button>
+        <SpecularButton buttonRef={startRef} className="zentra-arrival__start" onClick={start} radius={28} tint="#e9f6ed" tintOpacity={1} textColor="#123d2b"
+          lineColor="#ffffff" baseColor="#9cc7b0" intensity={0.9} idleIntensity={0.45} glow={0.2} thickness={1.2} autoAnimate={!reduced} speed={0.3}>{t(startLabel)}<ArrowRight size={19}/></SpecularButton>
         {!reduced && <button type="button" className="zentra-arrival__replay" onClick={()=>{setPhase('quote');setRun(value=>value+1);}}><RotateCcw size={14}/>{t('Revoir l’introduction')}</button>}
       </>}
     </div>
