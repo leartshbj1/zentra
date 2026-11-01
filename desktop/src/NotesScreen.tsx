@@ -6,6 +6,7 @@ import type { Project, WorkNote } from './types';
 import { filterWorkNotes, noteChecklist, toggleNoteChecklist, notePreview, noteTitle, type WorkNotesStore } from './workNotes';
 import './notes.css';
 import { ZHoldDelete } from './ZHoldDelete';
+import { ZClearInput } from './ZClearInput';
 
 export function NotesScreen({ store, projects, readOnly, initialProjectId, onProjectHandled, onEditingChange }: {
   store: WorkNotesStore; projects: Project[]; readOnly: boolean; initialProjectId: string | null; onProjectHandled: () => void; onEditingChange: (editing: boolean) => void;
@@ -108,7 +109,7 @@ export function NotesScreen({ store, projects, readOnly, initialProjectId, onPro
   return <section ref={surface} className={`notes-workspace notes-workspace--notebook${selected ? ' notes-workspace--editing' : ''}`} aria-label={t('Notes de l’équipe')}>
     <aside className="notes-index" aria-label={t('Toutes les notes')}>
       <header className="notes-index__heading"><div><h2 ref={listHeading} tabIndex={-1}>{t(projectFilter ? 'Notes du projet' : 'Toutes les notes')}</h2><span className="notes-index__count" aria-hidden="true">{notes.length}</span></div><Button variant="ghost" size="icon" className="notes-compose" disabled={readOnly} onClick={create} aria-label={t('Nouvelle note')} title={t('Nouvelle note')}><NotebookPen size={21} strokeWidth={1.65} aria-hidden="true" /><span className="sr-only">{t('Nouvelle note')}</span></Button></header>
-      <div className="notes-filters"><label className="notes-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label={t('Rechercher une note')} placeholder={t('Rechercher une note')} value={query} onChange={event => setQuery(event.target.value)} /></label>
+      <div className="notes-filters"><label className="notes-search"><Search size={18} aria-hidden="true" /><ZClearInput><input type="search" aria-label={t('Rechercher une note')} placeholder={t('Rechercher une note')} value={query} onChange={event => setQuery(event.target.value)} /></ZClearInput></label>
         <label className="notes-project-filter"><FolderOpen size={16} strokeWidth={1.6} aria-hidden="true" /><span className="sr-only">{t('Filtrer par projet')}</span><select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="">{t('Tous les projets')}</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       </div>
       {!online && <p className="notes-offline" role="status"><WifiOff size={16} aria-hidden="true" />{t('Hors ligne · vos notes restent enregistrées sur cet appareil.')}</p>}

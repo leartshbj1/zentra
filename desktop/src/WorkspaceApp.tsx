@@ -4631,7 +4631,7 @@ function WorkspaceContent({
               onClick={openUpdater}
             >
               <RefreshCw size={18} />
-              {availableUpdate && <span className="update-launcher__badge" aria-hidden="true">1</span>}
+              {availableUpdate && <span className="update-launcher__badge z-badge" aria-hidden="true">1</span>}
             </Button>
             <Button
               type="button"
@@ -7615,10 +7615,10 @@ function TeamScreen({
   return (
     <div className="stack-layout team-screen">
       <nav className="team-navigation" aria-label={t("Équipe et paie")}>
-        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">{t("Personnel")}</span>{(workspace.employees.length) > 0 ? <span className="team-navigation__count">{workspace.employees.length}</span> : null}</button>
-        <button type="button" aria-label={t('Fiches de salaire')} aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">{t("Bulletins")}</span>{(workspace.payslips.length) > 0 ? <span className="team-navigation__count">{workspace.payslips.length}</span> : null}</button>
-        <button type="button" aria-pressed={teamSection === 'absences'} onClick={() => setTeamSection('absences')}><span className="team-navigation__title">{t("Absences")}</span>{((workspace.absences ?? []).length) > 0 ? <span className="team-navigation__count">{(workspace.absences ?? []).length}</span> : null}</button>
-        <button type="button" aria-pressed={teamSection === 'expenses'} onClick={() => setTeamSection('expenses')}><span className="team-navigation__title">{t("Notes de frais")}</span>{((workspace.expenseClaims ?? []).filter((claim) => claim.status === 'submitted').length) > 0 ? <span className="team-navigation__count">{(workspace.expenseClaims ?? []).filter((claim) => claim.status === 'submitted').length}</span> : null}</button>
+        <button type="button" aria-pressed={teamSection === 'employees'} onClick={() => setTeamSection('employees')}><span className="team-navigation__title">{t("Personnel")}</span>{(workspace.employees.length) > 0 ? <span key={workspace.employees.length} className="team-navigation__count z-badge">{workspace.employees.length}</span> : null}</button>
+        <button type="button" aria-label={t('Fiches de salaire')} aria-pressed={teamSection === 'payslips'} onClick={() => setTeamSection('payslips')}><span className="team-navigation__title">{t("Bulletins")}</span>{(workspace.payslips.length) > 0 ? <span key={workspace.payslips.length} className="team-navigation__count z-badge">{workspace.payslips.length}</span> : null}</button>
+        <button type="button" aria-pressed={teamSection === 'absences'} onClick={() => setTeamSection('absences')}><span className="team-navigation__title">{t("Absences")}</span>{((workspace.absences ?? []).length) > 0 ? <span key={(workspace.absences ?? []).length} className="team-navigation__count z-badge">{(workspace.absences ?? []).length}</span> : null}</button>
+        <button type="button" aria-pressed={teamSection === 'expenses'} onClick={() => setTeamSection('expenses')}><span className="team-navigation__title">{t("Notes de frais")}</span>{((workspace.expenseClaims ?? []).filter((claim) => claim.status === 'submitted').length) > 0 ? <span key={(workspace.expenseClaims ?? []).filter((claim) => claim.status === 'submitted').length} className="team-navigation__count z-badge">{(workspace.expenseClaims ?? []).filter((claim) => claim.status === 'submitted').length}</span> : null}</button>
         <button type="button" aria-pressed={teamSection === 'certificates'} onClick={() => setTeamSection('certificates')}><span className="team-navigation__title">{t("Certificats annuels")}</span></button>
       </nav>
       {teamSection === 'certificates' ? <><SalaryCertificates workspace={workspace} disabled={busy} /><ElmExportPanel workspace={workspace} disabled={busy} /></> : null}

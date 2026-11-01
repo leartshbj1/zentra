@@ -7,6 +7,7 @@ import type { AppointmentInboxItem, AppointmentInboxState } from './AppointmentI
 import { appointmentActivityStatus, appointmentSchedule, scopedAppointments } from './appointmentActivity';
 import { confirmedQuoteActivityCopy, confirmedQuoteActivityKey, normalizeConfirmedQuoteActivityPage, type ConfirmedQuoteActivity, type ConfirmedQuoteActivityPage } from './confirmedQuoteActivity';
 import './AutomationJournal.css';
+import { ZClearInput } from './ZClearInput';
 
 type JournalRun = { id: string; title: string; state: string; createdAt: number; updatedAt: number };
 type Invoice = NonNullable<AutomationActivity['supplierInbox']>['recent'][number];
@@ -54,7 +55,7 @@ export function AutomationJournal<R extends JournalRun>({ runs, activity, render
       <div className="automation-journal__filters" role="group" aria-label={label('journal')}>
         {(['all', 'invoice', 'appointment', 'workflow', ...(confirmedQuotes !== undefined ? ['quote' as const] : [])] as const).map(value => <button type="button" key={value} aria-pressed={effectiveFilter === value} onClick={() => { setFilter(value); setLimit(30); }}>{value === 'quote' ? quoteCopy.filter : label(value === 'all' ? 'all' : value === 'invoice' ? 'invoices' : value === 'appointment' ? 'appointments' : 'rules')}</button>)}
       </div>
-      <label className="automation-journal__search"><Search size={17} aria-hidden="true"/><input type="search" value={query} placeholder={label('search')} aria-label={label('search')} onChange={e => { setQuery(e.target.value); setLimit(30); }}/>{query && <button type="button" aria-label={label('clear')} onClick={()=>setQuery('')}><X size={16}/></button>}</label>
+      <label className="automation-journal__search"><Search size={17} aria-hidden="true"/><ZClearInput><input type="search" value={query} placeholder={label('search')} aria-label={label('search')} onChange={e => { setQuery(e.target.value); setLimit(30); }}/></ZClearInput>{query && <button type="button" aria-label={label('clear')} onClick={()=>setQuery('')}><X size={16}/></button>}</label>
     </div>
     {loading && <p className="automation-journal__availability" role="status">{copy.loading}</p>}
     {unavailable && <p className="automation-journal__availability" role="status">{label('activityUnavailable')}</p>}

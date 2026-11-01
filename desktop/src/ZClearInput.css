@@ -1,0 +1,117 @@
+/* Transitions.dev « Input clear with dissolve » for Zentra search fields. */
+.z-clear {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.z-clear > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding-right: 34px;
+}
+
+/* One clear button: the native WebKit cancel cross is replaced. */
+.z-clear > input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.z-clear.is-clearing > input::placeholder {
+  color: transparent;
+}
+
+.z-clear__mirror,
+.z-clear__placeholder {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+}
+
+.z-clear.is-clearing .z-clear__mirror {
+  opacity: 1;
+}
+
+.z-clear.is-clearing .z-clear__placeholder {
+  opacity: 0.9;
+  color: var(--apple-secondary, #6e6e73) !important;
+}
+
+.z-clear__glow {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: multiply;
+}
+
+html[data-app-theme='dark'] .z-clear__glow {
+  mix-blend-mode: screen;
+}
+
+.z-clear .z-clear__button {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-width: 0;
+  min-height: 0;
+  margin: -11px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d1d1d6;
+  color: #3a3a3f;
+  box-shadow: none;
+  cursor: pointer;
+  animation: z-clear-pop 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A larger touch target than the visible circle. */
+.z-clear .z-clear__button::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+
+html[data-app-theme='dark'] .z-clear .z-clear__button {
+  background: #48484d;
+  color: #f2f2f5;
+}
+
+.z-clear .z-clear__button:focus-visible {
+  outline: 2px solid #1f7a52;
+  outline-offset: 2px;
+}
+
+@keyframes z-clear-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: blur(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .z-clear .z-clear__button {
+    animation: none;
+  }
+  .z-clear__glow {
+    opacity: 0 !important;
+  }
+}

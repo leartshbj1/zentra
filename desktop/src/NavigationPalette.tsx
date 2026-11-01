@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { ArrowRight, Search, type LucideIcon } from 'lucide-react';
 import { Modal } from './ui';
 import { t, useAppLanguage } from './language';
+import { ZClearInput } from './ZClearInput';
 
 export interface NavigationDestination<T extends string = string> {
   id: T;
@@ -34,11 +35,11 @@ export function NavigationPalette<T extends string>({ destinations, onSelect, on
       <div className="navigation-palette">
         <label className="navigation-palette__search">
           <Search size={20} aria-hidden="true" />
-          <input type="search" aria-label={t('Rechercher un écran')} placeholder={t('Projets, factures, banque…')} data-modal-initial-focus value={query} onChange={(event) => setQuery(event.target.value)} aria-controls={resultId} onKeyDown={(event) => {
+          <ZClearInput><input type="search" aria-label={t('Rechercher un écran')} placeholder={t('Projets, factures, banque…')} data-modal-initial-focus value={query} onChange={(event) => setQuery(event.target.value)} aria-controls={resultId} onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
             if (event.key === 'Enter' && results.length) { event.preventDefault(); onSelect(results[0].id); }
             if (event.key === 'ArrowDown') { event.preventDefault(); document.getElementById(resultId)?.querySelector('button')?.focus(); }
-          }} />
+          }} /></ZClearInput>
         </label>
         <p className="navigation-palette__count" role="status">{results.length ? t(results.length === 1 ? '{count} écran' : '{count} écrans', { count: results.length }) : t('Aucun écran trouvé. Essayez un autre mot.')}</p>
         <div id={resultId} className="navigation-palette__results" onKeyDown={(event) => {

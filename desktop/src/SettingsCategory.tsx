@@ -4,6 +4,7 @@ import { Children, cloneElement, createContext, isValidElement, useContext, useE
 import { ChevronDown, ChevronLeft, ChevronRight, Search, X, type LucideIcon } from 'lucide-react';
 import { matchesSettingsSearch, settingsGroups, settingsNavigationSession, settingsScopes, settingsSearchTerms } from './settingsNavigation';
 import './settings-navigation.css';
+import { ZClearInput } from './ZClearInput';
 
 type CategoryProps = {
   id: string;
@@ -103,10 +104,10 @@ export function SettingsBrowser({ children, initialCategory, hasDraft = false }:
     <nav className="settings-browser__navigation" data-settings-navigation aria-label={t("Rubriques des paramètres")} data-searching={query.trim() ? 'true' : undefined}>
       <div className="settings-browser__search">
         <Search size={18} aria-hidden="true" />
-        <input ref={search} type="search" value={query} aria-label={t('Rechercher un réglage')} placeholder={t('Rechercher un réglage')} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+        <ZClearInput><input ref={search} type="search" value={query} aria-label={t('Rechercher un réglage')} placeholder={t('Rechercher un réglage')} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
           if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); setQuery(''); }
           if (event.key === 'Enter' && matches.length === 1) { event.preventDefault(); openCategory(matches[0].props.id); }
-        }} />
+        }} /></ZClearInput>
         {query && <button type="button" aria-label={t('Effacer la recherche des paramètres')} onClick={() => { setQuery(''); search.current?.focus(); }}><X size={18} aria-hidden="true" /></button>}
       </div>
       {query.trim() && <p className="settings-browser__count" role="status">{matches.length === 1 ? t('1 rubrique trouvée') : t('{count} rubriques trouvées', { count: String(matches.length) })}</p>}

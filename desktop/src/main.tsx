@@ -11,6 +11,7 @@ import { LanguageBoot } from './LanguageStatus';
 import './styles.css';
 import './workspace-design.css';
 import './mobile.css';
+import './transitions-badge.css';
 import './experience.css';
 import './workspace-shell.css';
 import './guided-tour.css';

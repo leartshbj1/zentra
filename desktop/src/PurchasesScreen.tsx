@@ -28,6 +28,7 @@ import { centsFromInput, errorMessage, formatDate, formatMoney, todayIso } from 
 import { Button, EmptyState, ErrorPanel, Field, FormActions, Modal, SectionHeading, StatusBadge, submitForm } from './ui';
 import { SupplierInvoicePreparation } from './SupplierInvoiceWizard';
 import { SupplierInvoiceAttachments, formatAttachmentSize } from './SupplierInvoiceAttachments';
+import { ZClearInput } from './ZClearInput';
 export { formatAttachmentSize } from './SupplierInvoiceAttachments';
 import './purchase-entry.css';
 
@@ -132,7 +133,7 @@ export function PurchasesScreen({
           <button type="button" role="tab" aria-selected={tab === 'paid'} className={tab === 'paid' ? 'is-active' : ''} onClick={() => setTab('paid')}><CheckCircle2 size={15} /> Payés <em>{tabCounts.paid}</em></button>
           <button type="button" role="tab" aria-selected={tab === 'suppliers'} className={tab === 'suppliers' ? 'is-active' : ''} onClick={() => setTab('suppliers')}><Building2 size={15} /> Fournisseurs <em>{workspace.suppliers.filter((supplier) => !supplier.archivedAt).length}</em></button>
         </div>
-        <label className="purchase-search"><Search size={15} /><span className="sr-only">Rechercher</span><input type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={tab === 'suppliers' ? 'Nom, contact, IDE, IBAN…' : 'Fournisseur, projet, référence…'} /></label>
+        <label className="purchase-search"><Search size={15} /><span className="sr-only">Rechercher</span><ZClearInput><input type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={tab === 'suppliers' ? 'Nom, contact, IDE, IBAN…' : 'Fournisseur, projet, référence…'} /></ZClearInput></label>
         {tab === 'suppliers' ? <label className="supplier-visibility"><span>État</span><select value={supplierVisibility} onChange={(event) => setSupplierVisibility(event.target.value as SupplierVisibility)}><option value="active">Actifs</option><option value="archived">Archivés</option><option value="all">Tous</option></select></label> : null}
       </div>
 

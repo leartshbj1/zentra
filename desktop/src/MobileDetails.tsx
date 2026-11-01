@@ -105,7 +105,7 @@ export function MobileDetails({ title, children, className = '', badge }: {
   const compact = useCompactLayout();
   if (!compact) return <>{children}</>;
   return <details className={`mobile-details ${className}`}>
-    <summary><span>{t(title)}</span>{badge !== undefined && <small>{badge}</small>}<ChevronDown size={17} aria-hidden="true" /></summary>
+    <summary><span>{t(title)}</span>{badge !== undefined && <small key={String(badge)} className="z-badge">{badge}</small>}<ChevronDown size={17} aria-hidden="true" /></summary>
     <div className="mobile-details__content">{children}</div>
   </details>;
 }

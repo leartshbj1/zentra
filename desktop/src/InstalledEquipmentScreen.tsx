@@ -8,6 +8,7 @@ import { Button, ErrorPanel, Field } from './ui';
 import { errorMessage, formatDate } from './utils';
 import './erp-registers.css';
 import './terrain.css';
+import { ZClearInput } from './ZClearInput';
 
 type Draft = Omit<InstalledEquipment, 'archivedAt' | 'createdAt' | 'updatedAt' | 'serviceIntervalMonths'> & { intervalText: string; archived: boolean };
 type Planning = { equipmentId: string; date: string; startTime: string; endTime: string; employeeId: string };
@@ -117,7 +118,7 @@ export function InstalledEquipmentScreen({ workspace, readOnly, onWorkspace, onO
       </div>
     </div>}
     {(workspace.installedEquipment ?? []).length ? <div className="terrain-equipment__filters">
-      <input type="search" value={query} placeholder={t('Rechercher un client, un modèle, un numéro de série')} aria-label={t('Rechercher dans le parc installé')} onChange={event => setQuery(event.target.value)} />
+      <ZClearInput><input type="search" value={query} placeholder={t('Rechercher un client, un modèle, un numéro de série')} aria-label={t('Rechercher dans le parc installé')} onChange={event => setQuery(event.target.value)} /></ZClearInput>
       <label className="terrain-equipment__toggle"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)} /><span>{t('Afficher les archivés')}</span></label>
     </div> : null}
     {rows.length ? <ul className="erp-register__list">

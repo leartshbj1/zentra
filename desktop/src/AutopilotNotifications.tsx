@@ -70,7 +70,7 @@ export function AutopilotNotifications({ language, organizationId, entries, jour
     <button type="button" className="autopilot-bell" aria-expanded={open} aria-controls={panelId} aria-haspopup="dialog"
       aria-label={unread ? say('bellUnread', unread) : say('bell')} title={say('bell')} onClick={() => setOpen(value => !value)}>
       <Bell size={18} aria-hidden="true" />
-      {unread ? <span className="autopilot-bell__dot" aria-hidden="true" /> : null}
+      {unread ? <span className="autopilot-bell__dot z-badge" aria-hidden="true" /> : null}
     </button>
     {open && <div className="autopilot-notices__panel" id={panelId} role="dialog" aria-label={say('title')}>
       <header className="autopilot-notices__head">

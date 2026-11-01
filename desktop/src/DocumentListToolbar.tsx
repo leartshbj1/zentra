@@ -2,6 +2,7 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { useCompactLayout } from './MobileDetails';
 import { t } from './language';
+import { ZClearInput } from './ZClearInput';
 
 export function DocumentListToolbar({ children, count, orderLabel, filtered, search, tools }: {
   children: ReactNode;
@@ -24,7 +25,7 @@ export function DocumentListToolbar({ children, count, orderLabel, filtered, sea
       </button>
     </div>
     <div id={id} className="sales-list-toolbar">
-      {compact&&search&&<label className="document-list-search"><span>{t(search.label)}</span><input type="search" value={search.value} onChange={event=>search.onChange(event.target.value)} aria-label={t(search.label)}/></label>}
+      {compact&&search&&<label className="document-list-search"><span>{t(search.label)}</span><ZClearInput><input type="search" value={search.value} onChange={event=>search.onChange(event.target.value)} aria-label={t(search.label)}/></ZClearInput></label>}
       {children}
       {compact&&search?.value&&<button type="button" className="button button--secondary document-search-clear" onClick={()=>search.onChange('')}>{t('Effacer la recherche')}</button>}
       <output className="document-list-tools__count">{count}</output>

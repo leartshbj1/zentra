@@ -48,6 +48,7 @@ import {
   EmptyState,
   StatusBadge,
 } from './ui';
+import { ZClearInput } from './ZClearInput';
 
 export function CatalogScreen({
   items,
@@ -177,12 +178,12 @@ export function CatalogScreen({
         <div id="catalog-filters" className="catalog-filters" role="group" aria-label={t('Filtres du catalogue')} hidden={!filtersOpen}>
           <label className="catalog-filter-search">
             <span>{t('Recherche')}</span>
-            <input
+            <ZClearInput><input
               type="search"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
               placeholder={t('Nom, référence, description…')}
-            />
+            /></ZClearInput>
           </label>
           <label>
             <span>{t('Type')}</span>
