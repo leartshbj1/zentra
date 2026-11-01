@@ -16,6 +16,7 @@ import { t, useAppLanguage } from './language';
 import { projectFileMessageText } from './projectLanguage';
 import { documentTotals, errorMessage, formatDate, formatMoney } from './utils';
 import { createProjectFileSessions, type ProjectFileSession } from './projectFileSessions';
+import { ZHoldDelete } from './ZHoldDelete';
 
 export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOpenDocument, onCreateDocument, onWorkspaceChange, onOpenExpense, fileSession, onOpenNotes }: {
   project: Project; workspace: Workspace; busy: boolean; readOnly: boolean; onBack: () => void;
@@ -187,7 +188,7 @@ export function ProjectFolder({ project, workspace, busy, readOnly, onBack, onOp
     {removing ? <Modal title={t('Supprimer le document ?')} dismissible={!saving} onClose={() => { if (!saving) setRemoving(null); }}>
       <p>{t('« {name} » sera retiré de ce projet. Si ce dossier est partagé, la suppression sera transmise aux autres appareils dès le retour du réseau.', { name: removing.originalName })}</p>
       {removeError ? <ErrorPanel message={projectFileMessageText(removeError)} reveal /> : null}
-      <div className="form-actions"><Button variant="secondary" disabled={saving} onClick={() => setRemoving(null)}>{t('Annuler')}</Button><Button variant="danger" disabled={saving} onClick={() => void remove()}>{t(saving ? 'Suppression…' : 'Supprimer')}</Button></div>
+      <div className="form-actions"><Button variant="secondary" disabled={saving} onClick={() => setRemoving(null)}>{t('Annuler')}</Button><ZHoldDelete size="md" disabled={saving} onConfirm={() => void remove()}>{saving ? t('Suppression…') : undefined}</ZHoldDelete></div>
     </Modal> : null}
   </section>;
 }

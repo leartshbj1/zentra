@@ -5,6 +5,7 @@ import { openIntegrationsSettings } from './automation';
 import { getAppLocale, t, useAppLanguage } from './language';
 import { Button, Field } from './ui';
 import { errorMessage } from './utils';
+import { ZHoldDelete } from './ZHoldDelete';
 
 /** API, MCP, webhooks, boutiques et courrier Pingen : les mêmes réglages que sur
  * le compte Zentra, faits ici. Titulaire et administrateurs ; les jetons et
@@ -139,7 +140,7 @@ export function IntegrationsSettings({ disabled }: { disabled: boolean }) {
             {hook.paused
               ? <Button variant="secondary" size="small" disabled={locked} onClick={() => void act({ action: 'resume-webhook', endpointId: hook.endpointId })}>{t('Reprendre')}</Button>
               : <Button variant="secondary" size="small" disabled={locked} onClick={() => void act({ action: 'test-webhook', endpointId: hook.endpointId })}>{t('Envoyer un test')}</Button>}
-            <Button variant="secondary" size="small" disabled={locked} onClick={() => void act({ action: 'delete-webhook', endpointId: hook.endpointId })}>{t('Supprimer')}</Button>
+            <ZHoldDelete disabled={locked} onConfirm={() => void act({ action: 'delete-webhook', endpointId: hook.endpointId })} />
           </span>
         </li>)}
       </ul> : null}

@@ -10,6 +10,7 @@ import { errorMessage, formatDate, formatMoney } from './utils';
 import { reportTotals } from './workReports';
 import { defaultRateTable, reportAtRates } from './laborRates';
 import './erp-registers.css';
+import { ZHoldDelete } from './ZHoldDelete';
 
 type LineDraft = Omit<WorkReportLine, 'id'> & { priceText: string; quantityText: string };
 type Draft = { id?: string; clientId: string; projectId: string | null; reportDate: string; site: string; description: string; technician: string; lines: LineDraft[] };
@@ -174,7 +175,7 @@ export function WorkReportsPanel({ workspace, disabled, onWorkspace, onOpenInvoi
             {report.status === 'draft' ? <>
               <button type="button" disabled={locked} onClick={() => { setSigning(report); setSigner(''); setSignature(''); setError(''); }}>{t('Faire signer')}</button>
               <button type="button" disabled={locked} onClick={() => { setDraft(toDraft(report)); setError(''); }}>{t('Modifier')}</button>
-              <button type="button" disabled={locked} onClick={() => { if (window.confirm(t('Supprimer ce rapport non signé ?'))) void run(() => desktopApi.deleteWorkReport(report.id), onWorkspace); }}>{t('Supprimer')}</button>
+              <ZHoldDelete disabled={locked} ariaLabel={t('Supprimer ce rapport non signé')} onConfirm={() => void run(() => desktopApi.deleteWorkReport(report.id), onWorkspace)} />
             </> : report.status === 'signed'
               ? <>
                 {rateTables.length ? <label className="work-report-rates">

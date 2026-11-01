@@ -5,6 +5,7 @@ import { t, useAppLanguage } from './language';
 import { Button, Field } from './ui';
 import { errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import './erp-registers.css';
+import { ZHoldDelete } from './ZHoldDelete';
 
 /** Cours de change : la contre-valeur CHF des écritures en EUR et la différence de change au paiement. */
 export function CurrenciesPanel({ readOnly, onChanged }: { readOnly: boolean; onChanged?: () => void }) {
@@ -79,7 +80,7 @@ export function CurrenciesPanel({ readOnly, onChanged }: { readOnly: boolean; on
     {state?.rates.length ? <ul className="erp-register__list" aria-label={t('Cours saisis')}>
       {state.rates.map(rate => <li key={rate.currency + rate.rateDate}>
         <span><strong>{t('1 {currency} = {rate} CHF', { currency: rate.currency, rate: formatRate(rate.chfPerUnitMicro) })}</strong><small>{rate.used ? t('Dès le {date} · appliqué à des écritures', { date: formatDate(rate.rateDate) }) : t('Dès le {date}', { date: formatDate(rate.rateDate) })}</small></span>
-        {rate.used || readOnly ? <span /> : <Button type="button" variant="ghost" size="small" disabled={busy} onClick={() => void remove(rate.currency, rate.rateDate)}>{t('Supprimer')}</Button>}
+        {rate.used || readOnly ? <span /> : <ZHoldDelete disabled={busy} ariaLabel={t('Supprimer le cours {currency}', { currency: rate.currency })} onConfirm={() => void remove(rate.currency, rate.rateDate)} />}
       </li>)}
     </ul> : null}
   </section>;

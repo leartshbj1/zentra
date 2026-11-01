@@ -8,6 +8,7 @@ import type { Absence, Workspace } from './types';
 import { Button, ErrorPanel, Field } from './ui';
 import { errorMessage, formatDate, formatMoney } from './utils';
 import './erp-registers.css';
+import { ZHoldDelete } from './ZHoldDelete';
 
 const KIND_LABEL: Record<Absence['kind'], string> = {
   vacation: 'Vacances', sick: 'Maladie', accident: 'Accident', military: 'Service militaire ou civil', maternity: 'Congé maternité',
@@ -95,7 +96,7 @@ export function AbsencesPanel({ workspace, disabled, onWorkspace }: { workspace:
       {[...absences].sort((a, b) => b.startDate.localeCompare(a.startDate)).slice(0, 60).map((row) => <li key={row.id}>
         <span><strong>{name(row.employeeId)} · {t(KIND_LABEL[row.kind])}</strong><small>{formatDate(row.startDate)} – {formatDate(row.endDate)}{row.ijmDeclaredAt ? ` · ${t('déclaré à l’IJM')}` : ''}</small></span>
         <span className="erp-register__amount">{t('{days} j', { days: row.days })}</span>
-        {!row.ijmDeclaredAt ? <span className="erp-register__links"><button type="button" disabled={locked} onClick={() => { if (window.confirm(t('Supprimer cette absence ?'))) void run(() => desktopApi.deleteAbsence(row.id)); }}>{t('Supprimer')}</button></span> : null}
+        {!row.ijmDeclaredAt ? <span className="erp-register__links"><ZHoldDelete disabled={locked} ariaLabel={t('Supprimer cette absence')} onConfirm={() => void run(() => desktopApi.deleteAbsence(row.id))} /></span> : null}
       </li>)}
     </ul> : null}
   </section>;
@@ -145,7 +146,7 @@ export function ExpenseClaimsPanel({ workspace, disabled, onWorkspace }: { works
             {claim.status === 'submitted' || claim.status === 'rejected' ? <button type="button" disabled={locked} onClick={() => void run(() => desktopApi.decideExpenseClaim(claim.id, true))}>{t('Valider')}</button> : null}
             {claim.status === 'submitted' ? <button type="button" disabled={locked} onClick={() => { const note = window.prompt(t('Motif du refus (facultatif)')) ?? undefined; void run(() => desktopApi.decideExpenseClaim(claim.id, false, note)); }}>{t('Refuser')}</button> : null}
             {payslip ? <button type="button" disabled={locked} onClick={() => void run(async () => (await desktopApi.addApprovedClaimsToPayslip(payslip.id)).workspace)}>{t('Ajouter à la fiche de {period}', { period: payslip.period })}</button> : null}
-            {claim.status === 'submitted' || claim.status === 'rejected' ? <button type="button" disabled={locked} onClick={() => { if (window.confirm(t('Supprimer cette note de frais ?'))) void run(() => desktopApi.deleteExpenseClaim(claim.id)); }}>{t('Supprimer')}</button> : null}
+            {claim.status === 'submitted' || claim.status === 'rejected' ? <ZHoldDelete disabled={locked} ariaLabel={t('Supprimer cette note de frais')} onConfirm={() => void run(() => desktopApi.deleteExpenseClaim(claim.id))} /> : null}
           </span>
         </li>;
       })}

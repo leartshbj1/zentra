@@ -15,6 +15,7 @@ vi.mock('./ui', () => ({ Button: () => null }));
 import { NotesScreen } from './NotesScreen';
 import { WorkNotesStore } from './workNotes';
 import { Button } from './ui';
+import { ZHoldDelete } from './ZHoldDelete';
 type Element = { type: unknown; props: any };
 type Props = Parameters<typeof NotesScreen>[0];
 class Host {
@@ -62,7 +63,7 @@ function setup() {
 function select(host: Host, id: string) { click(host, e => e.type === 'button' && e.props.className?.includes('notes-list__entry') && text(e).includes(`Synthetic ${id}`)); }
 function beginDelete(host: Host) {
   click(host, e => e.type === Button && e.props['aria-label'] === 'Supprimer la note');
-  click(host, e => e.type === Button && text(e) === 'Supprimer');
+  one(host, e => e.type === ZHoldDelete).props.onConfirm(); host.flush();
 }
 function selectedTitle(host: Host) { return walk(host.tree).find(e => e.props['aria-label'] === 'Titre de la note')?.props.value; }
 afterEach(() => {vi.unstubAllGlobals(); runtime.host = null;});
@@ -99,7 +100,7 @@ describe('NotesScreen deletion lifecycle with the real note store', () => {
   it('keeps the note open when the same confirmation is pressed twice before rendering', async () => {
     const {host, deletion, remove} = setup(); select(host, 'a');
     click(host, e => e.type === Button && e.props['aria-label'] === 'Supprimer la note');
-    const confirm = one(host, e => e.type === Button && text(e) === 'Supprimer').props.onClick;
+    const confirm = one(host, e => e.type === ZHoldDelete).props.onConfirm;
     confirm(); confirm(); await settle(host);
     expect(remove).toHaveBeenCalledTimes(1); expect(selectedTitle(host)).toBe('Synthetic a');
     deletion.resolve(); await settle(host); expect(selectedTitle(host)).toBeUndefined();
@@ -118,8 +119,8 @@ describe('NotesScreen deletion lifecycle with the real note store', () => {
     const {host, remove} = setup(); select(host, 'a');
     click(host, e => e.type === Button && e.props['aria-label'] === 'Supprimer la note');
     host.props = {...host.props, readOnly: true}; host.render();
-    const confirm = one(host, e => e.type === Button && text(e) === 'Supprimer');
-    expect(confirm.props.disabled).toBe(true); confirm.props.onClick(); await settle(host);
+    const confirm = one(host, e => e.type === ZHoldDelete);
+    expect(confirm.props.disabled).toBe(true); confirm.props.onConfirm(); await settle(host);
     expect(remove).not.toHaveBeenCalled(); expect(selectedTitle(host)).toBe('Synthetic a');
   });
   it('keeps B editable while deleting A', async () => {
@@ -138,7 +139,7 @@ describe('NotesScreen deletion lifecycle with the real note store', () => {
     await settle(host);
     expect(selectedTitle(host)).toBe('Synthetic b');
     expect(walk(host.tree).filter(e => e.props?.className === 'notes-delete-confirm')).toHaveLength(1);
-    expect(one(host, e => e.type === Button && text(e) === 'Supprimer').props.disabled).toBe(false);
+    expect(one(host, e => e.type === ZHoldDelete).props.disabled).toBe(false);
     expect(text(host.tree)).not.toContain('La suppression a échoué'); expect(remove).toHaveBeenCalledTimes(1);
   });
   it('preserves a new note opened before the previous deletion settles', async () => {
@@ -159,7 +160,7 @@ describe('NotesScreen deletion lifecycle with the real note store', () => {
   it('does not start a deletion from a detached screen', async () => {
     const {host, remove} = setup(); select(host, 'a');
     click(host, e => e.type === Button && e.props['aria-label'] === 'Supprimer la note');
-    const confirm = one(host, e => e.type === Button && text(e) === 'Supprimer').props.onClick;
+    const confirm = one(host, e => e.type === ZHoldDelete).props.onConfirm;
     host.unmount(); const before = host.writes; confirm(); await settle(host);
     expect(remove).not.toHaveBeenCalled(); expect(host.writes).toBe(before); expect(host.unmountedWrites).toBe(0);
   });
