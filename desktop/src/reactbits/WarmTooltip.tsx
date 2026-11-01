@@ -18,12 +18,12 @@ import {
   animate,
   motion,
   useMotionValue,
-  useReducedMotion,
   useSpring,
   useTransform,
   useVelocity
 } from 'motion/react';
 
+import { useCalmMotion } from '../calmMotion';
 import './WarmTooltip.css';
 
 const EASE_OUT = [0.23, 1, 0.32, 1];
@@ -85,7 +85,7 @@ export const WarmTooltipGroup = forwardRef(function WarmTooltipGroup(
   { delay = 400, warmWindow = 300, travel = 320, lean = 0, onWarmChange, children },
   ref
 ) {
-  const reduce = useReducedMotion();
+  const reduce = useCalmMotion(); // Zentra: also calm after unfinished starts (calmMotion.ts)
   const id = useId();
   const [current, setCurrent] = useState(null);
   const [state, setState] = useState('closed');

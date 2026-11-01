@@ -1,6 +1,7 @@
 // @ts-nocheck — RubberSegment from React Bits (MIT), kept close to its source.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
+import { animate, motion, useMotionValue, useTransform } from 'motion/react';
+import { useCalmMotion } from '../calmMotion';
 
 import './RubberSegment.css';
 
@@ -71,7 +72,7 @@ export default function RubberSegment({
     0,
     list.findIndex(item => item.value === current)
   );
-  const reduce = useReducedMotion();
+  const reduce = useCalmMotion(); // Zentra: also calm after unfinished starts (calmMotion.ts)
 
   const trackRef = useRef(null);
   const itemRefs = useRef([]);

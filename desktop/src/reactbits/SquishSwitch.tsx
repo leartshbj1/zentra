@@ -1,6 +1,7 @@
 // @ts-nocheck — SquishSwitch from React Bits (MIT), kept close to its source.
 import { useEffect, useId, useRef, useState } from 'react';
-import { animate, motion, useMotionValue, useReducedMotion, useSpring, useTransform, useVelocity } from 'motion/react';
+import { animate, motion, useMotionValue, useSpring, useTransform, useVelocity } from 'motion/react';
+import { useCalmMotion } from '../calmMotion';
 import './SquishSwitch.css';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -33,7 +34,7 @@ export default function SquishSwitch({
   className = '',
   id
 }) {
-  const reduce = useReducedMotion();
+  const reduce = useCalmMotion(); // Zentra: also calm after unfinished starts (calmMotion.ts)
   const inset = Math.max(3, Math.round(height * 0.11));
   const thumb = height - inset * 2;
   const min = inset;

@@ -7,10 +7,13 @@ import MaskedHeadingSource from './reactbits/MaskedHeading';
 import SpecularButtonSource from './reactbits/SpecularButton';
 import { t } from './language';
 import { claimPresentationTheme } from './appearance';
+import { plainIntro } from './calmMotion';
 
 // The React Bits source is plain JavaScript; its props are typed here.
 const MaskedHeading = MaskedHeadingSource as unknown as ComponentType<Record<string, unknown>>;
 const SpecularButton = SpecularButtonSource as unknown as ComponentType<Record<string, unknown>>;
+// On iPhone and iPad (and after starts that did not settle) the title and button stay as in 1.90.61:
+// the masked title and the WebGL light are the heaviest parts of 1.90.62 for the iOS web view.
 
 const seenKey = 'zentra.onboarding.intro.v1';
 const duration = 7800;
@@ -136,7 +139,7 @@ export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenK
   return <div ref={rootRef} className="zentra-arrival" data-phase={phase} data-product={product}>
     <canvas ref={canvasRef} className="zentra-arrival__light" aria-hidden="true"/>
     <figure className="zentra-arrival__quote" aria-hidden={phase!=='quote' && phase!=='ready'}>
-      <blockquote ref={quoteRef} tabIndex={-1}>{playing && !reduced
+      <blockquote ref={quoteRef} tabIndex={-1}>{playing && !reduced && !plainIntro
         ? <MaskedHeading tag="span" className="zentra-arrival__masked" text={quote} src={introTextureUrl} reveal="rise" trigger="mount" duration={1.2}
           drift={8} parallax={0} fillScale={1.12} spotlight={false} weight={650} tracking={-0.035} textScale={0.088} />
         : quote}</blockquote>
@@ -148,8 +151,8 @@ export function ZentraArrival({ onStart, product = 'gestion', storageKey = seenK
     </div>
     <div className="zentra-arrival__controls">
       {playing ? <button ref={skipRef} type="button" className="zentra-arrival__skip" onClick={skip}>{t('Passer l’introduction')}<ArrowRight size={17}/></button> : <>
-        <SpecularButton buttonRef={startRef} className="zentra-arrival__start" onClick={start} radius={28} tint="#e9f6ed" tintOpacity={1} textColor="#123d2b"
-          lineColor="#ffffff" baseColor="#9cc7b0" intensity={0.9} idleIntensity={0.45} glow={0.2} thickness={1.2} autoAnimate={!reduced} speed={0.3}>{t(startLabel)}<ArrowRight size={19}/></SpecularButton>
+        {plainIntro ? <button ref={startRef} type="button" className="zentra-arrival__start" onClick={start}>{t(startLabel)}<ArrowRight size={19}/></button> : <SpecularButton buttonRef={startRef} className="zentra-arrival__start" onClick={start} radius={28} tint="#e9f6ed" tintOpacity={1} textColor="#123d2b"
+          lineColor="#ffffff" baseColor="#9cc7b0" intensity={0.9} idleIntensity={0.45} glow={0.2} thickness={1.2} autoAnimate={!reduced} speed={0.3}>{t(startLabel)}<ArrowRight size={19}/></SpecularButton>}
         {!reduced && <button type="button" className="zentra-arrival__replay" onClick={()=>{setPhase('quote');setRun(value=>value+1);}}><RotateCcw size={14}/>{t('Revoir l’introduction')}</button>}
       </>}
     </div>

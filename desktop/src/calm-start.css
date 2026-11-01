@@ -1,0 +1,12 @@
+/* Calm start (calmMotion.ts): after starts that did not settle, nothing moves.
+   Durations shrink instead of disappearing, so code waiting for animationend/transitionend still runs. */
+html[data-calm-start] *,
+html[data-calm-start] *::before,
+html[data-calm-start] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  transition-delay: 0s !important;
+  will-change: auto !important;
+}

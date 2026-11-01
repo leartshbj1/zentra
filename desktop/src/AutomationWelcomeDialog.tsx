@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useCompanyAutomation } from './AutomationCompany';
 import { ZentraArrival } from './OnboardingIntro';
+import { calmStart } from './calmMotion';
 import { openAutomationHub } from './automationExperience';
 import { automationWelcomeKey, hasConfirmedAutomationAccess, hasSeenAutomationWelcome, rememberAutomationWelcome } from './automationWelcomeState';
 import { t, useAppLanguage } from './language';
@@ -30,7 +31,8 @@ export function AutomationWelcome({ view }: { view: string }) {
   }, [confirmed, id]);
   useEffect(() => {
     if (!confirmed || !id) { setOpen(false); setRequested(false); return; }
-    if (open || (!requested && (dismissed || hasSeenAutomationWelcome(id)))) return;
+    // After starts that did not settle (calmMotion.ts) it waits to be asked for.
+    if (open || (!requested && (dismissed || calmStart || hasSeenAutomationWelcome(id)))) return;
     if (!requested && !['dashboard', 'automation'].includes(view)) return;
     const showWhenIdle = () => {
       if (document.hidden || document.querySelector('[role="dialog"], [aria-busy="true"]')) return;

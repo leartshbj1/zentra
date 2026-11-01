@@ -4,7 +4,8 @@ import { ZentraAssistantProvider } from './ZentraAssistant';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
-import {installDiagnosticCapture} from './diagnostics';
+import {installDiagnosticCapture, recordDiagnostic} from './diagnostics';
+import { appleTouch, calmStart, installStartupGuard, unfinishedStarts } from './calmMotion';
 import { installFullscreenShortcuts } from './windowFullscreen';
 import {DiagnosticBoundary} from './DiagnosticBoundary';
 import { LanguageBoot } from './LanguageStatus';
@@ -26,8 +27,9 @@ if (!root) throw new Error('Le point de montage de l’application est introuvab
 // The grouped design (design-b.css) and its motion (motion.css) key on this attribute.
 // Not on iPhone and iPad: 1.90.58 made the iOS web view restart in a loop a few seconds after
 // opening, so iOS keeps the 1.90.57 look until that design is proven on a device.
-const appleTouch = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 if (!appleTouch) document.documentElement.dataset.design = 'b';
+installStartupGuard();
+if (unfinishedStarts) recordDiagnostic({ area: 'app', operation: calmStart ? 'startup.calm-after-unfinished-starts' : 'startup.previous-start-unfinished', phase: 'info', errorCode: String(unfinishedStarts) });
 
 createRoot(root).render(
   <StrictMode>
@@ -71,3 +73,4 @@ import './autopilot-nouveautes.css';
 import './design-b.css';
 import './motion.css';
 import './menus-2026.css';
+import './calm-start.css';

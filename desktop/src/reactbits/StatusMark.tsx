@@ -1,6 +1,7 @@
 // @ts-nocheck — StatusMark from React Bits (MIT), kept close to its source; spoken states are in French.
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { animate, useMotionValue, useReducedMotion } from 'motion/react';
+import { animate, useMotionValue } from 'motion/react';
+import { useCalmMotion } from '../calmMotion';
 
 import './StatusMark.css';
 
@@ -40,7 +41,7 @@ export default function StatusMark({
   className = '',
   style
 }) {
-  const reduce = useReducedMotion();
+  const reduce = useCalmMotion(); // Zentra: also calm after unfinished starts (calmMotion.ts)
   const r = 10 - strokeWidth / 2;
   const C = 2 * Math.PI * r;
   const P = C / Math.max(1, dashes);
