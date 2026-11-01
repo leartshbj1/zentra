@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Paperclip, Send } from 'lucide-react';
+import { Paperclip, Send } from 'lucide-react';
+import { ZStatusMark } from './ZStatusMark';
 import { Button, ErrorPanel, Field, Modal } from './ui';
 import { errorMessage } from './utils';
 import { AUTOPILOT_SENT_EVENT, markAutopilotDocumentSent } from './autopilotQuote';
@@ -281,7 +282,7 @@ function MailComposerSession({
         {sent ? (
           <>
             <p className="mail-notice" role="status">
-              <Check size={20} />
+              <ZStatusMark status="done" size={20} />
               {t(
                 'Le serveur de votre messagerie a accepté l’e-mail pour {recipient}.',
                 { recipient },
@@ -536,7 +537,7 @@ function MailComposerSession({
                         Boolean(preview.signatureLogoError)
                       }
                     >
-                      <Send size={16} />
+                      {busy ? <ZStatusMark status="running" size={16} /> : <Send size={16} />}
                       {busy ? t('Envoi en cours…') : t('Envoyer l’e-mail')}
                     </Button>
                     <Button
@@ -552,7 +553,7 @@ function MailComposerSession({
                 {attempted && !busy && (
                   <div className="mail-recovery">
                     {resultStatus && (
-                      <p role="status">{statusText(resultStatus)}</p>
+                      <p role="status"><ZStatusMark status={resultStatus === 'accepted' ? 'done' : resultStatus === 'rejected' ? 'failed' : 'pending'} label={statusText(resultStatus)} /></p>
                     )}
                     {channel === 'company' && (
                       <Button

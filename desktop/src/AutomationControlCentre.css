@@ -579,3 +579,7 @@
 @media (prefers-reduced-motion: reduce) {
   .automation-centre.automation-centre button { transition: none; }
 }
+
+/* StatusMark beside the run state: pending, running, done (green) or failed. */
+.ac-status { display: inline-flex; align-items: center; gap: 6px; }
+.ac-status__mark { display: inline-flex; flex: none; }

@@ -1,5 +1,6 @@
 'use client';
 import { withDiagnosticIntent } from './diagnosticIntent';
+import { ZStatusMark, type ZStatus } from './ZStatusMark';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -70,6 +71,15 @@ type WorkItem = {
   assigned_to: string | null;
   created_at: number;
 };
+/** The mark beside a run: green only once Autopilote has finished it. */
+function runMark(state: string): ZStatus {
+  if (state === 'completed') return 'done';
+  if (state === 'running') return 'running';
+  if (state === 'failed') return 'failed';
+  if (state === 'cancelled' || state === 'undone' || state === 'skipped') return 'cancelled';
+  return 'pending';
+}
+
 export type AutomationCentreState = {
   organizationId: string;
   canManage: boolean;
@@ -779,6 +789,7 @@ export function AutomationRunRow({
           <small>{activityDateTime(at, language)}</small>
         </span>
         <span className="ac-status" data-state={run.state}>
+          <span className="ac-status__mark" aria-hidden="true"><ZStatusMark status={runMark(run.state)} size={14} /></span>
           {automationRunStatus(run.state, language)}
         </span>
         <ChevronDown size={16} />

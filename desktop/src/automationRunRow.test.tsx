@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 const locale = vi.hoisted(() => ({language:'fr'}));
-vi.mock('./language', () => ({useAppLanguage:() => locale.language}));
+vi.mock('./language', () => ({useAppLanguage:() => locale.language, t:(key:string) => key}));
 import { AutomationRunRow, type AutomationCentreState } from './AutomationControlCentre';
 import { activityDateTime } from './automationPresentation';
 
