@@ -1,0 +1,185 @@
+/* Page du commerce : adresse vérifiée en direct, suggestions, demandes reçues. Couleurs du thème uniquement. */
+@media screen {
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings {
+    display: grid;
+    gap: 4px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__address {
+    display: grid;
+    gap: 6px;
+    max-width: 640px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__address > label {
+    color: var(--apple-ink);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__slug {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-control);
+    background: var(--apple-paper);
+    overflow: hidden;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__slug:focus-within {
+    outline: 3px solid var(--apple-focus);
+    outline-offset: 1px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__slug--error {
+    border-color: var(--apple-danger);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__slug > span {
+    flex: none;
+    padding: 0 10px;
+    color: var(--apple-secondary);
+    font-size: calc(15px * var(--zentra-ui-text-scale, 1));
+    white-space: nowrap;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__slug > span:first-child {
+    padding-right: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__slug > span:last-child {
+    padding-left: 0;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__slug input#storefront-slug {
+    flex: 1 1 auto;
+    min-width: 4ch;
+    min-height: 42px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--apple-ink);
+    font: inherit;
+    font-weight: 600;
+    box-shadow: none;
+    outline: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__state {
+    min-height: 1.4em;
+    margin: 0;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__state--ok {
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__state--error,
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__error {
+    color: var(--apple-danger);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    color: var(--apple-secondary);
+    font-size: calc(14px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__suggestions button {
+    min-height: 36px;
+    padding: 4px 12px;
+    border: 1px solid var(--apple-line);
+    border-radius: 999px;
+    background: var(--apple-paper);
+    color: var(--apple-ink);
+    font: inherit;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__suggestions button:hover:not(:disabled) {
+    border-color: var(--apple-accent);
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__link {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__link a,
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--apple-accent);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__grid textarea {
+    resize: vertical;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__requests-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__requests {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__requests li {
+    display: grid;
+    gap: 6px;
+    padding: 12px 0;
+    box-shadow: inset 0 -1px 0 var(--apple-line);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__requests li:last-child {
+    box-shadow: none;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__request-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__request-head small {
+    color: var(--apple-secondary);
+    font-size: calc(13px * var(--zentra-ui-text-scale, 1));
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__kind,
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__new {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--apple-grouped);
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__kind--quote,
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__new {
+    background: var(--apple-selection);
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__requests p {
+    max-width: 70ch;
+    margin: 0;
+    color: var(--apple-ink);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__request-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__request-actions a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    color: var(--apple-accent);
+    overflow-wrap: anywhere;
+  }
+}

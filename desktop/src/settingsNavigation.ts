@@ -1,7 +1,7 @@
 export const settingsGroups = [
   { title: 'Entreprise et équipe', ids: ['readiness', 'company', 'account', 'payroll'] },
   { title: 'Documents et gestion', ids: ['documents', 'accounting', 'time', 'migration'] },
-  { title: 'Connexions', ids: ['automation', 'mail', 'integrations', 'customers'] },
+  { title: 'Connexions', ids: ['automation', 'mail', 'integrations', 'storefront', 'customers'] },
   { title: 'Préférences et protection', ids: ['appearance', 'personalization', 'language', 'assistant', 'storage'] },
 ] as const;
 
@@ -17,6 +17,7 @@ export const settingsSearchTerms: Record<string, string> = {
   automation: 'Automatismes, factures fournisseurs, habitudes, consentement',
   mail: 'E-mail, SMTP, Infomaniak, expéditeur, modèles, signature, logo',
   integrations: 'API, clé API, MCP, webhooks, Shopify, WooCommerce, boutique en ligne, courrier, poste, Pingen',
+  storefront: 'Page du commerce, site, vitrine, adresse, lien, zentraapp.ch, demande de devis, formulaire de contact',
   appearance: 'Mode sombre, mode clair, thème, taille du texte, lisibilité',
   personalization: 'Raccourcis, barre du bas, accueil, navigation mobile',
   language: 'Langue, français, allemand, italien, anglais',
@@ -27,7 +28,7 @@ export const settingsSearchTerms: Record<string, string> = {
 export const settingsScopes: Record<string, string> = {
   company: 'Pour cette entreprise', payroll: 'Pour cette entreprise',
   documents: 'Pour les documents de cette entreprise', accounting: 'Pour cette entreprise', time: 'Pour cette entreprise',
-  automation: 'Pour toute l’équipe de cette entreprise',
+  automation: 'Pour toute l’équipe de cette entreprise', storefront: 'Pour toute l’équipe de cette entreprise',
   mail: 'Connexion sur cet appareil · modèles pour l’entreprise',
   appearance: 'Sur cet appareil', personalization: 'Sur cet appareil', language: 'Sur cet appareil', assistant: 'Sur cet appareil',
 };
