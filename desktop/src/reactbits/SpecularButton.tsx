@@ -450,7 +450,8 @@ const SpecularButton = ({
         gl.deleteBuffer(buffer);
         gl.deleteVertexArray(vao);
         gl.deleteProgram(program);
-        gl.getExtension('WEBGL_lose_context')?.loseContext();
+        // Zentra: no loseContext() here. The same canvas may be set up again (React StrictMode),
+        // and a context lost on purpose cannot be restored on that canvas.
       }
     };
   }, []);
