@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useState } from 'react';
 import { desktopApi } from './bridge';
 import { localDate } from './cashBook';
@@ -80,7 +81,7 @@ export function AbsencesPanel({ workspace, disabled, onWorkspace }: { workspace:
       <Field label={t('Au')}><input type="date" value={draft.endDate} disabled={locked} onChange={(event) => setDates({ endDate: event.target.value })} /></Field>
       <Field label={t('Jours ouvrés')} hint={t('Demi-journée : 0.5')}><input inputMode="decimal" value={draft.daysText} disabled={locked} onChange={(event) => setDraft({ ...draft, daysText: event.target.value })} /></Field>
       {draft.kind === 'sick' || draft.kind === 'accident' ? <Field label={t('Incapacité (%)')}><input inputMode="numeric" value={String(draft.incapacityPercent)} disabled={locked} onChange={(event) => setDraft({ ...draft, incapacityPercent: Math.min(100, Math.max(1, Number(event.target.value.replace(/\D/g, '')) || 100)) })} /></Field> : null}
-      {draft.kind === 'sick' || draft.kind === 'accident' ? <label className="erp-register__switch erp-register__wide"><input type="checkbox" role="switch" aria-checked={draft.certificate} checked={draft.certificate} disabled={locked} onChange={(event) => setDraft({ ...draft, certificate: event.target.checked })} /><span>{t('Certificat médical reçu')}</span></label> : null}
+      {draft.kind === 'sick' || draft.kind === 'accident' ? <label className="erp-register__switch erp-register__wide"><ZSwitch checked={draft.certificate} disabled={locked} onChange={(checked: boolean) => setDraft({ ...draft, certificate: checked })} /><span>{t('Certificat médical reçu')}</span></label> : null}
       <div className="erp-register__actions">
         <Button disabled={locked || !draft.employeeId} onClick={() => {
           const days = Number(draft.daysText.replace(',', '.'));

@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, Check, CheckCircle2, ChevronRight, ClipboardCheck, Mail, Workflow } from 'lucide-react';
 import { useAppLanguage, getAppLocale } from './language';
@@ -52,8 +53,7 @@ export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; 
     <header><div><h2 id="quote-autopilot-settings-title">{copy.title}</h2><p>{copy.consentTitle}</p></div></header>
     {admitted ? <>
       <label className="quote-autopilot__consent">
-        <input type="checkbox" checked={state.consent!.enabled && state.consent!.consentVersion === state.consent!.requiredConsentVersion} disabled={!state.canManage || state.saving}
-          onChange={event => { void onConsent(event.target.checked); }} />
+        <ZSwitch checked={state.consent!.enabled && state.consent!.consentVersion === state.consent!.requiredConsentVersion} disabled={!state.canManage || state.saving} onChange={(checked: boolean) => { void onConsent(checked); }} />
         <span><strong>{copy.consent}</strong><small>{copy.consentDetail}</small></span>
       </label>
       {!state.canManage && <p className="quote-autopilot__context">{copy.admin}</p>}

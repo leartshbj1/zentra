@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { AUTOPILOT_KIND_LABELS } from './autopilotKinds';
 import { autopilotCopy } from './autopilotPresentation';
 import { AUTO_VALIDATION_CASES, type AutopilotBehaviour } from './autopilotSettings';
@@ -18,7 +19,7 @@ export function AutopilotBehaviourSettings({ behaviour, onChange, disabled = fal
       <legend>{copy.onlySureTitle}</legend>
       <p className="quote-autopilot__context">{copy.onlySureDetail}</p>
       {AUTOPILOT_KIND_LABELS.map(kind => <label key={kind} className="quote-autopilot__consent">
-        <input type="checkbox" checked={behaviour.onlySure.includes(kind)} onChange={event => onChange({ onlySure: toggle(behaviour.onlySure, kind, event.target.checked) })} />
+        <ZSwitch checked={behaviour.onlySure.includes(kind)} onChange={(checked: boolean) => onChange({ onlySure: toggle(behaviour.onlySure, kind, checked) })} />
         <span><strong>{t(kind)}</strong></span>
       </label>)}
     </fieldset>
@@ -26,7 +27,7 @@ export function AutopilotBehaviourSettings({ behaviour, onChange, disabled = fal
       <legend>{copy.autoTitle}</legend>
       <p className="quote-autopilot__context">{copy.autoDetail}</p>
       {AUTO_VALIDATION_CASES.map(item => <label key={item} className="quote-autopilot__consent">
-        <input type="checkbox" checked={behaviour.autoValidate.includes(item)} onChange={event => onChange({ autoValidate: toggle(behaviour.autoValidate, item, event.target.checked) })} />
+        <ZSwitch checked={behaviour.autoValidate.includes(item)} onChange={(checked: boolean) => onChange({ autoValidate: toggle(behaviour.autoValidate, item, checked) })} />
         <span><strong>{item === 'qrmail' ? copy.autoQrMail : copy.autoContact}</strong><small>{item === 'qrmail' ? copy.autoQrMailDetail : copy.autoContactDetail}</small></span>
       </label>)}
     </fieldset>

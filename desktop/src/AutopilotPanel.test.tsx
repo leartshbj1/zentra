@@ -36,10 +36,10 @@ it.each(['fr','de','it','en'])('explains monthly allowance independently of conn
   const html=renderToStaticMarkup(<AutopilotStatus state={{...state,error:'quota_exhausted'}} onSettings={()=>{}}/>);
   expect(html).toContain(copy.monthlyQuota);expect(html).not.toContain(copy.connection);expect(html).not.toContain(copy.rateLimited);
 });
-it('does not submit consent on mount and requires a real explicit checkbox action', async () => {
+it('does not submit consent on mount and requires a real explicit switch action', async () => {
   const change = vi.fn().mockResolvedValue(undefined);
   const {host} = await mount(<AutopilotSettings state={state} onConsent={change} />);
-  expect(change).not.toHaveBeenCalled(); await act(async () => host.querySelector<HTMLInputElement>('input')!.click());
+  expect(change).not.toHaveBeenCalled(); await act(async () => host.querySelector<HTMLButtonElement>('button[role="switch"]')!.click());
   expect(change).toHaveBeenCalledExactlyOnceWith(false);
 });
 it('keeps collaborator and saving consent controls disabled', () => {

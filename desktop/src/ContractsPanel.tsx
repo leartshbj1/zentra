@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useState } from 'react';
 import { desktopApi } from './bridge';
 import { localDate } from './cashBook';
@@ -101,7 +102,7 @@ export function ContractsPanel({ side, workspace, disabled, onWorkspace, focusId
       </Field>
       <Field label={t('Indexation')} hint={t('Par exemple : IPC chaque janvier')}><input value={draft.indexation} maxLength={200} disabled={locked} onChange={(event) => set({ indexation: event.target.value })} /></Field>
       <label className="erp-register__switch erp-register__wide">
-        <input type="checkbox" role="switch" aria-checked={draft.autoRenew} checked={draft.autoRenew} disabled={locked || !draft.endDate} onChange={(event) => set({ autoRenew: event.target.checked })} />
+        <ZSwitch checked={draft.autoRenew} disabled={locked || !draft.endDate} onChange={(checked: boolean) => set({ autoRenew: checked })} />
         <span>{t('Reconduction tacite de {months} mois', { months: draft.renewalMonths })}</span>
       </label>
       {draft.autoRenew && draft.endDate ? <Field label={t('Durée de reconduction (mois)')}><input inputMode="numeric" value={String(draft.renewalMonths)} disabled={locked} onChange={(event) => set({ renewalMonths: Math.max(1, Math.min(120, Number(event.target.value.replace(/\D/g, '')) || 1)) })} /></Field> : null}

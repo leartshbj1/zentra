@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useRef, useState } from 'react';
 import { backgroundApi, backgroundSchedule, type BackgroundStatus } from './autopilotBackground';
 import { followUpEntries } from './autopilotFollowUps';
@@ -51,8 +52,7 @@ export function AutopilotBackgroundSetting({ canManage }: { canManage: boolean }
   const enabled = status?.enabled ?? false;
   return <section className="autopilot-background" aria-labelledby="autopilot-background-title">
     <label className="reminder-charges__interest">
-      <input type="checkbox" role="switch" aria-checked={enabled} checked={enabled} disabled={!canManage || busy || !status}
-        onChange={event => void run(event.target.checked ? 'enable' : 'disable')} />
+      <ZSwitch checked={enabled} disabled={!canManage || busy || !status} onChange={(checked: boolean) => void run(checked ? 'enable' : 'disable')} />
       <span><strong id="autopilot-background-title">{t('Continuer quand mes ordinateurs sont éteints')}</strong>
         <small>{t('Autopilote lit vos mails et prépare vos devis et vos rappels même quand vos ordinateurs sont éteints. Il vous prévient sur votre téléphone. Rien n’est créé ni envoyé sans votre clic.')}</small></span>
     </label>

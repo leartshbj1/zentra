@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useState } from 'react';
 import { desktopApi } from './bridge';
 import { t, useAppLanguage } from './language';
@@ -66,7 +67,7 @@ export function OnlinePaymentSettings({ disabled }: { disabled: boolean }) {
       </Field>
     </div>
     <label className="reminder-charges__interest">
-      <input type="checkbox" role="switch" aria-checked={enabled} checked={enabled} disabled={locked} onChange={(event) => setEnabled(event.target.checked)} />
+      <ZSwitch checked={enabled} disabled={locked} onChange={(checked: boolean) => setEnabled(checked)} />
       <span><strong>{t('Proposer le paiement par TWINT et carte')}</strong><small>{t('Désactivé tant que vous ne l’activez pas.')}</small></span>
     </label>
     <div className="reminder-charges__actions">

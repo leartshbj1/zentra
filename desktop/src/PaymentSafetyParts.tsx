@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useMemo, useState } from 'react';
 import { desktopApi } from './bridge';
 import { t, useAppLanguage } from './language';
@@ -139,7 +140,7 @@ export function PaymentSafetySettings({ disabled }: { disabled: boolean }) {
     <h3 id="payment-safety-settings-title">{t('Paiements sûrs')}</h3>
     <p>{t('Avant chaque ordre de paiement, Zentra vérifie l’IBAN, les premiers paiements, les factures en double et les montants inhabituels.')}</p>
     <label className="payment-safety-settings__switch">
-      <input type="checkbox" role="switch" aria-checked={settings.approvalEnabled} checked={settings.approvalEnabled} disabled={locked} onChange={(event) => setSettings((current) => ({ ...current, approvalEnabled: event.target.checked }))} />
+      <ZSwitch checked={settings.approvalEnabled} disabled={locked} onChange={(checked: boolean) => setSettings((current) => ({ ...current, approvalEnabled: checked }))} />
       <span><strong>{t('Double validation des paiements')}</strong><small>{t('Au-delà du montant choisi, la personne qui prépare un paiement ne peut pas l’approuver seule. Le propriétaire ou un administrateur l’approuve.')}</small></span>
     </label>
     {settings.approvalEnabled && <Field label={t('À partir de (CHF)')} hint={state.solo ? t('Vous êtes seul dans l’entreprise : Zentra garde les alertes, sans bloquer le paiement.') : undefined}>

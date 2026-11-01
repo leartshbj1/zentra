@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useState } from 'react';
 import { t, useAppLanguage } from './language';
 import { saveDigest, savedDigest } from './morningDigest';
@@ -20,7 +21,7 @@ export function MorningDigestSetting({ organizationId, disabled }: { organizatio
         <strong>{t('Résumé du matin par e-mail')}</strong>
         <small>{t('Chaque matin à 7 h, la liste des actions à valider. Seuls leur nombre et leurs titres (8 au plus) sont envoyés au serveur Zentra pour composer l’e-mail.')}</small>
       </span>
-      <input type="checkbox" role="switch" aria-checked={saved.enabled} checked={saved.enabled} onChange={(event) => toggle(event.target.checked)} />
+      <ZSwitch checked={saved.enabled} onChange={(checked: boolean) => toggle(checked)} />
     </label>
     {saved.enabled ? <p className="automation-settings__current-mode">{saved.emailConfigured === false
       ? t('L’envoi d’e-mails n’est pas encore ouvert sur le serveur Zentra. Le résumé partira dès qu’il le sera.')

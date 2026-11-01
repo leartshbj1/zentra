@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useState } from 'react';
 import { desktopApi } from './bridge';
 import { DEFAULT_ENGAGEMENT, type CustomerEngagementSettings, type SmsSettings } from './customerEngagement';
@@ -81,7 +82,7 @@ export function CustomerSettings({ workspace, disabled, onWorkspace }: { workspa
         </Field>
       </div>
       <label className="reminder-charges__interest">
-        <input type="checkbox" role="switch" aria-checked={draft.reviewAuto} checked={draft.reviewAuto} disabled={locked} onChange={event => setDraft({ ...draft, reviewAuto: event.target.checked })} />
+        <ZSwitch checked={draft.reviewAuto} disabled={locked} onChange={(checked: boolean) => setDraft({ ...draft, reviewAuto: checked })} />
         <span><strong>{t('Demander l’avis par SMS sans attendre mon clic')}</strong><small>{t('Règle explicite : seulement si les SMS sont configurés. Chaque envoi reste dans le journal Autopilote.')}</small></span>
       </label>
     </section>
@@ -89,7 +90,7 @@ export function CustomerSettings({ workspace, disabled, onWorkspace }: { workspa
       <h3 id="booking-settings-title">{t('Rendez-vous en ligne')}</h3>
       <p>{t('Sur la page client, vos clients choisissent un créneau libre de votre agenda, sans voir son contenu. Chaque demande arrive dans Autopilote pour que vous la validiez.')}</p>
       <label className="reminder-charges__interest">
-        <input type="checkbox" role="switch" aria-checked={draft.bookingEnabled} checked={draft.bookingEnabled} disabled={locked} onChange={event => setDraft({ ...draft, bookingEnabled: event.target.checked })} />
+        <ZSwitch checked={draft.bookingEnabled} disabled={locked} onChange={(checked: boolean) => setDraft({ ...draft, bookingEnabled: checked })} />
         <span><strong>{t('Proposer la prise de rendez-vous en ligne')}</strong><small>{t('Désactivé tant que vous ne l’activez pas.')}</small></span>
       </label>
       {draft.bookingEnabled ? <>
@@ -196,12 +197,11 @@ export function SmsSettingsPanel({ disabled, onSettings }: { disabled: boolean; 
       </Field>
     </div>
     <label className="reminder-charges__interest">
-      <input type="checkbox" role="switch" aria-checked={draft.enabled} checked={draft.enabled} disabled={locked} onChange={event => setDraft({ ...draft, enabled: event.target.checked })} />
+      <ZSwitch checked={draft.enabled} disabled={locked} onChange={(checked: boolean) => setDraft({ ...draft, enabled: checked })} />
       <span><strong>{t('Activer les SMS')}</strong><small>{t('Désactivé tant que vous ne l’activez pas.')}</small></span>
     </label>
     <label className="reminder-charges__interest">
-      <input type="checkbox" role="switch" aria-checked={draft.appointmentRemindersAuto} checked={draft.appointmentRemindersAuto} disabled={locked || !draft.enabled}
-        onChange={event => setDraft({ ...draft, appointmentRemindersAuto: event.target.checked })} />
+      <ZSwitch checked={draft.appointmentRemindersAuto} disabled={locked || !draft.enabled} onChange={(checked: boolean) => setDraft({ ...draft, appointmentRemindersAuto: checked })} />
       <span><strong>{t('Envoyer les rappels de rendez-vous sans attendre mon clic')}</strong><small>{t('Règle explicite : la veille, pour les rendez-vous avec l’heure et le numéro du client.')}</small></span>
     </label>
     <div className="reminder-charges__actions">

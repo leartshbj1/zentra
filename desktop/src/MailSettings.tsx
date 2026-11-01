@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useRef, useState } from 'react';
 import { Check, Mail } from 'lucide-react';
 import { Button, ErrorPanel, Field } from './ui';
@@ -497,24 +498,17 @@ export function MailSettings({
           </div>
           <div className="mail-signature-settings">
             <label className="mail-signature-toggle" aria-label={t('Ajouter le logo de l’entreprise')}>
-              <input
-                type="checkbox"
-                role="switch"
-                aria-checked={Boolean(state.signature?.includeCompanyLogo)}
-                checked={Boolean(state.signature?.includeCompanyLogo)}
-                disabled={
+              <ZSwitch checked={Boolean(state.signature?.includeCompanyLogo)} disabled={
                   locked ||
                   (!state.companyLogoDataUrl &&
                     !state.signature?.includeCompanyLogo)
-                }
-                onChange={(event) => {
+                } onChange={(checked: boolean) => {
                   setNotice('');
                   setState({
                     ...state,
-                    signature: { includeCompanyLogo: event.target.checked },
+                    signature: { includeCompanyLogo: checked },
                   });
-                }}
-              />
+                }} />
               <span>
                 <strong>{t('Ajouter le logo de l’entreprise')}</strong>
                 <small>

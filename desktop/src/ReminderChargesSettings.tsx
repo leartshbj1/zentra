@@ -1,3 +1,4 @@
+import { ZSwitch } from './ZSwitch';
 import { useEffect, useState } from 'react';
 import { desktopApi } from './bridge';
 import { t, useAppLanguage } from './language';
@@ -62,7 +63,7 @@ export function ReminderChargesSettings({ levels, disabled }: { levels: readonly
       </Field>)}
     </div>
     <label className="reminder-charges__interest">
-      <input type="checkbox" role="switch" aria-checked={settings.interestEnabled} checked={settings.interestEnabled} disabled={disabled || saving} onChange={(event) => setSettings((current) => ({ ...current, interestEnabled: event.target.checked }))} />
+      <ZSwitch checked={settings.interestEnabled} disabled={disabled || saving} onChange={(checked: boolean) => setSettings((current) => ({ ...current, interestEnabled: checked }))} />
       <span><strong>{t('Intérêts moratoires')}</strong><small>{t('Dès le lendemain de l’échéance, au taux annuel ci-dessous (5 % selon l’art. 104 CO).')}</small></span>
     </label>
     {settings.interestEnabled && <Field label={t('Taux annuel (%)')} hint={validRate ? t('Exemple : sur {amount} en retard de 30 jours, {interest} d’intérêts.', { amount: formatMoney(100_000), interest: formatMoney(example) }) : undefined}>
