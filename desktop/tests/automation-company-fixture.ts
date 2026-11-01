@@ -76,8 +76,8 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
       if (command === 'storefront_request') {
         const input = (args?.input ?? {}) as Record<string, unknown>;
         const profile = {companyName:'Atelier Exemple Sàrl',tagline:'Menuiserie et agencement à Lausanne',description:'Cuisines, dressings et portes sur mesure.',services:['Cuisines','Dressings','Portes'],
-          street:'Rue de l’Exemple 12',postalCode:'1004',locality:'Lausanne',phone:'021 555 01 02',email:'info@atelier-exemple.ch',website:'https://atelier-exemple.ch',hours:'Lu–Ve 7 h 30 – 17 h',quoteRequests:true,contactRequests:true};
-        if (input.action === 'read') return {schemaVersion:1,organizationId:'automation-qa',page:{slug:'atelier-exemple',url:'https://atelier-exemple.zentraapp.ch/',published:true,profile,updatedAt:1793050000}};
+          street:'Rue de l’Exemple 12',postalCode:'1004',locality:'Lausanne',phone:'021 555 01 02',email:'info@atelier-exemple.ch',website:'https://atelier-exemple.ch',hours:'Lu–Ve 7 h 30 – 17 h',quoteRequests:true,contactRequests:true,autopilot:true};
+        if (input.action === 'read') return {schemaVersion:1,organizationId:'automation-qa',page:{slug:'atelier-exemple',url:'https://atelier-exemple.zentraapp.ch/',published:true,profile,updatedAt:1793050000},autopilot:{mailbox:'info@atelier-exemple.ch'}};
         if (input.action === 'check') {
           const slug = String(input.slug).normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
           if (slug === 'atelier-exemple') return {schemaVersion:1,organizationId:'automation-qa',slug,state:'yours',url:`https://${slug}.zentraapp.ch/`,suggestions:[]};
@@ -86,7 +86,7 @@ export function installAutomationCompanyFixture(workspace?:Workspace) {
         }
         if (input.action === 'requests') return {schemaVersion:1,organizationId:'automation-qa',nextCursor:'sr1_2',items:[
           {requestId:'sr000000000001-demo01',kind:'contact',contactName:'Paul Favre',email:'',phone:'079 123 45 67',locality:'',message:'Êtes-vous ouverts le samedi matin ?',at:1793040000},
-          {requestId:'sr000000000002-demo02',kind:'quote',contactName:'Marie Rochat',email:'marie.rochat@example.test',phone:'',locality:'1007 Lausanne',message:'Bonjour, je souhaite un devis pour une cuisine de 3 m 20 en chêne, avec îlot.\nDélai souhaité : mars.',at:1793050000}]};
+          {requestId:'sr000000000002-demo02',kind:'quote',contactName:'Marie Rochat',email:'marie.rochat@example.test',phone:'',locality:'1007 Lausanne',message:'Bonjour, je souhaite un devis pour une cuisine de 3 m 20 en chêne, avec îlot.\nDélai souhaité : mars.',at:1793050000,autopilot:true}]};
         throw Error('Fixture: storefront writes are not stored');
       }
       if (command === 'autopilot_background') return {schemaVersion:1,organizationId:'automation-qa',consentVersion:'autopilot-background-2026-10-26',enabled:true,grantedAt:1793050000,expiresAt:1795642000,lastRunAt:Math.floor(Date.now()/1000)-300,lastState:'idle',waiting:2};

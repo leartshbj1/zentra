@@ -182,4 +182,37 @@
     color: var(--apple-accent);
     overflow-wrap: anywhere;
   }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__in-autopilot {
+    padding: 1px 8px;
+    border: 1px solid var(--apple-line);
+    border-radius: 999px;
+    color: var(--apple-secondary);
+    font-size: calc(12px * var(--zentra-ui-text-scale, 1));
+    font-weight: 600;
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__autopilot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    max-width: 640px;
+    margin-top: 6px;
+    padding: 12px 14px;
+    border: 1px solid var(--apple-line);
+    border-radius: var(--apple-radius-control);
+    background: var(--apple-grouped);
+    color: var(--apple-ink);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__autopilot > svg {
+    flex: none;
+    color: var(--apple-secondary);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__autopilot--ready > svg {
+    color: var(--apple-accent);
+  }
+  html[data-app-theme] .desktop-app[data-experience] .storefront-settings__autopilot p {
+    flex: 1 1 280px;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
 }

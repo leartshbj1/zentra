@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, ExternalLink, Mail, Phone } from 'lucide-react';
+import { ArrowRight, Check, Copy, ExternalLink, Mail, Phone, Sparkles } from 'lucide-react';
 import { diagnosticInvoke as invoke } from './diagnostics';
 import { getAppLocale, t, useAppLanguage } from './language';
 import type { Organization } from './types';
@@ -10,27 +10,32 @@ import './storefront.css';
 
 /** Page du commerce sur <adresse>.zentraapp.ch : l'adresse est unique, le
  * serveur la vérifie à chaque frappe et propose des adresses libres. Les
- * demandes envoyées depuis la page se lisent ici et arrivent en notification. */
+ * demandes envoyées depuis la page se lisent ici et arrivent en notification.
+ * Avec `autopilot`, le serveur les dépose aussi dans la boîte mail lue par
+ * Autopilote, qui prépare le devis comme pour un mail reçu. */
 export type StorefrontProfile = {
   companyName: string; tagline: string; description: string; services: string[]; street: string; postalCode: string; locality: string;
-  phone: string; email: string; website: string; hours: string; quoteRequests: boolean; contactRequests: boolean;
+  phone: string; email: string; website: string; hours: string; quoteRequests: boolean; contactRequests: boolean; autopilot: boolean;
 };
+/** La boîte mail lue par Autopilote, où arrivent les demandes ; null tant qu'aucune n'est reliée. */
+export type StorefrontAutopilot = { mailbox: string | null };
 export type StorefrontPage = { slug: string; url: string; published: boolean; profile: StorefrontProfile; updatedAt: number };
 type SlugState = 'available' | 'yours' | 'taken' | 'too_short' | 'too_long' | 'invalid' | 'reserved';
 type CheckReply = { slug: string; state: SlugState; url: string | null; suggestions: string[] };
 export type StorefrontRequest = {
   requestId: string; kind: 'quote' | 'contact'; contactName: string; email: string; phone: string; locality: string; message: string; at: number;
+  autopilot?: boolean;
 };
 type RequestsReply = { items: StorefrontRequest[]; nextCursor: string | null };
 
 export const SITE_SUFFIX = '.zentraapp.ch';
 
 export const storefrontApi = {
-  read: () => invoke<{ organizationId: string; page: StorefrontPage | null }>('storefront_request', { input: { action: 'read' } }),
+  read: () => invoke<{ organizationId: string; page: StorefrontPage | null; autopilot: StorefrontAutopilot }>('storefront_request', { input: { action: 'read' } }),
   check: (slug: string, locality: string, canton: string) =>
     invoke<CheckReply>('storefront_request', { input: { action: 'check', slug, locality, canton } }),
   save: (slug: string, published: boolean, profile: StorefrontProfile) =>
-    invoke<{ organizationId: string; page: StorefrontPage }>('storefront_request', { input: { action: 'save', slug, published, profile } }),
+    invoke<{ organizationId: string; page: StorefrontPage; autopilot: StorefrontAutopilot }>('storefront_request', { input: { action: 'save', slug, published, profile } }),
   requests: (cursor: string | null, limit = 100) =>
     invoke<{ organizationId: string } & RequestsReply>('storefront_request', { input: { action: 'requests', cursor, limit } }),
 };
@@ -54,7 +59,7 @@ export function profileFromOrganization(org: Organization): StorefrontProfile {
     companyName: org.legalName.trim(), tagline: '', description: '', services: [],
     street: [org.address.street, org.address.buildingNumber].filter(Boolean).join(' ').trim(),
     postalCode: org.address.postalCode.trim(), locality: org.address.city.trim(), phone: org.phone.trim(), email: org.email.trim(),
-    website: https(org.website), hours: '', quoteRequests: true, contactRequests: true,
+    website: https(org.website), hours: '', quoteRequests: true, contactRequests: true, autopilot: true,
   };
 }
 
@@ -97,6 +102,8 @@ export function StorefrontSettings({ organization, disabled }: { organization: O
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [requests, setRequests] = useState<StorefrontRequest[]>([]);
+  const [autopilot, setAutopilot] = useState<StorefrontAutopilot>({ mailbox: null });
+  const [opening, setOpening] = useState('');
   const [seen, setSeen] = useState('');
   const checkRun = useRef(0);
   const locked = disabled || saving;
@@ -122,8 +129,9 @@ export function StorefrontSettings({ organization, disabled }: { organization: O
       const reply = await storefrontApi.read();
       setOrganizationId(reply.organizationId);
       setPage(reply.page);
+      setAutopilot(reply.autopilot ?? { mailbox: null });
       if (reply.page) {
-        setDraft(reply.page.profile);
+        setDraft({ ...reply.page.profile, autopilot: reply.page.profile.autopilot ?? true });
         setServicesText(reply.page.profile.services.join('\n'));
         setSlugText(reply.page.slug);
         setPublished(reply.page.published);
@@ -169,6 +177,7 @@ export function StorefrontSettings({ organization, disabled }: { organization: O
       const reply = await storefrontApi.save(slug, published, profile);
       setPage(reply.page);
       setDraft(reply.page.profile);
+      if (reply.autopilot) setAutopilot(reply.autopilot);
       setSlugText(reply.page.slug);
       try { localStorage.setItem(STOREFRONT_ACTIVE_KEY, '1'); } catch { /* sans effet sur la page */ }
       setMessage({ tone: 'ok', text: reply.page.published ? t('Page publiée.') : t('Page enregistrée, sans être publiée.') });
@@ -252,6 +261,26 @@ export function StorefrontSettings({ organization, disabled }: { organization: O
       </label>
     </section>
 
+    <section className="reminder-charges" aria-labelledby="storefront-autopilot-title">
+      <h3 id="storefront-autopilot-title">{t('Zentra Autopilote')}</h3>
+      <p>{t('Une demande de devis envoyée depuis votre page arrive dans Autopilote comme un mail reçu. Autopilote prépare le devis, vous le vérifiez avant tout envoi.')}</p>
+      <label className="reminder-charges__interest">
+        <ZSwitch checked={draft.autopilot} disabled={locked} onChange={(checked: boolean) => set('autopilot', checked)} />
+        <span><strong>{t('Préparer les devis avec Autopilote')}</strong><small>{t('Les demandes sans adresse e-mail restent seulement ici : un devis a besoin d’une adresse pour répondre.')}</small></span>
+      </label>
+      {draft.autopilot ? <div className={`storefront-settings__autopilot storefront-settings__autopilot--${autopilot.mailbox ? 'ready' : 'missing'}`} role="status">
+        <Sparkles size={17} aria-hidden="true" />
+        <p>{autopilot.mailbox
+          ? t('Les demandes arrivent dans la boîte {mailbox}, celle qu’Autopilote lit déjà.', { mailbox: autopilot.mailbox })
+          : t('Aucune boîte mail n’est encore reliée à Autopilote. Reliez-la : sans elle, les demandes restent seulement ici.')}</p>
+        {autopilot.mailbox ? null : <Button type="button" variant="secondary" size="small" disabled={opening === 'pending'} onClick={async () => {
+          setOpening('pending');
+          try { await invoke('open_supplier_inbox_settings'); setOpening(''); } catch (reason) { setOpening(errorMessage(reason, t('La page de la boîte mail n’a pas pu s’ouvrir.'))); }
+        }}>{t('Relier la boîte mail')}<ArrowRight size={15} aria-hidden="true" /></Button>}
+        {opening && opening !== 'pending' ? <small className="storefront-settings__error">{opening}</small> : null}
+      </div> : null}
+    </section>
+
     <div className="reminder-charges__actions">
       <Button type="button" disabled={!canSave} onClick={() => void save()}>{saving ? t('Enregistrement…') : page ? t('Enregistrer la page') : t('Créer ma page')}</Button>
       {page ? <a className="storefront-settings__preview" href={page.url} target="_blank" rel="noreferrer"><ExternalLink size={15} aria-hidden="true" />{t('Voir la page')}</a> : null}
@@ -271,6 +300,7 @@ export function StorefrontSettings({ organization, disabled }: { organization: O
               <strong>{item.contactName}</strong>
               <span className={`storefront-settings__kind storefront-settings__kind--${item.kind}`}>{item.kind === 'quote' ? t('Devis') : t('Question')}</span>
               {fresh ? <span className="storefront-settings__new">{t('Nouveau')}</span> : null}
+              {item.autopilot ? <span className="storefront-settings__in-autopilot">{t('Dans Autopilote')}</span> : null}
               <small>{when(item.at)}{item.locality ? ` · ${item.locality}` : ''}</small>
             </div>
             <p>{item.message}</p>
