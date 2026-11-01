@@ -18,6 +18,7 @@ it('provides all three translations for every explicit interface key currently w
   files.push('IntegrationsSettings.tsx', 'AutopilotBackgroundSetting.tsx');
   files.push('InstalledEquipmentScreen.tsx', 'PlanningScreen.tsx', 'SiteMap.tsx', 'DictationDialog.tsx', 'TerrainSettings.tsx');
   files.push('DocumentDesignStudio.tsx','DocumentDesignNavigator.tsx','DocumentDesignMap.tsx','DocumentWorkbench.tsx','DocumentLayoutControls.tsx','DocumentPageControls.tsx','DocumentPrecisionControls.tsx','DocumentTemplateLibrary.tsx','RichTextEditor.tsx','RichTextSearchPanel.tsx','documentDesignValidation.ts','documentTemplates.ts','richTextEditing.ts','richTextSearch.ts');
+  files.push('ZHoldDelete.tsx', 'ZStatusMark.tsx', 'ZClearInput.tsx');
   files.push('LineLayout.tsx', 'ProgressBillingDialog.tsx', 'QuoteConversionModal.tsx', 'LaborRatesPanel.tsx', 'BankAreaTabs.tsx', 'SiteSheet.tsx', 'ProjectFolder.tsx', 'ServiceKitsPanel.tsx');
   files.push('DocumentEditor.tsx', 'MobileDashboard.tsx', 'documentNumberEntry.ts', 'documentUi.ts', 'WorkspacePersonalization.tsx', 'CatalogScreen.tsx', 'CatalogItemForm.tsx', 'AgendaScreen.tsx');
   for(const file of files){

@@ -64,6 +64,7 @@ import { autopilotBackgroundTranslations } from './translationsAutopilotBackgrou
 import { assistantTasksTranslations } from './translationsAssistantTasks';
 import { migrationTranslations } from './translationsMigration';
 import { autopilotArrivalsTranslations } from './translationsAutopilotArrivals';
+import { motion62Translations } from './translationsMotion62';
 export const translations: Record<string, readonly [string, string, string]> = {
   // New ERP strings first, so earlier wording of identical keys keeps priority.
   ...constructionTranslations,
@@ -75,6 +76,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...autopilotBackgroundTranslations,
   ...assistantTasksTranslations,
   ...autopilotArrivalsTranslations,
+  ...motion62Translations,
   ...demoTranslations,
   ...plansTranslations,
   ...salesOrdersTranslations,
