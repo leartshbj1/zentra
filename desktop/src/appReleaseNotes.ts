@@ -16,6 +16,9 @@ export const releaseHistoryCopy = {
 // Append a version with every shipped correction; never rewrite an older entry
 // to describe work that was added later. See docs/RELEASE-*.md for release evidence.
 export const releaseHistory = [
+  { version: '1.90.66', date: '2026-11-02', title: copy('Rabais et acompte appliqués', 'Rabatt und Anzahlung angewendet', 'Sconto e acconto applicati', 'Discount and deposit applied'), changes: [
+    copy('Le rabais et l’acompte choisis dans Autopilote (« Rabais ou acompte ? ») arrivent maintenant bien dans le devis. Un acompte saisi en CHF est converti au pourcentage le plus proche.', 'Rabatt und Anzahlung, die in Autopilote gewählt werden («Rabatt oder Anzahlung?»), erscheinen jetzt korrekt in der Offerte. Eine in CHF erfasste Anzahlung wird in den nächstliegenden Prozentsatz umgerechnet.', 'Lo sconto e l’acconto scelti in Autopilote («Sconto o acconto?») arrivano ora correttamente nel preventivo. Un acconto inserito in CHF è convertito nella percentuale più vicina.', 'The discount and deposit chosen in Autopilote (“Discount or deposit?”) now reach the quote. A deposit entered in CHF is converted to the nearest percentage.'),
+  ] },
   { version: '1.90.65', date: '2026-11-02', title: copy('Une application plus légère', 'Eine leichtere App', 'Un’app più leggera', 'A lighter app'), changes: [
     copy('Le code inutilisé a été retiré : l’application est plus légère et plus simple à faire évoluer, sans changement pour vos données ni vos habitudes.', 'Ungenutzter Code wurde entfernt: Die App ist leichter und einfacher weiterzuentwickeln, ohne Änderung an Ihren Daten oder Gewohnheiten.', 'Il codice inutilizzato è stato rimosso: l’app è più leggera e più semplice da far evolvere, senza cambiamenti per i suoi dati o le sue abitudini.', 'Unused code has been removed: the app is lighter and easier to evolve, with no change to your data or habits.'),
   ] },
