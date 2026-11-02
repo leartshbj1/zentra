@@ -5,6 +5,7 @@ import { purchaseOrdersTranslations } from './translationsPurchaseOrders';
 import { payrollImportTranslations } from './translationsPayrollImport';
 import { bankPaymentsTranslations } from './translationsBankPayments';
 import { contactFormTranslations } from './translationsContactForms';
+import { storefrontTranslations } from './translationsStorefront';
 import { documentSettingsTranslations } from './translationsDocumentSettings';
 import { documentNavigationTranslations } from './translationsDocumentNavigation';
 import { documentPreviewTranslations } from './translationsDocumentPreview';
@@ -84,6 +85,7 @@ export const translations: Record<string, readonly [string, string, string]> = {
   ...payrollImportTranslations,
   ...bankPaymentsTranslations,
   ...contactFormTranslations,
+  ...storefrontTranslations,
   ...notesTranslations,
   ...customerCreditTranslations,
   ...updaterTranslations,

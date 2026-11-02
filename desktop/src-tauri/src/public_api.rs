@@ -327,7 +327,7 @@ async fn blocking<T: Send + 'static>(task: impl FnOnce() -> AppResult<T> + Send 
     tauri::async_runtime::spawn_blocking(task).await.map_err(|_| invalid("L'opération locale a été interrompue."))?
 }
 
-async fn session_for(store: &LocalStore, write: bool) -> AppResult<ProjectSyncSession> {
+pub(crate) async fn session_for(store: &LocalStore, write: bool) -> AppResult<ProjectSyncSession> {
     let session = project_sync_session(store).await?.ok_or_else(|| invalid("Connectez votre compte dans les paramètres."))?;
     crate::automation::bound(store, &session.organization_id)?;
     if write && session.role == "read_only" {
@@ -337,7 +337,7 @@ async fn session_for(store: &LocalStore, write: bool) -> AppResult<ProjectSyncSe
 }
 
 /// Réponse de compte du lot 5 : version 1 et même entreprise que la session.
-fn checked_reply(bytes: &[u8], organization_id: &str) -> AppResult<Value> {
+pub(crate) fn checked_reply(bytes: &[u8], organization_id: &str) -> AppResult<Value> {
     let value: Value = serde_json::from_slice(bytes).map_err(|_| invalid("Réponse du service Zentra illisible."))?;
     if value["schemaVersion"] != 1 || value["organizationId"] != organization_id {
         return Err(invalid("Réponse du service Zentra inattendue pour cette entreprise."));
@@ -345,7 +345,7 @@ fn checked_reply(bytes: &[u8], organization_id: &str) -> AppResult<Value> {
     Ok(value)
 }
 
-async fn post_json(session: &ProjectSyncSession, path: &str, body: &Value) -> AppResult<Value> {
+pub(crate) async fn post_json(session: &ProjectSyncSession, path: &str, body: &Value) -> AppResult<Value> {
     let (_, bytes) = session
         .request(Method::POST, path, &[], &[("Content-Type", "application/json".into())], Some(serde_json::to_vec(body)?), false)
         .await?;

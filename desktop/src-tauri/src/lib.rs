@@ -99,6 +99,7 @@ mod online_payments;
 mod cash_book;
 mod pos;
 mod public_api;
+mod storefront;
 mod payroll_drafts;
 mod work_reports;
 mod team_time;
@@ -398,6 +399,7 @@ pub fn run() {
             public_api::public_api_tasks,
             public_api::public_api_calendar,
             public_api::public_api_directory,
+            storefront::storefront_request,
             cash_book::add_cash_entry,
             cash_book::record_cash_count,
             cash_book::correct_cash_count,

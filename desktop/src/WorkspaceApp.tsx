@@ -40,6 +40,7 @@ import { WorkReportsPanel } from './WorkReportsPanel';
 import { PlanningScreen } from './PlanningScreen';
 import { DictationDialog, type DictationResult, type DictationTarget } from './DictationDialog';
 import { IntegrationsSettings } from './IntegrationsSettings';
+import { STOREFRONT_ACTIVE_KEY, StorefrontSettings, storefrontApi, type StorefrontRequest } from './StorefrontSettings';
 import { useAutopilotBackgroundRunner } from './AutopilotBackgroundSetting';
 import { settingsNavigationSession } from './settingsNavigation';
 import { CustomerReadiness, CustomerSettings, SmsSettingsPanel } from './TerrainSettings';
@@ -119,7 +120,7 @@ import { t, useAppLanguage, getAppLocale, getAppLanguage } from './language';
 import { projectFileMessageText } from './projectLanguage';
 import { createLocalValidationError } from './localValidation';
 import './manual-backup.css';
-import { Languages, Palette } from 'lucide-react';
+import { Languages, Palette, Store } from 'lucide-react';
 import { LanguageSetting } from './LanguageSetting';
 import {CollectionPagination,useCollectionPage} from './CollectionPagination';
 import {CustomerSettlementOutcomeUnknownError,CustomerSettlementRefreshError} from './customerSettlementWorkflow';
@@ -1264,6 +1265,40 @@ function WorkspaceContent({
     desktopApi.getSmsSettings().then(value => { if (live) setSmsSettings(value); }).catch(() => undefined);
     return () => { live = false; };
   }, [view]);
+  // Page du commerce : les demandes arrivées depuis la dernière lecture deviennent une notification.
+  // Seulement si une page existe sur ce poste ; une autre entreprise repart de sa dernière demande sans rien annoncer.
+  const storefrontPolling = useRef(false);
+  useEffect(() => {
+    if (readOnly || storefrontPolling.current || !['automation', 'dashboard', 'planning'].includes(view)) return;
+    try { if (localStorage.getItem(STOREFRONT_ACTIVE_KEY) !== '1') return; } catch { return; }
+    storefrontPolling.current = true;
+    void (async () => {
+      const key = 'zentra.storefront.cursor.v1';
+      let stored: { organizationId: string; cursor: string | null } | null = null;
+      try { stored = JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { stored = null; }
+      try {
+        let cursor = stored?.cursor ?? null, organizationId = '';
+        const arrived: StorefrontRequest[] = [];
+        for (let page = 0; page < 5; page++) {
+          const reply = await storefrontApi.requests(cursor);
+          organizationId = reply.organizationId;
+          arrived.push(...reply.items);
+          if (!reply.nextCursor || reply.nextCursor === cursor) break;
+          cursor = reply.nextCursor;
+          if (reply.items.length < 100) break;
+        }
+        try { localStorage.setItem(key, JSON.stringify({ organizationId, cursor })); } catch { /* relu la prochaine fois */ }
+        if (stored?.organizationId !== organizationId || !arrived.length) return;
+        const quotes = arrived.filter(item => item.kind === 'quote').length;
+        const latest = arrived[arrived.length - 1];
+        setNotice({ tone: 'success',
+          text: arrived.length === 1
+            ? t(latest.kind === 'quote' ? 'Nouvelle demande de devis de {name} depuis votre page. Elle est dans Réglages, Page de votre commerce.' : 'Nouvelle question de {name} depuis votre page. Elle est dans Réglages, Page de votre commerce.', { name: latest.contactName })
+            : t('{count} nouvelles demandes depuis votre page, dont {quotes} de devis. Elles sont dans Réglages, Page de votre commerce.', { count: arrived.length, quotes }) });
+      } catch { /* la lecture reprend à la prochaine ouverture */ } finally { storefrontPolling.current = false; }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, readOnly]);
   // Portail client : créneaux libres publiés quand ils changent, demandes de rendez-vous lues
   // depuis la dernière position, acomptes Payrexx relus. Seulement pendant qu'Autopilote,
   // le planning ou l'accueil est ouvert, et jamais en lecture seule.
@@ -8630,6 +8665,9 @@ function SettingsScreen({
       </section>
       <section className="panel settings-card settings-card--wide"><OnlinePaymentSettings disabled={readOnly} /></section>
       <section className="panel settings-card settings-card--wide"><PaymentSafetySettings disabled={readOnly} /></section>
+      </SettingsCategory>
+      <SettingsCategory id="storefront" lazy title={t('Page de votre commerce')} description={t('Votre adresse nom.zentraapp.ch et les demandes de devis')} icon={Store}>
+        <section className="panel settings-card settings-card--wide"><StorefrontSettings organization={org} disabled={readOnly} /></section>
       </SettingsCategory>
       <SettingsCategory id="customers" title={t('Clients et rendez-vous')} description={t('Avis Google, SMS, rendez-vous en ligne et acompte')} icon={CalendarRange}>
         <section className="panel settings-card settings-card--wide"><CustomerReadiness workspace={workspace} sms={smsSettings} /></section>
