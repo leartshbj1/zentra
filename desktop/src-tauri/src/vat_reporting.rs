@@ -635,7 +635,7 @@ impl LocalStore {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn vat_profile_for_date(&self, date: &str) -> AppResult<VatProfile> {
         let date = normalize_date(date, "date")?;
         let connection = self.connect()?;

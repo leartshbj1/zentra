@@ -2195,6 +2195,7 @@ pub async fn sync_company_workspace(
     Ok(result)
 }
 
+#[cfg(test)]
 fn stage_merge(
     store: &LocalStore,
     reference: &Path,

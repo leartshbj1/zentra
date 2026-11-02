@@ -530,7 +530,8 @@ fn read_cached_cloud_account_state(store: &LocalStore) -> AppResult<CloudAccount
     Ok(CloudAccountState::disconnected())
 }
 
-// Synchronous callers retain the established expiry/licence behavior.
+// Synchronous callers (tests only) retain the established expiry/licence behavior.
+#[cfg(test)]
 fn cached_cloud_account_state(store: &LocalStore) -> AppResult<CloudAccountState> {
     let state = read_cached_cloud_account_state(store)?;
     if state.status == "expired" {

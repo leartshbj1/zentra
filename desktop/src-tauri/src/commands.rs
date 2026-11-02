@@ -11,7 +11,7 @@ use crate::{
     models::{
         AbandonInvoiceCorrectionInput, AccountInput, AccountingPeriodInput,
         AccountingSettingsInput, AppStateInfo, ApplyPayrollInput, ApplySupplierCreditInput,
-        AssociateBankAccountInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
+        AssociateBankAccountInput, CalculateEmployeePayrollInput,
         CancelSalesOrderInput, CancelSalesOrderInvoiceDraftInput, CancelSalesOrderRemainderInput,
         CancelSupplierOrderRemainderInput, CompleteOnboardingResult,
         ConfirmBankReconciliationInput, ConfirmBankReconciliationWithFeeInput,
@@ -1373,16 +1373,7 @@ pub fn reverse_journal_entry(
         .reverse_journal_entry(&id, &entry_date, description)
         .map_err(command_error)
 }
-#[tauri::command]
-pub fn get_accounting_dashboard(
-    state: State<'_, LocalStore>,
-    filter: PeriodFilter,
-) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .get_accounting_dashboard(filter)
-        .map_err(command_error)
-}
+
 #[tauri::command]
 pub fn get_journal(state: State<'_, LocalStore>, filter: PeriodFilter) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
@@ -1480,15 +1471,7 @@ pub fn delete_reminder_template(state: State<'_, LocalStore>, id: String) -> Res
     require_write(&state)?;
     state.delete_reminder_template(&id).map_err(command_error)
 }
-#[tauri::command]
-pub fn generate_due_reminders(
-    state: State<'_, LocalStore>,
-    as_of: Option<String>,
-) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.generate_due_reminders(as_of).map_err(command_error)
-}
+
 #[tauri::command]
 pub async fn scan_due_reminders(
     state: State<'_, LocalStore>,
@@ -1622,16 +1605,7 @@ pub fn delete_payroll_contribution_definition(
         .delete_payroll_contribution_definition(&id)
         .map_err(command_error)
 }
-#[tauri::command]
-pub fn calculate_payroll_contributions(
-    state: State<'_, LocalStore>,
-    input: CalculatePayrollInput,
-) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .calculate_payroll_contributions(input)
-        .map_err(command_error)
-}
+
 #[tauri::command]
 pub fn calculate_employee_payroll_contributions(
     state: State<'_, LocalStore>,
@@ -1843,31 +1817,6 @@ pub fn save_invoice_qr_bill(
     require_write(&state)?;
     state.save_invoice_qr_bill(input).map_err(command_error)
 }
-#[tauri::command]
-pub fn generate_qrr_reference(base: String) -> Result<String, String> {
-    swiss_qr::generate_qrr(&base).map_err(command_error)
-}
-#[tauri::command]
-pub fn generate_scor_reference(body: String) -> Result<String, String> {
-    swiss_qr::generate_scor(&body).map_err(command_error)
-}
-
-#[tauri::command]
-pub fn list_audit_log(
-    state: State<'_, LocalStore>,
-    entity_type: Option<String>,
-    entity_id: Option<String>,
-) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state
-        .list_audit_log(entity_type, entity_id)
-        .map_err(command_error)
-}
-#[tauri::command]
-pub fn verify_audit_log(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.verify_audit_log().map_err(command_error)
-}
 
 #[tauri::command]
 pub fn record_payment(
@@ -1917,19 +1866,6 @@ pub async fn stop_timer(
             store.stop_timer().map_err(command_error)
         },
     ).await
-}
-
-#[tauri::command]
-pub fn cancel_timer(state: State<'_, LocalStore>) -> Result<DeleteResult, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    require_write(&state)?;
-    state.cancel_timer().map_err(command_error)
-}
-
-#[tauri::command]
-pub fn get_active_timer(state: State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.get_active_timer().map_err(command_error)
 }
 
 // Exports can compress attachments, serialize the company or render PDFs.

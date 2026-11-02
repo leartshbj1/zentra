@@ -149,12 +149,6 @@ impl LocalStore {
 }
 
 #[tauri::command]
-pub fn get_customer_engagement_settings(state: tauri::State<'_, LocalStore>) -> Result<Value, String> {
-    let _guard = state.lock().map_err(command_error)?;
-    state.get_customer_engagement_settings().map_err(command_error)
-}
-
-#[tauri::command]
 pub fn save_customer_engagement_settings(state: tauri::State<'_, LocalStore>, input: EngagementInput) -> Result<Value, String> {
     let _guard = state.lock().map_err(command_error)?;
     state.require_write_access().map_err(command_error)?;

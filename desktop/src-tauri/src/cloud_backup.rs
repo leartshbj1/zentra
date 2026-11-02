@@ -594,30 +594,6 @@ pub(crate) async fn join_company_copy(store: &LocalStore, id: &str) -> AppResult
     receive_copy(store,id,true).await
 }
 
-/// A separately published snapshot is visible to the team. Ordinary backup history stays restricted.
-#[tauri::command]
-pub async fn publish_company_copy(state: State<'_, LocalStore>, confirm_full_access: bool) -> Result<Value,String> {
-    if !confirm_full_access { return Err("Confirmez le partage de l’entreprise complète, y compris les salaires.".into()); }
-    let store = state.inner().clone();
-    let _account = store.account_protected_cache.operation_lock.lock().await;
-    let _transfer = TransferGuard::take().map_err(command_error)?;
-    let session = backup_session(&store).await.map_err(command_error)?;
-    if !store.app_state(env!("CARGO_PKG_VERSION")).map_err(command_error)?.onboarding_completed {
-        return Err("Configurez l’entreprise avant de la partager.".into());
-    }
-    // Complete an interrupted older backup first; publish a fresh snapshot of the current workspace.
-    if store.cloud_backup_preferences().map_err(command_error)?.pending.is_some() {
-        send_backup(&store,&session).await.map_err(command_error)?;
-    }
-    let owned = store.clone(); let org = session.organization_id.clone();
-    let pending = tauri::async_runtime::spawn_blocking(move || owned.prepare_cloud_backup(&org)).await
-        .map_err(|_| "La préparation de l’entreprise a été interrompue.".to_owned())?.map_err(command_error)?;
-    send_backup(&store,&session).await.map_err(command_error)?;
-    let current = backup_session(&store).await.map_err(command_error)?;
-    if current.organization_id != session.organization_id { return Err("Le compte a changé. Recommencez le partage.".into()); }
-    crate::account_cloud::team_response(&store,Some(json!({"action":"company-copy","backupId":pending.backup_id,"confirmFullAccess":true}))).await.map_err(command_error)
-}
-
 async fn receive_copy(store: &LocalStore, id: &str, joining: bool) -> AppResult<()> {
     validate_id(id)?;
     let session = copy_session(store,joining).await?;

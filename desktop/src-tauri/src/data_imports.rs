@@ -571,11 +571,6 @@ pub async fn list_data_imports(state: tauri::State<'_, LocalStore>, expected_wor
 }
 
 #[tauri::command]
-pub async fn get_data_import_report(state: tauri::State<'_, LocalStore>, id: String, expected_workspace_scope: Option<String>) -> Result<Value, String> {
-    run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| store.get_data_import_report(&id).map_err(command_error)).await
-}
-
-#[tauri::command]
 pub async fn undo_data_import(state: tauri::State<'_, LocalStore>, id: String, expected_workspace_scope: Option<String>) -> Result<Value, String> {
     run_scoped_local_operation(state.inner().clone(), expected_workspace_scope, move |store| {
         store.require_write_access().map_err(command_error)?;
