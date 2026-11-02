@@ -27,7 +27,7 @@ use crate::{
         payment_accounting_block_reason, post_expense_if_enabled, post_invoice_if_enabled,
         post_payment_if_enabled, validate_payment_for_accounting, WorkspaceInvoicePaymentChecks,
     },
-    audit::{append_audit, verify_audit_chain},
+    audit::append_audit,
     branding::stage_active_company_logo_for_snapshot,
     error::{AppError, AppResult},
     installation::load_or_create,
@@ -5395,7 +5395,7 @@ impl LocalStore {
     pub fn verify_audit_log(&self) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
-        verify_audit_chain(&connection)
+        crate::audit::verify_audit_chain(&connection)
     }
 
     #[cfg(test)]

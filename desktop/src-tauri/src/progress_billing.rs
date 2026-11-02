@@ -73,6 +73,11 @@ impl QuoteLine {
         base - round_bp(base, self.discount_bp)
     }
 
+    /// Montant net de la position au devis (identique à la ligne enregistrée).
+    #[cfg(test)]
+    pub fn contract_net_cents(&self) -> AppResult<i64> {
+        Ok(self.net_of_base(self.base_cents(self.quantity)?))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -330,6 +330,17 @@ impl LocalStore {
         )?))
     }
 
+    #[cfg(test)]
+    pub fn get_data_import_report(&self, id: &str) -> AppResult<Value> {
+        let connection = self.connect()?;
+        self.require_onboarding(&connection)?;
+        let report: Option<String> = connection
+            .query_row("SELECT report_json FROM data_imports WHERE id=?", [id], |row| row.get(0))
+            .optional()?;
+        let report = report.ok_or_else(|| invalid("Cet import est introuvable."))?;
+        Ok(serde_json::from_str(&report)?)
+    }
+
     pub fn undo_data_import(&self, id: &str) -> AppResult<Value> {
         self.migration_transaction(|tx| undo_import_tx(tx, id))
     }
