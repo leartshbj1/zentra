@@ -745,10 +745,15 @@ fn unchanged_exchange_preserves_outage_and_bounds_status_errors_without_showing_
         } else {
             let error = result.unwrap_err();
             assert!(!error.to_string().contains("private remote body"));
-            assert_eq!(
-                matches!(error, AppError::Remote(_)),
-                status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS
-            );
+            // 429 is a temporary limit (or the monthly quota, by its own body), not an outage.
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                assert!(matches!(
+                    error,
+                    AppError::Automation(crate::error::AutomationErrorCode::RateLimited)
+                ));
+            } else {
+                assert_eq!(matches!(error, AppError::Remote(_)), status.is_server_error());
+            }
         }
     }
     let oversized = tauri::async_runtime::block_on(exchange_with(
