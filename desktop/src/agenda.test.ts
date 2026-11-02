@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  agendaNavigationQuery,
   agendaNavigationTarget,
   buildAgendaItems,
   calendarDays,
@@ -119,76 +118,6 @@ describe('agenda', () => {
     expect(source.clients[0].company).toBe('');
   });
 
-  it('compose les objets réels et ignore les brouillons sans échéance utile', () => {
-    const source = workspace({
-        clients: [
-          {
-            id: 'client-1',
-            name: 'Aline',
-            company: 'Alpina SA',
-            email: '',
-            phone: '',
-            address: '',
-            uidNumber: '',
-            notes: '',
-          },
-        ],
-        invoices: [
-          {
-            id: 'invoice-1',
-            number: 'F-42',
-            clientId: 'client-1',
-            projectId: null,
-            quoteId: null,
-            originalInvoiceId: null,
-            title: '',
-            type: 'standard',
-            issueDate: '2026-09-01',
-            dueDate: '2026-09-30',
-            serviceDateFrom: '',
-            serviceDateTo: '',
-            currency: 'CHF',
-            status: 'issued',
-            lines: [],
-            notes: '',
-            terms: '',
-            depositPercentageBp: null,
-            depositBasisLines: null,
-            createdAt: '',
-          },
-          {
-            id: 'invoice-draft',
-            number: '',
-            clientId: 'client-1',
-            projectId: null,
-            quoteId: null,
-            originalInvoiceId: null,
-            title: 'Brouillon',
-            type: 'standard',
-            issueDate: '',
-            dueDate: '2026-09-12',
-            serviceDateFrom: '',
-            serviceDateTo: '',
-            currency: 'CHF',
-            status: 'draft',
-            lines: [],
-            notes: '',
-            terms: '',
-            depositPercentageBp: null,
-            depositBasisLines: null,
-            createdAt: '',
-          },
-        ],
-      });
-    const result = buildAgendaItems(source);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      source: 'invoice',
-      date: '2026-09-30',
-      subtitle: 'Alpina SA',
-    });
-    expect(agendaNavigationQuery(result[0], source)).toBe('F-42');
-  });
 
   it('produit une grille complète commençant un lundi', () => {
     const days = calendarDays('2026-09');
@@ -280,29 +209,6 @@ describe('agenda', () => {
     ]);
   });
 
-  it('cible le vrai titre d’un jalon sans conserver le préfixe de l’agenda', () => {
-    const source = workspace({
-      projectMilestones: [
-        {
-          id: 'milestone-1',
-          projectId: 'project-1',
-          title: 'Réception finale',
-          description: '',
-          dueDate: '2026-09-12',
-          status: 'done',
-          priority: 'normal',
-          sortOrder: 0,
-          employeeId: null,
-          completedAt: '2026-09-12T10:00:00Z',
-          createdAt: '',
-          updatedAt: '',
-        },
-      ],
-    });
-    const item = buildAgendaItems(source)[0];
-    expect(item.title).toBe('Jalon · Réception finale');
-    expect(agendaNavigationQuery(item, source)).toBe('Réception finale');
-  });
 
   it('conserve l’identifiant exact même lorsque deux documents ont le même numéro', () => {
     const duplicate = (sourceId: string) => ({

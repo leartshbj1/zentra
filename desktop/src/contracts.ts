@@ -30,11 +30,6 @@ export function currentEnd(contract: Pick<Contract, 'endDate' | 'autoRenew' | 'r
   return end;
 }
 
-/** Dernier jour pour envoyer la résiliation (fin de période moins le préavis). */
-export function noticeDeadline(contract: Pick<Contract, 'endDate' | 'autoRenew' | 'renewalMonths' | 'noticeMonths'>, today: string): string | null {
-  const end = currentEnd(contract, today);
-  return end ? addMonths(end, -contract.noticeMonths) : null;
-}
 
 /** Prochaine décision encore possible : fin de période et dernier jour pour résilier, à partir d'aujourd'hui. */
 export function nextDecision(contract: Pick<Contract, 'endDate' | 'autoRenew' | 'renewalMonths' | 'noticeMonths'>, today: string): { end: string; deadline: string } | null {
@@ -80,15 +75,6 @@ export function contractAlerts(contracts: readonly Contract[], today: string, ho
   return alerts.sort((a, b) => a.days - b.days);
 }
 
-/** Montant mensuel moyen, pour comparer et prévoir (une fois : 0). */
-export function monthlyCents(contract: Pick<Contract, 'amountCents' | 'frequency'>): number {
-  switch (contract.frequency) {
-    case 'monthly': return contract.amountCents;
-    case 'quarterly': return Math.round(contract.amountCents / 3);
-    case 'yearly': return Math.round(contract.amountCents / 12);
-    default: return 0;
-  }
-}
 
 /** Échéances de paiement d'un contrat entre deux dates (incluses), alignées sur sa date de début. */
 export function contractDueDates(contract: Pick<Contract, 'startDate' | 'frequency' | 'status' | 'terminatedOn' | 'endDate' | 'autoRenew' | 'renewalMonths'>, from: string, to: string): string[] {

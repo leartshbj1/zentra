@@ -34,9 +34,6 @@ export function selectAutopilotDraftNotices(pending: readonly ConfirmedQuoteActi
   }
   return Object.freeze({ draft, handled: Object.freeze(handled) });
 }
-export function resolveAutopilotDraftNotice(...args: Parameters<typeof selectAutopilotDraftNotices>): ConfirmedQuoteActivity | null {
-  return selectAutopilotDraftNotices(...args).draft;
-}
 
 /** Session-only v2 cursor. It is a read selector, never writing authority.
  * Cursor + captured pending items advance atomically, without a timestamp

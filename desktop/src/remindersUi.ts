@@ -158,10 +158,6 @@ export function reminderSmsDraftUri(preview: {
   return `sms:${recipient}?body=${encodeURIComponent(preview.smsBody)}`;
 }
 
-export type ReminderCycleLevelDraft = Pick<
-  ReminderTemplate,
-  'level' | 'name' | 'subject' | 'body' | 'daysAfterDue'
->;
 
 export type ReminderCycleField =
   | 'level'
@@ -185,123 +181,8 @@ export type ReminderCycleValidationIssue = {
   field?: ReminderCycleField;
 };
 
-export type ReminderCycleValidation = {
-  valid: boolean;
-  issues: ReminderCycleValidationIssue[];
-};
 
-const textLimits: ReadonlyArray<
-  readonly [ReminderCycleField, number, string]
-> = [
-  ['name', 120, 'Le nom'],
-  ['subject', 300, 'L’objet'],
-  ['body', 10_000, 'Le message'],
-];
 
-export function validateReminderCycle(
-  levels: readonly ReminderCycleLevelDraft[],
-): ReminderCycleValidation {
-  const issues: ReminderCycleValidationIssue[] = [];
-  if (levels.length !== 3) {
-    issues.push({
-      code: 'cycle_size',
-      message: 'Le cycle doit contenir exactement trois niveaux de relance.',
-    });
-  }
-
-  const indexesByLevel = new Map<number, number[]>();
-  levels.forEach((draft, index) => {
-    if (!Number.isInteger(draft.level) || draft.level < 1 || draft.level > 3) {
-      issues.push({
-        code: 'invalid_level',
-        index,
-        field: 'level',
-        message: 'Le niveau doit être un nombre entier compris entre 1 et 3.',
-      });
-    } else {
-      const indexes = indexesByLevel.get(draft.level) ?? [];
-      indexes.push(index);
-      indexesByLevel.set(draft.level, indexes);
-    }
-
-    if (!Number.isInteger(draft.daysAfterDue) || draft.daysAfterDue < 0) {
-      issues.push({
-        code: 'invalid_delay',
-        index,
-        field: 'daysAfterDue',
-        message:
-          'Le délai après échéance doit être un nombre entier positif ou nul.',
-      });
-    }
-
-    for (const [field, limit, label] of textLimits) {
-      const value = String(draft[field]).trim();
-      if (!value) {
-        issues.push({
-          code: 'required',
-          index,
-          field,
-          message: `${label} du niveau ${draft.level || index + 1} est obligatoire.`,
-        });
-      } else if (Array.from(value).length > limit) {
-        issues.push({
-          code: 'too_long',
-          index,
-          field,
-          message: `${label} est limité à ${limit.toLocaleString('fr-CH')} caractères.`,
-        });
-      }
-    }
-  });
-
-  for (const level of [1, 2, 3]) {
-    const indexes = indexesByLevel.get(level) ?? [];
-    if (!indexes.length) {
-      issues.push({
-        code: 'missing_level',
-        field: 'level',
-        message: `Le niveau ${level} est manquant.`,
-      });
-    } else if (indexes.length > 1) {
-      for (const index of indexes) {
-        issues.push({
-          code: 'duplicate_level',
-          index,
-          field: 'level',
-          message: `Le niveau ${level} ne peut apparaître qu’une seule fois.`,
-        });
-      }
-    }
-  }
-
-  for (const level of [2, 3]) {
-    const previousIndexes = indexesByLevel.get(level - 1);
-    const currentIndexes = indexesByLevel.get(level);
-    if (previousIndexes?.length !== 1 || currentIndexes?.length !== 1) continue;
-    const previous = levels[previousIndexes[0]];
-    const currentIndex = currentIndexes[0];
-    const current = levels[currentIndex];
-    if (
-      !previous ||
-      !current ||
-      !Number.isInteger(previous.daysAfterDue) ||
-      previous.daysAfterDue < 0 ||
-      !Number.isInteger(current.daysAfterDue) ||
-      current.daysAfterDue < 0
-    )
-      continue;
-    if (current.daysAfterDue <= previous.daysAfterDue) {
-      issues.push({
-        code: 'non_increasing_delay',
-        index: currentIndex,
-        field: 'daysAfterDue',
-        message: `Le délai du niveau ${level} doit être strictement supérieur à celui du niveau ${level - 1}.`,
-      });
-    }
-  }
-
-  return { valid: issues.length === 0, issues };
-}
 
 const statusLabels: Record<ReminderStatus, string> = {
   planned: 'Planifiée',
@@ -310,13 +191,6 @@ const statusLabels: Record<ReminderStatus, string> = {
   cancelled: 'Clôturée sans envoi',
 };
 
-const urgencyLabels: Record<ReminderUrgency, string> = {
-  review_required: 'À contrôler',
-  overdue: 'En retard',
-  today: 'À envoyer aujourd’hui',
-  upcoming: 'À venir',
-  closed: 'Clôturée',
-};
 
 const historyLabels: Record<ReminderHistory['action'], string> = {
   created: 'Relance créée',
@@ -335,9 +209,6 @@ export function reminderStatusLabel(status: ReminderStatus | string) {
   return statusLabels[status as ReminderStatus] ?? 'Statut inconnu';
 }
 
-export function reminderUrgencyLabel(urgency: ReminderUrgency) {
-  return urgencyLabels[urgency];
-}
 
 export function reminderHistoryActionLabel(action: string) {
   return historyLabels[action] ?? 'Action inconnue';

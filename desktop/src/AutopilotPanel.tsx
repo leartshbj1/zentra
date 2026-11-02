@@ -1,6 +1,6 @@
 import { ZSwitch } from './ZSwitch';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Check, CheckCircle2, ChevronRight, ClipboardCheck, Mail, Workflow } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronRight, Mail } from 'lucide-react';
 import { useAppLanguage, getAppLocale } from './language';
 import { autopilotCopy, autopilotCatalogueCopy, autopilotReviewReason } from './autopilotPresentation';
 import { normalizeAutopilotReviewPage, type AutopilotReviewItem, type AutopilotRequestKey } from './autopilotReview';
@@ -34,14 +34,6 @@ function statusText(state: AutopilotView, language: string) {
   return state.consent.enabled && state.consent.consentVersion === state.consent.requiredConsentVersion ? copy.active : copy.paused;
 }
 
-export function AutopilotStatus({ state, onSettings }: { state: AutopilotView; onSettings: () => void }) {
-  const language = useAppLanguage(), copy = autopilotCopy(language);
-  return <section className="quote-autopilot quote-autopilot--status" aria-label={copy.title}>
-    <Workflow size={21} aria-hidden="true" />
-    <div><strong>{copy.title}</strong><span>{statusText(state, language)}</span></div>
-    <button type="button" onClick={onSettings}>{copy.settings}<ChevronRight size={16} aria-hidden="true" /></button>
-  </section>;
-}
 
 export function AutopilotSettings({ state, onConsent }: { state: AutopilotView; onConsent: (enabled: boolean) => Promise<void> }) {
   const language = useAppLanguage(), copy = autopilotCopy(language);

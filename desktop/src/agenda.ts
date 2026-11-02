@@ -360,59 +360,6 @@ export function agendaNavigationTarget(
   };
 }
 
-/** Libellé de recherche historique, conservé pour les anciens appels/tests. */
-export function agendaNavigationQuery(item: AgendaItem, workspace: Workspace) {
-  if (item.source === 'task') {
-    return (
-      workspace.projectTasks.find((task) => task.id === item.sourceId)?.title ||
-      item.title
-    );
-  }
-  if (item.source === 'milestone') {
-    return (
-      workspace.projectMilestones.find(
-        (milestone) => milestone.id === item.sourceId,
-      )?.title || item.title
-    );
-  }
-  if (item.source === 'project') {
-    return (
-      workspace.projects.find((project) => project.id === item.sourceId)?.name ||
-      item.title
-    );
-  }
-  if (item.source === 'invoice') {
-    const invoice = workspace.invoices.find(
-      (candidate) => candidate.id === item.sourceId,
-    );
-    return invoice?.number || invoice?.title || item.title;
-  }
-  if (item.source === 'quote') {
-    const quote = workspace.quotes.find(
-      (candidate) => candidate.id === item.sourceId,
-    );
-    return quote?.number || quote?.title || item.title;
-  }
-  if (item.source === 'supplier_invoice') {
-    const invoice = workspace.supplierInvoices.find(
-      (candidate) => candidate.id === item.sourceId,
-    );
-    return invoice?.reference || invoice?.supplierName || item.title;
-  }
-  if (item.source === 'payslip') {
-    const payslip = workspace.payslips.find(
-      (candidate) => candidate.id === item.sourceId,
-    );
-    return (
-      workspace.employees.find(
-        (employee) => employee.id === payslip?.employeeId,
-      )?.name ||
-      payslip?.period ||
-      item.title
-    );
-  }
-  return item.title;
-}
 
 /** Compte demain jusqu'à J+n inclus. Aujourd'hui possède sa propre métrique. */
 export function countUpcomingAgendaItems(

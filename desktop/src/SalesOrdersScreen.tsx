@@ -1,6 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import {
-  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Ban,

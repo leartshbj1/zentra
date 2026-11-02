@@ -54,9 +54,6 @@ export function isCatalogItemLowOnStock(
       || (item.reorderLevelMilli > 0 && availableMilli <= item.reorderLevelMilli));
 }
 
-export function catalogQuantityFromInput(value: FormDataEntryValue | null): number {
-  return Math.max(0, stockQuantityFromInput(value) ?? 0);
-}
 
 export function stockQuantityFromInput(value: FormDataEntryValue | null): number | null {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > 64) return null;
@@ -77,17 +74,6 @@ export function formatCatalogQuantity(milli: number, locale = 'fr-CH'): string {
   return `${milli < 0 ? '-' : ''}${whole}${separator}${String(absolute % 1_000n).padStart(3,'0')}`;
 }
 
-export function catalogStockData(
-  kind: CatalogItem['kind'],
-  reorderLevelMilli: number,
-  editing: boolean,
-): { trackStock: boolean; reorderLevelMilli: number; stockQuantityMilli?: number } {
-  const stock = {
-    trackStock: kind === 'product',
-    reorderLevelMilli: kind === 'product' ? Math.max(0, reorderLevelMilli) : 0,
-  };
-  return editing ? stock : { ...stock, stockQuantityMilli: 0 };
-}
 
 export function stockBalanceAfter(
   currentBalanceMilli: number,

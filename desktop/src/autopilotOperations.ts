@@ -69,7 +69,6 @@ export function yearEndMoments(today: string) {
     certificatesYear: month === 1 ? year - 1 : null,
   };
 }
-export const weekLater = (today: string) => addDays(today, 7);
 
 /**
  * The VAT return to prepare: the last calendar period closed under the profile

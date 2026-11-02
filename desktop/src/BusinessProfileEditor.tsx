@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent }
 import { BriefcaseBusiness, ExternalLink, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { desktopApi } from './bridge';
 import { useWorkspaceMutationOrigin } from './useWorkspaceMutationOrigin';
-import type { AppSettings, BusinessProfile, NogaCatalog, NogaSectionCode, Workspace } from './types';
+import type { BusinessProfile, NogaCatalog, NogaSectionCode, Workspace } from './types';
 import { Button, ErrorPanel, Field } from './ui';
 import { errorMessage } from './utils';
 

@@ -101,10 +101,6 @@ export function servicesToPlan(equipment: readonly InstalledEquipment[], service
   return rows.sort((left, right) => left.due.localeCompare(right.due));
 }
 
-/** Garanties qui se terminent dans les 60 jours. */
-export function warrantiesEnding(equipment: readonly InstalledEquipment[], today: string, horizonDays = 60) {
-  return equipment.filter(item => !item.archivedAt && item.warrantyUntil && item.warrantyUntil >= today && daysBetween(today, item.warrantyUntil) <= horizonDays);
-}
 
 const weekday = (date: string) => new Date(day(date)).getUTCDay();
 

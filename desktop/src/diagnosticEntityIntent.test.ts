@@ -13,7 +13,7 @@ import {invokeInMemberOrigin} from './memberOriginBridge';
 import {WorkspaceMemberOriginChangedError} from './workspaceMemberOrigin';
 import {WorkspaceCreationOutcomeUnknownError} from './workspaceCreation';
 import {WorkspaceRefreshAfterMutationError} from './workspaceMutation';
-import type {EntityKind,DocumentLine,Quote,Invoice} from './types';
+import type {DocumentLine,Quote,Invoice} from './types';
 const scope='synthetic-intent-company',nonce='a'.repeat(32),id='11111111-1111-4111-8111-111111111111';
 const privateText='fixture@example.test private-password /private/path';
 const entities=[['clients','clients','client'],['suppliers','suppliers','supplier'],['projects','projects','project'],['employees','employees','employee'],['quotes','quotes','quote'],['invoices','invoices','invoice'],['catalogItems','catalog_items','catalog_item'],['timeEntries','time_entries','time_entry'],['expenses','expenses','expense'],['payslips','payslips','payslip']] as const;

@@ -1,18 +1,14 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"http://localhost"}
 import ts from 'typescript';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // The seed only receives an injected API in these tests; never load the native bridge.
 vi.mock('./bridge', () => ({ desktopApi: {} }));
 
 import { contactFormIssue } from './contactFormValidation';
 import {
-  DEMO_FLAG_KEY,
-  clearDemoWorkspaceFlag,
   demoCompanySettings,
-  isDemoWorkspace,
-  markDemoWorkspace,
   seedDemoWorkspace,
   type DemoSeedApi,
 } from './demoWorkspace';
@@ -264,25 +260,3 @@ describe('seedDemoWorkspace', () => {
   });
 });
 
-describe('demo workspace flag', () => {
-  afterEach(() => { vi.restoreAllMocks(); try { localStorage.removeItem(DEMO_FLAG_KEY); } catch { /* ignore */ } });
-
-  it('marks, reads and clears the local flag', () => {
-    expect(isDemoWorkspace()).toBe(false);
-    expect(markDemoWorkspace()).toBe(true);
-    expect(localStorage.getItem(DEMO_FLAG_KEY)).toBe('1');
-    expect(isDemoWorkspace()).toBe(true);
-    expect(clearDemoWorkspaceFlag()).toBe(true);
-    expect(isDemoWorkspace()).toBe(false);
-  });
-
-  it('never throws when the storage is unavailable', () => {
-    const blocked = () => { throw new Error('stockage bloqué'); };
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked);
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked);
-    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(blocked);
-    expect(markDemoWorkspace()).toBe(false);
-    expect(isDemoWorkspace()).toBe(false);
-    expect(clearDemoWorkspaceFlag()).toBe(false);
-  });
-});

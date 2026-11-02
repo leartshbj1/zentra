@@ -1,5 +1,5 @@
 import { roundedIntegerProductRatio } from './integerRounding';
-import type { DocumentLine, ExpenseRefund, Invoice, Payment, Payslip, Project, PurchaseCostEvidence, Quote, SupplierCreditNote, SupplierInvoice, TimeEntry } from './types';
+import type { DocumentLine, ExpenseRefund, Invoice, Payment, Payslip, Project, PurchaseCostEvidence, SupplierCreditNote, SupplierInvoice, TimeEntry } from './types';
 import { getAppLocale } from './language';
 
 export function errorMessage(reason: unknown, fallback: string): string {

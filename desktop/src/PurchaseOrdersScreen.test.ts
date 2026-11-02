@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateSupplierReceiptQuantity,
-  existingInvoiceItemMatchDraft,
   existingInvoiceItemMultiOrderMatchDraft,
   invoiceItemHasMultipleOrderLineMatches,
   nextMatchClearConfirmation,
@@ -79,62 +78,6 @@ describe('purchaseVatOptions', () => {
   });
 });
 
-describe('existingInvoiceItemMatchDraft', () => {
-  const matches = [
-    {
-      supplierInvoiceId: 'invoice-current',
-      supplierInvoiceItemId: 'item-current',
-      supplierOrderId: 'order-current',
-      supplierOrderLineId: 'order-line-1',
-      quantityMilli: 5_000,
-    },
-    {
-      supplierInvoiceId: 'invoice-current',
-      supplierInvoiceItemId: 'item-current',
-      supplierOrderId: 'order-current',
-      supplierOrderLineId: 'order-line-1',
-      quantityMilli: 3_000,
-    },
-    {
-      supplierInvoiceId: 'invoice-other',
-      supplierInvoiceItemId: 'item-current',
-      supplierOrderId: 'order-current',
-      supplierOrderLineId: 'order-line-1',
-      quantityMilli: 9_000,
-    },
-  ];
-
-  it('recharge une ligne répartie sur plusieurs réceptions', () => {
-    expect(
-      existingInvoiceItemMatchDraft(
-        matches,
-        'invoice-current',
-        'item-current',
-        'order-current',
-      ),
-    ).toEqual({
-      supplierOrderLineId: 'order-line-1',
-      quantityMilli: 8_000,
-    });
-  });
-
-  it('refuse de deviner si une ligne de facture couvre plusieurs lignes de commande', () => {
-    expect(
-      existingInvoiceItemMatchDraft(
-        [
-          ...matches,
-          {
-            ...matches[0],
-            supplierOrderLineId: 'order-line-2',
-          },
-        ],
-        'invoice-current',
-        'item-current',
-        'order-current',
-      ),
-    ).toBeNull();
-  });
-});
 
 describe('existingInvoiceItemMultiOrderMatchDraft', () => {
   it('recharge la commande, la ligne et la quantité répartie sur plusieurs réceptions', () => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { StrictMode, act } from 'react';
+import { StrictMode, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const state=vi.hoisted(()=>({probe:vi.fn(),request:vi.fn(),feedback:vi.fn(),close:vi.fn(),frames:[] as FrameRequestCallback[]}));

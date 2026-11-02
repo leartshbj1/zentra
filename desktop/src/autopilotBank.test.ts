@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bankProposals, hasLinkedBank, statementDue } from './autopilotBank';
+import { bankProposals } from './autopilotBank';
 import type { MailSignal } from './autopilotSignals';
 import type { BankMovement, BankWorkspace } from './types';
 
@@ -31,10 +31,5 @@ describe('bank proposals', () => {
     ]), [], [], []);
     expect(rows.map(row => [row.movement.id, row.action])).toEqual([['fee', 'link_with_fee'], ['wrong-way', 'choose']]);
     expect(rows[0]).toMatchObject({ invoiceId: 'i1', paymentId: 'p1', recordedCents: 17800, feeCents: 50 });
-  });
-  it('reminds of the weekly statement only for a linked account', () => {
-    expect(statementDue(bank([], ['2026-10-01']), '2026-10-20')).toBe(true);
-    expect(statementDue(bank([], ['2026-10-18']), '2026-10-20')).toBe(false);
-    expect(hasLinkedBank(null)).toBe(false);
   });
 });

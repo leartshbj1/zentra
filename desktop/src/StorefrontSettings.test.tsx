@@ -14,10 +14,6 @@ const organization: Organization = {
   address: { street: 'Rue de Carouge', buildingNumber: '48', postalCode: '1205', city: 'Genève', canton: 'GE', country: 'CH' },
 };
 const button = (label: string) => [...host.querySelectorAll('button')].find(item => item.textContent?.trim() === label)!;
-const type = async (input: HTMLInputElement, value: string) => act(async () => {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-});
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(400); });
 
 beforeEach(() => {

@@ -522,11 +522,3 @@ export function bankAccountAssociationPayload(accountId: string, currency: strin
   return { input: { account_id: accountId, currency } };
 }
 
-export async function importCamtFromLocalDialog(
-  choose: () => Promise<string | null>,
-  importFile: (path: string) => Promise<CamtImportResult>,
-): Promise<CamtImportResult | null> {
-  const selected = await choose();
-  if (!selected) return null;
-  return importFile(selected);
-}

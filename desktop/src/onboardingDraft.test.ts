@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  hasAdvancedOnboardingInput,
   initialOnboardingSettings,
   settingsFromOnboardingDraft,
 } from './onboardingDraft';
@@ -68,24 +67,6 @@ describe('reprise du brouillon de configuration', () => {
     );
   });
 
-  it('protège toute saisie avancée avant un retour au parcours essentiel', () => {
-    expect(hasAdvancedOnboardingInput(initialOnboardingSettings, {
-      privacyConfirmed: false,
-      vatText: '',
-    })).toBe(false);
-    expect(hasAdvancedOnboardingInput({
-      ...initialOnboardingSettings,
-      billing: { ...initialOnboardingSettings.billing, vatRatesBp: [810] },
-    }, { privacyConfirmed: false, vatText: '' })).toBe(true);
-    expect(hasAdvancedOnboardingInput(initialOnboardingSettings, {
-      privacyConfirmed: true,
-      vatText: '',
-    })).toBe(true);
-    expect(hasAdvancedOnboardingInput(initialOnboardingSettings, {
-      privacyConfirmed: false,
-      vatText: '8.1',
-    })).toBe(true);
-  });
 
   it('autorise le démarrage essentiel et conserve les réglages métier pour plus tard', () => {
     const settings = settingsFromOnboardingDraft({

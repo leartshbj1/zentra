@@ -28,11 +28,6 @@ export type BexioContactRow = {
   errors: string[];
   duplicate: boolean;
 };
-export type BexioReceipt = {
-  created: number;
-  skipped: number;
-  rows: { line: number; name: string; status: 'created' | 'skipped' }[];
-};
 const normalize = (value: string) =>
   value
     .normalize('NFD')

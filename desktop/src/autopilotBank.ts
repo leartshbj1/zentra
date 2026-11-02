@@ -70,5 +70,3 @@ export function statementDue(bank: BankWorkspace | null, today: string) {
   return !last || Date.parse(today) - Date.parse(last) > 7 * 86_400_000;
 }
 
-/** Whether a bank account is linked to the company. */
-export const hasLinkedBank = (bank: BankWorkspace | null) => !!bank?.accounts.some(account => account.linked);

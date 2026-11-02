@@ -14,10 +14,6 @@ type Mark = 'bold' | 'italic' | 'underline';
 type Bookmark = { start: number; end: number };
 const textColors = [['#242424', 'Noir'], ['#134d33', 'Vert forêt'], ['#182b49', 'Bleu marine'], ['#793c32', 'Bordeaux'], ['#563d73', 'Prune'], ['#66523f', 'Brun']] as const;
 const highlightColors = [['#fff0a6', 'Jaune'], ['#dcebd7', 'Vert clair'], ['#dceafc', 'Bleu clair'], ['#f8dddd', 'Rose'], ['#e8def5', 'Lavande'], ['#ededed', 'Gris clair']] as const;
-export function formatRichSelection(value: RichText, selection: Bookmark, mark: Mark): RichText {
-  if (selection.start === selection.end) return value;
-  return setRichMarks(value, selection, { [mark]: !marksAtSelection(value, selection)[mark] });
-}
 
 function readEditor(root: HTMLElement, previous: RichText): RichText {
   // Browsers leave a native <br> when Select all / Delete empties the editor.

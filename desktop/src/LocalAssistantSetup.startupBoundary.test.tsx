@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { StrictMode, act } from 'react';
+import { StrictMode, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 const state=vi.hoisted(()=>({probe:vi.fn(),inspect:vi.fn(),install:vi.fn(),remove:vi.fn(),cancel:vi.fn(),later:vi.fn(),open:vi.fn(),chat:vi.fn(),isBusy:vi.fn(),aiCancel:vi.fn(),foreignCancelled:vi.fn(),foreignActive:false,model:{phase:'missing',label:'',percent:null,error:'',deferred:false}}));

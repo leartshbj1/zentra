@@ -1,4 +1,4 @@
-import {diagnosticsApi,recentDiagnosticEvents} from './diagnostics';
+import {diagnosticsApi} from './diagnostics';
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"http://localhost","pretendToBeVisual":true}
 /** Actual candidate WorkspaceApp/DocumentEditor/footer templates/bridge/recovery/ReactDOM. Native IPC
@@ -23,7 +23,6 @@ const scope='quick-client-durable-company',member='11111111-1111-4111-8111-11111
 const guardMessage='Champ invalide : Le compte connecté a changé. Rouvrez cette action avec le bon compte.';
 function deferred<T=void>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(yes=>resolve=yes);return {promise,resolve};}
 let root:Root|undefined,container:HTMLDivElement,workspace:Workspace,exposed:any;
-let renderFinance=false;
 let nativeNonce=nonceA,mode='',blocked=false,writeHold:ReturnType<typeof deferred>|null=null,readHold:ReturnType<typeof deferred>|null=null;
 let writeEntered=false,readEntered=false,writes=0,clients:any[]=[],quotes:any[]=[],projects:any[]=[],quoteItems:any[]=[],reads:any[]=[],publications:Workspace[]=[],externalRequests=0,writeAttempts:any[]=[],nativeScope=scope;
 let beforeWrite:((args:any)=>void)|undefined;
@@ -37,8 +36,6 @@ async function settle(){await reactAct(async()=>{for(let i=0;i<25;i++)await Prom
 async function until(check:()=>boolean){for(let i=0;i<40&&!check();i++)await settle();expect(check(),document.body.textContent??'').toBe(true);}
 const buttons=(text:string)=>Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter(node=>node.textContent?.trim()===text);
 async function click(text:string){const button=buttons(text)[0];expect(button,document.body.textContent??'').toBeDefined();expect(button.disabled,text).toBe(false);await reactAct(async()=>button.click());await settle();}
-async function change(name:string,value:string,events=true){const input=document.querySelector<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>(`[role="dialog"] [name="${name}"]`)!;expect(input,name).not.toBeNull();await reactAct(async()=>{const prototype=input instanceof HTMLSelectElement?HTMLSelectElement.prototype:input instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value')!.set!.call(input,value);if(events){input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}});await settle();}
-async function openDocument(entity:'quotes'|'invoices'='quotes'){await click('Ventes');if(entity==='invoices')await click('Factures');await click(entity==='quotes'?'Nouveau devis':'Nouvelle facture');await reactAct(async()=>{await vi.dynamicImportSettled();});await until(()=>document.querySelector('[role="dialog"] [name="title"]')!==null);}
 function Host(){const [current,setCurrent]=useState(workspace);const [nonce,setNonce]=useState<string|undefined>(nonceA);const [finance,setFinance]=useState(false);exposed={setNonce,setCurrent,setFinance};const publish=(next:Workspace)=>{publications.push(next);setCurrent(next);};return <FormDraftIdentityProvider companyId={scope} organizationId="org-témoin" memberId={member} memberContextNonce={nonce} ready><ZentraAssistantProvider>{finance?<FinanceOverview workspace={current} income={null} continuity={{enabled:false,mappingReady:false,journalEntryCount:0} as never} busy={false} periodLabel="2026" readOnly={false} onSection={()=>{}} onWorkspaceChange={publish} onInstallStarter={async()=>{}}/>:<WorkspaceApp workspace={current} setWorkspace={next=>{if(next&&typeof next!=='function'){publications.push(next);setCurrent(next);}}}/>}</ZentraAssistantProvider></FormDraftIdentityProvider>;}
 beforeEach(async()=>{
   nativeScope=scope;nativeNonce=nonceA;settings=structuredClone(baseSettings);settings.billing.footerTemplates=[{id:'33333333-3333-4333-8333-333333333333',name:'Modèle témoin',text:'Texte original témoin'}];beforeWrite=undefined;writeAttempts=[];mode='';blocked=false;writeHold=null;readHold=null;writeEntered=false;readEntered=false;writes=0;clients=[{id:clientId,name:'Client témoin',company:'Client témoin SA',country:'CH'}];quotes=[];quoteItems=[];projects=[];reads=[];publications=[];externalRequests=0;localStorage.clear();sessionStorage.clear();

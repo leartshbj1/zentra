@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, AutopilotStatus, type AutopilotCreatedQuoteView } from './AutopilotPanel';
+import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, type AutopilotCreatedQuoteView } from './AutopilotPanel';
 import { autopilotQuoteExtrasCopy } from './AutopilotQuoteExtras';
 import { autopilotCopy, autopilotCatalogueCopy } from './autopilotPresentation';
 import type { AutopilotView } from './autopilotView';
@@ -19,22 +19,9 @@ beforeEach(() => { locale.language = 'fr'; vi.stubGlobal('IS_REACT_ACT_ENVIRONME
 afterEach(async () => { for(const {root,host} of roots.splice(0)) { await act(async () => root.unmount()); host.remove(); } vi.unstubAllGlobals(); });
 async function mount(element: ReactNode) { const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host); roots.push({root,host}); await act(async () => root.render(element)); return {root,host}; }
-it.each(['fr','de','it','en'])('renders actual consent and review wording in %s', language => {
-  locale.language = language; const copy = autopilotCopy(language);
-  const html = renderToStaticMarkup(<><AutopilotStatus state={state} onSettings={() => {}} />
-    <AutopilotSettings state={state} onConsent={async () => {}} />
-    <AutopilotReviews state={state} organizationId="company-a" onOpenSource={async () => {}} /></>);
-  expect(html).toContain(copy.title); expect(html).toContain(copy.consent); expect(html).toContain(copy.openRequest);
-  expect(html).not.toMatch(/0\.58|low_confidence|proposal-a|exact-ticket-a|JEV|TypeSafe/);
-});
 it('never infers disabled consent or availability from a closed product gate', () => {
   const html = renderToStaticMarkup(<AutopilotSettings state={{ ...state,status:'unavailable',consent:null,canManage:false }} onConsent={vi.fn()} />);
   expect(html).toContain(autopilotCopy('fr').unavailable); expect(html).not.toContain('type="checkbox"');
-});
-it.each(['fr','de','it','en'])('explains monthly allowance independently of connection and hourly limits in %s',language=>{
-  locale.language=language;const copy=autopilotCopy(language);
-  const html=renderToStaticMarkup(<AutopilotStatus state={{...state,error:'quota_exhausted'}} onSettings={()=>{}}/>);
-  expect(html).toContain(copy.monthlyQuota);expect(html).not.toContain(copy.connection);expect(html).not.toContain(copy.rateLimited);
 });
 it('does not submit consent on mount and requires a real explicit switch action', async () => {
   const change = vi.fn().mockResolvedValue(undefined);

@@ -47,15 +47,6 @@ export function isDemoWorkspace(): boolean {
   }
 }
 
-/** Renvoie false si le stockage est indisponible ; l’indicateur reste alors inchangé. */
-export function clearDemoWorkspaceFlag(): boolean {
-  try {
-    localStorage.removeItem(DEMO_FLAG_KEY);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 type DemoActivity = { section: NogaSection['code'] | ''; division: string };
 

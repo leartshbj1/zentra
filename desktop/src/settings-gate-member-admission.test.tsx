@@ -12,14 +12,12 @@ vi.setConfig({testTimeout:15000});
 import {App} from './App';
 import {desktopApi,type CloudAccountState} from './bridge';
 import {initialOnboardingSettings} from './onboardingDraft';
-import {FORM_DRAFT_PREFIX} from './formDrafts';
-import {recentDiagnosticEvents} from './diagnostics';
 import {ZentraAssistantProvider} from './ZentraAssistant';
 
 const transport=vi.hoisted(()=>({invoke:vi.fn()}));
 vi.mock('@tauri-apps/api/core',()=>({Channel:class{},invoke:transport.invoke,isTauri:()=>false}));
 const scope='app-admission-company',organization='app-admission-org';
-const memberA='11111111-1111-4111-8111-111111111111',memberB='22222222-2222-4222-8222-222222222222';
+const memberA='11111111-1111-4111-8111-111111111111';
 const nonceA='a'.repeat(32),nonceB='b'.repeat(32);
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(yes=>resolve=yes);return {promise,resolve};}
 const held:{resolve:(value:any)=>void}[]=[];
@@ -32,17 +30,6 @@ const raw=()=>({work_notes_scope:scope,settings:{company_name:'Entreprise témoi
 const license={enforcementConfigured:true,status:'valid',readOnly:false,canRefresh:false,accessRole:'owner',installationId:'synthetic-app-only',reason:''};
 async function settle(){await reactAct(async()=>{for(let i=0;i<25;i++)await Promise.resolve();await new Promise<void>(yes=>setTimeout(yes,5));});}
 async function until(check:()=>boolean){const deadline=performance.now()+8000;while(!check()&&performance.now()<deadline)await settle();expect(check(),document.body.textContent??'').toBe(true);}
-const button=(text:string)=>[...document.querySelectorAll<HTMLButtonElement>('button')].find(row=>row.textContent?.trim()===text);
-async function click(text:string){const target=button(text);expect(target,document.body.textContent??'').toBeDefined();await reactAct(async()=>target!.click());await settle();}
-const draftKeys=()=>Object.keys(localStorage).filter(key=>key.startsWith(FORM_DRAFT_PREFIX));
-const draftOwner=()=>JSON.parse(decodeURIComponent(draftKeys()[0].slice(FORM_DRAFT_PREFIX.length))).slice(0,3);
-async function openClient(){await click('Clients');await click('Nouveau client');await until(()=>document.querySelector('[role="dialog"] [name="company"]')!==null);
-  for(const [name,value] of Object.entries({company:'App témoin',contactPerson:'Personne témoin',street:'Rue témoin',postalCode:'1000',city:'Lausanne',country:'CH'})){
-    const input=document.querySelector<HTMLInputElement|HTMLSelectElement>(`[role="dialog"] [name="${name}"]`)!;
-    await reactAct(async()=>{const prototype=input instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));});
-  }await settle();expect(draftKeys()).toHaveLength(1);
-}
-async function submit(){const form=document.querySelector<HTMLFormElement>('[role="dialog"] form')!;await reactAct(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await settle();}
 async function mount(){host=document.createElement('div');host.id='root';document.body.append(host);root=createRoot(host);await reactAct(async()=>root!.render(<ZentraAssistantProvider><App/></ZentraAssistantProvider>));await settle();}
 
 beforeEach(()=>{

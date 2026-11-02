@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { documentCompositions, normalizeComposition, normalizeRichText, richPlainText } from './documentComposition';
-import { formatRichSelection } from './RichTextEditor';
+import { documentCompositions, normalizeComposition, normalizeRichText } from './documentComposition';
 
 describe('document composition', () => {
   it('keeps existing documents on their original renderer until a design is chosen', () => {
@@ -8,18 +7,6 @@ describe('document composition', () => {
     const styles = documentCompositions({ invoices: normalizeComposition({ fontFamily: 'times' }) });
     expect(styles.invoices?.fontFamily).toBe('times');
     expect(styles.quotes).toBeUndefined();
-  });
-  it('formats exactly the selected words, including a selection across paragraphs', () => {
-    const value=normalizeRichText([{runs:[{text:'Paiement sous 30 jours.'}]},{runs:[{text:'Merci beaucoup.'}]}]);
-    const bold=formatRichSelection(value,{start:0,end:8},'bold');
-    expect(bold[0].runs[0]).toMatchObject({text:'Paiement',bold:true});
-    expect(bold[0].runs[1].bold).toBe(false);
-    const cross=formatRichSelection(bold,{start:20,end:29},'italic');
-    expect(cross[0].runs.at(-1)).toMatchObject({text:'rs.',italic:true});
-    expect(cross[1].runs[0]).toMatchObject({text:'Merci',italic:true});
-    expect(richPlainText(cross)).toBe(richPlainText(value));
-    const off=formatRichSelection(bold,{start:0,end:8},'bold');
-    expect(off[0].runs[0].bold).toBe(false);
   });
   it('stores pasted markup as text and only allows known layout values', () => {
     const text=normalizeRichText([{runs:[{text:'<script>bonjour</script>',html:'<img>'}]}]);

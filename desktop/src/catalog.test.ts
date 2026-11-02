@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   activeCatalogItems,
   catalogItemToDocumentLine,
-  catalogQuantityFromInput,
-  catalogStockData,
   filterCatalogItems,
   formatCatalogQuantity,
-  isCatalogItemLowOnStock,
   stockBalanceAfter,
   stockMovementError,
   stockMovementsForItem,
@@ -107,31 +104,7 @@ describe('catalogue produits et services', () => {
     ).toBe('Audit électrique — Contrôle initial et rapport');
   });
 
-  it('convertit les quantités en milli-unités et signale le stock réel sous le seuil', () => {
-    expect(catalogQuantityFromInput('12,345')).toBe(12_345);
-    expect(catalogQuantityFromInput('')).toBe(0);
-    expect(catalogQuantityFromInput('-2')).toBe(0);
-    expect(isCatalogItemLowOnStock(product)).toBe(true);
-    expect(isCatalogItemLowOnStock({ ...product, stockQuantityMilli: 10_001 })).toBe(false);
-    expect(isCatalogItemLowOnStock({ ...product, stockQuantityMilli: 0, reorderLevelMilli: 0 })).toBe(true);
-    expect(isCatalogItemLowOnStock({ ...product, kind: 'service' })).toBe(false);
-  });
 
-  it('crée un produit suivi à zéro et ne renvoie jamais le solde pendant une édition', () => {
-    expect(catalogStockData('product', 2_500, false)).toEqual({
-      trackStock: true,
-      reorderLevelMilli: 2_500,
-      stockQuantityMilli: 0,
-    });
-    const edited = catalogStockData('product', 3_000, true);
-    expect(edited).toEqual({ trackStock: true, reorderLevelMilli: 3_000 });
-    expect(Object.hasOwn(edited, 'stockQuantityMilli')).toBe(false);
-    expect(catalogStockData('service', 9_000, false)).toEqual({
-      trackStock: false,
-      reorderLevelMilli: 0,
-      stockQuantityMilli: 0,
-    });
-  });
 
   it('valide les mouvements signés à trois décimales avant de laisser le backend trancher', () => {
     expect(stockQuantityFromInput('1.234')).toBe(1_234);

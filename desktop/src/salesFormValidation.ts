@@ -22,13 +22,3 @@ export function invoiceDatesError(dates: InvoiceDates): string {
   return invoiceDateIssues(dates)[0]?.message ?? '';
 }
 
-export function paymentInput(amount: string, date: string, issueDate: string, balanceCents: number): { amountCents: number; error: string } {
-  const value = amount.trim().replace(',', '.');
-  const amountCents = Math.round(Number(value) * 100);
-  if (!/^\d+(\.\d{1,2})?$/.test(value) || !Number.isSafeInteger(amountCents) || amountCents <= 0)
-    return { amountCents: 0, error: 'Indiquez le montant réellement reçu, supérieur à zéro, avec deux décimales au maximum.' };
-  if (amountCents > balanceCents) return { amountCents, error: 'Ce montant dépasse ce qu’il reste à encaisser. Vérifiez le solde affiché et le montant reçu.' };
-  if (!isSalesDate(date)) return { amountCents, error: 'Choisissez la date à laquelle vous avez reçu l’argent.' };
-  if (date < issueDate) return { amountCents, error: 'Le paiement ne peut pas précéder l’émission de cette facture. Vérifiez la date de réception.' };
-  return { amountCents, error: '' };
-}

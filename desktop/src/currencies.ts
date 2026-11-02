@@ -19,20 +19,7 @@ export function formatRate(micro: number): string {
   return `${whole}.${decimals}`;
 }
 
-/** Même arrondi que l'app native : au centime, le demi-centime vers l'extérieur. */
-export function toChf(cents: number, micro: number): number {
-  const product = BigInt(cents) * BigInt(micro);
-  const half = 500_000n;
-  const rounded = product >= 0n ? (product + half) / 1_000_000n : -((-product + half) / 1_000_000n);
-  return Number(rounded);
-}
 
-/** Le cours en vigueur à une date : le plus récent, au plus `validityDays` jours avant. */
-export function rateOn(rates: readonly ExchangeRate[], currency: string, date: string, validityDays = 31): ExchangeRate | null {
-  const oldest = new Date(Date.parse(date + 'T00:00:00Z') - validityDays * 86_400_000).toISOString().slice(0, 10);
-  return rates.filter(rate => rate.currency === currency && rate.rateDate <= date && rate.rateDate >= oldest)
-    .sort((a, b) => b.rateDate.localeCompare(a.rateDate))[0] ?? null;
-}
 
 /** Date proposée pour le prochain cours : le premier jour du mois de la plus ancienne écriture en attente. */
 export function suggestedRateDate(pending: readonly PendingConversion[], today: string): string {

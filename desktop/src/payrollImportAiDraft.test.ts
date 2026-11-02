@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   combinePayrollAiPageBatches,
-  composePayrollAiCpuPhases,
   markPayrollAiContributions,
   mergePayrollImportDraft,
   parsePayrollAiJson,
@@ -109,42 +108,7 @@ describe('fusion du brouillon de paie et de la lecture IA', () => {
     ]));
   });
 
-  it('compose les phases CPU ciblees sans transformer deux extractions en double lecture', () => {
-    const composition = composePayrollAiCpuPhases({
-      sourcePage: 3,
-      coreRaw: JSON.stringify({
-        employee_name: 'Élodie Exemple', gross_cents: 650_000, net_cents: 570_000,
-        employee_number: 'E-42', period: '2026-08', source_page: 3,
-      }),
-      linesRaw: JSON.stringify({
-        source_page: 3,
-        lines: [['Salaire', 'earning', 650_000], ['AVS', 'deduction', 80_000]],
-      }),
-    });
-    const parsed = parsePayrollAiJson(composition.rawOutput);
 
-    expect(composition).toMatchObject({ usedCore: true, usedLines: true });
-    expect(parsed.draft).toMatchObject({
-      employee: { name: 'Élodie Exemple', employeeNumber: 'E-42' },
-      period: '2026-08', grossCents: 650_000, netCents: 570_000,
-    });
-    expect(parsed.draft.lines).toHaveLength(2);
-    expect(parsed.provenance.fields).toMatchObject({ 'employee.name': [3], gross_cents: [3], net_cents: [3] });
-    expect(parsed.provenance.lines.every((line) => line.pages[0] === 3)).toBe(true);
-  });
-
-  it('conserve le coeur CPU lorsque la phase rubriques est inexploitable', () => {
-    const composition = composePayrollAiCpuPhases({
-      sourcePage: 1,
-      coreRaw: JSON.stringify({ employee_name: 'Ada', gross_cents: 100_000, net_cents: 90_000 }),
-      linesRaw: 'rubriques tronquées',
-    });
-
-    expect(composition).toMatchObject({ usedCore: true, usedLines: false });
-    expect(parsePayrollAiJson(composition.rawOutput).draft).toMatchObject({
-      employee: { name: 'Ada' }, grossCents: 100_000, netCents: 90_000,
-    });
-  });
 
   it('remplace les valeurs d’interface non confirmées par les valeurs réellement détectées', () => {
     const merged = mergePayrollImportDraft(existingDraft(), parsePayrollAiJson(aiJson(80, 'hourly')));
@@ -280,11 +244,6 @@ describe('fusion du brouillon de paie et de la lecture IA', () => {
     expect(result.draft.warnings.join(' ')).not.toContain('deux passages');
   });
 
-  it('refuse un brouillon CPU vide avec un message actionnable', () => {
-    const empty = JSON.stringify({ employee: {}, gross_cents: 0, net_cents: 0, lines: [], warnings: [] });
-    expect(() => composePayrollAiCpuPhases({ coreRaw: empty, linesRaw: empty, sourcePage: 1 }))
-      .toThrow(/Aucune valeur exploitable.*netteté.*aucun brouillon vide/i);
-  });
 
   it('écarte une classification IA inconnue au lieu de la transformer en gain', () => {
     const parsed = parsePayrollAiJson(JSON.stringify({

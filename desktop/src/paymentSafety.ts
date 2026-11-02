@@ -11,7 +11,6 @@ export type PaymentFinding =
   | { kind: 'new_supplier' }
   | { kind: 'possible_duplicate'; otherInvoiceId: string; otherReference: string | null; otherTotalCents: number; otherDocumentDate: string; reason: 'same_number' | 'same_payment_reference' | 'same_amount_and_date' }
   | { kind: 'unusual_amount'; usualCents: number; historyCount: number; factor: number };
-export type PaymentFindingKind = PaymentFinding['kind'];
 
 export type SupplierPaymentHistory = {
   paymentCount: number;

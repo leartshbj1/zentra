@@ -9,7 +9,7 @@ import {createRoot,type Root} from 'react-dom/client';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {desktopApi} from './bridge';
 import {WorkspaceApp} from './WorkspaceApp';
-import {FormDraftIdentityProvider,draftText} from './useFormDraft';
+import {FormDraftIdentityProvider} from './useFormDraft';
 import {ZentraAssistantProvider} from './ZentraAssistant';
 import {initialOnboardingSettings} from './onboardingDraft';
 import {FORM_DRAFT_PREFIX} from './formDrafts';
@@ -38,11 +38,8 @@ function draftKeys(){return Array.from({length:localStorage.length},(_,i)=>local
 async function change(name:string,value:string,events=true){const input=document.querySelector<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>(`[role="dialog"] [name="${name}"]`)!;expect(input,name).not.toBeNull();await reactAct(async()=>{const prototype=input instanceof HTMLSelectElement?HTMLSelectElement.prototype:input instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value')!.set!.call(input,value);if(events){input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}});await settle();}
 async function openEmployee(){await click('Équipe & salaires');await click('Nouvelle fiche de personnel');await until(()=>document.querySelector('[role="dialog"] [name="name"]')!==null);}
 async function prepareEmployee(){await openEmployee();await change('name','Alex Témoin');await change('role','Responsable de projet');await submit();await change('employmentRate','100');await change('salaryMode','monthly');await change('grossSalary','6000');await change('employmentContractKind','indefinite');await submit();expect(document.querySelector('[data-employee-step="2"]')?.hasAttribute('hidden')).toBe(false);expect(draftKeys()).toHaveLength(1);}
-async function closeEmployee(){const button=document.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label^="Fermer «"]');expect(button).not.toBeNull();await reactAct(async()=>button!.click());await settle();}
-async function restoreEmployee(){await click('Nouvelle fiche de personnel');await until(()=>buttons(draftText('Reprendre ma saisie')).length>0);await click(draftText('Reprendre ma saisie'));}
 function draftValue(){return JSON.parse(localStorage.getItem(draftKeys()[0])!).value as Record<string,string>;}
 async function submit(){const form=document.querySelector<HTMLFormElement>('[role="dialog"] form')!;await reactAct(async()=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await settle();}
-function verifyNoRetirement(allowOriginalReadPublication=false){expect(draftKeys()).toHaveLength(1);if(!allowOriginalReadPublication)expect(publications).toHaveLength(0);else expect(publications.every(value=>value.workNotesScope===scope)).toBe(true);expect(document.body.textContent).not.toContain('Le collaborateur a été ajouté.');expect(document.querySelector('[role="dialog"] form')).not.toBeNull();}
 
 beforeEach(async()=>{
   nativeScope=scope;nativeNonce=nonceA;beforeWrite=undefined;writeAttempts=[];mode='';blocked=false;writeHold=null;readHold=null;writeEntered=false;readEntered=false;writes=0;employees=[];reads=[];publications=[];externalRequests=0;localStorage.clear();sessionStorage.clear();

@@ -2003,19 +2003,7 @@ export type Workspace = {
 
 export type OnboardingPayload = AppSettings;
 
-export type MutationResponse = {
-  workspace: Workspace;
-  message?: string;
-};
 
-export type RestorePreview = {
-  path: string;
-  organizationName: string;
-  createdAt: string;
-  clientsCount: number;
-  projectsCount: number;
-  documentsCount: number;
-};
 
 export type AccountType =
   | 'asset'

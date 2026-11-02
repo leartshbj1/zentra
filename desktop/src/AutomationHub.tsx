@@ -17,7 +17,6 @@ import { AutomationConnectionNotice } from './AutomationConnectionNotice';
 import type { ReactNode } from 'react';
 import { diagnosticInvoke as invoke } from './diagnostics';
 import { AutomationControlCentre } from './AutomationControlCentre';
-import { automationLabel } from './automationPresentation';
 import './automation-design.css';
 import type { AppointmentInboxState } from './AppointmentInbox';
 import { AutopilotCatalogueNext, AutopilotReviews, AutopilotSettings, type AutopilotAcceptanceCard, type AutopilotCreatedQuoteView } from './AutopilotPanel';
@@ -88,7 +87,6 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
   const main = activityPage || followup;
   // The day's page: one list of what waits, one item open at a time.
   const today = page === 'overview' && ready;
-  const label = (key: Parameters<typeof automationLabel>[0]) => automationLabel(key, language);
   const pending = (state.activity?.supplierInbox?.needsReview ?? 0) + (state.activity?.appointments?.pending ?? 0) + (state.activity?.workflows?.review ?? 0) + (state.activity?.workflows?.open ?? 0) + (state.activity?.totals.needsReview ?? 0);
   const autopilotWaiting = autopilot?.state.status === 'ready' && !autopilot.state.reviewsUnavailable
     ? (normalizeAutopilotReviewPage(autopilot.state.reviews, state.organizationId)?.items.filter(item => autopilotRequestStage(autopilot.createdQuote?.(item) ?? null) !== 'done').length ?? 0) + (autopilot.acceptances?.filter(card => card.candidates || autopilotRequestStage(autopilot.createdQuote?.({ proposalId: card.key }) ?? null) === 'accepted').length ?? 0) + (autopilot.signals?.length ?? 0) + (autopilot.followUps?.length ?? 0) : 0;

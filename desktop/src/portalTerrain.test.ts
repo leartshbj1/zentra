@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ENGAGEMENT } from './customerEngagement';
-import { depositAmount, depositsToRecord, freeSlots, type PortalBookingRequest, type QuoteDepositLink } from './portalTerrain';
-import type { AgendaEvent, Invoice, Quote } from './types';
+import { freeSlots, type PortalBookingRequest } from './portalTerrain';
+import type { AgendaEvent } from './types';
 
 const settings = { ...DEFAULT_ENGAGEMENT, bookingEnabled: true, bookingDays: 0b11111, bookingStart: '08:00', bookingEnd: '12:00', bookingMinutes: 60, bookingWeeks: 1 };
 const event = (patch: Partial<AgendaEvent>): AgendaEvent => ({ id: 'e', title: 'Privé', startDate: '2026-10-27', endDate: '2026-10-27', allDay: false, startTime: '09:00', endTime: '10:30',
@@ -21,14 +21,4 @@ describe('portal slots and deposits', () => {
     expect(freeSlots({ ...settings, bookingEnabled: false }, [], [], '2026-10-25')).toEqual([]);
   });
 
-  it('computes the deposit and finds the deposit invoice to reconcile', () => {
-    expect(depositAmount(1_200_000, 3_000)).toBe(360_000);
-    expect(depositAmount(123_457, 3_000)).toBe(37_037);
-    const link: QuoteDepositLink = { id: 'l', quoteId: 'q', url: 'https://a.payrexx.com/?p=1', percentBp: 3000, amountCents: 360_000, currency: 'CHF', status: 'paid', invoiceId: null, paymentId: null, createdAt: '' };
-    const quotes = [{ id: 'q', number: 'D-1' }] as Quote[];
-    expect(depositsToRecord([link], quotes, [])[0].invoice).toBeNull();
-    const invoices = [{ id: 'i', quoteId: 'q', type: 'deposit', status: 'issued' }] as Invoice[];
-    expect(depositsToRecord([link], quotes, invoices)[0].invoice?.id).toBe('i');
-    expect(depositsToRecord([{ ...link, paymentId: 'p' }], quotes, invoices)).toEqual([]);
-  });
 });

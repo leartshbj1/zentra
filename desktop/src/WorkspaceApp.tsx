@@ -76,7 +76,7 @@ import { maxProducible } from './bom';
 import { depreciationDue, inventoryDue, ordersReadyToDeliver } from './autopilotYearEnd';
 import { fixedAssetsApi, type FixedAssetRow } from './fixedAssets';
 import { bytesToBase64, canPublishQuote, portalCards, portalPublishInput, savedPortal, savePortalEvents, savePortalLink } from './quotePortal';
-import { appendJournal, canUndo, confirmEntries, decideRule, doneToday, entriesToConfirm, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
+import { appendJournal, canUndo, confirmEntries, decideRule, entriesToConfirm, journalEntries, learnedRules, markUndone, ruleProposals, signatureLabel, type JournalEntry, type UndoSpec } from './autopilotJournal';
 import { daysBetween, defaultChargeSettings, discountMatch, discountedAmountCents, withDiscountConditions, type ReminderChargeSettings } from './reminderCharges';
 import { parseBillInformation } from './swissQrBill';
 import { projectFromQuote, projectKey, quotesToStartProject } from './autopilotProjects';
@@ -192,24 +192,20 @@ import {
   type SetStateAction,
 } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import {DiagnosticsPanel} from './DiagnosticsPanel';
 import { ErrorDetails, ErrorGuidance } from './ErrorGuidance';
 import { employeeDraftFields, validEmployeeCreationId, validCreationEmployeeDraft, EMPLOYEE_CREATION_UNCONFIRMED, EMPLOYEE_LOCAL_DRAFT_UNSAVED, employeeCreationRecovery } from './employeeCreationDraft';
 import {recordDiagnostic, classifyDiagnosticError, diagnosticOperation, diagnosticInvoke} from './diagnostics';
 import {
   Archive,
-  ExternalLink,
   Plug,
   ArrowRight,
   Banknote,
   BarChart3,
-  BookOpen,
   BriefcaseBusiness,
   Building2,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ClipboardCheck,
   Clock3,
   CloudUpload,
@@ -221,7 +217,6 @@ import {
   FolderKanban,
   FolderOpen,
   HardHat,
-  Home,
   CircleHelp,
   LayoutDashboard,
   Landmark,
@@ -234,7 +229,6 @@ import {
   MessageSquareWarning,
   Mail,
   MapPin,
-  MoreHorizontal,
   Package,
   Pause,
   Pencil,
@@ -245,13 +239,10 @@ import {
   Receipt,
   RefreshCw,
   Search,
-  Scale,
   ScanLine,
-  Send,
   Settings,
   ShieldCheck,
   TimerReset,
-  TrendingUp,
   UserRound,
   Users,
   WalletCards,
@@ -326,11 +317,8 @@ import {
   recurrenceSchedulesDue,
 } from './recurrenceUi';
 import type {
-  Account,
   AccountingPeriod,
-  AccountingSettings,
   AppSettings,
-  BalanceSheetReport,
   Client,
   CatalogItem,
   DeliveryNote,
@@ -342,17 +330,8 @@ import type {
   FrozenIssuer,
   Invoice,
   InvoiceCorrectionWorkflow,
-  IncomeStatementReport,
-  JournalReport,
-  LedgerReport,
-  Payment,
   Payslip,
   PayslipContributionSnapshot,
-  PayslipLine,
-  PayrollCalculation,
-  PayrollContributionDefinition,
-  PayrollContributionSelection,
-  PeriodFilter,
   Project,
   ProjectMilestone,
   ProjectPlanningStatus,
@@ -362,9 +341,6 @@ import type {
   BankWorkspace,
   VatProfile,
   VatReturnExport,
-  ReminderHistory,
-  ReminderSettings,
-  ReminderTemplate,
   SalesOrder,
   StockMovementType,
   StoredSwissQrBill,
@@ -373,7 +349,6 @@ import type {
   SwissQrBillInput,
   SwissQrPayload,
   TimeEntry,
-  TrialBalanceReport,
   Workspace,
 } from './types';
 import {
@@ -387,7 +362,6 @@ import {
   formatDateTime,
   formatMinutes,
   formatMoney,
-  invoiceCredited,
   invoiceOpenBalance,
   invoicePaid,
   numberFromInput,
@@ -6147,7 +6121,6 @@ function ClientsScreen({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
-  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const [visibility, setVisibility] = useState<'active' | 'archived'>('active');
   const compact = useCompactLayout();
   const activeCount = workspace.clients.filter(
@@ -6372,7 +6345,6 @@ function ClientDetail({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
-  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const projects = workspace.projects.filter(
     (project) => project.clientId === client.id,
   );
@@ -7339,7 +7311,6 @@ function TimeScreen({
   const terminology = projectTerminology(
     workspace.settings!.business.nogaSection,
   );
-  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   const entries = workspace.timeEntries.filter((entry) =>
     searchText(
       [
@@ -9512,10 +9483,6 @@ export function ProjectForm({
   const closeForm = () => persisted.close(close);
   const draftBlocked = !!persisted.pending || persisted.conflict || persisted.invalid || !!(suppliedItem && !current);
 
-  const terminology = projectTerminology(
-    workspace.settings!.business.nogaSection,
-  );
-  const ProjectIcon = terminology.icon === 'hard-hat' ? HardHat : FolderKanban;
   return (
     <Modal
       title={t(item ? 'Modifier le projet' : 'Nouveau projet')}
@@ -10543,262 +10510,6 @@ function EmployeeForm({
   );
 }
 
-function PayslipForm({
-  item,
-  workspace,
-  busy,
-  close,
-  act,
-}: {
-  item?: Payslip;
-  workspace: Workspace;
-  busy: boolean;
-  close: () => void;
-  act: ActionRunner;
-}) {
-  const [lines, setLines] = useState<PayslipLine[]>(
-    item?.lines.map((line) => ({ ...line })) ?? [],
-  );
-  const totals = payslipTotals({
-    id: item?.id ?? '',
-    employeeId: item?.employeeId ?? '',
-    period: item?.period ?? '',
-    status: item?.status ?? 'incomplete',
-    lines,
-    paymentDate: item?.paymentDate ?? '',
-    notes: item?.notes ?? '',
-    createdAt: item?.createdAt ?? '',
-  });
-  function addLine(kind: PayslipLine['kind']) {
-    setLines((current) => [
-      ...current,
-      { id: createId(), label: '', kind, amountCents: 0 },
-    ]);
-  }
-  function updateLine(id: string, patch: Partial<PayslipLine>) {
-    setLines((current) =>
-      current.map((line) => (line.id === id ? { ...line, ...patch } : line)),
-    );
-  }
-  return (
-    <Modal
-      title={item ? 'Modifier la fiche' : 'Nouvelle fiche de salaire'}
-      description="Toutes les lignes sont explicites. Le logiciel n’ajoute aucune retenue automatique."
-      onClose={close}
-      wide
-    >
-      <form
-        onSubmit={submitForm(async (form) => {
-          if (
-            !lines.length ||
-            lines.some((line) => !line.label.trim() || line.amountCents < 0)
-          )
-            return;
-          const status: Payslip['status'] =
-            workspace.settings?.payroll.fiduciaryValidated &&
-            form.get('validated') === 'on'
-              ? 'validated'
-              : 'incomplete';
-          const data = {
-            employeeId: String(form.get('employeeId')),
-            period: String(form.get('period')),
-            status,
-            grossCents: totals.earnings,
-            deductionsCents: totals.deductions,
-            netCents: totals.net,
-            employerCostsCents: totals.employer,
-            paymentDate: '',
-            notes: String(form.get('notes')),
-          };
-          await act(
-            (mutationOrigin) => desktopApi.savePayslip(data, lines, item, workspace.workNotesScope, mutationOrigin.memberContextNonce),
-            item
-              ? 'La fiche a été mise à jour.'
-              : 'La fiche a été créée avec les lignes saisies.',
-          );
-        })}
-      >
-        <div className="form-grid">
-          <Field label="Collaborateur" required>
-            <select name="employeeId" defaultValue={item?.employeeId} required>
-              <option value="">Choisir un collaborateur</option>
-              {workspace.employees.map((employee) => (
-                <option value={employee.id} key={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Période" required>
-            <input
-              name="period"
-              type="month"
-              defaultValue={item?.period}
-              required
-            />
-          </Field>
-        </div>
-        <section className="pay-lines">
-          <header>
-            <div>
-              <strong>Éléments de la fiche</strong>
-              <small>Aucun montant n’est proposé par défaut.</small>
-            </div>
-            <div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="small"
-                onClick={() => addLine('earning')}
-              >
-                <Plus size={14} /> Gain
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="small"
-                onClick={() => addLine('reimbursement')}
-              >
-                <Plus size={14} /> Remboursement
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="small"
-                onClick={() => addLine('deduction')}
-              >
-                <Plus size={14} /> Retenue
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="small"
-                onClick={() => addLine('employer')}
-              >
-                <Plus size={14} /> Charge employeur
-              </Button>
-            </div>
-          </header>
-          {lines.length ? (
-            <div className="pay-line-list">
-              {lines.map((line) => (
-                <div key={line.id}>
-                  <select
-                    value={line.kind}
-                    onChange={(event) =>
-                      updateLine(line.id, {
-                        kind: event.target.value as PayslipLine['kind'],
-                      })
-                    }
-                  >
-                    <option value="earning">Gain soumis au brut</option>
-                    <option value="reimbursement">
-                      Remboursement hors brut
-                    </option>
-                    <option value="deduction">Retenue</option>
-                    <option value="employer">Charge employeur</option>
-                  </select>
-                  <input
-                    value={line.label}
-                    onChange={(event) =>
-                      updateLine(line.id, { label: event.target.value })
-                    }
-                    placeholder="Libellé"
-                    required
-                  />
-                  <label className="money-input">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={line.amountCents ? line.amountCents / 100 : ''}
-                      onChange={(event) =>
-                        updateLine(line.id, {
-                          amountCents: Math.round(
-                            (event.target.valueAsNumber || 0) * 100,
-                          ),
-                        })
-                      }
-                      required
-                    />
-                    <span>CHF</span>
-                  </label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      setLines((current) =>
-                        current.filter((candidate) => candidate.id !== line.id),
-                      )
-                    }
-                  >
-                    <Archive size={15} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rate-empty">
-              Ajoutez les gains, remboursements, retenues et charges confirmés
-              pour cette période.
-            </div>
-          )}
-        </section>
-        <div className="document-bottom">
-          <Field label="Notes">
-            <textarea name="notes" rows={3} defaultValue={item?.notes} />
-          </Field>
-          <div className="document-totals">
-            <div>
-              <span>Brut saisi</span>
-              <strong>{formatMoney(totals.earnings)}</strong>
-            </div>
-            <div>
-              <span>Remboursements hors brut</span>
-              <strong>{formatMoney(totals.reimbursements)}</strong>
-            </div>
-            <div>
-              <span>Retenues saisies</span>
-              <strong>{formatMoney(totals.deductions)}</strong>
-            </div>
-            <div>
-              <span>Net calculé</span>
-              <strong>{formatMoney(totals.net)}</strong>
-            </div>
-          </div>
-        </div>
-        {workspace.settings?.payroll.fiduciaryValidated ? (
-          <label className="check-card">
-            <input
-              name="validated"
-              type="checkbox"
-              defaultChecked={item?.status === 'validated'}
-            />
-            <span>
-              <strong>Valider cette fiche</strong>
-              <small>
-                Confirmez que les lignes de cette période ont été contrôlées.
-              </small>
-            </span>
-          </label>
-        ) : (
-          <div className="warning-card">
-            <ShieldCheck size={18} />
-            <div>
-              <strong>La fiche restera incomplète</strong>
-              <p>
-                La configuration de paie n’est pas marquée comme contrôlée par
-                une fiduciaire.
-              </p>
-            </div>
-          </div>
-        )}
-        <FormActions onCancel={close} busy={busy} />
-      </form>
-    </Modal>
-  );
-}
 
 function PayslipPaymentForm({
   payslip,

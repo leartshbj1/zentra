@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Workspace } from './types';
 
 // Actual component/App JSX and bridge; only hooks, presentation and a closed
 // deferred diagnostic transport are substituted. No native/API operation runs.

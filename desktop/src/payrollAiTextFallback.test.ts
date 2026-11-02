@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parsePayrollAiJson } from './payrollImportAiDraft';
 import {
-  payrollAiScanCorePrompt,
-  payrollAiScanLinesPrompt,
-  payrollCoreFromGeneratedProtocol,
   payrollCoreFromLocalText,
-  payrollLinesFromGeneratedProtocol,
   payrollLinesFromLocalText,
 } from './payrollAiTextFallback';
 
@@ -114,65 +110,3 @@ describe('payrollLinesFromLocalText', () => {
   });
 });
 
-describe('protocole de génération CPU pour les scans', () => {
-  it('ne contient aucune identité ni valeur monétaire d’exemple', () => {
-    const prompts = `${payrollAiScanCorePrompt('', 1)}\n${payrollAiScanLinesPrompt('', 1)}`;
-    expect(prompts).not.toMatch(/Alice|Élodie|1000|90000|6500|6284/i);
-    expect(prompts).toContain('NAME=<employee full name>');
-    expect(prompts).toContain('ROW|<short printed label>');
-  });
-
-  it('parse un noyau terminé et transforme uniquement les CHF imprimés', () => {
-    const result = payrollCoreFromGeneratedProtocol(
-      "NAME=Élodie D'Amico\nGROSS_CHF=6'500.00\nNET_CHF=CHF 6'284.00\nEND\nprose ignorée",
-      3,
-    );
-    expect(result).toMatchObject({
-      employeeName: "Élodie D'Amico",
-      grossCents: 650_000,
-      netCents: 628_400,
-    });
-    expect(parsePayrollAiJson(result?.rawOutput ?? '').provenance.fields['gross_cents']).toEqual([3]);
-  });
-
-  it('ne salvage une sortie sans END qu’à la fin de génération', () => {
-    const raw = 'NAME=Élodie Exemple\nGROSS_CHF=6500.00\nNET_CHF=6284.00';
-    expect(payrollCoreFromGeneratedProtocol(raw, 1)).toBeNull();
-    expect(payrollCoreFromGeneratedProtocol(raw, 1, { allowMissingEnd: true }))
-      .toMatchObject({ employeeName: 'Élodie Exemple', grossCents: 650_000, netCents: 628_400 });
-  });
-
-  it.each([
-    'NAME=<employee full name>\nGROSS_CHF=<printed CHF gross amount>\nNET_CHF=<printed CHF net amount>\nEND',
-    'NAME=UNREADABLE\nGROSS_CHF=6500\nNET_CHF=6284\nEND',
-    'NAME=Alice Smith\nGROSS_CHF=not money\nNET_CHF=900\nEND',
-  ])('rejette les descriptions, marqueurs illisibles et montants non stricts', (raw) => {
-    expect(payrollCoreFromGeneratedProtocol(raw, 1, { allowMissingEnd: true })).toBeNull();
-  });
-
-  it('parse les ROW complètes, déduplique et exclut les totaux', () => {
-    const result = payrollLinesFromGeneratedProtocol([
-      "ROW|Salaire mensuel|earning|6'500.00",
-      'ROW|AVS / AI / APG|deduction|344.50',
-      'ROW|AVS / AI / APG|deduction|344.50',
-      "ROW|Net à payer|earning|6'284.00",
-      'END',
-    ].join('\n'), 5);
-    expect(result?.lines).toEqual([
-      { label: 'Salaire mensuel', kind: 'earning', amountCents: 650_000, sourcePage: 5 },
-      { label: 'AVS / AI / APG', kind: 'deduction', amountCents: 34_450, sourcePage: 5 },
-    ]);
-  });
-
-  it('rejette un protocole sans lignes et ignore un dernier ROW tronqué', () => {
-    expect(payrollLinesFromGeneratedProtocol('END', 1)).toBeNull();
-    const result = payrollLinesFromGeneratedProtocol(
-      'ROW|Salaire|earning|5000.00\nROW|AVS|deduction|',
-      1,
-      { allowMissingEnd: true },
-    );
-    expect(result?.lines).toEqual([
-      { label: 'Salaire', kind: 'earning', amountCents: 500_000, sourcePage: 1 },
-    ]);
-  });
-});

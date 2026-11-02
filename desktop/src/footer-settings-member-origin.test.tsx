@@ -1,4 +1,4 @@
-import {diagnosticsApi,recentDiagnosticEvents} from './diagnostics';
+import {diagnosticsApi} from './diagnostics';
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"http://localhost","pretendToBeVisual":true}
 /** Actual candidate WorkspaceApp/DocumentEditor/footer templates/bridge/recovery/ReactDOM. Native IPC

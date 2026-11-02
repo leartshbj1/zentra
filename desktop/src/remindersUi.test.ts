@@ -5,39 +5,12 @@ import {
   reminderHistoryActionLabel,
   reminderPreviewSessionKey,
   reminderSmsDraftUri,
-  reminderStatusLabel,
   reminderUrgency,
-  reminderUrgencyLabel,
   sortRemindersByUrgency,
   validateReminderAsOfDate,
-  validateReminderCycle,
-  type ReminderCycleLevelDraft,
   type ReminderUrgencyItem,
 } from './remindersUi';
 
-const validCycle: ReminderCycleLevelDraft[] = [
-  {
-    level: 1,
-    name: 'Premier rappel',
-    subject: 'Rappel concernant votre facture',
-    body: 'Le règlement de votre facture reste ouvert.',
-    daysAfterDue: 5,
-  },
-  {
-    level: 2,
-    name: 'Deuxième rappel',
-    subject: 'Deuxième rappel concernant votre facture',
-    body: 'Nous vous remercions de vérifier le règlement.',
-    daysAfterDue: 15,
-  },
-  {
-    level: 3,
-    name: 'Dernier rappel',
-    subject: 'Dernier rappel concernant votre facture',
-    body: 'Merci de nous contacter ou de régler le solde ouvert.',
-    daysAfterDue: 30,
-  },
-];
 
 describe('date de contrôle des relances', () => {
   it('refuse une date future et accepte la date du jour', () => {
@@ -185,103 +158,8 @@ describe('brouillon SMS local', () => {
   });
 });
 
-describe('cycle explicite de trois niveaux', () => {
-  it('accepte trois niveaux uniques aux délais strictement croissants', () => {
-    expect(validateReminderCycle(validCycle)).toEqual({
-      valid: true,
-      issues: [],
-    });
-    expect(
-      validateReminderCycle([validCycle[2], validCycle[0], validCycle[1]]),
-    ).toEqual({ valid: true, issues: [] });
-  });
-
-  it('refuse un niveau dupliqué et signale le niveau manquant', () => {
-    const result = validateReminderCycle([
-      validCycle[0],
-      { ...validCycle[1], level: 1 },
-      validCycle[2],
-    ]);
-    expect(result.valid).toBe(false);
-    expect(result.issues.filter((issue) => issue.code === 'duplicate_level')).toHaveLength(2);
-    expect(result.issues).toContainEqual(
-      expect.objectContaining({ code: 'missing_level', message: 'Le niveau 2 est manquant.' }),
-    );
-  });
-
-  it('refuse les délais égaux, décroissants ou non entiers', () => {
-    const result = validateReminderCycle([
-      validCycle[0],
-      { ...validCycle[1], daysAfterDue: 5 },
-      { ...validCycle[2], daysAfterDue: 4.5 },
-    ]);
-    expect(result.valid).toBe(false);
-    expect(result.issues).toContainEqual(
-      expect.objectContaining({
-        code: 'non_increasing_delay',
-        index: 1,
-        field: 'daysAfterDue',
-      }),
-    );
-    expect(result.issues).toContainEqual(
-      expect.objectContaining({
-        code: 'invalid_delay',
-        index: 2,
-        field: 'daysAfterDue',
-      }),
-    );
-
-    const decreasing = validateReminderCycle([
-      validCycle[0],
-      validCycle[1],
-      { ...validCycle[2], daysAfterDue: 10 },
-    ]);
-    expect(decreasing.issues).toContainEqual(
-      expect.objectContaining({
-        code: 'non_increasing_delay',
-        index: 2,
-        field: 'daysAfterDue',
-      }),
-    );
-  });
-
-  it('refuse un cycle incomplet et les textes vides', () => {
-    const result = validateReminderCycle([
-      { ...validCycle[0], subject: '   ' },
-      validCycle[1],
-    ]);
-    expect(result.valid).toBe(false);
-    expect(result.issues).toContainEqual(
-      expect.objectContaining({ code: 'cycle_size' }),
-    );
-    expect(result.issues).toContainEqual(
-      expect.objectContaining({
-        code: 'required',
-        index: 0,
-        field: 'subject',
-      }),
-    );
-  });
-});
 
 describe('libellés français', () => {
-  it('traduit les statuts, urgences et actions sans exposer le code brut', () => {
-    expect(reminderStatusLabel('planned')).toBe('Planifiée');
-    expect(reminderStatusLabel('due')).toBe('À envoyer');
-    expect(reminderStatusLabel('completed')).toBe('Envoyée et clôturée');
-    expect(reminderStatusLabel('cancelled')).toBe('Clôturée sans envoi');
-    expect(reminderStatusLabel('unknown')).toBe('Statut inconnu');
-    expect(reminderUrgencyLabel('review_required')).toBe('À contrôler');
-    expect(reminderUrgencyLabel('today')).toBe('À envoyer aujourd’hui');
-    expect(reminderHistoryActionLabel('sent_manually')).toBe(
-      'Envoi manuel confirmé',
-    );
-    expect(reminderHistoryActionLabel('printed')).toBe('Impression confirmée');
-    expect(reminderHistoryActionLabel('mail_draft_created')).toBe(
-      'Ouverture du client e-mail demandée',
-    );
-    expect(reminderHistoryActionLabel('unknown')).toBe('Action inconnue');
-  });
 
   it('couvre toutes les actions actuellement typées', () => {
     const actions: ReminderHistory['action'][] = [

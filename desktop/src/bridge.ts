@@ -2371,18 +2371,6 @@ export function attachmentFromRaw(row: RawRecord): Attachment {
   };
 }
 
-export function attachmentsForSupplierInvoice(
-  attachments: Attachment[],
-  supplierInvoiceId: string,
-): Attachment[] {
-  return attachments
-    .filter(
-      (attachment) =>
-        attachment.entityType === 'supplier_invoice' &&
-        attachment.entityId === supplierInvoiceId,
-    )
-    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-}
 
 function frozenIssuerFromRaw(row: RawRecord, dataDir = ''): FrozenIssuer {
   const extra = parseExtra(row);

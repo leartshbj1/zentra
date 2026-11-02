@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   bankAccountAssociationPayload,
   bankConfirmationPayload,
@@ -9,12 +9,11 @@ import {
   filterBankCandidates,
   filterBankMovements,
   filterBankSupplierCandidates,
-  importCamtFromLocalDialog,
   initialInvoiceChoice,
   initialSupplierInvoiceChoice,
   supplierBankConfirmationPayload,
 } from './bank';
-import type { BankMovement, CamtImportResult, Client, Invoice, Supplier, SupplierInvoice } from './types';
+import type { BankMovement, Client, Invoice, Supplier, SupplierInvoice } from './types';
 
 const rawWorkspace = {
   summary: {
@@ -281,11 +280,6 @@ it('retrouve une dépense par sa référence et garde les corrections consultabl
 });
 
 describe('actions explicites', () => {
-  it('n’importe rien lorsque le dialogue local est annulé', async () => {
-    const importer = vi.fn<() => Promise<CamtImportResult>>();
-    await expect(importCamtFromLocalDialog(async () => null, importer)).resolves.toBeNull();
-    expect(importer).not.toHaveBeenCalled();
-  });
 
   it('construit le payload snake_case exact de confirmation', () => {
     expect(bankConfirmationPayload('movement-1', 'invoice-1')).toEqual({ input: { movement_id: 'movement-1', invoice_id: 'invoice-1' } });

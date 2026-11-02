@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, equipmentFromRaw, lastService, nextServiceDue, plannedService, servicesToPlan, suggestedServiceSlot, warrantiesEnding, type EquipmentService, type InstalledEquipment } from './installedEquipment';
+import { addMonths, lastService, nextServiceDue, plannedService, servicesToPlan, suggestedServiceSlot, type EquipmentService, type InstalledEquipment } from './installedEquipment';
 import type { AgendaEvent } from './types';
 
 const boiler = (patch: Partial<InstalledEquipment> = {}): InstalledEquipment => ({
@@ -45,9 +45,4 @@ describe('installed equipment', () => {
     expect(suggestedServiceSlot('2026-10-01', '2026-10-23', []).date).toBe('2026-10-26');
   });
 
-  it('lists warranties that end soon and reads raw rows', () => {
-    expect(warrantiesEnding([boiler()], '2026-10-25').map(row => row.id)).toEqual(['b1']);
-    expect(warrantiesEnding([boiler()], '2026-11-21')).toEqual([]);
-    expect(equipmentFromRaw({ id: 'x', client_id: 'c', kind: 'Pompe', service_interval_months: 24, project_id: null })).toMatchObject({ id: 'x', serviceIntervalMonths: 24, projectId: null, brand: '' });
-  });
 });

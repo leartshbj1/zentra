@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { createAutopilotDraftNotices, resolveAutopilotDraftNotice, selectAutopilotDraftNotices, QUOTE_ACTIVITY_LIVE_SELECTOR } from './autopilotDraftNotices';
+import { createAutopilotDraftNotices, selectAutopilotDraftNotices, QUOTE_ACTIVITY_LIVE_SELECTOR } from './autopilotDraftNotices';
 import type { Quote, Workspace } from './types';
 import type { FormDraftIdentityValue } from './useFormDraft';
 import { autopilotCopy } from './autopilotPresentation';
@@ -117,25 +117,6 @@ const origin = { workspaceScope: 'physical-a', memberContextNonce: 'a'.repeat(32
 const quote: Quote = { id: event(1).quoteId, number: '', clientId: 'client-a', projectId: null, title: '', issueDate: '2026-10-14',
   validUntil: '2026-11-14', currency: 'CHF', status: 'draft', lines: [], notes: '', terms: '', createdAt: '2026-10-14T20:00:00Z' };
 const workspace: Pick<Workspace, 'workNotesScope' | 'quotes'> = { workNotesScope: 'physical-a', quotes: [] };
-it('waits for the asynchronous workspace arrival before consuming a canonical notification', () => {
-  const notices = createAutopilotDraftNotices(); observe(notices, page(0)); observe(notices, page(1, 1));
-  expect(resolveAutopilotDraftNotice(notices.pending(scope), 'org-a', origin, workspace, identity, { active: true, readOnly: false })).toBeNull();
-  expect(notices.pending(scope)).toHaveLength(1);
-  const found = resolveAutopilotDraftNotice(notices.pending(scope), 'org-a', origin, { ...workspace, quotes: [quote] }, identity, { active: true, readOnly: false });
-  expect(found?.activityId).toBe('activity-1');
-  expect(notices.consume(scope, [found!.activityId])).toBe(true); expect(notices.pending(scope)).toEqual([]);
-});
-it('does not offer another, duplicate or already issued document as a new draft', () => {
-  for (const quotes of [[{ ...quote, id: event(2).quoteId }], [quote, quote], [{ ...quote, status: 'issued' as const }]])
-    expect(resolveAutopilotDraftNotice([event(1)], 'org-a', origin, { ...workspace, quotes }, identity, { active: true, readOnly: false })).toBeNull();
-});
-it('rechecks the physical workspace, current member nonce and connected account for the notice destination', () => {
-  const pending = [event(1)], loaded = { ...workspace, quotes: [quote] };
-  for (const next of [{ ...identity, memberContextNonce: 'b'.repeat(32) }, { ...identity, organizationId: 'org-b' }])
-    expect(resolveAutopilotDraftNotice(pending, 'org-a', origin, loaded, next, { active: true, readOnly: false })).toBeNull();
-  expect(resolveAutopilotDraftNotice(pending, 'org-a', origin, { ...loaded, workNotesScope: 'physical-b' }, identity, { active: true, readOnly: false })).toBeNull();
-  expect(resolveAutopilotDraftNotice(pending, 'org-a', origin, loaded, identity, { active: false, readOnly: false })).toBeNull();
-});
 it('provides the notification, exact open action and review indicator in all four languages', () => {
   const copies = ['fr', 'de', 'it', 'en'].map(autopilotCopy);
   for (const text of copies) for (const value of [text.newDraft, text.openDraft, text.reviewIndicator]) expect(value.trim()).not.toBe('');

@@ -10,17 +10,17 @@ import {createRoot,type Root} from 'react-dom/client';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {desktopApi} from './bridge';
 import {WorkspaceApp} from './WorkspaceApp';
-import {FormDraftIdentityProvider,draftText} from './useFormDraft';
+import {FormDraftIdentityProvider} from './useFormDraft';
 import {ZentraAssistantProvider} from './ZentraAssistant';
 import {initialOnboardingSettings} from './onboardingDraft';
-import {FORM_DRAFT_PREFIX,FORM_DRAFT_COMPLETED_PREFIX,formDraftKey,formDraftFingerprint} from './formDrafts';
+import {FORM_DRAFT_PREFIX,formDraftKey} from './formDrafts';
 import type {Workspace} from './types';
 import {setAppLanguage} from './language';
 import {languageAssets} from 'virtual:zentra-language-assets';
 
 const ipc=vi.hoisted(()=>({invoke:vi.fn()}));
 vi.mock('@tauri-apps/api/core',()=>({Channel:class{},invoke:ipc.invoke,isTauri:()=>false}));
-const scope='initial-read-synthetic-company',member='11111111-1111-4111-8111-111111111111',nonce='a'.repeat(32),oldId='22222222-2222-4222-8222-222222222222';
+const scope='initial-read-synthetic-company',member='11111111-1111-4111-8111-111111111111',nonce='a'.repeat(32);
 class FaultStorage implements Storage {
   rows=new Map<string,string>();denied=new Set<string>();writes:string[]=[];removes:string[]=[];refuseRemove=false;
   get length(){return this.rows.size;}key(index:number){return [...this.rows.keys()][index]??null;}
@@ -39,11 +39,9 @@ async function until(check:()=>boolean){for(let i=0;i<45&&!check();i++)await set
 function field(name:string){const node=document.querySelector<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>(`[role="dialog"] [name="${name}"]`);expect(node,name).not.toBeNull();return node!;}
 async function change(name:string,value:string,dispatch=true){const node=field(name);await reactAct(async()=>{const prototype=node instanceof HTMLSelectElement?HTMLSelectElement.prototype:node instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value')!.set!.call(node,value);if(dispatch){node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));}});await settle();}
 function ownKey(type='client'){return formDraftKey({companyId:scope,organizationId:'org-synthetic',memberId:member,type});}
-function seed(type='client',ack=false){const key=ownKey(type);const value=type==='supplier'?{creationId:oldId,name:'Fournisseur précédent',contactName:'',email:'supplier@example.test',phone:'',address:'Rue témoin 7',uidNumber:'',iban:'',paymentTermsDays:'30',notes:'Notes conservées'}:{creationId:oldId,contactPerson:'Alice Précédente',company:'Client précédent',email:'alice@example.test',phone:'',street:'Rue témoin',buildingNumber:'7',postalCode:'1201',city:'Genève',canton:'GE',country:'CH',notes:'Notes conservées'};const raw=JSON.stringify({version:1,scope:key,fingerprint:'new',savedAt:Date.now(),value});storage.rows.set(key,raw);if(ack)storage.rows.set(key.replace(FORM_DRAFT_PREFIX,FORM_DRAFT_COMPLETED_PREFIX),JSON.stringify({version:1,savedAt:Date.now(),recordFingerprint:formDraftFingerprint(raw)}));return {key,raw,value};}
 async function openClient(){await click('Clients');await click('Nouveau client');await until(()=>document.querySelector('[role="dialog"] [name="contactPerson"]')!==null);}
 async function openSupplier(){await click('Achats & fournisseurs');await click('Ajouter le fournisseur');await reactAct(async()=>{await vi.dynamicImportSettled();});await until(()=>document.querySelector('[role="dialog"] [name="name"]')!==null);}
 async function openTime(){await click('Temps');await click('Saisir des heures');await until(()=>document.querySelector('[role="dialog"] [name="hours"]')!==null);}
-function seedValues(type:string,value:Record<string,string>){const key=ownKey(type),raw=JSON.stringify({version:1,scope:key,fingerprint:'new',savedAt:Date.now(),value});storage.rows.set(key,raw);return {key,raw,value};}
 async function fillClient(dispatch=true){for(const [name,value] of Object.entries({company:'Nouveau client',street:'Autre rue',postalCode:'1202',city:'Genève',country:'CH'}))await change(name,value,dispatch);}
 async function submit(){await reactAct(async()=>document.querySelector<HTMLFormElement>('[role="dialog"] form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));await settle();}
 beforeEach(async()=>{

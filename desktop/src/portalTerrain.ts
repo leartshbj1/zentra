@@ -68,5 +68,3 @@ export function depositsToRecord(links: readonly QuoteDepositLink[], quotes: rea
   });
 }
 
-/** Montant de l'acompte, calculé par l'app comme le natif : pourcentage du total TTC, arrondi au centime. */
-export const depositAmount = (totalCents: number, percentBp: number) => Math.floor((totalCents * percentBp + 5_000) / 10_000);

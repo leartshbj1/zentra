@@ -9,7 +9,7 @@ import {createRoot,type Root} from 'react-dom/client';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {desktopApi} from './bridge';
 import {WorkspaceApp} from './WorkspaceApp';
-import {FormDraftIdentityProvider,draftText} from './useFormDraft';
+import {FormDraftIdentityProvider} from './useFormDraft';
 import {ZentraAssistantProvider} from './ZentraAssistant';
 import {initialOnboardingSettings} from './onboardingDraft';
 import {FORM_DRAFT_PREFIX} from './formDrafts';
@@ -17,7 +17,6 @@ import type {Workspace} from './types';
 import {setAppLanguage} from './language';
 import {languageAssets} from 'virtual:zentra-language-assets';
 import {quickClientCreationRecovery} from './documentQuickClientDraft';
-import {documentTotals} from './utils';
 
 const transport=vi.hoisted(()=>({invoke:vi.fn()}));
 vi.mock('@tauri-apps/api/core',()=>({Channel:class{},invoke:transport.invoke,isTauri:()=>false}));
@@ -41,13 +40,10 @@ async function openDocument(entity:'quotes'|'invoices'='quotes'){await click('Ve
 const quickNames=['contactPerson','company','email','phone','street','buildingNumber','postalCode','city','canton','country'];
 async function quickChange(name:string,value:string,events=true){const section=document.querySelector('[role="dialog"] .document-inline-card')!;const input=Array.from(section.querySelectorAll<HTMLInputElement>('input'))[quickNames.indexOf(name)];expect(input,name).toBeDefined();await reactAct(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);if(events){input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}});await settle();}
 async function prepareQuick(entity:'quotes'|'invoices'='quotes'){await openDocument(entity);await change('title','Travaux témoins');await click('Nouveau contact');for(const [name,value] of Object.entries({contactPerson:'Alice Témoin',company:'Client Témoin SA',email:'alice@example.test',phone:'+41220000000',street:'Rue témoin',buildingNumber:'7',postalCode:'1201',city:'Genève',canton:'GE',country:'CH'}))await quickChange(name,value);expect(draftKeys()).toHaveLength(1);}
-async function closeDocument(){const button=document.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label^="Fermer «"]');expect(button).not.toBeNull();await reactAct(async()=>button!.click());await settle();}
-async function restoreDocument(){await click('Nouveau devis');await until(()=>buttons(draftText('Reprendre ma saisie')).length>0);await click(draftText('Reprendre ma saisie'));}
 function draftValue(){return JSON.parse(localStorage.getItem(draftKeys()[0])!).value as any;}
 async function addQuick(){await click('Ajouter et sélectionner');}
 function verifyRetained(){expect(draftKeys()).toHaveLength(1);expect(document.querySelector('[role="dialog"] form')).not.toBeNull();expect(document.body.textContent).not.toContain('a été ajouté et sélectionné.');}
 function Host(){const [current,setCurrent]=useState(workspace);const [nonce,setNonce]=useState<string|undefined>(nonceA);exposed={setNonce,setCurrent};return <FormDraftIdentityProvider companyId={scope} organizationId="org-témoin" memberId={member} memberContextNonce={nonce} ready><ZentraAssistantProvider><WorkspaceApp workspace={current} setWorkspace={next=>{if(next&&typeof next!=='function'){publications.push(next);setCurrent(next);}}}/></ZentraAssistantProvider></FormDraftIdentityProvider>;}
-async function restart(){await reactAct(async()=>root!.unmount());root=undefined;container.remove();blocked=false;mode='';workspace=await desktopApi.loadWorkspace();container=document.createElement('div');container.id='root';document.body.append(container);root=createRoot(container);await reactAct(async()=>root!.render(<Host/>));await settle();}
 
 beforeEach(async()=>{
   nativeScope=scope;nativeNonce=nonceA;beforeWrite=undefined;writeAttempts=[];mode='';blocked=false;writeHold=null;readHold=null;writeEntered=false;readEntered=false;writes=0;clients=[];quotes=[];quoteItems=[];projects=[];reads=[];publications=[];externalRequests=0;localStorage.clear();sessionStorage.clear();

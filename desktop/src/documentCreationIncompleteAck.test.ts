@@ -1,9 +1,7 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {desktopApi,prepareDocumentSaveInput} from './bridge';
 import {prepareDocumentCreationRequest,DocumentCreationUnconfirmedError,type DocumentCreationInput} from './documentCreationRequest';
-import {WorkspaceOriginChangedError} from './workspaceOrigin';
-import {WorkspaceMemberOriginChangedError} from './workspaceMemberOrigin';
-import {diagnosticsApi,knownErrorIncident,recentDiagnosticEvents} from './diagnostics';
+import {diagnosticsApi} from './diagnostics';
 const transport=vi.hoisted(()=>({invoke:vi.fn()}));
 vi.mock('@tauri-apps/api/core',()=>({Channel:class{},invoke:transport.invoke,isTauri:()=>false}));
 const id='11111111-2222-4333-8444-555555555555',scope='company',nonce='a'.repeat(32);

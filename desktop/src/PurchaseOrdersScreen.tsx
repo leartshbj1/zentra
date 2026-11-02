@@ -1,5 +1,5 @@
 import { SupplierCreditAllocationModal } from './SupplierCreditAllocationModal';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { t, useAppLanguage } from './language';
 import { MobileDetails, useCompactLayout } from './MobileDetails';
 import './purchase-inbox.css';
@@ -50,7 +50,6 @@ import {
 } from './purchaseOrderFlow';
 import type {
   Account,
-  CatalogItem,
   Expense,
   Supplier,
   SupplierCreditAllocation,
@@ -250,34 +249,6 @@ export function receiptAllocationUsageOutsideInvoice(
     }));
 }
 
-export function existingInvoiceItemMatchDraft(
-  allocations: Array<{
-    supplierInvoiceId: string;
-    supplierInvoiceItemId: string;
-    supplierOrderId: string;
-    supplierOrderLineId: string;
-    quantityMilli: number;
-  }>,
-  supplierInvoiceId: string,
-  supplierInvoiceItemId: string,
-  supplierOrderId: string,
-) {
-  const matches = allocations.filter(
-    (match) =>
-      match.supplierInvoiceId === supplierInvoiceId &&
-      match.supplierInvoiceItemId === supplierInvoiceItemId &&
-      match.supplierOrderId === supplierOrderId,
-  );
-  const lineIds = new Set(matches.map((match) => match.supplierOrderLineId));
-  if (!matches.length || lineIds.size !== 1) return null;
-  return {
-    supplierOrderLineId: matches[0].supplierOrderLineId,
-    quantityMilli: matches.reduce(
-      (total, match) => total + match.quantityMilli,
-      0,
-    ),
-  };
-}
 
 export function existingInvoiceItemMultiOrderMatchDraft(
   allocations: Array<{

@@ -23,7 +23,7 @@ import {
   type SupplierVisibility,
 } from './purchases';
 import { projectTerminology } from './terminology';
-import type { Attachment, Expense, ExpenseRefund, Supplier, SupplierInvoice, Workspace } from './types';
+import type { Expense, ExpenseRefund, Supplier, SupplierInvoice, Workspace } from './types';
 import { centsFromInput, errorMessage, formatDate, formatMoney, todayIso } from './utils';
 import { Button, EmptyState, ErrorPanel, Field, FormActions, Modal, SectionHeading, StatusBadge, submitForm } from './ui';
 import { SupplierInvoicePreparation } from './SupplierInvoiceWizard';

@@ -5,7 +5,7 @@ import { afterEach, expect, it } from 'vitest';
 import { translations } from './translations';
 import { purchaseTranslations } from './translationsPurchases';
 import { appLanguages, setAppLanguage, t } from './language';
-import { purchaseIssueText, purchaseNativeMessage } from './purchaseLanguage';
+import { purchaseIssueText } from './purchaseLanguage';
 import { newPurchaseLine, purchaseFields, purchaseIssue, purchaseLineValue } from './supplierInvoicePreparation';
 import type { Workspace } from './types';
 
@@ -63,14 +63,3 @@ it('creates a default unit in the selected language and preserves saved business
   }
 });
 
-it('gives translated native guidance while keeping unknown responses out of the primary message', () => {
-  const fallback = 'Le brouillon n’a pas pu être enregistré. Votre saisie est conservée.';
-  for (const language of ['de', 'it', 'en'] as const) {
-    const closed = purchaseNativeMessage('Champs invalides : la période comptable est fermée.', fallback, language);
-    expect(closed).toBe(t('La date de cette facture appartient à une période comptable fermée. Vérifiez la date ou consultez Comptabilité → Exercices avant de réessayer.', undefined, language));
-    expect(purchaseNativeMessage('Unrecognised storage failure: {name}', fallback, language)).toBe(t(fallback, undefined, language));
-    expect(purchaseNativeMessage('Ouverture impossible', 'Le justificatif local n’a pas pu être ouvert.', language)).toBe(t('Le justificatif local n’a pas pu être ouvert.', undefined, language));
-    expect(purchaseNativeMessage('Suppression impossible', 'Le justificatif n’a pas pu être supprimé.', language)).toBe(t('Le justificatif n’a pas pu être supprimé.', undefined, language));
-  }
-  expect(purchaseNativeMessage('Cause native précise', fallback, 'fr')).toBe('Cause native précise');
-});

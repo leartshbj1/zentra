@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, contractAlerts, contractDueDates, currentEnd, monthlyCents, nextDecision, noticeDeadline } from './contracts';
+import { addMonths, contractAlerts } from './contracts';
 import type { Contract } from './types';
 
 const contract = (extra: Partial<Contract> = {}): Contract => ({
@@ -16,15 +16,6 @@ describe('contrats', () => {
     expect(addMonths('2025-12-15', 2)).toBe('2026-02-15');
   });
 
-  it('renews tacitly until the period that includes today', () => {
-    expect(currentEnd(contract(), '2026-10-20')).toBe('2027-03-31');
-    expect(noticeDeadline(contract(), '2026-10-20')).toBe('2026-09-30');
-    expect(currentEnd(contract({ autoRenew: false }), '2026-10-20')).toBe('2026-03-31');
-    expect(currentEnd(contract({ endDate: null }), '2026-10-20')).toBeNull();
-    // Le délai de cette période est passé : la prochaine décision porte sur la suivante.
-    expect(nextDecision(contract(), '2026-10-20')).toEqual({ end: '2028-03-31', deadline: '2027-09-30' });
-    expect(nextDecision(contract(), '2026-08-15')).toEqual({ end: '2027-03-31', deadline: '2026-09-30' });
-  });
 
   it('warns 60 days before the last day to cancel, or before the end', () => {
     // Délai de cette période dépassé : l'alerte porte sur la suivante, trop loin.
@@ -37,11 +28,4 @@ describe('contrats', () => {
     expect(contractAlerts([contract({ status: 'terminated', terminatedOn: '2026-01-01' })], '2026-08-15')).toEqual([]);
   });
 
-  it('lists the payment dates and the monthly amount', () => {
-    expect(contractDueDates(contract(), '2026-10-20', '2027-01-19')).toEqual(['2026-11-01', '2026-12-01', '2027-01-01']);
-    expect(contractDueDates(contract({ frequency: 'quarterly', startDate: '2026-01-15' }), '2026-10-20', '2027-04-30')).toEqual(['2027-01-15', '2027-04-15']);
-    expect(contractDueDates(contract({ status: 'terminated', terminatedOn: '2026-11-30' }), '2026-10-20', '2027-01-19')).toEqual(['2026-11-01']);
-    expect(monthlyCents(contract({ frequency: 'yearly', amountCents: 120_000 }))).toBe(10_000);
-    expect(monthlyCents(contract({ frequency: 'once' }))).toBe(0);
-  });
 });

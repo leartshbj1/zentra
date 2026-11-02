@@ -65,7 +65,7 @@ describe('company email templates', () => {
 
 
 import { recentDiagnosticEvents } from './diagnostics';
-import type { MailResult, MailStatus } from './outgoingMail';
+import type { MailResult } from './outgoingMail';
 const mailLogIds = () => new Set(recentDiagnosticEvents().map(event => event.id));
 const newMailEvents = (before: Set<string>) => recentDiagnosticEvents().filter(event => !before.has(event.id));
 const privateMailInput={requestId:'PRIVATE_REQUEST_ID',scope:'PRIVATE_COMPANY_SCOPE',target:{entity:'invoices' as const,id:'PRIVATE_DOCUMENT_ID'},sourceRevision:'PRIVATE_REVISION',recipient:'private-synthetic@example.invalid',subject:'PRIVATE_SUBJECT',body:'PRIVATE_BODY token=PRIVATE_TOKEN amount=108.10'};
