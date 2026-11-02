@@ -135,3 +135,9 @@ src/legalArchiveVault.test.ts
 rust:legal_archive_copy::
 src/ReceiptRequestDialog.test.tsx
 rust:outgoing_mail::receipt_request::
+rust:company_collaboration
+rust:account_cloud
+rust:account_inbox_read_tests
+rust:startup_diagnostics_tests
+rust:cloud_backup
+rust:commands_

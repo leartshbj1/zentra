@@ -871,6 +871,14 @@ workflows:
         - not: << pipeline.parameters.verify-only >>
     jobs:
       - windows-erp-check
+  nettoyage-check:
+    when:
+      and:
+        - equal: [claude/nettoyage-2026, << pipeline.git.branch >>]
+        - not: << pipeline.parameters.release >>
+        - not: << pipeline.parameters.verify-only >>
+    jobs:
+      - windows-erp-check
   pack-batiment-check:
     when:
       and:
