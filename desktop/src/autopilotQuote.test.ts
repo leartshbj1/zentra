@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { autopilotCreatedQuote, autopilotCustomer, autopilotDeposit, quoteTermsWithDeposit, withAutopilotDiscount, autopilotNewClient, autopilotRequestStage, linkAutopilotInvoice, markAutopilotDocumentSent, markAutopilotQuoteSent, autopilotQuoteLines, findAutopilotClient, saveAutopilotCreatedQuote } from './autopilotQuote';
 import type { AutopilotReviewSuggestion } from './autopilotReview';
@@ -112,6 +113,11 @@ describe('discount and deposit chosen with the quote', () => {
     expect(withAutopilotDiscount(lines, undefined)).toEqual(lines);
   });
 
+  it('reaches the quote: the discount or deposit chosen in Autopilote is handed to the quote creation', () => {
+    const source = readFileSync('src/WorkspaceApp.tsx', 'utf8');
+    expect(source).toContain('onCreateQuote: readOnly ? undefined : (item, extras) => void createAutopilotQuote(item, extras)');
+  });
+
   it('never discounts more than the quote', () => {
     const lines = withAutopilotDiscount([line('a', 1, 1_000)], { unit: 'amount', value: 50_000 });
     expect(documentTotals(lines).netCents).toBe(0);
@@ -121,8 +127,10 @@ describe('discount and deposit chosen with the quote', () => {
     const lines = [line('a', 1, 100_000), line('b', 1, 10_000, 0)];
     expect(autopilotDeposit(lines, { unit: 'percent', value: 3000 })).toEqual({ bp: 3000, amountCents: 30_000 + 2_430 + 3_000 });
     const asAmount = autopilotDeposit(lines, { unit: 'amount', value: 50_000 })!;
-    expect(asAmount.bp).toBe(Math.round(50_000 * 10_000 / documentTotals(lines).totalCents));
-    expect(Math.abs(asAmount.amountCents - 50_000)).toBeLessThanOrEqual(10);
+    expect(Math.abs(asAmount.bp - Math.round(50_000 * 10_000 / documentTotals(lines).totalCents))).toBeLessThanOrEqual(25);
+    expect(Math.abs(asAmount.amountCents - 50_000)).toBeLessThanOrEqual(6);
+    // CHF 500.– on a CHF 1'200.– line at 8.1 %: the nearest percentage, not a few cents off by rounding.
+    expect(Math.abs(autopilotDeposit([line('c', 1, 120_000)], { unit: 'amount', value: 50_000 })!.amountCents - 50_000)).toBeLessThanOrEqual(7);
     expect(autopilotDeposit(lines, undefined)).toBeNull();
   });
 

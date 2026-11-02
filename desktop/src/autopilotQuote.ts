@@ -64,14 +64,23 @@ export function withAutopilotDiscount(lines: readonly DocumentLine[], discount: 
  */
 export function autopilotDeposit(lines: readonly DocumentLine[], deposit: AutopilotQuoteAdjustment | undefined): { bp: number; amountCents: number } | null {
   if (!deposit || deposit.value <= 0) return null;
-  const total = documentTotals([...lines]).totalCents;
-  const bp = deposit.unit === 'percent' ? clampBp(deposit.value) : total > 0 ? clampBp(deposit.value * 10_000 / total) : 0;
-  if (bp <= 0) return null;
-  const amountCents = lines.reduce((sum, line) => {
+  const amountAt = (bp: number) => lines.reduce((sum, line) => {
     const net = roundBasisPoints(documentLineTotals(line).netCents, bp);
     return sum + net + roundBasisPoints(net, Math.max(0, line.vatRateBp));
   }, 0);
-  return { bp, amountCents };
+  const total = documentTotals([...lines]).totalCents;
+  let bp = deposit.unit === 'percent' ? clampBp(deposit.value) : total > 0 ? clampBp(deposit.value * 10_000 / total) : 0;
+  // An amount: the percentage whose deposit invoice comes closest to it, like the discount.
+  if (deposit.unit === 'amount' && bp > 0) {
+    const first = bp;
+    let gap = Infinity;
+    for (let at = Math.max(1, first - 25); at <= Math.min(10_000, first + 25); at++) {
+      const off = Math.abs(amountAt(at) - deposit.value);
+      if (off < gap) { bp = at; gap = off; }
+    }
+  }
+  if (bp <= 0) return null;
+  return { bp, amountCents: amountAt(bp) };
 }
 
 /** The quote's terms with the deposit asked at order, so the client reads it on the quote. */
