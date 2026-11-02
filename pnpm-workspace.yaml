@@ -7,11 +7,7 @@ enableGlobalVirtualStore: false
 
 allowBuilds:
   esbuild: true
-  onnxruntime-node: false
-  protobufjs: false
-  sharp: true
   tesseract.js: false
-  workerd: true
 
 auditConfig:
   ignoreGhsas:
@@ -20,8 +16,6 @@ auditConfig:
 
 overrides:
   "exceljs@4.4.0>uuid": 11.1.1
-  sharp: 0.35.4
 
 patchedDependencies:
   '@wllama/wllama@3.6.1': patches/@wllama__wllama@3.6.1.patch
-  image-size@2.0.2: patches/image-size@2.0.2.patch
