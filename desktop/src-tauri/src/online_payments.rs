@@ -497,6 +497,7 @@ pub(crate) async fn require_confirmed_gateway(store: &LocalStore, reference: &st
 
 /* ---------- eBill (modèle de données) ---------- */
 
+#[cfg(test)]
 /// Identifiant eBill d'une entreprise (17 chiffres) ou adresse e-mail eBill d'un particulier.
 pub(crate) fn ebill_recipient_kind(value: &str) -> Option<&'static str> {
     let value = value.trim();

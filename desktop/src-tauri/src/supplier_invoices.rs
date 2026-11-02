@@ -73,6 +73,7 @@ type SupplierInvoiceValidationRow = (
 type SupplierAccountingSettingsRow = (bool, Option<String>, Option<String>, Option<String>);
 
 impl LocalStore {
+    #[cfg(test)]
     pub fn save_supplier_invoice_draft(
         &self,
         input: SaveSupplierInvoiceDraftInput,

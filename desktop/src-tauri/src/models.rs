@@ -1081,6 +1081,7 @@ pub struct ContributionSelectionInput {
     pub year_to_date_basis_cents: Option<i64>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalculatePayrollInput {
     pub period: String,

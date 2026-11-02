@@ -97,6 +97,7 @@ fn replay(tx: &Transaction<'_>, id: &str, payload: &str) -> AppResult<Option<Val
 }
 
 impl LocalStore {
+    #[cfg(test)]
     pub fn record_supplier_credit_refund(
         &self,
         input: SupplierCreditRefundInput,
@@ -113,6 +114,7 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn reverse_supplier_credit_refund(
         &self,
         input: ReverseSupplierCreditRefundInput,

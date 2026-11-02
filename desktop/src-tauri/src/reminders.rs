@@ -602,6 +602,7 @@ impl LocalStore {
         Ok(response)
     }
 
+    #[cfg(test)]
     /// Compatibilité interne pour les anciennes vues et sauvegardes de tests.
     pub fn generate_due_reminders(&self, as_of: Option<String>) -> AppResult<Value> {
         self.scan_due_reminders(ScanRemindersInput {

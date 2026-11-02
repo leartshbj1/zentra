@@ -2099,6 +2099,7 @@ impl LocalStore {
         }
     }
 
+    #[cfg(test)]
     pub fn complete_onboarding(
         &self,
         input: OnboardingInput,
@@ -2107,6 +2108,7 @@ impl LocalStore {
         self.complete_onboarding_scoped(input, app_version, OnboardingValidationScope::Complete)
     }
 
+    #[cfg(test)]
     pub(crate) fn complete_onboarding_scoped(
         &self,
         input: OnboardingInput,
@@ -3176,6 +3178,7 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn save_document_with_items(&self, input: SaveDocumentWithItemsInput) -> AppResult<Value> {
         self.save_document_with_items_once(input, None)
     }
@@ -5367,16 +5370,7 @@ impl LocalStore {
         Ok(record)
     }
 
-    pub fn cancel_timer(&self) -> AppResult<DeleteResult> {
-        let connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        let deleted = connection.execute("DELETE FROM active_timers WHERE id = 1", [])? == 1;
-        Ok(DeleteResult {
-            deleted,
-            id: "1".into(),
-        })
-    }
-
+    #[cfg(test)]
     pub fn get_active_timer(&self) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
@@ -5397,22 +5391,7 @@ impl LocalStore {
         Ok(self.data_dir.to_string_lossy().into_owned())
     }
 
-    pub fn list_audit_log(
-        &self,
-        entity_type: Option<String>,
-        entity_id: Option<String>,
-    ) -> AppResult<Value> {
-        let connection = self.connect()?;
-        self.require_onboarding(&connection)?;
-        let rows=match (entity_type,entity_id){
-            (Some(kind),Some(id))=>query_all(&connection,"SELECT * FROM audit_log WHERE entity_type=? AND entity_id=? ORDER BY occurred_at,rowid",params![kind,id])?,
-            (Some(kind),None)=>query_all(&connection,"SELECT * FROM audit_log WHERE entity_type=? ORDER BY occurred_at,rowid",params![kind])?,
-            (None,Some(id))=>query_all(&connection,"SELECT * FROM audit_log WHERE entity_id=? ORDER BY occurred_at,rowid",params![id])?,
-            (None,None)=>query_all(&connection,"SELECT * FROM audit_log ORDER BY occurred_at,rowid",[])?,
-        };
-        Ok(Value::Array(rows))
-    }
-
+    #[cfg(test)]
     pub fn verify_audit_log(&self) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;

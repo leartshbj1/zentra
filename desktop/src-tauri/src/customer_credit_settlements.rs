@@ -284,6 +284,7 @@ fn result(tx: &Transaction<'_>, id: &str, replayed: bool) -> AppResult<Value> {
 }
 
 impl LocalStore {
+    #[cfg(test)]
     pub fn record_customer_credit_settlement(
         &self,
         input: CustomerCreditSettlementInput,
@@ -300,6 +301,7 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn reverse_customer_credit_settlement(
         &self,
         input: ReverseCustomerCreditSettlementInput,

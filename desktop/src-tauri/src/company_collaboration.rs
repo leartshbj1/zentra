@@ -958,6 +958,7 @@ pub(crate) fn require_action_engine_quote_write_ready(store: &LocalStore, organi
     Ok(())
 }
 
+#[cfg(test)]
 async fn prepare_for_send_worker(
     store: &LocalStore,
     organization: &str,

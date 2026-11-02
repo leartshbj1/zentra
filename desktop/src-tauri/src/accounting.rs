@@ -1040,17 +1040,6 @@ impl LocalStore {
         crate::accounting_closure::balance_sheet_report(&connection, &filter)
     }
 
-    pub fn get_accounting_dashboard(&self, filter: PeriodFilter) -> AppResult<Value> {
-        let settings = self.get_accounting_settings()?;
-        let trial = self.get_trial_balance(filter.clone())?;
-        let income = self.get_income_statement(filter)?;
-        let connection = self.connect()?;
-        let entry_count: i64 =
-            connection.query_row("SELECT COUNT(*) FROM journal_entries", [], |r| r.get(0))?;
-        Ok(
-            json!({"settings":settings,"entry_count":entry_count,"trial_balance":trial,"income_statement":income}),
-        )
-    }
 }
 
 /// Extourne une écriture dans la transaction de l'appelant, avec les mêmes

@@ -1254,6 +1254,7 @@ fn files(path: &Path) -> AppResult<BTreeMap<String, String>> {
     }
     Ok(result)
 }
+#[cfg(test)]
 /// All inputs are immutable, authenticated transport copies from ONE company.
 pub(crate) fn merge(
     store: &LocalStore,

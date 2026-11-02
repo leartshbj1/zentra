@@ -951,6 +951,7 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn save_supplier_receipt_draft(
         &self,
         input: SaveSupplierReceiptDraftInput,
@@ -1085,6 +1086,7 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn issue_supplier_receipt(&self, input: IssueSupplierReceiptInput) -> AppResult<Value> {
         self.issue_supplier_receipt_checked(input, None)
     }
@@ -2021,6 +2023,7 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn apply_supplier_credit(&self, input: ApplySupplierCreditInput) -> AppResult<Value> {
         self.apply_supplier_credit_checked(input, None)
     }
@@ -2081,6 +2084,7 @@ impl LocalStore {
         Ok(result)
     }
 
+    #[cfg(test)]
     pub fn reverse_supplier_credit_allocation(
         &self,
         input: ReverseSupplierCreditAllocationInput,

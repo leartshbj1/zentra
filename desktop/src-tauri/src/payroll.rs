@@ -11,7 +11,7 @@ use crate::{
     database::{enrich_issuer_snapshot, now_iso, query_all, LocalStore},
     error::{AppError, AppResult},
     models::{
-        ApplyPayrollInput, CalculateEmployeePayrollInput, CalculatePayrollInput,
+        ApplyPayrollInput, CalculateEmployeePayrollInput,
         ContributionDefinitionInput, ContributionSelectionInput, OnboardingIssue, PayPayslipInput,
         PostPayslipInput, SavePayslipWithContributionsInput,
     },
@@ -525,9 +525,10 @@ impl LocalStore {
         Ok(json!({"deleted":true,"id":id}))
     }
 
+    #[cfg(test)]
     pub fn calculate_payroll_contributions(
         &self,
-        input: CalculatePayrollInput,
+        input: crate::models::CalculatePayrollInput,
     ) -> AppResult<Value> {
         let connection = self.connect()?;
         self.require_onboarding(&connection)?;
