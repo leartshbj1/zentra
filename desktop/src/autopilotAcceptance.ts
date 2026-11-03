@@ -1,5 +1,6 @@
 import type { AutopilotSender } from './autopilotReview';
 import type { Client, Invoice, Quote } from './types';
+import { quoteNamedInMail } from './autopilotQuoteMatch';
 
 /**
  * A client mail that accepts a quote, read by the server (30 days, FR/DE/IT/EN).
@@ -17,7 +18,8 @@ const sentQuote = (quote: Quote) => quote.status === 'issued' || quote.status ==
 
 /**
  * The quote this mail accepts: the one numbered as quoted in the mail, else the
- * latest sent quote of the client with that address that is not invoiced yet.
+ * client's open quote whose amount or date the mail gives, else the only sent
+ * quote of the client with that address that is not invoiced yet.
  * Exactly one match is used; none or several are left to the person.
  */
 export function matchAcceptance(acceptance: AutopilotAcceptance, quotes: readonly Quote[], clients: readonly Client[],
@@ -34,6 +36,8 @@ export function matchAcceptance(acceptance: AutopilotAcceptance, quotes: readonl
   const owners = new Set(address ? clients.filter(client => !client.archivedAt && email(client.email) === address).map(client => client.id) : []);
   const invoiced = new Set(invoices.filter(invoice => invoice.quoteId && invoice.status !== 'cancelled' && invoice.type !== 'credit_note').map(invoice => invoice.quoteId!));
   const open = live.filter(quote => owners.has(quote.clientId) && sentQuote(quote) && !invoiced.has(quote.id)).sort(newest);
+  const named = open.length > 1 ? quoteNamedInMail(acceptance, open) : null;
+  if (named) return { quote: named };
   if (open.length === 1) return { quote: open[0] };
   if (open.length > 1) return { candidates: open.slice(0, 20) };
   const others = live.filter(quote => sentQuote(quote) && !invoiced.has(quote.id)).sort(newest);

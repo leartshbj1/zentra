@@ -85,6 +85,12 @@ const items = [
   { proposalId: 'p4', sourceId: 's4', createdAt: at - 172800, disposition: 'needs_review' as const, reasons: ['low_confidence' as const], requiresHumanValidation: true as const },
   { proposalId: 'p5', sourceId: 's5', createdAt: at - 259200, disposition: 'needs_review' as const, reasons: ['low_confidence' as const], requiresHumanValidation: true as const },
 ];
+// ?catalogue: a request read with the catalogue, where one article stays to ask.
+if (query.has('catalogue')) items[0] = { proposalId: 'p1', sourceId: 's1', createdAt: at, disposition: 'needs_review' as const, reasons: ['low_confidence' as const], requiresHumanValidation: true as const,
+  suggestion: { customer: { kind: 'existing' as const, name: 'Morel Immobilier' }, currency: 'CHF' as const, netCents: 82000, unmatched: [], sender,
+    lines: [{ articleId: 'a-rad-900', description: 'Radiateur panneau 900 W', unit: 'pce', quantityMilli: 2000, unitPriceCents: 41000, taxRateBp: 810, netCents: 82000 }] },
+  ...(query.has('plain') ? {} : { clarification: { question: 'Pour la salle de bain, souhaitez-vous le sèche-serviettes blanc (500 W) ou chromé (750 W) ?',
+    notes: ['RAD-900 : 900 W demandé, pas 600 W', 'Sèche-serviettes : couleur et puissance non précisées'] } }) } as unknown as typeof items[0];
 const created: Record<string, AutopilotCreatedQuoteView> = {
   p3: { number: 'D-2026-004', issued: false, clientEmail: 'lac@example.invalid', clientName: 'Atelier du Lac' },
   p4: { number: 'D-2026-002', issued: true, clientEmail: 'b@example.invalid', clientName: 'Résidence Bellevue', sentAt: (at - 100000) * 1000, accepted: true },
@@ -176,6 +182,11 @@ const followUps: AutopilotActionCard[] = [
     actions: [{ id: 'inbox-quote', label: 'Créer le devis', primary: true }, { id: 'inbox-reject', label: 'Refuser' }] },
 ];
 const signals: AutopilotSignalCard[] = [
+  // ?newsignals: a change request and a client's reminder (apps from 1.90.67).
+  ...(query.has('newsignals') ? [
+    { sourceId: 'm7', receivedAt: at - 1800, title: 'Modification demandée', sender: 'Julie Favre', evidence: '« Concernant le devis D-2026-0042, pouvez-vous remplacer les radiateurs 600 W par des 900 W ? »', actionLabel: 'Ouvrir le devis D-2026-0042' },
+    { sourceId: 'm8', receivedAt: at - 5400, title: 'Relance du client', sender: 'Sylvie Bron', evidence: '« Avez-vous pu avancer sur mon devis pour les radiateurs ? »', actionLabel: 'Créer un suivi' },
+  ] : []),
   { sourceId: 'm1', receivedAt: query.has('before') ? at - 7200 : Math.floor(Date.now() / 1000) - 3000, title: 'Paiement annoncé', sender: 'Résidence Bellevue', evidence: '« Le virement de CHF 178.00 a été effectué ce matin. »', actionLabel: 'Enregistrer le paiement de CHF 178.00 sur F-2026-0012' },
   { sourceId: 'm2', receivedAt: at - 9000, title: 'Réclamation ou demande de suivi', sender: 'Alex Morel', evidence: '« La plinthe posée hier se décolle déjà. »', actionLabel: 'Créer un suivi' },
 ];

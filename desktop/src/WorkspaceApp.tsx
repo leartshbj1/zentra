@@ -1067,9 +1067,10 @@ function WorkspaceContent({
         candidates: proposal.candidates.map(invoice => ({ id: invoice.id, label: [invoice.number, money(invoiceOpenBalance(invoice, workspace.invoices, workspace.payments))].join(' · ') })) };
       if (proposal.action === 'credit_note') return { ...base, title: copy.signalComplaint.replace('{number}', proposal.invoice.number), actionLabel: copy.signalCreditAction };
       if (proposal.action === 'decline_quote') return { ...base, title: copy.signalDeclined, actionLabel: copy.signalDeclineAction.replace('{number}', proposal.quote.number) };
+      if (proposal.action === 'change_quote') return { ...base, title: copy.signalChange, actionLabel: copy.signalChangeAction.replace('{number}', proposal.quote.number) };
       if (proposal.action === 'open_purchase') return { ...base, title: copy.signalSupplier,
         actionLabel: proposal.supplierInvoice ? copy.signalReminderAction.replace('{number}', proposal.supplierInvoice.reference) : copy.signalPurchaseAction };
-      if (proposal.action === 'follow_up') return { ...base, title: copy.signalFollowUp, actionLabel: copy.signalFollowUpAction };
+      if (proposal.action === 'follow_up') return { ...base, title: signal.kind === 'customer_reminder' ? copy.signalCustomerReminder : copy.signalFollowUp, actionLabel: copy.signalFollowUpAction };
       return { ...base, title: signal.subject || copy.signalSupplier, actionLabel: null };
     });
   };
@@ -1189,6 +1190,11 @@ function WorkspaceContent({
       actionUndo.current = { kind: 'quote-status', quoteId: proposal.quote.id, status: proposal.quote.status };
       const declined = await journalAct(() => desktopApi.updateQuoteStatus(proposal.quote.id, 'refused'), copy.signalDeclinedDone.replace('{number}', proposal.quote.number), false);
       if (declined) done();
+      return;
+    }
+    if (proposal.action === 'change_quote') {
+      // The quote opens for editing; the change itself is the person's.
+      openAutopilotQuote(proposal.quote.id); done();
       return;
     }
     if (proposal.action === 'open_purchase') {
@@ -3096,9 +3102,20 @@ function WorkspaceContent({
   });
   const readAcceptancesRef = useRef(async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); });
   readAcceptancesRef.current = async () => { await readAcceptances(); await readMailSignals(); await readFollowUps(); };
+  /**
+   * Acceptances from the fixed phrases, plus those only the mail reading found
+   * (signals). The latter are never applied alone: their card waits for a click.
+   */
+  const readAcceptancesOnly = () => {
+    const known = new Set(acceptances.map(row => row.sourceId));
+    return mailSignals.filter(signal => signal.kind === 'quote_accepted' && !known.has(signal.sourceId)).map((signal): AutopilotAcceptance => Object.freeze({
+      sourceId: signal.sourceId, receivedAt: signal.receivedAt, quoteReference: signal.quoteReference, evidence: signal.evidence,
+      sender: signal.sender, requiresHumanValidation: true }));
+  };
+  const allAcceptances = () => [...acceptances, ...readAcceptancesOnly()];
   const chooseAcceptanceQuote = async (sourceId: string, quoteId: string | null) => {
     if (!autopilotContext || busy || modal || readOnly) return;
-    const organizationId = autopilotContext.organizationId, acceptance = acceptances.find(row => row.sourceId === sourceId);
+    const organizationId = autopilotContext.organizationId, acceptance = allAcceptances().find(row => row.sourceId === sourceId);
     if (!acceptance) return;
     if (quoteId === null) { saveAcceptanceDecision(organizationId, sourceId, { quoteId: null, state: 'dismissed' }); setAutopilotQuotesVersion(version => version + 1); return; }
     const quote = workspaceRef.current.quotes.find(row => row.id === quoteId);
@@ -3107,8 +3124,9 @@ function WorkspaceContent({
   const acceptanceCards = () => {
     if (!autopilotContext) return [];
     const decisions = acceptanceDecisions(autopilotContext.organizationId);
-    return acceptances.flatMap(acceptance => {
-      const decision = decisions[acceptance.sourceId];
+    const readOnlyMail = new Set(readAcceptancesOnly().map(row => row.sourceId));
+    return allAcceptances().flatMap(acceptance => {
+      const decision = decisions[acceptance.sourceId] ?? (readOnlyMail.has(acceptance.sourceId) ? { quoteId: null, state: 'choose' as const } : undefined);
       const sender = acceptance.sender?.company || acceptance.sender?.name || acceptance.sender?.email || '';
       const base = { key: acceptanceKey(acceptance.sourceId), sourceId: acceptance.sourceId, receivedAt: acceptance.receivedAt, evidence: acceptance.evidence, sender };
       if (decision?.state === 'choose') return [{ ...base, candidates: matchAcceptanceCandidates(acceptance) }];
@@ -4791,7 +4809,7 @@ function WorkspaceContent({
           {view !== 'dashboard' && view !== 'settings' && view !== 'automation' && view !== 'notes' && !activeProjectFolder && <AutomationTools key={view} screen={view} workspace={workspace} reveal={{open:automationToolsOpen,onClose:closeAutomationTools}} />}
           {debtDialog && <DebtCollectionDialog request={debtDialog.request} invoiceNumber={debtDialog.invoiceNumber} onClose={() => setDebtDialog(null)}
             onSaved={(next, path) => { workspaceRef.current = next; setWorkspace(next); setDebtDialog(null); setNotice({ tone: 'success', text: autopilotCopy(getAppLanguage()).debtSaved.replace('{path}', path) }); }} />}
-          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, behaviour: autopilotBehaviour, onBehaviour: readOnly ? undefined : setAutopilotBehaviour, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : (item, extras) => void createAutopilotQuote(item, extras), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: autopilotBehaviour.paused ? [] : acceptanceCards(), onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: autopilotBehaviour.paused ? [] : signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignalJournalled(sourceId, choiceId), journal: autopilotContext ? journalEntries(autopilotContext.organizationId).slice(0, 50) : [], journalVersion, onUndo: readOnly ? undefined : (entry: JournalEntry) => void undoJournal(entry), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = shownFollowUps(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUpJournalled(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
+          {view === 'automation' && <AutomationHub autopilot={{ ...autopilot, behaviour: autopilotBehaviour, onBehaviour: readOnly ? undefined : setAutopilotBehaviour, onOpenQuote: openAutopilotQuote, onCatalogue: openAutopilotCatalogue, canAddCatalogue: !readOnly && !busy, onCreateQuote: readOnly ? undefined : (item, extras) => void createAutopilotQuote(item, extras), createdQuote: autopilotQuoteOf, onOpenCreatedQuote: openAutopilotCreatedQuote, acceptances: autopilotBehaviour.paused ? [] : acceptanceCards(), companyName: workspace.settings?.organization.legalName ?? '', onChooseAcceptance: (sourceId: string, quoteId: string | null) => void chooseAcceptanceQuote(sourceId, quoteId), signals: autopilotBehaviour.paused ? [] : signalCards(), onSignal: readOnly ? undefined : (sourceId: string, choiceId?: string) => void runSignalJournalled(sourceId, choiceId), journal: autopilotContext ? journalEntries(autopilotContext.organizationId).slice(0, 50) : [], journalVersion, onUndo: readOnly ? undefined : (entry: JournalEntry) => void undoJournal(entry), onIgnoreSignal: ignoreSignal, onAsk: (text: string) => void askAutopilot(text), asking, askNotUnderstood, ...(() => { const followUps = shownFollowUps(); return { followUps: followUps.cards, followUpSummary: followUps.summary }; })(), onFollowUp: readOnly ? undefined : (key: string, actionId: string) => void runFollowUpJournalled(key, actionId), onCreateInvoice: readOnly ? undefined : item => void createAutopilotInvoice(item), onSendInvoice: readOnly ? undefined : sendAutopilotInvoice, onOpenInvoice: openAutopilotInvoice, onSendCreatedQuote: readOnly ? undefined : item => void sendAutopilotQuote(item), catalogueArticles: workspace.catalogItems.filter(row => !row.archivedAt).map(row => ({ id: row.id, name: row.name })),
             onChooseArticle: readOnly ? undefined : chooseAutopilotArticle,
             onCreateArticle: readOnly ? undefined : (item: AutopilotReviewItem, phrase: string) => openAutopilotCatalogue(item, 'create', phrase), catalogueNext }} appointments={appointmentInbox.state} appointmentsUnavailable={!!appointmentInbox.error} onOpenAppointment={openAutomationAppointment} onOpenInvoice={id=>{const invoice=workspaceRef.current.supplierInvoices.find(row=>row.id===id);if(invoice)setModal({type:'supplierInvoiceDetail',invoice});else setNotice({tone:'warning',text:t('Cette facture n’est pas disponible dans les données chargées sur cet appareil. Consultez les achats pour vérifier son état.')});}} appointmentPanel={<AppointmentInbox inbox={appointmentInbox} workspace={workspace} readOnly={readOnly} onOpenAppointment={openAutomationAppointment} onAgenda={()=>{setView('agenda');setSearch('');}}/>} inboxPanel={renderSupplierInbox(true)} key={companyAutomation.organizationId} workspace={workspace} page={automationPage} onPage={setAutomationPage} onNavigate={next => { setView(next); setSearch(''); if (next === 'settings') setSettingsFocusTarget('automation-account-target'); }} />}
           {view === 'quotes' || view === 'orders' || view === 'invoices' ? (

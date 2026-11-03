@@ -260,7 +260,7 @@ export function AutopilotReviews({ state, organizationId, onOpenSource, onNext, 
           const customer = item.suggestion?.customer?.name;
           const title = `${item.reasons.includes('missing_article') ? catalogue.title : copy.request}${customer ? ` · ${customer}` : ''}`;
           const sentence = quote ? (quote.issued ? copy.quoteDone.replace('{number}', quote.number) : `${copy.quoteDraftDone}. ${copy.sendQuoteHint}`)
-            : needsLinks ? copy.rowLink : canQuote ? copy.rowReady : copy.rowManual;
+            : needsLinks ? copy.rowLink : canQuote ? (item.clarification?.question ? copy.rowAsk : copy.rowReady) : copy.rowManual;
           return <li key={item.proposalId} data-state={quote ? 'created' : needsLinks ? 'link' : canQuote ? 'ready' : 'manual'}>
             <div className="quote-autopilot__row">
               <div className="quote-autopilot__row-text"><span className="quote-autopilot__kind">{copy.kindSales}</span><strong>{title}</strong><span>{sentence}</span></div>

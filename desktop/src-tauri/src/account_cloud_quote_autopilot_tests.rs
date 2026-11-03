@@ -124,6 +124,17 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
     lines["items"][0]["suggestion"]["unmatched"] = json!(["x".repeat(201)]);
     assert!(parse(&lines).unwrap()["items"][0].get("suggestion").is_none());
+    // details=5: the question for the client and short notes; a malformed one is dropped alone.
+    let mut asked = suggested.clone();
+    asked["items"][0]["clarification"] = json!({"question":"Quelle puissance souhaitez-vous ?","notes":["RAD-900 : 900 W demandé, pas 600 W"]});
+    assert_eq!(parse(&asked).unwrap()["items"][0]["clarification"]["notes"][0], json!("RAD-900 : 900 W demandé, pas 600 W"));
+    for bad in [json!({"question":null,"notes":[]}), json!({"question":"x".repeat(301),"notes":[]}), json!({"question":"Ok ?","notes":vec!["n"; 9]}),
+        json!({"question":"Ok ?","notes":[],"extra":1}), json!("question")] {
+        let mut wrong = suggested.clone(); wrong["items"][0]["clarification"] = bad;
+        let kept = parse(&wrong).unwrap();
+        assert!(kept["items"][0].get("clarification").is_none());
+        assert_eq!(kept["items"][0]["proposalId"], json!("proposal"));
+    }
     // details=4: the client asked for "the usual"; only a boolean is accepted.
     let mut usual = suggested.clone(); usual["items"][0]["usualRequested"] = json!(true);
     assert_eq!(parse(&usual).unwrap()["items"][0]["usualRequested"], json!(true));
@@ -167,6 +178,11 @@ fn review_pages_are_bounded_same_company_and_never_expose_decisions() {
     let page = json!({"schemaVersion":1,"organizationId":"org-synthetic","items":[signal.clone()]});
     assert_eq!(signals(page.clone()).unwrap()["items"][0]["amountCents"], json!(17800));
     let mut odd = page.clone(); odd["items"][0]["kind"] = json!("invented"); assert_eq!(signals(odd).unwrap()["items"], json!([]));
+    // A change request and a client reminder are read since 1.90.67.
+    for kind in ["quote_change", "customer_reminder"] {
+        let mut newer = page.clone(); newer["items"][0]["kind"] = json!(kind);
+        assert_eq!(signals(newer).unwrap()["items"][0]["kind"], json!(kind));
+    }
     let mut extra = page.clone(); extra["items"][0]["extra"] = json!(1); assert!(signals(extra).is_none());
     let mut version = page.clone(); version["schemaVersion"] = json!(2); assert!(signals(version).is_none());
     let mut other = page.clone(); other["organizationId"] = json!("org-other"); assert!(signals(other).is_none());

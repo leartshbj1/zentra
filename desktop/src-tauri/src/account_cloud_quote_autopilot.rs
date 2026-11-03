@@ -341,6 +341,23 @@ struct ReviewItem {
     // The client asked for "the usual" (details=4): the quote then takes their usual items.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     usual_requested: Option<bool>,
+    // What to ask the client and a short note per line (details=5). Kept raw
+    // and checked on its own: a malformed one only loses the hint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    clarification: Option<serde_json::Value>,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Clarification {
+    #[serde(deserialize_with = "required_nullable")]
+    question: Option<String>,
+    notes: Vec<String>,
+}
+fn clarification(value: serde_json::Value) -> Option<serde_json::Value> {
+    let found: Clarification = serde_json::from_value(value).ok()?;
+    (found.question.as_deref().is_none_or(|q| text(q, 300)) && found.notes.len() <= 8 && found.notes.iter().all(|n| text(n, 200))
+        && (found.question.is_some() || !found.notes.is_empty()))
+        .then(|| serde_json::to_value(found).ok()).flatten()
 }
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -493,7 +510,8 @@ impl CommandReading {
 }
 impl MailSignal {
     fn valid(&self) -> bool {
-        matches!(self.kind.as_str(), "quote_accepted" | "quote_declined" | "supplier_document" | "supplier_order" | "payment_announced" | "payment_promised" | "contact_update" | "follow_up")
+        matches!(self.kind.as_str(), "quote_accepted" | "quote_declined" | "supplier_document" | "supplier_order" | "payment_announced" | "payment_promised" | "contact_update" | "follow_up"
+            | "quote_change" | "customer_reminder")
             && id(&self.source_id) && timestamp(self.received_at) && self.requires_human_validation
             && self.subject.chars().count() <= 300 && !self.subject.chars().any(char::is_control)
             && text(&self.evidence, 1000)
@@ -596,6 +614,7 @@ fn parse_public(bytes: &[u8], path: &str, stamp: &ActionStamp, limit: usize) -> 
     for item in &mut data.items {
         if let Some(found) = item.suggestion.as_mut() { found.sender = found.sender.take().and_then(sender); }
         if item.suggestion.as_ref().is_some_and(|s| !s.valid()) { item.suggestion = None; }
+        item.clarification = item.clarification.take().and_then(clarification);
     }
     if data.organization_id != stamp.inbox.session.organization_id || data.items.len() > limit || !cursor(&data.next_cursor)
         || !unique(data.items.iter().map(|v| v.proposal_id.as_str())) || data.items.iter().any(|v| {
@@ -617,7 +636,7 @@ async fn read_at(store: &LocalStore, origin: &Origin, path: &'static str, page: 
     if let Some(page) = page {
         let mut query = url.query_pairs_mut(); query.append_pair("limit", &page.limit.to_string());
         if let Some(cursor) = page.cursor { query.append_pair("cursor", &cursor); }
-        if path == REVIEW_PATH { query.append_pair("details", "4"); }
+        if path == REVIEW_PATH { query.append_pair("details", "5"); }
     }
     let write = input.is_some();
     let body = match input.map(|v| serde_json::to_vec(&v)).transpose() {

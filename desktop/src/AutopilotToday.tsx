@@ -6,6 +6,7 @@ import { autopilotKind } from './autopilotKinds';
 import { doneToday, type JournalEntry } from './autopilotJournal';
 import { normalizeAutopilotReviewPage, type AutopilotReviewItem, type AutopilotRequestKey } from './autopilotReview';
 import { autopilotRequestStage } from './autopilotQuote';
+import { mailtoLink, missingInfoDraft } from './autopilotMissingInfo';
 import { AutopilotReviews, autopilotStatusText, type AutopilotAcceptanceCard, type AutopilotCreatedQuoteView } from './AutopilotPanel';
 import { AutopilotDoneList } from './AutopilotDoneList';
 import { AutopilotCommandBar } from './AutopilotCommandBar';
@@ -112,6 +113,8 @@ export type AutopilotTodayProps = {
   createdQuote?: (item: AutopilotRequestKey) => AutopilotCreatedQuoteView | null;
   onOpenCreatedQuote?: (item: AutopilotRequestKey) => void; onSendCreatedQuote?: (item: AutopilotRequestKey) => void;
   acceptances?: readonly AutopilotAcceptanceCard[]; onChooseAcceptance?: (sourceId: string, quoteId: string | null) => void;
+  /** Signs the reply that asks the client what is missing. */
+  companyName?: string;
   signals?: readonly AutopilotSignalCard[]; onSignal?: (sourceId: string, choiceId?: string) => void; onIgnoreSignal?: (sourceId: string) => void;
   followUps?: readonly AutopilotActionCard[]; onFollowUp?: (key: string, actionId: string) => void;
   journal?: readonly JournalEntry[]; onUndo?: (entry: JournalEntry) => void;
@@ -340,6 +343,15 @@ function Focus({ entry, props, say, onLater }: { entry: Entry; props: AutopilotT
             <tr className="autopilot-today__total"><td>{say('total')}</td><td>{formatMoney(net + vat, s.currency, props.language)}</td></tr>
           </tbody></table> : <p className="autopilot-today__quiet">{say('noLines')}</p>}
           {s?.unmatched?.length ? <p className="autopilot-today__note">{say('toLink', { n: s.unmatched.length })}</p> : null}
+          {item?.clarification?.question ? <div className="autopilot-today__note">
+            <strong>{common.askClient}</strong>
+            <p>{item.clarification.question}</p>
+            {sender?.email ? <a className="autopilot-today__ghost" href={mailtoLink(missingInfoDraft(item, props.language, props.companyName ?? ''))}>{common.askClientReply}<ArrowUpRight size={15} aria-hidden="true" /></a> : null}
+          </div> : null}
+          {item?.clarification?.notes.length ? <div className="autopilot-today__why">
+            <strong>{common.readNotes}</strong>
+            {item.clarification.notes.map((note, i) => <p key={i}>{note}</p>)}
+          </div> : null}
         </div>
       </div>}
       <div className="autopilot-today__card">

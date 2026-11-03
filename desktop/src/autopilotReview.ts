@@ -11,7 +11,21 @@ export type AutopilotReviewItem = Readonly<{
   usualRequested?: true;
   /** Draft prepared by Autopilote, to open in the ordinary quote form. Never saved by itself. */
   suggestion?: AutopilotReviewSuggestion;
+  /** What to ask the client, and a short note per line (reference and why). Read-only. */
+  clarification?: AutopilotClarification;
 }>;
+export type AutopilotClarification = Readonly<{ question: string | null; notes: readonly string[] }>;
+const clean = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && [...value].length <= max
+  && !/[\u0000-\u001f\u007f]/u.test(value);
+/** A malformed clarification is dropped; the review stays. */
+export function clarificationFrom(raw: unknown): AutopilotClarification | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const value = raw as Record<string, unknown>;
+  if (Object.keys(value).some(key => key !== 'question' && key !== 'notes') || !Array.isArray(value.notes) || value.notes.length > 8
+    || !(value.question === null || clean(value.question, 300)) || value.notes.some(note => !clean(note, 200))) return undefined;
+  if (value.question === null && !value.notes.length) return undefined;
+  return Object.freeze({ question: value.question as string | null, notes: Object.freeze([...value.notes as string[]]) });
+}
 export type AutopilotSuggestionLine = Readonly<{
   articleId: string; description: string; unit: string; quantityMilli: number;
   unitPriceCents: number; taxRateBp: number; netCents: number;
@@ -119,7 +133,7 @@ export function normalizeAutopilotReviewPage(raw: unknown, organizationId?: stri
     const rows = dataArray(page.items, 50); if (!rows) return null;
     const items: AutopilotReviewItem[] = [], proposals = new Map<string, string>(), sources = new Map<string, string>();
     for (const rawItem of rows) {
-      const item = dataRecord(rawItem, ['proposalId', 'sourceId', 'createdAt', 'disposition', 'reasons', 'requiresHumanValidation'], ['usualRequested', 'suggestion']);
+      const item = dataRecord(rawItem, ['proposalId', 'sourceId', 'createdAt', 'disposition', 'reasons', 'requiresHumanValidation'], ['usualRequested', 'suggestion', 'clarification']);
       if (item && 'usualRequested' in item && typeof item.usualRequested !== 'boolean') return null;
       if (!item || !identifier(item.proposalId) || !identifier(item.sourceId) || item.disposition !== 'needs_review'
         || item.requiresHumanValidation !== true || typeof item.createdAt !== 'number' || !Number.isSafeInteger(item.createdAt)
@@ -130,7 +144,8 @@ export function normalizeAutopilotReviewPage(raw: unknown, organizationId?: stri
       const captured: AutopilotReviewItem = Object.freeze({ proposalId: item.proposalId, sourceId: item.sourceId,
         createdAt: item.createdAt, disposition: 'needs_review', reasons: Object.freeze(reasons as AutopilotReviewReason[]), requiresHumanValidation: true,
         ...(item.usualRequested === true ? { usualRequested: true as const } : {}),
-        ...('suggestion' in item && suggestionFrom(item.suggestion) ? { suggestion: suggestionFrom(item.suggestion) } : {}) });
+        ...('suggestion' in item && suggestionFrom(item.suggestion) ? { suggestion: suggestionFrom(item.suggestion) } : {}),
+        ...('clarification' in item && clarificationFrom(item.clarification) ? { clarification: clarificationFrom(item.clarification) } : {}) });
       const serialized = JSON.stringify(captured);
       if (proposals.has(captured.proposalId) && proposals.get(captured.proposalId) !== serialized
         || sources.has(captured.sourceId) && sources.get(captured.sourceId) !== captured.proposalId) return null;

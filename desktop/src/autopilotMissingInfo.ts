@@ -12,14 +12,14 @@ export function askKey(proposalId: string) { return 'ask:' + proposalId; }
 
 /** Requests whose reasons say information is missing, with an address to answer to. */
 export function requestsMissingInfo(items: readonly AutopilotReviewItem[]) {
-  return items.filter(item => item.reasons.some(reason => MISSING.has(reason)) && !!item.suggestion?.sender?.email);
+  return items.filter(item => (item.reasons.some(reason => MISSING.has(reason)) || !!item.clarification?.question) && !!item.suggestion?.sender?.email);
 }
 
 const COPY = {
-  fr: { subject: 'Votre demande de devis', hello: 'Bonjour{name},', thanks: 'Merci pour votre demande. Pour vous envoyer un devis exact, pourriez-vous nous préciser :', quantity: 'la quantité souhaitée pour : {item}', article: 'le modèle ou la référence exacte pour : {item}', generic: 'les quantités et les articles souhaités', address: 'l’adresse du chantier ou de livraison', date: 'le délai souhaité', end: 'Avec nos meilleures salutations' },
-  de: { subject: 'Ihre Offertanfrage', hello: 'Guten Tag{name}', thanks: 'Vielen Dank für Ihre Anfrage. Damit wir Ihnen eine genaue Offerte senden können, teilen Sie uns bitte mit:', quantity: 'die gewünschte Menge für: {item}', article: 'das genaue Modell oder die Referenz für: {item}', generic: 'die gewünschten Mengen und Artikel', address: 'die Adresse der Baustelle oder Lieferung', date: 'den gewünschten Termin', end: 'Freundliche Grüsse' },
-  it: { subject: 'La sua richiesta di preventivo', hello: 'Buongiorno{name},', thanks: 'Grazie per la sua richiesta. Per inviarle un preventivo esatto, potrebbe indicarci:', quantity: 'la quantità desiderata per: {item}', article: 'il modello o il riferimento esatto per: {item}', generic: 'le quantità e gli articoli desiderati', address: 'l’indirizzo del cantiere o di consegna', date: 'il termine desiderato', end: 'Cordiali saluti' },
-  en: { subject: 'Your quote request', hello: 'Hello{name},', thanks: 'Thank you for your request. To send you an exact quote, could you tell us:', quantity: 'the quantity you need for: {item}', article: 'the exact model or reference for: {item}', generic: 'the quantities and items you need', address: 'the site or delivery address', date: 'the date you would like', end: 'Kind regards' },
+  fr: { subject: 'Votre demande de devis', hello: 'Bonjour{name},', asked: 'Merci pour votre demande. Pour vous envoyer un devis exact :', thanks: 'Merci pour votre demande. Pour vous envoyer un devis exact, pourriez-vous nous préciser :', quantity: 'la quantité souhaitée pour : {item}', article: 'le modèle ou la référence exacte pour : {item}', generic: 'les quantités et les articles souhaités', address: 'l’adresse du chantier ou de livraison', date: 'le délai souhaité', end: 'Avec nos meilleures salutations' },
+  de: { subject: 'Ihre Offertanfrage', hello: 'Guten Tag{name}', asked: 'Vielen Dank für Ihre Anfrage. Damit wir Ihnen eine genaue Offerte senden können:', thanks: 'Vielen Dank für Ihre Anfrage. Damit wir Ihnen eine genaue Offerte senden können, teilen Sie uns bitte mit:', quantity: 'die gewünschte Menge für: {item}', article: 'das genaue Modell oder die Referenz für: {item}', generic: 'die gewünschten Mengen und Artikel', address: 'die Adresse der Baustelle oder Lieferung', date: 'den gewünschten Termin', end: 'Freundliche Grüsse' },
+  it: { subject: 'La sua richiesta di preventivo', hello: 'Buongiorno{name},', asked: 'Grazie per la sua richiesta. Per inviarle un preventivo esatto:', thanks: 'Grazie per la sua richiesta. Per inviarle un preventivo esatto, potrebbe indicarci:', quantity: 'la quantità desiderata per: {item}', article: 'il modello o il riferimento esatto per: {item}', generic: 'le quantità e gli articoli desiderati', address: 'l’indirizzo del cantiere o di consegna', date: 'il termine desiderato', end: 'Cordiali saluti' },
+  en: { subject: 'Your quote request', hello: 'Hello{name},', asked: 'Thank you for your request. To send you an exact quote:', thanks: 'Thank you for your request. To send you an exact quote, could you tell us:', quantity: 'the quantity you need for: {item}', article: 'the exact model or reference for: {item}', generic: 'the quantities and items you need', address: 'the site or delivery address', date: 'the date you would like', end: 'Kind regards' },
 };
 
 /** The reply draft, written from the request's missing parts only. */
@@ -34,6 +34,10 @@ export function missingInfoDraft(item: AutopilotReviewItem, language: string, co
   if (!sender?.street) asks.push(copy.address);
   asks.push(copy.date);
   const name = sender?.name ? ` ${sender.name}` : '';
+  // The question read with the catalogue already says exactly what is missing.
+  const question = item.clarification?.question;
+  if (question) return { to: sender?.email ?? '', subject: copy.subject,
+    body: [copy.hello.replace('{name}', name), '', copy.asked, question, '', copy.end, company].join('\n') };
   const body = [copy.hello.replace('{name}', name), '', copy.thanks, ...asks.map(line => `- ${line}`), '', copy.end, company].filter(line => line !== undefined).join('\n');
   return { to: sender?.email ?? '', subject: copy.subject, body };
 }

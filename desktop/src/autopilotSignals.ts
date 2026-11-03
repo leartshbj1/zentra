@@ -1,20 +1,23 @@
 import type { AutopilotSender } from './autopilotReview';
 import type { Client, Invoice, Payment, Quote, Supplier, SupplierInvoice } from './types';
 import { invoiceOpenBalance } from './utils';
+import { quoteNamedInMail } from './autopilotQuoteMatch';
 
 /**
  * What a client or supplier mail means, read by the server (30 days, at most 50).
  * Amounts and numbers are copied from the mail. Nothing runs from a signal:
  * the app finds the local object and proposes one action that a person clicks.
  */
-export type MailSignalKind = 'quote_accepted' | 'quote_declined' | 'supplier_document' | 'supplier_order' | 'payment_announced' | 'payment_promised' | 'contact_update' | 'follow_up';
+export type MailSignalKind = 'quote_accepted' | 'quote_declined' | 'supplier_document' | 'supplier_order' | 'payment_announced' | 'payment_promised' | 'contact_update' | 'follow_up'
+  | 'quote_change' | 'customer_reminder';
 export type MailSignal = Readonly<{
   kind: MailSignalKind; sourceId: string; receivedAt: number; subject: string; evidence: string;
   quoteReference: string | null; invoiceReference: string | null; amountCents: number | null; currency: 'CHF' | 'EUR' | null;
   documentType: 'supplier_invoice' | 'payment_reminder' | 'credit_note' | 'receipt' | null;
   sender: AutopilotSender | null; requiresHumanValidation: true;
 }>;
-const KINDS: readonly MailSignalKind[] = ['quote_accepted', 'quote_declined', 'supplier_document', 'supplier_order', 'payment_announced', 'payment_promised', 'contact_update', 'follow_up'];
+const KINDS: readonly MailSignalKind[] = ['quote_accepted', 'quote_declined', 'supplier_document', 'supplier_order', 'payment_announced', 'payment_promised', 'contact_update', 'follow_up',
+  'quote_change', 'customer_reminder'];
 const DOCUMENTS = ['supplier_invoice', 'payment_reminder', 'credit_note', 'receipt'];
 const short = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && [...value].length <= max;
 
@@ -52,6 +55,8 @@ export type SignalProposal =
   | Readonly<{ action: 'record_payment'; invoice: Invoice; amountCents: number }>
   | Readonly<{ action: 'choose_invoice'; candidates: readonly Invoice[] }>
   | Readonly<{ action: 'decline_quote'; quote: Quote }>
+  /** The client asks to change a sent quote: it opens for editing. */
+  | Readonly<{ action: 'change_quote'; quote: Quote }>
   | Readonly<{ action: 'open_purchase'; supplier: Supplier | null; supplierInvoice: SupplierInvoice | null }>
   | Readonly<{ action: 'follow_up'; client: Client | null }>
   /** Réclamation qui cite une facture émise : l'avoir se prépare depuis la correction de facture. */
@@ -86,6 +91,15 @@ export function proposeForSignal(signal: MailSignal, data: Readonly<{ invoices: 
     const latest = live.filter(quote => owners.has(quote.clientId)).sort((a, b) => (b.issueDate + b.createdAt).localeCompare(a.issueDate + a.createdAt))[0];
     return latest ? { action: 'decline_quote', quote: latest } : { action: 'none' };
   }
+  if (signal.kind === 'quote_change') {
+    const owners = new Set(senderClients(signal.sender, data.clients).map(client => client.id));
+    const live = data.quotes.filter(quote => quote.status === 'issued' || quote.status === 'draft');
+    const theirs = live.filter(quote => owners.has(quote.clientId)).sort((a, b) => (b.issueDate + b.createdAt).localeCompare(a.issueDate + a.createdAt));
+    // The number written anywhere, then the client's quote by amount or date, then their latest.
+    const quote = quoteNamedInMail(signal, live) ?? quoteNamedInMail({ ...signal, quoteReference: null }, theirs) ?? theirs[0];
+    return quote ? { action: 'change_quote', quote } : { action: 'follow_up', client: senderClients(signal.sender, data.clients)[0] ?? null };
+  }
+  if (signal.kind === 'customer_reminder') return { action: 'follow_up', client: senderClients(signal.sender, data.clients)[0] ?? null };
   if (signal.kind === 'supplier_document') {
     const email = lower(signal.sender?.email), company = lower(signal.sender?.company);
     const active = data.suppliers.filter(supplier => !supplier.archivedAt);

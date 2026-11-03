@@ -48,6 +48,8 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
     onOpenCreatedQuote?: (item: AutopilotRequestKey) => void;
     onSendCreatedQuote?: (item: AutopilotRequestKey) => void;
     acceptances?: readonly AutopilotAcceptanceCard[];
+    /** Signs the reply drafts. */
+    companyName?: string;
     signals?: readonly AutopilotSignalCard[];
     onSignal?: (sourceId: string, choiceId?: string) => void;
     onIgnoreSignal?: (sourceId: string) => void;
@@ -131,7 +133,7 @@ export function AutomationHub({ workspace, page, onPage, onNavigate, inboxPanel,
       <AutopilotToday language={language} organizationId={state.organizationId} observation={readiness === 'observation'} activity={state.activity} onOpen={open} onSettings={() => onPage('settings')}
         onOpenSource={openSourceMessage} state={autopilot?.state ?? null} onNextReviews={autopilot?.onNextReviews} onRefresh={autopilot?.onRefresh}
         onCatalogue={autopilot?.onCatalogue} canAddCatalogue={autopilot?.canAddCatalogue} onCreateQuote={autopilot?.onCreateQuote} createdQuote={autopilot?.createdQuote}
-        onOpenCreatedQuote={autopilot?.onOpenCreatedQuote} onSendCreatedQuote={autopilot?.onSendCreatedQuote} acceptances={autopilot?.acceptances} onChooseAcceptance={autopilot?.onChooseAcceptance}
+        onOpenCreatedQuote={autopilot?.onOpenCreatedQuote} onSendCreatedQuote={autopilot?.onSendCreatedQuote} acceptances={autopilot?.acceptances} onChooseAcceptance={autopilot?.onChooseAcceptance} companyName={autopilot?.companyName}
         signals={autopilot?.signals} onSignal={autopilot?.onSignal} onIgnoreSignal={autopilot?.onIgnoreSignal} followUps={autopilot?.followUps} onFollowUp={autopilot?.onFollowUp}
         journal={autopilot?.journal} onUndo={autopilot?.onUndo} onAsk={autopilot?.onAsk} asking={autopilot?.asking} askNotUnderstood={autopilot?.askNotUnderstood}
         onCreateInvoice={autopilot?.onCreateInvoice} onSendInvoice={autopilot?.onSendInvoice} onOpenInvoice={autopilot?.onOpenInvoice}
